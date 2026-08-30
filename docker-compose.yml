@@ -25,11 +25,14 @@ x-signals-env: &signals-env
   # Signals' own database (signals-db below) - required even with SIGNALS_ENABLED=false, since transactional mail still
   # records sends into email_sends, which lives here
   SIGNALS_DB_URL: "postgres://skelet:skelet@signals-db:5432/skelet_signals?sslmode=disable"
-  # Spine engine: empty = Postgres (default) - to run the columnar engine:
-  # SIGNALS_ENGINE=clickhouse SIGNALS_CH_URL=clickhouse://skelet:skelet@clickhouse:9000/signals \
-  #   docker compose --profile clickhouse up
+  # Spine engine: empty = Postgres (default) - SIGNALS_ENGINE=clickhouse switches to the columnar
+  # one, and bin/_lib turns the clickhouse profile on from that same value
+  #
+  # The URL derives from the bundled container the way DATABASE_URL and SIGNALS_DB_URL do, because
+  # setting the engine without it leaves the backend refusing to boot on an empty DSN - override it
+  # to point the spine at a managed ClickHouse instead
   SIGNALS_ENGINE: "${SIGNALS_ENGINE:-}"
-  SIGNALS_CH_URL: "${SIGNALS_CH_URL:-}"
+  SIGNALS_CH_URL: "${SIGNALS_CH_URL:-clickhouse://skelet:skelet@clickhouse:9000/signals}"
   SIGNALS_QUEUE_URL: "${SIGNALS_QUEUE_URL:-}"
 
 services:

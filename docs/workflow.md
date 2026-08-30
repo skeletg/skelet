@@ -173,7 +173,8 @@ found in a template first:
 
 | Question | Writes |
 | --- | --- |
-| Which apps | `.skelet-apps`, plus sparse-checkout of the rest |
+| Which apps | `SKELET_APPS_SELECTED` in the profile, plus sparse-checkout of the rest |
+| Where the frontends run | `.skelet-apps` - empty means the host, which is the default |
 | Deployment target - dev / small / prod | materializes only that target's env files |
 | Suites - Signals, B2B, AI | `SIGNALS_ENABLED` / `B2B_ENABLED` / `AI_ENABLED` |
 | Search tier, analytics spine | `OPENSEARCH_URL`, `SIGNALS_ENGINE` in the root `.env` |
@@ -196,10 +197,16 @@ frontend can run headless. Deselected apps are removed from your working tree vi
 `git sparse-checkout` - they stay in history, and `--keep-code` keeps the source
 without running it.
 
-Non-interactive variants: `bin/setup --all`, `--backend-only`, or `bin/setup
---apps dashboard,vetrina-demo` (comma list). The choice is saved per-clone in
-`.skelet-apps` (git-ignored); re-run `bin/setup --apps ...` then `bin/down &&
-bin/dev` to change it. Selecting an app again restores its source and containers.
+Where they run is a second, independent answer, and the default is the host - there
+the dev server and the gates share one `node_modules`, so a lint run checks the tree
+vite is actually serving. `.skelet-apps` lists only the ones you asked to containerize,
+so an empty file means every frontend runs on the host with `./skelet serve <app>`.
+
+Non-interactive variants: `bin/setup --all`, `--backend-only`, or `bin/setup --apps
+dashboard,vetrina-demo` (comma list), with `--docker-apps LIST|none` for the placement.
+Both answers are saved per-clone in the git-ignored `.skelet-profile`; re-run
+`bin/setup --apps ...` then `bin/down && bin/dev` to change them. Selecting an app
+again restores its source.
 
 For the smallest possible backend-only clone, skipping even the *download* of the
 frontends' file history:
