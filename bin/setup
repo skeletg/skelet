@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Guided first-run, safe to re-run - answers become env files, secrets and a plugin set
-# Flags: --all | --backend-only | --apps LIST|none | --keep-code | --yes | --profile FILE
+# Flags: --all | --backend-only | --apps LIST|none | --docker-apps LIST|none | --keep-code | --yes | --profile FILE
 set -e
 cd "$(dirname "$(dirname "$0")")"
 
@@ -45,6 +45,11 @@ valid_app() {
 
 apps=""
 apps_set=0
+# Which of the selected apps run in a container. Empty means all of them run on the host, which
+# is the default: there the dev server and the gates share one node_modules, so `bin/dash run
+# lint` checks the tree vite is actually serving. In Docker those are two trees that drift apart
+docker_apps=""
+docker_apps_set=0
 keep_code=0
 assume_yes=0
 while [ $# -gt 0 ]; do
@@ -59,6 +64,14 @@ while [ $# -gt 0 ]; do
                 valid_app "$a" || { echo "Unknown app \"$a\" (valid: ${all_apps//,/, }, none)"; exit 2; }
             done
             apps_set=1 ;;
+        --docker-apps)
+            shift
+            [ -n "${1:-}" ] || { echo "--docker-apps needs a value (e.g. ${all_apps} or none)"; exit 2; }
+            docker_apps="$1"; [ "$docker_apps" = "none" ] && docker_apps=""
+            for a in ${docker_apps//,/ }; do
+                valid_app "$a" || { echo "Unknown app \"$a\" (valid: ${all_apps//,/, }, none)"; exit 2; }
+            done
+            docker_apps_set=1 ;;
         --keep-code) keep_code=1 ;;
         --yes|-y)    assume_yes=1 ;;
         --profile)
@@ -66,7 +79,7 @@ while [ $# -gt 0 ]; do
             [ -n "${1:-}" ] || { echo "--profile needs a file"; exit 2; }
             [ -f "$1" ] || { echo "No such profile: $1"; exit 2; }
             PROFILE="$1"; assume_yes=1 ;;
-        *) echo "Unknown flag: $1 (try --all, --backend-only, --apps LIST, --keep-code, --yes, --profile FILE)"; exit 2 ;;
+        *) echo "Unknown flag: $1 (try --all, --backend-only, --apps LIST, --docker-apps LIST, --keep-code, --yes, --profile FILE)"; exit 2 ;;
     esac
     shift
 done
@@ -145,10 +158,10 @@ del_env() { # del_env FILE KEY - drop the line entirely, for knobs whose default
 prompted=0
 kept_existing=0
 if [ "$apps_set" = 0 ]; then
-    if [ -f .skelet-apps ]; then
-        apps="$(tr -d '[:space:]' < .skelet-apps)"
+    if [ -n "${SKELET_APPS_SELECTED+x}" ]; then
+        apps="$SKELET_APPS_SELECTED"
         kept_existing=1
-        echo "==> App selection: ${apps:-backend only} (from .skelet-apps; change with bin/setup --apps ...)"
+        echo "==> App selection: ${apps:-backend only} (from $PROFILE; change with bin/setup --apps ...)"
     elif [ "$interactive" = 1 ]; then
         prompted=1
         echo "==> Which apps should this clone run?"
@@ -166,8 +179,28 @@ if [ "$apps_set" = 0 ]; then
     fi
 fi
 
-printf '%s\n' "$apps" > .skelet-apps
-echo "==> Apps: ${apps:-backend only}  (saved to .skelet-apps)"
+# WHERE they run is a separate question from WHETHER you have them, and the default is the host
+if [ "$docker_apps_set" = 0 ] && [ -n "$apps" ]; then
+    if [ -n "${SKELET_DOCKER_APPS+x}" ]; then
+        docker_apps="$SKELET_DOCKER_APPS"
+    elif [ "$interactive" = 1 ]; then
+        echo "==> Where should the frontends run?"
+        echo "    On the host the dev server and the gates share one node_modules, so"
+        echo "    a lint run checks the same tree the dev server is serving. In Docker"
+        echo "    they are two separate trees, but you need no Node installed."
+        ask_yn "    Run them in Docker instead of on the host?" n && docker_apps="$apps"
+    fi
+fi
+# Only apps you actually selected, so --docker-apps can't containerize one that isn't here
+kept=""
+for a in ${docker_apps//,/ }; do
+    case ",$apps," in *,"$a",*) kept="${kept:+$kept,}$a" ;; esac
+done
+docker_apps="$kept"
+
+printf '%s\n' "$docker_apps" > .skelet-apps
+echo "==> Apps: ${apps:-backend only}"
+echo "    in Docker: ${docker_apps:-none - they run on the host with \`./skelet serve <app>\`}  (saved to .skelet-apps)"
 
 # Deselected apps get sparse-checkout'd out of the working tree too - the
 # code stays in history and comes back if you re-select
@@ -253,6 +286,8 @@ SKELET_SEARCH=$SKELET_SEARCH
 SKELET_SPINE=$SKELET_SPINE
 SKELET_GATEWAYS=$SKELET_GATEWAYS
 SKELET_ADMIN_SLUG=$SKELET_ADMIN_SLUG
+SKELET_APPS_SELECTED=$apps
+SKELET_DOCKER_APPS=$docker_apps
 EOF
 echo "==> Profile: $SKELET_TARGET, signals=$SKELET_SIGNALS b2b=$SKELET_B2B ai=$SKELET_AI, search=$SKELET_SEARCH  (saved to $PROFILE)"
 
@@ -467,14 +502,38 @@ if [ "$regen_plugins" = 1 ]; then
     bin/codegen || echo "    codegen failed - run bin/codegen once the stack is warm"
 fi
 
-case ",$apps," in *,dashboard,*)
-    echo "==> Installing dashboard dependencies..."
-    if [ -d apps/dashboard/node_modules ]; then
-        echo "    apps/dashboard/node_modules exists, skipping"
-    else
-        bin/dash install
+# POPULATED, not merely present - the containers started above mount a named volume at
+# node_modules, and because the parent is a bind mount that leaves an EMPTY directory on the
+# host. Testing -d here would see the directory this script just caused and skip its own install
+needs_install() { [ -z "$(ls -A "$1/node_modules" 2>/dev/null)" ]; }
+
+# Into whichever tree the app will actually run from - a host app installed into the container's
+# volume, or the reverse, looks like the install did nothing at all
+install_app() { # install_app DIR NAME
+    local dir="$1" name="$2"
+    echo "==> Installing $name dependencies..."
+    if ! needs_install "$dir"; then
+        echo "    $dir/node_modules is populated, skipping"
+        return
     fi
-;; esac
+    case ",$docker_apps," in
+        *,"$name",*)
+            if [ "$name" = dashboard ]; then bin/dash install; else bin/channel "$name" install; fi ;;
+        *)
+            if command -v npm >/dev/null 2>&1; then
+                (cd "$dir" && npm ci)
+            else
+                echo "    no npm on PATH - install Node, or re-run with --docker-apps $name" >&2
+            fi ;;
+    esac
+}
+
+case ",$apps," in *,dashboard,*) install_app apps/dashboard dashboard ;; esac
+for sf in apps/channels/*/package.json; do
+    [ -f "$sf" ] || continue
+    name="$(basename "$(dirname "$sf")")"
+    case ",$apps," in *,"$name",*) install_app "apps/channels/$name" "$name" ;; esac
+done
 
 echo "==> Setup complete."
 echo
@@ -497,6 +556,16 @@ for n in "${storefronts[@]}"; do
     port="$(docker compose port "$n" 3000 2>/dev/null | sed 's/.*://')"
     printf '  %-23s http://localhost:%s\n' "Storefront $n" "${port:-3000}"
 done
+# A host app is not started by bin/dev, so the ports above only answer once you run it
+host_apps=""
+for a in ${apps//,/ }; do
+    case ",$docker_apps," in *,"$a",*) ;; *) host_apps="${host_apps:+$host_apps }$a" ;; esac
+done
+if [ -n "$host_apps" ]; then
+    echo
+    echo "These run on the host, so bin/dev does not start them:"
+    for a in $host_apps; do echo "  ./skelet serve $a"; done
+fi
 echo "  Mailpit (caught email)  http://localhost:8025"
 if [ -z "$apps" ]; then
     echo
