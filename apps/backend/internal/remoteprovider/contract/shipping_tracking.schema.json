@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "shipping.remoteTrackEvent": {
+      "properties": {
+        "location": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "time": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "location",
+        "status",
+        "time"
+      ],
+      "title": "shipping.remoteTrackEvent",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Report carrier tracking status for a shipment.",
+  "properties": {
+    "request": {
+      "properties": {
+        "carrierSlug": {
+          "type": "string"
+        },
+        "trackingNumber": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "carrierSlug",
+        "trackingNumber"
+      ],
+      "title": "remoteTrackRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "events": {
+          "items": {
+            "$ref": "#/$defs/shipping.remoteTrackEvent"
+          },
+          "type": "array"
+        },
+        "status": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "events",
+        "status",
+        "url"
+      ],
+      "title": "remoteTrackResponse",
+      "type": "object"
+    }
+  },
+  "title": "shipping_tracking",
+  "x-kind": "shipping_tracking",
+  "x-source": "internal/shipping.remoteTrackRequest -\u003e internal/shipping.remoteTrackResponse"
+}

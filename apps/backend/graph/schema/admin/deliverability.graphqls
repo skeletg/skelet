@@ -1,0 +1,31 @@
+# Email deliverability: the suppression list. Addresses here never receive
+# marketing mail (bounces, spam complaints, manual blocks). Distinct from
+# consent (per-customer opt-in) - suppression is address-level and protects
+# sender reputation. Gated on emails.view / emails.manage.
+
+type EmailSuppression {
+  id:          ID!
+  email:       String!
+  reason:      String!   # hard_bounce | soft_bounce | complaint | manual | unsubscribe
+  detail:      String!
+  softBounces: Int!
+  createdAt:   Time!
+  updatedAt:   Time!
+}
+
+type EmailSuppressionPage {
+  items:      [EmailSuppression!]!
+  totalCount: Int!
+}
+
+extend type Query {
+  # The suppression list, newest first. reason '' = all. Gated emails.view.
+  emailSuppressions(reason: String, limit: Int, offset: Int): EmailSuppressionPage!
+}
+
+extend type Mutation {
+  # Manually suppress an address (reason recorded as 'manual'). Gated emails.manage.
+  suppressEmail(email: String!, note: String): Boolean!
+  # Remove an address from the suppression list (recovered / added in error).
+  unsuppressEmail(email: String!): Boolean!
+}

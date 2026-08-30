@@ -1,0 +1,282 @@
+fragment OrderAddressFields on OrderAddress {
+  firstName
+  lastName
+  company
+  street1
+  street2
+  city
+  state
+  postalCode
+  countryCode
+  phone
+}
+
+fragment OrderSummaryFields on Order {
+  id
+  number
+  status
+  paymentStatus
+  paymentProvider
+  paymentInstructions
+  subtotal
+  shippingAmount
+  discountAmount
+  taxAmount
+  total
+  # Tenders. These don't reduce `total` (they're payment, not discount) -
+  # amountDue is what's left owing after them, and the receipt has to show
+  # all three or a customer who paid with credit sees only the gross total.
+  giftCardAmount
+  storeCreditAmount
+  amountDue
+  currencyCode
+  customerNote
+  carrier
+  trackingNumber
+  trackingUrl
+  createdAt
+  billingAddress {
+    ...OrderAddressFields
+  }
+  shippingAddress {
+    ...OrderAddressFields
+  }
+  lines {
+    id
+    productName
+    productSku
+    unitPrice
+    quantity
+    totalPrice
+    options {
+      id
+      optionTitle
+      valueLabel
+      textValue
+      priceDelta
+      quantity
+      fileUrl
+    }
+  }
+}
+
+query ShippingQuotes($countryCode: String!) {
+  shippingQuotes(countryCode: $countryCode) {
+    carrierSlug
+    carrierName
+    code
+    name
+    priceCents
+  }
+}
+
+query PaymentMethods($countryCode: String!) {
+  paymentMethods(countryCode: $countryCode) {
+    providerSlug
+    displayName
+    sortOrder
+    instructions
+  }
+}
+
+query MyOrders {
+  myOrders {
+    id
+    number
+    status
+    paymentStatus
+    total
+    currencyCode
+    createdAt
+    # Lines kept off the list view; detail page hydrates them. Keeps
+    # the orders page snappy when a customer has hundreds of orders.
+  }
+}
+
+query MyOrder($id: ID!) {
+  myOrder(id: $id) {
+    ...OrderSummaryFields
+    events {
+      id
+      type
+      message
+      createdAt
+    }
+    # Per-line returnable remainder; non-empty only once shipped. Drives the
+    # self-service return form (caps each line at its quantity).
+    returnableLines {
+      orderLineId
+      quantity
+    }
+    # The customer's return requests against this order + their status.
+    returns {
+      id
+      rmaNumber
+      status
+      reason
+      refundTarget
+      refundAmount
+      createdAt
+      lines {
+        id
+        orderLineId
+        quantity
+        reason
+      }
+    }
+  }
+}
+
+mutation Reorder($orderId: ID!) {
+  reorder(orderId: $orderId) {
+    added
+    skipped {
+      productName
+      productSku
+      reason
+    }
+    cart {
+      id
+    }
+  }
+}
+
+mutation RequestReturn($input: RequestReturnInput!) {
+  requestReturn(input: $input) {
+    id
+    rmaNumber
+    status
+  }
+}
+
+mutation AddAddress($input: AddressInput!) {
+  addAddress(input: $input) {
+    id
+    firstName
+    lastName
+    company
+    street1
+    street2
+    city
+    state
+    postalCode
+    countryCode
+    phone
+  }
+}
+
+mutation PlaceOrder(
+  $email: String!
+  $cartId: ID
+  $customerNote: String
+  $shippingCarrierSlug: String
+  $shippingMethodCode: String
+  $paymentProviderSlug: String
+  $paymentToken: String
+  $billingAddressId: ID
+  $shippingAddressId: ID
+  $billingAddress: AddressInput
+  $shippingAddress: AddressInput
+  $giftCardCodes: [String!]
+  $useStoreCredit: Boolean
+  $savedPaymentMethodId: ID
+) {
+  placeOrder(
+    email: $email
+    cartId: $cartId
+    customerNote: $customerNote
+    shippingCarrierSlug: $shippingCarrierSlug
+    shippingMethodCode: $shippingMethodCode
+    paymentProviderSlug: $paymentProviderSlug
+    paymentToken: $paymentToken
+    billingAddressId: $billingAddressId
+    shippingAddressId: $shippingAddressId
+    billingAddress: $billingAddress
+    shippingAddress: $shippingAddress
+    giftCardCodes: $giftCardCodes
+    useStoreCredit: $useStoreCredit
+    savedPaymentMethodId: $savedPaymentMethodId
+  ) {
+    id
+    number
+    total
+    giftCardAmount
+    storeCreditAmount
+    amountDue
+    paymentClientSecret
+  }
+}
+
+# After the customer completes a client-side 3DS challenge, verifies the
+# authorization with the gateway and records it. Idempotent.
+mutation FinalizeOrderPayment($orderId: ID!) {
+  finalizeOrderPayment(orderId: $orderId)
+}
+
+# Balance check for the /gift-card page. Rate-limited per IP server-side.
+query GiftCardBalance($code: String!) {
+  giftCardBalance(code: $code) {
+    balanceCents
+    currencyCode
+    active
+  }
+}
+
+query GuestOrder($id: ID!, $email: String!) {
+  guestOrder(id: $id, email: $email) {
+    ...OrderSummaryFields
+    events {
+      id
+      type
+      message
+      createdAt
+    }
+  }
+}
+
+# Soft address check before placement: strict stores block on invalid,
+# others auto-apply the normalized suggestion.
+query ValidateAddress(
+  $street1: String!
+  $street2: String
+  $city: String!
+  $state: String
+  $postalCode: String!
+  $countryCode: String!
+) {
+  validateAddress(
+    street1: $street1
+    street2: $street2
+    city: $city
+    state: $state
+    postalCode: $postalCode
+    countryCode: $countryCode
+  ) {
+    valid
+    messages
+    strict
+    normalized {
+      street1
+      street2
+      city
+      state
+      postalCode
+      countryCode
+    }
+  }
+}
+
+# Collect-in-store points, rendered alongside the pickup entries the
+# shipping-quote list already returns (carrierSlug "pickup"). Keyed by the
+# slug embedded in each quote code as "loc-<slug>".
+query PickupLocations {
+  pickupLocations {
+    slug
+    name
+    line1
+    city
+    postalCode
+    countryCode
+    instructions
+  }
+}

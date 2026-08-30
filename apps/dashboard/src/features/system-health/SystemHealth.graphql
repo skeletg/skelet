@@ -1,0 +1,17 @@
+query SystemHealth {
+  systemHealth {
+    status
+    checkedAt
+    groups {
+      key
+      label
+      checks {
+        key
+        label
+        status
+        detail
+        hint
+      }
+    }
+  }
+}

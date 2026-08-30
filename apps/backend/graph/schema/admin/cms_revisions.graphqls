@@ -1,0 +1,28 @@
+# ==================== Versions + scheduling (Phase C) ====================
+
+type CMSPageRevision {
+  id:              ID!
+  pageId:          ID!
+  locale:          String!
+  title:           String!
+  body:            JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+  authorAdminId:   ID
+  createdAt:       Time!
+}
+
+extend type Query {
+  cmsPageRevisions(pageId: ID!, locale: String!): [CMSPageRevision!]!
+}
+
+extend type Mutation {
+  # Re-apply a past revision's content (creates a new revision; reversible).
+  restoreCMSPageRevision(id: ID!): CMSPage!
+  # Schedule a page to publish at a future time (null clears the schedule).
+  scheduleCMSPage(id: ID!, scheduledAt: Time): CMSPage!
+  # Rebuild this page in the storefront cache on demand: invalidate it and
+  # immediately re-render it (the default channel/locale) so it's warm now.
+  rebuildCMSPage(id: ID!): Boolean!
+}

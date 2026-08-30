@@ -1,0 +1,79 @@
+# Dashboard SPA + API proxy. Rendered at container start by the nginx image's
+# envsubst (only ${BACKEND_UPSTREAM} is substituted; nginx's own $variables are
+# left intact because they aren't environment variables).
+server {
+    listen      8080;   # non-root nginx (see Dockerfile.prod) can't bind <1024
+    server_name _;
+    root        /usr/share/nginx/html;
+    index       index.html;
+
+    # App-layer security headers so the dashboard ships a CSP even when it isn't
+    # behind the prod edge (Caddy). `always` so they ride error responses too.
+    # HSTS is intentionally omitted - it belongs at the TLS edge. nginx quirk: a
+    # location that declares its own add_header does NOT inherit these, so any
+    # such location repeats what it needs (see /assets/ below).
+    #
+    # SYNC: the CSP and Permissions-Policy lines are GENERATED from
+    # apps/backend/internal/httpx/securityheaders.go by bin/codegen (cmd/secheadgen) and
+    # gated by bin/contract-check, so edit them there - the storefront's next.config.ts
+    # is deliberately narrower
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(self)" always;
+
+    # Liveness probe for the container healthcheck. Served directly (exact-match
+    # location wins over the SPA fallback) so it needs no backend.
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 "ok\n";
+    }
+
+    gzip            on;
+    gzip_types      text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    # The SPA calls the relative /api/... - proxy it to the backend. No
+    # trailing slash on proxy_pass so the full /api/... path is preserved.
+    location /api/ {
+        # nginx defaults to 1m, which 413s the bulk CSV product import
+        # (file content travels inside the GraphQL mutation). Media uploads
+        # don't pass through here (presigned, direct to S3). The backend
+        # enforces its own cap (REQUEST_MAX_BODY_BYTES, default 8MB) - this
+        # just keeps nginx from rejecting first.
+        client_max_body_size 32m;
+        proxy_pass         ${BACKEND_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        # graphql-ws (live admin notifications) upgrades on this same path - without
+        # these two headers the handshake dies here and prod silently has no live
+        # updates. $http_connection passes the client's own value, so plain requests
+        # are untouched (a map{} would need the http context this template can't reach)
+        proxy_set_header   Upgrade           $http_upgrade;
+        proxy_set_header   Connection        $http_connection;
+        # The server pings every 10s (wiring/graphql.go KeepAlivePingInterval), so an
+        # idle-but-alive socket never gets near this
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    # Content-hashed build assets - cache hard. Re-declares nosniff because a
+    # location with its own add_header stops inheriting the server-level set,
+    # and MIME-sniff protection matters most on the JS/CSS served here.
+    location /assets/ {
+        expires    1y;
+        add_header  Cache-Control "public, immutable";
+        add_header  X-Content-Type-Options "nosniff" always;
+        try_files  $uri =404;
+    }
+
+    # SPA fallback: client-side routing serves index.html for everything else.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

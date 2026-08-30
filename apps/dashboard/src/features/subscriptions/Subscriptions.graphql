@@ -1,0 +1,59 @@
+fragment SubscriptionFields on CustomerSubscription {
+  id
+  customerId
+  productId
+  orderId
+  status
+  intervalUnit
+  intervalCount
+  price
+  currencyCode
+  quantity
+  sku
+  title
+  currentPeriodStart
+  currentPeriodEnd
+  nextBillingAt
+  canceledAt
+  createdAt
+}
+
+query Subscriptions($status: SubscriptionStatus, $limit: Int, $offset: Int) {
+  subscriptions(status: $status, limit: $limit, offset: $offset) {
+    ...SubscriptionFields
+  }
+}
+
+query Subscription($id: ID!) {
+  subscription(id: $id) {
+    ...SubscriptionFields
+    invoices {
+      id
+      periodStart
+      periodEnd
+      amount
+      currencyCode
+      status
+      sequence
+      createdAt
+    }
+  }
+}
+
+mutation CancelSubscription($id: ID!) {
+  cancelSubscription(id: $id) {
+    ...SubscriptionFields
+  }
+}
+
+mutation PauseSubscription($id: ID!) {
+  pauseSubscription(id: $id) {
+    ...SubscriptionFields
+  }
+}
+
+mutation ResumeSubscription($id: ID!) {
+  resumeSubscription(id: $id) {
+    ...SubscriptionFields
+  }
+}

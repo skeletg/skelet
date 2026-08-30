@@ -1,0 +1,275 @@
+#!/usr/bin/env bash
+# The SYNC comments name contracts that span two or three apps, and until now prose
+# was the only thing holding them - this is the mechanical half, so drift fails a build
+#
+# Every check reads the real source. An extractor that quietly matches nothing FAILS
+# rather than passes, because a silent zero is how this kind of gate rots
+set -uo pipefail
+cd "$(dirname "$(dirname "$0")")"
+
+fail=0
+pass() { printf '  ok    %s\n' "$1"; }
+bad()  { fail=1; printf '  FAIL  %s\n' "$1"; }
+skip() { printf '  --    %s\n' "$1"; }
+
+BLOCKKIT=apps/backend/internal/blockkit/blockkit.go
+RESPONSE_CACHE=apps/backend/internal/wiring/response_cache.go
+DASH_BLOCKS=apps/dashboard/src/features/cms/page-blocks.ts
+DASH_LEXICAL=apps/dashboard/src/features/catalog/lexical-blocks
+DASH_OPTVIS=apps/dashboard/src/features/carts/optionVisibility.ts
+SECHEADERS=apps/backend/internal/httpx/securityheaders.go
+NGINX_CONF=apps/dashboard/nginx.conf.template
+CADDYFILE=deploy/caddy/Caddyfile
+WIDGET_REGISTRY=apps/dashboard/src/features/promotions/widgets/registry.ts
+
+# Renderers a storefront is allowed not to have. `ref` is a backend-side block whose
+# storefront half was never built - drop an entry here the day one lands
+RENDERER_GAPS="ref"
+
+# ---------------------------------------------------------------------------
+echo "==> SYNC comments point at paths that exist"
+# A renamed file leaves the comment behind, which is how a contract quietly loses
+# one of its ends - glob and module-relative forms both count as resolved
+# Herestring, not a pipe: grep -q exits on the first match, and under pipefail that
+# SIGPIPEs `git ls-files` and turns a hit into a failure
+TRACKED=$(git ls-files)
+resolve() {
+    local esc
+    esc=$(printf '%s' "$1" | sed -E 's/[.]/\\./g; s/[*]/[^\/]*/g')
+    grep -qE "(^|/)$esc(/|$)" <<< "$TRACKED"
+}
+tokens=$(git grep -h "SYNC" -- . | grep -E '(//|#).*SYNC' \
+    | grep -oE '[A-Za-z0-9_.*-]+/[A-Za-z0-9_./*-]+' | sed 's/[.,)]*$//' | sort -u)
+if [ -z "$tokens" ]; then
+    bad "found no SYNC comments at all - did the marker change?"
+else
+    stale=0
+    while read -r t; do
+        [ -n "$t" ] || continue
+        resolve "$t" || { bad "SYNC comment points at a path that doesn't exist: $t"; stale=1; }
+    done <<< "$tokens"
+    [ "$stale" -eq 0 ] && pass "$(printf '%s\n' "$tokens" | grep -c .) referenced paths resolve"
+fi
+
+# ---------------------------------------------------------------------------
+echo "==> CMS block types agree three ways"
+go_block_types() {
+    awk '
+      /^\tType[A-Za-z]+ +=/ { name=$1; val=$3; gsub(/"/,"",val); map[name]=val }
+      /var BuiltinTypes = map\[string\]bool\{/ { inmap=1; next }
+      inmap && /^\}/ { inmap=0 }
+      inmap { n=split($0, parts, /[[:space:],:]+/)
+              for (i=1;i<=n;i++) if (parts[i] ~ /^Type[A-Za-z]+$/) print map[parts[i]] }
+    ' "$BLOCKKIT" | grep -v '^$' | sort -u
+}
+dash_block_types() {
+    grep -oE "^    type: '[a-z_]+'" "$DASH_BLOCKS" | sed -E "s/.*'([a-z_]+)'/\1/" | sort -u
+}
+sf_block_types() { # <CmsBlocks.tsx>
+    awk '/const REGISTRY: Record<string, BlockRenderer> = \{/{f=1;next} f&&/^\};/{f=0} f' "$1" \
+        | grep -oE '^  [a-z_]+:' | tr -d ' :' | sort -u
+}
+go_types=$(go_block_types)
+dash_types=$(dash_block_types)
+if [ -z "$go_types" ] || [ -z "$dash_types" ]; then
+    bad "block-type extraction came back empty - $BLOCKKIT or $DASH_BLOCKS moved"
+else
+    if diff <(printf '%s\n' "$go_types") <(printf '%s\n' "$dash_types") >/dev/null; then
+        pass "backend BuiltinTypes == dashboard palette ($(printf '%s\n' "$go_types" | grep -c .) types)"
+    else
+        bad "backend BuiltinTypes != dashboard palette"
+        diff <(printf '%s\n' "$go_types") <(printf '%s\n' "$dash_types") | sed 's/^/          /'
+    fi
+    for d in apps/channels/*/; do
+        f="$d/app/components/cms/CmsBlocks.tsx"
+        name=$(basename "$d")
+        [ -f "$f" ] || { skip "$name has no CMS renderer registry"; continue; }
+        sf=$(sf_block_types "$f")
+        [ -n "$sf" ] || { bad "$name: renderer registry extraction came back empty"; continue; }
+        unknown=$(comm -13 <(printf '%s\n' "$go_types") <(printf '%s\n' "$sf"))
+        [ -z "$unknown" ] || bad "$name renders types the backend rejects: $(echo $unknown)"
+        gaps=$(comm -23 <(printf '%s\n' "$go_types") <(printf '%s\n' "$sf"))
+        for g in $gaps; do
+            case " $RENDERER_GAPS " in
+                *" $g "*) ;;
+                *) bad "$name has no renderer for backend type '$g' (add one, or list it in RENDERER_GAPS)" ;;
+            esac
+        done
+        [ -z "$unknown" ] && pass "$name renderer covers every type but the declared gaps ($RENDERER_GAPS)"
+    done
+fi
+
+# ---------------------------------------------------------------------------
+echo "==> anonymous-cacheable operations agree"
+# Opt-out on both sides, so a name on one list and not the other means the storefront
+# strips a token for a query the backend then declines to serve from cache
+go_ops() {
+    awk '/var frontCacheableOps = map\[string\]bool\{/{f=1;next} f&&/^\}/{f=0} f' "$RESPONSE_CACHE" \
+        | grep -oE '"[A-Za-z]+"' | tr -d '"' | sort -u
+}
+ops=$(go_ops)
+if [ -z "$ops" ]; then
+    bad "frontCacheableOps extraction came back empty - $RESPONSE_CACHE moved"
+else
+    for d in apps/channels/*/; do
+        f="$d/app/lib/public-ops.ts"
+        name=$(basename "$d")
+        [ -f "$f" ] || { skip "$name has no public-ops list"; continue; }
+        sf=$(awk '/new Set\(\[/{f=1;next} f&&/^\]\)/{f=0} f' "$f" | grep -oE '"[A-Za-z]+"' | tr -d '"' | sort -u)
+        if [ -z "$sf" ]; then
+            bad "$name: PUBLIC_OPS extraction came back empty"
+        elif diff <(printf '%s\n' "$ops") <(printf '%s\n' "$sf") >/dev/null; then
+            pass "$name PUBLIC_OPS == frontCacheableOps ($(printf '%s\n' "$ops" | grep -c .) ops)"
+        else
+            bad "$name PUBLIC_OPS != frontCacheableOps"
+            diff <(printf '%s\n' "$ops") <(printf '%s\n' "$sf") | sed 's/^/          /'
+        fi
+    done
+fi
+
+# ---------------------------------------------------------------------------
+echo "==> every dashboard lexical node has a storefront renderer"
+# One direction on purpose: a node the dashboard can author but the channel can't
+# render silently blanks part of a blog post, while the reverse is only dead code
+dash_nodes() {
+    awk '/getType\(\)/{g=1;next} g&&/return .[a-z-]+./{gsub(/[^a-z-]/,"");print;g=0}' "$DASH_LEXICAL"/*.tsx \
+        | sed 's/^return//' | sort -u
+}
+dash_variants() {
+    awk '/^type StructuredBlockType =/{f=1;next} f&&!/^ *\| /{f=0} f' "$DASH_LEXICAL/structured.tsx" \
+        | grep -oE "'[a-z-]+'" | tr -d "'" | sort -u
+}
+authored=$(printf '%s\n%s\n' "$(dash_nodes)" "$(dash_variants)" | grep -c .)
+if [ "$authored" -lt 2 ]; then
+    bad "lexical node extraction came back empty - $DASH_LEXICAL moved"
+else
+    for d in apps/channels/*/; do
+        f="$d/app/lib/lexical-render.tsx"
+        name=$(basename "$d")
+        [ -f "$f" ] || { skip "$name has no lexical renderer"; continue; }
+        cases=$(grep -oE 'case "[a-z-]+"' "$f" | sed -E 's/case "(.*)"/\1/' | sort -u)
+        missing=$(comm -23 <(printf '%s\n%s\n' "$(dash_nodes)" "$(dash_variants)" | sort -u) <(printf '%s\n' "$cases"))
+        if [ -z "$missing" ]; then
+            pass "$name renders all $authored authored node types and variants"
+        else
+            bad "$name has no case for: $(echo $missing)"
+        fi
+    done
+fi
+
+# ---------------------------------------------------------------------------
+echo "==> the conditional-option evaluators are the same code"
+# Three ports of internal/cart/options_visibility.go exist because three runtimes evaluate it; the server rejects a filled hidden option, so
+# a drift is a dead end for the shopper. Formatting differs between the two frontends, semantics must not
+norm_evaluator() { sed -E 's|//.*||; s/"/'"'"'/g; s/\?:/:/g' "$1" | tr -d '[:space:];'; }
+if [ ! -f "$DASH_OPTVIS" ]; then
+    bad "$DASH_OPTVIS is gone - update this script"
+else
+    ref=$(norm_evaluator "$DASH_OPTVIS")
+    for d in apps/channels/*/; do
+        f="$d/app/lib/optionVisibility.ts"
+        name=$(basename "$d")
+        [ -f "$f" ] || { skip "$name has no option-visibility port"; continue; }
+        if [ "$ref" = "$(norm_evaluator "$f")" ]; then
+            pass "$name evaluator matches the dashboard's, modulo formatting"
+        else
+            bad "$name evaluator has diverged from $DASH_OPTVIS - diff them and reconcile against internal/cart/options_visibility.go"
+        fi
+    done
+fi
+
+# ---------------------------------------------------------------------------
+echo "==> security headers match across the copies that must"
+# One policy, up to three files: the Go middleware is the source, and bin/codegen
+# (cmd/secheadgen) rewrites the nginx and Caddy copies from it - this re-checks the
+# equality with plain greps because the CI gates job has no Go toolchain, so a
+# hand-edited copy or a skipped codegen run still fails. The storefront's is
+# deliberately narrower - no gateway SDK runs there - and HSTS is Caddy-only, since
+# asserting it over http would pin a browser
+#
+# Three copies is what let deploy/caddy/Caddyfile stay named in comments for months after
+# it was deleted, so the third one is checked from the day it came back
+go_csp() {
+    awk '/^const ContentSecurityPolicy =/{f=1} f{print; if ($0 !~ /\+$/) exit}' "$SECHEADERS" \
+        | sed -E 's/^const ContentSecurityPolicy = //; s/\+$//' | tr -d '"' | tr -s '[:space:]' ' ' | sed -E 's/^ +| +$//g'
+}
+nginx_csp() {
+    grep -oE 'add_header Content-Security-Policy "[^"]*"' "$NGINX_CONF" \
+        | sed -E 's/.*Content-Security-Policy "//; s/"$//' | tr -s '[:space:]' ' ' | sed -E 's/^ +| +$//g'
+}
+go_pp() {
+    grep -oE 'const PermissionsPolicy = `[^`]*`' "$SECHEADERS" | sed -E 's/.*`(.*)`/\1/' | tr -s '[:space:]' ' '
+}
+nginx_pp() {
+    grep -oE 'add_header Permissions-Policy ".*" always' "$NGINX_CONF" \
+        | sed -E 's/.*Permissions-Policy "//; s/" always$//' | sed 's/\\"/"/g' | tr -s '[:space:]' ' '
+}
+caddy_csp() {
+    grep -oE 'Content-Security-Policy "[^"]*"' "$CADDYFILE" \
+        | sed -E 's/.*Content-Security-Policy "//; s/"$//' | tr -s '[:space:]' ' ' | sed -E 's/^ +| +$//g'
+}
+caddy_pp() {
+    grep -oE 'Permissions-Policy ".*"$' "$CADDYFILE" \
+        | sed -E 's/.*Permissions-Policy "//; s/"$//' | sed 's/\\"/"/g' | tr -s '[:space:]' ' '
+}
+compare_header() { # compare_header <label> <where> <backend value> <other value>
+    if [ -z "$3" ] || [ -z "$4" ]; then
+        bad "$1 extraction came back empty - $SECHEADERS or $2 moved"
+    elif [ "$3" = "$4" ]; then
+        pass "$1 matches $2"
+    else
+        bad "$1 differs between $SECHEADERS and $2 - edit the Go copy and run bin/codegen"
+        diff <(printf '%s' "$3" | tr ';,' '\n') <(printf '%s' "$4" | tr ';,' '\n') | sed 's/^/          /'
+    fi
+}
+compare_header "Content-Security-Policy" "$NGINX_CONF" "$(go_csp)" "$(nginx_csp)"
+compare_header "Permissions-Policy" "$NGINX_CONF" "$(go_pp)" "$(nginx_pp)"
+# A fork that brings its own proxy may delete the bundled Caddyfile, so a genuine absence skips.
+# A STALE path must not: the file is tracked and sparse-checkout never touches deploy/, so
+# "missing" almost always means CADDYFILE points somewhere that moved - and skipping there quietly
+# drops the third copy of the security headers while still reporting the gate green
+if [ -f "$CADDYFILE" ]; then
+    compare_header "Content-Security-Policy" "$CADDYFILE" "$(go_csp)" "$(caddy_csp)"
+    compare_header "Permissions-Policy" "$CADDYFILE" "$(go_pp)" "$(caddy_pp)"
+elif [ -n "$(git ls-files 'deploy/Caddyfile' 'deploy/*/Caddyfile')" ]; then
+    bad "$CADDYFILE is missing but a Caddyfile is tracked at $(git ls-files 'deploy/Caddyfile' 'deploy/*/Caddyfile' | head -1) - CADDYFILE in this script is stale"
+else
+    skip "no $CADDYFILE - the edge profile isn't in this checkout"
+fi
+
+# ---------------------------------------------------------------------------
+echo "==> every x-widget a Go params schema asks for is registered in the dashboard"
+# The rule/condition builders render params from a JSON Schema the backend owns, and an
+# "x-widget" hint picks a rich control. SchemaForm silently falls back to a plain text box when
+# the key is missing, so a backend asking for a widget nobody registered LOOKS fine and quietly
+# makes the operator type slugs - which is exactly how segment-picker went unnoticed
+go_widgets() {
+    git grep -ho '"x-widget": *"[a-z-]*"' -- 'apps/backend/internal/**/*.go' \
+        | sed -E 's/.*"x-widget": *"([a-z-]*)".*/\1/' | sort -u
+}
+registered_widgets() {
+    awk '/^export const FORM_WIDGETS/{f=1;next} f&&/^\}/{f=0} f' "$WIDGET_REGISTRY" \
+        | grep -oE "^  '[a-z-]+'" | tr -d " '" | sort -u
+}
+requested=$(go_widgets)
+registered=$(registered_widgets)
+if [ -z "$requested" ]; then
+    bad "found no x-widget hints at all - did the schemas move?"
+elif [ -z "$registered" ]; then
+    bad "FORM_WIDGETS extraction came back empty - $WIDGET_REGISTRY moved"
+else
+    missing=$(comm -23 <(printf '%s\n' "$requested") <(printf '%s\n' "$registered"))
+    if [ -z "$missing" ]; then
+        pass "all $(printf '%s\n' "$requested" | grep -c .) requested widgets are registered"
+    else
+        bad "Go schemas ask for widgets the dashboard does not register: $(echo $missing)"
+    fi
+fi
+
+echo
+if [ "$fail" -eq 0 ]; then
+    echo "==> contract-check OK"
+else
+    echo "==> contract-check FAILED"
+fi
+exit "$fail"

@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Shared env for every bin/* wrapper - compose files, profiles, uid, locale
+export LC_ALL=C.UTF-8 LANG=C.UTF-8
+
+# No COMPOSE_FILE needed - docker-compose.yml is the whole dev stack and compose auto-merges
+# docker-compose.override.yml, where your own git-ignored services live
+_skelet_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Which apps run IN DOCKER - .skelet-apps if there is one, else NONE
+# The frontends default to the host, where the dev server and the gates share one node_modules -
+# two installs from one lockfile drift silently, and the container adds nothing Node needs
+if [ -f "$_skelet_root/.skelet-apps" ]; then
+    SKELET_APPS="$(tr -d '[:space:]' < "$_skelet_root/.skelet-apps")"
+else
+    SKELET_APPS=""
+fi
+
+# Sidecar profiles - bin/dev --lean empties SKELET_SIDECARS
+_skelet_sidecars="${SKELET_SIDECARS-search,tracing}"
+_skelet_profiles="$_skelet_sidecars"
+if [ -n "$SKELET_APPS" ]; then
+    _skelet_profiles="${_skelet_profiles:+$_skelet_profiles,}$SKELET_APPS"
+fi
+
+# On the ClickHouse spine the server is a datastore, not a sidecar - so it follows
+# SIGNALS_ENGINE (the var the backend itself reads, per spinech/select.go) rather than the
+# sidecar list, and --lean can't strip the thing the spine writes to
+if grep -qiE '^[[:space:]]*SIGNALS_ENGINE[[:space:]]*=[[:space:]]*clickhouse' "$_skelet_root/.env" 2>/dev/null; then
+    _skelet_profiles="${_skelet_profiles:+$_skelet_profiles,}clickhouse"
+fi
+
+export COMPOSE_PROFILES="${COMPOSE_PROFILES-$_skelet_profiles}"
+
+# exec/run flags - pin the locale (exec env inheritance is flaky on Desktop)
+# SKELET_NO_USER_MAP=1 runs as root for the odd apt-get moment
+if [ -n "${SKELET_NO_USER_MAP:-}" ]; then
+    USER_FLAG=(-u 0:0 -e LC_ALL=C.UTF-8 -e LANG=C.UTF-8)
+else
+    USER_FLAG=(-e LC_ALL=C.UTF-8 -e LANG=C.UTF-8)
+fi
+
+# The uid containers run as (compose user:)
+# Rootless engines stick with 0 - container root already IS you there
+if [ -z "${SKELET_UID:-}" ]; then
+    if docker info -f '{{.SecurityOptions}}' 2>/dev/null | grep -q rootless; then
+        export SKELET_UID=0 SKELET_GID=0
+    else
+        export SKELET_UID="$(id -u)" SKELET_GID="$(id -g)"
+    fi
+fi

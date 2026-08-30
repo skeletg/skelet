@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# npm inside the dashboard container - bin/dash install / run codegen / run lint
+set -e
+cd "$(dirname "$(dirname "$0")")"
+. bin/_lib
+
+if [ ! -f apps/dashboard/package.json ]; then
+    echo "apps/dashboard is not in this checkout (removed by bin/setup app selection)." >&2
+    echo "Bring it back with: bin/setup --all (or --apps ...)" >&2
+    exit 1
+fi
+
+# Host npm when this clone has a host install - the container keeps node_modules in its own volume,
+# and running the gates against a different tree than the dev server is how the two silently diverge
+if [ -z "${SKELET_FORCE_DOCKER:-}" ] && command -v npm >/dev/null 2>&1 && [ -d "apps/dashboard/node_modules" ]; then
+    cd "apps/dashboard" && exec npm "$@"
+fi
+
+tty_flag=()
+[ -t 0 ] && tty_flag=(-it)
+
+if docker compose ps --status running | grep -q "skelet-dashboard"; then
+    docker compose exec "${tty_flag[@]}" "${USER_FLAG[@]}" dashboard npm "$@"
+else
+    docker compose run --rm "${tty_flag[@]}" "${USER_FLAG[@]}" dashboard npm "$@"
+fi

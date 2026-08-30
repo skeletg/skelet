@@ -1,0 +1,42 @@
+type Country {
+  code:                String!
+  name:                String!
+  nativeName:          String!
+  emojiFlag:           String!
+  phoneCode:           String!
+  defaultCurrencyCode: String!
+  defaultCurrency:     Currency
+  isActive:            Boolean!
+  sortOrder:           Int!
+}
+
+# ISO 3166-2 subdivision (state/province). `code` is the subdivision
+# part only; the full ISO code is the country code + "-" + code.
+type Region {
+  code:      String!
+  name:      String!
+  isActive:  Boolean!
+  sortOrder: Int!
+}
+
+# Per-channel country options the storefront needs to drive address
+# forms: which country to preselect, whether/which countries require a
+# region, etc. Resolved at the request's channel scope.
+type CountrySettings {
+  defaultCountryCode:         String!
+  allowOptionalState:         Boolean!
+  requiredRegionCountryCodes: [String!]!
+  topDestinationCountryCodes: [String!]!
+  euCountryCodes:             [String!]!
+}
+
+extend type Query {
+  # Honors the channel's "allowed countries" setting (all active when
+  # unset) and pins "top destinations" first.
+  countries(activeOnly: Boolean): [Country!]!
+  country(code: String!):         Country!
+  # Subdivisions for one country (empty → free-text region).
+  regions(countryCode: String!): [Region!]!
+  # Channel-scoped country option flags for the address forms.
+  countrySettings: CountrySettings!
+}

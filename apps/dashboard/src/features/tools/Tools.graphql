@@ -1,0 +1,8 @@
+mutation RunAdminAction($slug: String!, $args: JSON!) {
+  runAdminAction(slug: $slug, args: $args) {
+    success
+    output
+    data
+    durationMs
+  }
+}

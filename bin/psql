@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# psql on the dev commerce database - bin/psql -c 'select 1', or no args for a prompt
+set -e
+cd "$(dirname "$(dirname "$0")")"
+docker compose exec db psql -U skelet -d skelet "$@"

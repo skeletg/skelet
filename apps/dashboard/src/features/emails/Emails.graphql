@@ -1,0 +1,155 @@
+fragment LibraryEmailFields on LibraryEmail {
+  id
+  channelId
+  name
+  subject
+  preheader
+  blocks
+  styles
+  groupId
+  slot
+  createdAt
+  updatedAt
+}
+
+query LibraryEmails($channelId: ID!, $groupSlug: String) {
+  libraryEmails(channelId: $channelId, groupSlug: $groupSlug) {
+    ...LibraryEmailFields
+  }
+}
+
+query LibraryEmail($id: ID!) {
+  libraryEmail(id: $id) {
+    ...LibraryEmailFields
+  }
+}
+
+query EmailGroups {
+  emailGroups {
+    id
+    slug
+    name
+    isSystem
+    emailCount
+  }
+}
+
+# Distinct op name from the CMS/Reviews aiStatus queries (codegen forbids dupes).
+# Gates the AI copy-assist buttons in the email builder.
+query EmailsAiStatus {
+  aiStatus {
+    enabled
+  }
+}
+
+# Customers for the "preview with a real customer's data" picker. Loaded only
+# when the preview dialog opens.
+query PreviewCustomers($channelId: ID) {
+  customers(channelId: $channelId) {
+    id
+    email
+    firstName
+    lastName
+  }
+}
+
+query TransactionalSlots($channelId: ID!) {
+  transactionalSlots(channelId: $channelId) {
+    slot
+    label
+    emailId
+    emailName
+  }
+}
+
+query EmailPreflight($id: ID!) {
+  emailPreflight(id: $id) {
+    severity
+    message
+  }
+}
+
+query EmailRevisions($id: ID!) {
+  emailRevisions(id: $id) {
+    id
+    name
+    subject
+    preheader
+    blocks
+    styles
+    createdAt
+  }
+}
+
+query RenderLibraryPreview(
+  $channelId: ID!
+  $customerId: ID
+  $subject: String!
+  $preheader: String
+  $blocks: JSON!
+  $styles: JSON
+) {
+  renderLibraryPreview(
+    channelId: $channelId
+    customerId: $customerId
+    subject: $subject
+    preheader: $preheader
+    blocks: $blocks
+    styles: $styles
+  ) {
+    subject
+    html
+  }
+}
+
+mutation SaveLibraryEmail($input: SaveLibraryEmailInput!) {
+  saveLibraryEmail(input: $input) {
+    ...LibraryEmailFields
+  }
+}
+
+mutation DeleteLibraryEmail($id: ID!) {
+  deleteLibraryEmail(id: $id)
+}
+
+mutation CreateEmailGroup($name: String!) {
+  createEmailGroup(name: $name) {
+    id
+    slug
+    name
+    isSystem
+    emailCount
+  }
+}
+
+mutation RenameEmailGroup($id: ID!, $name: String!) {
+  renameEmailGroup(id: $id, name: $name) {
+    id
+    slug
+    name
+    isSystem
+    emailCount
+  }
+}
+
+mutation DeleteEmailGroup($id: ID!) {
+  deleteEmailGroup(id: $id)
+}
+
+mutation AssignEmailSlot($emailId: ID!, $slot: String!) {
+  assignEmailSlot(emailId: $emailId, slot: $slot)
+}
+
+mutation RestoreEmailRevision($revisionId: ID!) {
+  restoreEmailRevision(revisionId: $revisionId) {
+    ...LibraryEmailFields
+  }
+}
+
+mutation SuggestEmailSubjects($context: String!, $count: Int) {
+  suggestEmailSubjects(context: $context, count: $count)
+}
+
+mutation RewriteEmailText($text: String!, $instruction: String) {
+  rewriteEmailText(text: $text, instruction: $instruction)
+}

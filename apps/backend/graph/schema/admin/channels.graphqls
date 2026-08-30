@@ -1,0 +1,71 @@
+type Channel {
+  id:                  ID!
+  slug:                String!
+  name:                String!
+  defaultLocale:       String!
+  # Locales this channel serves, in admin-defined display order.
+  # Populated from the channel_locales junction.
+  locales:             [Locale!]!
+  isActive:            Boolean!
+  # Whether this is the channel the front API falls back to when neither
+  # the X-Channel-Id header nor the request Host resolves one. At most one
+  # row in the table carries is_default=true.
+  isDefault:           Boolean!
+  # Commerce policy for this subsidiary.
+  currencyCode:        String!
+  # Base URL used to build password-reset / verification email links.
+  publicUrl:           String!
+  metadata:            [MetadataItem!]!
+  createdAt:           Time!
+  # Inventory locations assigned to this channel, ordered by priority asc.
+  inventoryLocations:  [ChannelInventoryLocation!]!
+}
+
+# Anything not in this struct (branding, support contact, legal/tax,
+# timezone, terms/privacy URLs, …) lives in the config registry as a
+# per-channel knob. Edit those on the Settings page; the header scope
+# picker controls which channel's overrides you're modifying.
+
+input CreateChannelInput {
+  slug:          String!
+  name:          String!
+  # Defaults to "en" if not provided.
+  defaultLocale: String
+  # Defaults to [defaultLocale] if not provided.
+  locales:       [String!]
+  # Defaults to the global config currency (general/store_information/currency).
+  currencyCode:  String
+  publicUrl:     String
+  metadata:      [MetadataInput!]
+}
+
+input UpdateChannelInput {
+  id:            ID!
+  name:          String
+  defaultLocale: String
+  # Null = no change. Pass an updated list to replace locales entirely.
+  locales:       [String!]
+  isActive:      Boolean
+  currencyCode:  String
+  publicUrl:     String
+  metadata:      [MetadataInput!]
+}
+
+extend type Query {
+  channels:           [Channel!]!     # requires channels.view
+  channel(id: ID!):   Channel!        # requires channels.view
+}
+
+extend type Mutation {
+  createChannel(input: CreateChannelInput!): Channel!  # requires channels.manage
+  updateChannel(input: UpdateChannelInput!): Channel!  # requires channels.manage
+  deleteChannel(id: ID!):                    Boolean!  # requires channels.manage
+  # Replace the supported-locales set for one channel. Codes must already
+  # exist in the locales table; unknown codes are rejected with
+  # LOCALE_NOT_FOUND. Use this rather than packing locales into
+  # updateChannel when the only thing changing is the language list.
+  setChannelLocales(channelId: ID!, codes: [String!]!): Channel!
+  # Mark the given channel as the platform default. Unsets the previous
+  # default atomically. Requires channels.manage on the target channel.
+  setChannelAsDefault(channelId: ID!): Channel!
+}

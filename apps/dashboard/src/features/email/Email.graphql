@@ -1,0 +1,28 @@
+fragment EmailBlockFields on EmailBlockSnippet {
+  channelId
+  slug
+  name
+  icon
+  fields
+  blocks
+  htmlTemplate
+  textTemplate
+  css
+  scripted
+}
+
+query EmailBlocks($channelId: ID!) {
+  emailBlocks(channelId: $channelId) {
+    ...EmailBlockFields
+  }
+}
+
+mutation SaveEmailBlock($input: SaveEmailBlockInput!) {
+  saveEmailBlock(input: $input) {
+    ...EmailBlockFields
+  }
+}
+
+mutation DeleteEmailBlock($channelId: ID!, $slug: String!) {
+  deleteEmailBlock(channelId: $channelId, slug: $slug)
+}

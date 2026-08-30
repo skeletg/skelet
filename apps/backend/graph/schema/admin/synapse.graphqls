@@ -1,0 +1,423 @@
+# Synapse - the behavioural-analytics / customer-profile product hub. Channel-
+# scoped, gated on customers.view. Per-customer detail is the customerProfile
+# query (surfaced on the customer page's Activity section).
+
+type SynapseActiveCustomer {
+  customerId: ID!
+  name:       String!
+  email:      String!
+  events:     Int!
+  lastSeen:   Time
+}
+
+# A not-yet-identified anonymous visitor (the lens_aid cookie). lastPage is the
+# most recent page title/path seen, so the list reads as more than a raw id.
+type SynapseVisitor {
+  anonId:   String!
+  events:   Int!
+  lastSeen: Time
+  lastPage: String!
+}
+
+type SynapseOverview {
+  totalEvents:         Int!
+  pageViews:           Int!
+  conversions:         Int!
+  identifiedCustomers: Int!
+  anonymousVisitors:   Int!                      # anon ids not yet identified
+  revenue:             [AttributedRevenue!]!
+  topEvents:           [CustomerEventCount!]!   # event-type breakdown
+  activeCustomers:     [SynapseActiveCustomer!]!
+  activeVisitors:      [SynapseVisitor!]!        # most-active anonymous visitors
+}
+
+# Commerce/CRM summary for a customer - the operational counterpart to the
+# behavioural customerProfile, shown alongside it on the Synapse customer page.
+type CustomerCommerce {
+  orders:              Int!
+  spend:               [AttributedRevenue!]!   # lifetime spend by currency (excludes cancelled/draft)
+  firstOrderAt:        Time
+  lastOrderAt:         Time
+  returns:             Int!
+  activeSubscriptions: Int!
+  marketingOptedIn:    Boolean!
+  group:               String!
+  memberSince:         Time!
+}
+
+# Cross-Signals rollup for one customer - the data the other suites hold about
+# this person, gathered onto the Synapse profile page so it's the single 360°
+# view. Customer-only (an anonymous visitor has no identity to consent / segment
+# / enroll): segments are Synapse's targeting currency, consents + email are
+# Pulse, flows are Pulse automation. (Prism arms + Lens pages are already on the
+# behavioural profile itself.)
+type CustomerSignals {
+  segments: [SignalSegment!]!
+  consents: [SignalConsent!]!
+  email:    SignalEmail!
+  flows:    [SignalFlowRun!]!
+}
+
+# An audience the customer is a member of (deep-links to the segment page).
+type SignalSegment {
+  id:   ID!
+  name: String!
+  slug: String!
+}
+
+# A consent the customer has a recorded (or default) state for.
+type SignalConsent {
+  kind:    String!   # marketing_email | marketing_sms | transactional_email | …
+  name:    String!   # human label
+  channel: String!   # email | sms | push
+  purpose: String!   # marketing | transactional
+  optedIn: Boolean!
+}
+
+# Lifetime Pulse email engagement (from the email_sends projection, bot-filtered).
+type SignalEmail {
+  sent:       Int!
+  opened:     Int!   # distinct emails with a human open
+  clicked:    Int!   # distinct emails with a human click
+  lastSentAt: Time
+  lastOpenAt: Time
+}
+
+# One marketing-automation (flow) enrollment for the customer.
+type SignalFlowRun {
+  flowId:     ID!
+  flowName:   String!
+  trigger:    String!   # order_placed | cart_abandoned | browse_abandoned | …
+  status:     String!   # active | waiting | completed | cancelled | failed
+  enrolledAt: Time!
+  updatedAt:  Time!
+}
+
+type SynapseFunnelStep {
+  eventName: String!
+  count:     Int!
+}
+
+# An ordered conversion funnel: how many people reached each step in order.
+type SynapseFunnel {
+  steps: [SynapseFunnelStep!]!
+}
+
+type InsightPoint {
+  bucket: Time!
+  key:    String!   # breakdown series this value belongs to
+  value:  Int!
+}
+type InsightSeries {
+  key:   String!
+  total: Int!
+}
+
+# Ad-hoc breakdown: a measure over time, split by a property.
+type SynapseInsights {
+  points:      [InsightPoint!]!
+  series:      [InsightSeries!]!   # distinct series + window totals, ranked
+  # Window-level headline measures + the prior equal-length window (for deltas).
+  total:       Int!   # total events in the window
+  uniques:     Int!   # distinct people in the window
+  prevTotal:   Int!
+  prevUniques: Int!
+}
+
+type ActivePoint {
+  day:   Time!
+  count: Int!
+}
+
+# Active-user engagement: daily-active series + WAU/MAU + DAU÷MAU stickiness %.
+# Engagement summary, reframed for commerce around a return window: of the people
+# active in the previous window, how many came back in the current one.
+type SynapseStickiness {
+  days:        [ActivePoint!]!   # daily-active trend (context)
+  windowDays:  Int!              # the return window in effect
+  priorActive: Int!              # distinct active in the previous window
+  activeNow:   Int!              # distinct active in the current window
+  returning:   Int!              # active in both windows
+  returnRate:  Float!            # returning ÷ priorActive (%)
+  wau:         Int!              # weekly active (context)
+  mau:         Int!              # monthly active (context)
+}
+
+type SynapseFlowNode {
+  id:       String!   # path key
+  parentId: String!   # parent path key (the focus event for depth-1 nodes)
+  event:    String!
+  depth:    Int!
+  count:    Int!
+}
+
+# Forward path tree from a focus event: what people do next.
+type SynapseFlowPath {
+  events: [String!]!   # the collapsed journey after the focus event
+  count:  Int!         # people who took exactly this path
+}
+
+type SynapseFlow {
+  focus:     String!
+  cohort:    Int!      # people who did the focus event
+  continued: Int!      # of the cohort, how many took >= 1 tracked next step
+  avgSteps:  Float!    # average journey depth among those who continued
+  nodes:     [SynapseFlowNode!]!
+  topPaths:  [SynapseFlowPath!]!   # most common complete journeys
+}
+
+type RetentionBucket {
+  period:   Int!   # 0 = same period as the start event, 1 = next period, …
+  count:    Int!   # cohort members who did the return event in this period
+  eligible: Int!   # members mature enough to have reached this period (denominator)
+}
+
+# Cohort retention: of people who did startEvent in the window, how many returned
+# (did returnEvent) in each subsequent period.
+# One start-period cohort's retention row in the grid.
+type RetentionCohort {
+  startAt: Time!   # the cohort's period bucket start
+  size:    Int!    # people who first did the start event in this bucket
+  buckets: [RetentionBucket!]!
+}
+
+type SynapseRetention {
+  cohort:  Int!                  # total people across all cohorts
+  buckets: [RetentionBucket!]!   # overall (blended) curve
+  cohorts: [RetentionCohort!]!   # per-start-period rows (the cohort grid)
+}
+
+# One behavioral criterion: did (or, when negate, did NOT) perform `event` at
+# least `count` times within the last `days`.
+input SegmentConditionInput {
+  event:  String!
+  negate: Boolean
+  count:  Int
+  days:   Int
+}
+
+type SynapseSegmentCondition {
+  event:  String!
+  negate: Boolean!
+  count:  Int!
+  days:   Int!
+}
+
+# Trait-based criterion: select customers by their computed Synapse traits (RFM
+# quintile scores 1–5, lifecycle stage, engagement). All set constraints must
+# hold; combined with conditions as an intersection when both are present.
+input SegmentTraitInput {
+  lifecycle:         [String!]   # match any of: prospect|new|active|at_risk|lapsed
+  minRecencyScore:   Int         # rfm_r >= (1–5)
+  minFrequencyScore: Int         # rfm_f >=
+  minMonetaryScore:  Int         # rfm_m >=
+  minEngagement:     Int         # engagement_score >= (0–100)
+}
+
+type SynapseSegmentTrait {
+  lifecycle:         [String!]!
+  minRecencyScore:   Int!
+  minFrequencyScore: Int!
+  minMonetaryScore:  Int!
+  minEngagement:     Int!
+}
+
+# Attribute-affinity criterion: customers who filtered by / viewed products with
+# a Synapse-tracked attribute value (e.g. tire-size = 205/55R16) in the window.
+input SegmentAffinityInput {
+  attr:  String!   # attribute slug
+  value: String!
+  days:  Int       # lookback window (default 90)
+}
+
+type SynapseSegmentAffinity {
+  attr:  String!
+  value: String!
+  days:  Int!
+  # True when this segment was auto-generated by the attribute-affinity sync
+  # (a per-value segment for an attribute flagged autoSegment). Managed
+  # automatically - editing it by hand is overwritten on the next sync.
+  auto:  Boolean!
+}
+
+# --- Definition tree (events / traits / affinity combined with nested AND/OR) ---
+enum SegmentNodeKind { GROUP EVENT TRAIT AFFINITY }
+enum SegmentBoolOp { AND OR }
+
+# One node of a segment definition tree. A GROUP combines its children with `op`;
+# a leaf is one of EVENT (did/​didn't an event), TRAIT, or AFFINITY. Recursive.
+type SegmentNode {
+  kind:     SegmentNodeKind!
+  op:       SegmentBoolOp           # GROUP only
+  children: [SegmentNode!]          # GROUP only
+  event:    String                  # EVENT leaf
+  negate:   Boolean
+  count:    Int
+  days:     Int
+  trait:    SynapseSegmentTrait     # TRAIT leaf
+  affinity: SynapseSegmentAffinity  # AFFINITY leaf
+}
+
+input SegmentNodeInput {
+  kind:     SegmentNodeKind!
+  op:       SegmentBoolOp
+  children: [SegmentNodeInput!]
+  event:    String
+  negate:   Boolean
+  count:    Int
+  days:     Int
+  trait:    SegmentTraitInput
+  affinity: SegmentAffinityInput
+}
+
+# A behavioral segment: a real customer segment (targetable by campaigns/flows)
+# whose membership is materialised from a Synapse behavioral + trait definition.
+type SynapseSegment {
+  id:          ID!
+  channelId:   ID!
+  name:        String!
+  slug:        String!
+  memberCount: Int!
+  # The full definition tree (events / traits / affinity in nested AND/OR groups).
+  # Always present - derived from the flat criteria when a segment carries no tree.
+  definition:  SegmentNode
+  # Flat views of the same definition, for compact display. For tree segments these
+  # surface only the top level (or are empty); read `definition` for the truth.
+  conditions:  [SynapseSegmentCondition!]!
+  trait:       SynapseSegmentTrait
+  affinity:    SynapseSegmentAffinity
+  # Optional lifecycle-cadence override. When set, members of this segment get
+  # these new/active/at-risk day windows instead of the channel default (the
+  # shortest-window override wins when a customer is in several). Null = inherit.
+  lifecycleWindows: SegmentLifecycleWindows
+}
+
+# Lifecycle-cadence windows (days since last order) - see CustomerTraits lifecycle.
+type SegmentLifecycleWindows {
+  newDays:    Int!
+  activeDays: Int!
+  atRiskDays: Int!
+}
+
+input SegmentLifecycleWindowsInput {
+  newDays:    Int!
+  activeDays: Int!
+  atRiskDays: Int!
+}
+
+# --- Per-segment detail page ---
+type SegmentMember {
+  customerId:  ID!
+  name:        String!
+  email:       String!
+  lifecycle:   String!   # '' if traits not computed yet
+  recencyDays: Int!      # -1 = never ordered
+  orders:      Int!
+  spendCents:  Int64!
+  lastOrderAt: Time       # null if no orders
+}
+
+type SegmentGrowthPoint {
+  day:   Time!
+  count: Int!
+}
+
+# Composition of a segment's members (who's in it).
+type SegmentStageCount {
+  stage: String!   # lifecycle stage; '' = traits not computed yet
+  count: Int!
+}
+type SegmentRfmBucket {
+  dimension: String!   # recency | frequency | monetary
+  score:     Int!      # 0–5
+  count:     Int!
+}
+type SegmentAffinityCount {
+  attr:    String!
+  value:   String!
+  members: Int!
+}
+
+# A Synapse-tracked attribute + the values observed for it - powers the segment
+# builder's affinity picker (so you choose from real attributes, not free text).
+type SynapseTrackedAttribute {
+  slug:   String!
+  name:   String!
+  values: [String!]!   # most-seen values (last 90d), for value suggestions
+}
+
+# Everything the per-segment detail page needs: the segment itself, a commerce
+# rollup over its members, a (capped) member list, and the daily growth series.
+type SynapseSegmentDetail {
+  segment:          SynapseSegment!
+  # The segment's channel currency (ISO 4217) - revenue/AOV/spend below are in
+  # this currency's cents. (Members' cross-currency orders still sum naively;
+  # single-currency channels - the norm - are exact.)
+  currency:         String!
+  revenueCents:     Int64!   # total non-cancelled order revenue of members
+  orders:           Int!
+  aovCents:         Int64!
+  members:          [SegmentMember!]!   # top spenders, capped
+  membersTruncated: Boolean!            # true when more members than returned
+  growth:           [SegmentGrowthPoint!]!
+  # Composition (who's in the segment).
+  lifecycleMix:     [SegmentStageCount!]!
+  rfmDistribution:  [SegmentRfmBucket!]!
+  topAffinities:    [SegmentAffinityCount!]!
+}
+
+extend type Query {
+  # Full detail for one behavioral segment (members + revenue + growth). customers.view.
+  synapseSegment(id: ID!): SynapseSegmentDetail!
+  # Channel-wide behavioural overview over the last `sinceDays` days (default 30).
+  synapseOverview(channelId: ID!, sinceDays: Int): SynapseOverview!
+  # Synapse-tracked attributes + observed values for the affinity condition picker.
+  synapseTrackedAttributes(channelId: ID!): [SynapseTrackedAttribute!]!
+  # Behavioral segments (those with a Synapse definition) for a channel.
+  synapseSegments(channelId: ID!): [SynapseSegment!]!
+  # Preview the size of a segment without saving it. Pass `root` (the definition
+  # tree) - or the flat conditions/trait/affinity. Gated customers.view.
+  synapseSegmentPreview(channelId: ID!, root: SegmentNodeInput, conditions: [SegmentConditionInput!], trait: SegmentTraitInput, affinity: SegmentAffinityInput): Int!
+  # Ordered conversion funnel over `steps` (event names, 2–8) for the last
+  # `sinceDays` days (default 30). Gated customers.view.
+  synapseFunnel(channelId: ID!, steps: [String!]!, sinceDays: Int): SynapseFunnel!
+  # Forward path tree from a focus event over the last `sinceDays` days (default
+  # 30), `depth` steps deep (default 3). Gated customers.view.
+  synapseFlow(channelId: ID!, event: String!, sinceDays: Int, depth: Int): SynapseFlow!
+  # Commerce engagement: return rate over a window + daily-active trend. Optional
+  # `event` ("" = any activity), `sinceDays` (trend length, default 30), and
+  # `windowDays` (return cadence; defaults to the channel's configured value).
+  synapseStickiness(channelId: ID!, event: String, sinceDays: Int, windowDays: Int): SynapseStickiness!
+  # Ad-hoc breakdown: `measure` ("total"|"unique") of `event` ("" = any) over
+  # `unit` ("day"|"week") buckets for the last `sinceDays` (default 30), split by
+  # the `breakdown` property key ("" = none). Gated customers.view.
+  synapseInsights(channelId: ID!, event: String, breakdown: String, measure: String, unit: String, sinceDays: Int): SynapseInsights!
+  # Cohort retention: startEvent → returnEvent over `periods` buckets of `unit`
+  # ("day"|"week"), cohort window = last `sinceDays` days. Gated customers.view.
+  synapseRetention(channelId: ID!, startEvent: String!, returnEvent: String!, sinceDays: Int, periods: Int, unit: String): SynapseRetention!
+  # A single anonymous visitor's behavioural profile (same shape as
+  # customerProfile), keyed by the anon visitor id. Gated customers.view on the
+  # channel the operator is browsing (anon activity itself is channel-agnostic).
+  visitorProfile(channelId: ID!, anonId: String!, sinceDays: Int): CustomerProfile!
+  # Commerce/CRM summary for a customer (orders, spend, subscriptions, …).
+  customerCommerce(customerId: ID!): CustomerCommerce!
+  # Cross-Signals rollup for a customer (segments, consent, email engagement,
+  # flow enrollments) - the 360° data for the Synapse profile. Gated customers.view.
+  customerSignals(customerId: ID!): CustomerSignals!
+}
+
+extend type Mutation {
+  # Create (segmentId omitted) or update a behavioral segment and materialise its
+  # members. The resulting segment is a normal customer segment, immediately
+  # targetable by campaigns + flows. Gated customers.manage on the channel; the
+  # update path only accepts behavioral segments belonging to that channel.
+  synapseSaveSegment(channelId: ID!, name: String!, segmentId: ID, root: SegmentNodeInput, conditions: [SegmentConditionInput!], trait: SegmentTraitInput, affinity: SegmentAffinityInput): SynapseSegment!
+  # Re-evaluate + re-materialise an existing behavioral segment's membership.
+  # Gated customers.manage on the segment's channel.
+  synapseRefreshSegment(segmentId: ID!): SynapseSegment!
+  # Set (windows non-null) or clear (windows null) a segment's lifecycle-cadence
+  # override - members get these windows (shortest wins) instead of the channel
+  # default, so e.g. faster-wearing "All-terrain" buyers are re-engaged sooner.
+  # Windows must be ascending and positive. Gated customers.manage.
+  synapseSetSegmentLifecycleWindows(segmentId: ID!, windows: SegmentLifecycleWindowsInput): SynapseSegment!
+}

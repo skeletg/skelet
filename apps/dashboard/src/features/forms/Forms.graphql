@@ -1,0 +1,68 @@
+fragment SignupFormFields on SignupForm {
+  id
+  channelId
+  slug
+  name
+  status
+  type
+  heading
+  body
+  buttonLabel
+  successMessage
+  collectName
+  consentKind
+  targetSegmentId
+  triggerFlow
+  submissionCount
+  display {
+    trigger
+    delaySeconds
+    scrollPercent
+    frequencyDays
+  }
+}
+
+query SignupForms($channelId: ID!) {
+  signupForms(channelId: $channelId) {
+    ...SignupFormFields
+  }
+}
+
+query SignupForm($id: ID!) {
+  signupForm(id: $id) {
+    ...SignupFormFields
+  }
+}
+
+query SignupFormSubmissions($formId: ID!, $limit: Int) {
+  signupFormSubmissions(formId: $formId, limit: $limit) {
+    email
+    customerId
+    createdAt
+  }
+}
+
+query FormSegments {
+  customerSegments {
+    items {
+      id
+      name
+    }
+  }
+}
+
+mutation CreateSignupForm($input: SaveSignupFormInput!) {
+  createSignupForm(input: $input) {
+    ...SignupFormFields
+  }
+}
+
+mutation UpdateSignupForm($id: ID!, $input: SaveSignupFormInput!) {
+  updateSignupForm(id: $id, input: $input) {
+    ...SignupFormFields
+  }
+}
+
+mutation DeleteSignupForm($id: ID!) {
+  deleteSignupForm(id: $id)
+}

@@ -1,0 +1,105 @@
+enum MediaAssetStatus {
+  PENDING
+  READY
+}
+
+enum MediaMimeGroup {
+  IMAGE
+  DOCUMENT
+}
+
+type MediaAsset {
+  id: ID!
+  path: String!
+  directoryPath: String!
+  filename: String!
+  url: String!
+  mimeType: String!
+  mimeGroup: MediaMimeGroup!
+  sizeBytes: Int!
+  width: Int
+  height: Int
+  status: MediaAssetStatus!
+  # Smart-crop focal point (0..1 fractions of width/height). Null =
+  # center. Honored by the /media/t transform endpoint's cover crops.
+  focalX: Float
+  focalY: Float
+  title: String!
+  altText: String!
+  caption: String!
+  notes: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type MediaDirectoryChild {
+  path: String!
+  name: String!
+}
+
+type UntrackedMediaFile {
+  objectKey:    String!
+  url:          String!
+  filename:     String!
+  mimeType:     String!
+  sizeBytes:    Int!
+  lastModified: Time!
+}
+
+type MediaDirectory {
+  path:           String!
+  name:           String!
+  directories:    [MediaDirectoryChild!]!
+  assets:         [MediaAsset!]!
+  untrackedFiles: [UntrackedMediaFile!]!
+}
+
+type MediaAssetSearchResult {
+  items: [MediaAsset!]!
+  totalCount: Int!
+}
+
+type RequestMediaAssetUploadPayload {
+  asset: MediaAsset!
+  uploadUrl: String!
+  expiresAt: Time!
+}
+
+input RequestMediaAssetUploadInput {
+  path: String!
+  filename: String!
+  mimeType: String!
+  sizeBytes: Int!
+  title: String
+  altText: String
+  caption: String
+  notes: String
+}
+
+input UpdateMediaAssetInput {
+  id: ID!
+  title: String
+  altText: String
+  caption: String
+  notes: String
+}
+
+extend type Query {
+  mediaDirectory(path: String!): MediaDirectory!
+  mediaAsset(id: ID!): MediaAsset!
+  searchMediaAssets(query: String, path: String, mimeGroup: MediaMimeGroup, limit: Int, offset: Int): MediaAssetSearchResult!
+  allMediaDirectories: [MediaDirectoryChild!]!
+}
+
+extend type Mutation {
+  # Set (or clear, with nulls) the smart-crop focal point.
+  setMediaFocalPoint(assetId: ID!, x: Float, y: Float): MediaAsset!
+  createMediaDirectory(path: String!, name: String!): MediaDirectoryChild!
+  requestMediaAssetUpload(input: RequestMediaAssetUploadInput!): RequestMediaAssetUploadPayload!
+  confirmMediaAssetUpload(assetId: ID!, width: Int, height: Int): MediaAsset!
+  updateMediaAsset(input: UpdateMediaAssetInput!): MediaAsset!
+  moveMediaAsset(id: ID!, targetPath: String!, filename: String): MediaAsset!
+  deleteMediaAsset(id: ID!, deleteFromStorage: Boolean): Boolean!
+  deleteMediaDirectory(path: String!, recursive: Boolean!): Boolean!
+  renameMediaDirectory(path: String!, newName: String!): MediaDirectoryChild!
+}

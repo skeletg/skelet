@@ -1,0 +1,39 @@
+# DEV ONLY - both operations error outside APP_ENV=development; the
+# switcher hides itself when devAdmins fails.
+
+query DevAdmins {
+  devAdmins {
+    id
+    email
+    firstName
+    lastName
+    isActive
+    isSuperuser
+    roles {
+      id
+      slug
+      name
+    }
+  }
+}
+
+# Selection mirrors AdminLogin so the payload can be written straight
+# into the stored AuthState.
+mutation DevImpersonate($adminId: ID!) {
+  devImpersonate(adminId: $adminId) {
+    accessToken
+    refreshToken
+    admin {
+      id
+      email
+      firstName
+      lastName
+      isSuperuser
+      roles {
+        id
+        slug
+        name
+      }
+    }
+  }
+}

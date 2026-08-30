@@ -1,0 +1,46 @@
+query Header {
+  # THIS channel's languages, not the globally active ones. The global list offered German on a
+  # US storefront whose channel has no German, and picking it 404s every page
+  currentChannel {
+    locales {
+      code
+      name
+      nativeName
+      flagEmoji
+      hreflangValue
+    }
+  }
+  rootCategories {
+    id
+    slug
+    urlPath
+    name
+    # Three levels of nested children is enough for almost every
+    # storefront tree. Each level renders as its own drill-down
+    # panel in the hamburger menu; deeper levels stop expanding
+    # but the category itself still links to its page.
+    children {
+      id
+      slug
+      urlPath
+      name
+      children {
+        id
+        slug
+        urlPath
+        name
+        children {
+          id
+          slug
+          urlPath
+          name
+        }
+      }
+    }
+  }
+  collections {
+    id
+    slug
+    name
+  }
+}

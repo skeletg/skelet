@@ -1,0 +1,578 @@
+# ==================== Products ====================
+
+# One entry per attribute assigned to the product's type. The admin UI
+# branches on attribute.inputType to render the right control.
+type ProductAttributeValue {
+  attribute:      Attribute!
+  # Populated for selectable attributes (dropdown, multiselect, swatch).
+  selectedValues: [AttributeValue!]!
+  # Populated for scalar attributes (plain_text, numeric, boolean, date, date_time).
+  # Null if the attribute has no scalar value set.
+  scalarValue:    JSON
+  # Populated for REFERENCE attributes: the resolved target entities, in order.
+  references:     [ProductAttributeReference!]!
+}
+
+# One resolved reference-attribute value: a pointer to another entity plus its
+# display label and canonical path (for linking). A target that no longer
+# exists / isn't visible on the store is omitted from the list.
+type ProductAttributeReference {
+  targetType: AttributeReferenceTarget!
+  targetId:   ID!
+  label:      String!
+  url:        String!
+}
+
+type ProductContent {
+  locale:              String!
+  name:                String!
+  shortDescription:    JSON
+  description:         JSON
+  descriptionRichText: JSON
+  metaTitle:           String
+  metaDescription:     String
+  metaKeywords:        String
+  updatedAt:           Time!
+}
+
+# Structural classification of a product. Distinct from `ProductType`,
+# which is the catalog metaclass (attribute schema, inventory policy).
+# Immutable after create - see catalog.ProductKind for the enforcement
+# rationale. SIMPLE and CONFIGURABLE are supported today; BUNDLE and
+# GROUPED are reserved but rejected at the service layer.
+enum ProductKind {
+  SIMPLE
+  CONFIGURABLE
+  BUNDLE
+  GROUPED
+  KIT
+  GIFTCARD
+  SUBSCRIPTION
+}
+
+type Product {
+  id:                   ID!
+  productType:          ProductType!
+  # Set at creation, never mutated. Drives admin UI (children section
+  # only shown for CONFIGURABLE), inventory provisioning (skipped for
+  # wrappers), and cart eligibility (only SIMPLE is purchasable).
+  kind:                 ProductKind!
+  # Default price + currency that per-store listings can inherit when their
+  # store's currency matches. Customer-visible pricing always comes from
+  # listings; these are admin defaults, not customer-facing.
+  defaultPrice:         Int!
+  defaultCurrencyCode:  String!
+  # Strike-through "was" price (minor units). Display-only.
+  compareAtPrice:       Int
+  # Scheduled sale price + window. Active when now is within [from, to);
+  # null bounds are open-ended. Channel listings can override the trio.
+  specialPrice:         Int
+  specialFrom:          Time
+  specialTo:            Time
+  # Effective sell price right now (front semantics): active special else
+  # defaultPrice. Per-channel resolution additionally folds listing
+  # overrides - see ProductChannelListing.effectivePrice.
+  price:                Int!
+  compareAtPriceResolved: Int
+  onSale:               Boolean!
+  # Physical shipping attributes: weight in grams, box dimensions in mm.
+  # Null = unspecified. Feed carrier rate quotes and labels.
+  weightGrams:          Int
+  lengthMm:             Int
+  widthMm:              Int
+  heightMm:             Int
+  # Order quantity bounds per cart line (increment = quantityStep).
+  minOrderQty:          Float
+  maxOrderQty:          Float
+  # Unit cost (COGS, minor units). Admin-only; snapshotted onto order
+  # lines at placement for margin reporting.
+  costCents:            Int
+  # Tier (customer-group / quantity-break) prices. Lowest applicable tier
+  # beats the effective price at cart time.
+  groupPrices:          [ProductGroupPrice!]!
+  # Per-store listings: existence = product is sold on that store. Listings
+  # carry the explicit price (in store's currency) or NULL to inherit.
+  listings:             [ProductChannelListing!]!
+  # Every product carries a SKU, including configurable wrappers. The
+  # wrapper-vs-variant distinction is derived from the presence of rows
+  # in catalog_product_children, not from a null SKU.
+  sku:                  String!
+  # Free-form tax class slug ("standard", "reduced", "zero", "exempt", …)
+  # the tax engine's product_tax_class condition matches on. Set via
+  # setProductTaxClass.
+  taxClass:             String!
+  # When true the storefront adds <meta name="robots" content="noindex">.
+  # Global setting - not locale-specific.
+  seoNoindex:           Boolean!
+  canonicalUrl:         String
+  # Full URL path used for routing (e.g. shoes/nike/blue-widget). Always set.
+  url:              String!
+  # When true, url is computed from the product type's template (or the
+  # per-product override). Setting url manually while this is true is
+  # rejected.
+  urlAuto:              Boolean!
+  # Per-product override for the URL path template. Empty = inherit from
+  # the product type. Ignored when urlAuto is false.
+  urlTemplateOverride:  String!
+  # null = inherit from product type's tracksInventory. Pointer-style
+  # explicit override otherwise.
+  tracksInventoryOverride:  Boolean
+  # Effective tracking flag (override if set, else product type's).
+  tracksInventory:          Boolean!
+  # Number of decimal places this product's quantity inputs accept
+  # (0 = whole units, default). Range 0..4 (DB check constraint).
+  # The dashboard + storefront use this to format inputs and labels.
+  quantityDecimals:         Int!
+  # Smallest sellable increment. Inputs snap to multiples of this
+  # value; the service rejects writes that aren't multiples. Defaults
+  # to 1 for whole-unit products; 0.25, 0.1, 0.01 etc for fractional.
+  quantityStep:             Float!
+  # Salable quantity for the current channel context (or for the
+  # explicitly-passed channelId). Returns null if no inventory item
+  # exists or no channel is in scope (unbounded "in stock").
+  salableQuantity(channelId: ID): Float
+  inStock(channelId: ID): Boolean!
+  # Resolved for the locale passed to the query. Null if no content exists for that locale.
+  name:                 String
+  shortDescription:     JSON
+  description:          JSON
+  descriptionRichText:  JSON
+  metaTitle:            String
+  metaDescription:      String
+  metaKeywords:         String
+  # The locale code whose content row populates name/description/seo* above.
+  # Tracks the requested locale when present, otherwise the global default
+  # locale (resolved via fallback). Null only if the product has no content
+  # rows at all. Use this to keep client-side locale pickers in sync with
+  # what the server actually resolved.
+  contentLocale:        String
+  # All available translations - use this in the admin UI to manage content.
+  content:              [ProductContent!]!
+  attributeValues:      [ProductAttributeValue!]!
+  # children is populated for configurable products. Each child is a full
+  # product in its own right - its own SKU, price, and attributes.
+  children:             [Product!]!
+  # configurableOptions lists the selectable attributes that differentiate
+  # children (e.g. Color, Size). Set via setConfigurableOptions.
+  configurableOptions:  [Attribute!]!
+  # Bundle structure - populated for products with kind=BUNDLE. Each
+  # option carries one or more selections (SIMPLE products) that fill
+  # the option's menu.
+  bundleOptions:        [BundleOption!]!
+  # Grouped members - populated for products with kind=GROUPED. Each
+  # entry is one SIMPLE product the storefront renders alongside the
+  # parent. Sorted by sortOrder.
+  groupedMembers:       [GroupedMember!]!
+  # Kit components - populated for products with kind=KIT. Each entry is
+  # one SIMPLE product the kit decrements at fulfillment. Sorted by
+  # sortOrder.
+  kitComponents:        [KitComponent!]!
+  # Downloadable files this product delivers (digital products). Purchasing
+  # grants the buyer token-gated access to each. Sorted by sortOrder.
+  downloads:            [ProductDownload!]!
+  # Recurring billing terms - populated for products with kind=SUBSCRIPTION.
+  # null when no terms are configured yet.
+  subscriptionTerms:    SubscriptionTerms
+  # Custom product options - per-product customer-facing inputs that
+  # apply at add-to-cart time. Populated for purchasable kinds (simple,
+  # configurable, bundle); always empty for grouped.
+  productOptions:       [ProductOption!]!
+  # Sorted by sortOrder ascending.
+  media:                [ProductMedia!]!
+  # Explicit role assignments - null when no media has been assigned to that role.
+  # These are the literal assignments, so the media-role editor can tell "assigned"
+  # from "just happens to be first". Render displayImage instead.
+  mainImage:            ProductMedia
+  thumbnail:            ProductMedia
+  ogImage:              ProductMedia
+  # What to show when the admin panel needs ONE picture of this product: the main
+  # image, else the thumbnail, else the first gallery image. Only an explicit
+  # setProductMediaRole call assigns a role, so a product whose images arrived
+  # through import, a plugin or the API has media and no roles - and rendered as a
+  # blank tile everywhere. Never use this to decide what a role is set to.
+  displayImage:         ProductMedia
+  # All categories this product belongs to (any order).
+  categories:           [Category!]!
+  # The primary category - used for breadcrumbs and default URL path. Null if none set.
+  primaryCategory:      Category
+  # Collections this product belongs to.
+  collections:          [Collection!]!
+  metadata:             [MetadataItem!]!
+  privateMetadata:      [MetadataItem!]!
+  createdAt:            Time!
+  updatedAt:            Time!
+}
+
+# ==================== Product downloads ====================
+# Digital files a product delivers. Buying the product grants the customer
+# token-gated access to each (see DownloadGrant on the storefront). url is
+# the file location served behind the access token; maxDownloads caps uses
+# (null = unlimited).
+type ProductDownload {
+  id:           ID!
+  title:        String!
+  url:          String!
+  maxDownloads: Int
+  sortOrder:    Int!
+  createdAt:    Time!
+  updatedAt:    Time!
+}
+
+input AddProductDownloadInput {
+  productId:    ID!
+  title:        String!
+  url:          String!
+  maxDownloads: Int
+  sortOrder:    Int
+}
+
+input UpdateProductDownloadInput {
+  id:           ID!
+  title:        String
+  url:          String
+  maxDownloads: Int
+  sortOrder:    Int
+}
+
+# ==================== Subscription terms ====================
+# Recurring billing config for a kind=SUBSCRIPTION product. Purchasing the
+# product starts a subscription that re-bills every intervalCount × intervalUnit
+# at the product's price. trialDays delays the first renewal charge.
+enum SubscriptionInterval {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+type SubscriptionTerms {
+  intervalUnit:  SubscriptionInterval!
+  intervalCount: Int!
+  trialDays:     Int!
+  createdAt:     Time!
+  updatedAt:     Time!
+}
+
+input SetSubscriptionTermsInput {
+  productId:     ID!
+  intervalUnit:  SubscriptionInterval!
+  intervalCount: Int!
+  trialDays:     Int
+}
+
+# productTypeId is immutable on update.
+input CreateProductInput {
+  productTypeId:        ID!
+  # Structural kind. Required at create, immutable afterwards. All four
+  # kinds (SIMPLE, CONFIGURABLE, BUNDLE, GROUPED) are supported.
+  kind:                 ProductKind!
+  defaultPrice:         Int
+  defaultCurrencyCode:  String
+  # Required for every product. Pass an empty string to let the service
+  # auto-generate one from the name (for bulk imports; admin flows should
+  # send an explicit SKU).
+  sku:                  String!
+  seoNoindex:           Boolean
+  canonicalUrl:         String
+  url:              String
+  # Defaults to true when the product type has a urlTemplate, else false.
+  # Cannot be set true while url is also non-null.
+  urlAuto:              Boolean
+  # Empty = inherit product type's template.
+  urlTemplateOverride:  String
+  # null = inherit from product type. Set explicit true/false to override.
+  tracksInventoryOverride:  Boolean
+  # Decimal-quantity knobs. Default 0 / 1 for whole-unit products.
+  quantityDecimals:         Int
+  quantityStep:             Float
+  metadata:             [MetadataInput!]
+  privateMetadata:      [MetadataInput!]
+  # Initial content - locale and name are required at creation time.
+  locale:               String!
+  name:                 String!
+  shortDescription:     JSON
+  descriptionRichText:  JSON
+  metaTitle:            String
+  metaDescription:      String
+  metaKeywords:         String
+}
+
+# Only non-translatable fields. Use upsertProductContent to update name/description/SEO copy.
+input UpdateProductInput {
+  id:                   ID!
+  defaultPrice:         Int
+  defaultCurrencyCode:  String
+  # null = no change; clearCompareAtPrice reverts to none.
+  compareAtPrice:       Int
+  clearCompareAtPrice:  Boolean
+  # Passing specialPrice replaces the whole special trio (from/to read
+  # from this same input); clearSpecialPrice removes it entirely.
+  specialPrice:         Int
+  specialFrom:          Time
+  specialTo:            Time
+  clearSpecialPrice:    Boolean
+  # Physical shipping attributes. null = no change; 0 clears (stores NULL).
+  weightGrams:          Int
+  lengthMm:             Int
+  widthMm:              Int
+  heightMm:             Int
+  # Order quantity bounds. null = no change; 0 clears.
+  minOrderQty:          Float
+  maxOrderQty:          Float
+  # Unit cost. null = no change; 0 clears.
+  costCents:            Int
+  sku:                  String
+  seoNoindex:           Boolean
+  canonicalUrl:         String
+  url:              String
+  # Setting urlAuto = true (or leaving it true) while also passing
+  # url is rejected (manual-vs-auto conflict).
+  urlAuto:              Boolean
+  urlTemplateOverride:  String
+  # null = no change. Pass true/false to override the product type, OR
+  # set clearTracksInventoryOverride: true to revert to inherit.
+  tracksInventoryOverride:       Boolean
+  clearTracksInventoryOverride:  Boolean
+  # null = no change.
+  quantityDecimals:              Int
+  quantityStep:                  Float
+  metadata:             [MetadataInput!]
+  privateMetadata:      [MetadataInput!]
+}
+
+type ProductChannelListing {
+  productId:           ID!
+  channelId:         ID!
+  channel:           Channel!
+  # Explicit price in the store's currency. Null when the listing inherits
+  # from the product's defaultPrice (only valid when currencies match).
+  price:               Int
+  isPublished:         Boolean!
+  # Per-channel URL override. Null = inherit the product's global url.
+  # Unique within the channel.
+  url:             String
+  # Resolved price the customer would see, after applying inheritance. Null
+  # when the listing inherits but currencies don't match (the listing
+  # cannot serve a price and is effectively unsellable until set).
+  effectivePrice:      Int
+  effectiveCurrency:   String!
+  # Per-channel special pricing overrides (null = inherit the product's).
+  compareAtPrice:      Int
+  specialPrice:        Int
+  specialFrom:         Time
+  specialTo:           Time
+}
+
+input SetProductListingInput {
+  productId:    ID!
+  channelId:  ID!
+  # Null = inherit from product.defaultPrice (only valid when the store's
+  # currency matches the product's defaultCurrencyCode).
+  price:        Int
+  isPublished:  Boolean!
+  # Null = inherit the product's global url on this channel.
+  url:      String
+  # Per-channel special pricing overrides. Setting specialPrice replaces
+  # the product-level trio for this channel; null = inherit.
+  compareAtPrice: Int
+  specialPrice:   Int
+  specialFrom:    Time
+  specialTo:      Time
+}
+
+input UpsertProductContentInput {
+  name:                String!
+  shortDescription:    JSON
+  descriptionRichText: JSON
+  metaTitle:           String
+  metaDescription:     String
+  metaKeywords:        String
+}
+
+# Exactly one of valueIds / scalarValue is populated per entry, matching
+# the target attribute's inputType. Empty valueIds (selectable) or null
+# scalarValue (scalar) clears that attribute.
+input ProductAttributeAssignmentInput {
+  attributeId: ID!
+  valueIds:    [ID!]   # for selectable attributes
+  scalarValue: JSON    # for scalar attributes
+}
+
+# One ordered entity reference for setProductAttributeReferences (position is
+# taken from list order). Mirrors CMSRelationshipRefInput.
+input AttributeReferenceRefInput {
+  targetType: AttributeReferenceTarget!
+  targetId:   ID!
+}
+
+# One variant in a generateConfigurableChildren batch. Each entry materialises
+# as a new SIMPLE child product whose option values fill the parent's
+# configurable options. attributeValueIds carries the combination - exactly
+# one value per option, in any order (the server maps value → option).
+input GenerateConfigurableChildInput {
+  attributeValueIds:   [ID!]!
+  name:                String!
+  sku:                 String  # blank → auto-generated from name
+  defaultPrice:        Int     # nil/zero → inherit parent's defaultPrice
+  defaultCurrencyCode: String  # blank → inherit parent's defaultCurrencyCode
+  locale:              String  # blank → server's default locale
+  sortOrder:           Int
+}
+
+# Result of a bulk product import. created/updated count the rows applied;
+# errors lists the rows that failed (the rest still applied - rows are
+# independent).
+# One page of the admin product list plus the total the filter matched, so the
+# pager can size itself without a second round trip.
+type ProductPage {
+  totalCount: Int!
+  items:      [Product!]!
+}
+
+# --- Queries (require catalog.view) ---
+extend type Query {
+  # Admin scope is header-driven and uniform per request (mirrors the
+  # storefront): the active locale comes from the `Locale` header (see
+  # internal/locale.Middleware) and the channel viewing scope from the
+  # `X-Channel-Id` header (see channel.AdminMiddleware) - clients don't
+  # pass either per-operation. The optional channelId arg overrides the
+  # header scope for cross-channel views; absent header + absent arg = all
+  # channels (Global), never the default store. Channel-targeting mutations
+  # (listing/config) keep a required channelId - that's their subject, not a
+  # viewing scope.
+  products(channelId: ID): [Product!]!
+  # Server-side page for the admin list. `products` hydrates the full graph for
+  # the WHOLE catalogue - at 101k products that was a 152MB response the browser
+  # froze normalising - so anything rendering a list wants this instead. Sorting
+  # and filtering happen in SQL, because a page can't be sorted client-side
+  # without lying about what's on the other pages.
+  #
+  # sortKey is one of: name, sku, url, kind, productType, defaultPrice,
+  # createdAt, updatedAt. Anything else falls back to updatedAt.
+  # attributeValueIds ANDs across attributes and ORs within one, so two colours
+  # widen the result while a colour plus a size narrows it.
+  productsPaged(
+    channelId:         ID
+    search:            String
+    kinds:             [ProductKind!]
+    productTypeSlugs:  [String!]
+    published:         Boolean
+    attributeValueIds: [ID!]
+    sortKey:           String
+    sortDesc:          Boolean
+    limit:             Int = 25
+    offset:            Int = 0
+  ): ProductPage!
+  product(id: ID!): Product!
+  # Batched label/detail resolution for pickers holding bare ids - capped at 100
+  productsByIds(ids: [ID!]!): [Product!]!
+}
+
+# --- Mutations (require catalog.manage) ---
+extend type Mutation {
+  createProduct(input: CreateProductInput!): Product!
+  updateProduct(input: UpdateProductInput!): Product!
+  deleteProduct(id: ID!):                    Boolean!
+  # Create or replace content for one locale. Translations are not store-scoped.
+  upsertProductContent(
+    productId: ID!
+    locale:    String
+    input:     UpsertProductContentInput!
+  ): Product!
+  deleteProductContent(productId: ID!, locale: String): Boolean!
+
+  # Upsert attribute assignments. Attributes not in the input are left
+  # unchanged. Pass empty valueIds (selectable) or null scalarValue (scalar)
+  # to clear one. Returns the product with its full updated attribute view.
+  setProductAttributes(productId: ID!, assignments: [ProductAttributeAssignmentInput!]!): Product!
+  clearProductAttribute(productId: ID!, attributeId: ID!): Product!
+  # Replace all reference values for one (product, reference-attribute) pair.
+  # Order comes from the list; every target must match the attribute's
+  # relationshipTarget and exist. Returns the product with its updated
+  # attribute view.
+  setProductAttributeReferences(productId: ID!, attributeId: ID!, refs: [AttributeReferenceRefInput!]!): Product!
+  # Set a product's tax class (empty → "standard"). The tax engine's
+  # product_tax_class condition matches lines on this slug.
+  setProductTaxClass(productId: ID!, taxClass: String!): Product!
+
+  # Set which selectable attributes differentiate children of a configurable
+  # product. All attributeIds must be assigned to the product's type and must
+  # be dropdown/multiselect/swatch. Replaces any previous options.
+  setConfigurableOptions(productId: ID!, attributeIds: [ID!]!): Product!
+
+  # Link a child product under a parent. Parent and child must share the same
+  # product type. The child must have values set for all of the parent's
+  # configurableOptions before it can be linked.
+  addProductChild(parentId: ID!, childId: ID!, sortOrder: Int): Product!
+  removeProductChild(parentId: ID!, childId: ID!): Product!
+
+  # Bulk-create children for a configurable parent. Each variant supplies the
+  # combination of option values that fills the parent's configurableOptions
+  # plus its own slug / name / SKU / price. The service validates option
+  # coverage, batch-internal dedup, and dedup against existing children
+  # before any writes happen. Returns the parent with its refreshed children.
+  generateConfigurableChildren(
+    parentId: ID!,
+    variants: [GenerateConfigurableChildInput!]!
+  ): Product!
+
+  # ---------- Product downloads ----------
+  # Manage the digital files a product delivers. Buying the product grants
+  # the customer token-gated access to each. Mutations return the parent
+  # Product with refreshed downloads.
+  addProductDownload(input: AddProductDownloadInput!): Product!
+  updateProductDownload(input: UpdateProductDownloadInput!): Product!
+  removeProductDownload(id: ID!): Product!
+
+  # ---------- Subscription terms ----------
+  # Upsert / clear the recurring billing terms of a SUBSCRIPTION product.
+  # Both return the parent Product with refreshed subscriptionTerms.
+  setSubscriptionTerms(input: SetSubscriptionTermsInput!): Product!
+  clearSubscriptionTerms(productId: ID!): Product!
+
+  # Per-store listing operations. setProductListing creates or updates the
+  # listing for (product, store). clearProductListing removes the listing,
+  # which un-publishes the product on that store.
+  setProductListing(input: SetProductListingInput!): Product!
+  clearProductListing(productId: ID!, channelId: ID!): Boolean!
+}
+
+
+# One tier (quantity-break) price row. Null channelId / customerGroupId =
+# applies to every channel / group.
+type ProductGroupPrice {
+  id:              ID!
+  channelId:       ID
+  customerGroupId: ID
+  minQty:          Float!
+  price:           Int!
+}
+
+input ProductGroupPriceInput {
+  channelId:       ID
+  customerGroupId: ID
+  minQty:          Float!
+  price:           Int!
+}
+
+extend type Mutation {
+  # Replaces the product's tier-price rows wholesale.
+  setProductGroupPrices(productId: ID!, prices: [ProductGroupPriceInput!]!): [ProductGroupPrice!]!
+}
+
+
+enum ProductLinkKind {
+  RELATED
+  UPSELL
+  CROSSSELL
+}
+
+extend type Query {
+  # Curated linked product ids for one kind, curated order.
+  productLinks(productId: ID!, kind: ProductLinkKind!): [ID!]!
+}
+
+extend type Mutation {
+  # Replaces one kind's curated links wholesale (slice order = curated order).
+  setProductLinks(productId: ID!, kind: ProductLinkKind!, linkedProductIds: [ID!]!): Boolean!
+}

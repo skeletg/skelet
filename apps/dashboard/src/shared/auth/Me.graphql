@@ -1,0 +1,55 @@
+query Me {
+  me {
+    id
+    email
+    firstName
+    lastName
+    isActive
+    isSuperuser
+    totpEnabled
+    lastLoginAt
+    roles {
+      id
+      slug
+      name
+      scopes {
+        permission { id slug name }
+        channelId
+        locale
+      }
+    }
+    permissions {
+      id
+      slug
+      name
+    }
+    sessions {
+      id
+      ipAddress
+      userAgent
+      createdAt
+      lastActiveAt
+      isCurrent
+    }
+  }
+}
+
+mutation LogoutOtherDevices($token: String!) {
+  logoutOtherDevices(currentRefreshToken: $token)
+}
+
+
+mutation AdminTotpSetup {
+  adminTotpSetup {
+    secret
+    otpauthUrl
+  }
+}
+
+mutation AdminTotpEnable($code: String!) {
+  adminTotpEnable(code: $code)
+}
+
+mutation AdminTotpDisable($code: String!) {
+  adminTotpDisable(code: $code)
+}

@@ -1,0 +1,133 @@
+"A column in a transfer file. The admin UI renders its reference table straight off these, so adding one needs no frontend work"
+type DataField {
+  name: String!
+  label: String!
+  type: String!
+  description: String!
+  example: String!
+  "Required to CREATE a record - an update may leave it out"
+  required: Boolean!
+  "Part of the natural key rows upsert on"
+  identifier: Boolean!
+  "Exported for context, ignored on import"
+  readOnly: Boolean!
+  enum: [String!]!
+}
+
+type DataOptionChoice {
+  value: String!
+  label: String!
+}
+
+"A per-run knob. `appliesTo` is import, export, or empty for both"
+type DataOption {
+  name: String!
+  label: String!
+  description: String!
+  type: String!
+  required: Boolean!
+  default: String!
+  choices: [DataOptionChoice!]!
+  appliesTo: String!
+}
+
+type DataFormat {
+  format: String!
+  label: String!
+  extension: String!
+}
+
+"One importable or exportable thing. `canImport` already accounts for the caller's permissions"
+type DataResource {
+  slug: String!
+  label: String!
+  group: String!
+  description: String!
+  fields: [DataField!]!
+  options: [DataOption!]!
+  canImport: Boolean!
+  canExport: Boolean!
+  viewPermission: String!
+  importPermission: String!
+  "Column prefixes the file may carry beyond the declared fields, e.g. attr: for product attributes"
+  dynamicPrefixes: [String!]!
+}
+
+type DataJobError {
+  line: Int!
+  "The row's natural key, so an error is findable in the source file"
+  ref: String!
+  message: String!
+}
+
+type DataJob {
+  id: ID!
+  direction: String!
+  resource: String!
+  resourceLabel: String!
+  format: String!
+  status: String!
+  dryRun: Boolean!
+  options: JSON!
+  channelId: ID
+  adminId: ID
+  filename: String!
+  "False once the retention sweep has removed the file - the row outlives it"
+  hasArtifact: Boolean!
+  byteSize: Int!
+  totalRows: Int!
+  processedRows: Int!
+  createdRows: Int!
+  updatedRows: Int!
+  skippedRows: Int!
+  failedRows: Int!
+  errorSummary: String!
+  warnings: [String!]!
+  "More errors than were stored - the report holds the first batch"
+  errorsTruncated: Boolean!
+  attempts: Int!
+  createdAt: Time!
+  startedAt: Time
+  finishedAt: Time
+  expiresAt: Time
+}
+
+type DataJobList {
+  items: [DataJob!]!
+  totalCount: Int!
+}
+
+type DataJobErrorList {
+  items: [DataJobError!]!
+  totalCount: Int!
+}
+
+input DataOptionValue {
+  name: String!
+  value: String!
+}
+
+input StartDataExportInput {
+  resource: String!
+  format: String! = "csv"
+  options: [DataOptionValue!]
+  channelId: ID
+  locale: String
+}
+
+extend type Query {
+  "Every resource the caller may at least export, with the columns and options its forms are built from"
+  dataResources: [DataResource!]!
+  dataResource(slug: String!): DataResource
+  dataFormats: [DataFormat!]!
+  dataJobs(resources: [String!], direction: String, statuses: [String!], limit: Int, offset: Int): DataJobList!
+  dataJob(id: ID!): DataJob
+  dataJobErrors(id: ID!, limit: Int, offset: Int): DataJobErrorList!
+}
+
+extend type Mutation {
+  "Queues an export - poll the returned job, then download it from /api/admin/data/jobs/{id}/download"
+  startDataExport(input: StartDataExportInput!): DataJob!
+  "Only a job that has not started yet - a running one is stopped by its runner noticing"
+  cancelDataJob(id: ID!): DataJob!
+}

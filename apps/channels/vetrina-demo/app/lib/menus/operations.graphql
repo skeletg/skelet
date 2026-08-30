@@ -1,0 +1,35 @@
+fragment MenuFields on Menu {
+  id
+  slug
+  name
+  # Three levels of nesting covers every realistic storefront menu
+  # (header dropdowns, footer columns). The backend caps menu depth
+  # at 5, but the storefront stops rendering past depth 3 - deeper
+  # items still exist and are reachable via their parent page.
+  items {
+    id
+    label
+    url
+    children {
+      id
+      label
+      url
+      children {
+        id
+        label
+        url
+      }
+    }
+  }
+}
+
+# Batch fetch. The storefront's menu DataLoader (app/lib/menus.ts)
+# coalesces every per-component loadMenu(slug) call in a request into
+# this single query, so N menus (header, footer, …) cost one round
+# trip. Slugs that don't resolve are absent from the result - callers
+# map the response back by slug.
+query Menus($slugs: [String!]!) {
+  menus(slugs: $slugs) {
+    ...MenuFields
+  }
+}

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Kill and remove the containers - your data (volumes) survives
+set -e
+cd "$(dirname "$(dirname "$0")")"
+. bin/_lib
+# --remove-orphans also sweeps apps you've deselected in bin/setup
+docker compose down --remove-orphans "$@"

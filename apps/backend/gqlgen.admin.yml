@@ -1,0 +1,198 @@
+# Admin GraphQL surface: schema + executable + resolvers for the back-office API
+# served at POST /api/admin/graphql.
+schema:
+  - graph/schema/admin/*.graphqls
+  # Tier 1 plugins ship their own .graphqls files and gqlgen merges them into the
+  # same admin schema, so plugin types/queries/mutations are first-class. The list
+  # is the enabled set rather than a glob, so disabling a plugin removes its fields
+  # from the schema instead of leaving them advertised with no resolver behind them.
+  # BEGIN plugin schema - generated from plugins/plugins.json by cmd/plugingen
+  # END plugin schema
+
+exec:
+  package: admin
+  layout: single-file
+  filename: graph/admin/generated.go
+
+model:
+  filename: graph/admin/model/models_gen.go
+  package: model
+
+resolver:
+  package: admin
+  layout: follow-schema
+  dir: graph/admin
+  filename_template: "{name}.resolvers.go"
+  # gqlgen's scaffolding comments are pure restatement ("X is the resolver for the x field.") and they came back on every regen, so the
+  # files could never be swept - hand-written resolver comments are still preserved across regeneration
+  omit_template_comment: true
+
+omit_gqlgen_file_notice: true
+
+call_argument_directives_with_null: true
+
+autobind:
+
+models:
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64
+      - github.com/99designs/gqlgen/graphql.Int32
+  # Product.partOf membership types - hand-rolled structs (carry the owning product id; leaf fields bind to struct
+  # fields populated by the three ProductMemberships resolvers)
+  Company:
+    fields:
+      # Lazy price-list load - a plain model field would force every
+      # company mapping (incl. list rows) to fetch prices.
+      prices: { resolver: true }
+  CustomerSegment:
+    fields:
+      # Lazy member page - list rows only carry the count
+      members: { resolver: true }
+  Collection:
+    fields:
+      # Lazy membership load - mapping it eagerly means a hardcoded empty
+      # slice, so the field answers [] for every collection
+      products: { resolver: true }
+      # Lazy load - only the collection detail page selects it
+      facetOverrides: { resolver: true }
+  ProductMemberships:
+    model: github.com/skeletg/skelet/graph/admin/model.ProductMemberships
+    fields:
+      configurable: { resolver: true }
+      bundles: { resolver: true }
+      groupedProducts: { resolver: true }
+  ConfigurableMembership:
+    model: github.com/skeletg/skelet/graph/admin/model.ConfigurableMembership
+  BundleMembership:
+    model: github.com/skeletg/skelet/graph/admin/model.BundleMembership
+  GroupedMembership:
+    model: github.com/skeletg/skelet/graph/admin/model.GroupedMembership
+  Customer:
+    fields:
+      consents:
+        resolver: true
+  # Order read-side relations are field resolvers so the auto-bound Order model stays free of these slices - only the
+  # detail page pays the lookup, never the orders list
+  Order:
+    fields:
+      fulfillments:
+        resolver: true
+      paymentTransactions:
+        resolver: true
+      returns:
+        resolver: true
+      appliedPromotions:
+        resolver: true
+      taxLines:
+        resolver: true
+      trackingUrl:
+        resolver: true
+  # Subdivisions (ISO 3166-2). Field resolver so the countries list
+  # doesn't pay the per-country regions query; only the detail page asks.
+  Country:
+    fields:
+      regions:
+        resolver: true
+  Channel:
+    fields:
+      inventoryLocations:
+        resolver: true
+  Category:
+    fields:
+      # Resolver (not a struct field): a cheap indexed COUNT computed on demand so the autobound Category model stays
+      # free of it and the tree-building mapper never needs DB access. Safe to select on the category tree
+      productCount:
+        resolver: true
+      # Lazy load - only the category detail page selects it
+      facetOverrides:
+        resolver: true
+      # Scope filter, not a lazy load - the mapper still populates the slice
+      # Per-channel rows leak like a list query would, and this one hadn't filtered since the scope rollout
+      listings:
+        resolver: true
+  CMSPageType:
+    fields:
+      # Resolver: an indexed COUNT of pages of this type, computed on demand
+      # (used by the create form to disable already-used singleton types).
+      pageCount:
+        resolver: true
+  Product:
+    fields:
+      # partOf is a resolver (not a struct field) so the shared admin Product model stays free of a ProductMemberships
+      # field - the front surface pins its own ProductMemberships type and autobinds Product
+      partOf:
+        resolver: true
+      salableQuantity:
+        resolver: true
+      inStock:
+        resolver: true
+      # Lazy per-product loads: the products LIST page renders neither, and eagerly hydrating them cost two queries per
+      # row. The detail page (which selects them) pays the two queries on demand
+      productOptions:
+        resolver: true
+      downloads:
+        resolver: true
+      # Admin-only product groups this product belongs to. Lazy: only the "what groups is this product in / its
+      # group-mates" query pays it; list views never select it
+      groups:
+        resolver: true
+  ProductGroup:
+    fields:
+      products:
+        resolver: true
+      productCount:
+        resolver: true
+  # Review questions assigned to this product type. Field resolver so list endpoints that don't ask for them don't pay
+  # the join, and so the catalog model.ProductType struct doesn't have to carry an unrelated slice
+  ProductType:
+    fields:
+      reviewQuestions:
+        resolver: true
+  InventoryLocation:
+    fields:
+      country:
+        resolver: true
+  # Per-channel category listings carry a denormalized ChannelID; the full Channel object is loaded lazily so admin
+  # readers that only need ids don't pay the lookup
+  CategoryChannelListing:
+    fields:
+      channel:
+        resolver: true
+  # descriptions are stored in catalog_attribute_content / catalog_attribute_value_content sibling tables. The field
+  # resolvers load them lazily so list endpoints that don't ask for descriptions never pay the cost
+  Attribute:
+    fields:
+      descriptions:
+        resolver: true
+  AttributeValue:
+    fields:
+      descriptions:
+        resolver: true
+  # Promotion codes are paginated and can be large; the field resolver loads them lazily so the list page (which never
+  # asks for codes) doesn't pay the join, and the detail page can paginate
+  PromotionRule:
+    fields:
+      codes:
+        resolver: true
+      contents:
+        resolver: true
+      labelMedia:
+        resolver: true
+      bannerMedia:
+        resolver: true
+  UUID:
+    model:
+      - github.com/99designs/gqlgen/graphql.UUID
+  JSON:
+    model:
+      - github.com/99designs/gqlgen/graphql.Any
+  Int:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int32
+  Int64:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64

@@ -1,0 +1,152 @@
+fragment SiteCrawlFields on SiteCrawl {
+  id
+  baseUrl
+  status
+  maxPages
+  maxDepth
+  respectRobots
+  pagesCrawled
+  linksFound
+  hitBudget
+  error
+  startedAt
+  finishedAt
+}
+
+query LinkMap($channelId: ID!, $crawlId: ID, $maxNodes: Int) {
+  linkGraph(channelId: $channelId, crawlId: $crawlId, maxNodes: $maxNodes) {
+    nodes {
+      key
+      type
+      entityId
+      label
+      path
+      kind
+      state
+      statusCode
+      noindex
+      isHomepage
+      inLinks
+      outLinks
+      depth
+    }
+    edges {
+      from
+      to
+      nofollow
+      boilerplate
+    }
+    stats {
+      totalNodes
+      totalEdges
+      crawled
+      discovered
+      unseen
+      orphans
+      noindexed
+      broken
+      redirected
+      boilerplate
+      contextual
+      maxDepth
+      returnedNodes
+      dropped
+      complete
+    }
+    crawl {
+      id
+      baseUrl
+      status
+      pagesCrawled
+      linksFound
+      hitBudget
+    }
+  }
+}
+
+query SiteCrawls($channelId: ID!, $limit: Int) {
+  siteCrawls(channelId: $channelId, limit: $limit) {
+    ...SiteCrawlFields
+  }
+}
+
+mutation StartSiteCrawl($input: StartSiteCrawlInput!) {
+  startSiteCrawl(input: $input) {
+    ...SiteCrawlFields
+  }
+}
+
+mutation CancelSiteCrawl($channelId: ID!) {
+  cancelSiteCrawl(channelId: $channelId)
+}
+
+query CrawlAudit(
+  $channelId: ID!
+  $issue: SeoIssue
+  $kind: CrawlPageKind
+  $search: String
+  $limit: Int
+  $offset: Int
+) {
+  crawlAudit(channelId: $channelId, issue: $issue, kind: $kind, search: $search, limit: $limit, offset: $offset) {
+    totalPages
+    issueCounts {
+      issue
+      count
+    }
+    pages {
+      path
+      statusCode
+      kind
+      title
+      titleLength
+      metaDesc
+      metaLength
+      robotsMeta
+      canonical
+      redirectTo
+      noindex
+      nofollow
+      h1
+      h1Count
+      headingCounts
+      wordCount
+      internalLinks
+      externalLinks
+      inLinks
+      depth
+      entityType
+      entityId
+      issues
+    }
+  }
+}
+
+query CrawlDiff($channelId: ID!, $regressionsOnly: Boolean, $limit: Int) {
+  crawlDiff(channelId: $channelId, regressionsOnly: $regressionsOnly, limit: $limit) {
+    compared
+    regressions
+    coverageComparable
+    base {
+      id
+      pagesCrawled
+      startedAt
+    }
+    current {
+      id
+      pagesCrawled
+      startedAt
+    }
+    counts {
+      kind
+      count
+    }
+    changes {
+      path
+      kind
+      before
+      after
+      isRegression
+    }
+  }
+}

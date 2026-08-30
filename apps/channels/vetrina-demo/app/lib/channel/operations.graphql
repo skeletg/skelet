@@ -1,0 +1,16 @@
+query CurrentChannel {
+  currentChannel {
+    id
+    slug
+    name
+    defaultLocale
+    currencyCode
+    currency {
+      code
+      symbol
+      symbolPosition
+      decimals
+    }
+    publicUrl
+  }
+}

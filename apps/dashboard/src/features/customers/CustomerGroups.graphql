@@ -1,0 +1,50 @@
+query CustomerGroups {
+  customerGroups {
+    id
+    slug
+    name
+    description
+    isDefault
+    memberCount
+    createdAt
+  }
+}
+
+query CustomerGroup($id: ID!) {
+  customerGroup(id: $id) {
+    id
+    slug
+    name
+    description
+    isDefault
+    memberCount
+    createdAt
+  }
+}
+
+mutation CreateCustomerGroup($input: CreateCustomerGroupInput!) {
+  createCustomerGroup(input: $input) {
+    id
+    slug
+    name
+  }
+}
+
+mutation UpdateCustomerGroup($id: ID!, $input: UpdateCustomerGroupInput!) {
+  updateCustomerGroup(id: $id, input: $input) {
+    id
+    name
+    description
+  }
+}
+
+mutation DeleteCustomerGroup($id: ID!) {
+  deleteCustomerGroup(id: $id)
+}
+
+mutation SetDefaultCustomerGroup($id: ID!) {
+  setDefaultCustomerGroup(id: $id) {
+    id
+    isDefault
+  }
+}

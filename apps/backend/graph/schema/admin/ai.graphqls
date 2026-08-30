@@ -1,0 +1,31 @@
+# AI content assistant (Claude). Suggestion-only - these return text the editor
+# reviews + saves; nothing is persisted by the generate mutations. Config-gated:
+# aiStatus.enabled is false until an operator enables AI + sets a key.
+
+type AIStatus {
+  enabled: Boolean!
+}
+
+type AISeoSuggestion {
+  metaTitle:       String!
+  metaDescription: String!
+}
+
+extend type Query {
+  # Whether the AI assistant is usable (enabled + API key set). Drives the
+  # dashboard's show/hide of the "Generate" buttons.
+  aiStatus: AIStatus!
+}
+
+extend type Mutation {
+  # Suggest an SEO meta title + description from the page's title + block text.
+  # Returns a suggestion; does NOT persist (cms.manage).
+  generateCMSPageSeo(pageId: ID!, locale: String!): AISeoSuggestion!
+  # Suggest alt text for a media asset (vision). Returns a suggestion; does NOT
+  # persist (media.manage).
+  generateMediaAltText(assetId: ID!): String!
+  # Translate a page's content into a target locale, preserving block structure
+  # (only text props change). Writes the target-locale content row and returns
+  # the updated page (cms.manage).
+  translateCMSPage(pageId: ID!, sourceLocale: String!, targetLocale: String!): CMSPage!
+}

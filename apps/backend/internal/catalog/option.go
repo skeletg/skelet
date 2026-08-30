@@ -1,0 +1,248 @@
+package catalog
+
+import (
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// Customer-facing UI shape of an option - text (field, area), select (dropdown, radio, checkbox, multiselect), date (date, date_time, time) and file
+// Only select-family types have value rows; the rest carry any price adjustment on the option itself
+type ProductOptionInputType string
+
+const (
+	OptionInputField       ProductOptionInputType = "field"
+	OptionInputArea        ProductOptionInputType = "area"
+	OptionInputDropdown    ProductOptionInputType = "dropdown"
+	OptionInputRadio       ProductOptionInputType = "radio"
+	OptionInputCheckbox    ProductOptionInputType = "checkbox"
+	OptionInputMultiselect ProductOptionInputType = "multiselect"
+	OptionInputDate        ProductOptionInputType = "date"
+	OptionInputDateTime    ProductOptionInputType = "date_time"
+	OptionInputTime        ProductOptionInputType = "time"
+	OptionInputFile        ProductOptionInputType = "file"
+)
+
+func (t ProductOptionInputType) IsKnown() bool {
+	switch t {
+	case OptionInputField, OptionInputArea,
+		OptionInputDropdown, OptionInputRadio, OptionInputCheckbox, OptionInputMultiselect,
+		OptionInputDate, OptionInputDateTime, OptionInputTime,
+		OptionInputFile:
+		return true
+	}
+	return false
+}
+
+func (t ProductOptionInputType) IsSelect() bool {
+	switch t {
+	case OptionInputDropdown, OptionInputRadio, OptionInputCheckbox, OptionInputMultiselect:
+		return true
+	}
+	return false
+}
+
+func (t ProductOptionInputType) IsSingleSelect() bool {
+	return t == OptionInputDropdown || t == OptionInputRadio
+}
+
+func (t ProductOptionInputType) IsMultiSelect() bool {
+	return t == OptionInputCheckbox || t == OptionInputMultiselect
+}
+
+func (t ProductOptionInputType) IsText() bool {
+	return t == OptionInputField || t == OptionInputArea
+}
+
+func (t ProductOptionInputType) IsDate() bool {
+	return t == OptionInputDate || t == OptionInputDateTime || t == OptionInputTime
+}
+
+func (t ProductOptionInputType) IsFile() bool {
+	return t == OptionInputFile
+}
+
+// FIXED stores cents, PERCENT stores integer percent points (10 = 10% of the product's default_price)
+type ProductOptionPriceType string
+
+const (
+	OptionPriceFixed   ProductOptionPriceType = "fixed"
+	OptionPricePercent ProductOptionPriceType = "percent"
+)
+
+func (t ProductOptionPriceType) IsKnown() bool {
+	return t == OptionPriceFixed || t == OptionPricePercent
+}
+
+// One visibility condition on a PRIOR option of the same product - anyOf/noneOf match a select-family parent's picked ValueIDs, filled/empty work on any parent
+type OptionRule struct {
+	OptionID uuid.UUID   `json:"option_id"`
+	Op       string      `json:"op"`
+	ValueIDs []uuid.UUID `json:"value_ids,omitempty"`
+}
+
+// AND/OR tree of rules - empty logic means AND, a nil group means always visible
+type OptionConditionGroup struct {
+	Logic  string                 `json:"logic,omitempty"`
+	Rules  []OptionRule           `json:"rules,omitempty"`
+	Groups []OptionConditionGroup `json:"groups,omitempty"`
+}
+
+var OptionRuleOps = map[string]bool{"anyOf": true, "noneOf": true, "filled": true, "empty": true}
+
+type ProductOption struct {
+	ID         uuid.UUID
+	ProductID  uuid.UUID
+	InputType  ProductOptionInputType
+	IsRequired bool
+	SortOrder  int32
+	// Title and HelpText are resolved to the active request locale with a default-locale fallback
+	Title      string
+	HelpText   string
+	AllContent []ProductOptionContent
+	// Always nil for select-family options - their per-value rows carry the adjustments instead
+	PriceValue     *int32
+	PriceType      *ProductOptionPriceType
+	MaxChars       *int32
+	MaxFileBytes   *int64
+	FileExtensions string
+	Values         []ProductOptionValue
+	// Gates the option on choices made for EARLIER options (strictly lower sort_order) - nil = always visible
+	VisibleIf *OptionConditionGroup
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// HelpText renders under the input on the storefront - usage hints, constraints
+type ProductOptionContent struct {
+	Locale   string
+	Title    string
+	HelpText string
+}
+
+// One pre-defined choice on a select-family option, optionally backed by an existing SIMPLE product
+// When SourceProductID is set the cart contribution is that product's price plus PriceValue as a delta, and PriceType is forced to FIXED since PERCENT has no unambiguous base
+type ProductOptionValue struct {
+	ID         uuid.UUID
+	OptionID   uuid.UUID
+	SortOrder  int32
+	PriceValue int32
+	PriceType  ProductOptionPriceType
+	IsDefault  bool
+	// Units the value represents - multiplied into the cart contribution for linked values, metadata only otherwise, always >= 1
+	Quantity float64
+	// Picking this value forces the cart LINE quantity ("Set of 4" -> 4) and locks it against manual edits, but only while the owning option is visible
+	ForcedLineQty   *float64
+	Title           string // resolved
+	AllContent      []ProductOptionValueContent
+	SourceProductID *uuid.UUID
+	// Display fields resolved only by GetProductOptions, and only when SourceProductID is set
+	SourceProductURL          string
+	SourceProductSKU          string
+	SourceProductName         string
+	SourceProductDefaultPrice int64
+	SourceProductCurrency     string
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
+}
+
+type ProductOptionValueContent struct {
+	Locale string
+	Title  string
+}
+
+type AddProductOptionInput struct {
+	ProductID  uuid.UUID
+	InputType  ProductOptionInputType
+	IsRequired bool
+	SortOrder  int32
+	// Must be nil for select-family input types - the service rejects with ErrOptionPriceOnSelect
+	PriceValue     *int32
+	PriceType      *ProductOptionPriceType
+	MaxChars       *int32
+	MaxFileBytes   *int64
+	FileExtensions string
+	// Initial-content row - locale must equal the configured default
+	Locale    string
+	Title     string
+	HelpText  string
+	VisibleIf *OptionConditionGroup
+}
+
+type UpdateProductOptionInput struct {
+	ID             uuid.UUID
+	InputType      *ProductOptionInputType
+	IsRequired     *bool
+	SortOrder      *int32
+	PriceValue     *int32 // nil = leave unchanged; non-nil = set to that value
+	PriceType      *ProductOptionPriceType
+	MaxChars       *int32
+	MaxFileBytes   *int64
+	FileExtensions *string
+	// nil leaves it unchanged, ClearVisibleIf drops the condition (tri-state, mirrors ClearCoords on locations)
+	VisibleIf      *OptionConditionGroup
+	ClearVisibleIf bool
+	// Clear flags for the other nullable fields - same tri-state contract, since a GraphQL null can't be told apart from an omitted field once decoded to a pointer
+	ClearPrice          bool // drops price_value + price_type together (the shape validator requires the pair)
+	ClearMaxChars       bool
+	ClearMaxFileBytes   bool
+	ClearFileExtensions bool
+}
+
+type UpsertProductOptionContentInput struct {
+	OptionID uuid.UUID
+	Locale   string
+	Title    string
+	HelpText string
+}
+
+type AddProductOptionValueInput struct {
+	OptionID   uuid.UUID
+	SortOrder  int32
+	PriceValue int32
+	PriceType  ProductOptionPriceType
+	IsDefault  bool
+	// Defaults to 1 when zero or negative
+	Quantity        float64
+	SourceProductID *uuid.UUID
+	ForcedLineQty   *float64
+	Locale          string
+	Title           string
+}
+
+type UpdateProductOptionValueInput struct {
+	ID         uuid.UUID
+	SortOrder  *int32
+	PriceValue *int32
+	PriceType  *ProductOptionPriceType
+	IsDefault  *bool
+	Quantity   *float64
+	// Pointer-to-uuid sets, pointer-to-zero-uuid unlinks, nil is no change
+	SourceProductID *uuid.UUID
+	// Pointer sets, pointer-to-zero-or-negative clears, nil is no change
+	ForcedLineQty *float64
+}
+
+type UpsertProductOptionValueContentInput struct {
+	ValueID uuid.UUID
+	Locale  string
+	Title   string
+}
+
+var (
+	ErrProductOptionNotFound          = errors.New("product option not found")
+	ErrProductOptionValueNotFound     = errors.New("product option value not found")
+	ErrInvalidProductOptionInputType  = errors.New("invalid product option input type")
+	ErrInvalidProductOptionPriceType  = errors.New("invalid product option price type")
+	ErrOptionInputKindNotPurchasable  = errors.New("product options can only be attached to simple and configurable products - other kinds never resolve them at add-to-cart")
+	ErrOptionRequiredNeedsValues      = errors.New("a required choice option needs at least one value or the product can never be purchased")
+	ErrOptionValueOnNonSelect         = errors.New("only select-family options accept values (dropdown, radio, checkbox, multiselect)")
+	ErrOptionPriceOnSelect            = errors.New("select-family options carry price on their values, not on the option itself")
+	ErrOptionMultiDefaultOnSingle     = errors.New("single-select option (dropdown/radio) accepts at most one default value")
+	ErrOptionTextConstraintsOnNonText = errors.New("max_chars is only valid for text options (field, area)")
+	ErrOptionFileConstraintsOnNonFile = errors.New("max_file_bytes / file_extensions are only valid for file options")
+	ErrOptionValueSourceNotSimple     = errors.New("option value source product must be of kind 'simple'")
+	ErrOptionVisibilityInvalid        = errors.New("invalid option visibility condition")
+	ErrOptionValuePercentOnLinked     = errors.New("PERCENT price type is not allowed on values linked to a source product")
+)

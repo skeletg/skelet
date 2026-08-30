@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Conformance-check a remote provider endpoint against the contract core enforces.
+# The endpoint can live anywhere - this only speaks signed HTTP.
+#
+#   bin/provider-check --url https://tax.example.com/skelet --secret rpsec_... --kind tax_provider
+#
+# Kinds and payload shapes: docs/remote-providers.md
+# With no --payload it posts the published example for that kind.
+set -e
+cd "$(dirname "$(dirname "$0")")"
+. bin/_lib
+
+# No --examples and no repo paths: the generated per-kind examples are baked into
+# the checker, which is what lets it run in a container with no docs tree mounted
+if docker compose ps --status running | grep -q "skelet-app"; then
+    docker compose exec "${USER_FLAG[@]}" app go run ./cmd/providercheck "$@"
+else
+    docker compose run --rm "${USER_FLAG[@]}" app go run ./cmd/providercheck "$@"
+fi

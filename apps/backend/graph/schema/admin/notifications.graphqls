@@ -1,0 +1,41 @@
+# Admin inbox - a curated store-ops notification center. The inbox is shared,
+# but scoped per viewer by permission + channel (you only see notices for
+# domains/stores you can access), and read state is tracked per admin. Gated on
+# notifications.view.
+
+type AdminNotification {
+  id:         ID!
+  category:   String!   # return | review | inventory | payment | order | system
+  severity:   String!   # info | warning | critical
+  title:      String!
+  body:       String!
+  entityType: String!
+  entityId:   String!
+  actionUrl:  String!    # dashboard path to act on it
+  channelId:  ID         # null = global / system
+  createdAt:  Time!
+  read:       Boolean!   # for the acting admin
+}
+
+extend type Query {
+  # The acting admin's inbox (newest first), filtered to what they may see.
+  notifications(unreadOnly: Boolean, limit: Int): [AdminNotification!]!
+  # Unread count for the bell badge.
+  notificationUnreadCount: Int!
+}
+
+extend type Mutation {
+  # Mark one notification read for the acting admin.
+  markNotificationRead(id: ID!): Boolean!
+  # Mark everything currently visible to the acting admin as read.
+  markAllNotificationsRead: Boolean!
+}
+
+type Subscription {
+  # Live push of newly created notifications visible to the acting admin
+  # (same permission + channel scoping as the inbox query). Rides the
+  # graphql-ws WebSocket transport; the JWT goes in the connection_init
+  # payload. Latency layer only - the dashboard keeps a slow poll as the
+  # correctness backfill.
+  notificationAdded: AdminNotification!
+}

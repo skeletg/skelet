@@ -1,0 +1,437 @@
+query OrdersPaged($search: String, $statuses: [String!], $paymentStatuses: [String!], $limit: Int, $offset: Int, $channelId: ID) {
+  ordersPaged(search: $search, statuses: $statuses, paymentStatuses: $paymentStatuses, limit: $limit, offset: $offset, channelId: $channelId) {
+    totalCount
+    items {
+      id
+      number
+      status
+      paymentStatus
+      total
+      currencyCode
+      createdAt
+      shippingAddress {
+        firstName
+        lastName
+      }
+    }
+  }
+}
+
+query Orders {
+  orders {
+    id
+    number
+    status
+    paymentStatus
+    total
+    currencyCode
+    createdAt
+    shippingAddress {
+      firstName
+      lastName
+    }
+  }
+}
+
+query Order($id: ID!) {
+  order(id: $id) {
+    id
+    channelId
+    number
+    status
+    paymentStatus
+    paymentProvider
+    paymentReference
+    email
+    customerId
+    subtotal
+    shippingAmount
+    discountAmount
+    taxAmount
+    total
+    giftCardAmount
+    storeCreditAmount
+    currencyCode
+    customerNote
+    carrier
+    trackingNumber
+    trackingUrl
+    createdAt
+    billingAddress {
+      firstName
+      lastName
+      company
+      street1
+      street2
+      city
+      state
+      postalCode
+      countryCode
+      phone
+    }
+    shippingAddress {
+      firstName
+      lastName
+      company
+      street1
+      street2
+      city
+      state
+      postalCode
+      countryCode
+      phone
+    }
+    lines {
+      id
+      productName
+      productSku
+      unitPrice
+      quantity
+      totalPrice
+      isGift
+      components {
+        id
+        productSku
+        productName
+        unitPrice
+        quantity
+      }
+      options {
+        id
+        optionTitle
+        valueLabel
+        textValue
+        priceDelta
+        quantity
+        fileUrl
+      }
+    }
+    events {
+      id
+      type
+      message
+      createdAt
+    }
+    fulfillments {
+      id
+      sequence
+      status
+      carrier
+      trackingNumber
+      insuredValueCents
+      shippedAt
+      lines {
+        id
+        orderLineId
+        quantity
+      }
+      labels {
+        id
+        format
+        trackingNumber
+        dataUrl
+        createdAt
+      }
+    }
+    paymentTransactions {
+      id
+      kind
+      amount
+      status
+      providerSlug
+      providerReference
+      reason
+      createdAt
+    }
+    taxLines {
+      id
+      ruleId
+      name
+      rateBps
+      amount
+    }
+    appliedPromotions {
+      id
+      ruleId
+      ruleName
+      ruleSlug
+      code
+      discount
+      appliedAt
+    }
+    returns {
+      id
+      rmaNumber
+      status
+      reason
+      restock
+      refundTarget
+      refundAmount
+      lines {
+        id
+        orderLineId
+        quantity
+        reason
+        refundUnitCents
+      }
+      createdAt
+      updatedAt
+    }
+  }
+}
+
+mutation GenerateShippingLabel($fulfillmentId: ID!) {
+  generateShippingLabel(fulfillmentId: $fulfillmentId) {
+    id
+    format
+    trackingNumber
+    dataUrl
+  }
+}
+
+mutation ConfirmOrder($id: ID!) {
+  confirmOrder(id: $id) {
+    id
+    status
+  }
+}
+
+mutation MarkOrderProcessing($id: ID!) {
+  markProcessing(id: $id) {
+    id
+    status
+  }
+}
+
+mutation HoldOrder($id: ID!, $reason: String) {
+  holdOrder(id: $id, reason: $reason) {
+    id
+    status
+  }
+}
+
+mutation ReleaseOrder($id: ID!) {
+  releaseOrder(id: $id) {
+    id
+    status
+  }
+}
+
+mutation FulfillOrder($id: ID!, $carrier: String, $trackingNumber: String) {
+  fulfillOrder(id: $id, carrier: $carrier, trackingNumber: $trackingNumber) {
+    id
+    status
+    carrier
+    trackingNumber
+  }
+}
+
+mutation CancelOrder($id: ID!) {
+  cancelOrder(id: $id) {
+    id
+    status
+  }
+}
+
+mutation CreateFulfillment($input: CreateFulfillmentInput!) {
+  createFulfillment(input: $input) {
+    id
+    status
+  }
+}
+
+mutation EditOrder($input: EditOrderInput!) {
+  editOrder(input: $input) {
+    id
+    status
+    total
+  }
+}
+
+mutation EditOrderAddress($input: EditOrderAddressInput!) {
+  editOrderAddress(input: $input) {
+    id
+    status
+    subtotal
+    shippingAmount
+    discountAmount
+    taxAmount
+    total
+    currencyCode
+    billingAddress {
+      firstName
+      lastName
+      company
+      street1
+      street2
+      city
+      state
+      postalCode
+      countryCode
+      phone
+    }
+    shippingAddress {
+      firstName
+      lastName
+      company
+      street1
+      street2
+      city
+      state
+      postalCode
+      countryCode
+      phone
+    }
+  }
+}
+
+mutation CreateDraftOrder($input: CreateDraftOrderInput!) {
+  createDraftOrder(input: $input) {
+    id
+    status
+  }
+}
+
+mutation PlaceDraftOrder($id: ID!) {
+  placeDraftOrder(id: $id) {
+    id
+    status
+  }
+}
+
+mutation CapturePayment($orderId: ID!, $amount: Int) {
+  capturePayment(orderId: $orderId, amount: $amount) {
+    id
+    paymentStatus
+  }
+}
+
+mutation RefundPayment($orderId: ID!, $amount: Int, $reason: String) {
+  refundPayment(orderId: $orderId, amount: $amount, reason: $reason) {
+    id
+    paymentStatus
+  }
+}
+
+mutation VoidPayment($orderId: ID!) {
+  voidPayment(orderId: $orderId) {
+    id
+    paymentStatus
+  }
+}
+
+query OfflinePaymentMethods($channelId: ID!) {
+  paymentMethods(channelId: $channelId) {
+    providerSlug
+    displayName
+    isOffline
+  }
+}
+
+mutation RecordOfflinePayment($input: RecordOfflinePaymentInput!) {
+  recordOfflinePayment(input: $input) {
+    id
+    paymentStatus
+  }
+}
+
+mutation RequestReturn($input: RequestReturnInput!) {
+  requestReturn(input: $input) {
+    id
+    rmaNumber
+    status
+  }
+}
+
+mutation ApproveReturn($id: ID!) {
+  approveReturn(id: $id) {
+    id
+    status
+  }
+}
+
+mutation RejectReturn($id: ID!) {
+  rejectReturn(id: $id) {
+    id
+    status
+  }
+}
+
+mutation ReceiveReturn($id: ID!) {
+  receiveReturn(id: $id) {
+    id
+    status
+  }
+}
+
+mutation IssueReturnRefund($id: ID!, $reason: String) {
+  issueReturnRefund(id: $id, reason: $reason) {
+    id
+    status
+    refundAmount
+  }
+}
+
+
+
+query OrderDocumentPdf($orderId: ID!, $kind: OrderDocumentKind!, $creditMemoId: ID) {
+  orderDocumentPdf(orderId: $orderId, kind: $kind, creditMemoId: $creditMemoId)
+}
+
+
+query CreditMemos($orderId: ID!) {
+  creditMemos(orderId: $orderId) {
+    id
+    number
+    returnId
+    itemsTotal
+    shippingRefund
+    adjustmentRefund
+    adjustmentFee
+    total
+    refundTarget
+    offline
+    reason
+    createdAt
+    lines {
+      orderLineId
+      productSku
+      productName
+      quantity
+      unitAmount
+      totalAmount
+    }
+  }
+}
+
+query CreditableQuantities($orderId: ID!) {
+  creditableQuantities(orderId: $orderId) {
+    orderLineId
+    quantity
+  }
+}
+
+mutation IssueCreditMemo($input: IssueCreditMemoInput!) {
+  issueCreditMemo(input: $input) {
+    id
+    number
+    total
+  }
+}
+
+# The dashboard's queue counts in one round-trip. Aliased totalCount reads with
+# limit: 1 - four separate queries would be four requests for four integers.
+query OrderQueueCounts($channelId: ID) {
+  pending: ordersPaged(statuses: ["PENDING"], limit: 1, channelId: $channelId) {
+    totalCount
+  }
+  toFulfil: ordersPaged(statuses: ["CONFIRMED", "PROCESSING", "PARTIALLY_FULFILLED"], limit: 1, channelId: $channelId) {
+    totalCount
+  }
+  onHold: ordersPaged(statuses: ["ON_HOLD"], limit: 1, channelId: $channelId) {
+    totalCount
+  }
+  unpaid: ordersPaged(paymentStatuses: ["UNPAID"], limit: 1, channelId: $channelId) {
+    totalCount
+  }
+}

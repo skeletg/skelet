@@ -1,0 +1,23 @@
+type Locale {
+  code:               String!
+  name:               String!
+  nativeName:         String!
+  isActive:           Boolean!
+  isRTL:              Boolean!
+  sortOrder:          Int!
+  dateFormat:         String!
+  timeFormat:         String!
+  decimalSeparator:   String!
+  thousandsSeparator: String!
+  firstDayOfWeek:     Int!
+  defaultCountryCode: String!
+  flagEmoji:          String!
+  hreflangValue:      String!
+  script:             String!
+  pluralRule:         String!
+}
+
+extend type Query {
+  locales(activeOnly: Boolean): [Locale!]!
+  locale(code: String!):        Locale!
+}

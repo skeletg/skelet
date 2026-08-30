@@ -1,0 +1,37 @@
+{
+  "cart": {
+    "appliedCodes": [
+      "example"
+    ],
+    "channelId": "00000000-0000-0000-0000-000000000000",
+    "channelSlug": "example",
+    "countryCode": "US",
+    "currency": "USD",
+    "customerEmail": "example",
+    "customerGroup": "example",
+    "customerId": "00000000-0000-0000-0000-000000000000",
+    "lines": [
+      {
+        "attributes": {
+          "example-key": "example"
+        },
+        "categoryIds": [
+          "example"
+        ],
+        "kind": "example",
+        "lineId": "00000000-0000-0000-0000-000000000000",
+        "productId": "00000000-0000-0000-0000-000000000000",
+        "productName": "example",
+        "quantity": 1,
+        "sku": "EXAMPLE-SKU",
+        "unitPriceCents": 1000
+      }
+    ],
+    "segments": [
+      "example"
+    ],
+    "subtotalCents": 1000
+  },
+  "params": null,
+  "provider": "example"
+}

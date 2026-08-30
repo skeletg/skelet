@@ -1,0 +1,195 @@
+fragment BlogPostFields on BlogPost {
+  id
+  slug
+  publishedAt
+  readingTimeMinutes
+  seoNoindex
+  author {
+    id
+    slug
+    displayName
+  }
+  content {
+    locale
+    title
+    excerpt
+    body
+    metaTitle
+    metaDescription
+  }
+  categories {
+    id
+    slug
+    urlPath
+    content {
+      name
+    }
+  }
+  tags {
+    id
+    slug
+    content {
+      name
+    }
+  }
+}
+
+query BlogPosts($limit: Int, $offset: Int) {
+  blogPosts(limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      ...BlogPostFields
+    }
+  }
+}
+
+query BlogPost($slug: String!) {
+  blogPost(slug: $slug) {
+    ...BlogPostFields
+  }
+}
+
+query BlogPostById($id: ID!) {
+  blogPost(id: $id) {
+    ...BlogPostFields
+  }
+}
+
+query PreviewBlogPost($token: String!) {
+  previewBlogPost(token: $token) {
+    ...BlogPostFields
+  }
+}
+
+# Same card payload as the index, narrowed to one taxonomy. Backs the
+# /blog/author, /blog/category and /blog/tag archives.
+query BlogPostsFiltered($filter: BlogPostFilter, $limit: Int, $offset: Int) {
+  blogPosts(filter: $filter, limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      ...BlogPostFields
+    }
+  }
+}
+
+# ===== Taxonomy archives =====
+
+fragment BlogAuthorDetailFields on BlogAuthor {
+  id
+  slug
+  displayName
+  content {
+    locale
+    name
+    bio
+  }
+}
+
+fragment BlogCategoryDetailFields on BlogCategory {
+  id
+  slug
+  urlPath
+  seoNoindex
+  content {
+    locale
+    name
+    description
+    metaTitle
+    metaDescription
+  }
+}
+
+fragment BlogTagDetailFields on BlogTag {
+  id
+  slug
+  content {
+    locale
+    name
+    description
+    metaTitle
+    metaDescription
+  }
+}
+
+query BlogAuthorBySlug($slug: String!) {
+  blogAuthor(slug: $slug) {
+    ...BlogAuthorDetailFields
+  }
+}
+
+# By-id lookup for the catch-all: a legacy alias rewrite row gives us an
+# entity id, and we need its canonical archive path to redirect to.
+query BlogAuthorById($id: ID!) {
+  blogAuthor(id: $id) {
+    id
+    slug
+  }
+}
+
+query BlogCategoryBySlug($slug: String!) {
+  blogCategory(slug: $slug) {
+    ...BlogCategoryDetailFields
+  }
+}
+
+query BlogTagBySlug($slug: String!) {
+  blogTag(slug: $slug) {
+    ...BlogTagDetailFields
+  }
+}
+
+# Just enough of a category to link to it and label the link.
+fragment BlogCategoryLinkFields on BlogCategory {
+  id
+  slug
+  urlPath
+  content {
+    name
+  }
+}
+
+# The whole published taxonomy in one roundtrip. Two jobs: the chip row
+# on the blog index, and a slug -> name lookup for the category/tag
+# chips on post cards (blogPosts leaves nested taxonomy content null).
+# Three levels of children covers any sane blog tree.
+# Authors for the sitemap - the taxonomy index covers categories/tags but
+# authors aren't part of it.
+query BlogAuthorsIndex {
+  blogAuthors {
+    id
+    slug
+  }
+}
+
+query BlogTaxonomyIndex {
+  blogCategories {
+    ...BlogCategoryLinkFields
+    children {
+      ...BlogCategoryLinkFields
+      children {
+        ...BlogCategoryLinkFields
+      }
+    }
+  }
+  blogTags {
+    id
+    slug
+    content {
+      name
+    }
+  }
+}
+
+# Slim blog-post list for the sitemap - just the addressable path + index
+# signals, no content payload.
+query BlogPostsForSitemap($limit: Int, $offset: Int) {
+  blogPosts(limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      id
+      slug
+      seoNoindex
+      publishedAt
+    }
+  }
+}

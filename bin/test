@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# go test + frontend typechecks + dashboard vitest - extra args go to go test
+# --no-frontend (first arg) skips the frontend bits
+set -e
+cd "$(dirname "$(dirname "$0")")"
+
+skip_frontend=false
+case "${1:-}" in
+    --no-frontend|--no-dashboard) skip_frontend=true; shift ;;
+esac
+
+echo "==> backend"
+if [ $# -eq 0 ]; then
+    # e2e is excluded from the default sweep - it writes real orders/customers and never cleans up, so it runs against its own disposable DB via bin/test-e2e, not the dev DB
+    bin/go test $(bin/go list ./... | grep -v /internal/e2e)
+    echo "==> (e2e suite skipped - run it against its throwaway DB with bin/test-e2e)"
+else
+    bin/go test "$@"
+fi
+
+if ! $skip_frontend; then
+    echo "==> dashboard typecheck"
+    bin/dash run typecheck:all
+    for sf in apps/channels/*/package.json; do
+        [ -f "$sf" ] || continue
+        name="$(basename "$(dirname "$sf")")"
+        echo "==> $name typecheck"
+        bin/channel "$name" run typecheck
+    done
+    echo "==> dashboard unit tests"
+    bin/dash run test
+    # Per app, like CI - stopping at the dashboard's would leave every storefront untested
+    for sf in apps/channels/*/package.json; do
+        [ -f "$sf" ] || continue
+        name="$(basename "$(dirname "$sf")")"
+        echo "==> $name unit tests"
+        bin/channel "$name" run test
+    done
+fi
+
+echo "==> tests OK"

@@ -1,0 +1,299 @@
+query InventoryLocationsPaged($search: String, $limit: Int, $offset: Int) {
+  inventoryLocations(search: $search, limit: $limit, offset: $offset) {
+    id
+    slug
+    name
+    isActive
+    type
+    city
+    region
+    countryCode
+    pickupEnabled
+  }
+  inventoryLocationsCount(search: $search)
+}
+
+query InventoryLocations {
+  inventoryLocations {
+    id
+    slug
+    name
+    isActive
+    type
+    line1
+    line2
+    city
+    region
+    postalCode
+    countryCode
+    latitude
+    longitude
+    timezone
+    hours
+    email
+    phone
+    contactName
+    externalReference
+    pickupEnabled
+    pickupInstructions
+    metadata {
+      key
+      value
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+query InventoryLocation($id: ID!) {
+  inventoryLocation(id: $id) {
+    id
+    slug
+    name
+    isActive
+    type
+    line1
+    line2
+    city
+    region
+    postalCode
+    countryCode
+    latitude
+    longitude
+    timezone
+    hours
+    email
+    phone
+    contactName
+    externalReference
+    pickupEnabled
+    pickupInstructions
+    metadata {
+      key
+      value
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+query ProductInventory($productId: ID!) {
+  productInventory(productId: $productId) {
+    id
+    tracked
+    backorderable
+    lowStockThreshold
+    quantity
+    lastSyncedAt
+    lastSyncedSource
+    levels {
+      location {
+        id
+        slug
+        name
+        isActive
+      }
+      quantity
+      reservedQuantity
+      available
+    }
+    product {
+      id
+      url
+      quantityDecimals
+      quantityStep
+    }
+  }
+}
+
+query InventoryMode {
+  inventoryMode
+}
+
+query LowStockLevels($limit: Int) {
+  lowStockLevels(limit: $limit) {
+    inventoryItemId
+    productId
+    productSlug
+    productSku
+    locationId
+    locationSlug
+    locationName
+    quantity
+    lowStockThreshold
+    backorderable
+    quantityDecimals
+    quantityStep
+    updatedAt
+  }
+}
+
+query ChannelWithLocations($id: ID!) {
+  channel(id: $id) {
+    id
+    slug
+    name
+    inventoryLocations {
+      priority
+      location {
+        id
+        slug
+        name
+        isActive
+      }
+    }
+  }
+}
+
+mutation CreateInventoryLocation($input: CreateInventoryLocationInput!) {
+  createInventoryLocation(input: $input) {
+    id
+    slug
+    name
+    isActive
+    type
+    line1
+    line2
+    city
+    region
+    postalCode
+    countryCode
+    latitude
+    longitude
+    timezone
+    hours
+    email
+    phone
+    contactName
+    externalReference
+    metadata {
+      key
+      value
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+mutation UpdateInventoryLocation($input: UpdateInventoryLocationInput!) {
+  updateInventoryLocation(input: $input) {
+    id
+    slug
+    name
+    isActive
+    type
+    line1
+    line2
+    city
+    region
+    postalCode
+    countryCode
+    latitude
+    longitude
+    timezone
+    hours
+    email
+    phone
+    contactName
+    externalReference
+    metadata {
+      key
+      value
+    }
+    updatedAt
+  }
+}
+
+mutation DeleteInventoryLocation($id: ID!) {
+  deleteInventoryLocation(id: $id)
+}
+
+mutation SetChannelLocations(
+  $channelId: ID!
+  $assignments: [LocationAssignmentInput!]!
+) {
+  setChannelLocations(channelId: $channelId, assignments: $assignments) {
+    id
+    inventoryLocations {
+      priority
+      location {
+        id
+        slug
+        name
+        isActive
+      }
+    }
+  }
+}
+
+mutation SetInventoryItemTracking($productId: ID!, $tracked: Boolean!) {
+  setInventoryItemTracking(productId: $productId, tracked: $tracked) {
+    id
+    tracked
+    backorderable
+    lowStockThreshold
+  }
+}
+
+mutation SetInventoryItemBackorder(
+  $productId: ID!
+  $backorderable: Boolean!
+  $lowStockThreshold: Float
+) {
+  setInventoryItemBackorder(
+    productId: $productId
+    backorderable: $backorderable
+    lowStockThreshold: $lowStockThreshold
+  ) {
+    id
+    tracked
+    backorderable
+    lowStockThreshold
+  }
+}
+
+mutation AdjustInventoryLevel($input: AdjustInventoryLevelInput!) {
+  adjustInventoryLevel(input: $input) {
+    location {
+      id
+      slug
+      name
+    }
+    quantity
+    reservedQuantity
+    available
+  }
+}
+
+mutation SyncProductInventory($input: SyncProductInventoryInput!) {
+  syncProductInventory(input: $input) {
+    id
+    tracked
+    backorderable
+    lowStockThreshold
+    quantity
+    lastSyncedAt
+    lastSyncedSource
+  }
+}
+
+# Bulk counterpart of SyncProductInventory - partial success is normal, so
+# the caller renders `failed` row by row rather than treating it as an error.
+mutation SyncProductInventoryBatch($items: [SyncProductInventoryInput!]!) {
+  syncProductInventoryBatch(items: $items) {
+    succeeded
+    failed {
+      productSku
+      productId
+      reason
+    }
+  }
+}
+
+mutation SetLocationPickup($id: ID!, $enabled: Boolean!, $instructions: String) {
+  setLocationPickup(id: $id, enabled: $enabled, instructions: $instructions) {
+    id
+    pickupEnabled
+    pickupInstructions
+  }
+}

@@ -1,0 +1,67 @@
+query Admins {
+  admins {
+    id
+    email
+    firstName
+    lastName
+    isActive
+    isSuperuser
+    lastLoginAt
+    roles {
+      id
+      slug
+      name
+    }
+  }
+}
+
+query Admin($id: ID!) {
+  admin(id: $id) {
+    id
+    email
+    firstName
+    lastName
+    isActive
+    isSuperuser
+    createdAt
+    roles {
+      id
+      slug
+      name
+    }
+    permissions {
+      id
+      slug
+      name
+    }
+  }
+}
+
+mutation UpdateAdmin($id: ID!, $input: UpdateAdminInput!) {
+  updateAdmin(id: $id, input: $input) {
+    id
+    roles {
+      id
+      slug
+      name
+    }
+  }
+}
+
+mutation CreateAdmin($input: CreateAdminInput!) {
+  createAdmin(input: $input) {
+    id
+    email
+    firstName
+    lastName
+  }
+}
+
+mutation DeleteAdmin($id: ID!) {
+  deleteAdmin(id: $id)
+}
+
+# Self-service - always acts on the signed-in admin, never on $id
+mutation ChangePassword($currentPassword: String!, $newPassword: String!) {
+  changePassword(currentPassword: $currentPassword, newPassword: $newPassword)
+}

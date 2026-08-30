@@ -1,0 +1,58 @@
+# Admin action registry - generic "Tools" surface. Domain packages declare
+# ad-hoc operational actions (slug + permission + arg schema + handler) in
+# code; the admin UI reads adminActions to render a form and calls
+# runAdminAction to execute.
+
+scalar JSON
+
+enum ActionArgumentType { STRING INT BOOL SELECT }
+
+type ActionArgumentOption {
+  value: String!
+  label: String!
+}
+
+type ActionArgument {
+  name:        String!
+  label:       String!
+  description: String!
+  type:        ActionArgumentType!
+  required:    Boolean!
+  default:     String
+  # Populated only when type == SELECT; empty list otherwise.
+  options:     [ActionArgumentOption!]!
+}
+
+type AdminAction {
+  slug:               String!
+  name:               String!
+  description:        String!
+  group:              String!
+  permissionRequired: String!
+  arguments:          [ActionArgument!]!
+}
+
+type AdminActionResult {
+  success:    Boolean!
+  # Human-readable log line(s) shown in the admin UI's console panel. On
+  # failure, contains the error message.
+  output:     String!
+  # Optional structured payload. Shape is per-action - the UI must do its
+  # own shape-checking when rendering.
+  data:       JSON
+  durationMs: Int!
+}
+
+extend type Query {
+  # Returns actions the authenticated admin has permission to run.
+  # Superusers see every registered action.
+  adminActions: [AdminAction!]!
+}
+
+extend type Mutation {
+  # args is a JSON object of argument name → value. Permission is checked
+  # per-action against the action's declared Permission slug before the
+  # handler fires. Handler errors are returned as success=false rather
+  # than a GraphQL error so the UI can render them inline.
+  runAdminAction(slug: String!, args: JSON!): AdminActionResult!
+}

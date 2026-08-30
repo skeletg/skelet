@@ -1,0 +1,19 @@
+mutation AdminLogin($input: AdminLoginInput!) {
+  adminLogin(input: $input) {
+    accessToken
+    refreshToken
+    firstLogin
+    admin {
+      id
+      email
+      firstName
+      lastName
+      isSuperuser
+      roles {
+        id
+        slug
+        name
+      }
+    }
+  }
+}

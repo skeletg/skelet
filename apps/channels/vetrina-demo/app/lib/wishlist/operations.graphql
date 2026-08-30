@@ -1,0 +1,33 @@
+query WishlistProductIds {
+  wishlistProductIds
+}
+
+query MyWishlist {
+  myWishlist {
+    ...ProductSummaryFields
+  }
+}
+
+mutation AddToWishlist($productId: ID!) {
+  addToWishlist(productId: $productId)
+}
+
+mutation RemoveFromWishlist($productId: ID!) {
+  removeFromWishlist(productId: $productId)
+}
+
+mutation MoveToCart($productId: ID!) {
+  moveToCart(productId: $productId) {
+    id
+  }
+}
+
+query MyWishlistShareToken {
+  myWishlistShareToken
+}
+
+query SharedWishlist($token: String!) {
+  sharedWishlist(token: $token) {
+    ...ProductSummaryFields
+  }
+}

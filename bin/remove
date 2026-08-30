@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+# Undo a bin/new scaffold - bin/remove channel <name>
+#
+# Deliberately noisy: it prints everything it will delete, with sizes, and asks first. The
+# app directory is usually untracked, so unlike most of this repo's destructive operations
+# git cannot bring it back
+set -e
+cd "$(dirname "$(dirname "$0")")"
+. bin/_lib
+
+# GNU sed's -i takes no argument and BSD's demands one, so neither spelling is portable - write a
+# sibling and cat it back, which also keeps the original file's mode for the ones holding secrets
+sed_i() { # sed_i FILE SED-ARGS...
+    local f="$1"; shift
+    local t="$f.sed.$$"
+    sed "$@" "$f" > "$t" && cat "$t" > "$f"
+    rm -f "$t"
+}
+
+OVERRIDE=docker-compose.override.yml
+
+usage() {
+    cat <<'EOF'
+bin/remove channel <name> [-y] [--volumes]
+
+  Removes a storefront: its directory, its compose service and volume
+  declarations, and its env templates. Finds the service wherever bin/new put
+  it - the git-ignored override, or the tracked compose files.
+
+  -y          skip the confirmation prompt
+  --volumes   also delete its Docker volumes (node_modules and the .next cache)
+
+Without --volumes the named volumes are left alone, since that's the part
+you can't undo and a storefront's .next cache can be many GB.
+EOF
+}
+
+kind="${1:-}"
+[ $# -gt 0 ] && shift
+case "$kind" in
+    channel) ;;
+    -h|--help|help|"") usage; exit 0 ;;
+    *) echo "bin/remove: don't know how to remove a \"$kind\" - only 'channel' so far" >&2; exit 2 ;;
+esac
+
+name="${1:-}"
+[ $# -gt 0 ] && shift
+force=0
+drop_volumes=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -y|--yes)  force=1 ;;
+        --volumes) drop_volumes=1 ;;
+        *) echo "Unknown flag: $1" >&2; usage; exit 2 ;;
+    esac
+    shift
+done
+case "$name" in
+    "") echo "bin/remove channel <name>" >&2; exit 2 ;;
+    *[!a-z0-9-]*) echo "Bad name \"$name\"" >&2; exit 2 ;;
+esac
+
+# Which compose files declare it - a scaffold lands in one place, but a hand-edited clone
+# might have it in several, so collect them all rather than stopping at the first
+compose_files=""
+for f in "$OVERRIDE" docker-compose.yml docker-compose.prod.yml docker-compose.small.yml; do
+    [ -f "$f" ] && grep -qE "^  ${name}:" "$f" && compose_files="$compose_files $f"
+done
+
+app_dir=""
+[ -d "apps/channels/$name" ] && app_dir="apps/channels/$name"
+env_files=""
+for f in env/prod-${name}.env.example env/small-${name}.env.example env/prod-${name}.env env/small-${name}.env; do
+    [ -f "$f" ] && env_files="$env_files $f"
+done
+volumes="$(docker volume ls --format '{{.Name}}' 2>/dev/null \
+    | grep -E "_${name}-(node-modules|next-cache)$" || true)"
+running="$(docker compose ps --status running --format '{{.Service}}' 2>/dev/null | grep -x "$name" || true)"
+
+if [ -z "$compose_files" ] && [ -z "$app_dir" ] && [ -z "$env_files" ] && [ -z "$volumes" ]; then
+    echo "Nothing here called \"$name\" - no directory, compose service, env file or volume" >&2
+    exit 1
+fi
+
+# The dangerous case: an untracked directory is gone for good, where a committed one is a
+# git checkout away. Say which of the two this is before asking
+tracked_state="untracked - deleting it is NOT recoverable through git"
+if [ -n "$app_dir" ] && git ls-files --error-unmatch "$app_dir" >/dev/null 2>&1; then
+    if git diff --quiet HEAD -- "$app_dir" 2>/dev/null; then
+        tracked_state="committed - recoverable with git checkout"
+    else
+        tracked_state="tracked with UNCOMMITTED changes - those changes are not recoverable"
+    fi
+fi
+
+echo "Removing storefront \"$name\":"
+[ -n "$app_dir" ] && printf '  %-42s %s  (%s)\n' "$app_dir" "$(du -sh "$app_dir" 2>/dev/null | cut -f1)" "$tracked_state"
+for f in $compose_files; do printf '  %-42s service + volume declarations\n' "$f"; done
+for f in $env_files;     do printf '  %-42s\n' "$f"; done
+[ -n "$running" ] && printf '  %-42s running container, will be stopped\n' "$name"
+if [ -n "$volumes" ]; then
+    for v in $volumes; do
+        size="$(docker system df -v 2>/dev/null | awk -v n="$v" '$1 == n {print $NF}')"
+        if [ "$drop_volumes" = 1 ]; then
+            printf '  %-42s %s  DELETED\n' "$v" "${size:-?}"
+        else
+            printf '  %-42s %s  kept (pass --volumes to delete)\n' "$v" "${size:-?}"
+        fi
+    done
+fi
+
+if [ "$force" = 0 ]; then
+    # Openability, not existence - /dev/tty is present but unopenable with no controlling
+    # terminal, and `[ -e /dev/tty ]` then walks into a read that fails mid-prompt
+    if { : < /dev/tty; } 2>/dev/null; then
+        printf '\nContinue? [y/N] '
+        read -r ans < /dev/tty
+        case "$ans" in y|Y|yes|YES) ;; *) echo "aborted"; exit 1 ;; esac
+    else
+        echo >&2
+        echo "refusing to delete without a terminal - re-run with -y to confirm" >&2
+        exit 1
+    fi
+fi
+
+# Strips a service block and the two volume declarations out of one compose file
+strip_from() { # strip_from FILE
+    # A block ends at the next sibling service OR at a top-level key - miss the second and
+    # removing the last service in a file swallows the `volumes:` header after it
+    awk -v svc="  $name:" -v nm="$name" '
+        $0 == svc { inblk = 1; next }
+        inblk && (/^  [^ ]/ || /^[^[:space:]]/) { inblk = 0 }
+        inblk     { next }
+        $0 == "  " nm "-node-modules:" { next }
+        $0 == "  " nm "-next-cache:"   { next }
+        { print }
+    ' "$1"
+}
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+# Taking the last service out of the override leaves `services:` with nothing under it, which
+# compose rejects outright - so that case is a file deletion, not an edit
+drop_override=0
+for f in $compose_files; do
+    b="$(basename "$f")"
+    strip_from "$f" > "$tmp/$b"
+    if [ "$f" = "$OVERRIDE" ] \
+       && ! awk '/^services:[[:space:]]*$/ { s = 1; next }
+                 s && /^[^[:space:]]/      { s = 0 }
+                 s && /^  [a-z]/           { found = 1 }
+                 END { exit !found }' "$tmp/$b"; then
+        drop_override=1
+    fi
+done
+
+# Same contract as bin/new - validate before writing, so a bad edit costs nothing
+for f in $compose_files; do
+    b="$(basename "$f")"
+    if [ "$f" = "$OVERRIDE" ]; then
+        [ "$drop_override" = 1 ] && continue   # it's going away, there's nothing to validate
+        set -- --project-directory . -f docker-compose.yml -f "$tmp/$b"
+    else
+        set -- --project-directory . -f "$tmp/$b"
+    fi
+    docker compose "$@" config -q --no-interpolate 2>"$tmp/err" \
+        || { echo "Removing it from $f would leave an invalid file - nothing written:" >&2
+             sed 's/^/  /' "$tmp/err" >&2; exit 1; }
+done
+
+if [ -n "$running" ]; then
+    echo "==> Stopping $name"
+    docker compose rm -sf "$name" >/dev/null 2>&1 || true
+fi
+
+for f in $compose_files; do
+    if [ "$f" = "$OVERRIDE" ] && [ "$drop_override" = 1 ]; then
+        rm -f "$OVERRIDE"
+        echo "    $OVERRIDE (deleted, it held nothing else)"
+        continue
+    fi
+    cp "$tmp/$(basename "$f")" "$f"
+    echo "    $f"
+done
+
+for f in $env_files; do
+    git rm -q --cached "$f" 2>/dev/null || true
+    rm -f "$f"
+    echo "    $f"
+done
+
+if [ -n "$app_dir" ]; then
+    rm -rf "$app_dir"
+    echo "    $app_dir"
+fi
+
+if [ "$drop_volumes" = 1 ] && [ -n "$volumes" ]; then
+    for v in $volumes; do
+        docker volume rm "$v" >/dev/null 2>&1 && echo "    volume $v" || echo "    volume $v (in use, skipped)"
+    done
+fi
+
+# .skelet-apps is the app selection every bin/* wrapper reads - leaving a deleted shop in it
+# makes compose warn about a profile that matches no service on every single command
+#
+# Comma-separated FIELDS, not a substring: a hyphen is a word boundary, so pattern-matching
+# "shop" out of "eu-shop,dashboard" leaves "eu-dashboard", an app that has never existed
+if [ -f .skelet-apps ]; then
+    was="$(tr -d '[:space:]' < .skelet-apps)"
+    kept=""
+    for a in $(printf '%s' "$was" | tr ',' ' '); do
+        [ "$a" = "$name" ] && continue
+        kept="${kept:+$kept,}$a"
+    done
+    if [ "$kept" != "$was" ]; then
+        printf '%s\n' "$kept" > .skelet-apps
+        echo "    .skelet-apps (dropped $name)"
+    fi
+fi
+
+echo
+echo "Removed \"$name\"."
+[ "$drop_volumes" = 0 ] && [ -n "$volumes" ] \
+    && echo "Its volumes are still there - bin/remove channel $name --volumes, or docker volume rm."
+exit 0

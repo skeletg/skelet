@@ -1,0 +1,25 @@
+# Admin audit trail: one entry per admin mutation (recorded by the gqlgen
+# operation interceptor) with redacted variables. Read-only.
+
+type AuditLogEntry {
+  id:         ID!
+  adminId:    ID
+  adminEmail: String!
+  action:     String!
+  # Redacted operation variables (password/token/key-ish values replaced).
+  detail:     JSON
+  ip:         String!
+  success:    Boolean!
+  durationMs: Int!
+  createdAt:  Time!
+}
+
+type AuditLogPage {
+  entries: [AuditLogEntry!]!
+  total:   Int!
+}
+
+extend type Query {
+  # Pages the audit trail, newest first. Requires audit.view.
+  auditLog(adminId: ID, action: String, limit: Int, offset: Int): AuditLogPage!
+}

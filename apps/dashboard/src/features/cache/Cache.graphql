@@ -1,0 +1,64 @@
+fragment CacheSurfaceRow on CacheSurface {
+  key
+  label
+  enabled
+  ttlSeconds
+  bulkInvalidatable
+}
+
+fragment CacheRevalidationRow on CacheRevalidation {
+  id
+  surface
+  tags
+  paths
+  reason
+  actorId
+  createdAt
+}
+
+query CacheSurfaces {
+  cacheSurfaces {
+    ...CacheSurfaceRow
+  }
+}
+
+query CacheRevalidations($limit: Int) {
+  cacheRevalidations(limit: $limit) {
+    ...CacheRevalidationRow
+  }
+}
+
+mutation PurgeCache($surfaceKey: String, $tags: [String!], $paths: [String!]) {
+  purgeCache(surfaceKey: $surfaceKey, tags: $tags, paths: $paths)
+}
+
+mutation RebuildCache($paths: [String!]!) {
+  rebuildCache(paths: $paths)
+}
+
+fragment RebuildTaskRow on RebuildTask {
+  id
+  surface
+  path
+  status
+  attempts
+  lastError
+  reason
+  updatedAt
+}
+
+query RebuildQueue($recentLimit: Int) {
+  rebuildQueue(recentLimit: $recentLimit) {
+    pending
+    running
+    done
+    failed
+    recent {
+      ...RebuildTaskRow
+    }
+  }
+}
+
+mutation EnqueueRebuild($paths: [String!]!) {
+  enqueueRebuild(paths: $paths)
+}

@@ -1,0 +1,69 @@
+query RemoteProviders {
+  remoteProviders {
+    id
+    kind
+    slug
+    name
+    targetUrl
+    config
+    timeoutMs
+    cacheTtlS
+    failurePolicy
+    isActive
+    circuit {
+      state
+      consecutiveFailures
+    }
+    channel {
+      id
+      slug
+      name
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+mutation CreateRemoteProvider($input: CreateRemoteProviderInput!) {
+  createRemoteProvider(input: $input) {
+    rawSecret
+    provider {
+      id
+      name
+    }
+  }
+}
+
+mutation UpdateRemoteProvider($input: UpdateRemoteProviderInput!) {
+  updateRemoteProvider(input: $input) {
+    id
+    name
+    targetUrl
+    config
+    timeoutMs
+    cacheTtlS
+    failurePolicy
+    updatedAt
+  }
+}
+
+mutation SetRemoteProviderActive($id: ID!, $active: Boolean!) {
+  setRemoteProviderActive(id: $id, active: $active) {
+    id
+    isActive
+  }
+}
+
+mutation RotateRemoteProviderSecret($id: ID!) {
+  rotateRemoteProviderSecret(id: $id) {
+    rawSecret
+    provider {
+      id
+      name
+    }
+  }
+}
+
+mutation DeleteRemoteProvider($id: ID!) {
+  deleteRemoteProvider(id: $id)
+}

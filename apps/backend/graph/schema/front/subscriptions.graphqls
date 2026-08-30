@@ -1,0 +1,60 @@
+# Subscriptions (storefront). A kind=SUBSCRIPTION product carries recurring
+# terms; purchasing it starts a subscription the customer can view and cancel
+# from their account. Billing advances on a schedule server-side.
+
+enum SubscriptionInterval {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELED
+  EXPIRED
+}
+
+# Recurring terms shown on the product page (e.g. "$12.00 / month, 7-day trial").
+type SubscriptionTerms {
+  intervalUnit:  SubscriptionInterval!
+  intervalCount: Int!
+  trialDays:     Int!
+}
+
+# One of the authenticated customer's subscriptions.
+type CustomerSubscription {
+  id:                 ID!
+  productId:          ID!
+  title:              String!
+  status:             SubscriptionStatus!
+  intervalUnit:       SubscriptionInterval!
+  intervalCount:      Int!
+  price:              Int!
+  currencyCode:       String!
+  currentPeriodEnd:   Time!
+  nextBillingAt:      Time!
+  # Saved payment method charged at renewal (null = none selected;
+  # renewals will dun until one is picked).
+  paymentMethodId:    ID
+  canceledAt:         Time
+  createdAt:          Time!
+}
+
+extend type Query {
+  # The authenticated customer's subscriptions ("My subscriptions").
+  mySubscriptions: [CustomerSubscription!]!
+}
+
+extend type Mutation {
+  # Cancel one of the authenticated customer's subscriptions (stops future
+  # billing). Idempotent.
+  cancelSubscription(id: ID!): CustomerSubscription!
+}
+
+extend type Mutation {
+  # Choose which saved payment method this subscription's renewals
+  # charge (null clears it - renewals then dun immediately).
+  setMySubscriptionPaymentMethod(subscriptionId: ID!, paymentMethodId: ID): Boolean!
+}

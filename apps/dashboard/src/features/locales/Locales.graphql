@@ -1,0 +1,96 @@
+query LocalesPicker {
+  locales(activeOnly: true) {
+    code
+    name
+    nativeName
+    flagEmoji
+  }
+}
+
+query LocalesAdminList {
+  locales(activeOnly: false) {
+    code
+    name
+    nativeName
+    isActive
+    isRTL
+    sortOrder
+    flagEmoji
+    defaultCountryCode
+    updatedAt
+  }
+}
+
+query Locale($code: String!) {
+  locale(code: $code) {
+    code
+    name
+    nativeName
+    description
+    isActive
+    isRTL
+    sortOrder
+    flagEmoji
+    dateFormat
+    timeFormat
+    decimalSeparator
+    thousandsSeparator
+    firstDayOfWeek
+    defaultCountryCode
+    hreflangValue
+    script
+    pluralRule
+    emailFromNameOverride
+    metadata {
+      key
+      value
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+mutation CreateLocale($input: CreateLocaleInput!) {
+  createLocale(input: $input) {
+    code
+    name
+    nativeName
+    isActive
+    isRTL
+    sortOrder
+    flagEmoji
+  }
+}
+
+mutation UpdateLocale($input: UpdateLocaleInput!) {
+  updateLocale(input: $input) {
+    code
+    name
+    nativeName
+    isActive
+    isRTL
+    sortOrder
+    flagEmoji
+    defaultCountryCode
+    updatedAt
+  }
+}
+
+mutation DeleteLocale($code: String!) {
+  deleteLocale(code: $code)
+}
+
+mutation SetChannelLocales($channelId: ID!, $codes: [String!]!) {
+  setChannelLocales(channelId: $channelId, codes: $codes) {
+    id
+    locales {
+      code
+      name
+      nativeName
+      flagEmoji
+      isActive
+      isRTL
+      sortOrder
+    }
+  }
+}

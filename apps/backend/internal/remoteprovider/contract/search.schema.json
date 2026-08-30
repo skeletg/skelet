@@ -1,0 +1,82 @@
+{
+  "$defs": {
+    "search.remoteSearchHit": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "productId": {
+          "type": "string"
+        },
+        "sku": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "productId",
+        "sku",
+        "url"
+      ],
+      "title": "search.remoteSearchHit",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Free-text product search (the typeahead and /search paths).",
+  "properties": {
+    "request": {
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channelId",
+        "limit",
+        "locale",
+        "offset",
+        "query"
+      ],
+      "title": "remoteSearchRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "hits": {
+          "items": {
+            "$ref": "#/$defs/search.remoteSearchHit"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hits",
+        "total"
+      ],
+      "title": "remoteSearchResponse",
+      "type": "object"
+    }
+  },
+  "title": "search",
+  "x-kind": "search",
+  "x-source": "internal/search.remoteSearchRequest -\u003e internal/search.remoteSearchResponse"
+}

@@ -1,0 +1,244 @@
+enum LinkNodeType {
+  PRODUCT
+  CATEGORY
+  COLLECTION
+  CMS_PAGE
+  BLOG_POST
+  BLOG_CATEGORY
+  BLOG_TAG
+  BLOG_AUTHOR
+  OTHER
+}
+
+# CRAWLED was fetched; DISCOVERED is linked to but the crawl ran out of budget before reaching it; UNSEEN is
+# published with a url that never turned up as a link target
+enum LinkNodeState {
+  CRAWLED
+  DISCOVERED
+  UNSEEN
+}
+
+type LinkNode {
+  key:        String!
+  type:       LinkNodeType!
+  entityId:   ID
+  label:      String!
+  path:       String!
+  state:      LinkNodeState!
+  statusCode: Int!
+  noindex:    Boolean!
+  isHomepage: Boolean!
+  kind:       CrawlPageKind!
+  inLinks:    Int!
+  outLinks:   Int!
+  # Clicks from the homepage along real links - -1 when the crawl never got there
+  depth:      Int!
+}
+
+type LinkEdge {
+  from:     String!
+  to:       String!
+  nofollow: Boolean!
+  # The target is linked from most of the site, so this is header/footer chrome rather than a structural link
+  boilerplate: Boolean!
+}
+
+# Measured on the whole crawl, before the node budget trims what gets drawn
+type LinkGraphStats {
+  totalNodes:    Int!
+  totalEdges:    Int!
+  crawled:       Int!
+  discovered:    Int!
+  unseen:        Int!
+  orphans:       Int!
+  noindexed:     Int!
+  broken:        Int!
+  redirected:    Int!
+  boilerplate:   Int!
+  contextual:    Int!
+  maxDepth:      Int!
+  returnedNodes: Int!
+  dropped:       Int!
+  # False when the page budget ran out with links still queued - unseen pages are then unknown, not unlinked
+  complete:      Boolean!
+}
+
+enum SiteCrawlStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+type SiteCrawl {
+  id:            ID!
+  baseUrl:       String!
+  status:        SiteCrawlStatus!
+  maxPages:      Int!
+  maxDepth:      Int!
+  respectRobots: Boolean!
+  pagesCrawled:  Int!
+  linksFound:    Int!
+  # True when the page budget ran out with links still queued, so coverage is partial
+  hitBudget:     Boolean!
+  error:         String!
+  startedAt:     Time!
+  finishedAt:    Time
+}
+
+type LinkGraph {
+  nodes: [LinkNode!]!
+  edges: [LinkEdge!]!
+  stats: LinkGraphStats!
+  crawl: SiteCrawl!
+}
+
+input StartSiteCrawlInput {
+  channelId:     ID!
+  # Defaults to the channel's public url - override when the storefront answers on a different host
+  baseUrl:       String
+  maxPages:      Int
+  maxDepth:      Int
+  respectRobots: Boolean
+}
+
+extend type Query {
+  # The channel's link map, built from a crawl - null until one has finished
+  linkGraph(channelId: ID!, crawlId: ID, maxNodes: Int): LinkGraph
+  siteCrawls(channelId: ID!, limit: Int): [SiteCrawl!]!
+}
+
+extend type Mutation {
+  startSiteCrawl(input: StartSiteCrawlInput!): SiteCrawl!
+  cancelSiteCrawl(channelId: ID!): Boolean!
+}
+
+# page = an ordinary url; filter = a /f/attr/v/value facet chain off a listing; param = carries a query string
+enum CrawlPageKind {
+  PAGE
+  FILTER
+  PARAM
+}
+
+enum SeoIssue {
+  BROKEN
+  REDIRECT
+  TITLE_MISSING
+  TITLE_LONG
+  TITLE_SHORT
+  TITLE_DUPLICATE
+  META_MISSING
+  META_LONG
+  META_SHORT
+  META_DUPLICATE
+  H1_MISSING
+  H1_MULTIPLE
+  HEADING_SKIPPED
+  NOINDEX
+  NOFOLLOW
+  CANONICAL_OTHER
+  CANONICAL_NONE
+  ORPHAN
+  DEEP
+  THIN
+  NO_LINKS_OUT
+}
+
+type CrawlHeading {
+  level: Int!
+  text:  String!
+}
+
+type SeoIssueCount {
+  issue: SeoIssue!
+  count: Int!
+}
+
+type CrawlAuditPage {
+  path:          String!
+  statusCode:    Int!
+  kind:          CrawlPageKind!
+  title:         String!
+  titleLength:   Int!
+  metaDesc:      String!
+  metaLength:    Int!
+  robotsMeta:    String!
+  canonical:     String!
+  redirectTo:    String!
+  noindex:       Boolean!
+  nofollow:      Boolean!
+  h1:            String!
+  h1Count:       Int!
+  # h1..h6 counts in order
+  headingCounts: [Int!]!
+  headings:      [CrawlHeading!]!
+  wordCount:     Int!
+  internalLinks: Int!
+  externalLinks: Int!
+  inLinks:       Int!
+  depth:         Int!
+  entityType:    LinkNodeType
+  entityId:      ID
+  fetchMs:       Int!
+  byteSize:      Int!
+  issues:        [SeoIssue!]!
+}
+
+type CrawlAudit {
+  totalPages:  Int!
+  pages:       [CrawlAuditPage!]!
+  issueCounts: [SeoIssueCount!]!
+  crawl:       SiteCrawl!
+}
+
+extend type Query {
+  # On-page audit for a crawl - null until one has finished. Rows are ordered worst-first
+  crawlAudit(channelId: ID!, crawlId: ID, issue: SeoIssue, kind: CrawlPageKind, search: String, limit: Int, offset: Int): CrawlAudit
+}
+
+enum CrawlChangeKind {
+  NOW_BROKEN
+  FIXED
+  NOW_REDIRECT
+  NOW_NOINDEX
+  NOW_INDEXABLE
+  NOW_ORPHAN
+  LOST_IN_LINKS
+  DEEPER
+  TITLE_CHANGED
+  META_CHANGED
+  CANONICAL_CHANGED
+  H1_CHANGED
+  GONE
+  NEW
+}
+
+type CrawlChange {
+  path:         String!
+  kind:         CrawlChangeKind!
+  before:       String!
+  after:        String!
+  isRegression: Boolean!
+}
+
+type CrawlChangeCount {
+  kind:  CrawlChangeKind!
+  count: Int!
+}
+
+type CrawlDiff {
+  base:    SiteCrawl!
+  current: SiteCrawl!
+  changes: [CrawlChange!]!
+  counts:  [CrawlChangeCount!]!
+  # Pages both crawls actually fetched - the only population a comparison can speak about
+  compared:    Int!
+  regressions: Int!
+  # False when either crawl stopped on its page budget, which makes GONE and NEW unsafe to infer
+  coverageComparable: Boolean!
+}
+
+extend type Query {
+  # Compares two crawls - defaults to the latest completed against the one before it. Null when there is no baseline
+  crawlDiff(channelId: ID!, baseId: ID, currentId: ID, regressionsOnly: Boolean, limit: Int): CrawlDiff
+}

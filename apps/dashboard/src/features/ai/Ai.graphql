@@ -1,0 +1,60 @@
+# Skelet AI - Signals analyst chat. Distinct op names from the CMS/Reviews
+# aiStatus queries (codegen forbids duplicate operation names).
+
+query AiChatStatus {
+  aiStatus {
+    enabled
+  }
+}
+
+query SignalsInsights($channelId: ID!, $sinceDays: Int) {
+  signalsInsights(channelId: $channelId, sinceDays: $sinceDays) {
+    level
+    title
+    detail
+  }
+}
+
+query ChatConversations($limit: Int) {
+  chatConversations(limit: $limit) {
+    id
+    title
+  }
+}
+
+query ChatConversation($id: ID!) {
+  chatConversation(id: $id) {
+    id
+    title
+    messages {
+      role
+      content
+    }
+  }
+}
+
+mutation SaveChatConversation($id: ID, $channelId: ID, $title: String, $messages: [SignalsChatMessage!]!) {
+  saveChatConversation(id: $id, channelId: $channelId, title: $title, messages: $messages)
+}
+
+mutation DeleteChatConversation($id: ID!) {
+  deleteChatConversation(id: $id)
+}
+
+mutation RunChatAction($action: String!, $argsJson: String!) {
+  runChatAction(action: $action, argsJson: $argsJson) {
+    ok
+    message
+  }
+}
+
+mutation SignalsChat(
+  $channelId: ID!
+  $sinceDays: Int
+  $page: SignalsChatPage
+  $messages: [SignalsChatMessage!]!
+) {
+  signalsChat(channelId: $channelId, sinceDays: $sinceDays, page: $page, messages: $messages) {
+    reply
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "$defs": {
+    "review.remoteReviewAggregate": {
+      "properties": {
+        "average": {
+          "type": "number",
+          "x-nullable": true
+        },
+        "count": {
+          "type": "integer"
+        },
+        "distribution": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "type": "array"
+        }
+      },
+      "required": [
+        "count",
+        "distribution"
+      ],
+      "title": "review.remoteReviewAggregate",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Supply review aggregates from an external review platform.",
+  "properties": {
+    "request": {
+      "properties": {
+        "productIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "productIds"
+      ],
+      "title": "remoteReviewRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "aggregates": {
+          "additionalProperties": {
+            "$ref": "#/$defs/review.remoteReviewAggregate"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "aggregates"
+      ],
+      "title": "remoteReviewResponse",
+      "type": "object"
+    }
+  },
+  "title": "reviews",
+  "x-kind": "reviews",
+  "x-source": "internal/review.remoteReviewRequest -\u003e internal/review.remoteReviewResponse"
+}

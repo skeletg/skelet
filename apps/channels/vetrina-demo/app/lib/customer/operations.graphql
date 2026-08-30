@@ -1,0 +1,93 @@
+query ConsentDefinitions {
+  consentDefinitions {
+    slug
+    name
+    description
+    purpose
+    channel
+    required
+    defaultOptIn
+  }
+}
+
+fragment CustomerAddressFields on Address {
+  id
+  firstName
+  lastName
+  company
+  street1
+  street2
+  city
+  state
+  postalCode
+  countryCode
+  phone
+}
+
+query MyProfile {
+  myProfile {
+    id
+    email
+    firstName
+    lastName
+    phone
+    isEmailVerified
+    storeCreditBalance
+    defaultBillingAddress {
+      ...CustomerAddressFields
+    }
+    defaultShippingAddress {
+      ...CustomerAddressFields
+    }
+    addresses {
+      ...CustomerAddressFields
+    }
+  }
+}
+
+query MyDataExport {
+  myDataExport
+}
+
+query MyDownloads {
+  myDownloads {
+    id
+    title
+    productId
+    downloadUrl
+    downloadsUsed
+    maxDownloads
+    expiresAt
+    createdAt
+  }
+}
+
+query MySubscriptions {
+  mySubscriptions {
+    id
+    productId
+    title
+    status
+    intervalUnit
+    intervalCount
+    price
+    currencyCode
+    currentPeriodEnd
+    nextBillingAt
+    canceledAt
+    createdAt
+    paymentMethodId
+  }
+}
+
+mutation CancelSubscription($id: ID!) {
+  cancelSubscription(id: $id) {
+    id
+    status
+    canceledAt
+  }
+}
+
+mutation SetSubscriptionPaymentMethod($subscriptionId: ID!, $paymentMethodId: ID) {
+  setMySubscriptionPaymentMethod(subscriptionId: $subscriptionId, paymentMethodId: $paymentMethodId)
+}

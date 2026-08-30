@@ -1,0 +1,18 @@
+package customer
+
+import "github.com/skeletg/skelet/internal/config"
+
+// When true, Authenticate refuses a session for an unverified customer with ErrEmailNotVerified - defaults false to preserve the storefront flow
+const pathRequireEmailVerification = "general/security/require_email_verification"
+
+func init() {
+	config.Register(config.Definition{
+		Path:    pathRequireEmailVerification,
+		Type:    config.TypeBool,
+		Default: "false",
+		Label:   "Require verified email to sign in",
+		Public:  false,
+		// Authenticate resolves it against the channel the customer is signing in to
+		Scoping: config.ScopingChannel,
+	})
+}

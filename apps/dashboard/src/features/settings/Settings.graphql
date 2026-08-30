@@ -1,0 +1,62 @@
+query ConfigSections($scope: ConfigScopeInput) {
+  configSections(scope: $scope) {
+    slug
+    label
+    groups {
+      slug
+      label
+      fields {
+        path
+        section
+        group
+        field
+        label
+        description
+        type
+        value
+        isSet
+        options {
+          label
+          value
+        }
+        isDefault
+        public
+        scoping
+        scope {
+          kind
+          channelId
+          locale
+        }
+        updatedAt
+      }
+    }
+  }
+}
+
+mutation SetConfigValue($path: String!, $value: String!, $scope: ConfigScopeInput) {
+  setConfigValue(path: $path, value: $value, scope: $scope) {
+    path
+    value
+    isDefault
+    scope {
+      kind
+      channelId
+      locale
+    }
+    updatedAt
+  }
+}
+
+mutation ResetConfigValue($path: String!, $scope: ConfigScopeInput) {
+  resetConfigValue(path: $path, scope: $scope) {
+    path
+    value
+    isDefault
+    scope {
+      kind
+      channelId
+      locale
+    }
+    updatedAt
+  }
+}

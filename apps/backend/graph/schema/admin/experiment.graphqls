@@ -1,0 +1,135 @@
+# Frontend A/B experiments (GrowthBook-inspired). The storefront SDK assigns
+# visitors and tracks exposures/goals through Lens; these resolvers are admin
+# CRUD + results. Gated on experiments.view / experiments.manage.
+
+type Experiment {
+  id:         ID!
+  channelId:  ID!
+  key:        String!
+  name:       String!
+  status:     String!   # draft | running | stopped
+  coverage:   Int!      # % of visitors entered
+  goalEvent:  String!   # conversion event name (a window.lens.track name)
+  segmentSlug: String!  # optional targeting: only customers in this segment (""=all)
+  variations: [ExperimentVariation!]!
+  createdAt:  Time!
+  updatedAt:  Time!
+}
+
+type ExperimentVariation {
+  key:    String!
+  name:   String!
+  weight: Int!
+  value:  String!   # payload the storefront renders for this arm
+}
+
+# One variation's analysed results. rate/ciLow/ciHigh are 0..1 fractions;
+# uplift is relative vs the control (0 for the control); chanceToWin is the
+# one-sided P(variation beats control), 0..1 (0 for the control).
+type ExperimentVariationResult {
+  variation:   String!
+  name:        String!
+  exposed:     Int!
+  converted:   Int!
+  revenueCents: Int64!   # revenue from matched goal events (commerce goals); 0 otherwise
+  rate:        Float!
+  ciLow:       Float!
+  ciHigh:      Float!
+  uplift:      Float!
+  chanceToWin: Float!
+  isControl:   Boolean!
+  # Fixed-horizon 95% significance (valid when the sample size was
+  # pre-registered).
+  significant: Boolean!
+  # mSPRT always-valid p-value: stays correct under continuous peeking;
+  # 1.0 until there's evidence. sequentialSignificant = p < 0.05 AND the
+  # variation beats the control - this is the number to act on while
+  # the experiment is still running.
+  alwaysValidP:          Float!
+  sequentialSignificant: Boolean!
+}
+
+# An experiment's full analysis: per-variation stats plus a significance-gated
+# winner ("" until a challenger clears 97.5% chance-to-win) and a sample-ratio-
+# mismatch flag (observed split ≠ configured weights → don't trust the numbers).
+type ExperimentResults {
+  variations:          [ExperimentVariationResult!]!
+  winner:              String!
+  # Peeking-safe winner (mSPRT p < 0.05); "" until one exists.
+  sequentialWinner:    String!
+  sampleRatioMismatch: Boolean!
+  totalExposed:        Int!
+  totalRevenue:        Int64!   # cents across all arms from matched commerce goals
+}
+
+# One running experiment's headline result for the Prism overview hub.
+type ExperimentSummary {
+  id:                  ID!
+  key:                 String!
+  name:                String!
+  variations:          Int!
+  coverage:            Int!
+  totalExposed:        Int!
+  conversions:         Int!       # total conversions across all arms
+  leader:              String!    # leading variation name ("" until there's data)
+  leaderRate:          Float!     # the leader's conversion rate (0..1)
+  leaderUplift:        Float!     # the leader's relative uplift vs control (0 if control)
+  leaderChanceToWin:   Float!     # 0 when the leader is the control / no data
+  leaderIsControl:     Boolean!
+  winner:              String!    # significance-gated winner name ("" if none)
+  sampleRatioMismatch: Boolean!
+}
+
+# Channel-wide A/B snapshot for the /prism hub.
+type ExperimentsOverview {
+  running:      Int!
+  draft:        Int!
+  stopped:      Int!
+  totalExposed: Int!                    # across running experiments, in the window
+  decided:      Int!                    # running experiments with a significant winner
+  experiments:  [ExperimentSummary!]!   # running, most-exposed first
+}
+
+# A targetable customer segment for the experiment segment-targeting picker.
+type SegmentOption {
+  slug: String!
+  name: String!
+}
+
+input ExperimentVariationInput {
+  key:    String!
+  name:   String!
+  weight: Int!
+  value:  String!
+}
+
+input SaveExperimentInput {
+  channelId:   ID!     # ignored on update
+  key:         String!
+  name:        String!
+  status:      String!
+  coverage:    Int!
+  goalEvent:   String!
+  segmentSlug: String  # optional segment targeting (""/null = all visitors)
+  variations:  [ExperimentVariationInput!]!
+}
+
+extend type Query {
+  experiments(channelId: ID!): [Experiment!]!
+  experiment(id: ID!): Experiment
+  # Analysed results over the last `sinceDays` days (default 30).
+  experimentResults(id: ID!, sinceDays: Int): ExperimentResults!
+  # Channel-wide A/B snapshot for the Prism hub (default last 30 days).
+  experimentsOverview(channelId: ID!, sinceDays: Int): ExperimentsOverview!
+  # Custom-event names the storefront has fired for this channel (goal-event
+  # suggestions for the editor), most-frequent first.
+  experimentGoalEvents(channelId: ID!): [String!]!
+  # Active customer segments, for the experiment segment-targeting picker.
+  experimentSegments: [SegmentOption!]!
+}
+
+extend type Mutation {
+  createExperiment(input: SaveExperimentInput!): Experiment!
+  updateExperiment(id: ID!, input: SaveExperimentInput!): Experiment!
+  deleteExperiment(id: ID!): Boolean!
+}

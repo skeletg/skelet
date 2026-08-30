@@ -1,0 +1,8 @@
+query Route($path: String!) {
+  route(path: $path) {
+    kind
+    entityId
+    redirectTo
+    redirectStatusCode
+  }
+}

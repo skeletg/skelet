@@ -1,0 +1,24 @@
+# Email suppression list - deliverability guard. Addresses here never receive
+# marketing mail (bounces / complaints / manual blocks).
+
+query EmailSuppressions($reason: String, $limit: Int, $offset: Int) {
+  emailSuppressions(reason: $reason, limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      id
+      email
+      reason
+      detail
+      softBounces
+      createdAt
+    }
+  }
+}
+
+mutation SuppressEmail($email: String!, $note: String) {
+  suppressEmail(email: $email, note: $note)
+}
+
+mutation UnsuppressEmail($email: String!) {
+  unsuppressEmail(email: $email)
+}

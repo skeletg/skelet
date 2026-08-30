@@ -1,0 +1,51 @@
+# Search merchandising: synonyms (query-time expansion), curated pins,
+# and query redirects. All channel-scoped; searchmerch.manage.
+
+type SearchSynonym {
+  id:    ID!
+  terms: String!
+}
+
+type SearchPin {
+  id:        ID!
+  query:     String!
+  productId: ID!
+  position:  Int!
+}
+
+# Boost/bury for a query: positive weight lifts, negative buries -
+# score-based, so relevance still orders within the affected band.
+type SearchBoost {
+  id:        ID!
+  query:     String!
+  productId: ID!
+  weight:    Float!
+}
+
+type SearchRedirect {
+  id:        ID!
+  query:     String!
+  targetUrl: String!
+}
+
+type SearchMerchandising {
+  synonyms:  [SearchSynonym!]!
+  pins:      [SearchPin!]!
+  boosts:    [SearchBoost!]!
+  redirects: [SearchRedirect!]!
+}
+
+extend type Query {
+  searchMerchandising(channelId: ID!): SearchMerchandising!
+}
+
+extend type Mutation {
+  addSearchSynonym(channelId: ID!, terms: String!): SearchSynonym!
+  deleteSearchSynonym(channelId: ID!, id: ID!): Boolean!
+  upsertSearchPin(channelId: ID!, query: String!, productId: ID!, position: Int): SearchPin!
+  deleteSearchPin(channelId: ID!, id: ID!): Boolean!
+  upsertSearchBoost(channelId: ID!, query: String!, productId: ID!, weight: Float!): SearchBoost!
+  deleteSearchBoost(channelId: ID!, id: ID!): Boolean!
+  upsertSearchRedirect(channelId: ID!, query: String!, targetUrl: String!): SearchRedirect!
+  deleteSearchRedirect(channelId: ID!, id: ID!): Boolean!
+}

@@ -1,0 +1,304 @@
+query Customers($channelId: ID) {
+  customers(channelId: $channelId) {
+    id
+    email
+    firstName
+    lastName
+    phone
+    isActive
+    isEmailVerified
+    createdAt
+    group {
+      id
+      slug
+      name
+    }
+  }
+}
+
+query CustomersPaged(
+  $channelId: ID
+  $search: String
+  $groupSlug: String
+  $isActive: Boolean
+  $limit: Int
+  $offset: Int
+) {
+  customersPaged(
+    channelId: $channelId
+    search: $search
+    groupSlug: $groupSlug
+    isActive: $isActive
+    limit: $limit
+    offset: $offset
+  ) {
+    totalCount
+    items {
+      id
+      email
+      firstName
+      lastName
+      phone
+      isActive
+      isEmailVerified
+      createdAt
+      group {
+        id
+        slug
+        name
+      }
+    }
+  }
+}
+
+query Customer($id: ID!) {
+  customer(id: $id) {
+    id
+    channelId
+    email
+    firstName
+    lastName
+    phone
+    isActive
+    isEmailVerified
+    note
+    taxExempt
+    taxExemptionNote
+    vatId
+    vatIdStatus
+    vatIdCheckedAt
+    createdAt
+    updatedAt
+    metadata {
+      key
+      value
+    }
+    group {
+      id
+      slug
+      name
+    }
+    addresses {
+      id
+      firstName
+      lastName
+      company
+      street1
+      street2
+      city
+      state
+      postalCode
+      countryCode
+      phone
+    }
+    defaultBillingAddress {
+      id
+    }
+    defaultShippingAddress {
+      id
+    }
+    consents {
+      kind
+      optedIn
+      source
+      updatedAt
+      isDefault
+      definition {
+        slug
+        name
+        description
+        purpose
+        channel
+        required
+        defaultOptIn
+      }
+    }
+  }
+}
+
+mutation SetCustomerTaxStatus($customerId: ID!, $taxExempt: Boolean!, $note: String) {
+  setCustomerTaxStatus(customerId: $customerId, taxExempt: $taxExempt, note: $note) {
+    id
+    taxExempt
+    taxExemptionNote
+  }
+}
+
+mutation SetCustomerVatId($customerId: ID!, $vatId: String!) {
+  setCustomerVatId(customerId: $customerId, vatId: $vatId) {
+    id
+    vatId
+    vatIdStatus
+    vatIdCheckedAt
+  }
+}
+
+mutation SetCustomerGroup($customerId: ID!, $groupId: ID!) {
+  setCustomerGroup(customerId: $customerId, groupId: $groupId) {
+    id
+    group {
+      id
+      slug
+      name
+    }
+  }
+}
+
+mutation AdminCreateCustomer($input: AdminCreateCustomerInput!) {
+  adminCreateCustomer(input: $input) {
+    id
+    email
+    firstName
+    lastName
+    isActive
+    isEmailVerified
+    group {
+      id
+      slug
+      name
+    }
+  }
+}
+
+mutation AdminUpdateCustomer($id: ID!, $input: AdminUpdateCustomerInput!) {
+  adminUpdateCustomer(id: $id, input: $input) {
+    id
+    email
+    firstName
+    lastName
+    phone
+    isActive
+    isEmailVerified
+    note
+    updatedAt
+    metadata {
+      key
+      value
+    }
+    group {
+      id
+      slug
+      name
+    }
+    addresses {
+      id
+      firstName
+      lastName
+      company
+      street1
+      street2
+      city
+      state
+      postalCode
+      countryCode
+      phone
+    }
+    defaultBillingAddress {
+      id
+    }
+    defaultShippingAddress {
+      id
+    }
+  }
+}
+
+mutation AdminSetCustomerConsent($customerId: ID!, $kind: String!, $optedIn: Boolean!) {
+  adminSetCustomerConsent(customerId: $customerId, kind: $kind, optedIn: $optedIn) {
+    kind
+    optedIn
+    source
+    updatedAt
+    isDefault
+    definition {
+      slug
+      name
+      description
+      purpose
+      channel
+      required
+      defaultOptIn
+    }
+  }
+}
+
+mutation AdminAddAddress($customerId: ID!, $input: AddressInput!) {
+  adminAddAddress(customerId: $customerId, input: $input) {
+    id
+    firstName
+    lastName
+    company
+    street1
+    street2
+    city
+    state
+    postalCode
+    countryCode
+    phone
+  }
+}
+
+mutation AdminDeleteAddress($id: ID!) {
+  adminDeleteAddress(id: $id)
+}
+
+mutation DeleteCustomer($id: ID!) {
+  deleteCustomer(id: $id)
+}
+
+mutation SetCustomerActive($id: ID!, $active: Boolean!) {
+  setCustomerActive(id: $id, active: $active) {
+    id
+    isActive
+  }
+}
+
+
+
+query ExportCustomerData($customerId: ID!) {
+  exportCustomerData(customerId: $customerId)
+}
+
+mutation AnonymizeCustomer($customerId: ID!) {
+  anonymizeCustomer(customerId: $customerId)
+}
+
+query StoreCredit($customerId: ID!) {
+  storeCredit(customerId: $customerId) {
+    balanceCents
+    currencyCode
+    entries {
+      id
+      amountCents
+      currencyCode
+      reason
+      orderId
+      createdAt
+    }
+  }
+}
+
+mutation AdjustStoreCredit($customerId: ID!, $amountCents: Int!, $reason: String!) {
+  adjustStoreCredit(customerId: $customerId, amountCents: $amountCents, reason: $reason) {
+    balanceCents
+    currencyCode
+  }
+}
+
+query Loyalty($customerId: ID!) {
+  loyalty(customerId: $customerId) {
+    balancePoints
+    entries {
+      id
+      points
+      reason
+      orderId
+      createdAt
+    }
+  }
+}
+
+mutation AdjustLoyaltyPoints($customerId: ID!, $points: Int!, $reason: String!) {
+  adjustLoyaltyPoints(customerId: $customerId, points: $points, reason: $reason) {
+    balancePoints
+  }
+}

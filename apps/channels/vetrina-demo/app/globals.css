@@ -1,0 +1,599 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Class-based dark variant. The storefront ships light by default;
+   the .dark token block below stays wired so a theme toggle can come
+   back without re-plumbing every `dark:` class in the tree. */
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* Page container width - all main content columns use max-w-8xl.
+     85rem (1360px) is the owner's pick (2026-07-25: 6xl +30%, then -10%) */
+  --container-8xl: 85rem;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* Both font tokens point at the Inter variable layout.tsx mounts -
+     one neutral grotesk everywhere, weight carries the hierarchy */
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-body);
+  --color-midnight: var(--midnight);
+  --color-midnight-deep: var(--midnight-deep);
+  --color-signal: var(--signal);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Workshop palette: white paper, true-grey neutrals (zero chroma,
+   no blue cast), near-black ink for text AND buttons, one hot
+   `signal` orange for links, eyebrows and badges. Dark surfaces
+   (announcement bar, dark mosaic tiles) run `midnight`. */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.205 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.205 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.205 0 0);
+  /* Buttons are ink, not brand-colored - the orange stays a signal */
+  --primary: oklch(0.235 0 0);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.965 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.965 0 0);
+  --muted-foreground: oklch(0.52 0 0);
+  --accent: oklch(0.955 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.91 0 0);
+  --input: oklch(0.87 0 0);
+  --ring: oklch(0.648 0.223 34);
+  --signal: oklch(0.648 0.223 34);
+  --chart-1: oklch(0.648 0.223 34);
+  --chart-2: oklch(0.68 0.18 18);
+  --chart-3: oklch(0.58 0.14 350);
+  --chart-4: oklch(0.72 0.08 250);
+  --chart-5: oklch(0.55 0.08 275);
+  --radius: 0.5rem;
+  --midnight: oklch(0.185 0 0);
+  --midnight-deep: oklch(0.145 0 0);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.235 0 0);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.955 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.91 0 0);
+  --sidebar-ring: oklch(0.648 0.223 34);
+}
+
+/* Dark counterpart - unused while layout.tsx ships light, kept wired
+   so a future toggle needs no re-plumbing. Ink and paper swap roles;
+   the signal orange stays. */
+.dark {
+  --background: oklch(0.185 0 0);
+  --foreground: oklch(0.94 0 0);
+  --card: oklch(0.225 0 0);
+  --card-foreground: oklch(0.94 0 0);
+  --popover: oklch(0.21 0 0);
+  --popover-foreground: oklch(0.94 0 0);
+  --primary: oklch(0.94 0 0);
+  --primary-foreground: oklch(0.185 0 0);
+  --secondary: oklch(0.28 0 0);
+  --secondary-foreground: oklch(0.94 0 0);
+  --muted: oklch(0.26 0 0);
+  --muted-foreground: oklch(0.7 0 0);
+  --accent: oklch(0.3 0 0);
+  --accent-foreground: oklch(0.97 0 0);
+  --destructive: oklch(0.62 0.24 25);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.648 0.223 34);
+  --signal: oklch(0.7 0.2 38);
+  --chart-1: oklch(0.7 0.2 38);
+  --chart-2: oklch(0.68 0.18 18);
+  --chart-3: oklch(0.58 0.14 350);
+  --chart-4: oklch(0.72 0.08 250);
+  --chart-5: oklch(0.55 0.08 275);
+  --midnight: oklch(0.145 0 0);
+  --midnight-deep: oklch(0.12 0 0);
+  --sidebar: oklch(0.16 0 0);
+  --sidebar-foreground: oklch(0.94 0 0);
+  --sidebar-primary: oklch(0.94 0 0);
+  --sidebar-primary-foreground: oklch(0.185 0 0);
+  --sidebar-accent: oklch(0.26 0 0);
+  --sidebar-accent-foreground: oklch(0.94 0 0);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.648 0.223 34);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* The cart drawer (and any future side panel) lives at
+       `right-0 + translate-x-full` when closed - i.e. its left
+       edge sits at viewport_right and the rest is off-screen. With
+       the default `overflow-x: visible` that off-screen pixel band
+       gets added to the document's scrollable width, producing a
+       horizontal scrollbar. `overflow-x: clip` hides the bleed
+       without creating a scroll/containing block - important so
+       the fixed drawer keeps being positioned relative to the
+       viewport, not the body. */
+    overflow-x: clip;
+  }
+  html {
+    @apply font-sans;
+    /* Reserve the vertical scrollbar gutter even when the page is
+       short enough not to need one - keeps the viewport width
+       constant as content grows/shrinks across navigations, so
+       fixed-width elements like the header don't shift sideways
+       when a scrollbar appears. Supported everywhere except
+       Safari ≤ 17 (which gracefully no-ops). */
+    scrollbar-gutter: stable;
+  }
+}
+
+@layer utilities {
+  /* Tile surfaces. The glass-* names are leftovers from two themes
+     ago - kept so every existing usage restyles in place. Flat white
+     tiles with a hairline border, no shadows: .glass = resting tile,
+     .glass-soft = grey filled surface, .glass-strong = raised chrome
+     like drawers and dialogs (the one place a shadow remains, floats
+     need lift). Utilities layer so it wins against `bg-background`. */
+  .glass {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+  }
+  .glass-soft {
+    background-color: var(--muted);
+  }
+  .glass-strong {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    box-shadow: 0 24px 60px -16px oklch(0 0 0 / 0.25);
+  }
+  /* Hover = the hairline darkens, nothing moves - the only sanctioned
+     motion stays the product-card image zoom */
+  .glass-hover {
+    transition: border-color 0.15s ease;
+  }
+  .glass-hover:hover {
+    border-color: oklch(0.62 0 0);
+  }
+
+  /* Reveal-on-interaction scrollbar. The bar's gutter is permanently
+     reserved (`scrollbar-gutter: stable`) so the content width is the
+     same whether the scrollbar is currently shown or hidden - without
+     it, the sidebar would jump a few pixels narrower on hover when
+     the bar fades in. The bar itself stays transparent until the user
+     hovers or focuses inside the panel; the thumb fades in over the
+     reserved gutter rather than reflowing the layout.
+     Width: a fixed 6px bar on Webkit; `scrollbar-width: thin` on
+     Firefox (the OS picks the exact pixel value). Setting both
+     ensures the gutter reservation matches the eventual bar width
+     across engines. */
+  /* Cards set their own pointer cursor, so a drag has to shout over them for its whole length */
+  .rail-dragging,
+  .rail-dragging * {
+    cursor: grabbing !important;
+    user-select: none;
+  }
+
+  /* A carousel reports its position with dots instead, so the native bar is redundant chrome */
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-on-hover {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.2s ease;
+  }
+  .scrollbar-on-hover::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-on-hover::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+  .scrollbar-on-hover::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border-radius: 3px;
+    transition: background-color 0.2s ease;
+  }
+  .scrollbar-on-hover:hover,
+  .scrollbar-on-hover:focus-within {
+    scrollbar-color: oklch(0 0 0 / 0.25) transparent;
+  }
+  .scrollbar-on-hover:hover::-webkit-scrollbar-thumb,
+  .scrollbar-on-hover:focus-within::-webkit-scrollbar-thumb {
+    background-color: oklch(0 0 0 / 0.25);
+  }
+  .dark .scrollbar-on-hover:hover,
+  .dark .scrollbar-on-hover:focus-within {
+    scrollbar-color: oklch(1 0 0 / 0.2) transparent;
+  }
+  .dark .scrollbar-on-hover:hover::-webkit-scrollbar-thumb,
+  .dark .scrollbar-on-hover:focus-within::-webkit-scrollbar-thumb {
+    background-color: oklch(1 0 0 / 0.2);
+  }
+}
+
+/* Enter/leave for the PDP sticky buy pill - StickyBuyRow holds the detached
+   phase for the out animation's duration before settling the row back in-flow */
+@keyframes buy-bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes buy-bar-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+/* Gentle upward bob for the PDP "make a selection" hint arrow - nudges the
+   shopper's eye toward the option controls above the buy button. Kept small
+   (3px) so it reads as a hint, not a distraction. */
+@keyframes nudge-up {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+
+/* Presentation for the native <dialog> modals - see app/components/Modal.tsx
+   allow-discrete + @starting-style are what let display:none animate */
+dialog.drawer,
+dialog.lightbox {
+  position: fixed;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  transition:
+    opacity 0.2s ease,
+    translate 0.2s ease,
+    overlay 0.2s ease allow-discrete,
+    display 0.2s ease allow-discrete;
+}
+dialog.drawer::backdrop,
+dialog.lightbox::backdrop {
+  transition:
+    opacity 0.2s ease,
+    overlay 0.2s ease allow-discrete,
+    display 0.2s ease allow-discrete;
+}
+
+/* Floating cards inset from the edge they slide in from
+   UA gives dialogs width/height: fit-content, which blocks the inset pair from
+   stretching - so each side clears only the axis it stretches on
+   Don't null max-width here, that's what sm:max-w-md needs to land */
+dialog.drawer {
+  opacity: 1;
+}
+dialog.drawer-left,
+dialog.drawer-right {
+  height: auto;
+}
+dialog.drawer-left {
+  inset: 0.75rem auto 0.75rem 0.75rem;
+  --drawer-closed-translate: -2.5rem 0;
+}
+dialog.drawer-right {
+  inset: 0.75rem 0.75rem 0.75rem auto;
+  --drawer-closed-translate: 2.5rem 0;
+}
+/* Phones get a bottom sheet whichever side a drawer declares - thumb reach beats
+   edge fidelity. Fixed height (not max-) because the menu panel's drill container
+   is absolutely positioned and needs a definite box to fill. The closed offset
+   rides the custom property so the slide comes from below here too */
+@media (max-width: 767px) {
+  dialog.drawer-left,
+  dialog.drawer-right {
+    inset: auto 0.75rem 0.75rem 0.75rem;
+    width: auto;
+    height: 82dvh;
+    --drawer-closed-translate: 0 2.5rem;
+  }
+}
+dialog.drawer-bottom {
+  inset: auto 0.75rem 0.75rem 0.75rem;
+  width: auto;
+}
+dialog.drawer::backdrop {
+  background: rgb(0 0 0 / 0.1);
+  opacity: 1;
+}
+@supports (backdrop-filter: blur(2px)) {
+  dialog.drawer::backdrop {
+    backdrop-filter: blur(2px);
+  }
+}
+
+/* Closed and pre-open share an offset so both directions animate the same */
+dialog.drawer-left:not([open]),
+dialog.drawer-right:not([open]) {
+  translate: var(--drawer-closed-translate);
+}
+dialog.drawer-bottom:not([open]) {
+  translate: 0 2.5rem;
+}
+/* Tailwind's `flex` beats the UA dialog:not([open]){display:none}, so without
+   this a closed drawer keeps intercepting clicks */
+dialog.drawer:not([open]) {
+  display: none;
+}
+dialog.drawer:not([open]) {
+  opacity: 0;
+}
+dialog.drawer:not([open])::backdrop {
+  opacity: 0;
+}
+
+/* Lightbox - centred, dark backdrop, no chrome of its own */
+dialog.lightbox {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  opacity: 1;
+}
+dialog.lightbox:not([open]) {
+  display: none;
+}
+dialog.lightbox::backdrop {
+  background: rgb(0 0 0 / 0.8);
+  opacity: 1;
+}
+dialog.lightbox:not([open]) {
+  opacity: 0;
+}
+dialog.lightbox:not([open])::backdrop {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog.drawer,
+  dialog.lightbox,
+  dialog.drawer::backdrop,
+  dialog.lightbox::backdrop {
+    transition: none;
+  }
+  dialog.drawer:not([open]) {
+    translate: none;
+  }
+  @starting-style {
+    dialog.drawer {
+      translate: none;
+    }
+  }
+}
+
+/* Entry states - @starting-style is an at-rule, not a pseudo-class */
+@starting-style {
+  dialog.drawer,
+  dialog.lightbox {
+    opacity: 0;
+  }
+  dialog.drawer::backdrop,
+  dialog.lightbox::backdrop {
+    opacity: 0;
+  }
+  dialog.drawer-left,
+  dialog.drawer-right {
+    translate: var(--drawer-closed-translate);
+  }
+  dialog.drawer-bottom {
+    translate: 0 2.5rem;
+  }
+}
+
+/* Gallery snap track - replaces embla */
+.snap-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.snap-track::-webkit-scrollbar {
+  display: none;
+}
+.snap-track > * {
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+}
+
+/* ---------- PLP -> PDP shared-element morph ---------- */
+
+/* The product image is wrapped in React's <ViewTransition share="morph"> on both the grid card and
+   the PDP gallery (see app/lib/view-transition.ts), which hands the pair this class. Everything
+   below only TUNES that pairing - with no CSS at all the browser still morphs, just faster and
+   without the blur. */
+::view-transition-group(.morph) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  /* Above the page snapshot, below the pinned header - the arriving page is opaque from the first
+     frame, so without this the flying image is sliced off wherever the PDP's own layout is behind it */
+  z-index: 10;
+}
+
+/* A card thumbnail and a PDP hero are different crops of different pixel sizes, so the mid-flight
+   frames interpolate badly. A touch of blur at the midpoint hides that without reading as an effect. */
+::view-transition-image-pair(.morph) {
+  animation-name: morph-blur;
+  animation-duration: 320ms;
+}
+@keyframes morph-blur {
+  40% {
+    filter: blur(2px);
+  }
+}
+
+/* The header is the shopper's fixed reference point - letting it cross-fade with the rest made the
+   whole chrome flicker on every product click. display:none on the old snapshot stops the two
+   copies briefly stacking. */
+::view-transition-group(site-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-header) {
+  display: none;
+}
+::view-transition-new(site-header) {
+  animation: none;
+}
+
+/* ---------- page-to-page dissolve ---------- */
+
+/* The page slot carries <ViewTransition update="page-fade"> in the locale layout, which hands its
+   pair this class - the outgoing half never paints, because cross-fading two layouts ghosts one
+   through the other and handing over sequentially flashes the paper between them */
+::view-transition-old(.page-fade) {
+  display: none;
+}
+
+/* So the whole thing is the arrival, and it starts most of the way there - from zero the first
+   frame is bare paper, which is the same flash by another route */
+::view-transition-new(.page-fade) {
+  animation: 130ms ease-out both page-settle;
+}
+
+/* Root is everything the page slot doesn't own - footer, trays, the paper itself - and it outlives
+   the navigation, so it's pinned like the header rather than fading a beat ahead of the content */
+::view-transition-group(.page-fade),
+::view-transition-group(root) {
+  animation: none;
+}
+
+::view-transition-old(root) {
+  display: none;
+}
+
+::view-transition-new(root) {
+  animation: none;
+}
+
+@keyframes page-settle {
+  from {
+    opacity: 0.6;
+  }
+}
+
+/* The grid re-keys on every filter change and cross-fades on its own clock, which layered a second
+   slower transition over the page one and double-exposed the old results - same handling as a page */
+::view-transition-group(product-grid) {
+  animation: none;
+}
+
+::view-transition-old(product-grid) {
+  display: none;
+}
+
+::view-transition-new(product-grid) {
+  animation: 130ms ease-out both page-settle;
+}
+
+/* The announcement bar is chrome the same as the nav under it, but it sits outside <header> so
+   nothing claimed it - unnamed it rides the root snapshot and dims while the nav holds still */
+.site-banner {
+  view-transition-name: site-banner;
+}
+
+::view-transition-group(site-banner) {
+  animation: none;
+}
+
+::view-transition-old(site-banner) {
+  display: none;
+}
+
+::view-transition-new(site-banner) {
+  animation: none;
+}
+
+/* The transition overlay swallows clicks for its whole duration, which loses a shopper's second
+   click on a fast double-tap - let them through to the live page underneath. */
+::view-transition {
+  pointer-events: none;
+}
+
+/* Snapping belongs to swipes - on a mouse it fights the wheel, re-snapping away every tick
+   smaller than a card, and the arrows already land on exact card offsets without it
+   Top level rather than inside @layer utilities: a nested @media in a layer is dropped on the way
+   through the compiler, same as @starting-style is */
+@media (pointer: coarse) {
+  .snap-touch {
+    scroll-snap-type: x mandatory;
+  }
+}
+
+/* Motion sensitivity: a morph flies an image across the viewport, which is exactly the class of
+   movement this setting is asking us not to do. Zeroing the durations falls back to the browser's
+   plain swap rather than disabling navigation. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}

@@ -1,0 +1,16 @@
+query AuditLog($adminId: ID, $action: String, $limit: Int, $offset: Int) {
+  auditLog(adminId: $adminId, action: $action, limit: $limit, offset: $offset) {
+    total
+    entries {
+      id
+      adminId
+      adminEmail
+      action
+      detail
+      ip
+      success
+      durationMs
+      createdAt
+    }
+  }
+}

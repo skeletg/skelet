@@ -1,0 +1,120 @@
+# ==================== Collections ====================
+
+type CollectionContent {
+  locale:          String!
+  name:            String!
+  description:     JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+  updatedAt:       Time!
+}
+
+type CollectionCover {
+  url:       String!
+  altText:   String!
+  width:     Int!
+  height:    Int!
+  mimeType:  String!
+  status:    ProductMediaStatus!
+}
+
+type Collection {
+  id:              ID!
+  slug:            String!
+  isPublished:     Boolean!
+  seoNoindex:      Boolean!
+  # Locale-resolved fields - null if no content exists for the requested locale.
+  name:            String
+  description:     JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+  # The locale code whose content row populates name/description/seo* above.
+  # Tracks the requested locale when present, otherwise the global default
+  # locale (resolved via fallback). Null only if the collection has no
+  # content rows at all.
+  contentLocale:   String
+  # All available translations (use in admin UI to manage content).
+  content:         [CollectionContent!]!
+  coverImage:      CollectionCover
+  products:        [Product!]!
+  metadata:        [MetadataItem!]!
+  privateMetadata: [MetadataItem!]!
+  # Per-collection storefront filter presentation - same contract as
+  # Category.facetOverrides
+  facetOverrides:  [FacetOverride!]!
+  createdAt:       Time!
+  updatedAt:       Time!
+}
+
+type RequestCoverUploadPayload {
+  collection: Collection!
+  uploadUrl:  String!
+  expiresAt:  Time!
+}
+
+input CreateCollectionInput {
+  slug:            String!
+  isPublished:     Boolean
+  seoNoindex:      Boolean
+  metadata:        [MetadataInput!]
+  privateMetadata: [MetadataInput!]
+  # Initial content - locale and name are required at creation time.
+  locale:          String!
+  name:            String!
+  description:     JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+}
+
+# slug is mutable; changing it auto-creates a 301 redirect.
+input UpdateCollectionInput {
+  id:              ID!
+  slug:            String
+  isPublished:     Boolean
+  seoNoindex:      Boolean
+  metadata:        [MetadataInput!]
+  privateMetadata: [MetadataInput!]
+}
+
+input UpsertCollectionContentInput {
+  name:            String!
+  description:     JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+}
+
+input RequestCollectionCoverUploadInput {
+  collectionId: ID!
+  filename:     String!
+  mimeType:     String!
+  sizeBytes:    Int!
+  altText:      String
+}
+
+# --- Queries (require catalog.view) ---
+extend type Query {
+  collections: [Collection!]!
+  collection(id: ID!): Collection!
+}
+
+# --- Mutations (require catalog.manage) ---
+extend type Mutation {
+  createCollection(input: CreateCollectionInput!): Collection!
+  updateCollection(input: UpdateCollectionInput!): Collection!
+  # Replaces the collection's whole filter-presentation set - list order is the
+  # storefront order, an empty list resets to attribute-order defaults
+  setCollectionFacetOverrides(collectionId: ID!, overrides: [FacetOverrideInput!]!): Collection!
+  deleteCollection(id: ID!): Boolean!
+  upsertCollectionContent(collectionId: ID!, locale: String!, input: UpsertCollectionContentInput!): Collection!
+  deleteCollectionContent(collectionId: ID!, locale: String!): Boolean!
+  addProductToCollection(collectionId: ID!, productId: ID!, sortOrder: Int): Collection!
+  removeProductFromCollection(collectionId: ID!, productId: ID!): Collection!
+  reorderCollectionProducts(collectionId: ID!, productIds: [ID!]!): Collection!
+  requestCollectionCoverUpload(input: RequestCollectionCoverUploadInput!): RequestCoverUploadPayload!
+  confirmCollectionCoverUpload(collectionId: ID!, width: Int!, height: Int!): Collection!
+  clearCollectionCover(collectionId: ID!): Collection!
+}

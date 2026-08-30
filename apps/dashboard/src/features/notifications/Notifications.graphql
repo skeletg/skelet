@@ -1,0 +1,47 @@
+# Admin inbox - bell badge, dropdown, and the full /inbox page.
+
+query Notifications($unreadOnly: Boolean, $limit: Int) {
+  notifications(unreadOnly: $unreadOnly, limit: $limit) {
+    id
+    category
+    severity
+    title
+    body
+    entityType
+    entityId
+    actionUrl
+    channelId
+    createdAt
+    read
+  }
+}
+
+query NotificationUnreadCount {
+  notificationUnreadCount
+}
+
+mutation MarkNotificationRead($id: ID!) {
+  markNotificationRead(id: $id)
+}
+
+mutation MarkAllNotificationsRead {
+  markAllNotificationsRead
+}
+
+# Live push of new notifications over the graphql-ws socket. Latency layer:
+# the bell still slow-polls the count as the correctness backfill.
+subscription NotificationAdded {
+  notificationAdded {
+    id
+    category
+    severity
+    title
+    body
+    entityType
+    entityId
+    actionUrl
+    channelId
+    createdAt
+    read
+  }
+}

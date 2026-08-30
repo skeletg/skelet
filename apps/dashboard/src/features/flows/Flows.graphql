@@ -1,0 +1,67 @@
+fragment FlowFields on Flow {
+  id
+  channelId
+  name
+  triggerType
+  triggerConfig
+  graph
+  status
+  createdAt
+  updatedAt
+  deletedAt
+}
+
+query Flows($channelId: ID!, $includeDeleted: Boolean) {
+  flows(channelId: $channelId, includeDeleted: $includeDeleted) {
+    ...FlowFields
+  }
+}
+
+query Flow($id: ID!) {
+  flow(id: $id) {
+    ...FlowFields
+  }
+}
+
+query FlowTriggerTypes {
+  flowTriggerTypes
+}
+
+query FlowMergeTags {
+  flowMergeTags
+}
+
+query FlowSegments {
+  customerSegments {
+    items {
+      id
+      name
+    }
+  }
+}
+
+mutation CreateFlow($input: SaveFlowInput!) {
+  createFlow(input: $input) {
+    ...FlowFields
+  }
+}
+
+mutation UpdateFlow($id: ID!, $input: SaveFlowInput!) {
+  updateFlow(id: $id, input: $input) {
+    ...FlowFields
+  }
+}
+
+mutation DeleteFlow($id: ID!) {
+  deleteFlow(id: $id)
+}
+
+mutation SetFlowStatus($id: ID!, $status: String!) {
+  setFlowStatus(id: $id, status: $status) {
+    ...FlowFields
+  }
+}
+
+mutation RestoreFlow($id: ID!) {
+  restoreFlow(id: $id)
+}

@@ -1,0 +1,8 @@
+scalar Time
+scalar JSON
+# Money in minor units. Int is bound to int32 on this surface, which caps an amount at ~21M major
+# units - fine for a line, not for a B2B cart total
+scalar Int64
+
+type Query
+type Mutation

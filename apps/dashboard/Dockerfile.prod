@@ -1,0 +1,22 @@
+# Prod dashboard image - Vite SPA built to static assets, served by nginx
+# which also proxies /api to the backend - type-gated: typecheck runs before
+# vite build (esbuild alone doesn't type-check)
+# Build: docker build -f apps/dashboard/Dockerfile.prod -t skelet-dashboard:prod apps/dashboard
+
+FROM node:24-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+COPY . .
+# Optional build-time overrides - defaults to the relative /api path
+ARG VITE_GRAPHQL_URL
+ARG VITE_STOREFRONT_ORIGIN
+RUN npm run typecheck && npx vite build
+
+# Unprivileged nginx (uid 101, port 8080) - internet-adjacent, no root
+FROM nginxinc/nginx-unprivileged:1.31-alpine
+# envsubst'd into the config at start - where /api/* goes
+ENV BACKEND_UPSTREAM=http://app:8080
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 8080

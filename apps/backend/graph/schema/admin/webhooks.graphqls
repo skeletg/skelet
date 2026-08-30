@@ -1,0 +1,181 @@
+enum WebhookKind {
+  ASYNC
+  SYNC
+}
+
+# What a failed SYNC delivery does to the operation it gates. FAIL_CLOSED
+# aborts the operation (the webhook is a gate), FAIL_OPEN logs and continues
+# (the webhook is advisory). An explicit {"reject": true} response aborts
+# under both policies. Async webhooks ignore the policy.
+enum WebhookFailurePolicy {
+  FAIL_CLOSED
+  FAIL_OPEN
+}
+
+enum WebhookCircuitState {
+  CLOSED
+  OPEN
+  HALF_OPEN
+}
+
+# Per-process circuit breaker snapshot for a sync webhook target. After 5
+# consecutive failed attempts the circuit opens and calls are skipped for a
+# cooldown (fail_open) or fast-rejected (fail_closed) until a probe succeeds.
+type WebhookCircuit {
+  state:               WebhookCircuitState!
+  consecutiveFailures: Int!
+  openedAt:            Time
+}
+
+type Webhook {
+  id:          ID!
+  name:        String!
+  targetUrl:   String!
+  kind:        WebhookKind!
+  isActive:    Boolean!
+  # Exact event types, "*", or "<prefix>.*" wildcards.
+  eventTypes:  [String!]!
+  # Null = global webhook (fires for events from any store). Non-null =
+  # only fires when the event's store matches.
+  channel:   Channel
+  failurePolicy: WebhookFailurePolicy!
+  # Per-attempt HTTP timeout in ms. 0 = kind default (5s sync, 10s async).
+  timeoutMs:     Int!
+  # Merchant-supplied request headers (e.g. Authorization). Reserved names
+  # (Content-Type, X-Webhook-*) are rejected.
+  customHeaders: JSON
+  # Envelope version pin - "v1" until a v2 envelope exists.
+  payloadVersion: String!
+  # Breaker state - null for async webhooks (the breaker only guards
+  # user-facing sync calls).
+  circuit: WebhookCircuit
+  createdAt:   Time!
+  updatedAt:   Time!
+}
+
+type WebhookDelivery {
+  id:              ID!
+  eventType:       String!
+  url:             String!
+  requestBody:     String!
+  requestHeaders:  JSON
+  responseStatus:  Int
+  responseBody:    String
+  responseHeaders: JSON
+  durationMs:      Int!
+  success:         Boolean!
+  errorMessage:    String
+  attempt:         Int!
+  createdAt:       Time!
+}
+
+type WebhookEventType {
+  type:        String!
+  name:        String!
+  description: String!
+  kind:        WebhookKind!
+}
+
+# Aggregate delivery health for one webhook, over its stored delivery rows.
+# Retries are stored as separate rows, so total/succeeded/failed are
+# attempt-level counts. successRate is succeeded/total (0 when total is 0).
+# avgSuccessMs averages only successful attempts. The timestamps are null
+# until a matching delivery exists.
+type WebhookDeliveryStats {
+  total:          Int!
+  succeeded:      Int!
+  failed:         Int!
+  successRate:    Float!
+  avgSuccessMs:   Int!
+  lastDeliveryAt: Time
+  lastSuccessAt:  Time
+  lastFailureAt:  Time
+}
+
+enum WebhookQueueStatus {
+  PENDING
+  DEAD
+}
+
+# One queued (or dead-lettered) async delivery. Successful deliveries
+# delete their row - the delivery log is the history; dead letters stay
+# until retried or cleared.
+type WebhookQueueItem {
+  id:            ID!
+  eventType:     String!
+  status:        WebhookQueueStatus!
+  attempts:      Int!
+  nextAttemptAt: Time!
+  lastError:     String
+  payload:       String!
+  createdAt:     Time!
+  updatedAt:     Time!
+}
+
+type CreateWebhookPayload {
+  rawSecret: String!
+  webhook:   Webhook!
+}
+
+type RotateWebhookSecretPayload {
+  rawSecret: String!
+  webhook:   Webhook!
+}
+
+input CreateWebhookInput {
+  name:        String!
+  targetUrl:   String!
+  kind:        WebhookKind!
+  # Exact event types, "*", or "<prefix>.*" wildcards - wildcards match
+  # only events of the webhook's kind.
+  eventTypes:  [String!]!
+  # Null = global webhook. Pass a channel id to scope the webhook to
+  # that store; the dispatcher will only fire it for events whose payload
+  # originated on that store.
+  channelId: ID
+  # Default FAIL_CLOSED.
+  failurePolicy: WebhookFailurePolicy
+  # 0 or null = kind default. Max 30000.
+  timeoutMs: Int
+  customHeaders: JSON
+}
+
+# UpdateWebhookInput deliberately omits kind - kind is immutable.
+# Changing kind would require changing the subscribable event types too,
+# which is indistinguishable from "delete + recreate".
+input UpdateWebhookInput {
+  id:         ID!
+  name:       String
+  targetUrl:  String
+  eventTypes: [String!]
+  failurePolicy: WebhookFailurePolicy
+  timeoutMs: Int
+  # Null = no change, {} = clear.
+  customHeaders: JSON
+}
+
+extend type Query {
+  webhooks:                                      [Webhook!]!
+  webhook(id: ID!):                              Webhook!
+  webhookDeliveries(webhookId: ID!, limit: Int): [WebhookDelivery!]!
+  webhookDeliveryStats(webhookId: ID!):          WebhookDeliveryStats!
+  webhookEventTypes:                             [WebhookEventType!]!
+  # Exhausted async deliveries parked for inspection + redelivery.
+  webhookDeadLetters(webhookId: ID!, limit: Int): [WebhookQueueItem!]!
+}
+
+extend type Mutation {
+  createWebhook(input: CreateWebhookInput!):     CreateWebhookPayload!
+  updateWebhook(input: UpdateWebhookInput!):     Webhook!
+  setWebhookActive(id: ID!, active: Boolean!):   Webhook!
+  rotateWebhookSecret(id: ID!):                  RotateWebhookSecretPayload!
+  deleteWebhook(id: ID!):                        Boolean!
+  clearWebhookDeliveries(webhookId: ID!):        Int!
+  # Reset a dead letter for a fresh delivery cycle.
+  retryWebhookDeadLetter(id: ID!):               WebhookQueueItem!
+  clearWebhookDeadLetters(webhookId: ID!):       Int!
+  # Re-enqueue a historical delivery's exact payload through the async
+  # queue. Works for sync deliveries too - the copy is a notification,
+  # the original operation is long finished.
+  redeliverWebhookDelivery(deliveryId: ID!):     WebhookQueueItem!
+}

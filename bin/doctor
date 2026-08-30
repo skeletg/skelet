@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# Sanity-check the dev env - tells you what's wrong instead of failing cryptically
+set -uo pipefail
+cd "$(dirname "$(dirname "$0")")"
+
+ok=0; warn=0; fail=0
+pass()  { ok=$((ok + 1));     printf '  ok    %s\n' "$1"; }
+note()  { warn=$((warn + 1)); printf '  warn  %s\n' "$1"; }
+bad()   { fail=$((fail + 1)); printf '  FAIL  %s\n' "$1"; }
+
+echo "==> docker"
+if docker info >/dev/null 2>&1; then
+    pass "docker daemon reachable"
+else
+    bad "docker daemon not reachable - is Docker running?"
+fi
+if docker compose version >/dev/null 2>&1; then
+    pass "docker compose v2 present ($(docker compose version --short 2>/dev/null))"
+else
+    bad "docker compose v2 missing"
+fi
+# Both modes are fine (stuff runs as your uid either way) - shown for debugging
+if docker info -f '{{.SecurityOptions}}' 2>/dev/null | grep -q rootless; then
+    pass "rootless docker (containers run as uid 0 = you)"
+else
+    pass "rootful docker (containers run as your uid via SKELET_UID)"
+fi
+
+# Read early - which env files should exist depends on the target this clone was set up for
+[ -f .skelet-profile ] && . .skelet-profile
+case "${SKELET_TARGET:-dev}" in
+    small) want_env=(env/small.env) ;;
+    prod)  want_env=(env/prod.env) ;;
+    *)     want_env=(env/go.env env/db.env) ;;
+esac
+# The rest come from the compose file that names them, so a shop added by bin/new is checked
+# like the one it was forked from rather than going unnoticed until deploy
+case "${SKELET_TARGET:-dev}" in
+    small|prod)
+        while IFS= read -r f; do
+            case " ${want_env[*]} " in *" $f "*) continue ;; esac
+            want_env+=("$f")
+        done < <(grep -hoE 'env/[a-z0-9.-]+\.env' "docker-compose.$SKELET_TARGET.yml" 2>/dev/null | sort -u) ;;
+esac
+
+echo "==> env files (${SKELET_TARGET:-dev} target)"
+for f in "${want_env[@]}"; do
+    if [ -f "$f" ]; then pass "$f"; else bad "$f missing - run bin/setup"; fi
+done
+
+echo "==> app selection"
+if [ -f .skelet-apps ]; then
+    sel="$(tr -d '[:space:]' < .skelet-apps)"
+    pass "apps: ${sel:-backend only} (.skelet-apps; change with bin/setup --apps ...)"
+else
+    pass "apps: none in Docker - frontends run on the host (list them in .skelet-apps to containerize)"
+fi
+
+echo "==> shape"
+if [ -f .skelet-profile ]; then
+    pass "target=$SKELET_TARGET signals=$SKELET_SIGNALS b2b=$SKELET_B2B ai=$SKELET_AI search=$SKELET_SEARCH spine=$SKELET_SPINE"
+    pass "gateways: ${SKELET_GATEWAYS:-none}"
+    # The env file is the truth the backend reads - a profile that disagrees with it is the
+    # confusing state, since the dashboard shows one shape and the API serves another
+    for pair in "SIGNALS_ENABLED:$SKELET_SIGNALS" "B2B_ENABLED:$SKELET_B2B" "AI_ENABLED:$SKELET_AI"; do
+        key="${pair%%:*}"; want="${pair#*:}"
+        got="$(grep -hE "^${key}=" "${want_env[@]}" 2>/dev/null | head -1 | cut -d= -f2-)"
+        [ -z "$got" ] && got="(unset, defaults true)"
+        if [ "$got" = "$want" ] || { [ "$want" = true ] && [ "$got" = "(unset, defaults true)" ]; }; then
+            :
+        else
+            note "$key is $got in ${want_env[0]} but the profile says $want - re-run bin/setup"
+        fi
+    done
+else
+    note "no .skelet-profile - run bin/setup to record what this clone is meant to be"
+fi
+
+# Every var a compose file interpolates without a default has to come from somewhere, or the
+# service silently gets an empty string - the failure mode is a feature that just does nothing
+missing=()
+while IFS= read -r v; do
+    grep -qE "^${v}=" .env 2>/dev/null && continue
+    [ -n "${!v:-}" ] && continue
+    missing+=("$v")
+done < <(grep -ohE '\$\{[A-Z][A-Z0-9_]*\}' docker-compose.yml 2>/dev/null | tr -d '${}' | sort -u)
+if [ ${#missing[@]} -eq 0 ]; then
+    pass "every compose interpolation has a value"
+else
+    note "no value for: ${missing[*]} - compose will use an empty string"
+fi
+
+echo "==> containers"
+. bin/_lib
+running=$(docker compose ps --status running --format '{{.Service}}' 2>/dev/null | sort | tr '\n' ' ')
+
+if [ -n "$running" ]; then
+    pass "running: $running"
+else
+    note "nothing running - start with bin/dev"
+fi
+
+# The ClickHouse spine is the one engine choice needing a container the default stack doesn't
+# run - a config saying clickhouse with nothing listening writes analytics into a hole
+if grep -qiE '^[[:space:]]*SIGNALS_ENGINE[[:space:]]*=[[:space:]]*clickhouse' .env 2>/dev/null; then
+    # Exact element match - `grep -w clickhouse` also accepts clickhouse-migrate, since a
+    # hyphen counts as a word boundary, and that one-shot exits while the server may not exist
+    case " $running " in
+        *" clickhouse "*)
+            if [ "$(docker compose exec -T clickhouse clickhouse-client \
+                      --user="${CLICKHOUSE_USER:-skelet}" --password="${CLICKHOUSE_PASSWORD:-skelet}" \
+                      --query 'EXISTS TABLE signals.analytics_events' 2>/dev/null | tr -d '[:space:]')" = 1 ]; then
+                pass "clickhouse spine up, schema present"
+            else
+                bad "clickhouse is up but signals.analytics_events is missing - see bin/logs clickhouse-migrate"
+            fi ;;
+        *)  bad "SIGNALS_ENGINE=clickhouse but no clickhouse container - the spine has nowhere to write (bin/dev)" ;;
+    esac
+fi
+
+echo "==> ports (only meaningful when the stack should be up)"
+specs=(8080:backend 5173:dashboard 5432:postgres 9900:garage-s3 9901:garage-console 9902:garage-web 8025:mailpit)
+# A storefront's published port is its own business, so ask compose instead of
+# assuming the demo's 3000 - a fork with two shops gets both listed
+for d in apps/channels/*/; do
+    [ -d "$d" ] || continue
+    name="$(basename "$d")"
+    port="$(docker compose port "$name" 3000 2>/dev/null | sed 's/.*://')"
+    if [ -n "$port" ]; then
+        specs+=("$port:$name")
+    else
+        if [ -z "$SKELET_APPS" ]; then
+            pass "$name not in Docker - run it on the host (cd apps/channels/$name && npm run dev)"
+        else
+            note "$name has no published port (not running, or not enabled in .skelet-apps)"
+        fi
+    fi
+done
+# Ports this project actually publishes. Probing localhost alone can't tell our stack from a
+# second checkout of the same repo - and reporting another install's services as healthy is worse
+# than reporting nothing, since it hides that this one never came up
+ours="$(docker compose ps --format '{{.Publishers}}' 2>/dev/null | grep -oE '[0-9]+' | sort -un | tr '\n' ' ')"
+for spec in "${specs[@]}"; do
+    port="${spec%%:*}"; name="${spec#*:}"
+    if curl -s -o /dev/null --max-time 2 "http://localhost:$port" 2>/dev/null \
+       || nc -z localhost "$port" 2>/dev/null; then
+        case " $ours " in
+            *" $port "*) pass "$name (:$port) answering" ;;
+            *) note "$name (:$port) answering, but NOT from this checkout - another stack holds it" ;;
+        esac
+    else
+        note "$name (:$port) not answering"
+    fi
+done
+
+echo "==> endpoints"
+# Same trap as the ports above - :8080 may belong to another checkout, and "healthy" read off
+# somebody else's backend is the most convincing wrong answer this script can give
+case " $ours " in
+    *" 8080 "*)
+        health=$(curl -fsS --max-time 3 http://localhost:8080/health 2>/dev/null)
+        if [ "$health" = "ok" ]; then
+            pass "backend /health: ok (db + valkey reachable)"
+        else
+            note "backend /health not ok (${health:-no response})"
+        fi
+        ;;
+    *) note "backend /health skipped - this checkout publishes no :8080 (nothing running here)" ;;
+esac
+if curl -fsS --max-time 3 -o /dev/null "http://media.localhost:9902/" 2>/dev/null; then
+    pass "*.localhost resolves (public media URLs will work)"
+else
+    # A 404 still proves DNS works - only a transport error means it doesn't
+    if curl -s --max-time 3 -o /dev/null -w '%{http_code}' "http://media.localhost:9902/" 2>/dev/null | grep -q '^[0-9]'; then
+        pass "*.localhost resolves (public media URLs will work)"
+    else
+        note "media.localhost doesn't resolve here - browsers handle *.localhost themselves, but host curl won't"
+    fi
+fi
+
+echo "==> disk"
+avail=$(df -Pk . | awk 'NR == 2 { print int($4 / 1024 / 1024) }')
+if [ "${avail:-0}" -ge 10 ]; then
+    pass "${avail}G free"
+else
+    note "only ${avail}G free - docker system prune?"
+fi
+
+echo
+echo "$ok ok, $warn warnings, $fail failures"
+[ "$fail" -eq 0 ]

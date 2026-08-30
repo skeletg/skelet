@@ -1,0 +1,54 @@
+type Integration {
+  id:          ID!
+  name:        String!
+  description: String!
+  permissions: [Permission!]!
+  isActive:    Boolean!
+  expiresAt:   Time
+  createdAt:   Time!
+  # null = the token's grants hold on every channel; set = they only satisfy that channel's checks
+  channelId:   ID
+}
+
+type CreateIntegrationPayload {
+  rawToken:    String!          # shown once, never returned again
+  integration: Integration!
+}
+
+type RegenerateIntegrationTokenPayload {
+  rawToken:    String!          # shown once, never returned again
+  integration: Integration!
+}
+
+input CreateIntegrationInput {
+  name:            String!
+  description:     String
+  permissionSlugs: [String!]!
+  expiresAt:       Time
+  # pin the token to one channel - omit for a global token
+  channelId:       ID
+}
+
+input UpdateIntegrationInput {
+  id:              ID!
+  name:            String
+  description:     String
+  permissionSlugs: [String!]
+  expiresAt:       Time
+  clearExpiresAt:  Boolean
+  # set to repin, combine with clearChannel to unpin - both absent leaves the pin alone
+  channelId:       ID
+  clearChannel:    Boolean
+}
+
+extend type Query {
+  integrations: [Integration!]!
+}
+
+extend type Mutation {
+  createIntegration(input: CreateIntegrationInput!):        CreateIntegrationPayload!
+  updateIntegration(input: UpdateIntegrationInput!):        Integration!
+  setIntegrationActive(id: ID!, active: Boolean!):          Integration!
+  regenerateIntegrationToken(id: ID!):                      RegenerateIntegrationTokenPayload!
+  deleteIntegration(id: ID!):                               Boolean!
+}

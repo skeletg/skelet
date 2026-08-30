@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Build + push prod images: REGISTRY=... bin/push-images [tag] (default = git sha)
+# PLATFORM defaults to linux/amd64 so a Mac doesn't ship arm64 to amd64 boxes
+set -euo pipefail
+cd "$(dirname "$(dirname "$0")")"
+
+: "${REGISTRY:?set REGISTRY, e.g. REGISTRY=registry.digitalocean.com/<your-registry>}"
+TAG="${1:-$(git rev-parse --short HEAD)}"
+PLATFORM="${PLATFORM:-linux/amd64}"
+
+build() { # <service> <context with Dockerfile.prod>
+  local svc="$1" ctx="$2" ref="$REGISTRY/skelet-$1:$TAG"
+  echo "==> build $ref  ($PLATFORM)"
+  docker build --platform "$PLATFORM" -f "$ctx/Dockerfile.prod" -t "$ref" "$ctx"
+  echo "==> push  $ref"
+  docker push "$ref"
+}
+
+build app        apps/backend
+build dashboard  apps/dashboard
+
+# Storefronts are discovered, so a fork ships its own shop without editing this -
+# the env var name is the directory upper-cased, which is what the compose files read
+exports=""
+for d in apps/channels/*/; do
+  [ -f "$d/Dockerfile.prod" ] || continue
+  name="$(basename "$d")"
+  build "$name" "apps/channels/$name"
+  var="$(printf '%s' "$name" | tr 'a-z-' 'A-Z_')_IMAGE"
+  exports="$exports  export $var=$REGISTRY/skelet-$name:$TAG"$'\n'
+done
+
+cat <<EOF
+
+Pushed tag: $TAG
+Deploy with (docker-compose.prod.yml reads these):
+  export APP_IMAGE=$REGISTRY/skelet-app:$TAG
+  export DASHBOARD_IMAGE=$REGISTRY/skelet-dashboard:$TAG
+${exports}  docker compose -f docker-compose.prod.yml up -d
+EOF

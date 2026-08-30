@@ -1,0 +1,76 @@
+enum CMSWorkflowState {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  PUBLISHED
+}
+
+# A flat collaboration comment on a page, optionally anchored to a locale and/or
+# a specific block id (the dashboard's click-to-edit block selection).
+type CMSPageComment {
+  id:         ID!
+  pageId:     ID!
+  locale:     String
+  blockId:    String
+  authorId:   ID!
+  body:       String!
+  resolved:   Boolean!
+  resolvedBy: ID
+  resolvedAt: Time
+  createdAt:  Time!
+}
+
+input CMSPageCommentInput {
+  pageId:  ID!
+  locale:  String
+  blockId: String
+  body:    String!
+}
+
+# An entry in the managed tag vocabulary. Pages reference a tag by `slug`
+# (stored in CMSPage.tags); `name` is the editable display label.
+type CMSTag {
+  slug:      String!
+  name:      String!
+  pageCount: Int!
+  createdAt: Time!
+}
+
+extend type Query {
+  # Collaboration comments on a page (flat, oldest first).
+  cmsPageComments(pageId: ID!): [CMSPageComment!]!
+
+  # The managed tag vocabulary (with per-tag page counts).
+  cmsTags: [CMSTag!]!
+}
+
+# Editorial workflow transitions + collaboration comments.
+extend type Mutation {
+  # draft → in_review (stamps submitter). Requires cms.manage.
+  submitCMSPageForReview(id: ID!): CMSPage!
+  # → approved (stamps approver). Requires cms.approve (separate from manage so
+  # an editor can't approve their own work).
+  approveCMSPage(id: ID!): CMSPage!
+  # → draft, recording the reason as a comment when given. Requires cms.manage.
+  rejectCMSPage(id: ID!, note: String): CMSPage!
+  # → draft from any state (revise a published page through review again).
+  reopenCMSPage(id: ID!): CMSPage!
+  # Claim a page for review (assign to the acting admin). Requires cms.manage.
+  claimCMSPage(id: ID!): CMSPage!
+  # Clear the assigned reviewer. Requires cms.manage.
+  unassignCMSPage(id: ID!): CMSPage!
+
+  addCMSPageComment(input: CMSPageCommentInput!): CMSPageComment!
+  resolveCMSPageComment(id: ID!, resolved: Boolean!): CMSPageComment!
+  deleteCMSPageComment(id: ID!): Boolean!
+}
+
+# Managed tag vocabulary.
+extend type Mutation {
+  # Create a tag (slug derived from the name; idempotent on slug collision).
+  createCMSTag(name: String!): CMSTag!
+  # Rename a tag's display label (slug - what pages store - stays stable).
+  renameCMSTag(slug: String!, name: String!): CMSTag!
+  # Delete a tag and strip it from every page that carries it.
+  deleteCMSTag(slug: String!): Boolean!
+}

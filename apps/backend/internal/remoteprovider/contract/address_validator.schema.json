@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "address.remoteAddressInput": {
+      "properties": {
+        "city": {
+          "type": "string"
+        },
+        "countryCode": {
+          "type": "string"
+        },
+        "postalCode": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "street1": {
+          "type": "string"
+        },
+        "street2": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "city",
+        "countryCode",
+        "postalCode",
+        "street1"
+      ],
+      "title": "address.remoteAddressInput",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Validate and optionally normalize an address. Note this shape uses `state`, unlike the tax and shipping addresses which use `region`.",
+  "properties": {
+    "request": {
+      "properties": {
+        "address": {
+          "$ref": "#/$defs/address.remoteAddressInput"
+        },
+        "channelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "address",
+        "channelId"
+      ],
+      "title": "remoteAddressRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "messages": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "normalized": {
+          "$ref": "#/$defs/address.remoteAddressInput",
+          "x-nullable": true
+        },
+        "valid": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "messages",
+        "valid"
+      ],
+      "title": "remoteAddressResponse",
+      "type": "object"
+    }
+  },
+  "title": "address_validator",
+  "x-kind": "address_validator",
+  "x-source": "internal/address.remoteAddressRequest -\u003e internal/address.remoteAddressResponse"
+}

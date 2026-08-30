@@ -1,0 +1,28 @@
+query LoyaltyStatus {
+  loyaltyStatus {
+    enabled
+    balancePoints
+    earnPointsPerUnit
+    redeemCentsPerPoint
+  }
+}
+
+mutation RedeemLoyaltyPoints($points: Int!) {
+  redeemLoyaltyPoints(points: $points) {
+    balancePoints
+    storeCreditBalance
+    grantedCents
+  }
+}
+
+query MyReferral {
+  myReferral {
+    enabled
+    code
+    referrerRewardCents
+    refereeRewardCents
+    referredCount
+    rewardedCount
+    earnedCents
+  }
+}

@@ -1,0 +1,77 @@
+query CurrenciesPicker {
+  currencies(activeOnly: true) {
+    code
+    name
+    symbol
+    decimals
+    symbolPosition
+  }
+}
+
+query CurrenciesAdminList {
+  currencies(activeOnly: false) {
+    code
+    name
+    symbol
+    decimals
+    symbolPosition
+    isActive
+    sortOrder
+    metadata {
+      key
+      value
+    }
+    exchangeRate
+    rateUpdatedAt
+    updatedAt
+  }
+}
+
+query Currency($code: String!) {
+  currency(code: $code) {
+    code
+    name
+    symbol
+    decimals
+    symbolPosition
+    isActive
+    sortOrder
+    metadata {
+      key
+      value
+    }
+    exchangeRate
+    rateUpdatedAt
+    createdAt
+    updatedAt
+  }
+}
+
+mutation CreateCurrency($input: CreateCurrencyInput!) {
+  createCurrency(input: $input) {
+    code
+    name
+    symbol
+    decimals
+    symbolPosition
+    isActive
+    sortOrder
+  }
+}
+
+mutation UpdateCurrency($input: UpdateCurrencyInput!) {
+  updateCurrency(input: $input) {
+    code
+    name
+    symbol
+    decimals
+    symbolPosition
+    isActive
+    sortOrder
+    updatedAt
+  }
+}
+
+mutation DeleteCurrency($code: String!) {
+  deleteCurrency(code: $code)
+}

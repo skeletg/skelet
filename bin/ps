@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# What's running, and on which ports
+set -e
+cd "$(dirname "$(dirname "$0")")"
+. bin/_lib
+docker compose ps "$@"

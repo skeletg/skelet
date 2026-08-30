@@ -1,0 +1,12 @@
+{
+  "lines": [
+    {
+      "orderLineId": "00000000-0000-0000-0000-000000000000",
+      "quantity": 1,
+      "reason": "example"
+    }
+  ],
+  "orderId": "00000000-0000-0000-0000-000000000000",
+  "refundTarget": "example",
+  "resolution": "example"
+}

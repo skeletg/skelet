@@ -1,0 +1,100 @@
+fragment ShippingMethodFields on ShippingMethod {
+  id
+  zoneId
+  code
+  name
+  calcType
+  flatCents
+  freeAboveCents
+  sortOrder
+  isActive
+  countryMode
+  allowedCountries
+  createdAt
+  updatedAt
+}
+
+fragment ShippingZoneFields on ShippingZone {
+  id
+  channelId
+  code
+  name
+  sortOrder
+  isActive
+  countries
+  methods {
+    ...ShippingMethodFields
+  }
+  createdAt
+  updatedAt
+}
+
+query ShippingZones($channelId: ID!) {
+  shippingZones(channelId: $channelId) {
+    ...ShippingZoneFields
+  }
+}
+
+query ShippingZone($id: ID!) {
+  shippingZone(id: $id) {
+    ...ShippingZoneFields
+  }
+}
+
+mutation CreateShippingZone($input: CreateShippingZoneInput!) {
+  createShippingZone(input: $input) {
+    ...ShippingZoneFields
+  }
+}
+
+mutation UpdateShippingZone($input: UpdateShippingZoneInput!) {
+  updateShippingZone(input: $input) {
+    ...ShippingZoneFields
+  }
+}
+
+mutation DeleteShippingZone($id: ID!) {
+  deleteShippingZone(id: $id)
+}
+
+mutation CreateShippingMethod($input: CreateShippingMethodInput!) {
+  createShippingMethod(input: $input) {
+    ...ShippingMethodFields
+  }
+}
+
+mutation UpdateShippingMethod($input: UpdateShippingMethodInput!) {
+  updateShippingMethod(input: $input) {
+    ...ShippingMethodFields
+  }
+}
+
+mutation DeleteShippingMethod($id: ID!) {
+  deleteShippingMethod(id: $id)
+}
+
+query ShippingBoxes($channelId: ID!) {
+  shippingBoxes(channelId: $channelId) {
+    id
+    channelId
+    code
+    name
+    innerLengthMm
+    innerWidthMm
+    innerHeightMm
+    maxWeightGrams
+    boxWeightGrams
+    isActive
+    sortOrder
+  }
+}
+
+mutation UpsertShippingBox($input: ShippingBoxInput!) {
+  upsertShippingBox(input: $input) {
+    id
+  }
+}
+
+mutation DeleteShippingBox($id: ID!) {
+  deleteShippingBox(id: $id)
+}

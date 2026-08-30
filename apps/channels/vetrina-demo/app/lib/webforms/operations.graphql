@@ -1,0 +1,18 @@
+mutation SubmitWebForm($input: SubmitWebFormInput!) {
+  submitWebForm(input: $input) {
+    ok
+    successMessage
+    redirectUrl
+    errors {
+      field
+      message
+    }
+  }
+}
+
+mutation PresignWebFormUpload($formId: ID!, $fieldKey: String!, $filename: String!, $contentType: String!, $sizeBytes: Int!) {
+  presignWebFormUpload(formId: $formId, fieldKey: $fieldKey, filename: $filename, contentType: $contentType, sizeBytes: $sizeBytes) {
+    url
+    objectKey
+  }
+}

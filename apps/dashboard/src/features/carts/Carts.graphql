@@ -1,0 +1,123 @@
+query Carts($channelId: ID!, $customerId: ID, $status: String, $abandoned: Boolean, $search: String, $limit: Int, $offset: Int) {
+  carts(channelId: $channelId, customerId: $customerId, status: $status, abandoned: $abandoned, search: $search, limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      id
+      customerId
+      customerEmail
+      customerName
+      status
+      itemCount
+      subtotal
+      currencyCode
+      updatedAt
+    }
+  }
+}
+
+fragment CartFields on AdminCart {
+  id
+  customerId
+  customerEmail
+  customerName
+  channelId
+  currencyCode
+  status
+  subtotal
+  itemCount
+  createdAt
+  updatedAt
+  lines {
+    id
+    productName
+    productSku
+    unitPrice
+    quantity
+    totalPrice
+    isSimple
+    components {
+      id
+      productSku
+      productName
+      unitPrice
+      quantity
+    }
+    options {
+      id
+      optionTitle
+      valueLabel
+      textValue
+      priceDelta
+      fileUrl
+    }
+  }
+}
+
+query Cart($id: ID!) {
+  cart(id: $id) {
+    ...CartFields
+  }
+}
+
+mutation AdminCreateCart($channelId: ID!, $customerId: ID) {
+  adminCreateCart(channelId: $channelId, customerId: $customerId) {
+    ...CartFields
+  }
+}
+
+mutation AdminAddCartLine($cartId: ID!, $productSku: String!, $quantity: Float!, $options: [AdminCartLineOptionInput!]) {
+  adminAddCartLine(cartId: $cartId, productSku: $productSku, quantity: $quantity, options: $options) {
+    ...CartFields
+  }
+}
+
+query CartAddProductOptions($id: ID!) {
+  product(id: $id) {
+    id
+    sku
+    productOptions {
+      id
+      inputType
+      isRequired
+      sortOrder
+      title
+      helpText
+      priceValue
+      priceType
+      maxChars
+      visibleIf
+      values {
+        id
+        title
+        sortOrder
+        priceValue
+        priceType
+        isDefault
+      }
+    }
+  }
+}
+
+mutation AdminUpdateCartLine($cartId: ID!, $lineId: ID!, $quantity: Float!) {
+  adminUpdateCartLine(cartId: $cartId, lineId: $lineId, quantity: $quantity) {
+    ...CartFields
+  }
+}
+
+mutation AdminRemoveCartLine($cartId: ID!, $lineId: ID!) {
+  adminRemoveCartLine(cartId: $cartId, lineId: $lineId) {
+    ...CartFields
+  }
+}
+
+mutation AdminClearCart($cartId: ID!) {
+  adminClearCart(cartId: $cartId) {
+    ...CartFields
+  }
+}
+
+mutation AdminDuplicateCart($cartId: ID!, $targetCustomerId: ID) {
+  adminDuplicateCart(cartId: $cartId, targetCustomerId: $targetCustomerId) {
+    ...CartFields
+  }
+}

@@ -1,0 +1,114 @@
+// Dependency bumps. Renovate rather than Dependabot because it finds manifests itself - the app
+// set stays a directory listing here, the way bin/*, the CI matrices and push-images all treat it
+//
+// The grouping below is not cosmetic: bin/pin-check requires several versions to be identical
+// across two or three files, and a bump that arrives as two PRs fails bin/check on both
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "labels": ["dependencies"],
+
+  // Same cadence dependabot ran at, so any change in noise is down to the grouping and nothing
+  // else. One line to make it monthly if it's still too much
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+
+  // Majors wait on the dependency dashboard behind a checkbox instead of opening a PR - a next
+  // or postgres major is a sit-down, not a review
+  "major": { "dependencyDashboardApproval": true },
+
+  // Vulnerability fixes skip the weekly window. Needs Dependabot alerts left enabled in repo
+  // settings - that's the alerts feature, not the version-updates one this file replaces
+  "vulnerabilityAlerts": {
+    "schedule": ["at any time"],
+    "labels": ["dependencies", "security"]
+  },
+
+  "packageRules": [
+    {
+      // Everything both frontends depend on, in one PR or they drift - which is how the tree ended
+      // up with typescript 6 in the dashboard and 5 in the storefront
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "react",
+        "react-dom",
+        "@types/react",
+        "@types/react-dom",
+        "@types/node",
+        "typescript",
+        "eslint",
+        "graphql",
+        "@graphql-typed-document-node/core",
+        "@graphql-codegen/*",
+        "@sentry/*",
+        "rrweb*",
+        "tailwindcss",
+        "vitest",
+        "lucide-react",
+        "tw-animate-css"
+      ],
+      "groupName": "shared frontend toolchain"
+    },
+    {
+      // What dependabot's go-minor-patch group did
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "go modules"
+    },
+    {
+      // Our own images, built by bin/push-images - there is no upstream to check
+      "matchPackageNames": ["skelet-app", "skelet-dashboard", "skelet-vetrina-demo"],
+      "enabled": false
+    },
+
+    // --- the pin-check couplings. Last, because later rules win and these must beat the
+    // --- broader ones above. postgres and clickhouse need no entry: same dep name in compose
+    // --- and in ci.yml's services, so renovate already puts every occurrence in one branch
+    {
+      // go.mod's directive and the golang build images - two managers, one pin-check gate
+      "matchPackageNames": ["go", "golang"],
+      "groupName": "go toolchain"
+    },
+    {
+      // .nvmrc and every FROM node. Eyeball the first major - pin-check compares .nvmrc's bare
+      // "22" against the image tag, so renovate has to keep writing it at that precision
+      "matchPackageNames": ["node"],
+      "groupName": "node runtime"
+    },
+    {
+      // A docker tag in compose and a go install in two Dockerfiles plus ci.yml. Different
+      // datasources, so this only merges them when both have an update in the same run
+      "matchPackageNames": ["migrate/migrate", "github.com/golang-migrate/migrate/v4"],
+      "groupName": "migrate"
+    },
+    {
+      // alpine's version is also the suffix of the golang build tag, which renovate cannot see
+      // inside. pin-check gates the two, so this one moves by hand
+      "matchPackageNames": ["alpine"],
+      "enabled": false
+    }
+  ],
+
+  // Tool versions pinned inside shell lines, which no stock manager reads. Both are pin-check
+  // gates, so leaving them unmanaged means the gate has nothing moving underneath it
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile(\\.prod)?$/",
+        "/^\\.github/workflows/[^/]+\\.yml$/"
+      ],
+      "matchStrings": ["golang-migrate/migrate/v4/cmd/migrate@(?<currentValue>v[0-9][0-9.]*)"],
+      "depNameTemplate": "github.com/golang-migrate/migrate/v4",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.yml$/", "/^bin/lint$/"],
+      "matchStrings": ["golangci-lint/v2/cmd/golangci-lint@(?<currentValue>v[0-9][0-9.]*)"],
+      "depNameTemplate": "github.com/golangci/golangci-lint/v2",
+      "datasourceTemplate": "go"
+    }
+  ]
+}

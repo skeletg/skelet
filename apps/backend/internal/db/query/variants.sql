@@ -1,0 +1,2 @@
+-- Variants have been removed - every sellable SKU is now a first-class
+-- product row - see the catalog_product_children table for the shape

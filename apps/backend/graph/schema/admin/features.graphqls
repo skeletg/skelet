@@ -1,0 +1,18 @@
+# Server-wide feature switches (env-driven, not admin-configurable) so
+# the dashboard can hide UI for subsystems the deployment turned off.
+type ServerFeatures {
+  # B2B_ENABLED - companies, quotes, contract pricing, on-account credit.
+  b2b: Boolean!
+  # SIGNALS_ENABLED - the Signals suite: Pulse campaigns/flows, Lens,
+  # Synapse, Prism, spine ingestion + forwarding. Transactional email
+  # (and its templates) stays on.
+  signals: Boolean!
+  # AI_ENABLED - every LLM integration: content assistant, review
+  # moderation/summaries, email copywriting, admin chat, Settings → AI.
+  # Wins over the admin-configurable ai/llm/enabled toggle.
+  ai: Boolean!
+}
+
+extend type Query {
+  serverFeatures: ServerFeatures!
+}

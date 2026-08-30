@@ -1,0 +1,1866 @@
+query ProductTypes {
+  productTypes {
+    id
+    slug
+    name
+    isDigital
+    isShippingRequired
+    urlTemplate
+    tracksInventory
+
+    attributes {
+      sortOrder
+      attribute {
+        id
+        slug
+        name
+        inputType
+      }
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+query ProductType($id: ID!) {
+  productType(id: $id) {
+    id
+    slug
+    name
+    isDigital
+    isShippingRequired
+    urlTemplate
+    tracksInventory
+
+    attributes {
+      sortOrder
+      groupId
+      attribute {
+        id
+        slug
+        name
+        inputType
+        unit
+        valueRequired
+        filterable
+        searchable
+        isPublic
+        facetCollapsed
+        isIndexable
+        h1Position
+        synapseTrack
+        autoSegment
+        values {
+          id
+          slug
+          name
+          value
+          sortOrder
+        }
+      }
+    }
+    groups {
+      id
+      name
+      sortOrder
+      attributes {
+        sortOrder
+        groupId
+        attribute {
+          id
+          slug
+          name
+          inputType
+        }
+      }
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+query Attributes {
+  attributes {
+    id
+    slug
+    name
+    inputType
+    relationshipTarget
+    unit
+    valueRequired
+    filterable
+    searchable
+    isPublic
+    facetCollapsed
+    isIndexable
+    h1Position
+    synapseTrack
+    autoSegment
+    sortOrder
+    defaultValue
+    values {
+      id
+      slug
+      name
+      value
+      sortOrder
+      isIndexable
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+query Attribute($id: ID!) {
+  attribute(id: $id) {
+    id
+    slug
+    name
+    inputType
+    relationshipTarget
+    unit
+    valueRequired
+    filterable
+    searchable
+    isPublic
+    facetCollapsed
+    isIndexable
+    h1Position
+    synapseTrack
+    autoSegment
+    sortOrder
+    defaultValue
+    descriptions {
+      locale
+      name
+      description
+    }
+    values {
+      id
+      slug
+      name
+      value
+      sortOrder
+      isIndexable
+      descriptions {
+        locale
+        name
+        description
+      }
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+mutation CreateProductType($input: CreateProductTypeInput!) {
+  createProductType(input: $input) {
+    id
+    slug
+    name
+    urlTemplate
+    tracksInventory
+  }
+}
+
+mutation UpdateProductType($input: UpdateProductTypeInput!) {
+  updateProductType(input: $input) {
+    id
+    name
+    isDigital
+    isShippingRequired
+    urlTemplate
+    tracksInventory
+
+    updatedAt
+  }
+}
+
+mutation DeleteProductType($id: ID!) {
+  deleteProductType(id: $id)
+}
+
+mutation SetProductTypeURLPathTemplate($productTypeId: ID!, $template: String!) {
+  setProductTypeURLPathTemplate(productTypeId: $productTypeId, template: $template) {
+    id
+    urlTemplate
+    updatedAt
+  }
+}
+
+mutation CreateAttribute($input: CreateAttributeInput!) {
+  createAttribute(input: $input) {
+    id
+    slug
+    name
+    inputType
+    relationshipTarget
+    defaultValue
+  }
+}
+
+mutation SetProductAttributeReferences($productId: ID!, $attributeId: ID!, $refs: [AttributeReferenceRefInput!]!) {
+  setProductAttributeReferences(productId: $productId, attributeId: $attributeId, refs: $refs) {
+    id
+  }
+}
+
+query ReferenceCandidates($target: AttributeReferenceTarget!, $search: String, $limit: Int) {
+  referenceCandidates(target: $target, search: $search, limit: $limit) {
+    entityId
+    label
+    path
+  }
+}
+
+mutation UpdateAttribute($input: UpdateAttributeInput!) {
+  updateAttribute(input: $input) {
+    id
+    name
+    unit
+    valueRequired
+    filterable
+    searchable
+    isPublic
+    facetCollapsed
+    isIndexable
+    h1Position
+    synapseTrack
+    autoSegment
+    sortOrder
+    defaultValue
+    updatedAt
+  }
+}
+
+mutation DeleteAttribute($id: ID!) {
+  deleteAttribute(id: $id)
+}
+
+# Bulk facet opt-in from the SEO page - one statement, no per-row rewrite
+mutation SetAttributeValuesIndexable($valueIds: [ID!]!, $isIndexable: Boolean!) {
+  setAttributeValuesIndexable(valueIds: $valueIds, isIndexable: $isIndexable) {
+    count
+  }
+}
+
+mutation SetAttributeIndexable($attributeId: ID!, $isIndexable: Boolean!) {
+  setAttributeIndexable(attributeId: $attributeId, isIndexable: $isIndexable) {
+    attribute {
+      id
+      isIndexable
+      values {
+        id
+        slug
+        isIndexable
+      }
+    }
+    affectedValuesCount
+    affectedProductsCount
+  }
+}
+
+mutation AddAttributeValue($attributeId: ID!, $input: AttributeValueInput!) {
+  addAttributeValue(attributeId: $attributeId, input: $input) {
+    id
+    slug
+    name
+    value
+    sortOrder
+    isIndexable
+  }
+}
+
+mutation UpdateAttributeValue($id: ID!, $input: AttributeValueInput!) {
+  updateAttributeValue(id: $id, input: $input) {
+    id
+    slug
+    name
+    value
+    sortOrder
+    isIndexable
+  }
+}
+
+mutation DeleteAttributeValue($id: ID!) {
+  deleteAttributeValue(id: $id)
+}
+
+mutation SetAttributeDescription($attributeId: ID!, $locale: String!, $description: String!, $name: String) {
+  setAttributeDescription(attributeId: $attributeId, locale: $locale, description: $description, name: $name) {
+    locale
+    name
+    description
+    updatedAt
+  }
+}
+
+mutation SetAttributeValueDescription($valueId: ID!, $locale: String!, $description: String!, $name: String) {
+  setAttributeValueDescription(valueId: $valueId, locale: $locale, description: $description, name: $name) {
+    locale
+    name
+    description
+    updatedAt
+  }
+}
+
+query ProductAttributeSlugs($productId: ID!) {
+  productAttributeSlugs(productId: $productId) {
+    id
+    productId
+    attributeId
+    channelId
+    slug
+    createdAt
+    updatedAt
+  }
+}
+
+mutation SetProductAttributeSlug($input: SetProductAttributeSlugInput!) {
+  setProductAttributeSlug(input: $input) {
+    id
+    productId
+    attributeId
+    channelId
+    slug
+    updatedAt
+  }
+}
+
+mutation DeleteProductAttributeSlug($productId: ID!, $attributeId: ID!, $channelId: ID) {
+  deleteProductAttributeSlug(productId: $productId, attributeId: $attributeId, channelId: $channelId)
+}
+
+query ProductAttributeLocaleValues($productId: ID!) {
+  productAttributeLocaleValues(productId: $productId) {
+    productId
+    attributeId
+    locale
+    value
+    updatedAt
+  }
+}
+
+mutation SetProductAttributeLocaleValue($productId: ID!, $attributeId: ID!, $locale: String!, $value: String!) {
+  setProductAttributeLocaleValue(productId: $productId, attributeId: $attributeId, locale: $locale, value: $value) {
+    productId
+    attributeId
+    locale
+    value
+    updatedAt
+  }
+}
+
+query AttributeValueChannelSlugs($valueId: ID!) {
+  attributeValueChannelSlugs(valueId: $valueId) {
+    id
+    valueId
+    channelId
+    slug
+    updatedAt
+  }
+}
+
+mutation SetAttributeValueChannelSlug($valueId: ID!, $channelId: ID!, $slug: String!) {
+  setAttributeValueChannelSlug(valueId: $valueId, channelId: $channelId, slug: $slug) {
+    id
+    valueId
+    channelId
+    slug
+    updatedAt
+  }
+}
+
+mutation DeleteAttributeValueChannelSlug($valueId: ID!, $channelId: ID!) {
+  deleteAttributeValueChannelSlug(valueId: $valueId, channelId: $channelId)
+}
+
+mutation AssignAttribute($productTypeId: ID!, $attributeId: ID!, $sortOrder: Int, $groupId: ID) {
+  assignAttribute(
+    productTypeId: $productTypeId
+    attributeId: $attributeId
+    sortOrder: $sortOrder
+    groupId: $groupId
+  ) {
+    id
+    attributes {
+      sortOrder
+      groupId
+      attribute { id slug name inputType }
+    }
+    groups {
+      id
+      name
+      sortOrder
+      attributes {
+        sortOrder
+        groupId
+        attribute { id slug name inputType }
+      }
+    }
+  }
+}
+
+mutation UnassignAttribute($productTypeId: ID!, $attributeId: ID!) {
+  unassignAttribute(productTypeId: $productTypeId, attributeId: $attributeId) {
+    id
+    attributes {
+      sortOrder
+      groupId
+      attribute { id slug name inputType }
+    }
+    groups {
+      id
+      name
+      sortOrder
+      attributes {
+        sortOrder
+        groupId
+        attribute { id slug name inputType }
+      }
+    }
+  }
+}
+
+mutation CreateAttributeGroup($productTypeId: ID!, $name: String!, $sortOrder: Int) {
+  createAttributeGroup(productTypeId: $productTypeId, name: $name, sortOrder: $sortOrder) {
+    id
+    attributes {
+      sortOrder
+      groupId
+      attribute { id slug name inputType }
+    }
+    groups {
+      id
+      name
+      sortOrder
+      attributes {
+        sortOrder
+        groupId
+        attribute { id slug name inputType }
+      }
+    }
+  }
+}
+
+mutation UpdateAttributeGroup($id: ID!, $name: String, $sortOrder: Int) {
+  updateAttributeGroup(id: $id, name: $name, sortOrder: $sortOrder) {
+    id
+    groups {
+      id
+      name
+      sortOrder
+    }
+  }
+}
+
+mutation DeleteAttributeGroup($id: ID!) {
+  deleteAttributeGroup(id: $id) {
+    id
+    attributes {
+      sortOrder
+      groupId
+      attribute { id slug name inputType }
+    }
+    groups {
+      id
+      name
+      sortOrder
+      attributes {
+        sortOrder
+        groupId
+        attribute { id slug name inputType }
+      }
+    }
+  }
+}
+
+mutation MoveAttributeToGroup($productTypeId: ID!, $attributeId: ID!, $groupId: ID) {
+  moveAttributeToGroup(productTypeId: $productTypeId, attributeId: $attributeId, groupId: $groupId) {
+    id
+    attributes {
+      sortOrder
+      groupId
+      attribute { id slug name inputType }
+    }
+    groups {
+      id
+      name
+      sortOrder
+      attributes {
+        sortOrder
+        groupId
+        attribute { id slug name inputType }
+      }
+    }
+  }
+}
+
+# Slim server-searched picker feed - id/name/sku/kind plus price for the cart picker
+# Every product dropdown goes through this instead of the 1000-capped full list
+query ProductPicker($search: String, $kinds: [ProductKind!], $limit: Int) {
+  productsPaged(search: $search, kinds: $kinds, limit: $limit) {
+    items {
+      id
+      name
+      sku
+      kind
+      defaultPrice
+      defaultCurrencyCode
+    }
+  }
+}
+
+# Label resolution for pickers holding bare linked ids
+query ProductLabels($ids: [ID!]!) {
+  productsByIds(ids: $ids) {
+    id
+    name
+    sku
+  }
+}
+
+query Products($channelId: ID) {
+  products(channelId: $channelId) {
+    id
+    url
+    name
+    kind
+    shortDescription
+    content {
+      name
+      shortDescription
+      locale
+    }
+    mainImage {
+      id
+      url
+      altText
+      status
+    }
+    thumbnail {
+      id
+      url
+      altText
+      status
+    }
+    ogImage {
+      id
+      url
+      altText
+      status
+    }
+    sku
+    defaultPrice
+    defaultCurrencyCode
+    attributeValues {
+      attribute {
+        id
+        slug
+        name
+        inputType
+        relationshipTarget
+      }
+      selectedValues {
+        id
+        slug
+        name
+        value
+      }
+      scalarValue
+      references {
+        targetType
+        targetId
+        label
+        url
+      }
+    }
+    listings {
+      isPublished
+      price
+      url
+      effectivePrice
+      effectiveCurrency
+      channel {
+        id
+        slug
+        name
+        currencyCode
+      }
+    }
+    productType {
+      id
+      slug
+      name
+
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+query ProductCount($channelId: ID) {
+  productsPaged(channelId: $channelId, limit: 1) {
+    totalCount
+  }
+}
+
+query ProductsPaged(
+  $channelId: ID
+  $search: String
+  $kinds: [ProductKind!]
+  $productTypeSlugs: [String!]
+  $published: Boolean
+  $attributeValueIds: [ID!]
+  $sortKey: String
+  $sortDesc: Boolean
+  $limit: Int
+  $offset: Int
+) {
+  productsPaged(
+    channelId: $channelId
+    search: $search
+    kinds: $kinds
+    productTypeSlugs: $productTypeSlugs
+    published: $published
+    attributeValueIds: $attributeValueIds
+    sortKey: $sortKey
+    sortDesc: $sortDesc
+    limit: $limit
+    offset: $offset
+  ) {
+    totalCount
+    items {
+    id
+    url
+    name
+    kind
+    shortDescription
+    content {
+      name
+      shortDescription
+      locale
+    }
+    mainImage {
+      id
+      url
+      altText
+      status
+    }
+    displayImage {
+      id
+      url
+      altText
+      status
+    }
+    thumbnail {
+      id
+      url
+      altText
+      status
+    }
+    ogImage {
+      id
+      url
+      altText
+      status
+    }
+    sku
+    defaultPrice
+    defaultCurrencyCode
+    attributeValues {
+      attribute {
+        id
+        slug
+        name
+        inputType
+        relationshipTarget
+      }
+      selectedValues {
+        id
+        slug
+        name
+        value
+      }
+      scalarValue
+      references {
+        targetType
+        targetId
+        label
+        url
+      }
+    }
+    listings {
+      isPublished
+      price
+      url
+      effectivePrice
+      effectiveCurrency
+      channel {
+        id
+        slug
+        name
+        currencyCode
+      }
+    }
+    productType {
+      id
+      slug
+      name
+
+    }
+    createdAt
+    updatedAt
+  }
+  }
+}
+
+query Product($id: ID!) {
+  product(id: $id) {
+    id
+    name
+    kind
+    variantMode
+    contentLocale
+    shortDescription
+    canonicalUrl
+    url
+    urlAuto
+    urlTemplateOverride
+    tracksInventoryOverride
+    tracksInventory
+    quantityDecimals
+    quantityStep
+    compareAtPrice
+    specialPrice
+    specialFrom
+    specialTo
+    price
+    onSale
+    weightGrams
+    lengthMm
+    widthMm
+    heightMm
+    minOrderQty
+    maxOrderQty
+    costCents
+    groupPrices {
+      id
+      channelId
+      customerGroupId
+      minQty
+      price
+    }
+    metaDescription
+    metaTitle
+    seoNoindex
+    description
+    descriptionRichText
+    categories { id slug urlPath name }
+    primaryCategory { id slug urlPath name }
+    content {
+      name
+      shortDescription
+      description
+      descriptionRichText
+      locale
+      metaDescription
+      metaKeywords
+      metaTitle
+      updatedAt
+    }
+    mainImage {
+      id
+      url
+      altText
+      status
+      sortOrder
+      width
+      height
+      mimeType
+      sizeBytes
+    }
+    displayImage {
+      id
+      url
+      altText
+      status
+      sortOrder
+      width
+      height
+      mimeType
+      sizeBytes
+    }
+    thumbnail {
+      id
+      url
+      altText
+      status
+      sortOrder
+      width
+      height
+      mimeType
+      sizeBytes
+    }
+    ogImage {
+      id
+      url
+      altText
+      status
+      sortOrder
+      width
+      height
+      mimeType
+      sizeBytes
+    }
+    media {
+      id
+      url
+      altText
+      status
+      sortOrder
+      width
+      height
+      mimeType
+      sizeBytes
+    }
+    sku
+    taxClass
+    defaultPrice
+    defaultCurrencyCode
+    seoNoindex
+    metadata {
+      key
+      value
+    }
+    privateMetadata {
+      key
+      value
+    }
+    listings {
+      isPublished
+      price
+      url
+      effectivePrice
+      effectiveCurrency
+      channel {
+        id
+        slug
+        name
+        currencyCode
+      }
+    }
+    productType {
+      id
+      slug
+      name
+
+      attributes {
+        sortOrder
+        groupId
+        attribute {
+          id
+          slug
+          name
+          inputType
+          unit
+          valueRequired
+          values {
+            id
+            slug
+            name
+            value
+            sortOrder
+          }
+        }
+      }
+      groups {
+        id
+        name
+        sortOrder
+        attributes {
+          sortOrder
+          groupId
+          attribute {
+            id
+          }
+        }
+      }
+    }
+    attributeValues {
+      attribute {
+        id
+        slug
+        name
+        inputType
+        relationshipTarget
+        unit
+        valueRequired
+        values {
+          id
+          slug
+          name
+          value
+          sortOrder
+        }
+      }
+      selectedValues {
+        id
+        slug
+        name
+        value
+      }
+      scalarValue
+      references {
+        targetType
+        targetId
+        label
+        url
+      }
+    }
+    children {
+      id
+      url
+      name
+      sku
+      defaultPrice
+      defaultCurrencyCode
+    }
+    configurableOptions {
+      id
+      slug
+      name
+      inputType
+    }
+    bundleOptions {
+      id
+      inputType
+      isRequired
+      sortOrder
+      title
+      content {
+        locale
+        title
+      }
+      selections {
+        id
+        product {
+          id
+          url
+          sku
+          name
+          kind
+          defaultPrice
+          defaultCurrencyCode
+        }
+        quantity
+        isDefault
+        sortOrder
+      }
+      createdAt
+      updatedAt
+    }
+    kitComponents {
+      id
+      component {
+        id
+        url
+        sku
+        name
+        kind
+        defaultPrice
+        defaultCurrencyCode
+      }
+      quantity
+      sortOrder
+    }
+    groupedMembers {
+      id
+      member {
+        id
+        url
+        sku
+        name
+        kind
+        defaultPrice
+        defaultCurrencyCode
+      }
+      defaultQuantity
+      sortOrder
+      createdAt
+      updatedAt
+    }
+    productOptions {
+      ...ProductOptionFields
+    }
+    downloads {
+      ...ProductDownloadFields
+    }
+    subscriptionTerms {
+      ...SubscriptionTermsFields
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+
+mutation CreateProduct($input: CreateProductInput!) {
+  createProduct(input: $input) {
+    id
+    name
+    kind
+    url
+    urlAuto
+    urlTemplateOverride
+    tracksInventoryOverride
+    tracksInventory
+    quantityDecimals
+    quantityStep
+  }
+}
+
+mutation UpdateProduct($input: UpdateProductInput!) {
+  updateProduct(input: $input) {
+    id
+    sku
+    defaultPrice
+    defaultCurrencyCode
+    canonicalUrl
+    url
+    urlAuto
+    urlTemplateOverride
+    tracksInventoryOverride
+    tracksInventory
+    quantityDecimals
+    quantityStep
+    seoNoindex
+    metadata {
+      key
+      value
+    }
+    privateMetadata {
+      key
+      value
+    }
+    updatedAt
+  }
+}
+
+mutation SetProductTaxClass($productId: ID!, $taxClass: String!) {
+  setProductTaxClass(productId: $productId, taxClass: $taxClass) {
+    id
+    taxClass
+  }
+}
+
+query UrlRewrites($entityType: UrlEntityType!, $entityId: ID!) {
+  urlRewrites(entityType: $entityType, entityId: $entityId) {
+    items {
+      id
+      requestPath
+      targetPath
+      redirectType
+      isAutogenerated
+      description
+      channelId
+      createdAt
+      updatedAt
+    }
+  }
+}
+
+mutation CreateUrlRewrite($input: CreateUrlRewriteInput!) {
+  createUrlRewrite(input: $input) {
+    id
+    requestPath
+    targetPath
+    redirectType
+    isAutogenerated
+    description
+    channelId
+    createdAt
+    updatedAt
+  }
+}
+
+mutation UpdateUrlRewrite($input: UpdateUrlRewriteInput!) {
+  updateUrlRewrite(input: $input) {
+    id
+    requestPath
+    targetPath
+    redirectType
+    isAutogenerated
+    description
+    channelId
+    updatedAt
+  }
+}
+
+mutation DeleteUrlRewrite($id: ID!) {
+  deleteUrlRewrite(id: $id)
+}
+
+# Entity-scoped rewrite ops - entityType is a plain slug ("product", "blog_post")
+# so plugin-owned types work the same as core ones.
+mutation CreateUrlRewriteRedirect($input: CreateUrlRewriteRedirectInput!) {
+  createUrlRewriteRedirect(input: $input) {
+    id
+    requestPath
+    targetPath
+    redirectType
+    isAutogenerated
+    description
+    channelId
+    createdAt
+    updatedAt
+  }
+}
+
+mutation SyncCanonicalUrlRewrite($input: SyncCanonicalUrlRewriteInput!) {
+  syncCanonicalUrlRewrite(input: $input) {
+    id
+    requestPath
+    targetPath
+    redirectType
+    isAutogenerated
+    description
+    channelId
+    createdAt
+    updatedAt
+  }
+}
+
+mutation DeleteUrlRewritesForEntity($entityType: String!, $entityId: ID!) {
+  deleteUrlRewritesForEntity(entityType: $entityType, entityId: $entityId)
+}
+
+mutation UpsertProductContent(
+  $productId: ID!
+  $locale: String
+  $input: UpsertProductContentInput!
+) {
+  upsertProductContent(
+    productId: $productId
+    locale: $locale
+    input: $input
+  ) {
+      id
+      name
+      shortDescription
+      metaDescription
+      metaTitle
+      description
+      descriptionRichText
+      content {
+        name
+        shortDescription
+        description
+        descriptionRichText
+        locale
+        metaDescription
+        metaKeywords
+        metaTitle
+        updatedAt
+      }
+    updatedAt
+  }
+}
+
+mutation DeleteProductContent($productId: ID!, $locale: String) {
+  deleteProductContent(productId: $productId, locale: $locale)
+}
+
+mutation RequestProductMediaUpload($input: RequestProductMediaUploadInput!) {
+  requestProductMediaUpload(input: $input) {
+    uploadUrl
+    expiresAt
+    media {
+      id
+      url
+      altText
+      status
+      sortOrder
+      width
+      height
+      mimeType
+      sizeBytes
+    }
+  }
+}
+
+mutation ConfirmProductMediaUpload($mediaId: ID!, $width: Int!, $height: Int!) {
+  confirmProductMediaUpload(mediaId: $mediaId, width: $width, height: $height) {
+    id
+    url
+    altText
+    status
+    sortOrder
+    width
+    height
+    mimeType
+    sizeBytes
+  }
+}
+
+mutation DeleteProductMedia($id: ID!, $deleteFromStorage: Boolean) {
+  deleteProductMedia(id: $id, deleteFromStorage: $deleteFromStorage)
+}
+
+mutation DeleteProductMediaBulk($productId: ID!, $ids: [ID!]!, $deleteFromStorage: Boolean) {
+  deleteProductMediaBulk(productId: $productId, ids: $ids, deleteFromStorage: $deleteFromStorage)
+}
+
+mutation ReorderProductMedia($productId: ID!, $mediaIds: [ID!]!) {
+  reorderProductMedia(productId: $productId, mediaIds: $mediaIds) {
+    id
+    sortOrder
+  }
+}
+
+mutation UpdateProductMedia($input: UpdateProductMediaInput!) {
+  updateProductMedia(input: $input) {
+    id
+    altText
+    sortOrder
+  }
+}
+
+mutation SetProductMediaRole($productId: ID!, $role: ProductMediaRole!, $mediaId: ID!) {
+  setProductMediaRole(productId: $productId, role: $role, mediaId: $mediaId) {
+    id
+    mainImage {
+      id
+      url
+      altText
+      status
+      sortOrder
+      width
+      height
+      mimeType
+      sizeBytes
+    }
+    thumbnail {
+      id
+      url
+      altText
+      status
+      sortOrder
+      width
+      height
+      mimeType
+      sizeBytes
+    }
+    ogImage {
+      id
+      url
+      altText
+      status
+      sortOrder
+      width
+      height
+      mimeType
+      sizeBytes
+    }
+  }
+}
+
+mutation ClearProductMediaRole($productId: ID!, $role: ProductMediaRole!) {
+  clearProductMediaRole(productId: $productId, role: $role) {
+    id
+    mainImage {
+      id
+      url
+      altText
+      status
+      sortOrder
+      width
+      height
+      mimeType
+      sizeBytes
+    }
+    thumbnail {
+      id
+      url
+      altText
+      status
+      sortOrder
+      width
+      height
+      mimeType
+      sizeBytes
+    }
+    ogImage {
+      id
+      url
+      altText
+      status
+      sortOrder
+      width
+      height
+      mimeType
+      sizeBytes
+    }
+  }
+}
+
+mutation DeleteProduct($id: ID!) {
+  deleteProduct(id: $id)
+}
+
+mutation SetProductAttributes(
+  $productId: ID!
+  $assignments: [ProductAttributeAssignmentInput!]!
+) {
+  setProductAttributes(productId: $productId, assignments: $assignments) {
+    id
+    attributeValues {
+      attribute {
+        id
+      }
+      selectedValues {
+        id
+        slug
+        name
+        value
+      }
+      scalarValue
+    }
+  }
+}
+
+mutation ClearProductAttribute($productId: ID!, $attributeId: ID!) {
+  clearProductAttribute(productId: $productId, attributeId: $attributeId) {
+    id
+    attributeValues {
+      attribute {
+        id
+      }
+      selectedValues {
+        id
+      }
+      scalarValue
+    }
+  }
+}
+
+mutation SetProductListing($input: SetProductListingInput!) {
+  setProductListing(input: $input) {
+    id
+    listings {
+      isPublished
+      price
+      url
+      effectivePrice
+      effectiveCurrency
+      channel {
+        id
+        slug
+        name
+        currencyCode
+      }
+    }
+  }
+}
+
+mutation ClearProductListing($productId: ID!, $channelId: ID!) {
+  clearProductListing(productId: $productId, channelId: $channelId)
+}
+
+mutation AddProductChild($parentId: ID!, $childId: ID!, $sortOrder: Int) {
+  addProductChild(parentId: $parentId, childId: $childId, sortOrder: $sortOrder) {
+    id
+    children {
+      id
+      url
+      name
+      sku
+      defaultPrice
+      defaultCurrencyCode
+    }
+  }
+}
+
+mutation RemoveProductChild($parentId: ID!, $childId: ID!) {
+  removeProductChild(parentId: $parentId, childId: $childId) {
+    id
+    children {
+      id
+      url
+      name
+      sku
+      defaultPrice
+      defaultCurrencyCode
+    }
+  }
+}
+
+mutation GenerateConfigurableChildren(
+  $parentId: ID!,
+  $variants: [GenerateConfigurableChildInput!]!
+) {
+  generateConfigurableChildren(parentId: $parentId, variants: $variants) {
+    id
+    children {
+      id
+      url
+      name
+      sku
+      defaultPrice
+      defaultCurrencyCode
+    }
+  }
+}
+
+fragment BundleOptionFields on BundleOption {
+  id
+  inputType
+  isRequired
+  sortOrder
+  title
+  content {
+    locale
+    title
+  }
+  selections {
+    id
+    product {
+      id
+      url
+      sku
+      name
+      kind
+      defaultPrice
+      defaultCurrencyCode
+    }
+    quantity
+    isDefault
+    sortOrder
+  }
+  createdAt
+  updatedAt
+}
+
+mutation AddBundleOption($input: AddBundleOptionInput!) {
+  addBundleOption(input: $input) {
+    id
+    bundleOptions { ...BundleOptionFields }
+  }
+}
+
+mutation UpdateBundleOption($input: UpdateBundleOptionInput!) {
+  updateBundleOption(input: $input) {
+    id
+    bundleOptions { ...BundleOptionFields }
+  }
+}
+
+mutation UpsertBundleOptionContent($optionId: ID!, $locale: String!, $title: String!) {
+  upsertBundleOptionContent(optionId: $optionId, locale: $locale, title: $title) {
+    id
+    bundleOptions { ...BundleOptionFields }
+  }
+}
+
+mutation DeleteBundleOptionContent($optionId: ID!, $locale: String!) {
+  deleteBundleOptionContent(optionId: $optionId, locale: $locale) {
+    id
+    bundleOptions { ...BundleOptionFields }
+  }
+}
+
+mutation DeleteBundleOption($id: ID!) {
+  deleteBundleOption(id: $id) {
+    id
+    bundleOptions { ...BundleOptionFields }
+  }
+}
+
+mutation AddBundleSelection($input: AddBundleSelectionInput!) {
+  addBundleSelection(input: $input) {
+    id
+    bundleOptions { ...BundleOptionFields }
+  }
+}
+
+mutation UpdateBundleSelection($input: UpdateBundleSelectionInput!) {
+  updateBundleSelection(input: $input) {
+    id
+    bundleOptions { ...BundleOptionFields }
+  }
+}
+
+mutation DeleteBundleSelection($id: ID!) {
+  deleteBundleSelection(id: $id) {
+    id
+    bundleOptions { ...BundleOptionFields }
+  }
+}
+
+fragment KitComponentFields on KitComponent {
+  id
+  component {
+    id
+    url
+    sku
+    name
+    kind
+    defaultPrice
+    defaultCurrencyCode
+  }
+  quantity
+  sortOrder
+}
+
+mutation AddKitComponent($input: AddKitComponentInput!) {
+  addKitComponent(input: $input) {
+    id
+    kitComponents { ...KitComponentFields }
+  }
+}
+
+mutation UpdateKitComponent($input: UpdateKitComponentInput!) {
+  updateKitComponent(input: $input) {
+    id
+    kitComponents { ...KitComponentFields }
+  }
+}
+
+mutation RemoveKitComponent($id: ID!) {
+  removeKitComponent(id: $id) {
+    id
+    kitComponents { ...KitComponentFields }
+  }
+}
+
+fragment GroupedMemberFields on GroupedMember {
+  id
+  member {
+    id
+    url
+    sku
+    name
+    kind
+    defaultPrice
+    defaultCurrencyCode
+  }
+  defaultQuantity
+  sortOrder
+  createdAt
+  updatedAt
+}
+
+mutation AddGroupedMember($input: AddGroupedMemberInput!) {
+  addGroupedMember(input: $input) {
+    id
+    groupedMembers { ...GroupedMemberFields }
+  }
+}
+
+mutation UpdateGroupedMember($input: UpdateGroupedMemberInput!) {
+  updateGroupedMember(input: $input) {
+    id
+    groupedMembers { ...GroupedMemberFields }
+  }
+}
+
+mutation RemoveGroupedMember($id: ID!) {
+  removeGroupedMember(id: $id) {
+    id
+    groupedMembers { ...GroupedMemberFields }
+  }
+}
+
+fragment ProductOptionValueFields on ProductOptionValue {
+  id
+  sortOrder
+  priceValue
+  priceType
+  isDefault
+  forcedLineQty
+  quantity
+  title
+  content {
+    locale
+    title
+  }
+  sourceProduct {
+    id
+    url
+    sku
+    name
+    kind
+    defaultPrice
+    defaultCurrencyCode
+  }
+  createdAt
+  updatedAt
+}
+
+fragment ProductOptionFields on ProductOption {
+  id
+  inputType
+  isRequired
+  sortOrder
+  title
+  helpText
+  content {
+    locale
+    title
+    helpText
+  }
+  priceValue
+  priceType
+  maxChars
+  maxFileBytes
+  fileExtensions
+  visibleIf
+  values {
+    ...ProductOptionValueFields
+  }
+  createdAt
+  updatedAt
+}
+
+mutation AddProductOption($input: AddProductOptionInput!) {
+  addProductOption(input: $input) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation UpdateProductOption($input: UpdateProductOptionInput!) {
+  updateProductOption(input: $input) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation UpsertProductOptionContent($optionId: ID!, $locale: String!, $title: String!, $helpText: String) {
+  upsertProductOptionContent(optionId: $optionId, locale: $locale, title: $title, helpText: $helpText) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation DuplicateProductOption($id: ID!) {
+  duplicateProductOption(id: $id) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation DeleteProductOptionContent($optionId: ID!, $locale: String!) {
+  deleteProductOptionContent(optionId: $optionId, locale: $locale) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation DeleteProductOption($id: ID!) {
+  deleteProductOption(id: $id) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation AddProductOptionValue($input: AddProductOptionValueInput!) {
+  addProductOptionValue(input: $input) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation UpdateProductOptionValue($input: UpdateProductOptionValueInput!) {
+  updateProductOptionValue(input: $input) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation UpsertProductOptionValueContent($valueId: ID!, $locale: String!, $title: String!) {
+  upsertProductOptionValueContent(valueId: $valueId, locale: $locale, title: $title) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation DeleteProductOptionValueContent($valueId: ID!, $locale: String!) {
+  deleteProductOptionValueContent(valueId: $valueId, locale: $locale) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+mutation DeleteProductOptionValue($id: ID!) {
+  deleteProductOptionValue(id: $id) {
+    id
+    productOptions { ...ProductOptionFields }
+  }
+}
+
+fragment ProductDownloadFields on ProductDownload {
+  id
+  title
+  url
+  maxDownloads
+  sortOrder
+  createdAt
+  updatedAt
+}
+
+mutation AddProductDownload($input: AddProductDownloadInput!) {
+  addProductDownload(input: $input) {
+    id
+    downloads { ...ProductDownloadFields }
+  }
+}
+
+mutation UpdateProductDownload($input: UpdateProductDownloadInput!) {
+  updateProductDownload(input: $input) {
+    id
+    downloads { ...ProductDownloadFields }
+  }
+}
+
+mutation RemoveProductDownload($id: ID!) {
+  removeProductDownload(id: $id) {
+    id
+    downloads { ...ProductDownloadFields }
+  }
+}
+
+fragment SubscriptionTermsFields on SubscriptionTerms {
+  intervalUnit
+  intervalCount
+  trialDays
+}
+
+mutation SetSubscriptionTerms($input: SetSubscriptionTermsInput!) {
+  setSubscriptionTerms(input: $input) {
+    id
+    subscriptionTerms { ...SubscriptionTermsFields }
+  }
+}
+
+mutation ClearSubscriptionTerms($productId: ID!) {
+  clearSubscriptionTerms(productId: $productId) {
+    id
+    subscriptionTerms { ...SubscriptionTermsFields }
+  }
+}
+
+mutation AddProductToCategory($productId: ID!, $categoryId: ID!, $position: Int, $isPrimary: Boolean) {
+  addProductToCategory(productId: $productId, categoryId: $categoryId, position: $position, isPrimary: $isPrimary) {
+    id
+    categories { id slug urlPath name }
+    primaryCategory { id slug urlPath name }
+  }
+}
+
+mutation RemoveProductFromCategory($productId: ID!, $categoryId: ID!) {
+  removeProductFromCategory(productId: $productId, categoryId: $categoryId) {
+    id
+    categories { id slug urlPath name }
+    primaryCategory { id slug urlPath name }
+  }
+}
+
+mutation SetProductPrimaryCategory($productId: ID!, $categoryId: ID!) {
+  setProductPrimaryCategory(productId: $productId, categoryId: $categoryId) {
+    id
+    categories { id slug urlPath name }
+    primaryCategory { id slug urlPath name }
+  }
+}
+
+mutation SetConfigurableOptions($productId: ID!, $attributeIds: [ID!]!) {
+  setConfigurableOptions(productId: $productId, attributeIds: $attributeIds) {
+    id
+    configurableOptions {
+      id
+      slug
+      name
+      inputType
+    }
+  }
+}
+
+mutation SetProductVariantMode($productId: ID!, $mode: VariantMode!) {
+  setProductVariantMode(productId: $productId, mode: $mode) {
+    id
+    variantMode
+  }
+}
+
+query AllUrlRewrites($entityType: UrlEntityType, $channelId: ID, $search: String, $redirectTypes: [Int!], $autogenerated: Boolean, $limit: Int, $offset: Int) {
+  urlRewrites(entityType: $entityType, channelId: $channelId, search: $search, redirectTypes: $redirectTypes, autogenerated: $autogenerated, limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      id
+      entityType
+      entityId
+      requestPath
+      targetPath
+      redirectType
+      isAutogenerated
+      description
+      channelId
+      createdAt
+      updatedAt
+    }
+  }
+}
+
+
+mutation SetProductGroupPrices($productId: ID!, $prices: [ProductGroupPriceInput!]!) {
+  setProductGroupPrices(productId: $productId, prices: $prices) {
+    id
+    channelId
+    customerGroupId
+    minQty
+    price
+  }
+}
+
+
+query ProductLinks($productId: ID!, $kind: ProductLinkKind!) {
+  productLinks(productId: $productId, kind: $kind)
+}
+
+mutation SetProductLinks($productId: ID!, $kind: ProductLinkKind!, $linkedProductIds: [ID!]!) {
+  setProductLinks(productId: $productId, kind: $kind, linkedProductIds: $linkedProductIds)
+}
+
+# Product detail sidebar - stock, sales and review counts in one round trip
+# Split from the big Product query so the sidebar can refetch independently of the editor form
+query ProductSidebarStats($id: ID!, $sku: String!, $days: Int, $channelId: ID) {
+  product(id: $id) {
+    id
+    salableQuantity(channelId: $channelId)
+    inStock(channelId: $channelId)
+  }
+  productSales(sku: $sku, days: $days, channelId: $channelId) {
+    unitsSold
+    revenue
+    orderCount
+    margin
+    days
+  }
+  reviewCounts(productId: $id) {
+    approved
+    pending
+    total
+  }
+}
+
+# Storefront traffic for one product page - Lens keys pages by URL path, so the product's own
+# url is the key - Separate query so it can be skipped entirely when Signals is off
+query ProductTraffic($channelId: ID!, $pageKey: String!) {
+  lensPageStats(channelId: $channelId, pageKey: $pageKey) {
+    views
+    visitors
+    clicks
+    avgScroll
+  }
+}

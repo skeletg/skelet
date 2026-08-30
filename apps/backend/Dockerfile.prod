@@ -1,0 +1,70 @@
+# Prod backend image - stripped binaries (server + skelet ops CLI + migrate +
+# migrations) on minimal alpine; server and media link libvips (-tags vips) for
+# webp derivatives, the rest stay static CGO-off builds
+# Build: docker build -f apps/backend/Dockerfile.prod -t skelet-app:prod apps/backend
+# Override the command for the bundled tools, e.g.
+#   migrate -path /app/migrations -database "$DATABASE_URL" up
+#   migrate -path /app/signals-migrations -database "$SIGNALS_DB_URL" up
+#   migrate -path /app/clickhouse-migrations -database "$SIGNALS_CH_MIGRATE_URL" up
+#   skelet admin create ...
+# Don't run the CLI's dev-only subcommands (dev-reset, seed-demo) in prod
+
+# alpine3.24 pinned explicitly - the runtime stage installs the vips these
+# binaries link against, so the two alpines must stay in lockstep
+# 1.26.6 for the net/http idna fix (GO-2026-5026)
+FROM golang:1.27.0-alpine3.24 AS build
+WORKDIR /src
+# build-base/pkgconf/vips-dev - cgo headers for the -tags vips binaries
+RUN apk add --no-cache git build-base pkgconf vips-dev
+# Module downloads keyed on the lockfiles
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+# server and media render images, so they take the cgo hit for libvips webp
+# output - everything else keeps CGO off (static, -trimpath/-ldflags = smaller
+# reproducible build)
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 GOOS=linux go build -trimpath -tags vips -ldflags="-s -w" -o /out/server ./cmd/server
+# The Signals worker - retention + spine forwarding as its own service
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/signals ./cmd/signals
+# The image-transform tier - decode/resample off the commerce process
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 GOOS=linux go build -trimpath -tags vips -ldflags="-s -w" -o /out/media ./cmd/media
+# The web-ingest tier - the public /t beacon surface off the commerce process
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ingest ./cmd/ingest
+# The skelet ops CLI
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/skelet ./cmd/cli
+# The migrations runner - clickhouse alongside postgres for the columnar spine engine
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go install -tags 'postgres,clickhouse' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+
+# 3.24 to match the build stage's alpine - vips here must be the same version
+# as the vips-dev the server/media binaries were compiled against
+FROM alpine:3.24
+# ca-certificates for outbound TLS, curl for the healthcheck, tzdata for
+# scheduler time math, postgresql18-client for pg_dump, vips for the -tags vips
+# server/media binaries
+RUN apk add --no-cache ca-certificates curl tzdata postgresql18-client vips && adduser -D -u 10001 app
+WORKDIR /app
+COPY --from=build /out/server /app/server
+COPY --from=build /out/signals /app/signals
+COPY --from=build /out/media /app/media
+COPY --from=build /out/ingest /app/ingest
+COPY --from=build /out/skelet /usr/local/bin/skelet
+COPY --from=build /go/bin/migrate /usr/local/bin/migrate
+COPY --from=build /src/internal/db/migrations /app/migrations
+# Signals migration stream - applied to the separate signals db (SIGNALS_DB_URL)
+# by the signals-migrate one-shot when the physical-split override is layered
+COPY --from=build /src/internal/db/signals/migrations /app/signals-migrations
+# ClickHouse spine schema - applied by clickhouse-migrate when the columnar
+# override is layered (SIGNALS_ENGINE=clickhouse)
+COPY --from=build /src/internal/analytics/spinech/migrations /app/clickhouse-migrations
+USER app
+EXPOSE 8080
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+    CMD curl -fsS http://localhost:8080/health || exit 1
+# CMD (not ENTRYPOINT) so overriding with migrate/skelet just works
+CMD ["/app/server"]

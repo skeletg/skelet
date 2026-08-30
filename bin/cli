@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# The ops CLI inside the app container - -it only on a real tty so piping works
+set -e
+cd "$(dirname "$(dirname "$0")")"
+. bin/_lib
+
+tty_flag=()
+[ -t 0 ] && tty_flag=(-it)
+
+if docker compose ps --status running | grep -q "skelet-app"; then
+    docker compose exec "${tty_flag[@]}" "${USER_FLAG[@]}" app go run ./cmd/cli "$@"
+else
+    docker compose run --rm "${tty_flag[@]}" "${USER_FLAG[@]}" app go run ./cmd/cli "$@"
+fi

@@ -1,0 +1,66 @@
+fragment TaxRuleFields on TaxRule {
+  id
+  channelId
+  name
+  priority
+  exclusivityGroup
+  sortOrder
+  isActive
+  conditions {
+    type
+    params
+    paramsVersion
+    sortOrder
+  }
+  effects {
+    type
+    params
+    paramsVersion
+    sortOrder
+  }
+  createdAt
+  updatedAt
+}
+
+query TaxRules($channelId: ID) {
+  taxRules(channelId: $channelId) {
+    ...TaxRuleFields
+  }
+}
+
+query TaxRule($id: ID!) {
+  taxRule(id: $id) {
+    ...TaxRuleFields
+  }
+}
+
+query TaxRuleTypes {
+  taxConditionTypes {
+    slug
+    label
+    description
+    paramsSchema
+  }
+  taxEffectTypes {
+    slug
+    label
+    description
+    paramsSchema
+  }
+}
+
+mutation CreateTaxRule($input: CreateTaxRuleInput!) {
+  createTaxRule(input: $input) {
+    ...TaxRuleFields
+  }
+}
+
+mutation UpdateTaxRule($input: UpdateTaxRuleInput!) {
+  updateTaxRule(input: $input) {
+    ...TaxRuleFields
+  }
+}
+
+mutation DeleteTaxRule($id: ID!) {
+  deleteTaxRule(id: $id)
+}

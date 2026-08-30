@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Report salable quantity per product. -1 means unlimited.",
+  "properties": {
+    "request": {
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "productIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "channelId",
+        "productIds"
+      ],
+      "title": "remoteAvailRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "salable": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "salable"
+      ],
+      "title": "remoteAvailResponse",
+      "type": "object"
+    }
+  },
+  "title": "inventory_availability",
+  "x-kind": "inventory_availability",
+  "x-source": "internal/inventory.remoteAvailRequest -\u003e internal/inventory.remoteAvailResponse"
+}

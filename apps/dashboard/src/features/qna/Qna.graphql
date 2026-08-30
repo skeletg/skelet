@@ -1,0 +1,33 @@
+query ProductQuestions($status: String, $limit: Int, $offset: Int) {
+  productQuestions(status: $status, limit: $limit, offset: $offset) {
+    id
+    productId
+    channelId
+    authorName
+    authorEmail
+    question
+    answer
+    status
+    createdAt
+    answeredAt
+  }
+}
+
+mutation AnswerProductQuestion($id: ID!, $answer: String!) {
+  answerProductQuestion(id: $id, answer: $answer) {
+    id
+    status
+    answer
+  }
+}
+
+mutation RejectProductQuestion($id: ID!) {
+  rejectProductQuestion(id: $id) {
+    id
+    status
+  }
+}
+
+mutation DeleteProductQuestion($id: ID!) {
+  deleteProductQuestion(id: $id)
+}

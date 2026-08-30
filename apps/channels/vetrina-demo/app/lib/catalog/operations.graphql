@@ -1,0 +1,488 @@
+# Synapse-tracked attribute slugs - used by the storefront to stamp affinity
+# signals (attr:<slug>) onto filter events for flagged attributes.
+query SynapseAttributes {
+  attributes {
+    slug
+    synapseTrack
+  }
+}
+
+fragment PromotionalDisplayFields on PromotionalDisplay {
+  ruleId
+  ruleSlug
+  publicLabel
+  labelMedia {
+    id
+    url
+    altText
+    width
+    height
+  }
+  bannerMedia {
+    id
+    url
+    altText
+    width
+    height
+  }
+  pillText
+  pillTextColor
+  pillBgColor
+}
+
+fragment ProductSummaryFields on Product {
+  id
+  url
+  sku
+  name
+  kind
+  inStock
+  quantityDecimals
+  quantityStep
+  minOrderQty
+  maxOrderQty
+  defaultPrice
+  defaultCurrencyCode
+  price
+  compareAtPrice
+  onSale
+  mainImage {
+    id
+    url
+    altText
+    mimeType
+    width
+    height
+  }
+  thumbnail {
+    id
+    url
+    altText
+    mimeType
+    width
+    height
+  }
+  promotionalDisplays {
+    ...PromotionalDisplayFields
+  }
+  # Star row on product cards - browse hydration batch-primes these,
+  # so the per-card resolver is a render-cache hit
+  reviewAggregates {
+    count
+    overallAverage
+  }
+}
+
+# Custom options shared by a product and its variants - same shape whether the
+# options sit on the configurable parent or on a child variant.
+fragment ProductCustomOptionFields on ProductCustomOption {
+  id
+  inputType
+  isRequired
+  sortOrder
+  title
+  helpText
+  maxChars
+  maxFileBytes
+  fileExtensions
+  priceValue
+  priceType
+  visibleIf
+  values {
+    id
+    title
+    priceValue
+    priceType
+    quantity
+    isDefault
+    forcedLineQty
+    sourceProduct {
+      id
+      url
+      sku
+      name
+      defaultPrice
+      defaultCurrencyCode
+    }
+  }
+}
+
+query Product($id: ID!) {
+  product(id: $id) {
+    ...ProductSummaryFields
+    backorderable
+    tierPrices {
+      minQty
+      price
+    }
+    variantMode
+    shortDescription
+    description
+    metaTitle
+    metaDescription
+    salableQuantity
+    media {
+      id
+      url
+      altText
+      mimeType
+      width
+      height
+    }
+    attributeValues {
+      attribute {
+        id
+        slug
+        name
+        unit
+        synapseTrack
+      }
+      selectedValues {
+        id
+        name
+        value
+      }
+      scalarValue
+      references {
+        targetType
+        targetId
+        label
+        url
+      }
+    }
+    configurableOptions {
+      id
+      slug
+      name
+    }
+    children {
+      id
+      url
+      sku
+      name
+      inStock
+      salableQuantity
+      defaultPrice
+      defaultCurrencyCode
+      price
+      compareAtPrice
+      onSale
+      shortDescription
+      description
+      metaTitle
+      mainImage {
+        id
+        url
+        altText
+        mimeType
+        width
+        height
+      }
+      media {
+        id
+        url
+        altText
+        mimeType
+        width
+        height
+      }
+      attributeValues {
+        attribute {
+          id
+          slug
+          name
+          unit
+        }
+        selectedValues {
+          id
+          name
+          value
+        }
+        scalarValue
+        references {
+          targetType
+          targetId
+          label
+          url
+        }
+      }
+      options {
+        ...ProductCustomOptionFields
+      }
+    }
+    # Membership probe: when this product is a variant, tells us which
+    # configurable it belongs to so the PDP can render as that configurable,
+    # preselected. Cheap for non-variants (resolver returns null on no parent).
+    partOf {
+      configurable {
+        parent {
+          id
+        }
+      }
+    }
+    bundleOptions {
+      id
+      title
+      inputType
+      isRequired
+      sortOrder
+      selections {
+        id
+        quantity
+        isDefault
+        sortOrder
+        product {
+          id
+          url
+          sku
+          name
+          inStock
+          defaultPrice
+          price
+          defaultCurrencyCode
+          mainImage {
+            id
+            url
+            altText
+            mimeType
+            width
+            height
+          }
+        }
+      }
+    }
+    groupedMembers {
+      id
+      defaultQuantity
+      sortOrder
+      member {
+        id
+        url
+        sku
+        name
+        inStock
+        defaultPrice
+        price
+        defaultCurrencyCode
+        # Each member is its own cart line - same bounds a simple PDP applies
+        salableQuantity
+        minOrderQty
+        maxOrderQty
+        quantityStep
+        quantityDecimals
+        mainImage {
+          id
+          url
+          altText
+          mimeType
+          width
+          height
+        }
+        # Member custom options - the grouped PDP renders them inline so a
+        # member with (required) options is still configurable and addable
+        options {
+          ...ProductCustomOptionFields
+        }
+      }
+    }
+    options {
+      ...ProductCustomOptionFields
+    }
+    subscriptionTerms {
+      intervalUnit
+      intervalCount
+      trialDays
+    }
+    categories {
+      id
+      slug
+      name
+    }
+    primaryCategory {
+      id
+      slug
+      name
+      urlPath
+      ancestors {
+        id
+        slug
+        name
+        urlPath
+      }
+    }
+    collections {
+      id
+      slug
+      name
+    }
+  }
+}
+
+query Category($id: ID!) {
+  category(id: $id) {
+    id
+    slug
+    name
+    urlPath
+    shortDescription
+    description
+    ancestors {
+      id
+      slug
+      urlPath
+      name
+    }
+    children {
+      id
+      slug
+      urlPath
+      name
+    }
+    products {
+      ...ProductSummaryFields
+    }
+  }
+}
+
+query Collections {
+  collections {
+    id
+    slug
+    name
+    description
+    coverImage {
+      url
+      altText
+    }
+  }
+}
+
+query Collection($id: ID!) {
+  collection(id: $id) {
+    id
+    slug
+    name
+    description
+    metaTitle
+    metaDescription
+    coverImage {
+      url
+      altText
+      width
+      height
+    }
+    products {
+      ...ProductSummaryFields
+    }
+  }
+}
+
+query ProductSortOptions {
+  productSortOptions {
+    slug
+    label
+    isIndexable
+  }
+}
+
+query BrowseProducts(
+  $query: String
+  $filter: BrowseProductsFilter
+  $sort: String
+  $limit: Int = 24
+  $offset: Int = 0
+) {
+  browseProducts(query: $query, filter: $filter, sort: $sort, limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      ...ProductSummaryFields
+    }
+    facets {
+      slug
+      name
+      description
+      defaultCollapsed
+      sortOrder
+      h1Position
+      buckets {
+        value
+        slug
+        description
+        isIndexable
+        count
+      }
+    }
+  }
+}
+
+
+# Cumulative load-more slices: identical args to BrowseProducts, items only - facets are
+# offset-independent aggregations, so the offset-0 full query carries them once per view
+query BrowseProductsSlim(
+  $query: String
+  $filter: BrowseProductsFilter
+  $sort: String
+  $limit: Int = 24
+  $offset: Int = 0
+) {
+  browseProducts(query: $query, filter: $filter, sort: $sort, limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      ...ProductSummaryFields
+    }
+  }
+}
+
+
+query ProductRecommendations($id: ID!) {
+  product(id: $id) {
+    id
+    linkedProducts(kind: RELATED) {
+      ...ProductSummaryFields
+    }
+    alsoBought(limit: 8) {
+      ...ProductSummaryFields
+    }
+  }
+}
+
+query ProductsByIds($ids: [ID!]!) {
+  productsByIds(ids: $ids) {
+    ...ProductSummaryFields
+  }
+}
+
+# Fuller projection for the /compare page: summary fields + public
+# attribute values for the side-by-side spec table.
+query CompareProducts($ids: [ID!]!) {
+  productsByIds(ids: $ids) {
+    ...ProductSummaryFields
+    attributeValues {
+      attribute {
+        slug
+        name
+        unit
+        isPublic
+      }
+      selectedValues {
+        name
+      }
+      scalarValue
+      references {
+        targetType
+        targetId
+        label
+        url
+      }
+    }
+  }
+}
+
+# Cross-sell rail for the cart page: server-curated CROSSSELL links of
+# the cart's products with also-bought fallback, deduped and excluding
+# in-cart items.
+query CartRecommendations($cartId: ID!) {
+  cartRecommendations(cartId: $cartId) {
+    ...ProductSummaryFields
+  }
+}

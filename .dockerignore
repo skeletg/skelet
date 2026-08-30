@@ -1,0 +1,22 @@
+# Build-context excludes for the ROOT-context images - the dev app /
+# dashboard / storefront images in docker-compose.yml build with
+# `context: .`, so without these the whole repo ships to the daemon on
+# every rebuild. The prod images build from per-app contexts and use
+# apps/*/.dockerignore instead.
+.git/
+.claude/
+env/*.env
+*.md
+# DB dumps and one-off reports parked in the repo root.
+*.dump
+*.html
+# air's dev build scratch (~90MB of compiled binaries) + stray `go build`
+# output in the module root.
+apps/backend/tmp/
+apps/backend/server
+# Host trees are hundreds of MB of pure context upload and the images npm-ci their
+# own musl ones anyway - ** because apps/*/ stops a level short of the storefronts
+**/node_modules/
+apps/channels/*/.next/
+apps/dashboard/dist/
+apps/dashboard/.vite/

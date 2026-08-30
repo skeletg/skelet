@@ -1,0 +1,75 @@
+# Per-clone app selection written by bin/setup (dashboard/storefront profiles).
+.skelet-apps
+.skelet-profile
+# Per-clone compose additions (custom storefront services) - see README
+docker-compose.override.yml
+
+# compose's auto-read local defaults - machine-local, like env/*.env
+.env
+env/*.env
+*.DS_Store
+
+# Claude Code per-session state: transcripts, workflow scripts, and the
+# file-based agent memory all live under .claude/projects/. Never commit it
+# (.claude/skills/ is intentionally tracked; settings.local.json is personal).
+.claude/projects/
+.claude/settings.local.json
+
+# Backend build artifacts (compiled commands, air's dev binary, vendored deps).
+# `go build ./cmd/<name>` drops a binary named after the command into whatever
+# directory it ran from, and air produces `server` inside the container. One line
+# per cmd/ entry rather than a wildcard, so a new command is a deliberate addition
+# here rather than a binary that silently goes untracked. Add a line when you add one.
+apps/backend/cli
+apps/backend/docsref
+apps/backend/ingest
+apps/backend/media
+apps/backend/plugingen
+apps/backend/plugingraph
+apps/backend/providercheck
+apps/backend/providerschema
+apps/backend/secheadgen
+apps/backend/server
+apps/backend/signals
+# Commands that no longer exist, whose binaries can still be sitting in a checkout
+apps/backend/plugin-graphql-bridge
+apps/backend/tmp/
+apps/backend/bin/
+apps/backend/vendor/
+
+# Dashboard build/runtime artifacts. The dashboard's own .gitignore covers
+# node_modules + dist; these are belt-and-suspenders so a future reorg
+# doesn't quietly start tracking them.
+apps/dashboard/node_modules/
+apps/dashboard/dist/
+apps/dashboard/.vite/
+
+# Ad-hoc database dumps (pg_dump output parked in the repo root). Never
+# commit these - they contain real customer data.
+*.dump
+
+# Local DB backups (bin/db-export output)
+backups/
+
+# Editor state is per-person - a SQLTools connection to the dev database is a tool
+# preference, and bin/psql reaches both databases for everyone regardless of editor.
+.vscode/
+
+# Editor/OS backup files. Also catches env/*.env.bak, which would
+# otherwise carry the same secrets as the gitignored env files.
+*.bak
+
+# Windows "mark of the web" sidecars - WSL materializes NTFS alternate
+# data streams as sibling files. Pure cruft on Linux.
+*:Zone.Identifier
+
+# vitest writes a cache here at the repo root
+node_modules/
+
+# Compiled example providers - `go build` in one of these dirs drops a binary
+# named after the module right next to its source, so each example needs a line.
+/examples/remote-providers/tax-provider-go/tax-provider
+
+# Playwright, when run from the repo root rather than apps/dashboard
+test-results/
+playwright-report/

@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Run the e2e suite against dedicated disposable databases (skelet_e2e /
+# skelet_e2e_signals) so the dev DB never accumulates test rows - the suite
+# writes real orders/customers and never cleans up, so it gets its own throwaway
+# home instead of the dev commerce DB
+#   bin/test-e2e                 run the whole suite (extra args pass to go test)
+#   bin/test-e2e --fresh         drop and recreate the e2e databases first
+#   bin/test-e2e -run TestFoo    forward flags to go test
+set -euo pipefail
+cd "$(dirname "$(dirname "$0")")"
+. bin/_lib
+
+E2E_DB="skelet_e2e"
+E2E_SIG_DB="skelet_e2e_signals"
+E2E_DB_URL="postgres://skelet:skelet@db:5432/${E2E_DB}?sslmode=disable"
+E2E_SIG_URL="postgres://skelet:skelet@signals-db:5432/${E2E_SIG_DB}?sslmode=disable"
+
+fresh=false
+if [ "${1:-}" = "--fresh" ]; then fresh=true; shift; fi
+
+# The dev stack has to be up - migrate and go test run inside the app container
+if ! docker compose ps --status running | grep -q "skelet-app"; then
+    echo "dev stack not running - start it with bin/dev" >&2
+    exit 1
+fi
+
+# psql as the instance superuser against the always-present maintenance DB, so
+# we can CREATE/DROP the target - ON_ERROR_STOP so a failure isn't swallowed
+admin_sql() { # <service> <sql>
+    docker compose exec -T "$1" psql -U skelet -d postgres -v ON_ERROR_STOP=1 -tAc "$2"
+}
+
+db_exists() { # <service> <dbname>
+    [ "$(admin_sql "$1" "SELECT 1 FROM pg_database WHERE datname='$2'")" = "1" ]
+}
+
+ensure_db() { # <service> <dbname>
+    if $fresh && db_exists "$1" "$2"; then
+        echo "==> dropping $2"
+        admin_sql "$1" "DROP DATABASE $2 WITH (FORCE)" >/dev/null
+    fi
+    if ! db_exists "$1" "$2"; then
+        echo "==> creating $2"
+        admin_sql "$1" "CREATE DATABASE $2" >/dev/null
+    fi
+    # The disposable marker testdb.Require gates on - takes effect on new connections, so it's set before migrate/test connect
+    admin_sql "$1" "ALTER DATABASE $2 SET skelet.e2e = 'allowed'" >/dev/null
+}
+
+echo "==> preparing disposable e2e databases"
+ensure_db db "$E2E_DB"
+ensure_db signals-db "$E2E_SIG_DB"
+
+# Keep the dev DBs unmarked so a stray `go test ./internal/e2e/...` against dev
+# refuses instead of writing test orders
+admin_sql db "ALTER DATABASE skelet RESET skelet.e2e" >/dev/null || true
+admin_sql signals-db "ALTER DATABASE skelet_signals RESET skelet.e2e" >/dev/null || true
+
+echo "==> migrating commerce ($E2E_DB)"
+docker compose exec -T app migrate -path internal/db/migrations -database "$E2E_DB_URL" up
+echo "==> migrating signals ($E2E_SIG_DB)"
+docker compose exec -T app migrate -path internal/db/signals/migrations -database "$E2E_SIG_URL" up
+
+echo "==> running e2e suite"
+docker compose exec -T "${USER_FLAG[@]}" \
+    -e DATABASE_URL="$E2E_DB_URL" \
+    -e SIGNALS_DB_URL="$E2E_SIG_URL" \
+    app go test ./internal/e2e/... -count=1 "$@"

@@ -1,0 +1,946 @@
+msgid ""
+msgstr ""
+"POT-Creation-Date: 2026-08-29 09:39+0200\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: @lingui/cli\n"
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language: \n"
+"Language-Team: \n"
+"Plural-Forms: \n"
+
+#: src/components/data-table/DataTablePagination.tsx:79
+msgid "{selectedRows} of {totalRows} selected"
+msgstr ""
+
+#: src/shared/saving/SaveConfirmDialog.tsx:116
+msgid "{totalChanges, plural, one {Apply # change} other {Apply # changes}}"
+msgstr ""
+
+#: src/shared/saving/SaveConfirmDialog.tsx:52
+msgid "{totalChanges, plural, one {Save # change?} other {Save # changes?}}"
+msgstr ""
+
+#: src/components/data-table/DataTablePagination.tsx:80
+msgid "{totalRows, plural, one {# row} other {# rows}}"
+msgstr ""
+
+#: src/shared/auth/Login.tsx:94
+msgid "6-digit code or recovery code"
+msgstr ""
+
+#: src/components/layout/nav-user.tsx:95
+msgid "Account"
+msgstr ""
+
+#: src/features/preferences/PreferencesPage.tsx:89
+msgid "Active sessions"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:76
+msgid "Admin detail"
+msgstr ""
+
+#: src/components/layout/admin-search.tsx:105
+msgid "Admin search"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:11
+msgid "Admins"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:12
+msgid "All admins"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:16
+msgid "All customers"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:22
+msgid "All orders"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:87
+msgid "All reviews"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:80
+msgid "Attribute detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:29
+msgid "Attributes"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:58
+msgid "Audit log"
+msgstr ""
+
+#: src/shared/auth/Login.tsx:87
+msgid "Authentication code"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:168
+msgid "Author detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:20
+msgid "B2B quotes"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:181
+msgid "Block detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:151
+msgid "Block type detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:149
+msgid "Block types"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:114
+msgid "Blog post detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:162
+msgid "Blog taxonomy"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:192
+msgid "Boneyard"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:138
+msgid "Bot traffic"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:75
+msgid "Cache"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:183
+msgid "Campaign detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:131
+msgid "Campaigns"
+msgstr ""
+
+#: src/shared/saving/SaveConfirmDialog.tsx:111
+msgid "Cancel"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:99
+msgid "Cart detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:23
+msgid "Carts"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:24
+msgid "Catalog"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:26
+msgid "Categories"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:96
+msgid "Category"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:164
+msgid "Category detail"
+msgstr ""
+
+#: src/components/layout/nav-user.tsx:99
+#: src/features/preferences/PreferencesPage.tsx:80
+msgid "Change password"
+msgstr ""
+
+#: src/features/preferences/PreferencesPage.tsx:74
+msgid "Changing it needs your current password and doesn't sign you out."
+msgstr ""
+
+#: src/nav/nav-i18n.ts:102
+msgid "Channel detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:64
+msgid "Channels"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:43
+msgid "CMS"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:125
+msgid "CMS page detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:95
+msgid "Collection detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:27
+msgid "Collections"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:19
+msgid "Companies"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:120
+msgid "Company detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:42
+msgid "Content & SEO"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:67
+msgid "Countries"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:66
+msgid "Currencies"
+msgstr ""
+
+#: src/components/data-table/DataTablePagination.tsx:153
+msgid "Custom…"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:91
+msgid "Customer detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:92
+msgid "Customer group detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:172
+msgid "Customer profile"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:53
+msgid "Customer profiles & journeys"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:15
+msgid "Customers"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:10
+msgid "Dashboard"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:56
+msgid "Developer"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:110
+msgid "Edit country"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:108
+msgid "Edit currency"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:135
+msgid "Edit form"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:104
+msgid "Edit inventory location"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:106
+msgid "Edit locale"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:123
+msgid "Edit promotion"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:78
+msgid "Edit role"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:118
+msgid "Edit shipping zone"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:116
+msgid "Edit tax rule"
+msgstr ""
+
+#: src/shared/auth/Login.tsx:58
+msgid "Email"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:130
+msgid "Email blocks"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:187
+msgid "Email detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:49
+msgid "Email marketing & automated flows"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:41
+msgid "Email templates"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:178
+msgid "Engagement"
+msgstr ""
+
+#: src/shared/auth/Login.tsx:100
+msgid "Enter the code from your authenticator app, or a recovery code."
+msgstr ""
+
+#: src/shared/auth/Login.tsx:54
+msgid "Enter your admin email and password."
+msgstr ""
+
+#: src/nav/nav-i18n.ts:40
+msgid "Event destinations"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:171
+msgid "Experiment"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:169
+msgid "Experiments"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:177
+msgid "Flow"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:185
+msgid "Flow detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:132
+msgid "Flows"
+msgstr ""
+
+#: src/shared/auth/Login.tsx:122
+msgid "Forgot your password?"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:158
+msgid "Form detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:159
+msgid "Form submissions"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:157
+msgid "Forms"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:55
+msgid "Frontend A/B experiments"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:174
+msgid "Funnel"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:70
+msgid "General"
+msgstr ""
+
+#: src/components/layout/nav-user.tsx:108
+#: src/features/preferences/PreferencesPage.tsx:54
+msgid "Getting started"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:36
+msgid "Gift cards"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:17
+msgid "Groups"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:137
+msgid "Heatmap"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:68
+msgid "Import & export"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:144
+msgid "Inbox"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:179
+msgid "Insights"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:93
+msgid "Integration detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:57
+msgid "Integrations"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:31
+msgid "Inventory"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:141
+msgid "JS errors"
+msgstr ""
+
+#: src/components/layout/admin-search.tsx:105
+msgid "Jump to a page or settings section"
+msgstr ""
+
+#: src/features/preferences/LanguageSection.tsx:34
+msgid "Language"
+msgstr ""
+
+#: src/features/preferences/LanguageSection.tsx:36
+msgid "Languages beyond English come from installed language packs - anything a pack doesn't cover falls back to English."
+msgstr ""
+
+#: src/nav/nav-i18n.ts:128
+msgid "Legacy email template redirect"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:127
+msgid "Legacy email templates redirect"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:126
+msgid "Legacy reusable blocks redirect"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:190
+msgid "Legacy URL rewrites redirect"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:50
+msgid "Lens"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:46
+msgid "Link map"
+msgstr ""
+
+#: src/components/layout/admin-search.tsx:142
+msgid "Loading settings sections…"
+msgstr ""
+
+#: src/components/data-table/DataTable.tsx:476
+msgid "Loading…"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:65
+msgid "Locales"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:32
+msgid "Locations"
+msgstr ""
+
+#: src/components/layout/nav-user.tsx:114
+msgid "Log out"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:33
+msgid "Low stock"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:34
+msgid "Marketing"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:44
+msgid "Media Library"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:189
+msgid "Menu detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:160
+msgid "Menus"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:153
+msgid "New attribute"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:167
+msgid "New author"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:180
+msgid "New block"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:150
+msgid "New block type"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:113
+msgid "New blog post"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:182
+msgid "New campaign"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:163
+msgid "New category"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:94
+msgid "New collection"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:109
+msgid "New country"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:107
+msgid "New currency"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:90
+msgid "New customer"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:186
+msgid "New email"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:170
+msgid "New experiment"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:184
+msgid "New flow"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:134
+msgid "New form"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:103
+msgid "New inventory location"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:105
+msgid "New locale"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:188
+msgid "New menu"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:97
+msgid "New order"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:124
+msgid "New page"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:147
+msgid "New page type"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:100
+msgid "New product"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:122
+msgid "New promotion"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:77
+msgid "New role"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:117
+msgid "New shipping zone"
+msgstr ""
+
+#: src/components/layout/workspace-tab-strip.tsx:109
+msgid "New Tab"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:165
+msgid "New tag"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:115
+msgid "New tax rule"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:111
+msgid "New webhook"
+msgstr ""
+
+#: src/shared/saving/SaveConfirmDialog.tsx:66
+msgid "No pending changes."
+msgstr ""
+
+#: src/components/data-table/DataTable.tsx:485
+msgid "No results match these filters."
+msgstr ""
+
+#: src/components/data-table/DataTable.tsx:491
+msgid "No results."
+msgstr ""
+
+#: src/components/layout/admin-search.tsx:114
+msgid "Nothing found."
+msgstr ""
+
+#: src/components/data-table/DataTablePagination.tsx:191
+msgid "of {lastPage}"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:51
+msgid "On-site behaviour & heatmaps"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:98
+msgid "Order detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:21
+msgid "Orders"
+msgstr ""
+
+#: src/components/data-table/DataTablePagination.tsx:170
+msgid "Page"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:154
+msgid "Page attribute detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:152
+msgid "Page attributes"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:148
+msgid "Page type detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:146
+msgid "Page types"
+msgstr ""
+
+#: src/components/layout/admin-search.tsx:126
+#: src/nav/nav-i18n.ts:145
+msgid "Pages"
+msgstr ""
+
+#: src/features/preferences/PreferencesPage.tsx:72
+#: src/shared/auth/Login.tsx:72
+msgid "Password"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:86
+msgid "Pending reviews"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:142
+msgid "Performance"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:14
+msgid "Permissions"
+msgstr ""
+
+#: src/components/layout/nav-main.tsx:135
+msgid "Pinned"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:63
+msgid "Playground"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:161
+msgid "Posts"
+msgstr ""
+
+#: src/components/layout/nav-user.tsx:103
+#: src/features/preferences/PreferencesPage.tsx:34
+#: src/nav/nav-i18n.ts:191
+msgid "Preferences"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:54
+msgid "Prism"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:101
+msgid "Product detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:39
+msgid "Product Q&A"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:89
+msgid "Product type detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:28
+msgid "Product Types"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:25
+msgid "Products"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:121
+msgid "Promotion analytics redirect"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:35
+msgid "Promotions"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:48
+msgid "Pulse"
+msgstr ""
+
+#: src/components/layout/admin-search.tsx:116
+msgid "Recent"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:139
+msgid "Recordings"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:60
+msgid "Remote providers"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:175
+msgid "Retention"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:83
+msgid "Review categories"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:88
+msgid "Review detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:85
+msgid "Review insights"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:84
+msgid "Review moderation tags"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:82
+msgid "Review question"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:81
+msgid "Review questions"
+msgstr ""
+
+#: src/shared/saving/SaveConfirmDialog.tsx:54
+msgid "Review the pending updates below before applying them."
+msgstr ""
+
+#: src/nav/nav-i18n.ts:38
+msgid "Reviews"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:79
+msgid "Role detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:13
+msgid "Roles"
+msgstr ""
+
+#: src/components/data-table/DataTablePagination.tsx:111
+msgid "Rows per page"
+msgstr ""
+
+#: src/shared/saving/SaveConfirmDialog.tsx:104
+msgid "Save failed"
+msgstr ""
+
+#: src/shared/saving/SaveConfirmDialog.tsx:116
+msgid "Saving…"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:61
+msgid "Scheduled jobs"
+msgstr ""
+
+#: src/shared/saving/SaveConfirmDialog.tsx:60
+msgid "Scope"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:143
+msgid "Search analytics"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:74
+msgid "Search Engine"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:30
+msgid "Search merchandising"
+msgstr ""
+
+#: src/components/layout/admin-search.tsx:109
+msgid "Search pages and settings…"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:155
+msgid "Sections"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:176
+msgid "Segment"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:119
+msgid "Segment detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:18
+msgid "Segments"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:140
+msgid "Session replay"
+msgstr ""
+
+#: src/components/layout/admin-search.tsx:139
+#: src/nav/nav-i18n.ts:69
+msgid "Settings"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:129
+msgid "Settings section"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:73
+msgid "Shipping boxes"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:72
+msgid "Shipping zones"
+msgstr ""
+
+#: src/shared/auth/Login.tsx:54
+#: src/shared/auth/Login.tsx:115
+msgid "Sign in"
+msgstr ""
+
+#: src/shared/auth/BrandPanel.tsx:118
+msgid "Sign in to your store to pick up where you left off."
+msgstr ""
+
+#: src/shared/auth/Login.tsx:106
+msgid "Sign-in failed"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:47
+msgid "Signals"
+msgstr ""
+
+#: src/shared/auth/Login.tsx:115
+msgid "Signing in…"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:133
+msgid "Signup forms"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:37
+msgid "Subscriptions"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:136
+msgid "Suppression list"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:52
+msgid "Synapse"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:62
+msgid "System health"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:166
+msgid "Tag detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:156
+msgid "Tags"
+msgstr ""
+
+#: src/features/preferences/PreferencesPage.tsx:65
+msgid "Take the tour"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:71
+msgid "Tax rules"
+msgstr ""
+
+#: src/features/preferences/PreferencesPage.tsx:56
+msgid "The short tour of where things live, what the scope picker changes, and which parts of this panel you can rearrange."
+msgstr ""
+
+#: src/features/preferences/PreferencesPage.tsx:85
+msgid "Two-factor authentication"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:45
+msgid "URL Rewrites"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:173
+msgid "Visitor profile"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:112
+msgid "Webhook detail"
+msgstr ""
+
+#: src/nav/nav-i18n.ts:59
+msgid "Webhooks"
+msgstr ""
+
+#: src/features/preferences/PreferencesPage.tsx:37
+msgid "Yours alone, and they follow you to any device you sign in on - other open sessions pick up changes on their next reload"
+msgstr ""

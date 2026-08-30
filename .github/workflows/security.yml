@@ -1,0 +1,50 @@
+# Security scanning gate. Complements renovate (which only bumps versions) by
+# failing CI on a known-vulnerable dependency before it merges
+name: Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: Go vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/go.mod
+          cache-dependency-path: apps/backend/go.sum
+      # Pinned, not @latest - a scanner release can't silently change what merges
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+      - name: Scan
+        working-directory: apps/backend
+        run: govulncheck ./...
+
+  npm-audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # .nvmrc is the pin - bin/pin-check keeps it in step with the app Dockerfiles,
+      # which stay literal because a Dockerfile has to build on its own
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      # A loop, not a matrix - an audit takes seconds, so the app list can come from
+      # the directory listing rather than a constant a forked storefront has to edit
+      - name: Audit (fails on high/critical only, moderate and low just report)
+        run: |
+          fail=0
+          for dir in apps/dashboard apps/channels/*/; do
+            [ -f "$dir/package.json" ] || continue
+            echo "==> $dir"
+            (cd "$dir" && npm audit --audit-level=high) || fail=1
+          done
+          exit $fail

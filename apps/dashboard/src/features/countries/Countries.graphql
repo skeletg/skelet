@@ -1,0 +1,91 @@
+query CountriesPicker {
+  countries(activeOnly: true) {
+    code
+    name
+    emojiFlag
+    phoneCode
+    defaultCurrency {
+      code
+    }
+  }
+}
+
+query CountriesAdminList {
+  countries(activeOnly: false) {
+    code
+    name
+    nativeName
+    emojiFlag
+    phoneCode
+    defaultCurrencyCode
+    defaultCurrency {
+      code
+      symbol
+    }
+    isActive
+    sortOrder
+    updatedAt
+  }
+}
+
+query Country($code: String!) {
+  country(code: $code) {
+    code
+    name
+    nativeName
+    emojiFlag
+    phoneCode
+    iso3Code
+    numericCode
+    defaultCurrencyCode
+    defaultCurrency {
+      code
+      symbol
+    }
+    isActive
+    sortOrder
+    metadata {
+      key
+      value
+    }
+    regions {
+      code
+      name
+      isActive
+      sortOrder
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+mutation CreateCountry($input: CreateCountryInput!) {
+  createCountry(input: $input) {
+    code
+    name
+    nativeName
+    emojiFlag
+    phoneCode
+    defaultCurrencyCode
+    isActive
+    sortOrder
+  }
+}
+
+mutation UpdateCountry($input: UpdateCountryInput!) {
+  updateCountry(input: $input) {
+    code
+    name
+    nativeName
+    emojiFlag
+    phoneCode
+    defaultCurrencyCode
+    isActive
+    sortOrder
+    updatedAt
+  }
+}
+
+mutation DeleteCountry($code: String!) {
+  deleteCountry(code: $code)
+}

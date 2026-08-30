@@ -1,0 +1,94 @@
+# Email campaigns / broadcasts. A campaign is standalone email content (the same
+# typed-block model as email templates - subject + blocks + styles) sent to an
+# audience (all customers / a group / a segment), now or scheduled. Gated on
+# campaigns.view (reads) / campaigns.manage (writes).
+
+type EmailCampaign {
+  id:              ID!
+  channelId:       ID!
+  name:            String!
+  emailId:         ID         # reusable library email (null = the campaign's own inline content)
+  subject:         String!
+  blocks:          JSON!
+  styles:          JSON!
+  audienceKind:    String!   # all | group | segment
+  audienceId:      ID
+  status:          String!   # draft | scheduled | sending | sent | cancelled
+  scheduledFor:    Time
+  sentAt:          Time
+  totalRecipients: Int!
+  sentCount:       Int!
+  failedCount:     Int!
+  skippedCount:    Int!
+  openedCount:     Int!   # unique recipients who opened (tracking pixel)
+  clickedCount:    Int!   # unique recipients who clicked a tracked link
+  # A/B subject test (inline content only).
+  abEnabled:       Boolean!
+  abSubjectB:      String!
+  abTestPercent:   Int!    # % of audience in the test slice
+  abWinnerMetric:  String! # open | click
+  abTestMinutes:   Int!    # measurement window before the winner is picked
+  abWinner:        String! # '' until decided, then 'a' | 'b'
+  abTestStartedAt: Time
+  # Set when soft-deleted; the row, its recipients and its stats survive.
+  deletedAt:       Time
+  createdAt:       Time!
+  updatedAt:       Time!
+}
+
+type CampaignAudienceEstimate {
+  total:    Int!   # in-audience customers (active, with an email)
+  eligible: Int!   # of those, opted in to marketing email
+}
+
+# One A/B variant's tally (for the results view + winner).
+type CampaignVariantStat {
+  variant: String!   # a | b
+  sent:    Int!
+  opened:  Int!
+  clicked: Int!
+}
+
+input SaveCampaignInput {
+  channelId:    ID!     # ignored on update (a campaign's channel is fixed)
+  name:         String!
+  emailId:      ID      # pick a reusable library email; omit for inline content
+  subject:      String!
+  blocks:       JSON!
+  styles:       JSON
+  audienceKind: String!
+  audienceId:   ID
+  # A/B subject test (inline content only). When abEnabled, abSubjectB is required.
+  abEnabled:      Boolean
+  abSubjectB:     String
+  abTestPercent:  Int
+  abWinnerMetric: String
+  abTestMinutes:  Int
+}
+
+extend type Query {
+  emailCampaigns(channelId: ID!, includeDeleted: Boolean): [EmailCampaign!]!
+  emailCampaign(id: ID!): EmailCampaign
+  # Per-variant results for an A/B campaign (test-slice tallies).
+  campaignVariantStats(id: ID!): [CampaignVariantStat!]!
+  # Merge tags available to campaign content (for the composer palette).
+  campaignMergeTags: [String!]!
+  # Audience size + consent-eligible count, for the composer.
+  campaignAudienceEstimate(channelId: ID!, audienceKind: String!, audienceId: ID): CampaignAudienceEstimate!
+  # Render campaign content with sample data (reuses EmailPreview).
+  renderCampaignPreview(channelId: ID!, subject: String!, blocks: JSON!, styles: JSON): EmailPreview!
+}
+
+extend type Mutation {
+  createEmailCampaign(input: SaveCampaignInput!): EmailCampaign!
+  updateEmailCampaign(id: ID!, input: SaveCampaignInput!): EmailCampaign!
+  # Soft delete - a sent campaign keeps its recipients and engagement
+  # stats, and an archived scheduled campaign never goes out. Restorable.
+  deleteEmailCampaign(id: ID!): Boolean!
+  restoreEmailCampaign(id: ID!): Boolean!
+  # Schedule a send. Null scheduledFor = send now (next scheduler tick).
+  scheduleEmailCampaign(id: ID!, scheduledFor: Time): EmailCampaign!
+  cancelEmailCampaign(id: ID!): EmailCampaign!
+  # Render the saved campaign with sample data and email it to `to`.
+  sendCampaignTest(id: ID!, to: String!): Boolean!
+}

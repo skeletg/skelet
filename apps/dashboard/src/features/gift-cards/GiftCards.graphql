@@ -1,0 +1,70 @@
+query GiftCardsAdminList($limit: Int, $offset: Int) {
+  giftCards(limit: $limit, offset: $offset) {
+    id
+    code
+    currencyCode
+    initialBalance
+    balance
+    status
+    recipientEmail
+    expiresAt
+    createdAt
+  }
+}
+
+query GiftCardByCode($code: String!) {
+  giftCard(code: $code) {
+    id
+    code
+    currencyCode
+    initialBalance
+    balance
+    status
+    recipientEmail
+    issuedOrderId
+    expiresAt
+    createdAt
+    transactions {
+      id
+      amount
+      reason
+      orderId
+      note
+      createdAt
+    }
+  }
+}
+
+mutation IssueGiftCard(
+  $currencyCode: String!
+  $amount: Int!
+  $recipientEmail: String
+  $expiresAt: Time
+) {
+  issueGiftCard(
+    currencyCode: $currencyCode
+    amount: $amount
+    recipientEmail: $recipientEmail
+    expiresAt: $expiresAt
+  ) {
+    id
+    code
+    balance
+    status
+  }
+}
+
+mutation DisableGiftCard($id: ID!) {
+  disableGiftCard(id: $id) {
+    id
+    status
+  }
+}
+
+mutation AdjustGiftCard($id: ID!, $amount: Int!, $note: String) {
+  adjustGiftCard(id: $id, amount: $amount, note: $note) {
+    id
+    balance
+    status
+  }
+}

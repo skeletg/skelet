@@ -1,0 +1,8 @@
+# Keep the prod build context (apps/backend) lean. tmp/ is air's dev build
+# scratch (~90MB of compiled binaries); the rest is editor/VCS noise.
+tmp/
+# Stray `go build` output in the module root (the prod image compiles its
+# own binaries; this would be 100MB of dead context).
+server
+*.log
+.DS_Store

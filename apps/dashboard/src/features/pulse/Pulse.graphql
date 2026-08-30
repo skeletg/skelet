@@ -1,0 +1,17 @@
+query PulseEngagement($channelId: ID!, $sinceDays: Int) {
+  pulseEngagement(channelId: $channelId, sinceDays: $sinceDays) {
+    opensRaw
+    opensHuman
+    clicks
+    conversions
+    revenue {
+      currency
+      cents
+      orders
+    }
+    topLinks {
+      url
+      clicks
+    }
+  }
+}

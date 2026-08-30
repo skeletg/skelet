@@ -1,0 +1,12 @@
+query PermissionGroups {
+  permissionGroups {
+    id
+    name
+    slug
+    permissions {
+      id
+      name
+      slug
+    }
+  }
+}

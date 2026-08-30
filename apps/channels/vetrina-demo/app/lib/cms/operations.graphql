@@ -1,0 +1,63 @@
+query CmsPageById($id: ID!) {
+  cmsPage(id: $id) {
+    id
+    slug
+    urlPath
+    isPublished
+    seoNoindex
+    seoNofollow
+    canonicalUrl
+    structuredData
+    structuredDataSpec
+    publishedAt
+    ogImage
+    experimentKey
+    variants {
+      variantKey
+      body
+    }
+    content {
+      locale
+      title
+      body
+      metaTitle
+      metaDescription
+    }
+  }
+}
+
+# The active store's homepage (chosen via the cms/storefront/home_page_id
+# setting). Null when unset/unpublished - the storefront then falls back to
+# its built-in hardcoded homepage. Only the fields app/page.tsx needs.
+query HomePage {
+  homePage {
+    id
+    slug
+    seoNoindex
+    seoNofollow
+    canonicalUrl
+    structuredData
+    structuredDataSpec
+    publishedAt
+    ogImage
+    content {
+      title
+      body
+      metaTitle
+      metaDescription
+    }
+  }
+}
+
+# Published, indexable CMS pages for the per-channel sitemap. cmsPages
+# defaults the channel from the X-Store-Slug header, so each channel's
+# sitemap lists only that channel's pages. seoNoindex pages are returned
+# too (the caller filters them) so the same query can serve other uses.
+query CmsPagesForSitemap($limit: Int, $offset: Int) {
+  cmsPages(filter: { onlyPublished: true }, limit: $limit, offset: $offset) {
+    id
+    urlPath
+    seoNoindex
+    publishedAt
+  }
+}

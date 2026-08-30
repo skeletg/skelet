@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# golang-migrate on the dev DB: up | down 1 | force <v> | version
+set -e
+cd "$(dirname "$(dirname "$0")")"
+
+docker compose exec app sh -c \
+    'migrate -path internal/db/migrations -database "$DATABASE_URL" "$@"' \
+    -- "$@"

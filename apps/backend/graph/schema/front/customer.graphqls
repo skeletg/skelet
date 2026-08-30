@@ -1,0 +1,241 @@
+type Customer {
+  id:               ID!
+  email:            String!
+  firstName:        String!
+  lastName:         String!
+  phone:            String
+  isEmailVerified:  Boolean!
+  addresses:        [Address!]!
+  defaultBillingAddress:  Address
+  defaultShippingAddress: Address
+  consents:         [CustomerConsent!]!
+  # Store-credit balance in the store currency, spendable at checkout.
+  storeCreditBalance: Int!
+}
+
+enum ConsentPurpose { MARKETING TRANSACTIONAL }
+enum ConsentChannel { EMAIL SMS PUSH }
+
+type ConsentDefinition {
+  slug:         String!
+  name:         String!
+  description:  String!
+  purpose:      ConsentPurpose!
+  channel:      ConsentChannel!
+  required:     Boolean!
+  defaultOptIn: Boolean!
+}
+
+type CustomerConsent {
+  kind:       String!
+  definition: ConsentDefinition!
+  optedIn:    Boolean!
+  source:     String!
+  updatedAt:  Time
+  isDefault:  Boolean!
+}
+
+type Address {
+  id:          ID!
+  firstName:   String!
+  lastName:    String!
+  company:     String
+  street1:     String!
+  street2:     String
+  city:        String!
+  state:       String
+  postalCode:  String!
+  countryCode: String!
+  phone:       String
+}
+
+type CustomerAuthPayload {
+  # Null when the account exists but no session was issued - registration
+  # withholds the session while require_email_verification is on, so an
+  # unverified address can never be used to reach the account.
+  accessToken:  String
+  refreshToken: String
+  customer:     Customer!
+  # True when registration deliberately withheld the session pending
+  # verification. Clients should route to a "check your inbox" state
+  # rather than treating the missing tokens as an error.
+  verificationRequired: Boolean!
+}
+
+input CustomerRegisterInput {
+  email:          String!
+  password:       String!
+  firstName:      String!
+  lastName:       String!
+  marketingOptIn: Boolean
+  # Another customer's referral code (from a share link). Invalid or
+  # self-referencing codes are silently ignored - registration never
+  # fails because of a bad code.
+  referralCode:   String
+}
+
+input CustomerLoginInput {
+  email:    String!
+  password: String!
+}
+
+input AddressInput {
+  firstName:   String!
+  lastName:    String!
+  company:     String
+  street1:     String!
+  street2:     String
+  city:        String!
+  state:       String
+  postalCode:  String!
+  countryCode: String!
+  phone:       String
+}
+
+extend type Query {
+  # GDPR self-serve data export: JSON bundle of your profile, addresses,
+  # and orders.
+  myDataExport:       String!
+  myProfile:          Customer!
+  consentDefinitions: [ConsentDefinition!]!
+}
+
+extend type Mutation {
+  customerRegister(input: CustomerRegisterInput!):              CustomerAuthPayload!
+  customerLogin(input: CustomerLoginInput!):                    CustomerAuthPayload!
+  customerRefreshToken(token: String!):                         CustomerAuthPayload!
+  customerLogout(token: String!):                               Boolean!
+  updateProfile(firstName: String, lastName: String, phone: String): Customer!
+  changeCustomerPassword(currentPassword: String!, newPassword: String!): Boolean!
+  verifyEmail(token: String!):                                  Boolean!
+  resendVerificationEmail:                                      Boolean!
+  requestPasswordReset(email: String!):                         Boolean!
+  resetPassword(token: String!, newPassword: String!):          Boolean!
+  addAddress(input: AddressInput!):                             Address!
+  updateAddress(id: ID!, input: AddressInput!):                 Address!
+  deleteAddress(id: ID!):                                       Boolean!
+  setDefaultBillingAddress(id: ID!):                            Customer!
+  setDefaultShippingAddress(id: ID!):                           Customer!
+  setConsent(kind: String!, optedIn: Boolean!):                 CustomerConsent!
+}
+
+# --- Loyalty points ---
+
+type LoyaltyStatus {
+  # Whether the loyalty program is enabled on this store.
+  enabled: Boolean!
+  # Signed-in customer's points balance (0 for guests).
+  balancePoints: Int!
+  # Points earned per currency unit of merchandise value.
+  earnPointsPerUnit: Int!
+  # Cents of store credit granted per redeemed point.
+  redeemCentsPerPoint: Int!
+}
+
+type LoyaltyRedeemResult {
+  balancePoints:      Int!
+  storeCreditBalance: Int!
+  grantedCents:       Int!
+}
+
+extend type Query {
+  loyaltyStatus: LoyaltyStatus!
+}
+
+extend type Mutation {
+  # Convert points into store credit at the store's configured rate.
+  # Requires a signed-in customer.
+  redeemLoyaltyPoints(points: Int!): LoyaltyRedeemResult!
+}
+
+# --- Referral program ---
+
+type ReferralInfo {
+  enabled: Boolean!
+  # The signed-in customer's share code.
+  code: String!
+  # Store credit the referrer earns per converted referral.
+  referrerRewardCents: Int!
+  # Store credit a new customer gets on their first order.
+  refereeRewardCents: Int!
+  referredCount: Int!
+  rewardedCount: Int!
+  earnedCents:   Int!
+}
+
+extend type Query {
+  # Requires a signed-in customer; mints the share code on first read.
+  myReferral: ReferralInfo!
+}
+
+# --- B2B ---
+
+type MyCompany {
+  name:             String!
+  status:           String!
+  role:             String!
+  creditLimitCents: Int!
+  creditUsedCents:  Int!
+  paymentTermsDays: Int!
+}
+
+type MyB2BQuoteItem {
+  sku:            String!
+  name:           String!
+  quantity:       Float!
+  unitPriceCents: Int!
+  optionsSummary: String!
+}
+
+type MyB2BQuote {
+  id:         ID!
+  status:     String!
+  items:      [MyB2BQuoteItem!]!
+  note:       String!
+  sellerNote: String!
+  totalCents: Int!
+  validUntil: Time
+  createdAt:  Time!
+}
+
+type CompanyOrderSummary {
+  id:            ID!
+  number:        String!
+  status:        String!
+  paymentStatus: String!
+  totalCents:    Int!
+  currencyCode:  String!
+  memberEmail:   String!
+  createdAt:     Time!
+}
+
+# One of the company's on-account invoices (buyer portal view).
+type MyB2BInvoice {
+  number:      String!
+  orderNumber: String!
+  amountCents: Int!
+  status:      String!
+  overdue:     Boolean!
+  dueAt:       Time
+  paidAt:      Time
+  createdAt:   Time!
+}
+
+extend type Query {
+  # The signed-in customer's company account, or null when not B2B.
+  myCompany: MyCompany
+  myQuotes: [MyB2BQuote!]!
+  # Company invoices - company ADMINS only (mirrors myCompanyOrders).
+  myCompanyInvoices: [MyB2BInvoice!]!
+  # Company-wide order history - company ADMINS only (buyers see just
+  # their own orders via the regular account pages).
+  myCompanyOrders: [CompanyOrderSummary!]!
+}
+
+extend type Mutation {
+  # Snapshot the current cart's lines into a quote request for the
+  # store team to price.
+  requestQuote(cartId: ID!, note: String): MyB2BQuote!
+  # Accept or decline a quoted offer.
+  respondToQuote(id: ID!, accept: Boolean!): MyB2BQuote!
+}

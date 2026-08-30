@@ -1,0 +1,74 @@
+enum ConfigType {
+  STRING
+  TEXTAREA
+  INT
+  BOOL
+  PHONE
+  SELECT
+  MULTISELECT
+  WORKING_HOURS
+  JSON
+  IMAGE
+  COLOR
+}
+
+type ConfigOption {
+  value: String!
+  label: String!
+}
+
+enum ConfigScopeKind {
+  DEFAULT
+  CHANNEL
+}
+
+type ConfigScope {
+  kind:        ConfigScopeKind!
+  channelId: ID
+  locale:      String
+}
+
+# ConfigValue mirrors the admin shape but the storefront only sees public
+# entries at default scope.
+type ConfigValue {
+  path:      String!
+  section:   String!
+  group:     String!
+  field:     String!
+  type:      ConfigType!
+  value:     String!
+  label:     String!
+  public:    Boolean!
+  isDefault: Boolean!
+  scope:     ConfigScope!
+  options:   [ConfigOption!]
+  updatedAt: Time
+}
+
+type ConfigSection {
+  slug:   String!
+  label:  String!
+  groups: [ConfigGroup!]!
+}
+
+type ConfigGroup {
+  slug:   String!
+  label:  String!
+  fields: [ConfigValue!]!
+}
+
+# Server-wide feature switches (env-driven) so the storefront can hide
+# UI for subsystems the deployment turned off.
+type StoreFeatures {
+  # B2B_ENABLED - company accounts, quotes, on-account payment.
+  b2b: Boolean!
+  # SIGNALS_ENABLED - web tracking, session replay, experiments,
+  # back-in-stock alerts, signup forms.
+  signals: Boolean!
+}
+
+extend type Query {
+  publicConfig:         [ConfigValue!]!
+  publicConfigSections: [ConfigSection!]!
+  features: StoreFeatures!
+}

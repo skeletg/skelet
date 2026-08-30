@@ -1,0 +1,36 @@
+# Customer-facing slice of a channel. Trimmed from the admin
+# schema's Channel - only the identity fields a storefront needs
+# to identify itself + render currency. Channel-scoped settings
+# (branding, support contact, terms/privacy URLs, timezone) live
+# in the config registry, not here; a storefront that needs them
+# should expose a `configValue` query on this surface and read
+# them at runtime.
+type Channel {
+  id:            ID!
+  slug:          String!
+  name:          String!
+  defaultLocale: String!
+  currencyCode:  String!
+  # Full Currency record matching `currencyCode` - exposed inline
+  # so the storefront doesn't have to make a second query just to
+  # know whether to render the symbol before or after the amount.
+  # Resolved server-side from the currencies table.
+  currency:      Currency!
+  publicUrl:     String!
+  # The locales THIS channel serves - deliberately not the same as the
+  # top-level `locales` query, which lists every globally active locale.
+  # A storefront must only offer and route the languages its own channel
+  # has, or it advertises a language the catalog will silently answer in
+  # the default one.
+  locales:       [Locale!]!
+}
+
+extend type Query {
+  # Returns the channel resolved from the request. The
+  # channel middleware picks it via X-Channel-Id header or
+  # matching Host; if neither resolves, this returns null.
+  # Deliberately the ONLY channel read on this surface - no
+  # list query, so other channels stay unenumerable from the
+  # public API
+  currentChannel: Channel
+}

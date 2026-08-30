@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Supply FX rates for a base currency.",
+  "properties": {
+    "request": {
+      "properties": {
+        "base": {
+          "type": "string"
+        },
+        "currencies": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "base",
+        "currencies"
+      ],
+      "title": "remoteRateRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "base": {
+          "type": "string"
+        },
+        "rates": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "base",
+        "rates"
+      ],
+      "title": "remoteRateResponse",
+      "type": "object"
+    }
+  },
+  "title": "currency_rate",
+  "x-kind": "currency_rate",
+  "x-source": "internal/currency.remoteRateRequest -\u003e internal/currency.remoteRateResponse"
+}

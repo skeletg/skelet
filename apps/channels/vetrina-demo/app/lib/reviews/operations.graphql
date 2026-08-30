@@ -1,0 +1,147 @@
+fragment ReviewQuestionFields on ReviewQuestion {
+  id
+  slug
+  inputType
+  isRequired
+  allowComment
+  sortOrder
+  label
+  helpText
+}
+
+fragment ReviewMediaFields on ReviewMedia {
+  id
+  url
+  mimeType
+  width
+  height
+}
+
+fragment ReviewFields on Review {
+  id
+  customerDisplayName
+  isVerifiedPurchase
+  title
+  body
+  submittedAt
+  overallRating
+  helpfulCount
+  notHelpfulCount
+  myVote
+  merchantReply
+  merchantReplyAt
+  answers {
+    question {
+      ...ReviewQuestionFields
+    }
+    rating
+    boolValue
+    text
+  }
+  media {
+    ...ReviewMediaFields
+  }
+}
+
+# ProductWithReviews fetches the product header plus the review surface
+# (questions, aggregates, eligibility, first page of reviews). One round-
+# trip per PDP visit; the resolver-level cache() in lib/catalog.ts
+# de-duplicates if the page renders this twice during one request.
+query ProductWithReviews($id: ID!, $sort: ReviewSort = NEWEST) {
+  product(id: $id) {
+    id
+    # name + sku drive the header on the standalone /review route (which
+    # has no parent getProduct call). On the PDP this query streams
+    # alongside getProduct, so these duplicate a couple of cheap scalars -
+    # an acceptable trade for the review route rendering a real title.
+    name
+    sku
+    reviewSummary
+    reviewQuestions {
+      ...ReviewQuestionFields
+    }
+    reviewAggregates {
+      count
+      overallAverage
+      distribution
+      perQuestion {
+        question {
+          ...ReviewQuestionFields
+        }
+        average
+        count
+      }
+      votingPolicy {
+        requireAuthentication
+      }
+    }
+    customerCanReview {
+      canReview
+      reason
+      existingReviewId
+    }
+    reviews(limit: 20, sort: $sort) {
+      ...ReviewFields
+    }
+  }
+}
+
+mutation SubmitProductReview($input: SubmitReviewInput!) {
+  submitProductReview(input: $input) {
+    ...ReviewFields
+  }
+}
+
+mutation VoteReview($reviewId: ID!, $value: Int!) {
+  voteReview(reviewId: $reviewId, value: $value) {
+    ...ReviewFields
+  }
+}
+
+mutation RequestReviewMediaUpload(
+  $productId: ID!
+  $filename: String!
+  $mimeType: String!
+  $sizeBytes: Int!
+) {
+  requestReviewMediaUpload(
+    productId: $productId
+    filename: $filename
+    mimeType: $mimeType
+    sizeBytes: $sizeBytes
+  ) {
+    assetId
+    uploadUrl
+    expiresAt
+  }
+}
+
+# Re-sorted review page, fetched from the sort buttons after hydration. The cached PDP
+# only ever renders the NEWEST page and the sort controls are buttons, so re-sorting
+# never mints crawlable URL variants. Voter cookie forwarded so myVote stays correct
+query ReviewsPage($productId: ID!, $sort: ReviewSort!) {
+  product(id: $productId) {
+    id
+    reviews(limit: 20, sort: $sort) {
+      ...ReviewFields
+    }
+  }
+}
+
+# Per-customer review state, fetched after hydration - the PDP is cached HTML, so the
+# server render has no session. Deliberately absent from PUBLIC_OPS and the backend's
+# frontCacheableOps: it carries the token and must never land in a shared cache
+query MyReviewState($productId: ID!, $sort: ReviewSort = NEWEST) {
+  product(id: $productId) {
+    id
+    customerCanReview {
+      canReview
+      reason
+      existingReviewId
+    }
+    reviews(limit: 20, sort: $sort) {
+      id
+      myVote
+    }
+  }
+}

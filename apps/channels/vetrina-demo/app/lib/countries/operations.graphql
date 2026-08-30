@@ -1,0 +1,22 @@
+query Countries {
+  countries(activeOnly: true) {
+    code
+    name
+    emojiFlag
+  }
+}
+
+query Regions($countryCode: String!) {
+  regions(countryCode: $countryCode) {
+    code
+    name
+  }
+}
+
+query CountrySettings {
+  countrySettings {
+    defaultCountryCode
+    allowOptionalState
+    requiredRegionCountryCodes
+  }
+}

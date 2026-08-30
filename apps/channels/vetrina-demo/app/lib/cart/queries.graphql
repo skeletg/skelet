@@ -1,0 +1,99 @@
+# The complete cart shape rendered by every storefront surface. Shared
+# by the CartByID read query AND every cart-returning mutation so the
+# optimistic client store can consume any mutation's return as the new
+# authoritative cart (no follow-up refetch).
+fragment CartFull on Cart {
+  id
+  note
+  savedItems {
+    id
+    productSku
+    productName
+    imageUrl
+    quantity
+  }
+  subtotal
+  totalDiscount
+  appliedCodes {
+    code
+    ruleName
+    publicLabel
+    subtotalDiscount
+    freeShipping
+    invalidatedReason
+    requiresCode
+    freeGifts {
+      productId
+      productSku
+      quantity
+      inCart
+      href
+    }
+  }
+  lines {
+    id
+    productName
+    productSku
+    imageUrl
+    unitPrice
+    quantity
+    totalPrice
+    availableQuantity
+    currentUnitPrice
+    components {
+      id
+      optionId
+      selectionId
+      productSku
+      productName
+      unitPrice
+      quantity
+      sortOrder
+    }
+    options {
+      id
+      productOptionId
+      optionValueId
+      inputType
+      optionTitle
+      valueLabel
+      textValue
+      priceDelta
+      quantity
+      fileUrl
+    }
+  }
+}
+
+query CartByID($id: ID!) {
+  cart(id: $id) {
+    ...CartFull
+  }
+}
+
+# The signed-in customer's own cart, resolved from their session rather
+# than the cart cookie - this is what makes a cart follow them onto a
+# second device. Get-or-create server side, so it never 404s.
+query MyCart {
+  myCart {
+    ...CartFull
+  }
+}
+
+query FreeShippingThreshold {
+  freeShippingThreshold
+}
+
+query CartEstimate($cartId: ID!, $countryCode: String!, $regionCode: String) {
+  cartEstimate(cartId: $cartId, countryCode: $countryCode, regionCode: $regionCode) {
+    subtotalCents
+    cheapestShippingCents
+    taxCents
+    estimatedTotalCents
+    shippingOptions {
+      carrierName
+      name
+      priceCents
+    }
+  }
+}

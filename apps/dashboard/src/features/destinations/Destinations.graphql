@@ -1,0 +1,44 @@
+query EventDestinations($channelId: ID!) {
+  eventDestinations(channelId: $channelId) {
+    id
+    channelId
+    name
+    kind
+    targetUrl
+    eventSources
+    eventNames
+    isActive
+    lastError
+    lastForwardedAt
+    createdAt
+    updatedAt
+  }
+}
+
+mutation CreateEventDestination($input: EventDestinationInput!) {
+  createEventDestination(input: $input) {
+    id
+  }
+}
+
+mutation UpdateEventDestination($id: ID!, $input: EventDestinationInput!) {
+  updateEventDestination(id: $id, input: $input) {
+    id
+    name
+    kind
+    targetUrl
+    eventSources
+    eventNames
+    isActive
+    updatedAt
+  }
+}
+
+mutation DeleteEventDestination($id: ID!) {
+  deleteEventDestination(id: $id)
+}
+
+mutation SyncAudience($segmentId: ID!, $destinationId: ID!) {
+  syncAudience(segmentId: $segmentId, destinationId: $destinationId)
+}
+

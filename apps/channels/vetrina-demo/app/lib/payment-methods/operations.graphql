@@ -1,0 +1,25 @@
+query MyPaymentMethods {
+  myPaymentMethods {
+    id
+    providerSlug
+    brand
+    last4
+    expMonth
+    expYear
+  }
+}
+
+mutation DeleteMyPaymentMethod($id: ID!) {
+  deleteMyPaymentMethod(id: $id)
+}
+
+mutation SavePaymentMethod($providerSlug: String!, $token: String!) {
+  savePaymentMethod(providerSlug: $providerSlug, token: $token) {
+    id
+    providerSlug
+    brand
+    last4
+    expMonth
+    expYear
+  }
+}

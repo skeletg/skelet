@@ -1,0 +1,168 @@
+# ==================== Bundle structure ====================
+
+enum BundleInputType {
+  RADIO        # single-select, radio buttons in UI
+  DROPDOWN     # single-select, dropdown in UI
+  CHECKBOX     # multi-select, individual checkboxes
+  MULTISELECT  # multi-select, multiselect widget
+}
+
+type BundleOption {
+  id:         ID!
+  inputType:  BundleInputType!
+  isRequired: Boolean!
+  sortOrder:  Int!
+  # Selection-count bounds. minSelections=0 means no explicit minimum (a
+  # required option still needs >=1); maxSelections=null means unbounded.
+  # Single-select options ignore both. Enforced at add-to-cart.
+  minSelections: Int!
+  maxSelections: Int
+  # Resolved to the active request locale with default-locale fallback.
+  title:      String!
+  # Every locale's title for admin views.
+  content:    [BundleOptionContent!]!
+  # The menu of SIMPLE products that can fill this option.
+  selections: [BundleSelection!]!
+  createdAt:  Time!
+  updatedAt:  Time!
+}
+
+type BundleOptionContent {
+  locale: String!
+  title:  String!
+}
+
+type BundleSelection {
+  id:        ID!
+  product:   Product!
+  quantity:  Float!
+  isDefault: Boolean!
+  sortOrder: Int!
+}
+
+input AddBundleOptionInput {
+  productId:  ID!
+  inputType:  BundleInputType!
+  isRequired: Boolean
+  sortOrder:  Int
+  minSelections: Int
+  maxSelections: Int
+  # Initial-content row. Locale must match the configured default locale.
+  locale:     String!
+  title:      String!
+}
+
+input UpdateBundleOptionInput {
+  id:         ID!
+  inputType:  BundleInputType
+  isRequired: Boolean
+  sortOrder:  Int
+  minSelections: Int
+  # Set maxSelections to bound the count; use clearMaxSelections to remove
+  # an existing bound (back to unbounded). The two are mutually exclusive.
+  maxSelections:      Int
+  clearMaxSelections: Boolean
+}
+
+input AddBundleSelectionInput {
+  optionId:  ID!
+  productId: ID!
+  quantity:  Float
+  isDefault: Boolean
+  sortOrder: Int
+}
+
+input UpdateBundleSelectionInput {
+  id:        ID!
+  quantity:  Float
+  isDefault: Boolean
+  sortOrder: Int
+}
+
+# ==================== Grouped structure ====================
+
+type GroupedMember {
+  id:              ID!
+  member:          Product!
+  defaultQuantity: Float!
+  sortOrder:       Int!
+  createdAt:       Time!
+  updatedAt:       Time!
+}
+
+input AddGroupedMemberInput {
+  parentId:        ID!
+  memberId:        ID!
+  defaultQuantity: Float
+  sortOrder:       Int
+}
+
+input UpdateGroupedMemberInput {
+  id:              ID!
+  defaultQuantity: Float
+  sortOrder:       Int
+}
+
+# ==================== Kit structure ====================
+# A kit (kind=KIT) is a fixed assembly: one SKU at its own price whose
+# fulfillment decrements a fixed set of SIMPLE component products. No
+# customer choices (unlike bundle); a single purchasable line (unlike
+# grouped). Components own the inventory; the kit carries none.
+
+type KitComponent {
+  id:        ID!
+  component: Product!
+  quantity:  Float!
+  sortOrder: Int!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+input AddKitComponentInput {
+  productId:          ID!
+  componentProductId: ID!
+  quantity:           Float
+  sortOrder:          Int
+}
+
+input UpdateKitComponentInput {
+  id:        ID!
+  quantity:  Float
+  sortOrder: Int
+}
+
+# --- Mutations (require catalog.manage) ---
+extend type Mutation {
+  # ---------- Bundle structure ----------
+  # A bundle product (kind=BUNDLE) exposes one or more "option groups"
+  # (e.g. "Pick a shirt"). Each option has one or more selections - the
+  # concrete SIMPLE products that fill the menu. Customers pick per
+  # option at add-to-cart time.
+  addBundleOption(input: AddBundleOptionInput!): Product!
+  updateBundleOption(input: UpdateBundleOptionInput!): Product!
+  upsertBundleOptionContent(optionId: ID!, locale: String!, title: String!): Product!
+  deleteBundleOptionContent(optionId: ID!, locale: String!): Product!
+  deleteBundleOption(id: ID!): Product!
+
+  addBundleSelection(input: AddBundleSelectionInput!): Product!
+  updateBundleSelection(input: UpdateBundleSelectionInput!): Product!
+  deleteBundleSelection(id: ID!): Product!
+
+  # ---------- Grouped structure ----------
+  # A grouped product (kind=GROUPED) holds a list of SIMPLE member
+  # products that the storefront renders side-by-side. Each member is
+  # added to the cart individually - the grouped parent is never
+  # directly purchasable.
+  addGroupedMember(input: AddGroupedMemberInput!): Product!
+  updateGroupedMember(input: UpdateGroupedMemberInput!): Product!
+  removeGroupedMember(id: ID!): Product!
+
+  # ---------- Kit structure ----------
+  # A kit (kind=KIT) holds a fixed list of SIMPLE component products. The
+  # kit is sold as one line at its own price; its components are decremented
+  # against inventory at fulfillment. Mutations return the parent Product
+  # with refreshed kitComponents.
+  addKitComponent(input: AddKitComponentInput!): Product!
+  updateKitComponent(input: UpdateKitComponentInput!): Product!
+  removeKitComponent(id: ID!): Product!
+}

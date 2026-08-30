@@ -1,0 +1,29 @@
+# A payment provider registered in code, paired with its per-channel
+# payment_methods row. providerSlug is stable; isEnabled/countryMode/
+# allowedCountries are the admin-managed settings for this channel.
+type PaymentMethodAdmin {
+  providerSlug:     String!
+  displayName:      String!
+  # No third party behind it (cash on delivery, bank transfer, pickup, purchase
+  # order) - these are what an admin can record a payment against by hand.
+  isOffline:        Boolean!
+  isEnabled:        Boolean!
+  sortOrder:        Int!
+  # "all" (accepted in every country) or "specific" (only
+  # allowedCountries). Mirrors shipping methods.
+  countryMode:      String!
+  allowedCountries: [String!]!
+}
+
+extend type Query {
+  # Every registered provider for the channel with its settings; a
+  # provider not yet synced reports isEnabled=false, countryMode="all".
+  paymentMethods(channelId: ID!): [PaymentMethodAdmin!]!
+}
+
+extend type Mutation {
+  setPaymentMethodEnabled(channelId: ID!, providerSlug: String!, enabled: Boolean!): PaymentMethodAdmin!
+  # mode is "all" or "specific"; countries is the allow-list (ignored
+  # when mode is "all").
+  setPaymentMethodCountries(channelId: ID!, providerSlug: String!, mode: String!, countries: [String!]!): PaymentMethodAdmin!
+}

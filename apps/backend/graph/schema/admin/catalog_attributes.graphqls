@@ -1,0 +1,328 @@
+enum AttributeInputType {
+  PLAIN_TEXT
+  NUMERIC
+  BOOLEAN
+  DATE
+  DATE_TIME
+  DROPDOWN
+  MULTISELECT
+  SWATCH
+  # Value is a pointer to another catalog entity (see AttributeReferenceTarget)
+  # rather than a literal or a predefined value.
+  REFERENCE
+}
+
+# The entity type a REFERENCE attribute's values point at. Set on the attribute
+# via relationshipTarget; every value of that attribute targets this type.
+enum AttributeReferenceTarget {
+  PRODUCT
+  CATEGORY
+  COLLECTION
+}
+
+# Where an indexable filter value appears in the storefront H1.
+# BEFORE → "Olive / Apparel"; AFTER → "Apparel / Olive". Default BEFORE.
+enum AttributeH1Position {
+  BEFORE
+  AFTER
+}
+
+# Returned by setAttributeIndexable. `affectedValuesCount` is the
+# number of AttributeValue rows under the attribute (cascaded for
+# selectables). `affectedProductsCount` is the number of scalar slug
+# overrides under the attribute - informational only; scalar facet
+# indexability now follows the attribute flag directly, with no
+# per-product cascade.
+# How many value rows a bulk facet opt-in touched.
+type BulkAttributeValueResult {
+  count: Int!
+}
+
+type CascadeAttributeIndexableResult {
+  attribute:             Attribute!
+  affectedValuesCount:   Int!
+  affectedProductsCount: Int!
+}
+
+type AttributeValue {
+  id:        ID!
+  slug:      String!
+  name:      String!
+  value:     String!
+  sortOrder: Int!
+  # SEO opt-in. When true the storefront renders the bucket link as a
+  # real <a href> and removes the noindex meta when this value is the
+  # only active filter - letting Google rank the resulting URL.
+  isIndexable: Boolean!
+  # Localised description copy rendered under the H1 on the filter
+  # landing page (/products/f/<attr>/v/<value>). Sparse - one row per
+  # operator-translated locale; missing locales render as nothing.
+  descriptions: [AttributeValueContent!]!
+}
+
+type AttributeContent {
+  locale:      String!
+  # Localised display name for the facet panel header / attribute
+  # label. Empty = name not translated; storefront falls back to the
+  # global Attribute.name.
+  name:        String!
+  description: String!
+  updatedAt:   Time!
+}
+
+type AttributeValueContent {
+  locale:      String!
+  # Localised display name for the bucket / selected value. Empty =
+  # fall back to the global AttributeValue.name.
+  name:        String!
+  description: String!
+  updatedAt:   Time!
+}
+
+type Attribute {
+  id:                ID!
+  slug:              String!
+  name:              String!
+  inputType:         AttributeInputType!
+  # Set only for REFERENCE attributes: the entity type their values point at.
+  relationshipTarget: AttributeReferenceTarget
+  unit:              String!
+  valueRequired:     Boolean!
+  filterable:        Boolean!
+  searchable:        Boolean!
+  isPublic: Boolean!
+  # When the storefront renders this attribute as a browse facet, should
+  # the panel start collapsed (true) or open (false)? Pure UI hint;
+  # ignored when filterable=false. Storefront echoes the value back via
+  # BrowseFacet.defaultCollapsed.
+  facetCollapsed:    Boolean!
+  # Master SEO opt-in for this attribute. A facet bucket is indexable
+  # only when this AND the per-value flag are both true.
+  isIndexable:       Boolean!
+  # Where the value appears in the page H1 when the URL is indexable.
+  # BEFORE → "Olive / Apparel"; AFTER → "Apparel / Olive". Default
+  # BEFORE.
+  h1Position:        AttributeH1Position!
+  # When on, a customer filtering by this attribute's values or viewing
+  # products that carry them gets the value recorded as a Synapse profile
+  # affinity (e.g. tire size → "they likely need this size").
+  synapseTrack:      Boolean!
+  # When on (requires synapseTrack), a scheduled sync auto-creates a customer
+  # segment per popular value (e.g. "Tire size: 205/55R16"), targetable by
+  # Pulse / promotions / Prism. Managed segments - don't edit by hand.
+  autoSegment:       Boolean!
+  # Lower sortOrder first. The storefront renders facets in the order the
+  # backend returns them, which is ascending sortOrder, then name.
+  sortOrder:         Int!
+  values:            [AttributeValue!]!
+  # Localised description copy rendered next to the facet panel
+  # header on the storefront. Sparse; missing locales render empty.
+  descriptions:      [AttributeContent!]!
+  metadata:          [MetadataItem!]!
+  privateMetadata:   [MetadataItem!]!
+  # Optional default applied to new products whose type assigns this
+  # attribute. Scalar attributes store the typed value (string/number/
+  # boolean/ISO date); dropdown/swatch store the AttributeValue ID;
+  # multiselect stores an array of AttributeValue IDs. null = no default.
+  defaultValue:      JSON
+  createdAt:         Time!
+  updatedAt:         Time!
+}
+
+
+# Per-product URL slug override for one scalar attribute on one
+# product. Counterpart to AttributeValue.slug, which serves the same
+# role for selectable attribute input types. Sparse - only products the
+# operator has customised have rows; otherwise the indexer falls back to
+# slugify(value). Facet indexability is NOT set here: scalar facets
+# follow the attribute-level Attribute.isIndexable flag.
+type ProductAttributeSlug {
+  id:          ID!
+  productId:   ID!
+  attributeId: ID!
+  # null = global override; set = applies on that channel only and
+  # wins over the global row there.
+  channelId:   ID
+  slug:        String!
+  createdAt:   Time!
+  updatedAt:   Time!
+}
+
+input SetProductAttributeSlugInput {
+  productId:   ID!
+  attributeId: ID!
+  # null = global override, set = channel-only override.
+  channelId:   ID
+  slug:        String!
+}
+
+# Channel override of AttributeValue.slug for filter URLs - lets each
+# channel carry its own URL vocabulary for the same selectable value.
+type AttributeValueChannelSlug {
+  id:        ID!
+  valueId:   ID!
+  channelId: ID!
+  slug:      String!
+  updatedAt: Time!
+}
+
+# Per-locale translation of one plain_text scalar attribute value on
+# one product. The canonical (default-locale) value stays in the
+# product's attributes JSONB; a row here overrides it for one locale.
+type ProductAttributeLocaleValue {
+  productId:   ID!
+  attributeId: ID!
+  locale:      String!
+  value:       String!
+  updatedAt:   Time!
+}
+
+
+# --- Inputs ---
+
+input AttributeValueInput {
+  slug:        String!
+  name:        String!
+  value:       String
+  sortOrder:   Int
+  # Defaults to false when omitted - opt-in.
+  isIndexable: Boolean
+}
+
+input CreateAttributeInput {
+  slug:              String!
+  name:              String!
+  inputType:         AttributeInputType!
+  # Required when inputType is REFERENCE; must be omitted otherwise.
+  relationshipTarget: AttributeReferenceTarget
+  unit:              String
+  valueRequired:     Boolean
+  filterable:        Boolean
+  searchable:        Boolean
+  isPublic: Boolean
+  facetCollapsed:    Boolean
+  isIndexable:       Boolean
+  # Defaults to BEFORE when omitted.
+  h1Position:        AttributeH1Position
+  synapseTrack:      Boolean
+  autoSegment:       Boolean
+  sortOrder:         Int
+  values:            [AttributeValueInput!]
+  metadata:          [MetadataInput!]
+  privateMetadata:   [MetadataInput!]
+  # Scalar attributes only. Selectable defaults reference AttributeValue
+  # IDs which don't exist until create finishes - set them via
+  # updateAttribute once the values have been added.
+  defaultValue:      JSON
+}
+
+# UpdateAttributeInput deliberately omits slug and inputType - both are
+# immutable. Changing inputType would orphan existing AttributeValue rows.
+input UpdateAttributeInput {
+  id:                ID!
+  name:              String
+  unit:              String
+  valueRequired:     Boolean
+  filterable:        Boolean
+  searchable:        Boolean
+  isPublic: Boolean
+  facetCollapsed:    Boolean
+  isIndexable:       Boolean
+  h1Position:        AttributeH1Position
+  synapseTrack:      Boolean
+  autoSegment:       Boolean
+  sortOrder:         Int
+  metadata:          [MetadataInput!]
+  privateMetadata:   [MetadataInput!]
+  # Three-state field: omit to leave unchanged; pass null to clear; pass
+  # a value to set. Scalar attributes accept their typed JSON; selectable
+  # attributes accept a value-id string (dropdown/swatch) or an array of
+  # ids (multiselect).
+  defaultValue:      DefaultValueUpdate
+}
+
+# Sentinel "explicit null vs. omitted" wrapper for defaultValue updates.
+# GraphQL inputs can't distinguish "field absent" from "field = null", so we
+# wrap the value: passing the input means "change it", and clear: true wipes
+# the default.
+input DefaultValueUpdate {
+  value: JSON
+  clear: Boolean
+}
+
+
+# --- Queries (require catalog.view) ---
+extend type Query {
+  attributes:           [Attribute!]!
+  attribute(id: ID!):   Attribute!
+  # Search candidates for a reference attribute's value picker, scoped to the
+  # attribute's target entity type (server-side filter - not the whole
+  # linkables set). Returns each candidate's label + canonical path. Gated by
+  # catalog.view so the product editor's References picker works without
+  # cms.view.
+  referenceCandidates(target: AttributeReferenceTarget!, search: String, limit: Int): [Linkable!]!
+  # Per-product URL slug overrides for one product's scalar attribute
+  # values. Selectable attrs manage slugs through AttributeValue;
+  # this is the parallel for plain_text/numeric/boolean/date inputs.
+  # Returns customised rows only; missing entries fall back to
+  # slugify(value) at indexing time. Facet indexability is not stored
+  # per product - it follows the attribute-level isIndexable flag.
+  productAttributeSlugs(productId: ID!): [ProductAttributeSlug!]!
+  # All plain_text translations on one product, every locale.
+  productAttributeLocaleValues(productId: ID!): [ProductAttributeLocaleValue!]!
+  # Channel filter-URL slug overrides for one selectable value.
+  attributeValueChannelSlugs(valueId: ID!): [AttributeValueChannelSlug!]!
+}
+
+# --- Mutations (require catalog.manage) ---
+extend type Mutation {
+  createAttribute(input: CreateAttributeInput!): Attribute!
+  updateAttribute(input: UpdateAttributeInput!): Attribute!
+  deleteAttribute(id: ID!):                      Boolean!
+
+  # Master switch for facet indexability. Flips Attribute.isIndexable
+  # and, for selectable attributes, cascades to every AttributeValue's
+  # flag in one transaction. Scalar attributes have no per-value flag -
+  # their facet indexability is read straight off Attribute.isIndexable
+  # at index time, so flipping the attribute is the whole operation.
+  # Returns the updated Attribute plus how many value rows and scalar
+  # slug overrides existed under the attribute (the latter is
+  # informational scope, not a cascade target).
+  setAttributeIndexable(attributeId: ID!, isIndexable: Boolean!): CascadeAttributeIndexableResult!
+
+  # Opts a hand-picked set of values in or out in one statement - the SEO
+  # page's bulk facet editor. Selectable buckets read the flag live at
+  # browse time, so no reindex is needed.
+  setAttributeValuesIndexable(valueIds: [ID!]!, isIndexable: Boolean!): BulkAttributeValueResult!
+
+  addAttributeValue(attributeId: ID!, input: AttributeValueInput!): AttributeValue!
+  updateAttributeValue(id: ID!, input: AttributeValueInput!):       AttributeValue!
+  deleteAttributeValue(id: ID!):                                    Boolean!
+
+  # Localised name + description upsert. When name and description are
+  # both empty the row for that locale is deleted - keeps the table
+  # sparse. name omitted/null preserves an empty (untranslated) name.
+  setAttributeDescription(attributeId: ID!, locale: String!, description: String!, name: String): AttributeContent!
+  setAttributeValueDescription(valueId: ID!, locale: String!, description: String!, name: String): AttributeValueContent!
+
+  # Upsert keyed by (productId, attributeId[, channelId]). Rejected for
+  # selectable attributes (those manage slugs through AttributeValue).
+  # channelId null = global override (every channel without its own row);
+  # set = the override applies on that channel only and wins over global.
+  setProductAttributeSlug(input: SetProductAttributeSlugInput!): ProductAttributeSlug!
+  # Clears the override; the value falls back to slugify(value) +
+  # is_indexable=false on the next reindex. channelId selects which row
+  # to clear (null = the global row).
+  deleteProductAttributeSlug(productId: ID!, attributeId: ID!, channelId: ID): Boolean!
+
+  # Channel-scoped filter-URL slug for one selectable AttributeValue.
+  # Overrides AttributeValue.slug on that channel only. Empty slug
+  # deletes the override.
+  setAttributeValueChannelSlug(valueId: ID!, channelId: ID!, slug: String!): AttributeValueChannelSlug!
+  deleteAttributeValueChannelSlug(valueId: ID!, channelId: ID!): Boolean!
+
+  # Per-locale translation of one plain_text scalar value on one
+  # product. Empty value deletes the row (falls back to the canonical
+  # JSONB value). Rejected for non-plain_text attributes.
+  setProductAttributeLocaleValue(productId: ID!, attributeId: ID!, locale: String!, value: String!): ProductAttributeLocaleValue!
+}

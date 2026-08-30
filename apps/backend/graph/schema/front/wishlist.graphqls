@@ -1,0 +1,29 @@
+# Customer wishlist: one implicit list per signed-in customer. Guests keep
+# a client-side list the storefront merges after login. Products are
+# rendered through the standard pipeline (channel pricing, sale state).
+
+extend type Query {
+  # Product ids on the caller's wishlist (cheap heart-state check).
+  wishlistProductIds: [ID!]!
+  # Full wishlist, rendered as products published on the active channel.
+  myWishlist: [Product!]!
+}
+
+extend type Mutation {
+  addToWishlist(productId: ID!): Boolean!
+  removeFromWishlist(productId: ID!): Boolean!
+  # Move a wishlist product into the cart: adds it (server re-prices, enforces
+  # SIMPLE-only + stock) then removes it from the wishlist, returning the
+  # updated cart. Errors for products that need options (configure on the PDP);
+  # the storefront surfaces that message.
+  moveToCart(productId: ID!): Cart!
+}
+
+extend type Query {
+  # The signed-in customer's public wishlist share token (minted on
+  # first read). Share URL: /wishlist/<token>.
+  myWishlistShareToken: String!
+  # Public read-only view of a shared wishlist: channel-visible
+  # products only; unknown tokens yield an empty list.
+  sharedWishlist(token: String!): [Product!]!
+}

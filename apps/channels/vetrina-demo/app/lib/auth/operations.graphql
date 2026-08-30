@@ -1,0 +1,97 @@
+mutation CustomerRegister($input: CustomerRegisterInput!) {
+  customerRegister(input: $input) {
+    accessToken
+    refreshToken
+    # True when the store gates sign-in on a verified address - the account
+    # exists but no session was issued, so route to "check your inbox"
+    verificationRequired
+  }
+}
+
+mutation CustomerLogin($input: CustomerLoginInput!) {
+  customerLogin(input: $input) {
+    accessToken
+    refreshToken
+  }
+}
+
+mutation CustomerLogout($token: String!) {
+  customerLogout(token: $token)
+}
+
+mutation CustomerRefreshToken($token: String!) {
+  customerRefreshToken(token: $token) {
+    accessToken
+    refreshToken
+  }
+}
+
+mutation VerifyEmail($token: String!) {
+  verifyEmail(token: $token)
+}
+
+mutation ResendVerificationEmail {
+  resendVerificationEmail
+}
+
+mutation RequestPasswordReset($email: String!) {
+  requestPasswordReset(email: $email)
+}
+
+mutation ResetPassword($token: String!, $newPassword: String!) {
+  resetPassword(token: $token, newPassword: $newPassword)
+}
+
+mutation ChangeCustomerPassword($currentPassword: String!, $newPassword: String!) {
+  changeCustomerPassword(currentPassword: $currentPassword, newPassword: $newPassword)
+}
+
+mutation UpdateProfile($firstName: String, $lastName: String, $phone: String) {
+  updateProfile(firstName: $firstName, lastName: $lastName, phone: $phone) {
+    id
+    firstName
+    lastName
+    phone
+  }
+}
+
+mutation AccountAddAddress($input: AddressInput!) {
+  addAddress(input: $input) {
+    id
+  }
+}
+
+mutation AccountUpdateAddress($id: ID!, $input: AddressInput!) {
+  updateAddress(id: $id, input: $input) {
+    id
+  }
+}
+
+mutation AccountDeleteAddress($id: ID!) {
+  deleteAddress(id: $id)
+}
+
+mutation SetDefaultBillingAddress($id: ID!) {
+  setDefaultBillingAddress(id: $id) {
+    id
+    defaultBillingAddress {
+      id
+    }
+  }
+}
+
+mutation SetDefaultShippingAddress($id: ID!) {
+  setDefaultShippingAddress(id: $id) {
+    id
+    defaultShippingAddress {
+      id
+    }
+  }
+}
+
+mutation SetConsent($kind: String!, $optedIn: Boolean!) {
+  setConsent(kind: $kind, optedIn: $optedIn) {
+    kind
+    optedIn
+  }
+}

@@ -1,0 +1,56 @@
+query Integrations {
+  integrations {
+    id
+    name
+    description
+    isActive
+    createdAt
+    expiresAt
+    channelId
+    permissions {
+      id
+      slug
+      name
+    }
+  }
+}
+
+
+
+mutation CreateIntegration($input: CreateIntegrationInput!) {
+  createIntegration(input: $input) {
+    rawToken
+    integration {
+      id
+      name
+    }
+  }
+}
+
+mutation UpdateIntegration($input: UpdateIntegrationInput!) {
+  updateIntegration(input: $input) {
+    id
+    name
+  }
+}
+
+mutation SetIntegrationActive($id: ID!, $active: Boolean!) {
+  setIntegrationActive(id: $id, active: $active) {
+    id
+    isActive
+  }
+}
+
+mutation RegenerateIntegrationToken($id: ID!) {
+  regenerateIntegrationToken(id: $id) {
+    rawToken
+    integration {
+      id
+      name
+    }
+  }
+}
+
+mutation DeleteIntegration($id: ID!) {
+  deleteIntegration(id: $id)
+}

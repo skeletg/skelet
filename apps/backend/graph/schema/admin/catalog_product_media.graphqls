@@ -1,0 +1,68 @@
+enum ProductMediaStatus {
+  PENDING
+  READY
+}
+
+enum ProductMediaRole {
+  MAIN
+  THUMBNAIL
+  OG_IMAGE
+}
+
+enum ProductMediaUploadTarget {
+  GALLERY
+  DESCRIPTION
+  SHORT_DESCRIPTION
+}
+
+type ProductMedia {
+  id:        ID!
+  url:       String!
+  altText:   String!
+  sortOrder: Int!
+  mimeType:  String!
+  width:     Int!
+  height:    Int!
+  sizeBytes: Int!
+  status:    ProductMediaStatus!
+  createdAt: Time!
+}
+
+type RequestMediaUploadPayload {
+  media:     ProductMedia!
+  uploadUrl: String!
+  expiresAt: Time!
+}
+
+input RequestProductMediaUploadInput {
+  productId: ID!
+  filename:  String!
+  mimeType:  String!
+  sizeBytes: Int!
+  altText:   String
+  sortOrder: Int
+  # Optional: determines the storage directory for this upload. Defaults to
+  # gallery when omitted.
+  target:    ProductMediaUploadTarget
+  # Optional: determines the path segment in S3 (main/thumbnail/og/gallery).
+  # Does NOT auto-assign the role - call setProductMediaRole separately.
+  role:      ProductMediaRole
+}
+
+input UpdateProductMediaInput {
+  id:        ID!
+  altText:   String
+  sortOrder: Int
+}
+
+# --- Mutations (require catalog.manage) ---
+extend type Mutation {
+  requestProductMediaUpload(input: RequestProductMediaUploadInput!): RequestMediaUploadPayload!
+  confirmProductMediaUpload(mediaId: ID!, width: Int!, height: Int!): ProductMedia!
+  updateProductMedia(input: UpdateProductMediaInput!):               ProductMedia!
+  deleteProductMedia(id: ID!, deleteFromStorage: Boolean):           Boolean!
+  deleteProductMediaBulk(productId: ID!, ids: [ID!]!, deleteFromStorage: Boolean): Int!
+  reorderProductMedia(productId: ID!, mediaIds: [ID!]!):             [ProductMedia!]!
+  setProductMediaRole(productId: ID!, role: ProductMediaRole!, mediaId: ID!):   Product!
+  clearProductMediaRole(productId: ID!, role: ProductMediaRole!):               Product!
+}

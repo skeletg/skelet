@@ -1,0 +1,193 @@
+# ==================== Product options ====================
+# Customer-facing inputs attached at the product level. Customers fill
+# them in at add-to-cart; choices are snapshotted onto the cart/order
+# line. Distinct from configurable variants (which spawn new SKUs) and
+# bundle selections (which compose from existing simples).
+
+enum ProductOptionInputType {
+  FIELD          # single-line text
+  AREA           # multi-line text
+  DROPDOWN       # single-select dropdown
+  RADIO          # single-select radio buttons
+  CHECKBOX       # multi-select checkboxes
+  MULTISELECT    # multi-select dropdown
+  DATE
+  DATE_TIME
+  TIME
+  FILE           # customer file upload
+}
+
+enum ProductOptionPriceType {
+  FIXED          # cents
+  PERCENT        # integer percent points of the product's defaultPrice
+}
+
+type ProductOption {
+  id:             ID!
+  inputType:      ProductOptionInputType!
+  isRequired:     Boolean!
+  sortOrder:      Int!
+  # Resolved to the active request locale, falling back to the configured
+  # default locale.
+  title:          String!
+  # Resolved short description shown under the input on the storefront.
+  helpText:       String!
+  # Every locale's title + help text for admin views.
+  content:        [ProductOptionContent!]!
+  # Price adjustment carried on the option itself for non-select types.
+  # Null for select-family options (their per-value rows carry adjustments).
+  priceValue:     Int
+  priceType:      ProductOptionPriceType
+  # Per-input-type constraints. Null when not applicable.
+  maxChars:       Int
+  maxFileBytes:   Int
+  fileExtensions: String
+  # Values for select-family options. Empty for text/date/file.
+  values:         [ProductOptionValue!]!
+  # Visibility condition group gating this option on EARLIER options'
+  # picks (null = always visible). Shape: { logic: "and"|"or", rules:
+  # [{ option_id, op: anyOf|noneOf|filled|empty, value_ids: [ID] }],
+  # groups: [...] }. Rules may only reference options with strictly
+  # lower sortOrder.
+  visibleIf:      JSON
+  createdAt:      Time!
+  updatedAt:      Time!
+}
+
+type ProductOptionContent {
+  locale:   String!
+  title:    String!
+  helpText: String!
+}
+
+type ProductOptionValue {
+  id:         ID!
+  sortOrder:  Int!
+  # FIXED: cents. PERCENT: percent points (10 = 10%).
+  priceValue: Int!
+  priceType:  ProductOptionPriceType!
+  isDefault:  Boolean!
+  # Picking this value forces + locks the cart line quantity. Null = no
+  # constraint.
+  forcedLineQty: Float
+  # Units the value represents (default 1). For linked values
+  # multiplied into the cart contribution; for unlinked, metadata only.
+  quantity:   Float!
+  # Resolved to the active request locale.
+  title:      String!
+  content:    [ProductOptionValueContent!]!
+  # Optional reference to an existing SIMPLE product. When set, the
+  # value inherits the product's display data (name, SKU, default
+  # price, image) for storefront rendering; priceValue stays a
+  # markup on top of the source product's default_price (FIXED only).
+  sourceProduct: Product
+  createdAt:  Time!
+  updatedAt:  Time!
+}
+
+type ProductOptionValueContent {
+  locale: String!
+  title:  String!
+}
+
+input AddProductOptionInput {
+  productId:      ID!
+  inputType:      ProductOptionInputType!
+  isRequired:     Boolean
+  sortOrder:      Int
+  # Non-select types only - service rejects priceValue / priceType on
+  # select-family inputs.
+  priceValue:     Int
+  priceType:      ProductOptionPriceType
+  # Text-input only.
+  maxChars:       Int
+  # File-input only.
+  maxFileBytes:   Int
+  fileExtensions: String
+  # Initial-content row. Locale must equal the configured default locale.
+  locale:         String!
+  title:          String!
+  helpText:       String
+  # Visibility condition group (see ProductOption.visibleIf).
+  visibleIf:      JSON
+}
+
+input UpdateProductOptionInput {
+  id:             ID!
+  inputType:      ProductOptionInputType
+  isRequired:     Boolean
+  sortOrder:      Int
+  priceValue:     Int
+  priceType:      ProductOptionPriceType
+  maxChars:       Int
+  maxFileBytes:   Int
+  fileExtensions: String
+  # Setting visibleIf replaces the condition; clearVisibleIf removes it.
+  # Omitting both leaves it unchanged.
+  visibleIf:      JSON
+  clearVisibleIf: Boolean
+  # The nullable fields above are tri-state: null/omitted means "leave
+  # unchanged", so removing a surcharge or constraint needs its clear flag.
+  # clearPrice drops priceValue and priceType together (they only exist as
+  # a pair).
+  clearPrice:          Boolean
+  clearMaxChars:       Boolean
+  clearMaxFileBytes:   Boolean
+  clearFileExtensions: Boolean
+}
+
+input AddProductOptionValueInput {
+  optionId:   ID!
+  sortOrder:  Int
+  priceValue: Int
+  priceType:  ProductOptionPriceType
+  isDefault:  Boolean
+  quantity:   Float
+  # Picking this value forces the cart line quantity ("Set of 4" -> 4)
+  # and locks it against manual qty edits. Null = no constraint.
+  forcedLineQty: Float
+  # Optional: id of a SIMPLE product whose data backs this value.
+  # Service rejects non-simple products + the combination of source +
+  # PERCENT price type.
+  sourceProductId: ID
+  # Initial-content row. Locale must equal the configured default locale.
+  locale:     String!
+  title:      String!
+}
+
+input UpdateProductOptionValueInput {
+  id:         ID!
+  sortOrder:  Int
+  priceValue: Int
+  priceType:  ProductOptionPriceType
+  isDefault:  Boolean
+  quantity:   Float
+  # Null = no change; zero or negative = clear the constraint.
+  forcedLineQty: Float
+  # null = no change. Empty-string ID is interpreted as "unlink" so
+  # the dashboard can clear a previously-set source product.
+  sourceProductId: ID
+}
+
+# --- Mutations (require catalog.manage) ---
+extend type Mutation {
+  # ---------- Product options ----------
+  # Custom options attach customer-facing inputs to a product. Returned
+  # mutations include the parent Product with refreshed productOptions
+  # so the dashboard can refresh on a single round-trip.
+  addProductOption(input: AddProductOptionInput!): Product!
+  updateProductOption(input: UpdateProductOptionInput!): Product!
+  upsertProductOptionContent(optionId: ID!, locale: String!, title: String!, helpText: String): Product!
+  deleteProductOptionContent(optionId: ID!, locale: String!): Product!
+  deleteProductOption(id: ID!): Product!
+  # Clones an option (with all values + content rows) onto the same
+  # parent product at the end of the sort order. Returns the parent
+  # product with the refreshed options list.
+  duplicateProductOption(id: ID!): Product!
+
+  addProductOptionValue(input: AddProductOptionValueInput!): Product!
+  updateProductOptionValue(input: UpdateProductOptionValueInput!): Product!
+  upsertProductOptionValueContent(valueId: ID!, locale: String!, title: String!): Product!
+  deleteProductOptionValueContent(valueId: ID!, locale: String!): Product!
+  deleteProductOptionValue(id: ID!): Product!
+}

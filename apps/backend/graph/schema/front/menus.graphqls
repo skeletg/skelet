@@ -1,0 +1,55 @@
+# Read-only menu surface for the storefront. The dashboard manages
+# the menus + items; the storefront just renders them. Items keep
+# the same target-or-url shape - the storefront resolves entity
+# items to canonical URLs via the existing url_rewrites table (or
+# entity-href helper on the client) at render time.
+
+enum MenuItemTargetType {
+  PRODUCT
+  CATEGORY
+  COLLECTION
+  BLOG_POST
+  BLOG_CATEGORY
+  BLOG_TAG
+  BLOG_AUTHOR
+  CMS_PAGE
+}
+
+type Menu {
+  id:    ID!
+  slug:  String!
+  name:  String!
+  # Top-level items only. Walk `children` recursively to descend the
+  # tree. Items at every level are pre-sorted by sortOrder.
+  items: [MenuItem!]!
+}
+
+type MenuItem {
+  id:         ID!
+  parentId:   ID
+  label:      String!
+  targetType: MenuItemTargetType
+  targetId:   ID
+  url:        String
+  sortOrder:  Int!
+  # Nested children - empty list for leaf items. The resolver builds
+  # the tree from the flat DB rows so the storefront can render
+  # grouped layouts (footer columns, drill-down menus) without a
+  # client-side reshape step.
+  children:   [MenuItem!]!
+}
+
+extend type Query {
+  # Resolves a menu by its admin-defined slug (e.g. "main-nav",
+  # "footer-shop"). Returns null when the slug doesn't exist so
+  # the storefront can render gracefully without surfacing an
+  # error.
+  menu(slug: String!): Menu
+
+  # Batch variant of `menu`: resolves multiple menus by slug in a
+  # single request so the storefront can coalesce its per-component
+  # menu fetches (header, footer, …) into one round trip via its menu
+  # DataLoader. Slugs that don't resolve are simply absent from the
+  # result - callers map the response back by `slug`.
+  menus(slugs: [String!]!): [Menu!]!
+}

@@ -1,0 +1,91 @@
+SKELET PLUGIN EXCEPTION
+
+Additional permission under GNU GPL version 3 section 7
+
+Copyright (C) 2026 Skelet Group
+
+
+WHAT THIS IS FOR
+
+Skelet is licensed under the GNU General Public License version 3 (see LICENSE).
+Skelet is also designed to be extended, and extensions are written against its
+interfaces and compiled or deployed alongside it. Without the permission below,
+an extension could be treated as a derivative work of Skelet and be forced to
+adopt the GPL.
+
+That is not the intent. Extensions belong to the people who write them. A
+merchant's private customisation, an agency's client work, and a commercial
+plugin sold to third parties are all legitimate, and none of them are required
+to publish anything.
+
+The GPL still applies in full to Skelet itself. Modify Skelet's own source and
+convey it - ship it, sell it, hand it to a client, publish a rebranded fork -
+and the GPL's terms govern that, as intended.
+
+
+THE PERMISSION
+
+As an additional permission under section 7 of the GNU General Public License
+version 3, you are granted the following permission with respect to Skelet:
+
+  You may develop, use, reproduce, modify, distribute, sell, and otherwise
+  exploit an Extension (as defined below) under terms of your own choosing,
+  including terms that are proprietary or otherwise incompatible with the GPL,
+  and you are under no obligation to disclose the source code of that Extension
+  to anyone.
+
+  This permission applies even where the Extension is combined with Skelet by
+  importing its packages, implementing its interfaces, being compiled into the
+  same binary, being loaded or invoked at runtime, or communicating with it over
+  a network, and even where the combined result is conveyed.
+
+  This permission does not extend to any modification of Skelet's own source
+  code. Modified Skelet remains subject to the GPL.
+
+
+WHAT COUNTS AS AN EXTENSION
+
+"Extension" means software that extends or integrates with Skelet without
+modifying Skelet's own source, including:
+
+  - Tier 1 plugins: Go packages registered through the Skelet SDK
+    (github.com/skeletg/skelet/sdk) and compiled into the Skelet binary.
+
+  - Remote providers: services implementing the published provider contract and
+    called over the network.
+
+  - Storefronts and any other client of Skelet's HTTP or GraphQL APIs, whatever
+    language they are written in.
+
+  - Dashboard extensions, admin-UI language packs, CMS block types, themes, and
+    email templates.
+
+  - Configuration, migrations, and assets belonging to any of the above.
+
+Importing, subclassing, or implementing an interface declared by the Skelet SDK
+does not by itself make an Extension a derivative work of Skelet for the purposes
+of this exception.
+
+
+WHAT IS NOT AN EXTENSION
+
+Changes to Skelet's own source - anything under this repository outside an
+Extension's own files - are modifications of Skelet, not Extensions. Renaming
+Skelet, re-branding it, forking it, or carving pieces out of it produces a
+modified work governed by the GPL, no matter what it is called afterwards.
+
+Bundling Skelet with an Extension does not relicense Skelet. The two keep their
+own terms.
+
+
+NOTES
+
+If you write an Extension you may, at your option, license it under the GPL as
+well. This permission grants a choice; it does not take one away.
+
+You may remove this additional permission from any copy of Skelet you convey, as
+GPL version 3 section 7 allows. Doing so subjects Extensions combined with that
+copy to the GPL, so there is rarely a reason to.
+
+This text is not legal advice. If the boundary matters to your business, have a
+lawyer read it against your specific case.

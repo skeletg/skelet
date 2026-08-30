@@ -1,0 +1,100 @@
+fragment MenuItemFields on MenuItem {
+  id
+  menuId
+  parentId
+  label
+  targetType
+  targetId
+  url
+  sortOrder
+  translations {
+    locale
+    label
+  }
+}
+
+fragment MenuFields on Menu {
+  id
+  slug
+  name
+  itemCount
+  channelIds
+  createdAt
+  updatedAt
+}
+
+query MenusList {
+  menus {
+    ...MenuFields
+  }
+}
+
+query MenuDetail($id: ID!) {
+  menu(id: $id) {
+    ...MenuFields
+    items {
+      ...MenuItemFields
+    }
+  }
+}
+
+mutation CreateMenu($input: CreateMenuInput!) {
+  createMenu(input: $input) {
+    ...MenuFields
+  }
+}
+
+mutation UpdateMenu($input: UpdateMenuInput!) {
+  updateMenu(input: $input) {
+    ...MenuFields
+  }
+}
+
+mutation DeleteMenu($id: ID!) {
+  deleteMenu(id: $id)
+}
+
+mutation CreateMenuItem($input: CreateMenuItemInput!) {
+  createMenuItem(input: $input) {
+    ...MenuItemFields
+  }
+}
+
+mutation UpdateMenuItem($input: UpdateMenuItemInput!) {
+  updateMenuItem(input: $input) {
+    ...MenuItemFields
+  }
+}
+
+mutation DeleteMenuItem($id: ID!) {
+  deleteMenuItem(id: $id)
+}
+
+mutation ReorderMenuItems($menuId: ID!, $items: [ReorderMenuItemInput!]!) {
+  reorderMenuItems(menuId: $menuId, items: $items) {
+    ...MenuFields
+    items {
+      ...MenuItemFields
+    }
+  }
+}
+
+mutation SetMenuStores($menuId: ID!, $channelIds: [ID!]!) {
+  setMenuStores(menuId: $menuId, channelIds: $channelIds) {
+    ...MenuFields
+    items {
+      ...MenuItemFields
+    }
+  }
+}
+
+mutation UpsertMenuItemTranslation($itemId: ID!, $locale: String!, $label: String!) {
+  upsertMenuItemTranslation(itemId: $itemId, locale: $locale, label: $label) {
+    locale
+    label
+  }
+}
+
+mutation DeleteMenuItemTranslation($itemId: ID!, $locale: String!) {
+  deleteMenuItemTranslation(itemId: $itemId, locale: $locale)
+}

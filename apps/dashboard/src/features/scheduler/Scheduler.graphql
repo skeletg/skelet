@@ -1,0 +1,122 @@
+query ScheduledJobs {
+  scheduledJobs {
+    id
+    name
+    kind
+    schedule
+    enabled
+    description
+    timezone
+    maxAttempts
+    retryBackoffSeconds
+    currentAttempt
+    alertAfterFailures
+    consecutiveFailures
+    timeoutSeconds
+    webhook {
+      url
+      method
+      hasSecret
+    }
+    nextRunAt
+    lastRunAt
+    lastStatus
+    lastError
+    lastDurationMs
+    createdAt
+    updatedAt
+  }
+}
+
+query ScheduledJobRuns($jobId: ID!, $limit: Int) {
+  scheduledJobRuns(jobId: $jobId, limit: $limit) {
+    startedAt
+    finishedAt
+    status
+    error
+    durationMs
+    attempt
+  }
+}
+
+query PreviewSchedule($schedule: String!, $timezone: String, $count: Int) {
+  previewSchedule(schedule: $schedule, timezone: $timezone, count: $count) {
+    valid
+    error
+    nextRuns
+  }
+}
+
+query WebhookJobConfig($id: ID!) {
+  webhookJobConfig(id: $id) {
+    url
+    method
+    body
+    headers {
+      name
+      value
+    }
+    hasSecret
+  }
+}
+
+query SchedulerConfig($scope: ConfigScopeInput) {
+  enabled: configValue(path: "system/scheduler/enabled", scope: $scope) {
+    value
+    isDefault
+  }
+  alertWebhookUrl: configValue(path: "system/scheduler/alert_webhook_url", scope: $scope) {
+    value
+    isDefault
+  }
+  historyRetentionDays: configValue(path: "system/scheduler/history_retention_days", scope: $scope) {
+    value
+    isDefault
+  }
+}
+
+mutation UpdateScheduledJob($input: UpdateScheduledJobInput!) {
+  updateScheduledJob(input: $input) {
+    id
+    schedule
+    enabled
+    timezone
+    maxAttempts
+    retryBackoffSeconds
+    alertAfterFailures
+    timeoutSeconds
+    nextRunAt
+  }
+}
+
+mutation CreateWebhookJob($input: CreateWebhookJobInput!) {
+  createWebhookJob(input: $input) {
+    id
+    name
+  }
+}
+
+mutation UpdateWebhookJob($input: UpdateWebhookJobInput!) {
+  updateWebhookJob(input: $input) {
+    id
+    description
+    webhook {
+      url
+      method
+      hasSecret
+    }
+  }
+}
+
+mutation DeleteScheduledJob($id: ID!) {
+  deleteScheduledJob(id: $id)
+}
+
+mutation RunScheduledJobNow($id: ID!) {
+  runScheduledJobNow(id: $id) {
+    id
+    lastStatus
+    lastRunAt
+    nextRunAt
+  }
+}

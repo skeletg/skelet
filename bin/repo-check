@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# Structural invariants a fresh clone or a forked storefront leans on - the class of
+# breakage that only shows up for someone else, long after the commit that caused it
+set -uo pipefail
+cd "$(dirname "$(dirname "$0")")"
+
+fail=0
+pass() { printf '  ok    %s\n' "$1"; }
+bad()  { fail=1; printf '  FAIL  %s\n' "$1"; }
+
+echo "==> bin/* parse and are executable"
+n=0
+for f in ./skelet bin/*; do
+    bash -n "$f" || bad "$f is not valid bash"
+    # core.fileMode is false on WSL clones, so a lost +x bit is invisible to git diff
+    # and only surfaces when someone else checks the file out
+    [ -x "$f" ] || bad "$f is not executable (git update-index --chmod=+x $f)"
+    n=$((n + 1))
+done
+[ "$fail" -eq 0 ] && pass "$n scripts"
+
+echo "==> ./skelet and bin/* agree"
+# Extracted from the dispatcher's source, not a second list, so it can't drift. Two call
+# shapes: script_for's `<verb>) echo <script>` arms and `run <script>` elsewhere. The usage
+# heredoc is skipped - its prose ("run this first") reads as a call site otherwise
+routed="$(awk '
+    /^[[:space:]]*cat <<EOF$/ { inhelp = 1; next }
+    inhelp && /^EOF$/         { inhelp = 0; next }
+    inhelp                    { next }
+    {
+        rest = $0
+        while (match(rest, /run [a-z][a-z0-9-]*/)) {
+            print substr(rest, RSTART + 4, RLENGTH - 4)
+            rest = substr(rest, RSTART + RLENGTH)
+        }
+        if (match($0, /\)[[:space:]]*echo [a-z][a-z0-9-]*/)) {
+            arm = substr($0, RSTART, RLENGTH); sub(/.*echo /, "", arm); print arm
+        }
+    }' skelet | sort -u)"
+
+# A floor, so a refactor that stops matching fails loudly instead of passing vacuously -
+# the same reason contract-check's extractors each assert they found something
+n_routed=$(printf '%s\n' "$routed" | grep -c .)
+if [ "$n_routed" -lt 30 ]; then
+    bad "only $n_routed routes parsed out of ./skelet - the extractor above has rotted, not the dispatcher"
+else
+    missing=0
+    for s in $routed; do
+        [ -x "bin/$s" ] || { bad "./skelet routes to bin/$s, which is missing or not executable"; missing=1; }
+    done
+    [ "$missing" -eq 0 ] && pass "$n_routed routed scripts all present"
+
+    # The other direction - a new script nobody wired into the front door is invisible to
+    # anyone reading `skelet help`, which is the only list a newcomer sees
+    unreachable=0
+    for f in bin/*; do
+        b="${f#bin/}"
+        [ "$b" = _lib ] && continue
+        printf '%s\n' "$routed" | grep -qx "$b" \
+            || { bad "bin/$b has no ./skelet verb - add one, or the front door is incomplete"; unreachable=1; }
+    done
+    [ "$unreachable" -eq 0 ] && pass "every bin script is reachable through a verb"
+fi
+
+echo "==> container-creating scripts source bin/_lib"
+# `run` and `up` are the verbs that CREATE a container, and the uid it runs as comes from
+# SKELET_UID, which only bin/_lib exports - exec and ps against one that already exists don't
+# care, which is why this is scoped to those two rather than to every compose call
+missing=0
+for f in bin/*; do
+    [ "$(basename "$f")" = _lib ] && continue
+    grep -qE 'docker compose ([a-z-]+ )*(run|up)\b' "$f" || continue
+    grep -q '^\. bin/_lib' "$f" \
+        || { bad "$f creates containers without sourcing bin/_lib - they would run as the wrong uid"; missing=1; }
+done
+[ "$missing" -eq 0 ] && pass "every one of them does"
+
+echo "==> every referenced bin/* script exists"
+missing=0
+for r in $(git grep -hoE '(^|[^A-Za-z0-9_./-])bin/[a-z0-9][a-z0-9_-]*' \
+             -- 'bin/*' '*.md' '*.yml' '*.yaml' '.gitignore' \
+           | grep -oE 'bin/[a-z0-9][a-z0-9_-]*' | sort -u); do
+    [ -e "$r" ] || { bad "referenced but missing: $r"; missing=1; }
+done
+[ "$missing" -eq 0 ] && pass "no dangling references"
+
+echo "==> every compose env_file has a committed .example"
+# The gitignored copy exists on your box either way - this checks that a fresh
+# clone can still boot every compose shape
+missing=0
+for f in $(grep -rhoE 'env/[a-z0-9.-]+\.env' docker-compose*.yml | sort -u); do
+    git ls-files --error-unmatch "$f.example" >/dev/null 2>&1 \
+        || { bad "$f has no committed $f.example"; missing=1; }
+done
+[ "$missing" -eq 0 ] && pass "every env_file has a template"
+
+echo "==> the root .env.example covers what prod compose demands"
+# ${VAR:?} means compose REFUSES to start without it, and those come from the root .env, which is
+# gitignored - so the template beside it is the only thing telling a new deployer they exist
+missing=0
+for v in $(grep -ohE '\$\{[A-Z][A-Z0-9_]*:\?' docker-compose.prod.yml docker-compose.small.yml \
+           | tr -d '${:?' | sort -u); do
+    grep -qE "^[#[:space:]]*${v}=" .env.example \
+        || { bad "compose refuses to start without $v, and .env.example never mentions it"; missing=1; }
+done
+[ "$missing" -eq 0 ] && pass "every required interpolation has a template line"
+
+echo
+if [ "$fail" -eq 0 ]; then
+    echo "==> repo-check OK"
+else
+    echo "==> repo-check FAILED"
+fi
+exit "$fail"

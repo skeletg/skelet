@@ -1,0 +1,232 @@
+query LensOverview($channelId: ID!, $sinceDays: Int) {
+  lensOverview(channelId: $channelId, sinceDays: $sinceDays) {
+    views
+    visitors
+    daily {
+      date
+      views
+    }
+    topPages {
+      pageKey
+      views
+      visitors
+      clicks
+      avgScroll
+    }
+    devices {
+      label
+      views
+    }
+    referrers {
+      label
+      views
+    }
+    interactions {
+      label
+      views
+    }
+  }
+}
+
+query BotTraffic($channelId: ID!, $sinceDays: Int, $bot: String) {
+  botTraffic(channelId: $channelId, sinceDays: $sinceDays, bot: $bot) {
+    botHits
+    humanViews
+    botCount
+    pageCount
+    bots {
+      name
+      category
+      hits
+      pages
+      lastSeen
+    }
+    topPages {
+      pageKey
+      hits
+      bots
+    }
+    daily {
+      day
+      botHits
+      humanViews
+    }
+  }
+}
+
+query LensPages($channelId: ID!) {
+  lensPages(channelId: $channelId) {
+    pageKey
+    views
+  }
+}
+
+query LensStates($channelId: ID!, $pageKey: String!, $viewport: String!) {
+  lensStates(channelId: $channelId, pageKey: $pageKey, viewport: $viewport)
+}
+
+query LensPageStats($channelId: ID!, $pageKey: String!) {
+  lensPageStats(channelId: $channelId, pageKey: $pageKey) {
+    views
+    visitors
+    clicks
+    avgScroll
+    timeline {
+      date
+      views
+    }
+    referrers {
+      label
+      views
+    }
+    clients {
+      label
+      views
+    }
+    devices {
+      label
+      views
+    }
+  }
+}
+
+query LensHeatmap($channelId: ID!, $pageKey: String!, $viewport: String!, $state: String) {
+  lensHeatmap(channelId: $channelId, pageKey: $pageKey, viewport: $viewport, state: $state) {
+    pageKey
+    viewport
+    state
+    width
+    height
+    snapshotJson
+    click {
+      x
+      y
+      count
+    }
+    move {
+      x
+      y
+      count
+    }
+    scroll {
+      x
+      y
+      count
+    }
+    elements {
+      selector
+      text
+      count
+    }
+  }
+}
+
+# --- Session replay (rrweb) ---
+fragment LensSessionFields on LensSession {
+  id
+  anonId
+  customerId
+  customerName
+  customerEmail
+  startedAt
+  endedAt
+  durationMs
+  eventCount
+  entryPage
+  exitPage
+  viewport
+  userAgent
+  rageCount
+  errorCount
+}
+
+# Frustration signals (rage/dead clicks) for the Lens-home panel.
+query LensFrustration($channelId: ID!, $sinceDays: Int) {
+  lensFrustration(channelId: $channelId, sinceDays: $sinceDays) {
+    ragePages { pageKey count }
+    deadPages { pageKey count }
+    rageElements { selector text count }
+  }
+}
+
+# JS errors grouped by message (the /lens/errors view).
+query LensErrors($channelId: ID!, $sinceDays: Int, $limit: Int) {
+  lensErrors(channelId: $channelId, sinceDays: $sinceDays, limit: $limit) {
+    message
+    count
+    pages
+    lastSeen
+  }
+}
+
+# On-site search analytics (the /lens/search report).
+query LensSearchAnalytics($channelId: ID!, $sinceDays: Int) {
+  lensSearchAnalytics(channelId: $channelId, sinceDays: $sinceDays) {
+    totalSearches
+    distinctTerms
+    zeroResultSearches
+    top {
+      term
+      count
+    }
+    zeroResult {
+      term
+      count
+    }
+    daily {
+      date
+      searches
+      zeroResults
+    }
+  }
+}
+
+# Site-wide p75 per Core Web Vital metric (the Lens-home Lighthouse gauges).
+query LensVitalsSummary($channelId: ID!, $sinceDays: Int) {
+  lensVitalsSummary(channelId: $channelId, sinceDays: $sinceDays) {
+    metric
+    p75
+    samples
+  }
+}
+
+# p75 web vitals per page (the /lens/performance view).
+query LensPerformance($channelId: ID!, $sinceDays: Int) {
+  lensPerformance(channelId: $channelId, sinceDays: $sinceDays) {
+    pageKey
+    lcp
+    cls
+    inp
+    ttfb
+    samples
+  }
+}
+
+# Recent recordings for a channel (the Recordings browser).
+query LensSessions($channelId: ID!, $limit: Int) {
+  lensSessions(channelId: $channelId, limit: $limit) { ...LensSessionFields }
+}
+
+# A customer's recordings (Synapse customer profile).
+query LensCustomerSessions($customerId: ID!, $limit: Int) {
+  lensCustomerSessions(customerId: $customerId, limit: $limit) { ...LensSessionFields }
+}
+
+# An anonymous visitor's recordings (Synapse visitor profile).
+query LensVisitorSessions($anonId: String!, $limit: Int) {
+  lensVisitorSessions(anonId: $anonId, limit: $limit) { ...LensSessionFields }
+}
+
+# The full rrweb event stream for one recording (JSON-array string for the player).
+query LensSessionEvents($id: ID!) {
+  lensSessionEvents(id: $id)
+}
+
+
+# JS errors + web vitals captured during one recording (shown on the replay page).
+query LensSessionSignals($id: ID!) {
+  lensSessionSignals(id: $id) {
+    errors { message at }
+    vitals { metric value }
+  }
+}

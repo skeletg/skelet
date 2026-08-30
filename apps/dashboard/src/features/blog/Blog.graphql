@@ -1,0 +1,350 @@
+fragment BlogAuthorRow on BlogAuthor {
+  id
+  slug
+  displayName
+  email
+  createdAt
+  updatedAt
+  content {
+    locale
+    name
+    bio
+    updatedAt
+  }
+  allContent {
+    locale
+    name
+    bio
+    updatedAt
+  }
+}
+
+fragment BlogCategoryNode on BlogCategory {
+  id
+  slug
+  urlPath
+  position
+  isPublished
+  seoNoindex
+  createdAt
+  updatedAt
+  content {
+    locale
+    name
+    description
+    metaTitle
+    metaDescription
+    metaKeywords
+  }
+  allContent {
+    locale
+    name
+    description
+    metaTitle
+    metaDescription
+    metaKeywords
+    updatedAt
+  }
+}
+
+fragment BlogTagRow on BlogTag {
+  id
+  slug
+  isPublished
+  createdAt
+  updatedAt
+  content {
+    locale
+    name
+    description
+    metaTitle
+    metaDescription
+  }
+  allContent {
+    locale
+    name
+    description
+    metaTitle
+    metaDescription
+    metaKeywords
+    updatedAt
+  }
+}
+
+fragment BlogPostRow on BlogPost {
+  id
+  slug
+  status
+  publishedAt
+  seoNoindex
+  readingTimeMinutes
+  createdAt
+  updatedAt
+  author {
+    id
+    slug
+    displayName
+  }
+  content {
+    locale
+    title
+    excerpt
+    metaTitle
+    metaDescription
+  }
+  allContent {
+    locale
+    title
+    excerpt
+    body
+    metaTitle
+    metaDescription
+    metaKeywords
+    updatedAt
+  }
+  categories {
+    id
+    slug
+    content {
+      locale
+      name
+    }
+  }
+  tags {
+    id
+    slug
+    content {
+      locale
+      name
+    }
+  }
+  channelListings {
+    channelId
+    isPublished
+    seoNoindex
+    updatedAt
+  }
+}
+
+# ==================== Authors ====================
+
+query BlogAuthors {
+  blogAuthors {
+    ...BlogAuthorRow
+  }
+}
+
+query BlogAuthor($id: ID!) {
+  blogAuthor(id: $id) {
+    ...BlogAuthorRow
+  }
+}
+
+mutation CreateBlogAuthor($input: CreateBlogAuthorInput!) {
+  createBlogAuthor(input: $input) {
+    ...BlogAuthorRow
+  }
+}
+
+mutation UpdateBlogAuthor($input: UpdateBlogAuthorInput!) {
+  updateBlogAuthor(input: $input) {
+    ...BlogAuthorRow
+  }
+}
+
+mutation UpsertBlogAuthorContent($input: UpsertBlogAuthorContentInput!) {
+  upsertBlogAuthorContent(input: $input) {
+    ...BlogAuthorRow
+  }
+}
+
+mutation DeleteBlogAuthorContent($authorId: ID!, $locale: String!) {
+  deleteBlogAuthorContent(authorId: $authorId, locale: $locale)
+}
+
+mutation DeleteBlogAuthor($id: ID!) {
+  deleteBlogAuthor(id: $id)
+}
+
+# ==================== Categories ====================
+
+query BlogCategories($parentId: ID) {
+  blogCategories(parentId: $parentId) {
+    ...BlogCategoryNode
+    children {
+      ...BlogCategoryNode
+      children {
+        ...BlogCategoryNode
+      }
+    }
+  }
+}
+
+query BlogCategory($id: ID!) {
+  blogCategory(id: $id) {
+    ...BlogCategoryNode
+  }
+}
+
+mutation CreateBlogCategory($input: CreateBlogCategoryInput!) {
+  createBlogCategory(input: $input) {
+    ...BlogCategoryNode
+  }
+}
+
+mutation UpdateBlogCategory($input: UpdateBlogCategoryInput!) {
+  updateBlogCategory(input: $input) {
+    ...BlogCategoryNode
+  }
+}
+
+mutation UpsertBlogCategoryContent($input: UpsertBlogCategoryContentInput!) {
+  upsertBlogCategoryContent(input: $input) {
+    ...BlogCategoryNode
+  }
+}
+
+mutation DeleteBlogCategoryContent($categoryId: ID!, $locale: String!) {
+  deleteBlogCategoryContent(categoryId: $categoryId, locale: $locale)
+}
+
+mutation DeleteBlogCategory($id: ID!) {
+  deleteBlogCategory(id: $id)
+}
+
+# ==================== Tags ====================
+
+query BlogTags {
+  blogTags {
+    ...BlogTagRow
+  }
+}
+
+query BlogTag($id: ID!) {
+  blogTag(id: $id) {
+    ...BlogTagRow
+  }
+}
+
+mutation CreateBlogTag($input: CreateBlogTagInput!) {
+  createBlogTag(input: $input) {
+    ...BlogTagRow
+  }
+}
+
+mutation UpdateBlogTag($input: UpdateBlogTagInput!) {
+  updateBlogTag(input: $input) {
+    ...BlogTagRow
+  }
+}
+
+mutation UpsertBlogTagContent($input: UpsertBlogTagContentInput!) {
+  upsertBlogTagContent(input: $input) {
+    ...BlogTagRow
+  }
+}
+
+mutation DeleteBlogTagContent($tagId: ID!, $locale: String!) {
+  deleteBlogTagContent(tagId: $tagId, locale: $locale)
+}
+
+mutation DeleteBlogTag($id: ID!) {
+  deleteBlogTag(id: $id)
+}
+
+# ==================== Posts ====================
+
+query BlogPosts($filter: BlogPostFilter, $limit: Int, $offset: Int) {
+  blogPosts(filter: $filter, limit: $limit, offset: $offset) {
+    items {
+      ...BlogPostRow
+    }
+  }
+}
+
+query BlogPost($id: ID, $slug: String, $includeUnpublished: Boolean) {
+  blogPost(id: $id, slug: $slug, includeUnpublished: $includeUnpublished) {
+    ...BlogPostRow
+  }
+}
+
+mutation CreateBlogPost($input: CreateBlogPostInput!) {
+  createBlogPost(input: $input) {
+    ...BlogPostRow
+  }
+}
+
+mutation UpdateBlogPost($input: UpdateBlogPostInput!) {
+  updateBlogPost(input: $input) {
+    ...BlogPostRow
+  }
+}
+
+mutation UpsertBlogPostContent($input: UpsertBlogPostContentInput!) {
+  upsertBlogPostContent(input: $input) {
+    ...BlogPostRow
+  }
+}
+
+mutation DeleteBlogPostContent($postId: ID!, $locale: String!) {
+  deleteBlogPostContent(postId: $postId, locale: $locale)
+}
+
+mutation PublishBlogPost($id: ID!) {
+  publishBlogPost(id: $id) {
+    ...BlogPostRow
+  }
+}
+
+mutation ScheduleBlogPost($id: ID!, $publishedAt: Time!) {
+  scheduleBlogPost(id: $id, publishedAt: $publishedAt) {
+    ...BlogPostRow
+  }
+}
+
+mutation UnpublishBlogPost($id: ID!) {
+  unpublishBlogPost(id: $id) {
+    ...BlogPostRow
+  }
+}
+
+mutation ArchiveBlogPost($id: ID!) {
+  archiveBlogPost(id: $id) {
+    ...BlogPostRow
+  }
+}
+
+mutation SetBlogPostCategories($postId: ID!, $categoryIds: [ID!]!) {
+  setBlogPostCategories(postId: $postId, categoryIds: $categoryIds) {
+    ...BlogPostRow
+  }
+}
+
+mutation SetBlogPostTags($postId: ID!, $tagIds: [ID!]!) {
+  setBlogPostTags(postId: $postId, tagIds: $tagIds) {
+    ...BlogPostRow
+  }
+}
+
+mutation SetBlogPostChannelListing($input: SetBlogPostChannelListingInput!) {
+  setBlogPostChannelListing(input: $input) {
+    ...BlogPostRow
+  }
+}
+
+mutation DeleteBlogPostChannelListing($postId: ID!, $channelId: ID!) {
+  deleteBlogPostChannelListing(postId: $postId, channelId: $channelId) {
+    ...BlogPostRow
+  }
+}
+
+mutation DeleteBlogPost($id: ID!) {
+  deleteBlogPost(id: $id)
+}
+
+mutation MintBlogPostPreviewToken($input: MintBlogPostPreviewTokenInput!) {
+  mintBlogPostPreviewToken(input: $input) {
+    token
+    expiresAt
+  }
+}

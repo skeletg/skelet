@@ -1,0 +1,594 @@
+fragment CmsAttributeValueRow on CMSAttributeValue {
+  id
+  attributeId
+  slug
+  position
+  allContent {
+    locale
+    name
+  }
+  createdAt
+}
+
+fragment CmsAttributeRow on CMSAttribute {
+  id
+  slug
+  inputType
+  isTranslatable
+  isRequiredDefault
+  unit
+  validation
+  defaultValue
+  relationshipTarget
+  values {
+    ...CmsAttributeValueRow
+  }
+  content {
+    locale
+    name
+    helperText
+    placeholder
+  }
+  allContent {
+    locale
+    name
+    helperText
+    placeholder
+    updatedAt
+  }
+  createdAt
+  updatedAt
+}
+
+fragment CmsAttributeGroupRow on CMSAttributeGroup {
+  id
+  slug
+  position
+  createdAt
+  updatedAt
+}
+
+fragment CmsPageTypeRow on CMSPageType {
+  id
+  slug
+  icon
+  isSystem
+  position
+  rootSlug
+  channelRoots {
+    channelId
+    rootSlug
+  }
+  defaultBlocks
+  defaultMetaTitle
+  defaultSeoNoindex
+  isSingleton
+  pageCount
+  content {
+    locale
+    name
+    description
+  }
+  allContent {
+    locale
+    name
+    description
+    updatedAt
+  }
+  attributes {
+    groupId
+    position
+    isRequired
+    conditionAttributeId
+    conditionValue
+    attribute {
+      ...CmsAttributeRow
+    }
+  }
+  createdAt
+  updatedAt
+}
+
+fragment CmsPageVariantRow on CMSPageVariant {
+  variantKey
+  body
+}
+
+fragment CmsPageRow on CMSPage {
+  experimentKey
+  variants {
+    ...CmsPageVariantRow
+  }
+  id
+  pageTypeId
+  parentId
+  slug
+  urlPath
+  position
+  isPublished
+  seoNoindex
+  publishedAt
+  scheduledAt
+  data
+  tags
+  metadata {
+    key
+    value
+  }
+  workflowState
+  assignedTo
+  submittedBy
+  submittedAt
+  approvedBy
+  approvedAt
+  content {
+    locale
+    title
+    body
+    metaTitle
+    metaDescription
+    metaKeywords
+    data
+  }
+  allContent {
+    locale
+    title
+    body
+    metaTitle
+    metaDescription
+    metaKeywords
+    data
+    updatedAt
+  }
+  selections {
+    attributeId
+    valueId
+  }
+  relationships {
+    attributeId
+    targetType
+    targetId
+    position
+  }
+  channelListings {
+    channelId
+    isPublished
+    seoNoindex
+    isHomepage
+  }
+  createdAt
+  updatedAt
+}
+
+mutation SetCmsPageChannelListing($input: SetCMSPageChannelListingInput!) {
+  setCMSPageChannelListing(input: $input) {
+    ...CmsPageRow
+  }
+}
+
+mutation DeleteCmsPageChannelListing($pageId: ID!, $channelId: ID!) {
+  deleteCMSPageChannelListing(pageId: $pageId, channelId: $channelId) {
+    ...CmsPageRow
+  }
+}
+
+# Searchable internal-link targets for the block link-field picker.
+query Linkables($search: String, $limit: Int) {
+  linkables(search: $search, limit: $limit) {
+    entityType
+    entityId
+    label
+    path
+  }
+}
+
+# ==================== Attributes ====================
+
+query CmsAttributes {
+  cmsAttributes {
+    ...CmsAttributeRow
+  }
+}
+
+query CmsAttribute($id: ID, $slug: String) {
+  cmsAttribute(id: $id, slug: $slug) {
+    ...CmsAttributeRow
+  }
+}
+
+mutation CreateCmsAttribute($input: CreateCMSAttributeInput!) {
+  createCMSAttribute(input: $input) {
+    ...CmsAttributeRow
+  }
+}
+
+mutation UpdateCmsAttribute($input: UpdateCMSAttributeInput!) {
+  updateCMSAttribute(input: $input) {
+    ...CmsAttributeRow
+  }
+}
+
+mutation UpsertCmsAttributeContent($input: UpsertCMSAttributeContentInput!) {
+  upsertCMSAttributeContent(input: $input) {
+    ...CmsAttributeRow
+  }
+}
+
+mutation DeleteCmsAttribute($id: ID!) {
+  deleteCMSAttribute(id: $id)
+}
+
+mutation AddCmsAttributeValue($attributeId: ID!, $slug: String!, $position: Int) {
+  addCMSAttributeValue(attributeId: $attributeId, slug: $slug, position: $position) {
+    ...CmsAttributeValueRow
+  }
+}
+
+mutation UpdateCmsAttributeValue($id: ID!, $slug: String!, $position: Int!) {
+  updateCMSAttributeValue(id: $id, slug: $slug, position: $position) {
+    ...CmsAttributeValueRow
+  }
+}
+
+mutation UpsertCmsAttributeValueContent($valueId: ID!, $locale: String!, $name: String!) {
+  upsertCMSAttributeValueContent(valueId: $valueId, locale: $locale, name: $name) {
+    ...CmsAttributeRow
+  }
+}
+
+mutation DeleteCmsAttributeValue($id: ID!) {
+  deleteCMSAttributeValue(id: $id)
+}
+
+# ==================== Groups ====================
+
+query CmsAttributeGroups {
+  cmsAttributeGroups {
+    ...CmsAttributeGroupRow
+  }
+}
+
+mutation CreateCmsAttributeGroup($slug: String!, $position: Int) {
+  createCMSAttributeGroup(slug: $slug, position: $position) {
+    ...CmsAttributeGroupRow
+  }
+}
+
+mutation UpdateCmsAttributeGroup($id: ID!, $slug: String!, $position: Int!) {
+  updateCMSAttributeGroup(id: $id, slug: $slug, position: $position) {
+    ...CmsAttributeGroupRow
+  }
+}
+
+mutation DeleteCmsAttributeGroup($id: ID!) {
+  deleteCMSAttributeGroup(id: $id)
+}
+
+# ==================== Page Types ====================
+
+query CmsPageTypes {
+  cmsPageTypes {
+    ...CmsPageTypeRow
+  }
+}
+
+query CmsPageType($id: ID, $slug: String) {
+  cmsPageType(id: $id, slug: $slug) {
+    ...CmsPageTypeRow
+  }
+}
+
+mutation CreateCmsPageType($input: CreateCMSPageTypeInput!) {
+  createCMSPageType(input: $input) {
+    ...CmsPageTypeRow
+  }
+}
+
+mutation UpdateCmsPageType($input: UpdateCMSPageTypeInput!) {
+  updateCMSPageType(input: $input) {
+    ...CmsPageTypeRow
+  }
+}
+
+mutation UpsertCmsPageTypeContent($input: UpsertCMSPageTypeContentInput!) {
+  upsertCMSPageTypeContent(input: $input) {
+    ...CmsPageTypeRow
+  }
+}
+
+mutation UpdateCmsPageTypeStructure($input: UpdateCMSPageTypeStructureInput!) {
+  updateCMSPageTypeStructure(input: $input) {
+    ...CmsPageTypeRow
+  }
+}
+
+mutation SetCmsPageTypeChannelRoot($pageTypeId: ID!, $channelId: ID!, $rootSlug: String!) {
+  setCMSPageTypeChannelRoot(pageTypeId: $pageTypeId, channelId: $channelId, rootSlug: $rootSlug) {
+    ...CmsPageTypeRow
+  }
+}
+
+mutation SetCmsPageTypeDefaultBlocks($pageTypeId: ID!, $blocks: JSON) {
+  setCMSPageTypeDefaultBlocks(pageTypeId: $pageTypeId, blocks: $blocks) {
+    ...CmsPageTypeRow
+  }
+}
+
+mutation DeleteCmsPageType($id: ID!) {
+  deleteCMSPageType(id: $id)
+}
+
+mutation AssignCmsAttribute($input: AssignCMSAttributeInput!) {
+  assignCMSAttribute(input: $input) {
+    ...CmsPageTypeRow
+  }
+}
+
+mutation UnassignCmsAttribute($pageTypeId: ID!, $attributeId: ID!) {
+  unassignCMSAttribute(pageTypeId: $pageTypeId, attributeId: $attributeId) {
+    ...CmsPageTypeRow
+  }
+}
+
+# ==================== Pages ====================
+
+query CmsPages($filter: CMSPageFilter, $limit: Int, $offset: Int) {
+  cmsPages(filter: $filter, limit: $limit, offset: $offset) {
+    ...CmsPageRow
+  }
+}
+
+query CmsPage($id: ID, $slug: String, $urlPath: String) {
+  cmsPage(id: $id, slug: $slug, urlPath: $urlPath) {
+    ...CmsPageRow
+  }
+}
+
+mutation CreateCmsPage($input: CreateCMSPageInput!) {
+  createCMSPage(input: $input) {
+    ...CmsPageRow
+  }
+}
+
+mutation UpdateCmsPage($input: UpdateCMSPageInput!) {
+  updateCMSPage(input: $input) {
+    ...CmsPageRow
+  }
+}
+
+mutation UpsertCmsPageContent($input: UpsertCMSPageContentInput!) {
+  upsertCMSPageContent(input: $input) {
+    ...CmsPageRow
+  }
+}
+
+mutation PublishCmsPage($id: ID!) {
+  publishCMSPage(id: $id) {
+    ...CmsPageRow
+  }
+}
+
+mutation UnpublishCmsPage($id: ID!) {
+  unpublishCMSPage(id: $id) {
+    ...CmsPageRow
+  }
+}
+
+mutation SetCmsPageSelections($pageId: ID!, $attributeId: ID!, $valueIds: [ID!]!) {
+  setCMSPageSelections(pageId: $pageId, attributeId: $attributeId, valueIds: $valueIds) {
+    ...CmsPageRow
+  }
+}
+
+mutation SetCmsPageRelationships($pageId: ID!, $attributeId: ID!, $refs: [CMSRelationshipRefInput!]!) {
+  setCMSPageRelationships(pageId: $pageId, attributeId: $attributeId, refs: $refs) {
+    ...CmsPageRow
+  }
+}
+
+mutation SetCmsPageExperiment($pageId: ID!, $experimentKey: String!) {
+  setCMSPageExperiment(pageId: $pageId, experimentKey: $experimentKey) {
+    ...CmsPageRow
+  }
+}
+
+mutation UpsertCmsPageVariantContent($pageId: ID!, $locale: String!, $variantKey: String!, $body: JSON) {
+  upsertCMSPageVariantContent(pageId: $pageId, locale: $locale, variantKey: $variantKey, body: $body) {
+    ...CmsPageRow
+  }
+}
+
+mutation DeleteCmsPage($id: ID!) {
+  deleteCMSPage(id: $id)
+}
+
+mutation CloneCmsPage($id: ID!) {
+  cloneCMSPage(id: $id) {
+    ...CmsPageRow
+  }
+}
+
+mutation BulkPublishCmsPages($ids: [ID!]!, $published: Boolean!) {
+  bulkPublishCMSPages(ids: $ids, published: $published) {
+    count
+  }
+}
+
+mutation BulkTagCmsPages($ids: [ID!]!, $addTags: [String!], $removeTags: [String!]) {
+  bulkTagCMSPages(ids: $ids, addTags: $addTags, removeTags: $removeTags) {
+    count
+  }
+}
+
+mutation BulkDeleteCmsPages($ids: [ID!]!) {
+  bulkDeleteCMSPages(ids: $ids) {
+    count
+  }
+}
+
+# ==================== AI assistant ====================
+query AiStatus {
+  aiStatus {
+    enabled
+  }
+}
+
+mutation GenerateCmsPageSeo($pageId: ID!, $locale: String!) {
+  generateCMSPageSeo(pageId: $pageId, locale: $locale) {
+    metaTitle
+    metaDescription
+  }
+}
+
+mutation TranslateCmsPage($pageId: ID!, $sourceLocale: String!, $targetLocale: String!) {
+  translateCMSPage(pageId: $pageId, sourceLocale: $sourceLocale, targetLocale: $targetLocale) {
+    ...CmsPageRow
+  }
+}
+
+# ==================== Reusable sections (snippets) ====================
+query CmsSnippets {
+  cmsSnippets { id slug name blocks createdAt updatedAt }
+}
+query CmsSnippet($id: ID!) {
+  cmsSnippet(id: $id) { id slug name blocks createdAt updatedAt }
+}
+mutation CreateCmsSnippet($input: CreateCMSSnippetInput!) {
+  createCMSSnippet(input: $input) { id slug name blocks }
+}
+mutation UpdateCmsSnippet($input: UpdateCMSSnippetInput!) {
+  updateCMSSnippet(input: $input) { id slug name blocks }
+}
+mutation DeleteCmsSnippet($id: ID!) {
+  deleteCMSSnippet(id: $id)
+}
+
+# ==================== Versions + scheduling (Phase C) ====================
+query CmsPageRevisions($pageId: ID!, $locale: String!) {
+  cmsPageRevisions(pageId: $pageId, locale: $locale) {
+    id pageId locale title body metaTitle metaDescription metaKeywords authorAdminId createdAt
+  }
+}
+mutation RestoreCmsPageRevision($id: ID!) {
+  restoreCMSPageRevision(id: $id) { ...CmsPageRow }
+}
+mutation ScheduleCmsPage($id: ID!, $scheduledAt: Time) {
+  scheduleCMSPage(id: $id, scheduledAt: $scheduledAt) { ...CmsPageRow }
+}
+
+fragment CmsPageCommentRow on CMSPageComment {
+  id
+  pageId
+  locale
+  blockId
+  authorId
+  body
+  resolved
+  resolvedBy
+  resolvedAt
+  createdAt
+}
+
+query CmsPageComments($pageId: ID!) {
+  cmsPageComments(pageId: $pageId) {
+    ...CmsPageCommentRow
+  }
+}
+
+mutation SubmitCmsPageForReview($id: ID!) {
+  submitCMSPageForReview(id: $id) { ...CmsPageRow }
+}
+mutation ApproveCmsPage($id: ID!) {
+  approveCMSPage(id: $id) { ...CmsPageRow }
+}
+mutation RejectCmsPage($id: ID!, $note: String) {
+  rejectCMSPage(id: $id, note: $note) { ...CmsPageRow }
+}
+mutation ReopenCmsPage($id: ID!) {
+  reopenCMSPage(id: $id) { ...CmsPageRow }
+}
+mutation ClaimCmsPage($id: ID!) {
+  claimCMSPage(id: $id) { ...CmsPageRow }
+}
+mutation UnassignCmsPage($id: ID!) {
+  unassignCMSPage(id: $id) { ...CmsPageRow }
+}
+mutation AddCmsPageComment($input: CMSPageCommentInput!) {
+  addCMSPageComment(input: $input) { ...CmsPageCommentRow }
+}
+mutation ResolveCmsPageComment($id: ID!, $resolved: Boolean!) {
+  resolveCMSPageComment(id: $id, resolved: $resolved) { ...CmsPageCommentRow }
+}
+mutation DeleteCmsPageComment($id: ID!) {
+  deleteCMSPageComment(id: $id)
+}
+
+# ==================== Tag library ====================
+
+fragment CmsTagRow on CMSTag {
+  slug
+  name
+  pageCount
+  createdAt
+}
+
+query CmsTags {
+  cmsTags {
+    ...CmsTagRow
+  }
+}
+
+mutation CreateCmsTag($name: String!) {
+  createCMSTag(name: $name) { ...CmsTagRow }
+}
+mutation RenameCmsTag($slug: String!, $name: String!) {
+  renameCMSTag(slug: $slug, name: $name) { ...CmsTagRow }
+}
+mutation DeleteCmsTag($slug: String!) {
+  deleteCMSTag(slug: $slug)
+}
+
+mutation RebuildCmsPage($id: ID!) {
+  rebuildCMSPage(id: $id)
+}
+
+query CmsBlockTypes {
+  cmsBlockTypes {
+    id
+    key
+    name
+    icon
+    fields
+    htmlTemplate
+    updatedAt
+  }
+}
+
+query CmsBlockType($id: ID!) {
+  cmsBlockType(id: $id) {
+    id
+    key
+    name
+    icon
+    fields
+    htmlTemplate
+    createdAt
+    updatedAt
+  }
+}
+
+mutation CreateCmsBlockType($input: CreateCMSBlockTypeInput!) {
+  createCMSBlockType(input: $input) {
+    id
+  }
+}
+
+mutation UpdateCmsBlockType($input: UpdateCMSBlockTypeInput!) {
+  updateCMSBlockType(input: $input) {
+    id
+  }
+}
+
+mutation DeleteCmsBlockType($id: ID!) {
+  deleteCMSBlockType(id: $id)
+}

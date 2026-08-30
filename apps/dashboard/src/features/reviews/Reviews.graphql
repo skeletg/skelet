@@ -1,0 +1,323 @@
+fragment ReviewQuestionFields on ReviewQuestion {
+  id
+  slug
+  inputType
+  isRequired
+  allowComment
+  sortOrder
+  content {
+    locale
+    label
+    helpText
+    updatedAt
+  }
+  allContent {
+    locale
+    label
+    helpText
+    updatedAt
+  }
+  createdAt
+  updatedAt
+}
+
+fragment ReviewMediaFields on ReviewMedia {
+  id
+  url
+  mimeType
+  width
+  height
+  sizeBytes
+}
+
+fragment ReviewFields on Review {
+  id
+  productId
+  customerId
+  channelId
+  locale
+  title
+  body
+  isVerifiedPurchase
+  status
+  submittedAt
+  moderatedAt
+  moderatedBy
+  moderatorNote
+  moderationLabel
+  moderationReason
+  moderationTags
+  categorySlugs
+  merchantReply
+  merchantReplyAt
+  answers {
+    question {
+      ...ReviewQuestionFields
+    }
+    rating
+    boolValue
+    text
+  }
+  media {
+    ...ReviewMediaFields
+  }
+}
+
+# ==================== Questions ====================
+
+query ReviewQuestions {
+  reviewQuestions {
+    ...ReviewQuestionFields
+  }
+}
+
+query ReviewQuestion($id: ID!) {
+  reviewQuestion(id: $id) {
+    ...ReviewQuestionFields
+  }
+}
+
+mutation CreateReviewQuestion($input: CreateReviewQuestionInput!) {
+  createReviewQuestion(input: $input) {
+    ...ReviewQuestionFields
+  }
+}
+
+mutation UpdateReviewQuestion($input: UpdateReviewQuestionInput!) {
+  updateReviewQuestion(input: $input) {
+    ...ReviewQuestionFields
+  }
+}
+
+mutation DeleteReviewQuestion($id: ID!) {
+  deleteReviewQuestion(id: $id)
+}
+
+mutation UpsertReviewQuestionContent($input: UpsertReviewQuestionContentInput!) {
+  upsertReviewQuestionContent(input: $input) {
+    ...ReviewQuestionFields
+  }
+}
+
+# ==================== Per-product-type assignment ====================
+
+# Reuses the existing ProductType query to read assigned questions -
+# the field is exposed as ProductType.reviewQuestions in the schema.
+query ProductTypeReviewQuestions($id: ID!) {
+  productType(id: $id) {
+    id
+    name
+    reviewQuestions {
+      ...ReviewQuestionFields
+    }
+  }
+}
+
+mutation AssignReviewQuestion($input: AssignReviewQuestionInput!) {
+  assignReviewQuestion(input: $input)
+}
+
+mutation UnassignReviewQuestion($productTypeId: ID!, $questionId: ID!) {
+  unassignReviewQuestion(productTypeId: $productTypeId, questionId: $questionId)
+}
+
+# ==================== Moderation ====================
+
+query Reviews($filter: ReviewFilter, $limit: Int, $offset: Int) {
+  reviews(filter: $filter, limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      ...ReviewFields
+    }
+  }
+}
+
+# Exact per-status tallies for the hub tiles, channel-scoped server-side
+# so they stay accurate no matter how the list is paginated/filtered.
+query ReviewCounts($productId: ID) {
+  reviewCounts(productId: $productId) {
+    pending
+    approved
+    rejected
+    total
+  }
+}
+
+query Review($id: ID!) {
+  review(id: $id) {
+    ...ReviewFields
+  }
+}
+
+mutation ApproveReview($id: ID!, $note: String) {
+  approveReview(id: $id, note: $note) {
+    ...ReviewFields
+  }
+}
+
+mutation RejectReview($id: ID!, $note: String) {
+  rejectReview(id: $id, note: $note) {
+    ...ReviewFields
+  }
+}
+
+# ==================== AI review tools ====================
+# Distinct operation name from the CMS AiStatus query (codegen forbids dupes).
+query ReviewsAiStatus {
+  aiStatus {
+    enabled
+  }
+}
+
+mutation RecheckReviewModeration($id: ID!) {
+  recheckReviewModeration(id: $id) {
+    ...ReviewFields
+  }
+}
+
+mutation ReplyToReview($id: ID!, $body: String!) {
+  replyToReview(id: $id, body: $body) {
+    ...ReviewFields
+  }
+}
+
+mutation DraftReviewReply($id: ID!) {
+  draftReviewReply(id: $id)
+}
+
+mutation GenerateProductReviewSummary($productId: ID!) {
+  generateProductReviewSummary(productId: $productId)
+}
+
+# ==================== Categories ====================
+# Operator-managed topical groups the AI sorts each review into during
+# moderation (checkout issues, late shipment, …). Global, not channel-scoped.
+
+fragment ReviewCategoryFields on ReviewCategory {
+  id
+  slug
+  name
+  description
+  isActive
+  sortOrder
+  createdAt
+  updatedAt
+}
+
+query ReviewCategories {
+  reviewCategories {
+    ...ReviewCategoryFields
+  }
+}
+
+mutation CreateReviewCategory($input: CreateReviewCategoryInput!) {
+  createReviewCategory(input: $input) {
+    ...ReviewCategoryFields
+  }
+}
+
+mutation UpdateReviewCategory($input: UpdateReviewCategoryInput!) {
+  updateReviewCategory(input: $input) {
+    ...ReviewCategoryFields
+  }
+}
+
+mutation DeleteReviewCategory($id: ID!) {
+  deleteReviewCategory(id: $id)
+}
+
+# Manual override of the AI-assigned categories (empty list clears all).
+mutation SetReviewCategories($id: ID!, $categorySlugs: [String!]!) {
+  setReviewCategories(id: $id, categorySlugs: $categorySlugs) {
+    ...ReviewFields
+  }
+}
+
+# ==================== Insights ====================
+# Category breakdown + trend with a prior-equal-window comparison. channelId
+# null = all permitted channels; dates default to the last 30 days server-side.
+
+query ReviewInsights($channelId: ID, $startDate: Time, $endDate: Time, $bucket: String) {
+  reviewInsights(channelId: $channelId, startDate: $startDate, endDate: $endDate, bucket: $bucket) {
+    total
+    prevTotal
+    byCategory {
+      slug
+      name
+      count
+      prevCount
+    }
+    timeseries {
+      period
+      slug
+      count
+    }
+    volume {
+      period
+      count
+    }
+    byStatus {
+      status
+      count
+    }
+    byTag {
+      slug
+      name
+      count
+      prevCount
+    }
+  }
+}
+
+# ==================== Moderation tags ====================
+# Operator-managed abstract moderation-concern taxonomy the AI flags on reviews
+# (profanity, spam, off-topic, …). Multi-assign; stored as slugs on each review.
+
+fragment ReviewModerationTagFields on ReviewModerationTag {
+  id
+  slug
+  name
+  description
+  isActive
+  sortOrder
+  createdAt
+  updatedAt
+}
+
+query ReviewModerationTags {
+  reviewModerationTags {
+    ...ReviewModerationTagFields
+  }
+}
+
+mutation CreateReviewModerationTag($input: CreateReviewModerationTagInput!) {
+  createReviewModerationTag(input: $input) {
+    ...ReviewModerationTagFields
+  }
+}
+
+mutation UpdateReviewModerationTag($input: UpdateReviewModerationTagInput!) {
+  updateReviewModerationTag(input: $input) {
+    ...ReviewModerationTagFields
+  }
+}
+
+mutation DeleteReviewModerationTag($id: ID!) {
+  deleteReviewModerationTag(id: $id)
+}
+
+# Moderator override of a review's flag set (empty list clears all).
+mutation SetReviewModerationTags($id: ID!, $tagSlugs: [String!]!) {
+  setReviewModerationTags(id: $id, tagSlugs: $tagSlugs) {
+    ...ReviewFields
+  }
+}
+
+# ==================== Questions for a product ====================
+# Questions applicable to a product (assigned to its product type) - the
+# per-product filter on the questions table.
+query ReviewQuestionsForProduct($productId: ID!) {
+  reviewQuestionsForProduct(productId: $productId) {
+    ...ReviewQuestionFields
+  }
+}

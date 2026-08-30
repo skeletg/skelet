@@ -1,0 +1,68 @@
+query Roles {
+  roles {
+    id
+    slug
+    name
+    description
+    memberCount
+    scopes {
+      permission {
+        id
+        slug
+        name
+      }
+      channelId
+      locale
+    }
+  }
+}
+
+query Role($id: ID!) {
+  role(id: $id) {
+    id
+    slug
+    name
+    description
+    memberCount
+    createdAt
+    scopes {
+      permission {
+        id
+        slug
+        name
+      }
+      channelId
+      locale
+    }
+  }
+}
+
+mutation CreateRole($input: CreateRoleInput!) {
+  createRole(input: $input) {
+    id
+    slug
+    name
+    scopes {
+      permission { id slug name }
+      channelId
+      locale
+    }
+  }
+}
+
+mutation UpdateRole($id: ID!, $input: UpdateRoleInput!) {
+  updateRole(id: $id, input: $input) {
+    id
+    slug
+    name
+    scopes {
+      permission { id slug name }
+      channelId
+      locale
+    }
+  }
+}
+
+mutation DeleteRole($id: ID!) {
+  deleteRole(id: $id)
+}

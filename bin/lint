@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# gofmt + golangci-lint are hard gates (run on the host) - frontend eslint just reports
+set -e
+cd "$(dirname "$(dirname "$0")")"
+
+BACKEND="apps/backend"
+
+echo "==> gofmt ($BACKEND)"
+unformatted=$(cd "$BACKEND" && gofmt -l .)
+if [ -n "$unformatted" ]; then
+    echo "gofmt would reformat these files:"
+    echo "$unformatted"
+    echo "fix with: (cd $BACKEND && gofmt -w .)"
+    exit 1
+fi
+
+echo "==> golangci-lint ($BACKEND)"
+# `go run pkg@version` resolves OUTSIDE the main module, so it builds the linter with the host
+# toolchain - and one older than go.mod's directive refuses to load the config at all
+go_directive=$(awk '$1 == "go" { print $2; exit }' "$BACKEND/go.mod")
+case "$go_directive" in
+    *.*.*) ;;
+    # go1.27 names no toolchain, go1.27.0 does
+    *) go_directive="$go_directive.0" ;;
+esac
+# +auto still lets a module demand something newer
+export GOTOOLCHAIN="go$go_directive+auto"
+# Always the pinned version, never a binary that happens to be on PATH - that binary is whatever
+# was installed whenever, so local lint quietly ran different rules from CI
+GCL=(go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1)
+# Recorded, not fatal on the spot - under set -e a failure here would skip every check below
+# it, so a lint error would hide the frontend results instead of adding to them
+backend_dirty=0
+( cd "$BACKEND" && "${GCL[@]}" run ./... ) || backend_dirty=1
+
+frontend_dirty=0
+echo "==> dashboard eslint (non-blocking)"
+if [ -f apps/dashboard/package.json ]; then
+    bin/dash run lint || frontend_dirty=1
+else
+    echo "    (skipped - dashboard not in this checkout; see bin/setup)"
+fi
+found_sf=0
+for sf in apps/channels/*/package.json; do
+    [ -f "$sf" ] || continue
+    found_sf=1
+    name="$(basename "$(dirname "$sf")")"
+    echo "==> $name eslint (non-blocking)"
+    bin/channel "$name" run lint || frontend_dirty=1
+done
+if [ "$found_sf" = 0 ]; then
+    echo "==> storefront eslint: (no storefronts in this checkout; see bin/setup)"
+fi
+
+if [ "$frontend_dirty" = 1 ]; then
+    echo "==> frontend eslint has findings (non-blocking, not checked by CI either)"
+fi
+if [ "$backend_dirty" = 1 ]; then
+    echo "==> lint FAILED - see the golangci-lint output above"
+    exit 1
+fi
+echo "==> lint OK (backend)"

@@ -1,0 +1,171 @@
+{
+  "$defs": {
+    "search.remoteBrowseAttribute": {
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "slug",
+        "values"
+      ],
+      "title": "search.remoteBrowseAttribute",
+      "type": "object"
+    },
+    "search.remoteBrowseBucket": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "isIndexable": {
+          "type": "boolean"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "count",
+        "isIndexable",
+        "slug",
+        "value"
+      ],
+      "title": "search.remoteBrowseBucket",
+      "type": "object"
+    },
+    "search.remoteBrowseFacet": {
+      "properties": {
+        "buckets": {
+          "items": {
+            "$ref": "#/$defs/search.remoteBrowseBucket"
+          },
+          "type": "array"
+        },
+        "field": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "buckets",
+        "field",
+        "slug"
+      ],
+      "title": "search.remoteBrowseFacet",
+      "type": "object"
+    },
+    "search.remoteBrowseFilter": {
+      "properties": {
+        "attributeIn": {
+          "items": {
+            "$ref": "#/$defs/search.remoteBrowseAttribute"
+          },
+          "type": "array"
+        },
+        "categoryId": {
+          "type": "string"
+        },
+        "collectionId": {
+          "type": "string"
+        },
+        "kinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "priceMaxCents": {
+          "type": "integer",
+          "x-nullable": true
+        },
+        "priceMinCents": {
+          "type": "integer",
+          "x-nullable": true
+        }
+      },
+      "title": "search.remoteBrowseFilter",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Faceted browse - the category and filter listing path. Same kind as search; a provider registered for `search` must implement both operations.",
+  "properties": {
+    "request": {
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "filter": {
+          "$ref": "#/$defs/search.remoteBrowseFilter"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "query": {
+          "type": "string"
+        },
+        "sort": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channelId",
+        "filter",
+        "limit",
+        "locale",
+        "offset",
+        "query",
+        "sort"
+      ],
+      "title": "remoteBrowseRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "facets": {
+          "items": {
+            "$ref": "#/$defs/search.remoteBrowseFacet"
+          },
+          "type": "array"
+        },
+        "productIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "facets",
+        "productIds",
+        "total"
+      ],
+      "title": "remoteBrowseResponse",
+      "type": "object"
+    }
+  },
+  "title": "search.browse",
+  "x-kind": "search",
+  "x-source": "internal/search.remoteBrowseRequest -\u003e internal/search.remoteBrowseResponse"
+}

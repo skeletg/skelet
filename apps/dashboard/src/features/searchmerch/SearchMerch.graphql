@@ -1,0 +1,65 @@
+query SearchMerchandising($channelId: ID!) {
+  searchMerchandising(channelId: $channelId) {
+    synonyms {
+      id
+      terms
+    }
+    pins {
+      id
+      query
+      productId
+      position
+    }
+    redirects {
+      id
+      query
+      targetUrl
+    }
+    boosts {
+      id
+      query
+      productId
+      weight
+    }
+  }
+}
+
+mutation AddSearchSynonym($channelId: ID!, $terms: String!) {
+  addSearchSynonym(channelId: $channelId, terms: $terms) {
+    id
+  }
+}
+
+mutation DeleteSearchSynonym($channelId: ID!, $id: ID!) {
+  deleteSearchSynonym(channelId: $channelId, id: $id)
+}
+
+mutation UpsertSearchPin($channelId: ID!, $query: String!, $productId: ID!, $position: Int) {
+  upsertSearchPin(channelId: $channelId, query: $query, productId: $productId, position: $position) {
+    id
+  }
+}
+
+mutation DeleteSearchPin($channelId: ID!, $id: ID!) {
+  deleteSearchPin(channelId: $channelId, id: $id)
+}
+
+mutation UpsertSearchRedirect($channelId: ID!, $query: String!, $targetUrl: String!) {
+  upsertSearchRedirect(channelId: $channelId, query: $query, targetUrl: $targetUrl) {
+    id
+  }
+}
+
+mutation DeleteSearchRedirect($channelId: ID!, $id: ID!) {
+  deleteSearchRedirect(channelId: $channelId, id: $id)
+}
+
+mutation UpsertSearchBoost($channelId: ID!, $query: String!, $productId: ID!, $weight: Float!) {
+  upsertSearchBoost(channelId: $channelId, query: $query, productId: $productId, weight: $weight) {
+    id
+  }
+}
+
+mutation DeleteSearchBoost($channelId: ID!, $id: ID!) {
+  deleteSearchBoost(channelId: $channelId, id: $id)
+}

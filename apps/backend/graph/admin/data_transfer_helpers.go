@@ -1,0 +1,222 @@
+package admin // the toModel converters live in a helpers file because gqlgen strips unrecognized funcs out of .resolvers.go on regeneration
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
+
+	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/graph/admin/model"
+	"github.com/skeletg/skelet/internal/apperr"
+	"github.com/skeletg/skelet/internal/auth"
+	"github.com/skeletg/skelet/internal/dataio"
+	"github.com/skeletg/skelet/internal/datajob"
+)
+
+func (r *Resolver) holdsAnywhere(ctx context.Context, slug string) bool {
+	return auth.HoldsAnywhere(ctx, r.AdminSvc, slug)
+}
+
+func toDataResourceModel(ctx context.Context, reg *dataio.Registry, res dataio.Resource, canImport bool) *model.DataResource {
+	out := &model.DataResource{
+		Slug:             res.Slug,
+		Label:            res.Label,
+		Group:            res.Group,
+		Description:      res.Description,
+		Fields:           make([]*model.DataField, len(res.Fields)),
+		Options:          make([]*model.DataOption, len(res.Options)),
+		CanImport:        res.CanImport() && canImport,
+		CanExport:        res.CanExport(),
+		ViewPermission:   res.ViewPermission,
+		ImportPermission: res.ImportPermission,
+		DynamicPrefixes:  res.DynamicPrefixes,
+	}
+	if out.DynamicPrefixes == nil {
+		out.DynamicPrefixes = []string{}
+	}
+	for i, f := range res.Fields {
+		enum := f.Enum
+		if enum == nil {
+			enum = []string{}
+		}
+		out.Fields[i] = &model.DataField{
+			Name:        f.Name,
+			Label:       f.Title(),
+			Type:        string(f.Type),
+			Description: f.Description,
+			Example:     f.Example,
+			Required:    f.Required,
+			Identifier:  f.Identifier,
+			ReadOnly:    f.ReadOnly,
+			Enum:        enum,
+		}
+	}
+	for i, o := range res.Options {
+		// A failing provider yields an empty picker rather than failing the whole page - the run itself still
+		// refuses on the missing required option, so nothing silently proceeds
+		resolved, err := reg.Choices(ctx, o)
+		if err != nil {
+			slog.Warn("data option choices could not be loaded", "resource", res.Slug, "option", o.Name, "error", err)
+		}
+		choices := make([]*model.DataOptionChoice, len(resolved))
+		for j, c := range resolved {
+			label := c.Label
+			if label == "" {
+				label = c.Value
+			}
+			choices[j] = &model.DataOptionChoice{Value: c.Value, Label: label}
+		}
+		out.Options[i] = &model.DataOption{
+			Name:        o.Name,
+			Label:       o.Label,
+			Description: o.Description,
+			Type:        string(o.Type),
+			Required:    o.Required,
+			Default:     o.Default,
+			Choices:     choices,
+			AppliesTo:   string(o.Applies),
+		}
+	}
+	return out
+}
+
+func toDataJobModel(job datajob.Job, label string) *model.DataJob {
+	opts := map[string]any{}
+	for k, v := range job.Options {
+		opts[k] = v
+	}
+	raw, _ := json.Marshal(opts)
+	warnings := job.Warnings
+	if warnings == nil {
+		warnings = []string{}
+	}
+	out := &model.DataJob{
+		ID:              job.ID.String(),
+		Direction:       string(job.Direction),
+		Resource:        job.Resource,
+		ResourceLabel:   label,
+		Format:          string(job.Format),
+		Status:          string(job.Status),
+		DryRun:          job.DryRun,
+		Options:         json.RawMessage(raw),
+		Filename:        job.Filename,
+		HasArtifact:     job.HasArtifact(),
+		ByteSize:        int32(job.ByteSize),
+		TotalRows:       int32(job.TotalRows),
+		ProcessedRows:   int32(job.ProcessedRows),
+		CreatedRows:     int32(job.CreatedRows),
+		UpdatedRows:     int32(job.UpdatedRows),
+		SkippedRows:     int32(job.SkippedRows),
+		FailedRows:      int32(job.FailedRows),
+		ErrorSummary:    job.ErrorSummary,
+		Warnings:        warnings,
+		ErrorsTruncated: job.ErrorsTruncated,
+		Attempts:        int32(job.Attempts),
+		CreatedAt:       job.CreatedAt,
+		StartedAt:       job.StartedAt,
+		FinishedAt:      job.FinishedAt,
+		ExpiresAt:       job.ExpiresAt,
+	}
+	if job.ChannelID != uuid.Nil {
+		s := job.ChannelID.String()
+		out.ChannelID = &s
+	}
+	if job.AdminID != uuid.Nil {
+		s := job.AdminID.String()
+		out.AdminID = &s
+	}
+	return out
+}
+
+// A job row names its resource by slug - the label is looked up so the history reads in the operator's words
+func (r *Resolver) dataResourceLabel(slug string) string {
+	if r.DataJobSvc == nil {
+		return slug
+	}
+	if res, err := r.DataJobSvc.Registry().Get(slug); err == nil {
+		return res.Label
+	}
+	return slug
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func optionValues(in []*model.DataOptionValue) map[string]string {
+	out := make(map[string]string, len(in))
+	for _, v := range in {
+		if v != nil {
+			out[v.Name] = v.Value
+		}
+	}
+	return out
+}
+
+func parseOptionalChannel(raw *string) (uuid.UUID, error) {
+	if raw == nil || *raw == "" {
+		return uuid.Nil, nil
+	}
+	id, err := uuid.Parse(*raw)
+	if err != nil {
+		return uuid.Nil, errInvalidID("channelId", err)
+	}
+	return id, nil
+}
+
+func (r *Resolver) requireDataPermission(ctx context.Context, slug string, channelID uuid.UUID, global bool) error {
+	return auth.RequireScopedOrGlobal(ctx, r.AdminSvc, slug, channelID, global)
+}
+
+// Reading a job means being allowed to read what it moved - write means the import grant, since cancelling changes an outcome
+func (r *Resolver) requireJobAccess(ctx context.Context, job datajob.Job, write bool) error {
+	res, err := r.DataJobSvc.Registry().Get(job.Resource)
+	if err != nil {
+		return auth.ErrForbidden // a job for a resource this build no longer registers stays sealed
+	}
+	slug := res.ViewPermission
+	if write && res.ImportPermission != "" {
+		slug = res.ImportPermission
+	}
+	return r.requireDataPermission(ctx, slug, job.ChannelID, res.RequireGlobalPermission)
+}
+
+// The resources a caller may list jobs for, intersected with whatever filter they asked for
+func (r *Resolver) visibleResources(ctx context.Context, requested []string) []string {
+	want := map[string]bool{}
+	for _, s := range requested {
+		want[s] = true
+	}
+	var out []string
+	for _, res := range r.DataJobSvc.Registry().List() {
+		if len(want) > 0 && !want[res.Slug] {
+			continue
+		}
+		if r.holdsAnywhere(ctx, res.ViewPermission) {
+			out = append(out, res.Slug)
+		}
+	}
+	return out
+}
+
+func dataJobError(err error) error {
+	switch {
+	case errors.Is(err, datajob.ErrJobNotFound):
+		return apperr.New("DATA_JOB_NOT_FOUND", apperr.ClassNotFound, "that transfer no longer exists")
+	case errors.Is(err, datajob.ErrNotCancelable):
+		return apperr.New("DATA_JOB_RUNNING", apperr.ClassValidation, "this run has already started")
+	case errors.Is(err, datajob.ErrNoArtifact):
+		return apperr.New("DATA_JOB_NO_FILE", apperr.ClassNotFound, "that file has passed its retention window")
+	case errors.Is(err, datajob.ErrNoStorage):
+		return apperr.New("DATA_STORAGE_MISSING", apperr.ClassValidation, err.Error())
+	case errors.Is(err, dataio.ErrUnknownResource), errors.Is(err, dataio.ErrUnknownFormat),
+		errors.Is(err, dataio.ErrNotImportable), errors.Is(err, dataio.ErrNotExportable):
+		return apperr.New("DATA_UNSUPPORTED", apperr.ClassValidation, err.Error())
+	}
+	return err
+}

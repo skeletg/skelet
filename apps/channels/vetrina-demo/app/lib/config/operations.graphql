@@ -1,0 +1,13 @@
+query PublicConfig {
+  publicConfig {
+    path
+    value
+  }
+}
+
+query StoreFeatures {
+  features {
+    b2b
+    signals
+  }
+}

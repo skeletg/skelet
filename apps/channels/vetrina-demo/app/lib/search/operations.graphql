@@ -1,0 +1,26 @@
+query SearchProducts($query: String!, $limit: Int, $offset: Int) {
+  searchProducts(query: $query, limit: $limit, offset: $offset) {
+    totalCount
+    redirectUrl
+    items {
+      id
+      url
+      sku
+      name
+    }
+  }
+}
+
+query SearchBlogPosts($query: String!, $limit: Int, $offset: Int) {
+  searchBlogPosts(query: $query, limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      id
+      slug
+      title
+      excerpt
+      publishedAt
+      authorName
+    }
+  }
+}

@@ -1,0 +1,238 @@
+# ==================== Page ====================
+
+type CMSPage {
+  id:              ID!
+  pageTypeId:      ID!
+  parentId:        ID
+  slug:            String!
+  # Hierarchical slug path without the type's root prefix.
+  basePath:        String!
+  urlPath:         String!
+  position:        Int!
+  isPublished:     Boolean!
+  seoNoindex:      Boolean!
+  publishedAt:     Time
+  scheduledAt:     Time
+  data:            JSON
+  metadata:        [MetadataItem!]!
+  privateMetadata: [MetadataItem!]!
+  # Free-form labels for filtering (admin lists, page-type page table) and
+  # future storefront querying. Lower-cased + deduped on save.
+  tags:            [String!]!
+  content:         CMSPageContent
+  allContent:      [CMSPageContent!]!
+  selections:      [CMSPageSelection!]!
+  relationships:   [CMSPageRelationship!]!
+  # Per-store availability. Empty = page is global-only. Each row gates
+  # the page on its store; storefront queries filter by these rows.
+  channelListings:   [CMSPageChannelListing!]!
+  # A/B testing: the bound Prism experiment key ("" = none) + the treatment
+  # block bodies for the active locale (control body = content.body).
+  experimentKey:   String!
+  variants:        [CMSPageVariant!]!
+  # Editorial workflow (orthogonal to isPublished). State + actor/time stamps
+  # for the submit/approve transitions; assignedTo is the assigned reviewer.
+  workflowState: CMSWorkflowState!
+  assignedTo:    ID
+  submittedBy:   ID
+  submittedAt:   Time
+  approvedBy:    ID
+  approvedAt:    Time
+  createdAt:       Time!
+  updatedAt:       Time!
+}
+
+
+type CMSPageVariant {
+  variantKey: String!
+  body:       JSON
+}
+
+type CMSPageChannelListing {
+  channelId: ID!
+  isPublished: Boolean!
+  seoNoindex:  Boolean!
+  # This page is the channel's homepage (served at "/"). At most one per channel.
+  isHomepage:  Boolean!
+  createdAt:   Time!
+  updatedAt:   Time!
+}
+
+input SetCMSPageChannelListingInput {
+  pageId:      ID!
+  channelId: ID!
+  isPublished: Boolean!
+  seoNoindex:  Boolean
+  # Flag this page as the channel's homepage. Setting true demotes any other
+  # homepage on the channel (one per channel).
+  isHomepage:  Boolean
+}
+
+type CMSPageContent {
+  locale:           String!
+  title:            String!
+  body:             JSON
+  metaTitle:        String
+  metaDescription:  String
+  metaKeywords:     String
+  data:             JSON
+  updatedAt:        Time!
+}
+
+type CMSPageSelection {
+  attributeId: ID!
+  valueId:     ID!
+}
+
+type CMSPageRelationship {
+  attributeId: ID!
+  targetType:  CMSRelationshipTarget!
+  targetId:    ID!
+  position:    Int!
+}
+
+input CMSPageRelationshipInput {
+  attributeId: ID!
+  targetType:  CMSRelationshipTarget!
+  targetId:    ID!
+  position:    Int
+}
+
+# A single ordered entity reference for setCMSPageRelationships (position is
+# taken from list order).
+input CMSRelationshipRefInput {
+  targetType: CMSRelationshipTarget!
+  targetId:   ID!
+}
+
+input CMSPageSelectionInput {
+  attributeId: ID!
+  valueId:     ID!
+}
+
+input CreateCMSPageInput {
+  pageTypeId:      ID!
+  parentId:        ID
+  slug:            String!
+  position:        Int
+  isPublished:     Boolean
+  seoNoindex:      Boolean
+  publishedAt:     Time
+  data:            JSON
+  metadata:        [MetadataInput!]
+  privateMetadata: [MetadataInput!]
+  # Required initial content.
+  locale:          String!
+  title:           String!
+  body:            JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+  contentData:     JSON
+  selections:      [CMSPageSelectionInput!]
+  relationships:   [CMSPageRelationshipInput!]
+}
+
+input UpdateCMSPageInput {
+  id:              ID!
+  parentId:        ID
+  clearParent:     Boolean
+  slug:            String
+  position:        Int
+  isPublished:     Boolean
+  seoNoindex:      Boolean
+  publishedAt:     Time
+  clearPublished:  Boolean
+  data:            JSON
+  metadata:        [MetadataInput!]
+  privateMetadata: [MetadataInput!]
+  # Replaces the page's tag set when provided (omit = leave unchanged; [] clears).
+  tags:            [String!]
+}
+
+input UpsertCMSPageContentInput {
+  pageId:          ID!
+  locale:          String!
+  title:           String!
+  body:            JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+  data:            JSON
+}
+
+input CMSPageFilter {
+  pageTypeId:    ID
+  parentId:      ID
+  onlyPublished: Boolean
+  # When set, return only pages with an active store listing on this store.
+  # Header-driven admin uses this in CHANNEL mode.
+  channelId:   ID
+  # Restrict to an editorial workflow state (e.g. IN_REVIEW for the review queue).
+  workflowState: CMSWorkflowState
+  # Full-text search over the active locale's content (title + meta + block body
+  # text), ranked by relevance. Empty/absent = normal listing.
+  search: String
+}
+
+# Result of a bulk page operation: how many pages were affected.
+type BulkCMSPageResult {
+  count: Int!
+}
+
+input MintCMSPagePreviewTokenInput {
+  pageId: ID!
+  locale: String
+}
+
+type CMSPagePreviewToken {
+  token:     String!
+  expiresAt: Time!
+}
+
+# ==================== Queries ====================
+
+extend type Query {
+  # Locale comes from the `Locale` request header (internal/locale.Middleware).
+  cmsPage(slug: String, id: ID, urlPath: String): CMSPage
+  cmsPages(filter: CMSPageFilter, limit: Int, offset: Int): [CMSPage!]!
+}
+
+# ==================== Mutations ====================
+
+extend type Mutation {
+  # Content-editing - gated by cms.manage
+  createCMSPage(input: CreateCMSPageInput!): CMSPage!
+  updateCMSPage(input: UpdateCMSPageInput!): CMSPage!
+  deleteCMSPage(id: ID!): Boolean!
+  # Deep-copy a page into a new unpublished draft (new slug, fresh block IDs,
+  # all locales/attributes/tags/channel listings; never published, never a
+  # channel homepage). Singleton page types can't be cloned.
+  cloneCMSPage(id: ID!): CMSPage!
+  # Bulk page operations (gated cms.manage). Each runs in one transaction.
+  bulkPublishCMSPages(ids: [ID!]!, published: Boolean!): BulkCMSPageResult!
+  bulkTagCMSPages(ids: [ID!]!, addTags: [String!], removeTags: [String!]): BulkCMSPageResult!
+  bulkDeleteCMSPages(ids: [ID!]!): BulkCMSPageResult!
+  upsertCMSPageContent(input: UpsertCMSPageContentInput!): CMSPage!
+  publishCMSPage(id: ID!): CMSPage!
+  unpublishCMSPage(id: ID!): CMSPage!
+  setCMSPageSelections(pageId: ID!, attributeId: ID!, valueIds: [ID!]!): CMSPage!
+  setCMSPageRelationships(pageId: ID!, attributeId: ID!, refs: [CMSRelationshipRefInput!]!): CMSPage!
+  # A/B testing: bind a page to a Prism experiment (empty key unbinds) + author
+  # per-variation block bodies (empty body clears that variant).
+  setCMSPageExperiment(pageId: ID!, experimentKey: String!): CMSPage!
+  upsertCMSPageVariantContent(pageId: ID!, locale: String!, variantKey: String!, body: JSON): CMSPage!
+
+  # Per-store availability - gated by cms.manage. Mirror of the blog
+  # post store-listing mutations: create/update with set, remove with
+  # delete. Returns the page with refreshed channelListings.
+  setCMSPageChannelListing(input: SetCMSPageChannelListingInput!): CMSPage!
+  deleteCMSPageChannelListing(pageId: ID!, channelId: ID!): CMSPage!
+
+  # Mint a short-lived preview token for a CMS page. The token authorises
+  # the storefront /cms/preview/<id>?token=... route to render the page in
+  # its current SAVED state regardless of publish/listing status - used by
+  # the dashboard's side-panel live preview. Server-side TTL defaults to 15
+  # minutes. Mirror of mintBlogPostPreviewToken.
+  mintCMSPagePreviewToken(input: MintCMSPagePreviewTokenInput!): CMSPagePreviewToken!
+}

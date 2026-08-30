@@ -1,0 +1,74 @@
+{
+  "$defs": {
+    "order.remoteReturnReqLine": {
+      "properties": {
+        "orderLineId": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "number"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "orderLineId",
+        "quantity",
+        "reason"
+      ],
+      "title": "order.remoteReturnReqLine",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Approve or refuse a return request.",
+  "properties": {
+    "request": {
+      "properties": {
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/order.remoteReturnReqLine"
+          },
+          "type": "array"
+        },
+        "orderId": {
+          "type": "string"
+        },
+        "refundTarget": {
+          "type": "string"
+        },
+        "resolution": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "lines",
+        "orderId",
+        "refundTarget",
+        "resolution"
+      ],
+      "title": "remoteReturnRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "allowed",
+        "reason"
+      ],
+      "title": "remoteReturnResponse",
+      "type": "object"
+    }
+  },
+  "title": "returns_policy",
+  "x-kind": "returns_policy",
+  "x-source": "internal/order.remoteReturnRequest -\u003e internal/order.remoteReturnResponse"
+}

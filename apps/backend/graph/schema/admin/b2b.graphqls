@@ -1,0 +1,144 @@
+# B2B: company accounts (credit limits, payment terms, members) and the
+# quote workflow. b2b.view / b2b.manage, channel-scoped.
+
+# One negotiated per-product unit price on a company's price list.
+# Replaces list + tier pricing outright for the company's members.
+type CompanyPrice {
+  id:         ID!
+  productId:  ID!
+  productSku: String!
+  priceCents: Int!
+}
+
+type Company {
+  id:               ID!
+  channelId:        ID!
+  name:             String!
+  status:           String!
+  creditLimitCents: Int!
+  creditUsedCents:  Int!
+  paymentTermsDays: Int!
+  # Wholesale customer group members are moved into on attach (drives
+  # the existing group/tier pricing). Empty = retail pricing.
+  defaultCustomerGroupSlug: String!
+  # Contract price list (negotiated per-product unit prices).
+  prices: [CompanyPrice!]!
+  createdAt:        Time!
+}
+
+type CompanyCreditEntry {
+  id:          ID!
+  orderId:     ID
+  amountCents: Int!
+  reason:      String!
+  createdAt:   Time!
+}
+
+type CompanyMember {
+  customerId: ID!
+  role:       String!
+  email:      String!
+  firstName:  String!
+  lastName:   String!
+  # Per-order cap for this member's on-account purchases (0 = unlimited).
+  orderLimitCents: Int!
+}
+
+type B2BQuoteItem {
+  sku:            String!
+  name:           String!
+  quantity:       Float!
+  unitPriceCents: Int!
+  # Custom-option picks from the requesting cart, preserved as text.
+  optionsSummary: String!
+}
+
+type B2BQuote {
+  id:         ID!
+  companyId:  ID
+  customerId: ID!
+  channelId:  ID!
+  status:     String!
+  items:      [B2BQuoteItem!]!
+  note:       String!
+  sellerNote: String!
+  totalCents: Int!
+  validUntil: Time
+  createdAt:  Time!
+}
+
+input B2BQuoteItemInput {
+  sku:            String!
+  name:           String!
+  quantity:       Float!
+  unitPriceCents: Int!
+  optionsSummary: String
+}
+
+# One on-account receivable: created at placement with the credit
+# reservation, settling (paid/void) releases the credit automatically.
+type B2BInvoice {
+  id:          ID!
+  companyId:   ID!
+  orderId:     ID!
+  orderNumber: String!
+  number:      String!
+  amountCents: Int!
+  status:      String!
+  # Open past its due date (computed).
+  overdue:     Boolean!
+  dueAt:       Time
+  paidAt:      Time
+  createdAt:   Time!
+}
+
+extend type Query {
+  # A company's invoices, newest first. b2b.view.
+  companyInvoices(companyId: ID!, limit: Int): [B2BInvoice!]!
+  companies: [Company!]!
+  company(id: ID!): Company!
+  companyMembers(companyId: ID!): [CompanyMember!]!
+  # Credit audit ledger: reserves positive, releases negative.
+  companyCreditEntries(companyId: ID!): [CompanyCreditEntry!]!
+  b2bQuotes(status: String, limit: Int, offset: Int): [B2BQuote!]!
+}
+
+extend type Mutation {
+  createCompany(channelId: ID!, name: String!, creditLimitCents: Int!, paymentTermsDays: Int!): Company!
+  updateCompany(id: ID!, name: String!, status: String!, creditLimitCents: Int!, paymentTermsDays: Int!): Company!
+  # Attach a customer to a company (moves them if already in another).
+  setCompanyMember(companyId: ID!, customerId: ID!, role: String!, orderLimitCents: Int): Boolean!
+  removeCompanyMember(customerId: ID!): Boolean!
+  # Release reserved credit when an on-account invoice settles (or an
+  # order is cancelled). Floored at zero.
+  releaseCompanyCredit(companyId: ID!, amountCents: Int!, reason: String): Company!
+  # Settle an open invoice: 'paid' or 'void'. Releases the reserved
+  # company credit in the same transaction; settling twice errors.
+  settleB2bInvoice(id: ID!, status: String!): B2BInvoice!
+  # Contract price list management. Upsert by (company, product).
+  setCompanyPrice(companyId: ID!, productId: ID!, priceCents: Int!): CompanyPrice!
+  # Sales-rep masquerade: mint a SHORT-LIVED (15 min) customer session
+  # token for a storefront visit as this customer. Audit-logged; open
+  # the storefront at /masquerade?token=<accessToken>.
+  masqueradeCustomer(customerId: ID!): MasqueradeSession!
+  deleteCompanyPrice(companyId: ID!, priceId: ID!): Boolean!
+  # Wire the company's wholesale price group by slug ("" clears it);
+  # existing members are re-assigned immediately.
+  setCompanyCustomerGroup(companyId: ID!, groupSlug: String!): Company!
+  # Price a requested quote and publish it to the customer.
+  priceB2BQuote(id: ID!, items: [B2BQuoteItemInput!]!, sellerNote: String, validUntil: Time): B2BQuote!
+  # Turn an ACCEPTED quote into a draft order at the negotiated prices
+  # (uses the customer's default addresses; the draft is then reviewed
+  # + placed through the normal draft-order console). Marks the quote
+  # converted.
+  createDraftOrderFromQuote(quoteId: ID!): Order!
+}
+
+type MasqueradeSession {
+  accessToken: String!
+  # Relative storefront path that installs the session and redirects home.
+  storefrontPath: String!
+  # Absolute link when the customer's channel has a public URL, else "".
+  storefrontUrl: String!
+  expiresInSeconds: Int!
+}

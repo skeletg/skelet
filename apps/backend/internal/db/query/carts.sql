@@ -1,0 +1,164 @@
+-- name: GetCartByCustomerAndChannel :one
+SELECT * FROM carts
+WHERE customer_id = $1 AND channel_id = $2 AND status = 'active'
+LIMIT 1;
+
+-- name: CreateCart :one
+INSERT INTO carts (customer_id, channel_id) VALUES ($1, $2) RETURNING *;
+
+-- name: SetCartStatus :one
+UPDATE carts SET status = $2, updated_at = NOW()
+WHERE id = $1 AND status = 'active'
+RETURNING *;
+
+-- name: GetCartByID :one
+SELECT * FROM carts WHERE id = $1 LIMIT 1;
+
+-- name: ListCarts :many
+-- Admin cart console listing: channel-scoped, with optional customer / status /
+-- abandoned (updated_before) filters and a free-text search over the linked
+-- customer's email + name. item_count + subtotal are computed from cart_lines
+-- (subtotal is an estimate - fractional-cent rounding, no tax/shipping)
+SELECT
+    c.id                                              AS id,
+    c.customer_id                                     AS customer_id,
+    c.channel_id                                      AS channel_id,
+    c.status                                          AS status,
+    c.created_at                                      AS created_at,
+    c.updated_at                                      AS updated_at,
+    cu.email                                          AS customer_email,
+    cu.first_name                                     AS customer_first_name,
+    cu.last_name                                      AS customer_last_name,
+    COALESCE(li.item_count, 0)::int                   AS item_count,
+    COALESCE(li.subtotal, 0)::bigint                  AS subtotal
+FROM carts c
+LEFT JOIN customers cu ON cu.id = c.customer_id
+LEFT JOIN (
+    SELECT cart_id,
+           COUNT(*)::int                              AS item_count,
+           ROUND(SUM(quantity * unit_price))::bigint  AS subtotal
+    FROM cart_lines
+    GROUP BY cart_id
+) li ON li.cart_id = c.id
+WHERE c.channel_id = sqlc.arg(channel_id)
+  AND (sqlc.narg(customer_id)::uuid IS NULL OR c.customer_id = sqlc.narg(customer_id)::uuid)
+  AND (sqlc.narg(status)::text IS NULL OR c.status = sqlc.narg(status)::text)
+  AND (sqlc.narg(updated_before)::timestamptz IS NULL OR c.updated_at < sqlc.narg(updated_before)::timestamptz)
+  AND (
+    sqlc.narg(search)::text IS NULL
+    OR cu.email ILIKE '%' || sqlc.narg(search)::text || '%'
+    OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || sqlc.narg(search)::text || '%'
+  )
+ORDER BY c.updated_at DESC
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: CountCarts :one
+SELECT COUNT(*)::int
+FROM carts c
+LEFT JOIN customers cu ON cu.id = c.customer_id
+WHERE c.channel_id = sqlc.arg(channel_id)
+  AND (sqlc.narg(customer_id)::uuid IS NULL OR c.customer_id = sqlc.narg(customer_id)::uuid)
+  AND (sqlc.narg(status)::text IS NULL OR c.status = sqlc.narg(status)::text)
+  AND (sqlc.narg(updated_before)::timestamptz IS NULL OR c.updated_at < sqlc.narg(updated_before)::timestamptz)
+  AND (
+    sqlc.narg(search)::text IS NULL
+    OR cu.email ILIKE '%' || sqlc.narg(search)::text || '%'
+    OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || sqlc.narg(search)::text || '%'
+  );
+
+-- name: UpsertCartLineBySku :one
+INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (cart_id, product_sku) DO UPDATE
+  SET quantity   = cart_lines.quantity + EXCLUDED.quantity,
+      unit_price = EXCLUDED.unit_price,
+      updated_at = NOW()
+RETURNING *;
+
+-- name: ReassignCartToCustomer :one
+UPDATE carts SET customer_id = $2, updated_at = NOW()
+WHERE id = $1 AND customer_id IS NULL AND status = 'active'
+RETURNING *;
+
+-- name: GetCartLineByID :one
+SELECT * FROM cart_lines WHERE id = $1 LIMIT 1;
+
+-- name: ListCartLinesByCart :many
+SELECT * FROM cart_lines WHERE cart_id = $1 ORDER BY created_at ASC;
+
+-- name: UpdateCartLineQuantity :one
+UPDATE cart_lines SET quantity = $2, updated_at = NOW() WHERE id = $1 RETURNING *;
+
+-- name: UpdateCartLineQuantityPrice :one
+-- Quantity change that also re-prices the line (tier-price boundary cross)
+UPDATE cart_lines SET quantity = $2, unit_price = $3, updated_at = NOW() WHERE id = $1 RETURNING *;
+
+-- name: DeleteCartLine :exec
+DELETE FROM cart_lines WHERE id = $1;
+
+-- name: AbandonedCarts :many
+-- Active, non-empty carts that are CONTACTABLE - either owned by a known
+-- customer, or a guest cart that captured an email at checkout entry - whose
+-- last activity is older than `threshold` but newer than `max_age`, not already
+-- notified since that activity - last activity = GREATEST(cart.updated_at,
+-- MAX(line.updated_at)) - carts.updated_at isn't bumped on line edits, so the
+-- line max is authoritative
+SELECT
+    c.id                                                AS id,
+    c.channel_id                                        AS channel_id,
+    c.customer_id                                       AS customer_id,
+    c.email                                             AS email,
+    GREATEST(c.updated_at, MAX(l.updated_at))           AS last_activity
+FROM carts c
+JOIN cart_lines l ON l.cart_id = c.id
+WHERE c.status = 'active' AND (c.customer_id IS NOT NULL OR c.email <> '')
+GROUP BY c.id, c.channel_id, c.customer_id, c.email, c.updated_at, c.abandoned_notified_at
+HAVING GREATEST(c.updated_at, MAX(l.updated_at)) < sqlc.arg(threshold)::timestamptz
+   AND GREATEST(c.updated_at, MAX(l.updated_at)) > sqlc.arg(max_age)::timestamptz
+   AND (c.abandoned_notified_at IS NULL OR c.abandoned_notified_at < GREATEST(c.updated_at, MAX(l.updated_at)))
+ORDER BY last_activity DESC
+LIMIT sqlc.arg(lim);
+
+-- name: MarkCartsAbandonedNotified :exec
+UPDATE carts SET abandoned_notified_at = NOW() WHERE id = ANY(sqlc.arg(ids)::uuid[]);
+
+-- name: DeleteCartLinesByCart :exec
+DELETE FROM cart_lines WHERE cart_id = $1;
+
+-- name: SetCartEmail :exec
+-- Records the email a guest enters at checkout entry so an abandoned guest cart
+-- becomes recoverable - bumps updated_at (email entry is real activity, so it is
+-- the correct start of the abandonment clock)
+UPDATE carts SET email = $2, updated_at = NOW() WHERE id = $1;
+
+-- name: PruneStaleCarts :execrows
+-- Deletes abandoned carts past a retention window: unconverted carts (active
+-- or merged) whose last activity (cart or newest line) is older than the
+-- cutoff, plus converted carts older than the cutoff (their order carries the
+-- durable record) - cart lines / applied codes cascade on delete - guards the
+-- reaper from ever touching a recently-active cart
+DELETE FROM carts c
+WHERE c.updated_at < sqlc.arg(cutoff)::timestamptz
+  AND COALESCE((SELECT MAX(l.updated_at) FROM cart_lines l WHERE l.cart_id = c.id), c.updated_at) < sqlc.arg(cutoff)::timestamptz;
+
+-- Save-for-later (cart-scoped, guest-capable)
+
+-- name: SaveCartItem :one
+-- Parks a product off the cart - on conflict (same sku already saved) the
+-- quantity is replaced, not summed - saving a line twice isn't "add more"
+INSERT INTO cart_saved_items (cart_id, product_sku, product_name, quantity)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (cart_id, product_sku) DO UPDATE SET quantity = EXCLUDED.quantity, product_name = EXCLUDED.product_name
+RETURNING *;
+
+-- name: GetSavedItem :one
+SELECT * FROM cart_saved_items WHERE id = $1;
+
+-- name: DeleteSavedItem :exec
+DELETE FROM cart_saved_items WHERE id = $1 AND cart_id = $2;
+
+-- name: ListSavedItemsByCart :many
+SELECT * FROM cart_saved_items WHERE cart_id = $1 ORDER BY created_at DESC;
+
+-- name: SetCartNote :exec
+UPDATE carts SET note = $2, updated_at = NOW() WHERE id = $1;

@@ -1,0 +1,186 @@
+{
+  "$defs": {
+    "promotion.remoteCartContext": {
+      "properties": {
+        "appliedCodes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "channelId": {
+          "type": "string"
+        },
+        "channelSlug": {
+          "type": "string"
+        },
+        "countryCode": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "customerEmail": {
+          "type": "string"
+        },
+        "customerGroup": {
+          "type": "string"
+        },
+        "customerId": {
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/promotion.remoteCartContextLine"
+          },
+          "type": "array"
+        },
+        "segments": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "subtotalCents": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "countryCode",
+        "currency",
+        "lines",
+        "subtotalCents"
+      ],
+      "title": "promotion.remoteCartContext",
+      "type": "object"
+    },
+    "promotion.remoteCartContextLine": {
+      "properties": {
+        "attributes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "categoryIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "lineId": {
+          "type": "string"
+        },
+        "productId": {
+          "type": "string"
+        },
+        "productName": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "number"
+        },
+        "sku": {
+          "type": "string"
+        },
+        "unitPriceCents": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "lineId",
+        "productName",
+        "quantity",
+        "sku",
+        "unitPriceCents"
+      ],
+      "title": "promotion.remoteCartContextLine",
+      "type": "object"
+    },
+    "promotion.remoteFreeGift": {
+      "properties": {
+        "quantity": {
+          "type": "number"
+        },
+        "sku": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "quantity",
+        "sku"
+      ],
+      "title": "promotion.remoteFreeGift",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Compute the discount a matched promotion rule applies.",
+  "properties": {
+    "request": {
+      "properties": {
+        "cart": {
+          "$ref": "#/$defs/promotion.remoteCartContext"
+        },
+        "params": {},
+        "provider": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cart",
+        "provider"
+      ],
+      "title": "remoteActionRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "freeGifts": {
+          "items": {
+            "$ref": "#/$defs/promotion.remoteFreeGift"
+          },
+          "type": "array"
+        },
+        "freeShipping": {
+          "type": "boolean"
+        },
+        "freeShippingMethods": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "lineAdjustments": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "shippingOverrideCents": {
+          "type": "integer",
+          "x-nullable": true
+        },
+        "subtotalDiscountCents": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "freeGifts",
+        "freeShipping",
+        "freeShippingMethods",
+        "lineAdjustments",
+        "subtotalDiscountCents"
+      ],
+      "title": "remoteActionResponse",
+      "type": "object"
+    }
+  },
+  "title": "promotion_action",
+  "x-kind": "promotion_action",
+  "x-source": "internal/promotion.remoteActionRequest -\u003e internal/promotion.remoteActionResponse"
+}

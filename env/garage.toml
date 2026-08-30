@@ -1,0 +1,41 @@
+# Garage (S3-compatible object storage) config for the LOCAL docker
+# stacks - mounted by docker-compose.yml. NOT for real deployment: the rpc_secret
+# and admin tokens below are committed dev values. A real on-prem
+# deployment writes its own garage.toml with fresh secrets (openssl rand
+# -hex 32) - see https://garagehq.deuxfleurs.fr/documentation/cookbook/real-world/
+#
+# The cluster layout, media bucket, and skeletdev access key are
+# auto-provisioned by `garage server --single-node --default-bucket`
+# (see the compose files); bucket CORS + website access are applied by
+# the garage-init one-shot container.
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+rpc_secret = "9021056e29a1cbd45b9e0d3f9a2c427b2e2b2c022a1b4e5f8a9d0c1e2f3a4b5c"
+
+[s3_api]
+# Must match the app's AWS_REGION - SigV4 signatures embed the region.
+s3_region = "us-east-1"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.localhost"
+
+# The web endpoint serves anonymous public reads (Garage has no S3
+# ACLs/bucket policies - public access is website hosting). Routing is
+# vhost-style: Host `media.localhost` → bucket `media`
+# (port is ignored in the match). Browsers resolve *.localhost to
+# 127.0.0.1, so http://media.localhost:9902/<key> works in dev
+[s3_web]
+bind_addr = "[::]:3902"
+root_domain = ".localhost"
+index = "index.html"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "skelet-dev-admin-token-not-for-prod"
+metrics_token = "skelet-dev-metrics-token-not-for-prod"

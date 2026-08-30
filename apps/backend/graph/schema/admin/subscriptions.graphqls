@@ -1,0 +1,70 @@
+# Subscription management (admin). A subscription is one customer's recurring
+# commitment to a kind=SUBSCRIPTION product, started when they purchase it. A
+# background scheduler advances active subscriptions through billing periods,
+# minting one invoice per period. Payment isn't captured platform-wide, so
+# invoices stay DUE - admins can cancel/pause but not charge.
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELED
+  EXPIRED
+}
+
+enum SubscriptionInvoiceStatus {
+  DUE
+  PAID
+  VOID
+}
+
+type CustomerSubscription {
+  id:                 ID!
+  customerId:         ID
+  productId:          ID!
+  orderId:            ID
+  status:             SubscriptionStatus!
+  intervalUnit:       SubscriptionInterval!
+  intervalCount:      Int!
+  # Per-cycle charge, minor units (cents).
+  price:              Int!
+  currencyCode:       String!
+  quantity:           Float!
+  sku:                String!
+  title:              String!
+  currentPeriodStart: Time!
+  currentPeriodEnd:   Time!
+  nextBillingAt:      Time!
+  canceledAt:         Time
+  createdAt:          Time!
+  updatedAt:          Time!
+  # Billing history (one row per elapsed period).
+  invoices:           [SubscriptionInvoice!]!
+  # Saved payment method charged at renewal (null = none - dunning).
+  paymentMethodId:    ID
+}
+
+type SubscriptionInvoice {
+  id:           ID!
+  periodStart:  Time!
+  periodEnd:    Time!
+  amount:       Int!
+  currencyCode: String!
+  status:       SubscriptionInvoiceStatus!
+  sequence:     Int!
+  createdAt:    Time!
+}
+
+extend type Query {
+  # All subscriptions, newest first; optionally filtered by status.
+  subscriptions(status: SubscriptionStatus, limit: Int, offset: Int): [CustomerSubscription!]!
+  # One subscription with its invoice history.
+  subscription(id: ID!): CustomerSubscription
+}
+
+extend type Mutation {
+  # Stop future billing. Idempotent.
+  cancelSubscription(id: ID!): CustomerSubscription!
+  # Suspend / resume billing without cancelling.
+  pauseSubscription(id: ID!): CustomerSubscription!
+  resumeSubscription(id: ID!): CustomerSubscription!
+}

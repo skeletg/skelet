@@ -1,0 +1,27 @@
+# Product Q&A moderation: answer (publishes) or reject shopper questions.
+
+type AdminProductQuestion {
+  id:          ID!
+  productId:   ID!
+  channelId:   ID!
+  authorName:  String!
+  authorEmail: String!
+  question:    String!
+  answer:      String!
+  status:      String!
+  createdAt:   Time!
+  answeredAt:  Time
+}
+
+extend type Query {
+  # Moderation queue, channel-scoped to the admin's qna.view grants.
+  # status filters (pending/published/rejected); empty = all.
+  productQuestions(status: String, limit: Int, offset: Int): [AdminProductQuestion!]!
+}
+
+extend type Mutation {
+  # Publishes the question with the operator's answer (qna.moderate).
+  answerProductQuestion(id: ID!, answer: String!): AdminProductQuestion!
+  rejectProductQuestion(id: ID!): AdminProductQuestion!
+  deleteProductQuestion(id: ID!): Boolean!
+}

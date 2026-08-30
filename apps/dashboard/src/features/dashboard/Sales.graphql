@@ -1,0 +1,51 @@
+query SalesReport(
+  $channelId: ID
+  $startDate: Time
+  $endDate: Time
+  $bucket: String
+  $topProductsLimit: Int
+) {
+  salesReport(
+    channelId: $channelId
+    startDate: $startDate
+    endDate: $endDate
+    bucket: $bucket
+    topProductsLimit: $topProductsLimit
+  ) {
+    summary {
+      currencyCode
+      orderCount
+      grossRevenue
+      subtotalTotal
+      discountTotal
+      taxTotal
+      shippingTotal
+      uniqueCustomers
+      averageOrderValue
+      refundedAmount
+      refundCount
+      costTotal
+      marginTotal
+    }
+    timeseries {
+      period
+      currencyCode
+      orderCount
+      revenue
+    }
+    topProducts {
+      sku
+      name
+      unitsSold
+      revenue
+      cost
+      margin
+      orderCount
+    }
+    statusBreakdown {
+      status
+      orderCount
+      revenue
+    }
+  }
+}

@@ -1,0 +1,61 @@
+fragment WebFormFields on WebForm {
+  id
+  channelId
+  slug
+  name
+  status
+  fields
+  settings
+  submissionCount
+  createdAt
+  updatedAt
+  deletedAt
+}
+
+query WebForms($channelId: ID!, $includeDeleted: Boolean) {
+  webForms(channelId: $channelId, includeDeleted: $includeDeleted) {
+    ...WebFormFields
+  }
+}
+
+query WebForm($id: ID!) {
+  webForm(id: $id) {
+    ...WebFormFields
+  }
+}
+
+query WebFormSubmissions($formId: ID!, $limit: Int, $offset: Int) {
+  webFormSubmissions(formId: $formId, limit: $limit, offset: $offset) {
+    id
+    formId
+    answers
+    files
+    customerId
+    meta
+    createdAt
+  }
+}
+
+query WebFormSubmissionCount($formId: ID!) {
+  webFormSubmissionCount(formId: $formId)
+}
+
+mutation CreateWebForm($channelId: ID!, $input: SaveWebFormInput!) {
+  createWebForm(channelId: $channelId, input: $input) {
+    ...WebFormFields
+  }
+}
+
+mutation UpdateWebForm($id: ID!, $input: SaveWebFormInput!) {
+  updateWebForm(id: $id, input: $input) {
+    ...WebFormFields
+  }
+}
+
+mutation DeleteWebForm($id: ID!) {
+  deleteWebForm(id: $id)
+}
+
+mutation RestoreWebForm($id: ID!) {
+  restoreWebForm(id: $id)
+}

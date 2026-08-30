@@ -1,0 +1,283 @@
+fragment PromotionConditionFields on PromotionCondition {
+  id
+  type
+  params
+  paramsVersion
+  sortOrder
+}
+
+fragment PromotionActionFields on PromotionAction {
+  id
+  type
+  params
+  paramsVersion
+  sortOrder
+}
+
+fragment PromotionCodeFields on PromotionCode {
+  id
+  ruleId
+  code
+  maxUses
+  perCustomerLimit
+  validFrom
+  validTo
+  restrictedToEmail
+  usedCount
+  isActive
+  createdAt
+  updatedAt
+}
+
+fragment PromotionRuleFields on PromotionRule {
+  id
+  slug
+  name
+  description
+  publicLabel
+  channelId
+  requiresCode
+  priority
+  stopAfterApply
+  exclusivityGroup
+  validFrom
+  validTo
+  scheduleJson
+  maxUses
+  perCustomerLimit
+  usedCount
+  isActive
+  labelMediaId
+  bannerMediaId
+  pillText
+  pillTextColor
+  pillBgColor
+  conditions {
+    ...PromotionConditionFields
+  }
+  actions {
+    ...PromotionActionFields
+  }
+  createdAt
+  updatedAt
+}
+
+query PromotionRules($limit: Int, $offset: Int) {
+  promotionRules(limit: $limit, offset: $offset) {
+    items {
+      ...PromotionRuleFields
+    }
+    totalCount
+  }
+}
+
+query PromotionRule($id: ID!) {
+  promotionRule(id: $id) {
+    ...PromotionRuleFields
+    codes(limit: 100) {
+      items {
+        ...PromotionCodeFields
+      }
+      totalCount
+    }
+  }
+}
+
+query PromotionConditionTypes {
+  promotionConditionTypes {
+    slug
+    label
+    description
+    paramsSchema
+  }
+}
+
+query PromotionActionTypes {
+  promotionActionTypes {
+    slug
+    label
+    description
+    paramsSchema
+  }
+}
+
+mutation CreatePromotionRule($input: CreatePromotionRuleInput!) {
+  createPromotionRule(input: $input) {
+    ...PromotionRuleFields
+  }
+}
+
+mutation UpdatePromotionRule($input: UpdatePromotionRuleInput!) {
+  updatePromotionRule(input: $input) {
+    ...PromotionRuleFields
+  }
+}
+
+mutation DeletePromotionRule($id: ID!) {
+  deletePromotionRule(id: $id)
+}
+
+mutation ReorderPromotionRules($ruleIds: [ID!]!) {
+  reorderPromotionRules(ruleIds: $ruleIds)
+}
+
+# Single query that powers the merged Promotions hub: the rule list (lean
+# selection for the table), KPI totals, per-rule analytics (joined to rules
+# by id), and the daily trend series.
+query PromotionsHub($start: Time, $end: Time) {
+  promotionRules(limit: 500, offset: 0) {
+    items {
+      id
+      slug
+      name
+      priority
+      requiresCode
+      isActive
+      usedCount
+      maxUses
+      stopAfterApply
+      validFrom
+      validTo
+      actions {
+        type
+      }
+    }
+    totalCount
+  }
+  promotionAnalyticsTotals(start: $start, end: $end) {
+    redemptionCount
+    discountTotalCents
+    uniqueCustomers
+  }
+  promotionAnalytics(start: $start, end: $end) {
+    ruleId
+    redemptionCount
+    discountTotalCents
+    uniqueCustomers
+    orderRevenueCents
+  }
+  promotionAnalyticsDaily(start: $start, end: $end) {
+    date
+    redemptionCount
+    discountTotalCents
+  }
+}
+
+# Per-promotion analytics for the standalone promotion page: the rule's
+# aggregate row (filtered client-side by ruleId) plus its daily trend.
+query PromotionDetailAnalytics($start: Time, $end: Time, $ruleId: ID) {
+  promotionAnalytics(start: $start, end: $end) {
+    ruleId
+    redemptionCount
+    discountTotalCents
+    uniqueCustomers
+    orderRevenueCents
+  }
+  promotionAnalyticsDaily(start: $start, end: $end, ruleId: $ruleId) {
+    date
+    redemptionCount
+    discountTotalCents
+  }
+}
+
+query SimulatePromotion($input: PromotionSimulationInput!) {
+  simulatePromotion(input: $input) {
+    appliedRuleIds
+    subtotalDiscountCents
+    freeShipping
+    trace {
+      ruleId
+      ruleSlug
+      priority
+      matched
+      skipReason
+      discountCents
+      stopAfterApply
+    }
+  }
+}
+
+query CustomerSegmentsList($limit: Int, $offset: Int) {
+  customerSegments(limit: $limit, offset: $offset) {
+    items {
+      id
+      slug
+      name
+      description
+      isActive
+      memberCount
+    }
+    totalCount
+  }
+}
+
+mutation CreateCustomerSegment($input: CreateCustomerSegmentInput!) {
+  createCustomerSegment(input: $input) {
+    id
+    slug
+    name
+  }
+}
+
+mutation UpdateCustomerSegment($input: UpdateCustomerSegmentInput!) {
+  updateCustomerSegment(input: $input) {
+    id
+    slug
+    name
+    isActive
+  }
+}
+
+mutation DeleteCustomerSegment($id: ID!) {
+  deleteCustomerSegment(id: $id)
+}
+
+mutation UpsertPromotionRuleContent($input: UpsertPromotionRuleContentInput!) {
+  upsertPromotionRuleContent(input: $input) {
+    locale
+    label
+    terms
+  }
+}
+
+mutation DeletePromotionRuleContent($ruleId: ID!, $locale: String!) {
+  deletePromotionRuleContent(ruleId: $ruleId, locale: $locale)
+}
+
+mutation GeneratePromotionCodes(
+  $ruleId: ID!
+  $pattern: String!
+  $count: Int!
+  $prefix: String
+  $suffix: String
+) {
+  generatePromotionCodes(
+    ruleId: $ruleId
+    pattern: $pattern
+    count: $count
+    prefix: $prefix
+    suffix: $suffix
+  ) {
+    ...PromotionCodeFields
+  }
+}
+
+mutation UpdatePromotionCode($input: UpdatePromotionCodeInput!) {
+  updatePromotionCode(input: $input) {
+    ...PromotionCodeFields
+  }
+}
+
+mutation DeletePromotionCode($id: ID!) {
+  deletePromotionCode(id: $id)
+}
+
+# Just the KPI totals, for the dashboard section - PromotionsHub pulls 500 rules
+# alongside them, which is the wrong shape for a widget.
+query PromotionTotals($start: Time, $end: Time) {
+  promotionAnalyticsTotals(start: $start, end: $end) {
+    redemptionCount
+    discountTotalCents
+    uniqueCustomers
+  }
+}

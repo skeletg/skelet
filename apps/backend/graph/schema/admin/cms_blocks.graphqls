@@ -1,0 +1,45 @@
+# ==================== Reusable blocks (Phase B) ====================
+
+# A reusable section: a saved block subtree embedded into pages via a `ref`
+# block. Editing it updates every page that references it.
+type CMSSnippet {
+  id:        ID!
+  slug:      String!
+  name:      String!
+  blocks:    JSON!   # a { version, blocks } document
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# An admin-defined custom block type: a field schema + an HTML template.
+type CMSBlockType {
+  id:           ID!
+  key:          String!
+  name:         String!
+  icon:         String!
+  fields:       JSON!   # editor field-schema descriptor array
+  htmlTemplate: String!
+  createdAt:    Time!
+  updatedAt:    Time!
+}
+
+input CreateCMSSnippetInput { slug: String! name: String! blocks: JSON }
+input UpdateCMSSnippetInput { id: ID! name: String blocks: JSON }
+input CreateCMSBlockTypeInput { key: String! name: String! icon: String fields: JSON htmlTemplate: String }
+input UpdateCMSBlockTypeInput { id: ID! name: String icon: String fields: JSON htmlTemplate: String }
+
+extend type Query {
+  cmsSnippets: [CMSSnippet!]!
+  cmsSnippet(id: ID!): CMSSnippet
+  cmsBlockTypes: [CMSBlockType!]!
+  cmsBlockType(id: ID!): CMSBlockType
+}
+
+extend type Mutation {
+  createCMSSnippet(input: CreateCMSSnippetInput!): CMSSnippet!
+  updateCMSSnippet(input: UpdateCMSSnippetInput!): CMSSnippet!
+  deleteCMSSnippet(id: ID!): Boolean!
+  createCMSBlockType(input: CreateCMSBlockTypeInput!): CMSBlockType!
+  updateCMSBlockType(input: UpdateCMSBlockTypeInput!): CMSBlockType!
+  deleteCMSBlockType(id: ID!): Boolean!
+}

@@ -1,0 +1,49 @@
+# Operational health of every subsystem, for the admin panel. The stack is
+# distributed once the optional tiers are deployed (app / ingest / signals worker,
+# an optional queue, an optional columnar engine, an optional search cluster) and
+# most of these failures are SILENT - a queue with no consumer, a prune that
+# stopped running, a search cluster whose absence reads as an empty catalogue - so
+# they were visible only in container logs nobody tails.
+#
+# The shape is deliberately generic: checks self-register in internal/health, so a
+# new subsystem is a backend-only change and this schema never grows a field for it.
+# Gated on settings.manage - it reports on infrastructure, not merchandising.
+
+enum HealthStatus {
+  OK
+  WARN
+  BAD
+  # Not configured. A deployment running none of the optional tiers should read as
+  # calm rather than broken - OFF is a choice someone made, not a fault, and it
+  # never escalates the overall status
+  OFF
+}
+
+type HealthCheck {
+  # Stable across releases - safe to key UI or alerting on, unlike label
+  key:    String!
+  label:  String!
+  status: HealthStatus!
+  # What IS, short and factual: "reachable - 4/25 connections in use"
+  detail: String!
+  # What to DO about it. Empty when there is nothing to do, so the UI can render it
+  # as the exception rather than noise on every healthy row
+  hint:   String
+}
+
+type HealthGroup {
+  key:    String!
+  label:  String!
+  checks: [HealthCheck!]!
+}
+
+type SystemHealth {
+  # Worst status across every check
+  status:    HealthStatus!
+  checkedAt: Time!
+  groups:    [HealthGroup!]!
+}
+
+extend type Query {
+  systemHealth: SystemHealth!
+}

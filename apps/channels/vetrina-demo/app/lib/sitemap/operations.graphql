@@ -1,0 +1,16 @@
+# Catalog sitemap feeds - counts drive chunking, entries fill each chunk.
+
+query SitemapCounts {
+  sitemapCounts {
+    products
+    categories
+    collections
+  }
+}
+
+query SitemapEntries($entityType: SitemapEntityType!, $limit: Int!, $offset: Int!) {
+  sitemapEntries(entityType: $entityType, limit: $limit, offset: $offset) {
+    path
+    updatedAt
+  }
+}

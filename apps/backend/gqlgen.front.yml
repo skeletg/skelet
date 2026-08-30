@@ -1,0 +1,159 @@
+# Storefront GraphQL surface: schema + executable + resolvers for the
+# customer-facing API served at POST /api/front/graphql.
+#
+# Autobinds every type to the admin model package so resolvers can reuse
+# admin's helper functions (toCustomerModel, toAddressModel, etc.). The
+# storefront schema exposes a strict subset of admin's fields; gqlgen only
+# serializes the fields its schema declares, so the wider Go struct is
+# safe.
+schema:
+  - graph/schema/front/*.graphqls
+  # Tier 1 plugins ship storefront SDL files too - same merging as gqlgen.admin.yml,
+  # and cmd/plugingraph then rewrites the stub gqlgen writes into delegation through
+  # the runtime registry, so core never imports the plugin.
+  # BEGIN plugin schema - generated from plugins/plugins.json by cmd/plugingen
+  # END plugin schema
+
+exec:
+  package: front
+  layout: single-file
+  filename: graph/front/generated.go
+
+model:
+  filename: graph/front/model/models_gen.go
+  package: model
+
+resolver:
+  package: front
+  layout: follow-schema
+  dir: graph/front
+  filename_template: "{name}.resolvers.go"
+  # gqlgen's scaffolding comments are pure restatement ("X is the resolver for the x field.") and they came back on every regen, so the
+  # files could never be swept - hand-written resolver comments are still preserved across regeneration
+  omit_template_comment: true
+
+omit_gqlgen_file_notice: true
+
+call_argument_directives_with_null: true
+
+autobind:
+  - github.com/skeletg/skelet/graph/admin/model
+
+models:
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64
+      - github.com/99designs/gqlgen/graphql.Int32
+  # Menu and MenuItem live in the front model package because the
+  # storefront schema adds a `children` field that the admin model
+  # doesn't carry. Pinning these to the front model forces gqlgen to
+  # generate dedicated structs (with the Children slice) here instead
+  # of autobinding to admin's flatter type.
+  Menu:
+    model: github.com/skeletg/skelet/graph/front/model.Menu
+  MenuItem:
+    model: github.com/skeletg/skelet/graph/front/model.MenuItem
+  # CMSPage autobinds to the admin model (above); ogImage has no struct field - it's computed from metadata/body - so
+  # force it to a resolver. Pinning the model here keeps the rest autobound exactly as before
+  CMSPage:
+    model: github.com/skeletg/skelet/graph/admin/model.CMSPage
+    fields:
+      ogImage: { resolver: true }
+  # Product.partOf membership types - hand-rolled structs (carry the owning product id; leaf fields bind to struct
+  # fields populated by the three ProductMemberships resolvers)
+  ProductMemberships:
+    model: github.com/skeletg/skelet/graph/front/model.ProductMemberships
+    fields:
+      configurable: { resolver: true }
+      bundles: { resolver: true }
+      groupedProducts: { resolver: true }
+  ConfigurableMembership:
+    model: github.com/skeletg/skelet/graph/front/model.ConfigurableMembership
+  BundleMembership:
+    model: github.com/skeletg/skelet/graph/front/model.BundleMembership
+  GroupedMembership:
+    model: github.com/skeletg/skelet/graph/front/model.GroupedMembership
+  Order:
+    fields:
+      # The autobound admin Order struct carries a Returns field that the
+      # storefront order load never populates - force a resolver so the
+      # customer's RMAs are fetched on demand. returnableLines has no struct
+      # field, so it would resolve automatically; pinned here for clarity.
+      returns:
+        resolver: true
+      # Live carrier tracking lookup (shipping.Tracker) - resolver so only
+      # order detail pages pay the gateway call.
+      trackingUrl:
+        resolver: true
+      returnableLines:
+        resolver: true
+  Customer:
+    fields:
+      consents:
+        resolver: true
+      storeCreditBalance:
+        resolver: true
+  Review:
+    fields:
+      # Vote-related fields are not on the admin Review struct; each is its own resolver so the storefront review list
+      # pays for the votes lookup only when it asks for these fields
+      helpfulCount:
+        resolver: true
+      notHelpfulCount:
+        resolver: true
+      myVote:
+        resolver: true
+  Product:
+    fields:
+      # partOf is a resolver (returns a cheap shell); forced here so the
+      # autobound admin Product model's dead partOf field isn't bound.
+      partOf:
+        resolver: true
+      # tierPrices is caller-scoped (channel + customer group), so it must
+      # resolve per request rather than bind to the shared admin model.
+      tierPrices:
+        resolver: true
+      # Inventory-item flag looked up on demand (not on the admin model).
+      backorderable:
+        resolver: true
+      linkedProducts:
+        resolver: true
+      alsoBought:
+        resolver: true
+      salableQuantity:
+        resolver: true
+      inStock:
+        resolver: true
+      # Recurring terms for SUBSCRIPTION products - field resolver so listing
+      # pages that don't ask for it don't pay a terms lookup per product.
+      subscriptionTerms:
+        resolver: true
+      # Review extension fields - each is its own resolver so the PDP's base product fetch doesn't pay for review
+      # hydration unless the caller asks for it
+      reviewQuestions:
+        resolver: true
+      reviews:
+        resolver: true
+      reviewAggregates:
+        resolver: true
+      customerCanReview:
+        resolver: true
+      # Promotional creative - auto-derived from active rules whose product-level conditions could match this product.
+      # Field resolver so listing pages that don't ask for it don't pay the rule walk
+      promotionalDisplays:
+        resolver: true
+  UUID:
+    model:
+      - github.com/99designs/gqlgen/graphql.UUID
+  JSON:
+    model:
+      - github.com/99designs/gqlgen/graphql.Any
+  Int:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int32
+  Int64:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# npm inside a channel's container: bin/channel [name] <args> - name optional if there's only one
+set -e
+cd "$(dirname "$(dirname "$0")")"
+. bin/_lib
+
+name=""
+if [ -n "${1:-}" ] && [ -d "apps/channels/$1" ]; then
+    name="$1"; shift
+else
+    for sf in apps/channels/*/package.json; do
+        [ -f "$sf" ] || continue
+        if [ -n "$name" ]; then
+            echo "Multiple channels in this checkout - name one explicitly:" >&2
+            for d in apps/channels/*/package.json; do
+                [ -f "$d" ] && echo "    bin/channel $(basename "$(dirname "$d")") ${*:-<npm args>}" >&2
+            done
+            exit 2
+        fi
+        name="$(basename "$(dirname "$sf")")"
+    done
+fi
+
+if [ -z "$name" ] || [ ! -f "apps/channels/$name/package.json" ]; then
+    echo "No channel ${name:+\"$name\" }found under apps/channels/ in this checkout." >&2
+    echo "Removed by bin/setup app selection? Bring it back with: bin/setup --all (or --apps ...)" >&2
+    exit 1
+fi
+
+# Host npm when this clone has a host install - the container keeps node_modules in its own volume,
+# and running the gates against a different tree than the dev server is how the two silently diverge
+if [ -z "${SKELET_FORCE_DOCKER:-}" ] && command -v npm >/dev/null 2>&1 && [ -d "apps/channels/$name/node_modules" ]; then
+    cd "apps/channels/$name" && exec npm "$@"
+fi
+
+tty_flag=()
+[ -t 0 ] && tty_flag=(-it)
+
+if docker compose ps --status running | grep -q "skelet-$name"; then
+    docker compose exec "${tty_flag[@]}" "${USER_FLAG[@]}" "$name" npm "$@"
+else
+    docker compose run --rm "${tty_flag[@]}" "${USER_FLAG[@]}" "$name" npm "$@"
+fi

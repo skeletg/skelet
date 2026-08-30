@@ -1,0 +1,117 @@
+fragment DataResourceFields on DataResource {
+  slug
+  label
+  group
+  description
+  canImport
+  canExport
+  viewPermission
+  importPermission
+  dynamicPrefixes
+  fields {
+    name
+    label
+    type
+    description
+    example
+    required
+    identifier
+    readOnly
+    enum
+  }
+  options {
+    name
+    label
+    description
+    type
+    required
+    default
+    appliesTo
+    choices {
+      value
+      label
+    }
+  }
+}
+
+fragment DataJobFields on DataJob {
+  id
+  direction
+  resource
+  resourceLabel
+  format
+  status
+  dryRun
+  channelId
+  filename
+  hasArtifact
+  byteSize
+  totalRows
+  processedRows
+  createdRows
+  updatedRows
+  skippedRows
+  failedRows
+  errorSummary
+  warnings
+  errorsTruncated
+  createdAt
+  startedAt
+  finishedAt
+  expiresAt
+}
+
+query DataResources {
+  dataResources {
+    ...DataResourceFields
+  }
+  dataFormats {
+    format
+    label
+    extension
+  }
+}
+
+query DataJobs($resources: [String!], $direction: String, $statuses: [String!], $limit: Int, $offset: Int) {
+  dataJobs(
+    resources: $resources
+    direction: $direction
+    statuses: $statuses
+    limit: $limit
+    offset: $offset
+  ) {
+    totalCount
+    items {
+      ...DataJobFields
+    }
+  }
+}
+
+query DataJob($id: ID!) {
+  dataJob(id: $id) {
+    ...DataJobFields
+  }
+}
+
+query DataJobErrors($id: ID!, $limit: Int, $offset: Int) {
+  dataJobErrors(id: $id, limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      line
+      ref
+      message
+    }
+  }
+}
+
+mutation StartDataExport($input: StartDataExportInput!) {
+  startDataExport(input: $input) {
+    ...DataJobFields
+  }
+}
+
+mutation CancelDataJob($id: ID!) {
+  cancelDataJob(id: $id) {
+    ...DataJobFields
+  }
+}

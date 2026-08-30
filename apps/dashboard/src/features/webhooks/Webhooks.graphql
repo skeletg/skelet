@@ -1,0 +1,184 @@
+query Webhooks {
+  webhooks {
+    id
+    name
+    targetUrl
+    kind
+    isActive
+    eventTypes
+    failurePolicy
+    circuit {
+      state
+    }
+    createdAt
+    channel {
+      id
+      slug
+      name
+    }
+  }
+}
+
+query Webhook($id: ID!) {
+  webhook(id: $id) {
+    id
+    name
+    targetUrl
+    kind
+    isActive
+    eventTypes
+    failurePolicy
+    timeoutMs
+    customHeaders
+    payloadVersion
+    circuit {
+      state
+      consecutiveFailures
+      openedAt
+    }
+    createdAt
+    updatedAt
+    channel {
+      id
+      slug
+      name
+    }
+  }
+}
+
+query WebhookEventTypes {
+  webhookEventTypes {
+    type
+    name
+    description
+    kind
+  }
+}
+
+query WebhookDeliveryStats($webhookId: ID!) {
+  webhookDeliveryStats(webhookId: $webhookId) {
+    total
+    succeeded
+    failed
+    successRate
+    avgSuccessMs
+    lastDeliveryAt
+    lastSuccessAt
+    lastFailureAt
+  }
+}
+
+query WebhookDeliveries($webhookId: ID!, $limit: Int) {
+  webhookDeliveries(webhookId: $webhookId, limit: $limit) {
+    id
+    eventType
+    url
+    requestBody
+    requestHeaders
+    responseStatus
+    responseBody
+    responseHeaders
+    durationMs
+    success
+    errorMessage
+    attempt
+    createdAt
+  }
+}
+
+mutation CreateWebhook($input: CreateWebhookInput!) {
+  createWebhook(input: $input) {
+    rawSecret
+    webhook {
+      id
+      name
+      targetUrl
+      kind
+      isActive
+      eventTypes
+      createdAt
+      channel {
+        id
+        slug
+        name
+      }
+    }
+  }
+}
+
+mutation UpdateWebhook($input: UpdateWebhookInput!) {
+  updateWebhook(input: $input) {
+    id
+    name
+    targetUrl
+    eventTypes
+    failurePolicy
+    timeoutMs
+    customHeaders
+    updatedAt
+    channel {
+      id
+      slug
+      name
+    }
+  }
+}
+
+mutation SetWebhookActive($id: ID!, $active: Boolean!) {
+  setWebhookActive(id: $id, active: $active) {
+    id
+    isActive
+  }
+}
+
+mutation RotateWebhookSecret($id: ID!) {
+  rotateWebhookSecret(id: $id) {
+    rawSecret
+    webhook {
+      id
+    }
+  }
+}
+
+mutation DeleteWebhook($id: ID!) {
+  deleteWebhook(id: $id)
+}
+
+mutation ClearWebhookDeliveries($webhookId: ID!) {
+  clearWebhookDeliveries(webhookId: $webhookId)
+}
+
+query WebhookDeadLetters($webhookId: ID!, $limit: Int) {
+  webhookDeadLetters(webhookId: $webhookId, limit: $limit) {
+    id
+    eventType
+    status
+    attempts
+    nextAttemptAt
+    lastError
+    payload
+    createdAt
+    updatedAt
+  }
+}
+
+mutation RetryWebhookDeadLetter($id: ID!) {
+  retryWebhookDeadLetter(id: $id) {
+    id
+    status
+    attempts
+    nextAttemptAt
+  }
+}
+
+mutation ClearWebhookDeadLetters($webhookId: ID!) {
+  clearWebhookDeadLetters(webhookId: $webhookId)
+}
+
+mutation RedeliverWebhookDelivery($deliveryId: ID!) {
+  redeliverWebhookDelivery(deliveryId: $deliveryId) {
+    id
+    status
+    nextAttemptAt
+  }
+}

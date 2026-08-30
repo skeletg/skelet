@@ -1,0 +1,11 @@
+query MyPreferences {
+  myPreferences {
+    key
+    value
+    updatedAt
+  }
+}
+
+mutation SetMyPreference($key: String!, $value: JSON) {
+  setMyPreference(key: $key, value: $value)
+}

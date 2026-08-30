@@ -1,0 +1,24 @@
+query ProductQuestions($productId: ID!, $limit: Int) {
+  productQuestions(productId: $productId, limit: $limit) {
+    id
+    authorName
+    question
+    answer
+    answeredAt
+    createdAt
+  }
+}
+
+mutation SubmitProductQuestion(
+  $productId: ID!
+  $question: String!
+  $authorName: String
+  $authorEmail: String
+) {
+  submitProductQuestion(
+    productId: $productId
+    question: $question
+    authorName: $authorName
+    authorEmail: $authorEmail
+  )
+}

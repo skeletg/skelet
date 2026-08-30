@@ -1,0 +1,554 @@
+enum OrderStatus {
+  # Admin-built order not yet placed: priced + editable, holds no stock, fires
+  # no placement events. Becomes PENDING via placeDraftOrder. Never produced by
+  # storefront checkout.
+  DRAFT
+  PENDING
+  CONFIRMED
+  # Parked before fulfillment: auto (risk score >= sales/checkout/
+  # risk_hold_threshold) or manual holdOrder. Release returns it to
+  # CONFIRMED; it can also be cancelled.
+  ON_HOLD
+  PROCESSING
+  # At least one shipment recorded, but some ordered quantity is still
+  # unshipped. Reached via createFulfillment; settles to FULFILLED once the
+  # final shipment covers every line.
+  PARTIALLY_FULFILLED
+  FULFILLED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  AUTHORIZED
+  PARTIALLY_CAPTURED
+  PAID
+  PARTIALLY_REFUNDED
+  REFUNDED
+  VOIDED
+}
+
+type Order {
+  id:              ID!
+  # Owning channel - orders are placed on exactly one channel. The
+  # dashboard gates the order detail page against the header scope.
+  channelId:       ID!
+  number:          String!
+  status:          OrderStatus!
+  paymentStatus:   PaymentStatus!
+  # Transient: populated only on the storefront placeOrder response when the
+  # gateway needs a client-side 3DS step. Always null on admin reads.
+  paymentClientSecret: String
+  # Payment provider slug chosen at checkout (empty when none / gift-card only).
+  paymentProvider: String!
+  # Gateway handle for the payment (Stripe PaymentIntent id, Braintree txn id);
+  # empty until authorized. Used by capture/refund/void.
+  paymentReference: String!
+  # Receipt destination. Always present - for guest orders this is the
+  # only address-of-record; for customer orders this is a snapshot of
+  # the customer's email at placement time.
+  email:           String!
+  # Null for guest orders. Links to the customer when present so the
+  # admin can jump to the customer record.
+  customerId:      ID
+  billingAddress:  OrderAddress!
+  shippingAddress: OrderAddress!
+  # B2B purchase-order reference captured at checkout.
+  poNumber: String
+  lines:           [OrderLine!]!
+  events:          [OrderEvent!]!
+  subtotal:        Int!
+  shippingAmount:  Int!
+  discountAmount:  Int!
+  taxAmount:       Int!
+  total:           Int!
+  # Cents of `total` covered by gift-card tenders (not a discount - total
+  # is unchanged). Amount owed to the payment provider is total minus this.
+  giftCardAmount:  Int!
+  storeCreditAmount: Int!
+  currencyCode:    String!
+  customerNote:    String
+  # Shipment tracking, populated when the order transitions to
+  # fulfilled. Empty for orders that haven't shipped yet or for
+  # stores that don't integrate with a carrier API.
+  carrier:         String!
+  trackingNumber:  String!
+  # Carrier-resolved tracking URL for trackingNumber, when the order's shipping
+  # carrier supports tracking (empty otherwise). A field resolver - only the
+  # detail page pays the lookup.
+  trackingUrl:     String!
+  # Shipments recorded against this order (newest sequence last). Empty until
+  # the first createFulfillment. A field resolver - only the detail page pays
+  # the lookup, never the list.
+  fulfillments:    [Fulfillment!]!
+  # Append-only payment ledger (authorize/capture/refund/void). The source of
+  # truth for captured/refunded amounts; paymentStatus is its projection.
+  # A field resolver - loaded only on demand.
+  paymentTransactions: [PaymentTransaction!]!
+  # Returns / RMAs opened against this order. A field resolver - loaded only on
+  # the detail page.
+  returns:         [OrderReturn!]!
+  # Which promotion rules produced discountAmount - the order stores only the
+  # aggregate, so without this a discount has no explanation. A field resolver.
+  appliedPromotions: [AppliedPromotion!]!
+  # Which tax rules produced taxAmount, one row per rule. Empty for orders placed
+  # before the breakdown was recorded. A field resolver.
+  taxLines: [OrderTaxLine!]!
+  createdAt:       Time!
+}
+
+# A shipment covering some or all of an order's line quantities. An order may
+# have many; status SHIPPED is the norm, CANCELLED marks a voided shipment
+# (its lines no longer count toward shipped totals).
+type Fulfillment {
+  id:             ID!
+  status:         String!
+  carrier:        String!
+  trackingNumber: String!
+  # 1-based shipment number within the order (1 = first shipment).
+  sequence:       Int!
+  # Declared value for shipment insurance (0 = uninsured); handed to the
+  # carrier's label call.
+  insuredValueCents: Int!
+  lines:          [FulfillmentLine!]!
+  # Carrier labels generated for this shipment (empty until one is generated).
+  labels:         [ShippingLabel!]!
+  shippedAt:      Time
+  createdAt:      Time!
+}
+
+# One (order line, quantity) shipped within a fulfillment.
+type FulfillmentLine {
+  id:          ID!
+  orderLineId: ID!
+  quantity:    Float!
+}
+
+# A carrier-generated shipping label for a fulfillment. dataUrl is a base64
+# data: URL of the document - link or print it directly (no separate fetch).
+type ShippingLabel {
+  id:             ID!
+  carrierSlug:    String!
+  format:         String!
+  trackingNumber: String!
+  dataUrl:        String!
+  createdAt:      Time!
+}
+
+# One entry in the order payment ledger. `providerReference` is the gateway
+# handle for this specific action (capture/refund id), distinct from the
+# order's authorization reference.
+type PaymentTransaction {
+  id:                ID!
+  kind:              String!
+  amount:            Int!
+  status:            String!
+  providerSlug:      String!
+  providerReference: String!
+  reason:            String!
+  createdAt:         Time!
+}
+
+# An RMA: a request to send back shipped quantities of an order, moving through
+# requested → approved → received → refunded (or rejected). The refund is issued
+# to the original tender or as a new gift card.
+type OrderReturn {
+  id:           ID!
+  rmaNumber:    String!
+  status:       String!
+  reason:       String!
+  # Whether received goods are added back to sellable stock.
+  restock:      Boolean!
+  # "original" (refund to the payment gateway) or "gift_card" (issue store credit).
+  refundTarget: String!
+  # Cents actually refunded; 0 until the return is refunded.
+  refundAmount: Int!
+  # "refund" (default) or "exchange" - exchange RMAs open a zero-priced
+  # replacement draft order on receipt instead of refunding.
+  resolution:      String!
+  exchangeOrderId: ID
+  lines:        [OrderReturnLine!]!
+  createdAt:    Time!
+  updatedAt:    Time!
+}
+
+# One order line (and quantity) within a return. refundUnitCents is the
+# discounted per-unit basis snapshotted at request time.
+type OrderReturnLine {
+  id:              ID!
+  orderLineId:     ID!
+  quantity:        Float!
+  reason:          String!
+  refundUnitCents: Int!
+}
+
+# One promotion the engine applied at placement, with the code the shopper typed
+# when the rule was code-gated
+type AppliedPromotion {
+  id:       ID!
+  ruleId:   ID
+  ruleName: String!
+  ruleSlug: String!
+  code:     String!
+  discount: Int!
+  appliedAt: Time!
+}
+
+# One tax rule's contribution. name and rate are snapshots, so a store running
+# state + county + a levy shows three rows without the schema knowing about any
+# of them, and the record survives the rule being edited or deleted
+type OrderTaxLine {
+  id:     ID!
+  ruleId: ID
+  name:   String!
+  # Effective rate in basis points (875 = 8.75%), 0 for a flat-amount rule
+  rateBps: Int!
+  amount:  Int!
+}
+
+input RecordOfflinePaymentInput {
+  orderId: ID!
+  # Omit or 0 for the whole remaining balance. Refused if it exceeds what is owed.
+  amount: Int
+  # How the money arrived: cash, bank_transfer, cheque, card_terminal, other.
+  # Free-form, but these are what the UI offers so reporting can group on them.
+  method: String
+  # The operator's handle for it - wire id, receipt number, cheque number.
+  reference: String
+  # When the money actually landed. Defaults to now; backdate it so the ledger
+  # matches the bank statement rather than the day someone got round to it.
+  receivedAt: Time
+  note: String
+}
+
+type OrderLine {
+  id:          ID!
+  productName: String!
+  productSku:  String!
+  unitPrice:   Int!
+  quantity:    Float!
+  totalPrice:  Int!
+  # A promotion free gift: zero-priced, granted by a rule rather than added by
+  # the customer. It contributes nothing to the subtotal, so a pro-rata refund
+  # must not pay money back for it.
+  isGift:      Boolean!
+  # Custom-option picks captured at placement (engraving text, gift wrap,
+  # etc.) - the immutable record of what was configured, for fulfillment.
+  options:     [OrderLineOption!]!
+  # Picks under a bundle line, empty for a simple product - a bundle line names
+  # only the bundle, so without these nobody downstream knows what to pick
+  components:  [OrderLineComponent!]!
+}
+
+# One chosen component under a bundle line, snapshotted at placement
+type OrderLineComponent {
+  id:          ID!
+  productSku:  String!
+  productName: String!
+  unitPrice:   Int!
+  # Already multiplied by the parent line quantity, so it is what actually ships
+  quantity:    Float!
+}
+
+# A single product custom-option pick snapshotted onto an order line.
+type OrderLineOption {
+  id:          ID!
+  inputType:   String!
+  optionTitle: String!
+  valueLabel:  String!
+  textValue:   String!
+  priceDelta:  Int!
+  quantity:    Float!
+  # Public URL of the uploaded file for FILE-type options (empty otherwise).
+  # The original filename is carried in textValue.
+  fileUrl:     String!
+}
+
+type OrderAddress {
+  firstName:   String!
+  lastName:    String!
+  company:     String
+  street1:     String!
+  street2:     String
+  city:        String!
+  state:       String
+  postalCode:  String!
+  countryCode: String!
+  phone:       String
+}
+
+type OrderPage {
+  totalCount: Int!
+  items:      [Order!]!
+}
+
+type OrderEvent {
+  id:        ID!
+  type:      String!
+  message:   String!
+  # Admin who performed the action; null for system/customer events.
+  actorEmail: String
+  createdAt: Time!
+}
+
+extend type Query {
+  # channelId scopes the result to orders placed on that channel -
+  # header-driven scope uses this. Omit for the global list.
+  orders(channelId: ID): [Order!]!
+  # Server-side page for the orders grid - statuses/paymentStatuses take the
+  # SCREAMING enum spellings, search matches number, email and last names
+  ordersPaged(channelId: ID, search: String, statuses: [String!], paymentStatuses: [String!], limit: Int, offset: Int): OrderPage!
+  order(id: ID!):          Order!
+}
+
+extend type Mutation {
+  # ---------- Draft / manual orders ----------
+  # Create an admin-built order in the DRAFT status: priced (tax + shipping +
+  # manual discount) but holding no stock and unpaid. Lines are simple products
+  # by SKU (priced server-side). Edit it with editOrder; finalize with
+  # placeDraftOrder, which reserves stock and emits the placed-order events.
+  # Both require orders.update on the target channel.
+  createDraftOrder(input: CreateDraftOrderInput!): Order!
+  placeDraftOrder(id: ID!): Order!
+
+  cancelOrder(id: ID!):    Order!
+  confirmOrder(id: ID!):   Order!
+  markProcessing(id: ID!): Order!
+  # Park a pending/confirmed order for manual review (fulfillment gate;
+  # payment stays as-is). Release returns it to CONFIRMED.
+  holdOrder(id: ID!, reason: String): Order!
+  releaseOrder(id: ID!):   Order!
+  # Mark an order shipped. Optional carrier + tracking are stamped on
+  # the order at fulfillment time and surfaced on the admin Order
+  # type. Both fields can be omitted when the store doesn't integrate
+  # with a carrier - a sync OrderFulfilling subscriber (e.g. a
+  # shipping-API plugin) can also fill these and its values win over
+  # the admin-supplied args.
+  fulfillOrder(id: ID!, carrier: String, trackingNumber: String, insuredValueCents: Int): Order!
+
+  # Edit a pre-fulfillment order (pending/confirmed/processing): change line
+  # quantities, remove lines, and add simple-product lines. Subtotal + tax are
+  # recomputed and shipping is re-quoted (when a method was recorded); the
+  # whole-order discount is held constant. Inventory is re-reserved in the same
+  # transaction, so a stock shortage aborts the edit. Requires orders.update.
+  editOrder(input: EditOrderInput!): Order!
+  # Rewrite the address snapshot of a placed, pre-fulfillment order. A
+  # shipping change recomputes tax + re-quotes the chosen method
+  # (fail-soft); amount-due drift rides the OrderEdited signal.
+  editOrderAddress(input: EditOrderAddressInput!): Order!
+
+  # Record a shipment covering a subset of the order's line quantities. Each
+  # line ships `quantity` of an order line; the sum across shipments may not
+  # exceed the ordered quantity. The order settles to PARTIALLY_FULFILLED, or
+  # FULFILLED once every line is fully shipped. Carrier/tracking seed the
+  # OrderFulfilling sync hook (a shipping-API plugin may override them).
+  # Inventory decrements the shipped quantities; the first shipment captures
+  # payment when the order is still authorized.
+  createFulfillment(input: CreateFulfillmentInput!): Order!
+
+  # Generate a shipping label for a fulfillment through the order's carrier (if
+  # it supports labels). Stores the label and, when the carrier books the
+  # shipment, stamps the returned tracking number on the order. Requires
+  # orders.update.
+  generateShippingLabel(fulfillmentId: ID!): ShippingLabel!
+
+  # ---------- Payment ----------
+  # Capture previously-authorized funds for an order (manual / early capture;
+  # fulfillment auto-captures otherwise). Refund a captured payment (full when
+  # amount omitted). Void an uncaptured authorization. Each calls the gateway;
+  # the order's paymentStatus settles from the resulting event. Returns the
+  # order (paymentStatus updates asynchronously once the gateway confirms).
+  capturePayment(orderId: ID!, amount: Int): Order!
+  refundPayment(orderId: ID!, amount: Int, reason: String): Order!
+  voidPayment(orderId: ID!): Order!
+
+  # Record an offline / manual payment on an UNPAID order - the reconciliation
+  # path for offline methods (cash on delivery, bank transfer, pay-on-pickup,
+  # purchase order) and manual/draft orders. Records a real capture WITHOUT a
+  # gateway and lets the payment status derive from the ledger, so part payments
+  # land on PARTIALLY_CAPTURED and a later instalment settles the rest.
+  recordOfflinePayment(input: RecordOfflinePaymentInput!): Order!
+
+  # ---------- Returns / RMA ----------
+  # Open a return for shipped quantities of an order. The requested quantity per
+  # line may not exceed the returnable remainder (shipped − already returned).
+  requestReturn(input: RequestReturnInput!): OrderReturn!
+  # Advance a return through its lifecycle. receiveReturn restocks the goods when
+  # the return is flagged for it. issueReturnRefund issues the refund to the
+  # original tender or as a gift card and settles the order's payment status;
+  # it requires the orders.refund permission (the others require orders.update).
+  approveReturn(id: ID!): OrderReturn!
+  rejectReturn(id: ID!): OrderReturn!
+  receiveReturn(id: ID!): OrderReturn!
+  issueReturnRefund(id: ID!, reason: String): OrderReturn!
+}
+
+input RequestReturnInput {
+  orderId:      ID!
+  lines:        [ReturnLineInput!]!
+  reason:       String
+  # Defaults to true - received goods are added back to sellable stock.
+  restock:      Boolean
+  # "original" (default) or "gift_card".
+  refundTarget: String
+  # "refund" (default) or "exchange".
+  resolution: String
+}
+
+input ReturnLineInput {
+  orderLineId: ID!
+  quantity:    Float!
+  reason:      String
+}
+
+input CreateDraftOrderInput {
+  channelId:           ID!
+  customerId:          ID
+  email:               String!
+  billingAddress:      AddressInput!
+  shippingAddress:     AddressInput!
+  lines:               [DraftOrderLineInput!]!
+  # Optional carrier + method; omit to auto-price the cheapest available.
+  shippingCarrierSlug: String
+  shippingMethodCode:  String
+  # Flat whole-order discount in cents (clamped to the subtotal). Manual orders
+  # don't run the promotion engine.
+  manualDiscountCents: Int
+  customerNote:        String
+  # When the order is built from a cart (admin "create order from cart"), the
+  # source cart id - marked converted as the order is created.
+  sourceCartId:        ID
+}
+
+input DraftOrderLineInput {
+  productSku: String!
+  quantity:   Float!
+  # Override the catalog price (cents) - manual admin pricing / quote
+  # conversion at negotiated prices. Omit for the catalog price.
+  unitPriceCents: Int
+}
+
+input EditOrderInput {
+  orderId:     ID!
+  updateLines: [EditLineQtyInput!]
+  removeLines: [ID!]
+  addLines:    [EditAddLineInput!]
+}
+
+input EditLineQtyInput {
+  orderLineId: ID!
+  quantity:    Float!
+}
+
+input EditAddLineInput {
+  productSku: String!
+  quantity:   Float!
+}
+
+input CreateFulfillmentInput {
+  orderId:        ID!
+  lines:          [FulfillmentLineInput!]!
+  carrier:        String
+  trackingNumber: String
+  # Declared value for shipment insurance (cents); omit for uninsured.
+  insuredValueCents: Int
+}
+
+input FulfillmentLineInput {
+  orderLineId: ID!
+  quantity:    Float!
+}
+
+
+enum OrderDocumentKind {
+  INVOICE
+  PACKING_SLIP
+  CREDIT_MEMO
+}
+
+extend type Query {
+  # Renders order paperwork as a base64-encoded PDF. Requires orders.view.
+  # CREDIT_MEMO renders ONE memo and needs creditMemoId - each memo is its own
+  # document, with only the lines and quantities it credited.
+  orderDocumentPdf(orderId: ID!, kind: OrderDocumentKind!, creditMemoId: ID): String!
+}
+
+# A credit memo is one refund event, recorded with the lines it covered. Memos
+# come from settling an RMA, or are issued directly against an order when there
+# is no return to make - a goodwill refund, a pricing correction, a shipping
+# credit. total = items + shipping + adjustment - fee.
+type CreditMemo {
+  id:                    ID!
+  number:                String!
+  orderId:               ID!
+  # Set when the memo settles a return.
+  returnId:              ID
+  itemsTotal:            Int!
+  shippingRefund:        Int!
+  adjustmentRefund:      Int!
+  adjustmentFee:         Int!
+  total:                 Int!
+  refundTarget:          String!
+  # The money moved outside a payment gateway (cash on delivery, bank transfer,
+  # purchase order, pickup).
+  offline:               Boolean!
+  reason:                String!
+  lines:                 [CreditMemoLine!]!
+  createdAt:             Time!
+}
+
+type CreditMemoLine {
+  orderLineId: ID!
+  productSku:  String!
+  productName: String!
+  quantity:    Float!
+  unitAmount:  Int!
+  totalAmount: Int!
+}
+
+input CreditMemoLineInput {
+  orderLineId: ID!
+  quantity:    Float!
+}
+
+input IssueCreditMemoInput {
+  orderId: ID!
+  # Optional - omit for an adjustment-only or shipping-only memo.
+  lines:            [CreditMemoLineInput!]
+  shippingRefund:   Int
+  # Goodwill on top of the lines.
+  adjustmentRefund: Int
+  # A restocking fee, subtracted.
+  adjustmentFee:    Int
+  # "original" (default) or "gift_card".
+  refundTarget:     String
+  reason:           String
+}
+
+extend type Query {
+  # Every memo raised against an order, oldest first. Requires orders.view.
+  creditMemos(orderId: ID!): [CreditMemo!]!
+  # Quantity per order line that may still be credited (ordered minus already
+  # credited), so the issue form can bound its inputs. Requires orders.refund.
+  creditableQuantities(orderId: ID!): [OrderLineQuantity!]!
+}
+
+type OrderLineQuantity {
+  orderLineId: ID!
+  quantity:    Float!
+}
+
+extend type Mutation {
+  # Refunds against an order without opening an RMA and records the memo.
+  # Money moves through the order's gateway, is issued as a gift card, or is
+  # recorded offline when the order was never settled through a gateway.
+  # Requires orders.refund.
+  issueCreditMemo(input: IssueCreditMemoInput!): CreditMemo!
+}
+
+input EditOrderAddressInput {
+  orderId:         ID!
+  # Omit either side to leave it unchanged.
+  shippingAddress: AddressInput
+  billingAddress:  AddressInput
+}

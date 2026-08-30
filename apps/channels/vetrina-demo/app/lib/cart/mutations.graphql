@@ -1,0 +1,130 @@
+query CartProbe($id: ID!) {
+  cart(id: $id) {
+    id
+  }
+}
+
+mutation CreateGuestCart {
+  createGuestCart {
+    id
+  }
+}
+
+mutation AddToCart(
+  $cartId: ID!
+  $productName: String!
+  $productSku: String!
+  $unitPrice: Int!
+  $quantity: Float!
+) {
+  addToCart(
+    cartId: $cartId
+    productName: $productName
+    productSku: $productSku
+    unitPrice: $unitPrice
+    quantity: $quantity
+  ) {
+    ...CartFull
+  }
+}
+
+mutation AddBundleToCart($input: AddBundleToCartInput!) {
+  addBundleToCart(input: $input) {
+    ...CartFull
+  }
+}
+
+mutation AddConfiguredToCart($input: AddConfiguredToCartInput!) {
+  addConfiguredToCart(input: $input) {
+    ...CartFull
+  }
+}
+
+mutation RequestProductOptionFileUpload(
+  $productSku: String!
+  $optionId: ID!
+  $filename: String!
+  $mimeType: String!
+  $sizeBytes: Int!
+) {
+  requestProductOptionFileUpload(
+    productSku: $productSku
+    optionId: $optionId
+    filename: $filename
+    mimeType: $mimeType
+    sizeBytes: $sizeBytes
+  ) {
+    assetId
+    uploadUrl
+    expiresAt
+  }
+}
+
+mutation UpdateCartLine($cartId: ID!, $lineId: ID!, $quantity: Float!) {
+  updateCartLine(cartId: $cartId, lineId: $lineId, quantity: $quantity) {
+    ...CartFull
+  }
+}
+
+mutation RemoveFromCart($cartId: ID!, $lineId: ID!) {
+  removeFromCart(cartId: $cartId, lineId: $lineId) {
+    ...CartFull
+  }
+}
+
+mutation ClearCart($cartId: ID!) {
+  clearCart(cartId: $cartId) {
+    ...CartFull
+  }
+}
+
+mutation ApplyCoupon($cartId: ID!, $code: String!) {
+  applyCoupon(cartId: $cartId, code: $code) {
+    ...CartFull
+  }
+}
+
+mutation RemoveCoupon($cartId: ID!, $code: String!) {
+  removeCoupon(cartId: $cartId, code: $code) {
+    ...CartFull
+  }
+}
+
+# Merge a guest cart into the authenticated customer's active cart.
+# Called from the login + register flows when a guest-cart cookie is
+# present so the cart survives sign-in.
+mutation MergeGuestCart($guestCartId: ID!) {
+  mergeGuestCart(guestCartId: $guestCartId) {
+    id
+  }
+}
+
+mutation SetCartEmail($cartId: ID!, $email: String!) {
+  setCartEmail(cartId: $cartId, email: $email) {
+    id
+  }
+}
+
+mutation SaveForLater($cartId: ID!, $lineId: ID!) {
+  saveForLater(cartId: $cartId, lineId: $lineId) {
+    ...CartFull
+  }
+}
+
+mutation MoveSavedToCart($cartId: ID!, $savedItemId: ID!) {
+  moveSavedToCart(cartId: $cartId, savedItemId: $savedItemId) {
+    ...CartFull
+  }
+}
+
+mutation RemoveSavedItem($cartId: ID!, $savedItemId: ID!) {
+  removeSavedItem(cartId: $cartId, savedItemId: $savedItemId) {
+    ...CartFull
+  }
+}
+
+mutation SetCartNote($cartId: ID!, $note: String!) {
+  setCartNote(cartId: $cartId, note: $note) {
+    id
+  }
+}

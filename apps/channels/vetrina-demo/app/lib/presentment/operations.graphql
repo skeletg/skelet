@@ -1,0 +1,11 @@
+query PresentmentCurrencies {
+  presentmentCurrencies {
+    code
+    name
+    symbol
+    decimals
+    symbolPosition
+    factorFromBase
+    rateUpdatedAt
+  }
+}

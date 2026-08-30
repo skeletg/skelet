@@ -1,0 +1,123 @@
+fragment EmailCampaignFields on EmailCampaign {
+  id
+  channelId
+  name
+  emailId
+  subject
+  blocks
+  styles
+  audienceKind
+  audienceId
+  status
+  scheduledFor
+  sentAt
+  totalRecipients
+  sentCount
+  failedCount
+  skippedCount
+  openedCount
+  clickedCount
+  abEnabled
+  abSubjectB
+  abTestPercent
+  abWinnerMetric
+  abTestMinutes
+  abWinner
+  abTestStartedAt
+  createdAt
+  updatedAt
+  deletedAt
+}
+
+query CampaignVariantStats($id: ID!) {
+  campaignVariantStats(id: $id) {
+    variant
+    sent
+    opened
+    clicked
+  }
+}
+
+query EmailCampaigns($channelId: ID!, $includeDeleted: Boolean) {
+  emailCampaigns(channelId: $channelId, includeDeleted: $includeDeleted) {
+    ...EmailCampaignFields
+  }
+}
+
+query EmailCampaign($id: ID!) {
+  emailCampaign(id: $id) {
+    ...EmailCampaignFields
+  }
+}
+
+query CampaignMergeTags {
+  campaignMergeTags
+}
+
+query CampaignAudienceEstimate($channelId: ID!, $audienceKind: String!, $audienceId: ID) {
+  campaignAudienceEstimate(channelId: $channelId, audienceKind: $audienceKind, audienceId: $audienceId) {
+    total
+    eligible
+  }
+}
+
+query RenderCampaignPreview($channelId: ID!, $subject: String!, $blocks: JSON!, $styles: JSON) {
+  renderCampaignPreview(channelId: $channelId, subject: $subject, blocks: $blocks, styles: $styles) {
+    subject
+    html
+  }
+}
+
+query CampaignGroups {
+  customerGroups {
+    id
+    name
+    memberCount
+  }
+}
+
+query CampaignSegments {
+  customerSegments {
+    items {
+      id
+      name
+      memberCount
+    }
+  }
+}
+
+mutation CreateEmailCampaign($input: SaveCampaignInput!) {
+  createEmailCampaign(input: $input) {
+    ...EmailCampaignFields
+  }
+}
+
+mutation UpdateEmailCampaign($id: ID!, $input: SaveCampaignInput!) {
+  updateEmailCampaign(id: $id, input: $input) {
+    ...EmailCampaignFields
+  }
+}
+
+mutation DeleteEmailCampaign($id: ID!) {
+  deleteEmailCampaign(id: $id)
+}
+
+mutation ScheduleEmailCampaign($id: ID!, $scheduledFor: Time) {
+  scheduleEmailCampaign(id: $id, scheduledFor: $scheduledFor) {
+    ...EmailCampaignFields
+  }
+}
+
+mutation CancelEmailCampaign($id: ID!) {
+  cancelEmailCampaign(id: $id) {
+    ...EmailCampaignFields
+  }
+}
+
+mutation SendCampaignTest($id: ID!, $to: String!) {
+  sendCampaignTest(id: $id, to: $to)
+}
+
+mutation RestoreEmailCampaign($id: ID!) {
+  restoreEmailCampaign(id: $id)
+}

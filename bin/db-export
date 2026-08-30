@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Dump the dev DB to backups/skelet-<ts>.dump or a named file (*.sql = plain SQL)
+set -e
+orig_pwd="$PWD"
+cd "$(dirname "$(dirname "$0")")"
+
+if [ -n "${1:-}" ]; then
+    out="$1"
+    case "$out" in /*) ;; *) out="$orig_pwd/$out" ;; esac   # relative to caller
+else
+    mkdir -p backups
+    out="$PWD/backups/skelet-$(date +%Y%m%d-%H%M%S).dump"
+fi
+
+# Write .partial, rename on success - a dead dump never looks finished
+tmp="$out.partial"
+case "$out" in
+    *.sql) docker compose exec -T db pg_dump -U skelet -d skelet > "$tmp" ;;
+    *)     docker compose exec -T db pg_dump -U skelet -d skelet -Fc > "$tmp" ;;
+esac
+mv "$tmp" "$out"
+echo "exported → $out ($(du -h "$out" | cut -f1))"

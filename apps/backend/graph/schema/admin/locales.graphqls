@@ -1,0 +1,120 @@
+type Locale {
+  # BCP 47 code, always lowercased on the way in (e.g. "en", "fr-fr").
+  code:                  String!
+  # English-language label, e.g. "French (France)".
+  name:                  String!
+  # Locale's own label, e.g. "Français (France)". Used by the storefront
+  # language switcher.
+  nativeName:            String!
+  # Soft-disable a locale without deleting. Disabled locales are hidden
+  # from picker UIs but existing translation rows persist.
+  isActive:              Boolean!
+  # Right-to-left flag. Storefront uses this to flip layout direction.
+  isRTL:                 Boolean!
+  # Drives admin UI ordering.
+  sortOrder:             Int!
+
+  # Number & date formatting (free-text, parsed by the storefront's
+  # date/number library). Empty string means "use library default".
+  dateFormat:            String!
+  timeFormat:            String!
+  decimalSeparator:      String!
+  thousandsSeparator:    String!
+  firstDayOfWeek:        Int!  # 0=Sunday … 6=Saturday
+
+  # Geography & visual.
+  defaultCountryCode:    String!  # ISO 3166-1 alpha-2 (uppercase) or ""
+  flagEmoji:             String!
+  hreflangValue:         String!  # SEO; "" → fall back to `code` at render time
+
+  # Niche linguistic / branding.
+  script:                String!  # ISO 15924 (e.g. "Latn", "Cyrl") or ""
+  pluralRule:            String!
+  emailFromNameOverride: String!
+
+  # Operational.
+  description:           String!
+  metadata:              [MetadataItem!]!
+
+  createdAt:             Time!
+  updatedAt:             Time!
+}
+
+input CreateLocaleInput {
+  # Lowercased server-side. BCP 47 shape required (e.g. "en", "fr-fr").
+  code:                  String!
+  name:                  String!
+  # Defaults to `name` when omitted.
+  nativeName:            String
+  # Defaults to true.
+  isActive:              Boolean
+  # Defaults to false.
+  isRTL:                 Boolean
+  sortOrder:             Int
+
+  dateFormat:            String
+  timeFormat:            String
+  # Defaults to "." when omitted.
+  decimalSeparator:      String
+  # Defaults to "," when omitted.
+  thousandsSeparator:    String
+  # Defaults to 1 (Monday) when omitted. 0=Sunday, 6=Saturday.
+  firstDayOfWeek:        Int
+
+  # Uppercased server-side; rejected if non-empty and not exactly two
+  # ASCII letters.
+  defaultCountryCode:    String
+  flagEmoji:             String
+  # Lowercased server-side; rejected if it doesn't match BCP 47 shape.
+  hreflangValue:         String
+
+  script:                String
+  pluralRule:            String
+  emailFromNameOverride: String
+
+  description:           String
+  metadata:              [MetadataInput!]
+}
+
+# All fields nullable for partial-update semantics. Code is the PK and
+# never updates - to "rename" a locale you delete + recreate.
+input UpdateLocaleInput {
+  code:                  String!
+  name:                  String
+  nativeName:            String
+  isActive:              Boolean
+  isRTL:                 Boolean
+  sortOrder:             Int
+
+  dateFormat:            String
+  timeFormat:            String
+  decimalSeparator:      String
+  thousandsSeparator:    String
+  firstDayOfWeek:        Int
+
+  defaultCountryCode:    String
+  flagEmoji:             String
+  hreflangValue:         String
+
+  script:                String
+  pluralRule:            String
+  emailFromNameOverride: String
+
+  description:           String
+  metadata:              [MetadataInput!]
+}
+
+extend type Query {
+  # activeOnly defaults to false. Pass true for admin pickers and the
+  # storefront language switcher.
+  locales(activeOnly: Boolean): [Locale!]!  # requires locales.view
+  locale(code: String!):        Locale!     # requires locales.view
+}
+
+extend type Mutation {
+  createLocale(input: CreateLocaleInput!): Locale!  # requires locales.manage
+  updateLocale(input: UpdateLocaleInput!): Locale!  # requires locales.manage
+  # Refuses when references exist; admin must resolve first. Returns
+  # LOCALE_IN_USE with the reference count.
+  deleteLocale(code: String!):             Boolean! # requires locales.manage
+}

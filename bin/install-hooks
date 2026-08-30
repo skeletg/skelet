@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Drop in the pre-commit hook, which is just bin/check - re-run any time
+set -e
+cd "$(dirname "$(dirname "$0")")"
+
+if [ ! -d .git ]; then
+    echo "Not a git working tree - refusing to install hooks." >&2
+    exit 1
+fi
+
+hook=.git/hooks/pre-commit
+cat > "$hook" <<'EOF'
+#!/bin/sh
+# Installed by bin/install-hooks. sh on purpose - bash whines about the locale first Deliberately NOT bin/check --codegen - needing a
+# running backend to make a commit is a bad trade, so codegen staleness is on you to check before a schema-touching PR
+export LC_ALL=C.UTF-8 LANG=C.UTF-8
+
+exec ./bin/check
+EOF
+chmod +x "$hook"
+
+cat <<EOF
+Pre-commit hook installed: $hook
+
+It runs bin/check - three greps, under a second, no Docker and no backend needed.
+See what each gate is for with \`bin/check --list\`, or bypass once with
+\`git commit --no-verify\`.
+EOF

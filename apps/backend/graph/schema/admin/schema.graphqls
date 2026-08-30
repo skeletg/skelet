@@ -1,0 +1,16 @@
+scalar Time
+
+type Query
+type Mutation
+
+# Shared metadata key/value pair used across the admin schema
+# (catalog, cms, blog, channels, inventory, ...).
+type MetadataItem {
+  key:   String!
+  value: String!
+}
+
+input MetadataInput {
+  key:   String!
+  value: String!
+}

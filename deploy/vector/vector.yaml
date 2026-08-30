@@ -1,0 +1,100 @@
+# Vector: container stdout -> ClickHouse - the app never learns about this - a
+# collector reading Docker's log stream captures strictly more than in-process
+# shipping could (panics, crash output, and every non-Go container), and keeps
+# the log store off the critical path of the system it observes
+#
+# Credentials come from the environment (the compose service passes the same
+# env file the ClickHouse server uses)
+data_dir: /vector-data
+
+# Liveness only, bound to the container loopback so nothing is published Without this Vector has no endpoint to probe,
+# and a wedged collector would look healthy while log history silently stopped arriving
+api:
+  enabled: true
+  address: 127.0.0.1:8686
+
+sources:
+  containers:
+    type: docker_logs
+    # never tail yourself - a sink error would log a line that feeds itself
+    exclude_containers: ["vector"]
+
+transforms:
+  shape:
+    type: remap
+    inputs: [containers]
+    # Drop malformed events rather than stalling the sink; `raw` always survives
+    drop_on_error: false
+    source: |
+      raw = to_string(.message) ?? ""
+      container = to_string(.container_name) ?? "unknown"
+      stream = to_string(.stream) ?? ""
+      ts = .timestamp
+
+      level = "info"
+      message = raw
+      src = ""
+
+      # Production emits JSON (applog uses a JSONHandler when APP_ENV=production);
+      # development emits slog's logfmt text - try both, keep the raw line either way
+      parsed, err = parse_json(raw)
+      if err == null && is_object(parsed) {
+        obj = object!(parsed)
+        level = downcase(to_string(obj.level) ?? "info")
+        message = to_string(obj.msg) ?? raw
+        # slog's AddSource nests {function,file,line}; flatten to file:line
+        if is_object(obj.source) {
+          s = object!(obj.source)
+          file = to_string(s.file) ?? ""
+          if file != "" {
+            src = file + ":" + (to_string(s.line) ?? "0")
+          }
+        } else {
+          src = to_string(obj.source) ?? ""
+        }
+      } else {
+        kv, kverr = parse_logfmt(raw)
+        if kverr == null && is_object(kv) {
+          obj = kv
+          if exists(obj.level) {
+            level = downcase(to_string(obj.level) ?? "info")
+            message = to_string(obj.msg) ?? raw
+            src = to_string(obj.source) ?? ""
+          }
+        }
+      }
+
+      # Replace the event wholesale - the ClickHouse sink sends every field as a
+      # column, so anything not in the table would be an unknown-column error
+      # ClickHouse's JSON reader wants "YYYY-MM-DD HH:MM:SS.mmm", not the RFC3339
+      # Vector carries - an unformatted timestamp is a 400 on every insert
+      . = {
+        "timestamp": format_timestamp!(ts, "%Y-%m-%d %H:%M:%S%.3f"),
+        "container": container,
+        "stream": stream,
+        "level": level,
+        "message": message,
+        "source": src,
+        "raw": raw,
+      }
+
+sinks:
+  clickhouse:
+    type: clickhouse
+    inputs: [shape]
+    endpoint: http://clickhouse:8123
+    database: logs
+    table: container_logs
+    auth:
+      strategy: basic
+      user: ${CLICKHOUSE_USER}
+      password: ${CLICKHOUSE_PASSWORD}
+    # ride out a ClickHouse restart instead of dropping the window
+    buffer:
+      type: disk
+      max_size: 268435488
+      when_full: block
+    batch:
+      timeout_secs: 5
+    healthcheck:
+      enabled: true

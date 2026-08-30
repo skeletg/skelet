@@ -1,0 +1,25 @@
+{
+  "channelId": "00000000-0000-0000-0000-000000000000",
+  "filter": {
+    "attributeIn": [
+      {
+        "slug": "example",
+        "values": [
+          "example"
+        ]
+      }
+    ],
+    "categoryId": "00000000-0000-0000-0000-000000000000",
+    "collectionId": "00000000-0000-0000-0000-000000000000",
+    "kinds": [
+      "example"
+    ],
+    "priceMaxCents": 1000,
+    "priceMinCents": 1000
+  },
+  "limit": 10,
+  "locale": "en",
+  "offset": 0,
+  "query": "example",
+  "sort": "example"
+}

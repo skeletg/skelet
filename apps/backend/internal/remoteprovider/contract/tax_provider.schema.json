@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "order.remoteTaxAddress": {
+      "properties": {
+        "city": {
+          "type": "string"
+        },
+        "countryCode": {
+          "type": "string"
+        },
+        "postalCode": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "street1": {
+          "type": "string"
+        },
+        "street2": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "city",
+        "countryCode",
+        "postalCode",
+        "street1"
+      ],
+      "title": "order.remoteTaxAddress",
+      "type": "object"
+    },
+    "order.remoteTaxReqLine": {
+      "properties": {
+        "quantity": {
+          "type": "number"
+        },
+        "sku": {
+          "type": "string"
+        },
+        "unitPriceCents": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "quantity",
+        "sku",
+        "unitPriceCents"
+      ],
+      "title": "order.remoteTaxReqLine",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Calculate tax for an order. A null taxCents is treated as a provider failure, not as zero tax.",
+  "properties": {
+    "request": {
+      "properties": {
+        "address": {
+          "$ref": "#/$defs/order.remoteTaxAddress"
+        },
+        "channelId": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "customerGroup": {
+          "type": "string"
+        },
+        "discountCents": {
+          "type": "integer"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/order.remoteTaxReqLine"
+          },
+          "type": "array"
+        },
+        "subtotalCents": {
+          "type": "integer"
+        },
+        "taxExempt": {
+          "type": "boolean"
+        },
+        "taxInclusive": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "address",
+        "channelId",
+        "currency",
+        "discountCents",
+        "lines",
+        "subtotalCents",
+        "taxExempt",
+        "taxInclusive"
+      ],
+      "title": "remoteTaxRequest",
+      "type": "object"
+    },
+    "response": {
+      "properties": {
+        "taxCents": {
+          "type": "integer",
+          "x-nullable": true
+        }
+      },
+      "title": "remoteTaxResponse",
+      "type": "object"
+    }
+  },
+  "title": "tax_provider",
+  "x-kind": "tax_provider",
+  "x-source": "internal/order.remoteTaxRequest -\u003e internal/order.remoteTaxResponse"
+}

@@ -1,0 +1,32 @@
+{
+  "channelId": "00000000-0000-0000-0000-000000000000",
+  "currency": "USD",
+  "destination": {
+    "city": "New York",
+    "countryCode": "US",
+    "postalCode": "10001",
+    "region": "example",
+    "street1": "1 Example St",
+    "street2": "example"
+  },
+  "items": [
+    {
+      "heightMm": 1,
+      "lengthMm": 1,
+      "quantity": 1,
+      "sku": "EXAMPLE-SKU",
+      "unitPriceCents": 1000,
+      "weightGrams": 1,
+      "widthMm": 1
+    }
+  ],
+  "parcels": [
+    {
+      "heightMm": 1,
+      "lengthMm": 1,
+      "weightGrams": 1,
+      "widthMm": 1
+    }
+  ],
+  "subtotalCents": 1000
+}
