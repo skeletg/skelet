@@ -29,7 +29,12 @@ fi
 
 # Host npm when this clone has a host install - the container keeps node_modules in its own volume,
 # and running the gates against a different tree than the dev server is how the two silently diverge
-if [ -z "${SKELET_FORCE_DOCKER:-}" ] && command -v npm >/dev/null 2>&1 && [ -d "apps/channels/$name/node_modules" ]; then
+#
+# POPULATED, not merely present: the container mounts its named volume at node_modules, and because
+# the parent is a bind mount that creates an EMPTY directory on the host - testing -d alone sends
+# every later install to a host tree the dev server never reads
+if [ -z "${SKELET_FORCE_DOCKER:-}" ] && command -v npm >/dev/null 2>&1 \
+   && [ -n "$(ls -A "apps/channels/$name/node_modules" 2>/dev/null)" ]; then
     cd "apps/channels/$name" && exec npm "$@"
 fi
 
