@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	dbconn "github.com/skeletg/skelet/internal/db"
+	dbconn "github.com/skeletg/skelet/apps/backend/internal/db"
 )
 
 func signalsConn() (*sql.DB, error) {

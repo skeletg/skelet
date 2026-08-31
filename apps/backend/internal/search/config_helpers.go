@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // Falls back on a nil config service or a read error - search should never wedge because a config row went missing

@@ -10,7 +10,7 @@ import (
 	"testing/fstest"
 
 	_ "github.com/lib/pq"
-	"github.com/skeletg/skelet/internal/testdb"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
 // The runner's guarantees live in SQL - tx boundaries, the (namespace, version) primary key, the advisory lock - so a fake can't assert them

@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/uuid"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/money"
-	"github.com/skeletg/skelet/internal/order"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/money"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 func (s *Service) SubscribeToOrderEvents(bus *events.Bus) { // automatic credit release - a cancelled on-account order returns its reserved credit to the company line, durably via the outbox and at-least-once, so a negative order-linked ledger row is the idempotence marker

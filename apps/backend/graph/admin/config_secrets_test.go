@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // The split this guards: config.manage covers operational settings, config.manage_secrets covers

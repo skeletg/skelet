@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 func requireConfigScopePermission(ctx context.Context, checker auth.ScopedPermissionChecker, slug string, scope config.Scope) error {

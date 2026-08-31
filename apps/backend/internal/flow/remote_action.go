@@ -6,7 +6,7 @@ import (
 	"log"
 	"maps"
 
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // Unlike the fire-and-forget webhook node, this one calls a remote provider (kind=flow_action) and WAITS for the response, folding it back into the run - the escape hatch for a custom step like CRM enrichment, ML scoring or an external decision, without a Go plugin

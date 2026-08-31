@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	signalsdb "github.com/skeletg/skelet/internal/db/signals/sqlc"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 )
 
 // The pluggable engine behind the event spine, defined at the level of DOMAIN RESULTS rather than raw rows, so each driver computes however its engine does best - the Postgres driver streams events and walks them in Go where the ClickHouse one calls native windowFunnel, retention and uniq, and the abstraction being the Go method boundary rather than shared SQL means no lowest-common-denominator penalty

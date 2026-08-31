@@ -9,7 +9,7 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 type GroupPrice struct { // one tier row - nil ChannelID/CustomerGroupID = applies to every channel / every group

@@ -10,9 +10,9 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/applog"
-	"github.com/skeletg/skelet/internal/httpx"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/httpx"
 )
 
 // What the front surface returns when ClassInternal is in play - a frozen string, so an attacker can't fingerprint Go internals by diffing error messages

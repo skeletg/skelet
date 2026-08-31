@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 const (

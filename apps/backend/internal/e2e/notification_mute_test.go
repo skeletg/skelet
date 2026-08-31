@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/skeletg/skelet/internal/notification"
+	"github.com/skeletg/skelet/apps/backend/internal/notification"
 )
 
 // Scenario: an admin mutes a notification category, over the real API

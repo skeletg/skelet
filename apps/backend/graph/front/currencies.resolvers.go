@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	model1 "github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/currency"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	model1 "github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/currency"
 )
 
 func (r *queryResolver) Currencies(ctx context.Context, activeOnly *bool) ([]*model.Currency, error) {

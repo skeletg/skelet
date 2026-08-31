@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/email"
 )
 
 const (

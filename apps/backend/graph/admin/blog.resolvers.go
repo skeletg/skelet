@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/blog"
-	"github.com/skeletg/skelet/internal/blog/preview"
-	"github.com/skeletg/skelet/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/blog"
+	"github.com/skeletg/skelet/apps/backend/internal/blog/preview"
+	"github.com/skeletg/skelet/apps/backend/internal/ptr"
 )
 
 func (r *mutationResolver) CreateBlogAuthor(ctx context.Context, input model.CreateBlogAuthorInput) (*model.BlogAuthor, error) {

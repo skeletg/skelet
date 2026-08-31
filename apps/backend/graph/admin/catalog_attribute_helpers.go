@@ -3,8 +3,8 @@ package admin
 import (
 	"encoding/json"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
 )
 
 func toAttributeModel(a catalog.Attribute) *model.Attribute {

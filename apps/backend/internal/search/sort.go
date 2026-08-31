@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // One row of the operator-curated sort list on browse pages, mapping a stable URL slug onto an OpenSearch field and direction - it lives in config so the dashboard can reorder or add options without a deploy

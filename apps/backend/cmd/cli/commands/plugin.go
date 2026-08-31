@@ -11,12 +11,12 @@ import (
 
 	"slices"
 
-	dbconn "github.com/skeletg/skelet/internal/db"
-	pluginhost "github.com/skeletg/skelet/internal/plugin"
-	"github.com/skeletg/skelet/internal/pluginmigrate"
-	"github.com/skeletg/skelet/internal/pluginpath"
-	"github.com/skeletg/skelet/internal/pluginset"
-	"github.com/skeletg/skelet/sdk"
+	dbconn "github.com/skeletg/skelet/apps/backend/internal/db"
+	pluginhost "github.com/skeletg/skelet/apps/backend/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/internal/pluginmigrate"
+	"github.com/skeletg/skelet/apps/backend/internal/pluginpath"
+	"github.com/skeletg/skelet/apps/backend/internal/pluginset"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 	"github.com/spf13/cobra"
 )
 
@@ -126,30 +126,49 @@ func setPluginState(slug string, on bool) error {
 	if err != nil {
 		return err
 	}
-	found, err := pluginset.Discover(".")
-	if err != nil {
-		return err
-	}
-	parked, err := pluginset.Parked(".")
-	if err != nil {
-		return err
-	}
-	if !slices.Contains(found, slug) && !slices.Contains(parked, slug) {
-		return fmt.Errorf("plugins/%s registers no plugin - known: %s", slug, strings.Join(found, ", "))
+	// A module plugin has no directory to look for - the decision file is the only record of it, so
+	// that is what the existence check reads
+	_, known := set.Plugins[slug]
+	inTree := set.InTree(slug)
+	if inTree {
+		found, err := pluginset.Discover(".")
+		if err != nil {
+			return err
+		}
+		parked, err := pluginset.Parked(".")
+		if err != nil {
+			return err
+		}
+		if !slices.Contains(found, slug) && !slices.Contains(parked, slug) {
+			return fmt.Errorf("plugins/%s registers no plugin - known: %s", slug, strings.Join(found, ", "))
+		}
+	} else if !known {
+		return fmt.Errorf("no plugin %q in %s", slug, pluginset.StateFile)
 	}
 	set.Set(slug, on)
 	if err := set.Save("."); err != nil {
 		return err
 	}
-	// A plugin that ships GraphQL cannot merely stop being imported: its resolvers return core's generated model
-	// types, so it has to leave the build entirely or it stops compiling once its schema is gone
-	if err := pluginset.Park(".", slug, on); err != nil {
+	state := "disabled"
+	if inTree {
+		// An in-tree plugin shipping GraphQL cannot merely stop being imported: its resolvers return
+		// core's generated model types, so it has to leave the build entirely or it stops compiling
+		// once its schema is gone. A module plugin needs none of this - dropping the import is enough,
+		// because its source was never part of this module's build in the first place
+		if err := pluginset.Park(".", slug, on); err != nil {
+			return err
+		}
+		state = "disabled and parked as plugins/_" + slug
+	}
+	if err := pluginset.Stage("."); err != nil {
 		return err
 	}
 	if err := pluginset.Generate("."); err != nil {
 		return err
 	}
-	state := "disabled and parked as plugins/_" + slug
+	if err := pluginset.WriteGraphSchemas("."); err != nil {
+		return err
+	}
 	if on {
 		state = "enabled"
 	}
@@ -517,7 +536,7 @@ func (t pluginTemplate) pluginGo() string {
 // migrations, config (plugin/<slug>/*) and the runtime kill switch
 package %s
 
-import "github.com/skeletg/skelet/sdk"
+import "github.com/skeletg/skelet/apps/backend/sdk"
 
 func init() {
 %s%s	// Examples of additional extension points - uncomment what you need, and note every Register* call panics on a duplicate
@@ -559,7 +578,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // A stub - replace each method body with real upstream API calls, reading the API key (and any other config field registered
@@ -596,7 +615,7 @@ func (t pluginTemplate) migrationsGo() string {
 import (
 	"embed"
 
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Plugin-owned migrations, embedded at build time - apply with: bin/cli plugin migrate up %s

@@ -10,13 +10,13 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/datajob"
-	"github.com/skeletg/skelet/internal/notification"
-	"github.com/skeletg/skelet/internal/outbox"
-	"github.com/skeletg/skelet/internal/promotion"
-	"github.com/skeletg/skelet/internal/scheduler"
-	"github.com/skeletg/skelet/internal/webhook"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/datajob"
+	"github.com/skeletg/skelet/apps/backend/internal/notification"
+	"github.com/skeletg/skelet/apps/backend/internal/outbox"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/scheduler"
+	"github.com/skeletg/skelet/apps/backend/internal/webhook"
 )
 
 // SuperviseLoop keeps one background loop alive across panics - a bare loop inherits no recover at

@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	dbsqlc "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/tx"
+	dbsqlc "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // ReserveTx is the one write that stands between a placement and an oversell, and its subtle parts - the in-call `planned` accumulator, the routing guard, the ledger kill switch - only exist against a real transaction, since the whole point is what a re-entrant read inside one tx can and can't see  The fixture helpers (seedLevel, seedSecondLocation, readReserved) come from reserved_recompute_db_test.go - same package, same disposable-database gate

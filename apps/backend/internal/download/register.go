@@ -1,6 +1,6 @@
 package download
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 func init() {
 	apperr.RegisterSentinel(ErrNotFound, "DOWNLOAD_NOT_FOUND", apperr.ClassNotFound)

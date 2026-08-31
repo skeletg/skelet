@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/ai"
 )
 
 func prismSignalTools() []signalTool {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Plugin-registered scheduled jobs - plugins call sdk.RegisterScheduledJob from init(), the host records them under the calling plugin's slug, and main.go drains them into the scheduler engine at boot, like health probes but consumed once rather than per-request

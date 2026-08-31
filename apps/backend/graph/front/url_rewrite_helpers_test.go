@@ -3,8 +3,8 @@ package front
 import (
 	"testing"
 
-	"github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 func TestRouteKindCoversEveryCoreEntity(t *testing.T) { // the storefront routes on this switch, so a core entity falling through to PLUGIN would 404 every URL of that kind

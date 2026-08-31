@@ -4,9 +4,9 @@ import (
 	"context"
 	"sort"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/country"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/country"
 )
 
 func countryScope(ctx context.Context) config.Scope { // channel scope when a channel is bound to the context, else the default scope

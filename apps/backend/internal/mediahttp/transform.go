@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
 )
 
 // The focal point (0..1) for an original key, only hit for cover crops that miss the cache, so the common warm or fit request costs no lookup - false means centre it

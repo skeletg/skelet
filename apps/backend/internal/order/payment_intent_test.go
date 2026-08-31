@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // The over-capture and over-refund guards, exercised THROUGH recordPaymentIntent

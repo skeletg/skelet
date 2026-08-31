@@ -3,8 +3,8 @@ package admin
 import (
 	"encoding/json"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/webform"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/webform"
 )
 
 // decodeJSON round-trips a GraphQL JSON scalar (decoded as `any`) into a typed destination. Used to turn the

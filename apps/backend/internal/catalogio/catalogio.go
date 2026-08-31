@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
 )
 
 // The same algorithm the catalog service uses for SKU fallbacks, so generated slugs pass its validateSlug

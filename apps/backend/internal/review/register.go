@@ -1,6 +1,6 @@
 package review
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 // Same contract as the other register files: bare sentinels out of the service classify at the GraphQL edge instead of masking as INTERNAL
 func init() {

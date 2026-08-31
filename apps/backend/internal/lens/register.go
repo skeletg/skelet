@@ -1,6 +1,6 @@
 package lens
 
-import "github.com/skeletg/skelet/internal/permission"
+import "github.com/skeletg/skelet/apps/backend/internal/permission"
 
 func init() {
 	permission.RegisterGroup(permission.Group{Slug: "lens", Name: "Web Analytics", SortOrder: 16})                         // own capability, so a role can get analytics access without broader settings/customer reach

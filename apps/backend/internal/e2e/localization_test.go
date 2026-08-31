@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
 )
 
 // A store whose channel carries en (default) and an ACTIVE de

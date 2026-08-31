@@ -3,8 +3,8 @@ package front
 import (
 	"context"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
 )
 
 // Inlined on Channel so the storefront doesn't make a second roundtrip for the symbol + symbolPosition it needs to render prices

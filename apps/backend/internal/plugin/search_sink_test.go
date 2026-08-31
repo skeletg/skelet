@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/search"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/search"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // fakeCluster records every _bulk request the sink ships and answers like a healthy OpenSearch, so the paging behaviour is observed on the wire rather than inferred

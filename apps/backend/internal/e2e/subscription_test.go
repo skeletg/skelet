@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // Scenario: placing a subscription product spawns the subscription, the billing sweep mints one

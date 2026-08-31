@@ -1,6 +1,6 @@
 package blog
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 func init() {
 	apperr.RegisterSentinel(ErrAuthorNotFound, "BLOG_AUTHOR_NOT_FOUND", apperr.ClassNotFound)

@@ -12,16 +12,16 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/promotion"
-	shippingpkg "github.com/skeletg/skelet/internal/shipping"
-	"github.com/skeletg/skelet/internal/tax"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	shippingpkg "github.com/skeletg/skelet/apps/backend/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // Returned when an order op runs without a current store - the storefront resolver populates it, surfaced as STORE_REQUIRED

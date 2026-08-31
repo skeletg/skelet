@@ -1,6 +1,6 @@
 package medialibrary
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 func init() {
 	apperr.RegisterSentinel(ErrAssetNotFound, "MEDIA_ASSET_NOT_FOUND", apperr.ClassNotFound)

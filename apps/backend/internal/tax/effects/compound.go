@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
 )
 
 // Applies a rate to the base PLUS all tax so far, modelling jurisdictions like Quebec's QST historically applying on the GST-inclusive amount - give it a higher priority number so it runs after the taxes it compounds on

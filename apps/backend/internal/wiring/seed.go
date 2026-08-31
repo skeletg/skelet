@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/payment"
-	"github.com/skeletg/skelet/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 )
 
 func SeedProviderRows(ctx context.Context, payments *payment.Service, carriers *shipping.Service, channels *channel.Service) error { // one row per (channel, registered provider) in both tables, new ones disabled by default - idempotent upserts that must run after their service exists and before traffic, an ordering run() only implied by position

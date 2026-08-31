@@ -9,17 +9,17 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/analytics/spinech"
-	"github.com/skeletg/skelet/internal/backup"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/destination"
-	"github.com/skeletg/skelet/internal/health"
-	"github.com/skeletg/skelet/internal/media"
-	pluginhost "github.com/skeletg/skelet/internal/plugin"
-	"github.com/skeletg/skelet/internal/scheduler"
-	"github.com/skeletg/skelet/internal/signalsboot"
-	"github.com/skeletg/skelet/internal/webhook"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics/spinech"
+	"github.com/skeletg/skelet/apps/backend/internal/backup"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/destination"
+	"github.com/skeletg/skelet/apps/backend/internal/health"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
+	pluginhost "github.com/skeletg/skelet/apps/backend/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/internal/scheduler"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
+	"github.com/skeletg/skelet/apps/backend/internal/webhook"
 )
 
 // Checks register HERE rather than in their own packages because a probe needs a

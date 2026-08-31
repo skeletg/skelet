@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/skeletg/skelet/internal/backup"
+	"github.com/skeletg/skelet/apps/backend/internal/backup"
 	"github.com/spf13/cobra"
 )
 

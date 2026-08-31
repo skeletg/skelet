@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
 )
 
 // Counts calls so the superuser tests can assert the checker was never consulted

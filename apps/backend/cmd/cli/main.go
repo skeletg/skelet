@@ -5,11 +5,11 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
-	"github.com/skeletg/skelet/cmd/cli/commands"
-	pluginhost "github.com/skeletg/skelet/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/cmd/cli/commands"
+	pluginhost "github.com/skeletg/skelet/apps/backend/internal/plugin"
 	"github.com/spf13/cobra"
 
-	_ "github.com/skeletg/skelet/plugins/firstparty" // the same set cmd/server ships, so `bin/cli config list|set` sees every plugin's config paths and permissions
+	_ "github.com/skeletg/skelet/apps/backend/plugins/firstparty" // the same set cmd/server ships, so `bin/cli config list|set` sees every plugin's config paths and permissions
 )
 
 var rootCmd = &cobra.Command{

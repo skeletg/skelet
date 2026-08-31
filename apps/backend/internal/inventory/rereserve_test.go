@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
 )
 
 // Editing a placed order releases what it still holds and re-reserves the new basket, inside the

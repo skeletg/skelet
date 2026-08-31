@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 	// Registers core.cart_subtotal_range, used as the matching condition
-	"github.com/skeletg/skelet/internal/promotion/conditions"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion/conditions"
 )
 
 // The "off matching items" discounts must compute on the fractional line quantity through money.LineTotal rather than truncating with int64(qty), which previously discounted only 2 of 2.5 units and short-changed the customer on every fractional line

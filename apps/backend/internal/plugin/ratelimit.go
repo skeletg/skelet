@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // Per-plugin rate limiting from plugin/<slug>/rate_limit_per_min, auto-registered alongside the enabled flag and timeout - 0 means unlimited, the common case

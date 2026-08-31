@@ -4,8 +4,8 @@ package revalidate
 import (
 	"sync"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/permission"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/permission"
 )
 
 // config.RegisterSection panics on a duplicate, but every surface lives under the one "cache" section - register it exactly once

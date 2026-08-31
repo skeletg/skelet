@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // stubCfg is a minimal ConfigReader for tests

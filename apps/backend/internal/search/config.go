@@ -3,7 +3,7 @@ package search
 import (
 	"encoding/json"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // Runtime knobs for OpenSearch - the indexers read them at boot for mapping construction and at request time for queries, so an operator can retune from /settings without a redeploy

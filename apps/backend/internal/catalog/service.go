@@ -6,14 +6,14 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/applog"
-	"github.com/skeletg/skelet/internal/cache"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/config"
-	contentpkg "github.com/skeletg/skelet/internal/content"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/media"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/cache"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	contentpkg "github.com/skeletg/skelet/apps/backend/internal/content"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // ChannelLookup is the slim view of channel.Service the catalog package needs - Defined locally so catalog → channel stays a one-way dependency and tests can stub it

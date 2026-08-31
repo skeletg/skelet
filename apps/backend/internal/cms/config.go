@@ -1,8 +1,8 @@
 package cms
 
 import (
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/revalidate"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/revalidate"
 )
 
 // Editorial-workflow policy in the config registry, so admins flip it on /settings without a redeploy, read at request time by the publish path

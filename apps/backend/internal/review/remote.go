@@ -6,7 +6,7 @@ import (
 	"maps"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // A merchant HTTP endpoint (remoteprovider kind=reviews) supplying rating aggregates from an external platform - the escape hatch for Yotpo, Bazaarvoice, Okendo or Trustpilot without a Go plugin

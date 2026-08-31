@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // Registry slug "remote" points at a merchant HTTP endpoint (remoteprovider kind=address_validator), the escape hatch for SmartyStreets/Loqate-style validation without a Go plugin - wire shapes are the request/response structs below

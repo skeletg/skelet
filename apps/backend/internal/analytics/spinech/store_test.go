@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 )
 
 // Gated on SIGNALS_CH_TEST_DSN and needs a live ClickHouse (docker compose --profile clickhouse up) - exercises the real ingest + identity path end to end

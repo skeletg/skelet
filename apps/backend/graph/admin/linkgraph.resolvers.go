@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/linkgraph"
-	"github.com/skeletg/skelet/internal/sitecrawl"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/linkgraph"
+	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
 )
 
 func (r *mutationResolver) StartSiteCrawl(ctx context.Context, input model.StartSiteCrawlInput) (*model.SiteCrawl, error) {

@@ -11,10 +11,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/config"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/experiment"
-	"github.com/skeletg/skelet/internal/form"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/experiment"
+	"github.com/skeletg/skelet/apps/backend/internal/form"
 )
 
 // tRequest drives one /t call through the real root handler - channel middleware, rate limiter and all - extra headers come in pairs

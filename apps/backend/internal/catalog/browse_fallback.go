@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 type BrowseFallbackFilter struct { // the subset of the index's browse contract Postgres can answer - relevance scoring is deliberately absent, this keeps the store shoppable when OpenSearch is down rather than replacing it

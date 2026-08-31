@@ -12,10 +12,10 @@ import (
 
 	"github.com/google/uuid"
 
-	authpkg "github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/order"
+	authpkg "github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // Reorder lives in the front resolver rather than a service, so these drive the real GraphQL surface - the first authenticated HTTP scenarios in the suite

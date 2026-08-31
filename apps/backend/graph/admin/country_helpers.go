@@ -3,8 +3,8 @@ package admin
 import (
 	"context"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/country"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/country"
 )
 
 // The currency lookup is best-effort - the FK is ON DELETE SET NULL, so a missing or disabled one is a null relation rather than an error

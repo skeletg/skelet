@@ -3,7 +3,7 @@ package admin
 import (
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
 )
 
 // Resolver-level error shapes. Bare fmt.Errorf reaches the presenter unclassified, which

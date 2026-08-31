@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
 )
 
 // Sentinels owned by the test package so we don't pollute domain

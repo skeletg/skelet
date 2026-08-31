@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // RegisterConfigSources backs the select options for settings fields that name a currency.

@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 func TestRemoteTaxInputFromCheckout(t *testing.T) {

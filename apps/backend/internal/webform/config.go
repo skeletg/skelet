@@ -1,6 +1,6 @@
 package webform
 
-import "github.com/skeletg/skelet/internal/config"
+import "github.com/skeletg/skelet/apps/backend/internal/config"
 
 // Runtime config for the custom form builder, editable at admin /settings - the "cms" section comes from internal/cms and this adds the "forms" group under it
 // Labeled "Custom Forms" rather than "Forms" to keep it distinct from Pulse's marketing signup widget - CAPTCHA is optional: leave the provider "none" and forms rely on honeypot plus rate limiting

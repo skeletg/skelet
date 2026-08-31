@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/cache"
+	"github.com/skeletg/skelet/apps/backend/internal/cache"
 )
 
 // Price=nil expresses inheritance from the product's default price, and the inheritance rule (currency match) is enforced here so an inheriting listing always has a coherent currency

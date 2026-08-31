@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skeletg/skelet/internal/remoteprovider"
-	"github.com/skeletg/skelet/internal/remoteprovider/contract"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider/contract"
 )
 
 // Mirrors the ceiling in remoteprovider.Invoker - a longer body is truncated by the

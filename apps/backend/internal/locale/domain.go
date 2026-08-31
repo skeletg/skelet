@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/skeletg/skelet/internal/permission"
+	"github.com/skeletg/skelet/apps/backend/internal/permission"
 )
 
 func init() {

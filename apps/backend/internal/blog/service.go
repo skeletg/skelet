@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/applog"
-	contentpkg "github.com/skeletg/skelet/internal/content"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/applog"
+	contentpkg "github.com/skeletg/skelet/apps/backend/internal/content"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 type LocaleValidator interface { // optional - nil skips the locale-exists pre-check

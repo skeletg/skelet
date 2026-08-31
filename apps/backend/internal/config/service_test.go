@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/secrets"
+	"github.com/skeletg/skelet/apps/backend/internal/secrets"
 )
 
 // An in-memory stand-in for the Postgres repository - keyed the same way the real table's unique

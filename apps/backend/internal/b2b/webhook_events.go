@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
 )
 
 // B2B lifecycle events, published post-commit for outbound webhooks, with ERP sync the classic consumer, and any plugin subscriber - async and best-effort
