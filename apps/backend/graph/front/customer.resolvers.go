@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	model1 "github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/b2b"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/consent"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	model1 "github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/b2b"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/ptr"
 )
 
 // Reachable only through myProfile (customer JWT), so no extra auth check here

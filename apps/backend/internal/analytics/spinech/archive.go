@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 )
 
 // ArchiveEvents is PruneEvents' archive twin: every aged slice is exported through open before it's removed

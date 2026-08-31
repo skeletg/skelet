@@ -3,8 +3,8 @@ package admin
 import (
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/experiment"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/experiment"
 )
 
 // experimentInput parses a SaveExperimentInput into the domain Input. Kept out

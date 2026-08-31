@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/promotion"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // The integration test for the flow operators rely on - flip plugin/<slug>/enabled=false and the next hook call returns ErrPluginDisabled WITHOUT entering the plugin code

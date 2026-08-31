@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	dbsqlc "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/testdb"
-	"github.com/skeletg/skelet/internal/tx"
+	dbsqlc "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // The resolution ladder lives half in SQL - GetCandidates returns every row that COULD satisfy a scope and the service picks among them, so its own doc says the ladder "can't drift between the SQL and a test double" - these run the real query, which is the only way to hold that promise  Settings are global rows with no fixtures to hang off, so each test uses a unique path and deletes its own rows

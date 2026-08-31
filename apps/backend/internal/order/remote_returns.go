@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // A merchant HTTP endpoint (remoteprovider kind=returns_policy) deciding whether a return is allowed - the escape hatch for Loop, Returnly or Narvar-class platforms without a Go plugin

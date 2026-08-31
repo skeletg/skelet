@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
 )
 
 // percentage applies a basis-point rate to the taxable base - Tax-inclusive extracts from the gross (base*r/(10000+r)),

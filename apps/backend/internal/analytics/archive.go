@@ -15,7 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
-	signalsdb "github.com/skeletg/skelet/internal/db/signals/sqlc"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 )
 
 // ArchiveSink is the object-storage seam, satisfied by the BACKUP_* destination adapter in signalsboot - Put must return nil only once the object is durably stored and verified, because the sweep deletes rows on its word

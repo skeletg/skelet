@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/applog"
-	"github.com/skeletg/skelet/internal/httpx"
+	"github.com/skeletg/skelet/apps/backend/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/httpx"
 )
 
 // loggerEcho is a trivial handler that pulls the ctx logger and writes nothing; the test checks the response header and

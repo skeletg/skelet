@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // The DSAR bundle - orders are appended by the caller, which owns order access, so this struct just frames the JSON

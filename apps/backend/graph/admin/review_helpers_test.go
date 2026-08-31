@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/review"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
 )
 
 // Status decides whether a review is publicly visible, so a value that shifts across the hop either hides an approved review or publishes a rejected one

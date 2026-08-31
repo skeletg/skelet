@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/giftcard"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
 )
 
 func (r *mutationResolver) IssueGiftCard(ctx context.Context, currencyCode string, amount int32, recipientEmail *string, expiresAt *time.Time) (*model.GiftCard, error) {

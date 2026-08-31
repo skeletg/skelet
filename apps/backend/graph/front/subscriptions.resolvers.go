@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 func (r *mutationResolver) CancelSubscription(ctx context.Context, id string) (*model.CustomerSubscription, error) {

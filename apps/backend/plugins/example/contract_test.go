@@ -16,14 +16,14 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	"github.com/skeletg/skelet/internal/config"
-	dbsqlc "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/payment"
-	pluginhost "github.com/skeletg/skelet/internal/plugin"
-	"github.com/skeletg/skelet/internal/pluginmigrate"
-	"github.com/skeletg/skelet/internal/shipping"
-	"github.com/skeletg/skelet/internal/testdb"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	dbsqlc "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
+	pluginhost "github.com/skeletg/skelet/apps/backend/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/internal/pluginmigrate"
+	"github.com/skeletg/skelet/apps/backend/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // One boot per binary, since plugin.Install panics on a second call and exposes no reset - the conn is process-scoped for the same reason, because SetConfigService is single-shot and a per-test conn would leave the host holding a service over a closed handle

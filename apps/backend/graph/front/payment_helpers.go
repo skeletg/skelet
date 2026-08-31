@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // Shared by paymentMethods and Order.paymentInstructions - kept out of a *.resolvers.go so gqlgen

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/skeletg/skelet/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
 )
 
 type AddBundleToCartInput struct {

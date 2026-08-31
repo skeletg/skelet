@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // cartContainsSku matches when the cart contains at least one of N listed SKUs (optionally with at least min_qty units

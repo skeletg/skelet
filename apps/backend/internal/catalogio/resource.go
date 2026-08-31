@@ -3,10 +3,10 @@ package catalogio
 import (
 	"context"
 
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/dataio"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/dataio"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // Column names - attribute columns are the attrPrefix followed by the attribute slug, e.g. "attr:color"

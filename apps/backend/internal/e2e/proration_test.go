@@ -5,10 +5,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/giftcard"
-	"github.com/skeletg/skelet/internal/money"
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
+	"github.com/skeletg/skelet/apps/backend/internal/money"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // Scenario: cancelling a HALF-shipped order prorates every reversal by the unshipped value share -

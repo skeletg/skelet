@@ -4,9 +4,9 @@ package admin
 // evict them on regeneration.
 
 import (
-	"github.com/skeletg/skelet/graph/admin/model"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/revalidate"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/revalidate"
 )
 
 func toRebuildTaskModel(t db.CacheRebuildTask) *model.RebuildTask {

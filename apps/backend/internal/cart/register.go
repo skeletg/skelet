@@ -1,6 +1,6 @@
 package cart
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 func init() { // registers cart sentinels so the front presenter forwards their messages verbatim instead of scrubbing them to "internal error"
 	apperr.RegisterSentinel(ErrCartAlreadyConverted, "CART_ALREADY_CONVERTED", apperr.ClassConflict)

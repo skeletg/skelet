@@ -8,7 +8,7 @@ import (
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 
-	"github.com/skeletg/skelet/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 )
 
 type fakeSpine struct {

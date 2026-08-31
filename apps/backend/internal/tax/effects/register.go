@@ -1,6 +1,6 @@
 package effects
 
-import "github.com/skeletg/skelet/internal/tax"
+import "github.com/skeletg/skelet/apps/backend/internal/tax"
 
 // Each file adds itself here from init(), so dropping a new type in the package still picks it up - what changed
 // is that nothing lands in a registry until Register runs, which is why no entrypoint has to blank-import this

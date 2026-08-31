@@ -8,8 +8,8 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/graphqlx"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/graphqlx"
 )
 
 type fakeChecker struct {

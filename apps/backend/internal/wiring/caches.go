@@ -4,11 +4,11 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/cache"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/menu"
-	"github.com/skeletg/skelet/internal/promotion"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/internal/cache"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/menu"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 type valkeyCacheDeps struct {

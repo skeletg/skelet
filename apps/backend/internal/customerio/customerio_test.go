@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/dataio"
+	"github.com/skeletg/skelet/apps/backend/internal/dataio"
 )
 
 // A nil customer service means any row surviving validation panics, which is how these prove a row never reached a write

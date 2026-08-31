@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/order"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // SubscribeToOrderEvents wires the reward trigger: when a pending referee places their first order (durable via the outbox), both sides get

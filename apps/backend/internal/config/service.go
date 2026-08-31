@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skeletg/skelet/internal/cache"
-	"github.com/skeletg/skelet/internal/secrets"
+	"github.com/skeletg/skelet/apps/backend/internal/cache"
+	"github.com/skeletg/skelet/apps/backend/internal/secrets"
 )
 
 type Service struct {

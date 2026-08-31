@@ -5,10 +5,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // reservedForProduct is reservedFor for a product that isn't the store's own - added lines reserve against their own inventory item

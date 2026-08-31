@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // addFreeGift queues a free-gift entry on the Ledger - PlaceOrder turns each entry into an order_line with unit_price=0

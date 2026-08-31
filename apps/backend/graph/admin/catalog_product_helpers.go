@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/pricing"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/pricing"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 // The render cache is primed against one channel only, so a caller asking about a different store falls through to a fresh fetch rather than reading another store's stock

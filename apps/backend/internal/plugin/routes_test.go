@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
 )
 
 func resetRoutes(t *testing.T) *Host {

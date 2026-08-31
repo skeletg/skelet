@@ -12,9 +12,9 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/graphqlx"
+	"github.com/skeletg/skelet/apps/backend/graph/admin"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/graphqlx"
 )
 
 // End-to-end over the REAL admin schema - the unit tests around the extension only prove it flips a bool, this proves gqlgen's executor honours that bool for __schema

@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
 )
 
 // Flat mode decremented the FULL ordered quantity at placement, so an edit has to move that

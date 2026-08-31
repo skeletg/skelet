@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
 )
 
 // Scenario: a bundle prices as the sum of its components' CHANNEL prices (the 2026-08 billing

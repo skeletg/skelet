@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // enableReferrals turns the give-get program on for one channel at the reward amounts the scenario asserts

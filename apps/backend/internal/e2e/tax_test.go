@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
 )
 
 func (h *harness) newTaxRule(t *testing.T, channelID uuid.UUID, bps int, conditions ...tax.Condition) {

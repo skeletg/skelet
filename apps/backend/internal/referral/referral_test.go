@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 func TestNewCodeShapeAndAlphabet(t *testing.T) { // codes are read aloud and retyped, so the confusable 0/O/1/I/L must never appear

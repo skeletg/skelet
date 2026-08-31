@@ -3,8 +3,8 @@ package e2e
 import (
 	"testing"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 func editAddr(first, last, city, postal string) *order.OrderAddress { // validEditAddress needs names, which e2eAddress deliberately leaves blank

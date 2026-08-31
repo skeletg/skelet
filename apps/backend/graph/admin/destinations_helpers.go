@@ -3,9 +3,9 @@ package admin
 import (
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/destination"
-	"github.com/skeletg/skelet/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/destination"
+	"github.com/skeletg/skelet/apps/backend/internal/ptr"
 )
 
 func toEventDestinationModel(d destination.Destination) *model.EventDestination {

@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // LibraryEmail is a standalone, named email (subject + typed blocks + styles)

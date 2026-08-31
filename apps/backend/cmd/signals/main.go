@@ -18,16 +18,16 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/applog"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/destination"
-	"github.com/skeletg/skelet/internal/envcheck"
-	"github.com/skeletg/skelet/internal/httpx"
-	"github.com/skeletg/skelet/internal/lens"
-	"github.com/skeletg/skelet/internal/observability"
-	"github.com/skeletg/skelet/internal/signalsboot"
-	"github.com/skeletg/skelet/internal/wiring"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/destination"
+	"github.com/skeletg/skelet/apps/backend/internal/envcheck"
+	"github.com/skeletg/skelet/apps/backend/internal/httpx"
+	"github.com/skeletg/skelet/apps/backend/internal/lens"
+	"github.com/skeletg/skelet/apps/backend/internal/observability"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
+	"github.com/skeletg/skelet/apps/backend/internal/wiring"
 )
 
 func main() {

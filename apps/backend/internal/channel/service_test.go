@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
 )
 
 // Extends the middleware fake with just enough write behavior for Service tests

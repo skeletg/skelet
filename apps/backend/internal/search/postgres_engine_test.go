@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
 )
 
 type fakeCatalog struct {

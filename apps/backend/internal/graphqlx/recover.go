@@ -7,8 +7,8 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/applog"
 )
 
 // Converts resolver panics into a ClassInternal *apperr.Error, logging the stack and letting the error flow back through the surface Presenter

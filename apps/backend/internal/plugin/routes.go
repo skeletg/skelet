@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Namespaced per plugin so two can't collide and an access log says whose traffic it is

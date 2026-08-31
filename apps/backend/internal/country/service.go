@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // Consulted before writes that set default_currency_code - wired post-construction so country to currency can't become a circular import if currencies ever gain a country reference, mirroring the locale-channel pattern

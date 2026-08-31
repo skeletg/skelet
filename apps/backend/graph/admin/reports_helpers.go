@@ -1,8 +1,8 @@
 package admin
 
 import (
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/sales"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/sales"
 )
 
 // Whitelisted so the raw value never reaches the date_trunc() call - anything unknown or nil falls back to per-day

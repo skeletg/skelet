@@ -13,8 +13,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
 )
 
 // Publisher is the slice of the event bus this package emits to

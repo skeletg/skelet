@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // The public surface for customer segments - a thin wrapper over Repository today, existing so future schedule-driven refresh logic lands in one place without ripping up call sites

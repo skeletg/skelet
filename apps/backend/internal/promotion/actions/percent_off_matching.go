@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/money"
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/money"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // Applies a percent discount only to lines whose product matches a nested condition - max_qty caps how many units are discounted across matching lines, which covers "10% off your first 3 widgets"

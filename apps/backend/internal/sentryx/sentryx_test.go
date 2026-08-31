@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/sentryx"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/sentryx"
 )
 
 func TestInitWithoutDSNReturnsNoOp(t *testing.T) {

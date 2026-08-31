@@ -5,9 +5,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/b2b"
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/b2b"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // onAccountStore is a store with purchase-order enabled, plus the placement option that selects it

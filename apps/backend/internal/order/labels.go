@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/ptr"
-	shippingpkg "github.com/skeletg/skelet/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/ptr"
+	shippingpkg "github.com/skeletg/skelet/apps/backend/internal/shipping"
 )
 
 // GenerateLabel makes and persists a shipping label for a fulfillment via the order's carrier, stamping the returned tracking number on the

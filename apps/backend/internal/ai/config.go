@@ -1,6 +1,6 @@
 package ai
 
-import "github.com/skeletg/skelet/internal/config"
+import "github.com/skeletg/skelet/apps/backend/internal/config"
 
 const (
 	cfgEnabled           = "ai/llm/enabled"

@@ -3,7 +3,7 @@ package front
 import (
 	"context"
 
-	"github.com/skeletg/skelet/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
 )
 
 func (r *queryResolver) Locales(ctx context.Context, activeOnly *bool) ([]*model.Locale, error) {

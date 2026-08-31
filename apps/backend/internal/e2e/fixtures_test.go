@@ -5,13 +5,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/locale"
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // A store built from scratch through the real services: channel, product type, published listing,

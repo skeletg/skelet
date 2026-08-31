@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/promotion"
-	"github.com/skeletg/skelet/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 )
 
 func (h *harness) addFlatShipping(t *testing.T, f *store, flatCents, freeAboveCents int64) {

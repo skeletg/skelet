@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // A multiselect pick snapshots one order_line_options row per value - the rebuild must fold them into ONE input per option or buildConfiguredLineOptions rejects the add as "option supplied twice" and every reorder of the line fails

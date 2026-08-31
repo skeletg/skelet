@@ -14,8 +14,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/consent"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/consent"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // Dependency seams (accept interfaces) - set the customer/consent/segment/flow

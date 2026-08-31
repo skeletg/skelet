@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // Scenario: guest orders attach to an account only on EMAIL VERIFICATION - registering proves

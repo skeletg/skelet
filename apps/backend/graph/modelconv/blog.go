@@ -4,8 +4,8 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/blog"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/blog"
 )
 
 func BlogPostStatus(s blog.PostStatus) model.BlogPostStatus {

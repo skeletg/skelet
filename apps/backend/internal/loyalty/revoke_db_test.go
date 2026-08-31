@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // revokeForOrder revokes toward a TARGET share of what the order earned - bailing on the first negative row means only the first partial refund ever deducted

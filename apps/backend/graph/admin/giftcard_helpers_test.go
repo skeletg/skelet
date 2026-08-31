@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/giftcard"
+	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
 )
 
 func TestToGiftCardModelMapsBalancesAndNullables(t *testing.T) { // the admin refund screen reads Balance off this model, so a swap with InitialBalance would show spent cards as full

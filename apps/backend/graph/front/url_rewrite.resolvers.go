@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 // Null on no match, and the storefront catch-all turns that into a 404; on a 301/302 row the response carries redirectTo + redirectStatusCode and the caller must ignore kind/entityId

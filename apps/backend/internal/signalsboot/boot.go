@@ -11,14 +11,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/analytics/spinech"
-	"github.com/skeletg/skelet/internal/analytics/spinequeue"
-	"github.com/skeletg/skelet/internal/backup"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/config"
-	signalsdb "github.com/skeletg/skelet/internal/db/signals/sqlc"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics/spinech"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics/spinequeue"
+	"github.com/skeletg/skelet/apps/backend/internal/backup"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // Options carries the per-binary database handles - everything env-shaped (SIGNALS_ENABLED, SIGNALS_ENGINE, SIGNALS_CH_URL, SIGNALS_QUEUE_URL) is read here

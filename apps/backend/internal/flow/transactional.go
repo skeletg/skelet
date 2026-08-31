@@ -8,11 +8,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/email"
-	"github.com/skeletg/skelet/internal/emailtemplate"
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 var errEmailNotFound = errors.New("flow: send_email node references a missing library email")

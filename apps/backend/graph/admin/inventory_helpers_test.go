@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
 )
 
 func TestInventoryLevelAvailableMath(t *testing.T) { // netReservation is NEGATIVE when stock is held, and this Available is the number the operator trusts before promising an order

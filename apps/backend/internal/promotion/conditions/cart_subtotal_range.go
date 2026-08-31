@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // cartSubtotalRange matches when the cart's subtotal is within [min_cents, max_cents] - Either bound is optional; with neither set the

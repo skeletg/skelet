@@ -6,14 +6,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/cms"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/menu"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/cms"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/menu"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 type Purger interface { // the subset of revalidate.Client this package needs

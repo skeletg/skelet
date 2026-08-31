@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/auth"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 type postgresRepository struct {

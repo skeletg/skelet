@@ -19,11 +19,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/analytics/spinech"
-	"github.com/skeletg/skelet/internal/config"
-	signalsdb "github.com/skeletg/skelet/internal/db/signals/sqlc"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics/spinech"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // Registered in internal/config/defaults.go under pulse/lens

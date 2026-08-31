@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
 )
 
 // Order placement talks to Engine directly; admin resolvers come here for CRUD, storefront resolvers for apply/remove and to Engine for eval

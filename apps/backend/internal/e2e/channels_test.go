@@ -7,13 +7,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/currency"
-	"github.com/skeletg/skelet/internal/giftcard"
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/currency"
+	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // Scenario: a customer IS (channel, email) - the same address registers separately per store, and

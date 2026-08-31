@@ -4,7 +4,7 @@ import (
 	"context"
 	"sort"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // RegisterConfigSources backs the address-validator select. Registration is a live, plugin-extensible

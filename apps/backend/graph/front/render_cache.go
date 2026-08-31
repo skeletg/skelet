@@ -7,12 +7,12 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/graph/front/dataloaders"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/currency"
-	"github.com/skeletg/skelet/internal/review"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/front/dataloaders"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/currency"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
 )
 
 // Request-scoped batch of pre-fetched rows - list resolvers fill it once up front so per-product field resolvers and renderProduct read maps instead of one round-trip per row; every helper is nil-safe and falls through to a single-row fetch on a miss

@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // Rate sources implemented as merchant HTTP endpoints (remoteprovider kind=shipping_carrier) rather than registry entries, so a merchant can plug in a 3PL or negotiated-rate service without a Go plugin

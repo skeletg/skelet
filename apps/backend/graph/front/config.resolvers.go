@@ -3,8 +3,8 @@ package front
 import (
 	"context"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	model1 "github.com/skeletg/skelet/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	model1 "github.com/skeletg/skelet/apps/backend/graph/front/model"
 )
 
 // Unauthenticated on purpose - the storefront loads store name, currency, "allow guest checkout" and the like from here

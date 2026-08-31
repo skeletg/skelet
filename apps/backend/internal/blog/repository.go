@@ -11,10 +11,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 
-	pgdb "github.com/skeletg/skelet/internal/db"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/ptr"
-	"github.com/skeletg/skelet/internal/tx"
+	pgdb "github.com/skeletg/skelet/apps/backend/internal/db"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 type postgresRepository struct {

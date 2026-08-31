@@ -7,12 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/skeletg/skelet/internal/datapatch"
-	dbconn "github.com/skeletg/skelet/internal/db"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/datapatch"
+	dbconn "github.com/skeletg/skelet/apps/backend/internal/db"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 
-	_ "github.com/skeletg/skelet/internal/datapatch/patches" // core patches register via init() - plugin patches come through the SDK when linked in
+	_ "github.com/skeletg/skelet/apps/backend/internal/datapatch/patches" // core patches register via init() - plugin patches come through the SDK when linked in
 )
 
 // The migrate one-shot runs `data-patch up` after the schema, so this is for inspecting

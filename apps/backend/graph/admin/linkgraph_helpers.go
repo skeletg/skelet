@@ -3,9 +3,9 @@ package admin // gqlgen relocates non-resolver decls out of *.resolvers.go on ev
 import (
 	"strings"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/linkgraph"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/linkgraph"
 )
 
 var linkNodeTypes = map[string]model.LinkNodeType{

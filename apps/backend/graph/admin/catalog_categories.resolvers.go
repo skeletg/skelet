@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
 )
 
 // ProductCount is the resolver for the productCount field. A cheap indexed COUNT of direct memberships (descendants

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/skeletg/skelet/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
 )
 
 // pluginEvent is the bus envelope for a plugin-published event - Type answers the subscriber

@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 func (h *harness) newRule(t *testing.T, in promotion.CreateRuleInput) promotion.Rule {

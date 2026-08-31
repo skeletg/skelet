@@ -5,9 +5,9 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/scheduler"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/scheduler"
 )
 
 // headersToModel converts a header map to a name-sorted slice for a stable

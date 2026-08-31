@@ -59,17 +59,17 @@ models:
       # Lazy load - only the collection detail page selects it
       facetOverrides: { resolver: true }
   ProductMemberships:
-    model: github.com/skeletg/skelet/graph/admin/model.ProductMemberships
+    model: github.com/skeletg/skelet/apps/backend/graph/admin/model.ProductMemberships
     fields:
       configurable: { resolver: true }
       bundles: { resolver: true }
       groupedProducts: { resolver: true }
   ConfigurableMembership:
-    model: github.com/skeletg/skelet/graph/admin/model.ConfigurableMembership
+    model: github.com/skeletg/skelet/apps/backend/graph/admin/model.ConfigurableMembership
   BundleMembership:
-    model: github.com/skeletg/skelet/graph/admin/model.BundleMembership
+    model: github.com/skeletg/skelet/apps/backend/graph/admin/model.BundleMembership
   GroupedMembership:
-    model: github.com/skeletg/skelet/graph/admin/model.GroupedMembership
+    model: github.com/skeletg/skelet/apps/backend/graph/admin/model.GroupedMembership
   Customer:
     fields:
       consents:

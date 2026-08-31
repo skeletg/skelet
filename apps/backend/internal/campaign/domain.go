@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/emailtemplate"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
 )
 
 const ( // campaign lifecycle - validated in Go, with no DB enum

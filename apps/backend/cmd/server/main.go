@@ -14,13 +14,13 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 
-	"github.com/skeletg/skelet/internal/applog"
-	"github.com/skeletg/skelet/internal/envcheck"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/observability"
-	"github.com/skeletg/skelet/internal/wiring"
+	"github.com/skeletg/skelet/apps/backend/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/envcheck"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/observability"
+	"github.com/skeletg/skelet/apps/backend/internal/wiring"
 
-	_ "github.com/skeletg/skelet/plugins/firstparty"
+	_ "github.com/skeletg/skelet/apps/backend/plugins/firstparty"
 )
 
 func main() {

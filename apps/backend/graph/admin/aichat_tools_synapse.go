@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/ai"
-	"github.com/skeletg/skelet/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 )
 
 // synapseSignalTools returns the Synapse customer-behaviour tools (customers.view).

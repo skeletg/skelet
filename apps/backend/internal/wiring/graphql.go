@@ -19,16 +19,16 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"go.uber.org/fx"
 
-	graphadmin "github.com/skeletg/skelet/graph/admin"
-	graphfront "github.com/skeletg/skelet/graph/front"
-	"github.com/skeletg/skelet/internal/audit"
-	authpkg "github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/cache"
-	"github.com/skeletg/skelet/internal/graphqlx"
-	"github.com/skeletg/skelet/internal/health"
-	"github.com/skeletg/skelet/internal/observability"
-	"github.com/skeletg/skelet/internal/otelx"
-	"github.com/skeletg/skelet/internal/ratelimit"
+	graphadmin "github.com/skeletg/skelet/apps/backend/graph/admin"
+	graphfront "github.com/skeletg/skelet/apps/backend/graph/front"
+	"github.com/skeletg/skelet/apps/backend/internal/audit"
+	authpkg "github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/cache"
+	"github.com/skeletg/skelet/apps/backend/internal/graphqlx"
+	"github.com/skeletg/skelet/apps/backend/internal/health"
+	"github.com/skeletg/skelet/apps/backend/internal/observability"
+	"github.com/skeletg/skelet/apps/backend/internal/otelx"
+	"github.com/skeletg/skelet/apps/backend/internal/ratelimit"
 )
 
 // RateLimiters are the Valkey-backed request limiters - Nil client (no VALKEY_URL) degrades each to per-process counting, which is correct for one node

@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
 )
 
 // Two batch queries over the full content tables, memoized per (request, locale) - attribute metadata is small and every rendered product on the page shares the result

@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/search"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/search"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // The whole plugin-index seam against a real cluster - registration replay, physical index creation, writer round-trip,

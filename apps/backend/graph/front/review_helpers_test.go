@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 
-	adminmodel "github.com/skeletg/skelet/graph/admin/model"
-	frontmodel "github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/review"
+	adminmodel "github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	frontmodel "github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
 )
 
 func rating(n int32) *int32 { return &n }

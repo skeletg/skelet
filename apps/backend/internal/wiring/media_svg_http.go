@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/admin"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/media"
-	"github.com/skeletg/skelet/internal/medialibrary"
+	"github.com/skeletg/skelet/apps/backend/internal/admin"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
 )
 
 // SVG skips the GraphQL presign every other format uses, because the bytes must pass THROUGH the

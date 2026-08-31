@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/search"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/search"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 func validReg(name string) sdk.SearchIndexRegistration {

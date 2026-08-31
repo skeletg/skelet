@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // Walks the cart lines, evaluates the child condition against each, and accumulates per-unit discounts up to maxQty - unitFn computes the discount cents for `qty` units of a line, so callers like percentOffMatching apply % or fixed-cents formulas without duplicating the iteration scaffolding

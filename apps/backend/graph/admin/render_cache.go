@@ -7,9 +7,9 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
 )
 
 // renderCache is a request-scoped batch of pre-fetched rows - list resolvers prime it once up-front so per-product field resolvers (and renderProduct / renderProductListings) read the maps instead of firing one round-trip per row; nil-safe, helpers fall through to a normal single-row fetch when the entry is missing

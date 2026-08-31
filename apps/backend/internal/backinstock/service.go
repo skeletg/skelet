@@ -11,12 +11,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/config"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/email"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
 )
 
 type salableReader interface { // narrow dependency seams - accepting interfaces keeps the package testable and free of import cycles

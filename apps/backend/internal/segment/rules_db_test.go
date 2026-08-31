@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	"github.com/skeletg/skelet/internal/testdb"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
 // Compile hand-assembles SQL text from allowlisted fragments, and nothing else in the package ever

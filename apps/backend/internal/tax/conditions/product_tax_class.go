@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"slices"
 
-	"github.com/skeletg/skelet/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
 )
 
 // productTaxClass matches when the line's product tax class is one of the configured classes - An empty list matches

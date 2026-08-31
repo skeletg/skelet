@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/campaign"
-	"github.com/skeletg/skelet/internal/flow"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/campaign"
+	"github.com/skeletg/skelet/apps/backend/internal/flow"
 )
 
 func (r *mutationResolver) CreateFlow(ctx context.Context, input model.SaveFlowInput) (*model.Flow, error) {

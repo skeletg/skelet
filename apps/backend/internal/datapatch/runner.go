@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/tx"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // Result reports what a Run did

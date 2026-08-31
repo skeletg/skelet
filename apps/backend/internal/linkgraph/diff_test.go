@@ -2,7 +2,7 @@ package linkgraph
 
 import "testing"
 
-import db "github.com/skeletg/skelet/internal/db/sqlc"
+import db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 
 func page(status int32, opts ...func(*db.SeoCrawlDiffRowsRow)) db.SeoCrawlDiffRowsRow {
 	row := db.SeoCrawlDiffRowsRow{StatusCode: status, Title: "T", MetaDescription: "M", Canonical: "/c", H1: "H", InLinks: 10, Depth: 1}
