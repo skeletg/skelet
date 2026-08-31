@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // buffer batches rows so a 20k-page crawl is a few hundred round trips rather than 20k

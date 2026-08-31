@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // customerGroupIn matches when the customer's static group slug is

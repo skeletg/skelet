@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/money"
-	"github.com/skeletg/skelet/internal/pricing"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/money"
+	"github.com/skeletg/skelet/apps/backend/internal/pricing"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // Orders live in the order package, which orchestrates both repos in one transaction at placement - the bus is wired late via SetEventBus and events no-op when it's nil, so cart works without one and tests stay cheap

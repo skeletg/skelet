@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/config"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // maxBodyLen caps a notification body (e.g. a job's last_error) so it stays

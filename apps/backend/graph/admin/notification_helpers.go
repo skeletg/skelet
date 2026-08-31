@@ -5,9 +5,9 @@ package admin
 import (
 	"context"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/notification"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/notification"
 )
 
 func (r *Resolver) notifScope(ctx context.Context) (notification.Scope, error) {

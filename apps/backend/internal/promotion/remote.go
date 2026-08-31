@@ -7,7 +7,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // A rule's condition or action delegated to a merchant HTTP endpoint (remoteprovider kind=promotion_condition / promotion_action) instead of a compile-time evaluator - the rule stores the provider slug in its params, and evaluation invokes that provider with the cart context

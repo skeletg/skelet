@@ -5,10 +5,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
 )
 
 func (r *inventoryLocationResolver) Country(ctx context.Context, obj *model.InventoryLocation) (*model.Country, error) {

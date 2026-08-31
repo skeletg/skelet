@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/blockkit"
-	"github.com/skeletg/skelet/internal/config"
-	contentpkg "github.com/skeletg/skelet/internal/content"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/blockkit"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	contentpkg "github.com/skeletg/skelet/apps/backend/internal/content"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 type LocaleValidator interface {

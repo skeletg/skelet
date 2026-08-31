@@ -9,7 +9,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/skeletg/skelet/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
 )
 
 var ErrAccountLocked = errors.New("too many failed login attempts; please try again later") // classed as rate-limited, so the client shows "try again later" without confirming credentials

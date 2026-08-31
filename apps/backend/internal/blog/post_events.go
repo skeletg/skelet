@@ -2,7 +2,7 @@ package blog
 
 import (
 	"github.com/google/uuid"
-	contentpkg "github.com/skeletg/skelet/internal/content"
+	contentpkg "github.com/skeletg/skelet/apps/backend/internal/content"
 )
 
 const (

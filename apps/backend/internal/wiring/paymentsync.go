@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/skeletg/skelet/internal/order"
-	paymentpkg "github.com/skeletg/skelet/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	paymentpkg "github.com/skeletg/skelet/apps/backend/internal/payment"
 )
 
 // sweep window - orders younger than 30m are probably mid-checkout, older than 7d are abandoned for good

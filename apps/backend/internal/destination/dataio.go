@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/dataio"
+	"github.com/skeletg/skelet/apps/backend/internal/dataio"
 )
 
 const (

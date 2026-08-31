@@ -6,12 +6,12 @@ import (
 
 	"github.com/google/uuid"
 
-	model1 "github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/graph/front/dataloaders"
-	"github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/review"
+	model1 "github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/front/dataloaders"
+	"github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
 )
 
 func (r *Resolver) voterFromContext(ctx context.Context) (review.Voter, error) { // just gathers the two policy inputs - auth-context customer and X-Review-Voter-Token - and hands them to review.Service.ResolveVoter, the same implementation the dataloader path in cmd/server/main.go uses

@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 // Whitelist only, and every case validates its args then routes through the existing gated resolver method rather than the service - that's what keeps the model from reaching anything the operator couldn't

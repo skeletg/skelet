@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 func (r *Resolver) searchMerchChannel(ctx context.Context, channelID string) (uuid.UUID, error) {

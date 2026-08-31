@@ -10,7 +10,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 const (
@@ -39,7 +39,7 @@ func init() {
 		Slug:     Slug,
 		Name:     "Example Plugin",
 		Version:  "0.1.0",
-		SDKRange: "^0.1.0",
+		SDKRange: "^0.2.0",
 		Emits:    []string{EventSettled, EventSettling},
 		Consumes: []string{EventSettled, EventSettling},
 		Capabilities: []string{
@@ -55,7 +55,7 @@ func init() {
 		Slug:     SiblingSlug,
 		Name:     "Example Sibling",
 		Version:  "0.1.0",
-		SDKRange: "^0.1.0",
+		SDKRange: "^0.2.0",
 	})
 	sibling.RegisterHealthCheck("probe", func(context.Context) error { return nil })
 

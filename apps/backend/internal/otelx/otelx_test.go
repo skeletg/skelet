@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/otelx"
+	"github.com/skeletg/skelet/apps/backend/internal/otelx"
 )
 
 func TestInitNoEnvReturnsNoOp(t *testing.T) {

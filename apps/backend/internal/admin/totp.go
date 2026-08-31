@@ -14,8 +14,8 @@ import (
 	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/secrets"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/secrets"
 )
 
 var ErrTotpRequired = errors.New("two-factor authentication code required") // credentials were valid, the account has TOTP on, and no code was supplied

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	authpkg "github.com/skeletg/skelet/internal/auth"
-	storagepkg "github.com/skeletg/skelet/internal/media"
+	authpkg "github.com/skeletg/skelet/apps/backend/internal/auth"
+	storagepkg "github.com/skeletg/skelet/apps/backend/internal/media"
 )
 
 const presignTTL = 15 * time.Minute

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
 )
 
 func channelIDFromContext(ctx context.Context) *uuid.UUID { // nil when no store was resolved - admin GraphQL traffic, introspection and the like

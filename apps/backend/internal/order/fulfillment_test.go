@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
 )
 
 func TestPlanFulfillment(t *testing.T) {

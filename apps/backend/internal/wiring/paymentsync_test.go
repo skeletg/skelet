@@ -3,7 +3,7 @@ package wiring
 import (
 	"testing"
 
-	paymentpkg "github.com/skeletg/skelet/internal/payment"
+	paymentpkg "github.com/skeletg/skelet/apps/backend/internal/payment"
 )
 
 // The sweep must never settle on ambiguity - only the four definite gateway states move an order

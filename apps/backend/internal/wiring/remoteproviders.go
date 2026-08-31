@@ -3,18 +3,18 @@ package wiring
 import (
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/address"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/currency"
-	"github.com/skeletg/skelet/internal/flow"
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/promotion"
-	"github.com/skeletg/skelet/internal/remoteprovider"
-	"github.com/skeletg/skelet/internal/review"
-	"github.com/skeletg/skelet/internal/segment"
-	"github.com/skeletg/skelet/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/address"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/currency"
+	"github.com/skeletg/skelet/apps/backend/internal/flow"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
+	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 )
 
 // One adapter per role a merchant's HTTP endpoint can fulfil - the full list of what a remote provider can take over, every one inert until a channel opts in, so an install with no providers configured behaves as before

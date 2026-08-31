@@ -54,27 +54,53 @@ providers - PCI scope argues for in-process code over an HTTP hop.
 
 ### Installing a plugin from outside the tree
 
-A plugin doesn't have to live in this repository. `bin/cli plugin install` vendors
-one in from its own repo (or a local directory) and wires it up:
+A plugin doesn't have to live in this repository. Two ways in, and the first is the one
+to reach for.
+
+**`plugin add` - a Go module dependency.** Nothing is copied into this repo:
+
+```
+bin/cli plugin add github.com/acme/skelet-plugin-fraud@v1.2.0
+bin/cli plugin add github.com/acme/skelet-plugin-fraud        # latest
+bin/cli plugin add --local ../my-plugin                       # unpublished, in development
+```
+
+`go get` fetches it, `plugins/plugins.json` records the module path, and
+`plugins/firstparty` is regenerated to import it. You get a version, a checksum in
+`go.sum`, one copy instead of two, and `go get -u` as the upgrade path.
+
+A module plugin's GraphQL SDL lives read-only in the module cache at a path that carries
+its version and differs per machine, so `bin/codegen` copies it into `plugins/.modules/`
+first (git-ignored, rebuilt every run) and points gqlgen there. That directory is derived
+output - delete it whenever.
+
+`--local` is the development shortcut for a plugin with no remote yet: it writes a
+`require` plus a **relative** `replace`. Relative because the dev stack compiles inside a
+container that mounts `apps/backend` elsewhere, so an absolute host path resolves to
+nothing in there. Every service that builds the backend needs the checkout mounted at the
+matching path - `docker-compose.override.yml` is where that goes. Take the `replace` out
+before releasing; consumers ignore it anyway.
+
+**`plugin install` - vendored source.** The fallback, for a plugin that is not a module:
+no `go.mod`, or no repo you can fetch from.
 
 ```
 bin/cli plugin install https://github.com/acme/skelet-plugin-fraud@v1.2.0
-bin/cli plugin install git@github.com:acme/plugins.git --dir fraud
 bin/cli plugin install ../my-plugin --slug my-plugin
 ```
 
 The source is copied to `plugins/<slug>/` with its `.git`, `go.mod`, `go.sum` and
-`vendor/` stripped - from then on it compiles as part of this module, its own
-dependencies pulled in by `go mod tidy` and any self-imports rewritten onto the
-vendored path. The command enables it, regenerates `plugins/firstparty`, and
-smoke-builds; a build failure parks the plugin (`plugins/_<slug>`) so the tree
-keeps compiling while you fix it.
+`vendor/` stripped - from then on it compiles as part of this module, its own dependencies
+pulled in by `go mod tidy` and any self-imports rewritten onto the vendored path. A build
+failure parks the plugin (`plugins/_<slug>`) so the tree keeps compiling while you fix it.
 
-Develop an out-of-tree plugin inside a checkout of this repo (so the SDK import
-resolves), publish it to its own repo, and install by URL on the deployments that
-want it. Installing compiles the code into core with full privileges - read it
-before you install it, the manifest's capabilities are a disclosure, not a
-sandbox.
+Either way, installing compiles the code into core with full privileges - read it before
+you install it. The manifest's capabilities are a disclosure, not a sandbox.
+
+One thing to know about graph-extending plugins: their resolvers reference types in core's
+*generated* `graph/*/model` package, which core produces from that plugin's own SDL. So the
+order is always fetch, then codegen, then compile - and such a plugin never builds
+standalone in its own repo. A plugin with no GraphQL does.
 
 ## Remote providers - HTTP, out of process
 

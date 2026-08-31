@@ -6,8 +6,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/permission"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/permission"
 )
 
 // Config paths for the per-channel country and region restrictions - multiselect values are comma-separated uppercase ISO alpha-2 codes, and an empty `allowed` means all active

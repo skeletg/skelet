@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // Caps how many due subscriptions one ProcessDue pass handles, so a large backlog can't hold a tick open indefinitely - the next tick picks up the rest

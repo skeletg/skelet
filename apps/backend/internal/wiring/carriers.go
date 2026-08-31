@@ -1,8 +1,8 @@
 package wiring
 
 import (
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 )
 
 func RegisterBuiltinCarriers(sh *shipping.Service, inv *inventory.Service) { // explicit rather than init() - both wrap a constructed service, so they can't sit with the plugin carriers that do register from init()

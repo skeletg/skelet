@@ -3,7 +3,7 @@ package form
 import (
 	"errors"
 
-	"github.com/skeletg/skelet/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
 )
 
 var (

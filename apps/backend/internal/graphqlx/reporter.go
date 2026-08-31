@@ -3,7 +3,7 @@ package graphqlx
 import (
 	"context"
 
-	"github.com/skeletg/skelet/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
 )
 
 // Forwards errors and panics to an external aggregator - declared here so graphqlx stays independent of sentryx, which supplies the concrete type structurally - Must be concurrent-safe, and a nil Reporter passes through

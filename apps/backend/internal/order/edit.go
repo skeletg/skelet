@@ -8,12 +8,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/money"
-	"github.com/skeletg/skelet/internal/ptr"
-	shippingpkg "github.com/skeletg/skelet/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/money"
+	"github.com/skeletg/skelet/apps/backend/internal/ptr"
+	shippingpkg "github.com/skeletg/skelet/apps/backend/internal/shipping"
 )
 
 // rateItemsFromLines summarizes order lines for a carrier rate request

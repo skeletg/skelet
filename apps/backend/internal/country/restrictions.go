@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // Enforces the channel's country and region options on one address - the country must exist, be active and, when an allow-list is configured, be in it, while the region must be present when required and valid when the country has a canonical subdivision list

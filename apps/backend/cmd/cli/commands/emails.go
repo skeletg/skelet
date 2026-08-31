@@ -8,10 +8,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
-	dbconn "github.com/skeletg/skelet/internal/db"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/emailtemplate"
-	"github.com/skeletg/skelet/internal/flow"
+	dbconn "github.com/skeletg/skelet/apps/backend/internal/db"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
+	"github.com/skeletg/skelet/apps/backend/internal/flow"
 )
 
 var EmailsCmd = &cobra.Command{

@@ -19,7 +19,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 )
 
 const ( // ClickHouse wants few, large INSERTs since each makes a part, so AppendEvent buffers and a background loop flushes on size or tick

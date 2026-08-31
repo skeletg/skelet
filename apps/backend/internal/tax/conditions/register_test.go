@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
 )
 
 // Every rule type in the package declares Slug, so counting those is a source of truth independent of the add()

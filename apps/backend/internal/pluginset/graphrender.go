@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	pluginhostPath = "github.com/skeletg/skelet/internal/plugin"
-	sdkPath        = "github.com/skeletg/skelet/sdk"
+	pluginhostPath = "github.com/skeletg/skelet/apps/backend/internal/plugin"
+	sdkPath        = "github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // internal/plugin's package name is `plugin`, and the tree refers to it as pluginhost everywhere - so an alias
@@ -136,7 +136,7 @@ func writePluginResolvers(root, surface, pkg string, ms []method) error {
 	for _, m := range ms {
 		for _, p := range m.pkgs {
 			if p == "model" {
-				need["model"] = fmt.Sprintf("github.com/skeletg/skelet/graph/%s/model", surface)
+				need["model"] = fmt.Sprintf("github.com/skeletg/skelet/apps/backend/graph/%s/model", surface)
 			}
 			if p == "uuid" {
 				need["uuid"] = "github.com/google/uuid"

@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 
-	"github.com/skeletg/skelet/internal/config"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/permission"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/permission"
 )
 
 const CfgRetentionDays = "system/audit/retention_days" // drives the daily audit-log-prune job; <= 0 keeps the trail forever

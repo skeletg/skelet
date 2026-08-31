@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/uuid"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/money"
-	"github.com/skeletg/skelet/internal/order"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/money"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // SubscribeToOrderEvents wires cancel-restore: when an order that spent store credit is cancelled (durable via the outbox, at-least-once),

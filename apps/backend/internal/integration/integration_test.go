@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 // Keyed by token hash, the way the real unique index is - a fake that indexed by raw token would

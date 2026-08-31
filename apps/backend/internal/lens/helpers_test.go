@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 func TestChunkBlobKeyIsDeterministicPerSequence(t *testing.T) { // replay chunks are re-uploaded on retry, and a key that drifted would leave orphaned objects the prune path can never find

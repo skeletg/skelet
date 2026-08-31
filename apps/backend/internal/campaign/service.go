@@ -15,15 +15,15 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/consent"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/email"
-	"github.com/skeletg/skelet/internal/emailtemplate"
-	"github.com/skeletg/skelet/internal/emailtrack"
-	"github.com/skeletg/skelet/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtrack"
+	"github.com/skeletg/skelet/apps/backend/internal/segment"
 )
 
 var ErrInvalidToken = errors.New("invalid unsubscribe token")

@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // Email verification and password reset are the same primitive - a namespaced token hash mapping to a subject id, expiring after a TTL and redeemed once - so the two stores share one implementation per storage engine instead of four

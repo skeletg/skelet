@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
 )
 
 // Payment status values for orders.payment_status - free-form TEXT, so the lifecycle lives here: unpaid to authorized to paid to refunded, with unpaid or authorized able to go to voided

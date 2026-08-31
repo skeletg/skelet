@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/skeletg/skelet/internal/money"
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/money"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // bogo (buy N, get M) discounts every Mth unit of matching lines - Eligible units

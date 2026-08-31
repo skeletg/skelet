@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/skeletg/skelet/internal/events"
-	pluginhost "github.com/skeletg/skelet/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	pluginhost "github.com/skeletg/skelet/apps/backend/internal/plugin"
 )
 
 // Shutdown order is load-bearing: drain in-flight HTTP, wait for background workers, then drain async handlers - the caller's connection closes run after this returns

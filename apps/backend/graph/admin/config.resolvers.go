@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // The permission follows the scope being written - default scope needs the platform-baseline config.manage_defaults, channel scope needs config.manage on that channel

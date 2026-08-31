@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // A merchant HTTP endpoint (remoteprovider kind=pricing) resolving a SKU's unit price per customer and channel - the escape hatch for B2B contract or dynamic pricing without a Go plugin, CART and checkout only so catalog display keeps the hot read paths off the network; it runs on every cart op, so SET A CACHE TTL on the provider

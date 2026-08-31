@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/graphqlx"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/graphqlx"
 )
 
 // Test-local sentinels with classifications so the presenter has

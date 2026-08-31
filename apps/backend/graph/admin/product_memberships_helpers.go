@@ -9,8 +9,8 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
 )
 
 // Renders a membership parent exactly as the Product(id) query does, and answers (nil, nil) when the product is gone

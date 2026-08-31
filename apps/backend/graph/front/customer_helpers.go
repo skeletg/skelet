@@ -8,11 +8,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	frontmodel "github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/b2b"
-	"github.com/skeletg/skelet/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	frontmodel "github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/b2b"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
 )
 
 func toCustomerModel(c customer.Customer) *model.Customer {

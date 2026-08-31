@@ -3,7 +3,7 @@ package admin
 import (
 	"context"
 
-	"github.com/skeletg/skelet/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
 )
 
 func (r *productResolver) PartOf(ctx context.Context, obj *model.Product) (*model.ProductMemberships, error) {

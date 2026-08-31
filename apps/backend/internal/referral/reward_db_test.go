@@ -9,12 +9,12 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	"github.com/skeletg/skelet/internal/config"
-	dbsqlc "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/storecredit"
-	"github.com/skeletg/skelet/internal/testdb"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	dbsqlc "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // A referral payout mints real store credit out of nothing on a customer-triggered event, which makes

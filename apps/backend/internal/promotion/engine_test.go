@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/promotion"
-	"github.com/skeletg/skelet/internal/promotion/actions"
-	"github.com/skeletg/skelet/internal/promotion/conditions"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion/actions"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion/conditions"
 )
 
 // fakeRepo is an in-memory Repository for engine tests - Only the methods the engine actually calls are populated - the

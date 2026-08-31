@@ -1,6 +1,6 @@
 package country
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 func init() {
 	apperr.RegisterSentinel(ErrCountryNotFound, "COUNTRY_NOT_FOUND", apperr.ClassNotFound)

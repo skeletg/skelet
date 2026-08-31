@@ -7,13 +7,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/segment"
-	"github.com/skeletg/skelet/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/subscription"
 )
 
 // Needs the permission globally AND on the channel (mirrors lensViewScope) - RequirePermission alone ignores channel grants, letting a channel-A admin read channel B analytics by passing B id

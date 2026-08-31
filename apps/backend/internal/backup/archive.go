@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
 )
 
 // ArchiveStorage opens the BACKUP_* destination for retention archives - the identity-stripped exports the retention jobs write before deleting aged rows

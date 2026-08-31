@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 type CustomerTraits struct { // the persisted per-customer summary Synapse computes and the rest of Signals reads, for profiles and trait-driven segments

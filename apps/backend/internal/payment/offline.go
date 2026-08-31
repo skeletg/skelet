@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // COD and bank transfer are commerce primitives with no third party behind them, so they ship with the engine rather than as plugins - same call as shipping's builtin and pickup carriers

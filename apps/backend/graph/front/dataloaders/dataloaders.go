@@ -8,14 +8,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/graph-gophers/dataloader/v7"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/locale"
-	"github.com/skeletg/skelet/internal/medialibrary"
-	"github.com/skeletg/skelet/internal/promotion"
-	"github.com/skeletg/skelet/internal/review"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // 250µs catches every concurrent sibling field resolver gqlgen dispatches for one operation - longer windows add latency without batching more

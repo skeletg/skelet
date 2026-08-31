@@ -1,6 +1,6 @@
 package channel
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 func init() {
 	apperr.RegisterSentinel(ErrChannelNotFound, "CHANNEL_NOT_FOUND", apperr.ClassNotFound)

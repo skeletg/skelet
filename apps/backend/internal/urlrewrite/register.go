@@ -1,6 +1,6 @@
 package urlrewrite
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 func init() {
 	apperr.RegisterSentinel(ErrNotFound, "URL_REWRITE_NOT_FOUND", apperr.ClassNotFound)

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // fixedOffSubtotal applies a fixed cents discount to the cart subtotal - The discount is clamped to the subtotal so it

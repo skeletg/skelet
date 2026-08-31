@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 )
 
 func EngineIsClickHouse() bool { // for callers that only need to branch on the engine, without dialing it

@@ -9,15 +9,15 @@ import (
 
 	"github.com/google/uuid"
 
-	frontmodel "github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/media"
-	"github.com/skeletg/skelet/internal/money"
-	"github.com/skeletg/skelet/internal/promotion"
+	frontmodel "github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/money"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // Enforces "a cart belongs to exactly one store" at the front mutation boundary, right after parsing cartID - a mismatch (stale cookie from another store, hand-crafted cartId) is rejected without touching the cart row

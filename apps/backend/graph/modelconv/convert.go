@@ -7,14 +7,14 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/consent"
-	"github.com/skeletg/skelet/internal/currency"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/locale"
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/internal/currency"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 func AddressInput(input model.AddressInput) customer.AddressInput {

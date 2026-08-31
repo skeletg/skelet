@@ -5,7 +5,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/skeletg/skelet/internal/urlguard"
+	"github.com/skeletg/skelet/apps/backend/internal/urlguard"
 )
 
 // SSRF guard for outbound webhook deliveries - the implementation lives in internal/urlguard, a leaf package, so subsystems that would otherwise cycle with webhook can share the same guard - These aliases keep webhook's surface and every existing caller unchanged

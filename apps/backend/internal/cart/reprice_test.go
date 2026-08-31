@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/pricing"
+	"github.com/skeletg/skelet/apps/backend/internal/pricing"
 )
 
 // repriceRepo records UpdateCartLineQuantityPrice writes over the inert fakeRepo

@@ -20,7 +20,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 type adminTranslation struct {

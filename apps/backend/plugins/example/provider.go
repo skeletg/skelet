@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Records what the host handed it so the test can assert the translation layer, and reads config

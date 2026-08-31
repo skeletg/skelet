@@ -21,14 +21,14 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 
-	"github.com/skeletg/skelet/internal/applog"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/envcheck"
-	"github.com/skeletg/skelet/internal/httpx"
-	"github.com/skeletg/skelet/internal/ingesthttp"
-	"github.com/skeletg/skelet/internal/observability"
-	"github.com/skeletg/skelet/internal/ratelimit"
-	"github.com/skeletg/skelet/internal/wiring"
+	"github.com/skeletg/skelet/apps/backend/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/envcheck"
+	"github.com/skeletg/skelet/apps/backend/internal/httpx"
+	"github.com/skeletg/skelet/apps/backend/internal/ingesthttp"
+	"github.com/skeletg/skelet/apps/backend/internal/observability"
+	"github.com/skeletg/skelet/apps/backend/internal/ratelimit"
+	"github.com/skeletg/skelet/apps/backend/internal/wiring"
 )
 
 func main() {

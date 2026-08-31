@@ -1,5 +1,7 @@
 {
   "plugins": {
-    "example": 0
+    "example": {
+      "enabled": false
+    }
   }
 }

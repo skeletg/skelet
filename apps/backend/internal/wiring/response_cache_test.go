@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	cachepkg "github.com/skeletg/skelet/internal/cache"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/locale"
+	cachepkg "github.com/skeletg/skelet/apps/backend/internal/cache"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
 )
 
 func ctxWith(ch *channel.Channel, loc string) context.Context {

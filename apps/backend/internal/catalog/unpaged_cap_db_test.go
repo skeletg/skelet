@@ -6,8 +6,8 @@ import (
 
 	_ "github.com/lib/pq"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/testdb"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
 // ListProducts carries a row cap because the uncapped list is 101k rows and ~17MB on a real

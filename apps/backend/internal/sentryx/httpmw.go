@@ -7,7 +7,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	sentryhttp "github.com/getsentry/sentry-go/http"
 
-	"github.com/skeletg/skelet/internal/httpx"
+	"github.com/skeletg/skelet/apps/backend/internal/httpx"
 )
 
 // Gives each request its own Sentry Hub tagged with request_id and surface - returns the identity middleware when disabled, so callers wire it unconditionally

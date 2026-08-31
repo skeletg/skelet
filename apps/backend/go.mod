@@ -1,4 +1,4 @@
-module github.com/skeletg/skelet
+module github.com/skeletg/skelet/apps/backend
 
 go 1.27.0
 

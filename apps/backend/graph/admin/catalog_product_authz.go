@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 // requireCatalogManageOnAllListingChannels gates product-global writes (attribute values, media, structure, downloads, terms) the way UpsertProductContent gates the shared content rows: the row renders on every channel listing the product, so a channel-scoped catalog.manage must cover them all, or the edit leaks into channels the admin can't see

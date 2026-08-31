@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/integration"
+	"github.com/skeletg/skelet/apps/backend/internal/integration"
 )
 
 // adminGqlPost drives the real admin API with an integration token - the request crosses the

@@ -16,10 +16,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/httpx"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/httpx"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 
-	_ "github.com/skeletg/skelet/plugins/firstparty"
+	_ "github.com/skeletg/skelet/apps/backend/plugins/firstparty"
 )
 
 type sub struct {

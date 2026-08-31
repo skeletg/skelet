@@ -15,7 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 var ErrAlreadyRunning = errors.New("a crawl is already running for this channel")

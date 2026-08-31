@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/testdb"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
 // Deduct-at-placement moves FulfillLines' comp + on-hand decrement into the placement tx, and every

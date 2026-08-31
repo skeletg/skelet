@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // This seam once dropped every card token on the floor (gateways authorized with nothing) - these

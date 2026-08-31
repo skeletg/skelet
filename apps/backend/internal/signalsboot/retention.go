@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/lens"
-	"github.com/skeletg/skelet/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/lens"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
 )
 
 // The retention bodies live here so cmd/server's scheduler jobs and cmd/signals' ticker loops share one implementation, like TraitComputeJob - hand-kept copies of the same config reads drift

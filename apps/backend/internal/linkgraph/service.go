@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/sitecrawl"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
 )
 
 var ErrNoCrawl = errors.New("no completed crawl for this channel yet")

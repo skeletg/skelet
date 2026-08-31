@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/permission"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/permission"
 )
 
 const (
