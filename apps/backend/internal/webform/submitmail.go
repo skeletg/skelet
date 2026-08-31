@@ -4,8 +4,8 @@ import (
 	"context"
 	"html"
 
-	"github.com/skeletg/skelet/internal/email"
-	"github.com/skeletg/skelet/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
 )
 
 // Default sender for submission mail - these are operational notifications rather

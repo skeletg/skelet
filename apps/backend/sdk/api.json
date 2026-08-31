@@ -1,7 +1,7 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packages": {
-    "github.com/skeletg/skelet/sdk": [
+    "github.com/skeletg/skelet/apps/backend/sdk": [
       "const ActionChallenge ActionKind = \"challenge\"",
       "const ActionNone ActionKind = \"\"",
       "const ActionRedirect ActionKind = \"redirect\"",
@@ -453,7 +453,7 @@
       "type WebhookResult struct",
       "var ErrPermissionUnavailable error"
     ],
-    "github.com/skeletg/skelet/sdk/httpx": [
+    "github.com/skeletg/skelet/apps/backend/sdk/httpx": [
       "field Client.Authorize func(*http.Request)",
       "field Client.BaseURL string",
       "field Client.HTTP *http.Client",
@@ -473,7 +473,7 @@
       "type Client struct",
       "type HTTPError struct"
     ],
-    "github.com/skeletg/skelet/sdk/sdktest": [
+    "github.com/skeletg/skelet/apps/backend/sdk/sdktest": [
       "field AdminTranslation.PluginSlug string",
       "field AdminTranslation.Reg sdk.AdminTranslationsRegistration",
       "field GraphResolver.Impl any",

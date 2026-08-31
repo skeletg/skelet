@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/skeletg/skelet/internal/integration"
+	"github.com/skeletg/skelet/apps/backend/internal/integration"
 )
 
 // adminGqlAuthed drives the admin API as a signed-in admin - Bearer JWT through the whole

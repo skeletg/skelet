@@ -37,7 +37,7 @@ omit_gqlgen_file_notice: true
 call_argument_directives_with_null: true
 
 autobind:
-  - github.com/skeletg/skelet/graph/admin/model
+  - github.com/skeletg/skelet/apps/backend/graph/admin/model
 
 models:
   ID:
@@ -52,29 +52,29 @@ models:
   # generate dedicated structs (with the Children slice) here instead
   # of autobinding to admin's flatter type.
   Menu:
-    model: github.com/skeletg/skelet/graph/front/model.Menu
+    model: github.com/skeletg/skelet/apps/backend/graph/front/model.Menu
   MenuItem:
-    model: github.com/skeletg/skelet/graph/front/model.MenuItem
+    model: github.com/skeletg/skelet/apps/backend/graph/front/model.MenuItem
   # CMSPage autobinds to the admin model (above); ogImage has no struct field - it's computed from metadata/body - so
   # force it to a resolver. Pinning the model here keeps the rest autobound exactly as before
   CMSPage:
-    model: github.com/skeletg/skelet/graph/admin/model.CMSPage
+    model: github.com/skeletg/skelet/apps/backend/graph/admin/model.CMSPage
     fields:
       ogImage: { resolver: true }
   # Product.partOf membership types - hand-rolled structs (carry the owning product id; leaf fields bind to struct
   # fields populated by the three ProductMemberships resolvers)
   ProductMemberships:
-    model: github.com/skeletg/skelet/graph/front/model.ProductMemberships
+    model: github.com/skeletg/skelet/apps/backend/graph/front/model.ProductMemberships
     fields:
       configurable: { resolver: true }
       bundles: { resolver: true }
       groupedProducts: { resolver: true }
   ConfigurableMembership:
-    model: github.com/skeletg/skelet/graph/front/model.ConfigurableMembership
+    model: github.com/skeletg/skelet/apps/backend/graph/front/model.ConfigurableMembership
   BundleMembership:
-    model: github.com/skeletg/skelet/graph/front/model.BundleMembership
+    model: github.com/skeletg/skelet/apps/backend/graph/front/model.BundleMembership
   GroupedMembership:
-    model: github.com/skeletg/skelet/graph/front/model.GroupedMembership
+    model: github.com/skeletg/skelet/apps/backend/graph/front/model.GroupedMembership
   Order:
     fields:
       # The autobound admin Order struct carries a Returns field that the

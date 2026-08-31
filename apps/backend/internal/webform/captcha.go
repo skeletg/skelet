@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/otelx"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/otelx"
 )
 
 // Config paths for the global form settings - section/group/field, living under the existing "cms" section and "forms" group

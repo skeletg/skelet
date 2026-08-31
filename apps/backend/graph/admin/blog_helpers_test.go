@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
 )
 
 // Bulk mutations take id lists off the client, and one bad entry has to fail the whole call rather than silently operate on a shorter list

@@ -11,17 +11,17 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/blog"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/config"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/graphqlx"
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/locale"
-	"github.com/skeletg/skelet/internal/remoteprovider"
-	"github.com/skeletg/skelet/internal/search"
+	"github.com/skeletg/skelet/apps/backend/internal/blog"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/graphqlx"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/search"
 )
 
 // SearchTier is the assembled product-discovery stack - Client is nil when OPENSEARCH_URL is unset - /health reports on it, so it stays visible rather than being hidden inside Engine

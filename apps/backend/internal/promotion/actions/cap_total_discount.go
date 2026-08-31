@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // Clamps the cart's aggregate subtotal discount to a ceiling - designed to run last in a stacking chain, so admins put it on a high-priority no-op rule to guarantee the total discount never exceeds a set amount however many promotions stack

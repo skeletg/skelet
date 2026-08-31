@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
 )
 
 func (r *queryResolver) PaymentMethods(ctx context.Context, countryCode string) ([]*model.PaymentMethodOption, error) {

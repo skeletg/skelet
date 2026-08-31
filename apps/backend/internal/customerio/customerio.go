@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/dataio"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/dataio"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 const (

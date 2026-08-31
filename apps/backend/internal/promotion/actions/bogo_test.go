@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 	// Registers core.cart_subtotal_range (used as the target_condition)
-	"github.com/skeletg/skelet/internal/promotion/conditions"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion/conditions"
 )
 
 // recordingLedger is a promotion.Ledger that records per-line adjustments so tests can assert the discount bogo

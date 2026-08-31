@@ -10,10 +10,10 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/linkgraph"
-	"github.com/skeletg/skelet/internal/notification"
-	"github.com/skeletg/skelet/internal/sitecrawl"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/linkgraph"
+	"github.com/skeletg/skelet/apps/backend/internal/notification"
+	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
 )
 
 type seoCrawlDeps struct {

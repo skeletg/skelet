@@ -1,6 +1,6 @@
 package giftcard
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 func init() {
 	apperr.RegisterSentinel(ErrNotFound, "GIFT_CARD_NOT_FOUND", apperr.ClassNotFound)

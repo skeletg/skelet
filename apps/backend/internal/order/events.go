@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
 )
 
 const (

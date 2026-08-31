@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"text/tabwriter"
 
-	dbconn "github.com/skeletg/skelet/internal/db"
-	pluginhost "github.com/skeletg/skelet/internal/plugin"
-	"github.com/skeletg/skelet/internal/pluginmigrate"
+	dbconn "github.com/skeletg/skelet/apps/backend/internal/db"
+	pluginhost "github.com/skeletg/skelet/apps/backend/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/internal/pluginmigrate"
 	"github.com/spf13/cobra"
 )
 

@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/tax"
-	taxconditions "github.com/skeletg/skelet/internal/tax/conditions"
-	taxeffects "github.com/skeletg/skelet/internal/tax/effects"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
+	taxconditions "github.com/skeletg/skelet/apps/backend/internal/tax/conditions"
+	taxeffects "github.com/skeletg/skelet/apps/backend/internal/tax/effects"
 )
 
 // classRule builds a rule that taxes lines of a given product tax class

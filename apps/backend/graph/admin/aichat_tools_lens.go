@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/ai"
 )
 
 // lensSignalTools returns the Lens web-analytics tools (lens.view).

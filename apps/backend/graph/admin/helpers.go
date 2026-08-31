@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/graph/modelconv"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/modelconv"
 )
 
 func parseID(id, entity string) (uuid.UUID, error) { // the wrapped cause is safe to surface - uuid format only

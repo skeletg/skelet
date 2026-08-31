@@ -1,6 +1,6 @@
 package review
 
-import "github.com/skeletg/skelet/internal/config"
+import "github.com/skeletg/skelet/apps/backend/internal/config"
 
 // Policy knobs in the config registry, so admins flip them on /settings without a redeploy - read at request time on the eligibility and submit paths
 // require_authentication defaults true; setting it false stops the eligibility resolver returning NOT_AUTHENTICATED, but the mutation still needs customer auth, since reviews.customer_id is NOT NULL - real anonymous submission would need a guest-author scheme and a migration

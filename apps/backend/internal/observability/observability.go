@@ -10,9 +10,9 @@ import (
 
 	slogmulti "github.com/samber/slog-multi"
 
-	"github.com/skeletg/skelet/internal/graphqlx"
-	"github.com/skeletg/skelet/internal/otelx"
-	"github.com/skeletg/skelet/internal/sentryx"
+	"github.com/skeletg/skelet/apps/backend/internal/graphqlx"
+	"github.com/skeletg/skelet/apps/backend/internal/otelx"
+	"github.com/skeletg/skelet/apps/backend/internal/sentryx"
 )
 
 // Drains buffered telemetry - safe even after a failed Init, always non-nil, and bounded by the passed deadline - Component errors join but never abort the drain

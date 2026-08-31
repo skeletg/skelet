@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	dbsqlc "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/testdb"
+	dbsqlc "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
 // The sweep's worklist has four gates (unpaid, provider set, reference set, not cancelled) plus a time

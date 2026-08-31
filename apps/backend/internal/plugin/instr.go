@@ -16,10 +16,10 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	otrace "go.opentelemetry.io/otel/trace"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/applog"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Plugin instrumentation - every hook (payment methods, promotion hooks, plugin resolvers) runs through Instrument for uniform panic isolation, per-plugin timeout, kill switch, OTel span and metrics, and error attribution
@@ -65,7 +65,7 @@ const (
 
 // lazy so otelx.Init can set the global MeterProvider first
 var instrMeter = stdsync.OnceValue(func() metric.Meter {
-	return otel.Meter("github.com/skeletg/skelet/internal/plugin")
+	return otel.Meter("github.com/skeletg/skelet/apps/backend/internal/plugin")
 })
 
 // singletons - the SDK pre-aggregates by attribute set, so per-call instruments would multiply cost
@@ -130,7 +130,7 @@ func Instrument(ctx context.Context, slug, hook string, channelID uuid.UUID) (co
 	ctx = applog.Into(ctx, tagged)
 
 	// span for tracing; attrs carry slug+hook for filtering
-	tracer := otel.Tracer("github.com/skeletg/skelet/internal/plugin")
+	tracer := otel.Tracer("github.com/skeletg/skelet/apps/backend/internal/plugin")
 	ctx, span := tracer.Start(ctx, "plugin."+slug+"."+hook,
 		otrace.WithAttributes(
 			attribute.String("plugin.slug", slug),

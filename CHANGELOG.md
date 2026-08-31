@@ -9,6 +9,33 @@ The release process, and which version number means what, is in
 
 ## [Unreleased]
 
+### Changed
+
+- **The Go module is now `github.com/skeletg/skelet/apps/backend`.** It was declaring a
+  repo-root path while its `go.mod` sat in a subdirectory, which Go cannot resolve - so
+  nothing could ever `go get` it. Imports gain `apps/backend/`; module tags become
+  `apps/backend/vX.Y.Z`.
+- **SDK 0.2.0.** No declaration changed, but every plugin rewrites its imports, which is
+  breaking for anyone installing one. The surface gate caught it, which is what it is for.
+
+### Added
+
+- **`bin/cli plugin add` - plugins as Go module dependencies.** `go get` fetches the
+  plugin, `plugins.json` records its module path, and `plugins/firstparty` imports it.
+  Nothing is copied into the repo, so you get a version, a `go.sum` checksum, one copy
+  instead of two, and `go get -u` to upgrade. `--local` covers a plugin with no remote yet
+  via a relative `replace`. `plugin install` stays as the fallback for a plugin that is
+  not a module.
+- A module plugin's GraphQL SDL is staged out of the read-only module cache into
+  `plugins/.modules/` (git-ignored, rebuilt each run) so gqlgen can reach it by a stable
+  relative path. `plugins.json` grew an object form recording each plugin's module path,
+  and still reads the old `0`/`1` shape.
+- **The authz coverage gate follows a plugin into the module cache.** It resolves the
+  plugin's source with `go list -m`, parses it, and demands a real
+  `sdk.Require*`/`PermittedChannels` guard on the method serving each delegated admin
+  field - so a plugin shipping an ungated field fails core's build. Mutation-checked by
+  removing a guard from a plugin and confirming the gate fires.
+
 ## [0.1.0] - 2026-08-30
 
 First public release.

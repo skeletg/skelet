@@ -1,6 +1,6 @@
 package customer
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 // Pairs every customer-package sentinel with its public code and class, so the GraphQL presenter forwards the message instead of scrubbing it to the generic "internal error" the front surface defaults to
 func init() {

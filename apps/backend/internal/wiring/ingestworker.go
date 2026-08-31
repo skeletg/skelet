@@ -8,19 +8,19 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/cache"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/config"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/experiment"
-	"github.com/skeletg/skelet/internal/geo"
-	"github.com/skeletg/skelet/internal/lens"
-	"github.com/skeletg/skelet/internal/media"
-	"github.com/skeletg/skelet/internal/remoteprovider"
-	"github.com/skeletg/skelet/internal/secrets"
-	"github.com/skeletg/skelet/internal/segment"
-	"github.com/skeletg/skelet/internal/signalsboot"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/cache"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/experiment"
+	"github.com/skeletg/skelet/apps/backend/internal/geo"
+	"github.com/skeletg/skelet/apps/backend/internal/lens"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/secrets"
+	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
 )
 
 // Two pools only - commerce for channels/config/experiments/segments, signals for the write volume - deliberately not the read pools Pools opens: this tier absorbs beacon spikes, so two more per replica buys nothing

@@ -1,6 +1,6 @@
 package customer
 
-import "github.com/skeletg/skelet/internal/config"
+import "github.com/skeletg/skelet/apps/backend/internal/config"
 
 // When true, Authenticate refuses a session for an unverified customer with ErrEmailNotVerified - defaults false to preserve the storefront flow
 const pathRequireEmailVerification = "general/security/require_email_verification"

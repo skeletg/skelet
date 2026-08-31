@@ -4,10 +4,16 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/skeletg/skelet/internal/pluginset"
+	"github.com/skeletg/skelet/apps/backend/internal/pluginset"
 )
 
 func main() {
+	// Staging first: a module plugin's SDL has to be on disk at a stable path before WriteGraphSchemas
+	// can point gqlgen at it
+	if err := pluginset.Stage("."); err != nil {
+		fmt.Fprintln(os.Stderr, "plugingen:", err)
+		os.Exit(1)
+	}
 	if err := pluginset.Generate("."); err != nil {
 		fmt.Fprintln(os.Stderr, "plugingen:", err)
 		os.Exit(1)

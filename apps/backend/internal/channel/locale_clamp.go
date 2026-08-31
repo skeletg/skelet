@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
 )
 
 // Snaps the request's content locale to the active channel's supported set - runs AFTER both Middleware (channel resolution) and locale.Middleware (header extraction)

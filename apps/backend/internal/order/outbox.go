@@ -1,6 +1,6 @@
 package order
 
-import "github.com/skeletg/skelet/internal/events"
+import "github.com/skeletg/skelet/apps/backend/internal/events"
 
 // What the relay needs to re-materialize a stored row into the same pointer type a direct Publish would hand a subscriber
 type OutboxTypes interface {

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 // An admin's grants in memory, loaded once per request - the predicates below answer in memory rather than one SQL query per check, and effectiveSlugs expansion stays in the Service methods calling them

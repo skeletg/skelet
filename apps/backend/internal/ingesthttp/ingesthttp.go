@@ -12,17 +12,17 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/backinstock"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/experiment"
-	"github.com/skeletg/skelet/internal/form"
-	"github.com/skeletg/skelet/internal/geo"
-	"github.com/skeletg/skelet/internal/lens"
-	"github.com/skeletg/skelet/internal/ratelimit"
-	"github.com/skeletg/skelet/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/backinstock"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/experiment"
+	"github.com/skeletg/skelet/apps/backend/internal/form"
+	"github.com/skeletg/skelet/apps/backend/internal/geo"
+	"github.com/skeletg/skelet/apps/backend/internal/lens"
+	"github.com/skeletg/skelet/apps/backend/internal/ratelimit"
+	"github.com/skeletg/skelet/apps/backend/internal/segment"
 )
 
 // Options carries the /t dependencies - BackInStock and Forms may be nil (those paths publish bus events and enroll flows, so they need the app's subscriber graph and cmd/ingest doesn't wire them)

@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skeletg/skelet/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
 )
 
 type Service struct {

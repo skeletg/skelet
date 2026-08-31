@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/blog"
-	"github.com/skeletg/skelet/internal/cms"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/blog"
+	"github.com/skeletg/skelet/apps/backend/internal/cms"
 )
 
 func TestBlogPostStatusMapsEveryStateAndDefaultsToDraft(t *testing.T) { // an unknown status must surface as DRAFT - the invisible state - never as published

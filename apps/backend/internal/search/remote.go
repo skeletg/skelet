@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // Merchant HTTP endpoint (remoteprovider kind=search) answering storefront product search in place of OpenSearch - the escape hatch for Algolia/Constructor-class engines without a Go plugin

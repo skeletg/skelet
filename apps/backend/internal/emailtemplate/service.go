@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/email"
 )
 
 // Renders transactional emails from admin templates, falling back to the built-in internal/email renderers, and backs the admin CRUD, preview and test-send - it reads branding from config and uses a Sender for tests

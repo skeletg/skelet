@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // fakeRepo implements Repository; only GetByCode + ListRegions are

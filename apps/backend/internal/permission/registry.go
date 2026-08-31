@@ -11,8 +11,8 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/tx"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // A top-level grouping in the admin UI's permissions panel, e.g. "Products" or "Configuration"

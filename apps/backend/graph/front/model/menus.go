@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	adminmodel "github.com/skeletg/skelet/graph/admin/model"
+	adminmodel "github.com/skeletg/skelet/apps/backend/graph/admin/model"
 )
 
 type MenuItemTargetType = adminmodel.MenuItemTargetType // re-export keeps front resolvers off a direct admin/model import and keeps gqlgen's front autobind on the right Go type

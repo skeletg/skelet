@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
 )
 
 // Only the handful of methods the validation paths touch are implemented - the embedded interface

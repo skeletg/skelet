@@ -5,8 +5,8 @@ package admin
 import (
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/form"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/form"
 )
 
 func formToModel(f form.Form, submissions int) *model.SignupForm {

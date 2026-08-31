@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
 )
 
 var ErrUnauthenticated = errors.New("unauthenticated") // classAuth so the front presenter shows these verbatim, not scrubbed to "internal error"

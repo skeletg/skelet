@@ -3,8 +3,8 @@ package front
 import (
 	"context"
 
-	"github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 // downloadUrl is the token-gated link - hitting it consumes one use and redirects to the file

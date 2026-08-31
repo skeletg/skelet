@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // A merchant HTTP endpoint (remoteprovider kind=inventory_availability) answering salable stock from an external WMS or ERP - the escape hatch for ERP-owned inventory without a Go plugin

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 func nonNil(s []string) []string {

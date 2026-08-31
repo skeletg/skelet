@@ -3,8 +3,8 @@ package admin
 import (
 	"context"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/giftcard"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
 )
 
 func (r *Resolver) giftCardWithTxns(ctx context.Context, g giftcard.GiftCard) (*model.GiftCard, error) {

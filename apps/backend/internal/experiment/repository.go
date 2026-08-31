@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 type Repository interface {

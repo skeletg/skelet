@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/ai"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/emailtemplate"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
 )
 
 func (r *mutationResolver) SaveLibraryEmail(ctx context.Context, input model.SaveLibraryEmailInput) (*model.LibraryEmail, error) {

@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"time"
 
-	cachepkg "github.com/skeletg/skelet/internal/cache"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/graphqlx"
-	"github.com/skeletg/skelet/internal/locale"
+	cachepkg "github.com/skeletg/skelet/apps/backend/internal/cache"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/graphqlx"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
 )
 
 // Allowlist for ANONYMOUS requests - strictly catalog/content reads, nothing customer-, cart- or session-scoped, and mutations never reach this path

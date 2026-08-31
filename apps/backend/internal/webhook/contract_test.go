@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/circuit"
+	"github.com/skeletg/skelet/apps/backend/internal/circuit"
 )
 
 // --- fakes ---

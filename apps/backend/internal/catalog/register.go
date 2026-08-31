@@ -1,6 +1,6 @@
 package catalog
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 // init registers every sentinel exported from this package with the apperr registry, pairing each with a stable SCREAMING_SNAKE code and a class - The presenter looks up the code via apperr.CodeOf so resolvers can return bare sentinels (e.g. `return ErrCategoryNotFound`) and the GraphQL layer will surface extensions.code accordingly
 //

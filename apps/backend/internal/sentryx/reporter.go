@@ -7,7 +7,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 
-	"github.com/skeletg/skelet/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
 )
 
 // Implements graphqlx.Reporter against the global Sentry SDK - a nil *Reporter is a valid no-op, and the methods are nil-safe too

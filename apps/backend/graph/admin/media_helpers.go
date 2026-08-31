@@ -1,8 +1,8 @@
 package admin
 
 import (
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/medialibrary"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
 )
 
 func toMediaDirectoryModel(d medialibrary.Directory) *model.MediaDirectory {
