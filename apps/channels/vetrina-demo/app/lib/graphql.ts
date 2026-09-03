@@ -111,6 +111,13 @@ type FetchOptions = {
   cacheKeyExtra?: string[];
 };
 
+// Next says "this route can't be static" by throwing from cookies(), headers() and
+// no-store fetches. Swallow that and the route stays static, then 500s on every request
+function rethrowIfDynamicBailout(err: unknown): void {
+  const digest = (err as { digest?: unknown } | null | undefined)?.digest;
+  if (typeof digest === "string" && digest.startsWith("DYNAMIC_SERVER_USAGE")) throw err;
+}
+
 // The `variables` argument is required when the document declares any - the generated TypedDocumentNode<TData,
 // TVariables> binds both sides so passing the wrong shape (or omitting required vars) fails tsc
 export async function gqlFetch<TData, TVariables>(
@@ -142,7 +149,8 @@ export async function gqlFetch<TData, TVariables>(
     // The SEO crawler's bypass token, so a crawl of a few thousand pages is not refused by the per-IP limiter
     const crawl = inbound.get("x-skelet-crawl");
     if (crawl) headers["X-Skelet-Crawl"] = crawl;
-  } catch {
+  } catch (err) {
+    rethrowIfDynamicBailout(err);
     // not in a request scope - nothing to forward
   }
   // Forward the visitor's anon id (the Lens lens_aid cookie) so guest commerce (cart / checkout without login)
@@ -151,7 +159,8 @@ export async function gqlFetch<TData, TVariables>(
     const jar = await cookies();
     const aid = jar.get("lens_aid")?.value;
     if (aid) headers["X-Anon-Id"] = aid;
-  } catch {
+  } catch (err) {
+    rethrowIfDynamicBailout(err);
     // not in a request scope - nothing to forward
   }
   if (options.extraHeaders) {
@@ -178,6 +187,7 @@ export async function gqlFetch<TData, TVariables>(
       ...cacheInit,
     });
   } catch (err) {
+    rethrowIfDynamicBailout(err);
     const detail = `GraphQL transport failure calling ${BACKEND_URL} (${opName || "op"}): ${err instanceof Error ? err.message : String(err)}`;
      
     console.error(detail);
