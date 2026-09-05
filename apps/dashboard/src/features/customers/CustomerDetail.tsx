@@ -44,7 +44,7 @@ import {
 } from '@/components/layout/detail-page'
 import { LoadError } from '@/shared/errors/LoadError'
 import { EntityChannelForbidden, EntityWrongChannel } from '@/shared/errors/ChannelScopeError'
-import { isForbiddenError } from '@/shared/errors/forbidden'
+import { isForbiddenError } from '@/shared/errors/isForbiddenError'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { GdprActions } from './GdprActions'
 import { MasqueradeButton } from '@/features/b2b/MasqueradeButton'
