@@ -215,11 +215,15 @@ export function FacetSidebar({
       <aside
         className="
           scrollbar-on-hover
-          fixed inset-x-3 bottom-3 z-50 flex h-[82dvh] min-w-0 translate-y-[calc(100%+0.75rem)] flex-col gap-5 overflow-y-auto rounded-xl bg-card p-5 shadow-2xl shadow-black/30 transition-transform duration-300 ease-out
+          fixed inset-x-0 bottom-0 z-50 flex h-[82dvh] min-w-0 translate-y-full flex-col gap-5 overflow-y-auto rounded-t-2xl bg-card p-5 shadow-2xl shadow-black/30 transition-transform duration-300 ease-out
           peer-checked/drawer:translate-y-0
           md:sticky md:inset-auto md:top-24 md:z-auto md:h-auto md:max-h-[calc(100vh-7rem)] md:translate-y-0 md:self-start md:rounded-none md:bg-transparent md:p-0 md:pr-2 md:shadow-none md:transition-none
         "
       >
+        {/* Visual only - this panel's open state is a CSS checkbox, so nothing to drag */}
+        <div aria-hidden="true" className="-mt-2 flex shrink-0 justify-center pb-1 md:hidden">
+          <span className="h-1 w-9 rounded-full bg-foreground/25" />
+        </div>
         <div className="flex items-center justify-between border-b border-border pb-3">
           <h2 className="flex items-center gap-2 text-sm font-medium">
             <FilterIcon />
