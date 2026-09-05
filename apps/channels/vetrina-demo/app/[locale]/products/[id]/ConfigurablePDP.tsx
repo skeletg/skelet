@@ -208,16 +208,8 @@ export function ConfigurablePDP({
 
   return (
     <div className="mt-6 grid grid-cols-1 gap-10 md:grid-cols-2 md:items-start">
-      <div className="md:sticky md:top-28 md:self-start">
-        <ProductGallery
-          media={displayMedia}
-          fallback={displayHero}
-          alt={heading}
-          morphFromProductId={product.id}
-        />
-      </div>
-
-      <div>
+      {/* Source order gives phones the name first; md+ placement restores the columns */}
+      <div className="md:col-start-2 md:row-start-1">
         {product.primaryCategory && (
           <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-signal">
             {displayName(
@@ -229,6 +221,17 @@ export function ConfigurablePDP({
         <h1 className="mt-1 text-3xl font-extrabold tracking-tight">
           {heading}
         </h1>
+      </div>
+      <div className="md:col-start-1 md:row-start-1 md:row-span-2 md:sticky md:top-28 md:self-start">
+        <ProductGallery
+          media={displayMedia}
+          fallback={displayHero}
+          alt={heading}
+          morphFromProductId={product.id}
+        />
+      </div>
+
+      <div className="md:col-start-2 md:row-start-2">
         <div className="mt-2 flex flex-wrap items-center gap-3">
           {product.reviewAggregates &&
             product.reviewAggregates.count > 0 &&
