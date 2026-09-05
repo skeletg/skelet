@@ -40,6 +40,7 @@ export function Drawer({
       open={open}
       onOpenChange={onOpenChange}
       label={title}
+      dragDismiss
       className={[
         "drawer",
         `drawer-${side}`,
@@ -48,8 +49,16 @@ export function Drawer({
         className ?? "",
       ].join(" ")}
     >
+      {/* Phones only. touch-none stops the browser claiming the swipe as a scroll */}
+      <div
+        data-drawer-handle
+        aria-hidden="true"
+        className="flex shrink-0 cursor-grab touch-none justify-center pb-2 pt-3.5 active:cursor-grabbing md:hidden"
+      >
+        <span className="h-1 w-10 rounded-full bg-foreground/30" />
+      </div>
       {hideTitle ? null : (
-        <h2 className="px-4 pt-4 font-heading text-base font-medium">{title}</h2>
+        <h2 className="px-4 pt-4 font-heading text-base font-medium md:pt-4">{title}</h2>
       )}
       <button
         type="button"

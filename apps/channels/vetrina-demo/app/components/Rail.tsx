@@ -238,7 +238,7 @@ export function Rail({
       // Reachable by keyboard only while there's something to scroll - an unscrollable region in
       // the tab order is a dead stop
       tabIndex={overflows ? 0 : undefined}
-      className={`scrollbar-none snap-touch -mx-1 flex gap-4 overflow-x-auto px-1 pb-1 outline-none focus-visible:ring-2 focus-visible:ring-foreground/20 ${overflows ? "cursor-grab" : ""}`}
+      className={`scrollbar-none snap-touch contain-paint -mx-1 flex gap-4 overflow-x-auto px-1 pb-1 outline-none focus-visible:ring-2 focus-visible:ring-foreground/20 ${overflows ? "cursor-grab" : ""}`}
     >
       {children}
     </div>
