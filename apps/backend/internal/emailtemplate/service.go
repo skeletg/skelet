@@ -14,6 +14,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	"github.com/skeletg/skelet/apps/backend/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/mailsend"
 )
 
 // A Service without a Sender can render but not send - the CLI seeder builds one that way
@@ -24,7 +25,8 @@ type Service struct {
 	repo    Repository
 	config  *config.Service
 	sender  email.Sender
-	catalog CatalogReader // optional; powers the "products" block
+	account *mailsend.Sender // optional; records and tracks the account mail this service sends itself
+	catalog CatalogReader    // optional; powers the "products" block
 }
 
 func NewService(repo Repository, cfg *config.Service, sender email.Sender) *Service {
@@ -99,23 +101,31 @@ func (s *Service) RenderPasswordResetEmail(ctx context.Context, channelID uuid.U
 
 // Account mail sent without a flow, so verification and password reset never depend on one being active
 // The channel's own template still wins - only the delivery skips the flow engine, not the branding
-func (s *Service) SendVerification(ctx context.Context, channelID uuid.UUID, from, to string, d email.VerificationEmailData) error {
+func (s *Service) SendVerification(ctx context.Context, channelID uuid.UUID, from, to, storefrontURL string, d email.VerificationEmailData) error {
 	subject, htmlBody, textBody, err := s.RenderVerificationEmail(ctx, channelID, d)
 	if err != nil {
 		return fmt.Errorf("render verification email: %w", err)
 	}
-	return s.send(ctx, from, to, subject, htmlBody, textBody)
+	return s.sendAccount(ctx, channelID, KeyVerification, from, to, storefrontURL, subject, htmlBody, textBody)
 }
 
-func (s *Service) SendPasswordReset(ctx context.Context, channelID uuid.UUID, from, to string, d email.PasswordResetEmailData) error {
+func (s *Service) SendPasswordReset(ctx context.Context, channelID uuid.UUID, from, to, storefrontURL string, d email.PasswordResetEmailData) error {
 	subject, htmlBody, textBody, err := s.RenderPasswordResetEmail(ctx, channelID, d)
 	if err != nil {
 		return fmt.Errorf("render password reset email: %w", err)
 	}
-	return s.send(ctx, from, to, subject, htmlBody, textBody)
+	return s.sendAccount(ctx, channelID, KeyPasswordReset, from, to, storefrontURL, subject, htmlBody, textBody)
 }
 
-func (s *Service) send(ctx context.Context, from, to, subject, htmlBody, textBody string) error {
+// Optional - without it account mail still sends, through the plain Sender and unrecorded
+func (s *Service) SetAccountSender(a *mailsend.Sender) { s.account = a }
+
+func (s *Service) sendAccount(ctx context.Context, channelID uuid.UUID, messageKey, from, to, storefrontURL, subject, htmlBody, textBody string) error {
+	if s.account != nil {
+		return s.account.Send(ctx, mailsend.Spec{
+			ChannelID: channelID, From: from, To: to, MessageKey: messageKey,
+		}, storefrontURL, subject, htmlBody, textBody)
+	}
 	if s.sender == nil {
 		return errNoSender
 	}

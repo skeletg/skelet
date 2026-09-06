@@ -86,3 +86,32 @@ func TestOrderConfirmationDoesNotDoubleSendWithAFlow(t *testing.T) {
 		t.Error("the active flow sent nothing, so the fallback should have covered it")
 	}
 }
+
+// Scenario: account mail sent without a flow is still visible in reporting
+func TestDirectAccountMailIsRecorded(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 5, 2500)
+	h.Settle(t)
+
+	if _, err := h.D.DB.Exec(
+		`UPDATE flows SET status = 'paused' WHERE channel_id = $1 AND trigger_type = 'email_verification'`,
+		f.Channel.ID); err != nil {
+		t.Fatalf("pause the email_verification flow: %v", err)
+	}
+
+	addr := "direct-" + uuid.NewString()[:8] + "@e2e.test"
+	if _, err := h.D.Customer.Register(h.Ctx, f.Channel.ID, addr, "password123", "", "", nil); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	h.Settle(t)
+
+	var n int
+	if err := h.D.DB.QueryRow(
+		`SELECT count(*) FROM email_sends WHERE email = $1 AND source = 'transactional' AND message_key = $2`,
+		addr, "customer_verification").Scan(&n); err != nil {
+		t.Fatalf("count sends: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("recorded direct verification sends = %d, want 1 - the mail went out but reporting can't see it", n)
+	}
+}
