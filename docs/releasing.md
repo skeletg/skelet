@@ -9,8 +9,10 @@ release is tagged. If you are looking at `main`, you are looking at what someone
 could be running in production.
 
 **`develop` is where work integrates.** Feature branches cut from it and merge
-back into it. It is expected to be green - every pull request into it runs the
-full suite - but it is not expected to be released.
+back into it. It is not expected to be released, and CI does not gate it - the
+suite runs on pull requests into `main`, so a develop→main PR is where a
+regression surfaces. Run `bin/check` and `bin/test-e2e` locally before merging
+anything sizeable, or the release PR is the first time anyone finds out.
 
 Nothing else is long-lived. Feature branches are short and get deleted after they
 merge; the repo already carries forty of them, and that is forty too many.
