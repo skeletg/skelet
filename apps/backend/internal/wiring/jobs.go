@@ -15,7 +15,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/audit"
-	"github.com/skeletg/skelet/apps/backend/internal/b2b"
 	"github.com/skeletg/skelet/apps/backend/internal/backup"
 	"github.com/skeletg/skelet/apps/backend/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/internal/campaign"
@@ -77,7 +76,6 @@ type jobDeps struct {
 	Campaign     *campaign.Service
 	Flow         *flow.Service
 	Inventory    *inventory.Service
-	B2B          *b2b.Service
 	CacheQueue   *revalidate.Queue
 	Cart         *cart.Service
 	Channel      *channel.Service
@@ -322,16 +320,6 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 		func(ctx context.Context) error {
 			return d.Destination.ForwardAll(ctx)
 		})
-	if d.Wcfg.B2BEnabled {
-		jobScheduler.Register("b2b-quote-expiry", "@every 1h", "Expire B2B quotes past their validity window.",
-			func(ctx context.Context) error {
-				n, err := d.B2B.ExpireQuotes(ctx)
-				if n > 0 {
-					log.Printf("[b2b] expired %d quotes", n)
-				}
-				return err
-			})
-	}
 	signalsJob("synapse-segment-refresh", "@every 6h", "Re-materialize Synapse behavioral/trait segment memberships; auto-create attribute-affinity segments for opted-in attributes; enroll new members into segment_entered flows.",
 		func(ctx context.Context) error {
 			now := time.Now()

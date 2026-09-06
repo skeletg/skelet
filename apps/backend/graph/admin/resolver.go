@@ -14,7 +14,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/analytics/spinequeue"
 	"github.com/skeletg/skelet/apps/backend/internal/audit"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
-	"github.com/skeletg/skelet/apps/backend/internal/b2b"
 	"github.com/skeletg/skelet/apps/backend/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/internal/blog/preview"
 	"github.com/skeletg/skelet/apps/backend/internal/campaign"
@@ -77,7 +76,6 @@ type Resolver struct {
 	LoyaltySvc           *loyalty.Service
 	QnaSvc               *qna.Service
 	SearchMerchSvc       *searchmerch.Service
-	B2BSvc               *b2b.Service
 	SignalsEnabled       bool // mirrors SIGNALS_ENABLED - false rejects every Signals-suite resolver (Pulse/Lens/Synapse/Prism/spine)
 	CartSvc              *cart.Service
 	OrderSvc             *order.Service

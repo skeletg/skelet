@@ -6,6 +6,9 @@ import { getChannelLocales } from "@/app/lib/locale/backend-locales";
 import { DefaultLocaleProvider } from "@/app/components/LocaleLink";
 import { Geist_Mono, Inter } from "next/font/google";
 import "@/app/globals.css";
+// Side-effect import: installed storefront plugins register their nav items and slots here, before
+// any page renders - see app/plugins/loaded.ts
+import "@/app/plugins/loaded";
 
 import { AuthUIProvider } from "@/app/components/AuthUIProvider";
 import { CartUIProvider } from "@/app/components/CartUIProvider";

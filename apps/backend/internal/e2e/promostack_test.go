@@ -15,8 +15,8 @@ import (
 // and a cap action bounds whatever several actions would otherwise sum to
 func TestPromotionExclusivityGroupAndCap(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 10, 2500)
-	baseline := h.placeGuestCOD(t, f, 1)
+	f := h.NewStore(t, 10, 2500)
+	baseline := h.PlaceGuestCOD(t, f, 1)
 
 	group := "e2e-x-" + uuid.NewString()[:8]
 	h.newRule(t, promotion.CreateRuleInput{
@@ -34,17 +34,17 @@ func TestPromotionExclusivityGroupAndCap(t *testing.T) {
 		Actions: []promotion.Action{{Type: "core.fixed_off_subtotal", Params: json.RawMessage(`{"cents":300}`)}},
 	})
 
-	o := h.placeGuestCOD(t, f, 1)
+	o := h.PlaceGuestCOD(t, f, 1)
 	if d := o.DiscountAmount - baseline.DiscountAmount; d != 400 {
 		t.Errorf("exclusive group discounted %d, want only the priority winner's 400", d)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 func TestPromotionCapBoundsStackedActions(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 10, 2500)
-	baseline := h.placeGuestCOD(t, f, 1)
+	f := h.NewStore(t, 10, 2500)
+	baseline := h.PlaceGuestCOD(t, f, 1)
 
 	h.newRule(t, promotion.CreateRuleInput{
 		Rule: promotion.Rule{
@@ -58,19 +58,19 @@ func TestPromotionCapBoundsStackedActions(t *testing.T) {
 		},
 	})
 
-	o := h.placeGuestCOD(t, f, 1)
+	o := h.PlaceGuestCOD(t, f, 1)
 	if d := o.DiscountAmount - baseline.DiscountAmount; d != 600 {
 		t.Errorf("capped stack discounted %d, want 900 capped to 600", d)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // Scenario: max_uses is a hard budget - sequentially the exhausted rule stops applying, and under
 // a race the redemption counter never overspends no matter which side wins
 func TestPromotionMaxUsesNeverOverspent(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 10, 2000)
-	baseline := h.placeGuestCOD(t, f, 1)
+	f := h.NewStore(t, 10, 2000)
+	baseline := h.PlaceGuestCOD(t, f, 1)
 	one := int32(1)
 	h.newRule(t, promotion.CreateRuleInput{
 		Rule: promotion.Rule{
@@ -80,24 +80,24 @@ func TestPromotionMaxUsesNeverOverspent(t *testing.T) {
 		Actions: []promotion.Action{{Type: "core.fixed_off_subtotal", Params: json.RawMessage(`{"cents":500}`)}},
 	})
 
-	first := h.placeGuestCOD(t, f, 1)
+	first := h.PlaceGuestCOD(t, f, 1)
 	if d := first.DiscountAmount - baseline.DiscountAmount; d != 500 {
 		t.Fatalf("first use discounted %d, want 500", d)
 	}
 	// The exhausted rule must never discount again - though within the rules cache's staleness window the redeem re-check refuses the
 	// placement outright rather than skipping the rule, so both outcomes are legal here; only a second discount is not
-	second, err := h.tryPlace(t, f.Channel, h.newGuestCart(t, f, 1))
+	second, err := h.TryPlace(t, f.Channel, h.NewGuestCart(t, f, 1))
 	if err == nil {
 		if d := second.DiscountAmount - baseline.DiscountAmount; d != 0 {
 			t.Errorf("exhausted rule still discounted %d, want 0", d)
 		}
 	}
-	h.settle(t)
+	h.Settle(t)
 
 	// The race: one use left on a fresh rule, two placements at once. The loser either places
 	// undiscounted (saw the spent budget) or fails at redemption - it must never mint a second use
-	f2 := h.newStore(t, 10, 2000)
-	base2 := h.placeGuestCOD(t, f2, 1)
+	f2 := h.NewStore(t, 10, 2000)
+	base2 := h.PlaceGuestCOD(t, f2, 1)
 	uses := int32(1)
 	rule2 := h.newRule(t, promotion.CreateRuleInput{
 		Rule: promotion.Rule{
@@ -111,13 +111,13 @@ func TestPromotionMaxUsesNeverOverspent(t *testing.T) {
 		o   order.Order
 		err error
 	}{
-		{id: h.newGuestCart(t, f2, 1)},
-		{id: h.newGuestCart(t, f2, 1)},
+		{id: h.NewGuestCart(t, f2, 1)},
+		{id: h.NewGuestCart(t, f2, 1)},
 	}
 	var wg sync.WaitGroup
 	for i := range results {
 		wg.Go(func() {
-			results[i].o, results[i].err = h.tryPlace(t, f2.Channel, results[i].id)
+			results[i].o, results[i].err = h.TryPlace(t, f2.Channel, results[i].id)
 		})
 	}
 	wg.Wait()
@@ -136,7 +136,7 @@ func TestPromotionMaxUsesNeverOverspent(t *testing.T) {
 		if r.err != nil {
 			continue
 		}
-		reds, err := h.d.Promotion.RedemptionsForOrder(h.ctx, r.o.ID)
+		reds, err := h.D.Promotion.RedemptionsForOrder(h.Ctx, r.o.ID)
 		if err != nil {
 			t.Fatalf("redemptions: %v", err)
 		}
@@ -149,5 +149,5 @@ func TestPromotionMaxUsesNeverOverspent(t *testing.T) {
 	if redemptions > 1 {
 		t.Errorf("rule redeemed %d times against max_uses 1", redemptions)
 	}
-	h.settle(t)
+	h.Settle(t)
 }

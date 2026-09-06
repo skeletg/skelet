@@ -286,62 +286,6 @@ CREATE TABLE public.auth_tokens (
 
 
 --
--- Name: b2b_credit_entries; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.b2b_credit_entries (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    company_id uuid NOT NULL,
-    order_id uuid,
-    amount_cents bigint NOT NULL,
-    reason text DEFAULT ''::text NOT NULL,
-    admin_id uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: b2b_invoices; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.b2b_invoices (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    company_id uuid NOT NULL,
-    order_id uuid NOT NULL,
-    number text NOT NULL,
-    amount_cents bigint NOT NULL,
-    status text DEFAULT 'open'::text NOT NULL,
-    due_at timestamp with time zone,
-    paid_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT b2b_invoices_amount_cents_check CHECK ((amount_cents >= 0)),
-    CONSTRAINT b2b_invoices_status_check CHECK ((status = ANY (ARRAY['open'::text, 'paid'::text, 'void'::text])))
-);
-
-
---
--- Name: b2b_quotes; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.b2b_quotes (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    company_id uuid,
-    customer_id uuid NOT NULL,
-    channel_id uuid NOT NULL,
-    status text DEFAULT 'requested'::text NOT NULL,
-    items jsonb DEFAULT '[]'::jsonb NOT NULL,
-    note text DEFAULT ''::text NOT NULL,
-    seller_note text DEFAULT ''::text CONSTRAINT b2b_quotes_admin_note_not_null NOT NULL,
-    total_cents bigint DEFAULT 0 NOT NULL,
-    valid_until timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT b2b_quotes_status_check CHECK ((status = ANY (ARRAY['requested'::text, 'quoted'::text, 'accepted'::text, 'declined'::text, 'expired'::text, 'converted'::text])))
-);
-
-
---
 -- Name: back_in_stock_requests; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1731,54 +1675,6 @@ CREATE TABLE public.collection_facet_overrides (
     attribute_id uuid NOT NULL,
     sort_order integer DEFAULT 0 NOT NULL,
     is_hidden boolean DEFAULT false NOT NULL
-);
-
-
---
--- Name: companies; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.companies (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    channel_id uuid NOT NULL,
-    name text NOT NULL,
-    status text DEFAULT 'active'::text NOT NULL,
-    credit_limit_cents bigint DEFAULT 0 NOT NULL,
-    credit_used_cents bigint DEFAULT 0 NOT NULL,
-    payment_terms_days integer DEFAULT 30 NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    default_customer_group_id uuid,
-    CONSTRAINT companies_status_check CHECK ((status = ANY (ARRAY['active'::text, 'suspended'::text])))
-);
-
-
---
--- Name: company_members; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.company_members (
-    company_id uuid NOT NULL,
-    customer_id uuid NOT NULL,
-    role text DEFAULT 'buyer'::text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    order_limit_cents bigint DEFAULT 0 NOT NULL,
-    CONSTRAINT company_members_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'buyer'::text])))
-);
-
-
---
--- Name: company_prices; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.company_prices (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    company_id uuid NOT NULL,
-    product_id uuid NOT NULL,
-    price_cents bigint NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT company_prices_price_cents_check CHECK ((price_cents >= 0))
 );
 
 
@@ -4171,46 +4067,6 @@ ALTER TABLE ONLY public.auth_tokens
 
 
 --
--- Name: b2b_credit_entries b2b_credit_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.b2b_credit_entries
-    ADD CONSTRAINT b2b_credit_entries_pkey PRIMARY KEY (id);
-
-
---
--- Name: b2b_invoices b2b_invoices_number_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.b2b_invoices
-    ADD CONSTRAINT b2b_invoices_number_key UNIQUE (number);
-
-
---
--- Name: b2b_invoices b2b_invoices_order_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.b2b_invoices
-    ADD CONSTRAINT b2b_invoices_order_id_key UNIQUE (order_id);
-
-
---
--- Name: b2b_invoices b2b_invoices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.b2b_invoices
-    ADD CONSTRAINT b2b_invoices_pkey PRIMARY KEY (id);
-
-
---
--- Name: b2b_quotes b2b_quotes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.b2b_quotes
-    ADD CONSTRAINT b2b_quotes_pkey PRIMARY KEY (id);
-
-
---
 -- Name: back_in_stock_requests back_in_stock_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5112,38 +4968,6 @@ ALTER TABLE ONLY public.cms_tags
 
 ALTER TABLE ONLY public.collection_facet_overrides
     ADD CONSTRAINT collection_facet_overrides_pkey PRIMARY KEY (collection_id, attribute_id);
-
-
---
--- Name: companies companies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.companies
-    ADD CONSTRAINT companies_pkey PRIMARY KEY (id);
-
-
---
--- Name: company_members company_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.company_members
-    ADD CONSTRAINT company_members_pkey PRIMARY KEY (customer_id);
-
-
---
--- Name: company_prices company_prices_company_id_product_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.company_prices
-    ADD CONSTRAINT company_prices_company_id_product_id_key UNIQUE (company_id, product_id);
-
-
---
--- Name: company_prices company_prices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.company_prices
-    ADD CONSTRAINT company_prices_pkey PRIMARY KEY (id);
 
 
 --
@@ -6515,34 +6339,6 @@ CREATE INDEX auth_tokens_subject_id_idx ON public.auth_tokens USING btree (subje
 
 
 --
--- Name: b2b_credit_entries_company_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX b2b_credit_entries_company_idx ON public.b2b_credit_entries USING btree (company_id, created_at DESC);
-
-
---
--- Name: b2b_credit_entries_order_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX b2b_credit_entries_order_idx ON public.b2b_credit_entries USING btree (order_id) WHERE (order_id IS NOT NULL);
-
-
---
--- Name: b2b_quotes_customer_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX b2b_quotes_customer_idx ON public.b2b_quotes USING btree (customer_id, created_at DESC);
-
-
---
--- Name: b2b_quotes_moderation_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX b2b_quotes_moderation_idx ON public.b2b_quotes USING btree (channel_id, status, created_at DESC);
-
-
---
 -- Name: back_in_stock_requests_pending; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6568,27 +6364,6 @@ CREATE INDEX catalog_product_group_prices_product_idx ON public.catalog_product_
 --
 
 CREATE UNIQUE INDEX cms_page_one_homepage_per_channel ON public.cms_page_channel_listings USING btree (channel_id) WHERE is_homepage;
-
-
---
--- Name: companies_channel_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX companies_channel_idx ON public.companies USING btree (channel_id, name);
-
-
---
--- Name: company_members_company_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX company_members_company_idx ON public.company_members USING btree (company_id);
-
-
---
--- Name: company_prices_product_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX company_prices_product_idx ON public.company_prices USING btree (product_id);
 
 
 --
@@ -6834,13 +6609,6 @@ CREATE INDEX idx_attribute_groups_product_type_id ON public.catalog_attribute_gr
 --
 
 CREATE INDEX idx_attribute_value_channel_slugs_channel ON public.catalog_attribute_value_channel_slugs USING btree (channel_id, attribute_id);
-
-
---
--- Name: idx_b2b_invoices_company; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_b2b_invoices_company ON public.b2b_invoices USING btree (company_id, status, created_at DESC);
 
 
 --
@@ -8465,62 +8233,6 @@ ALTER TABLE ONLY public.integration_permissions
 
 
 --
--- Name: b2b_credit_entries b2b_credit_entries_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.b2b_credit_entries
-    ADD CONSTRAINT b2b_credit_entries_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-
-
---
--- Name: b2b_credit_entries b2b_credit_entries_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.b2b_credit_entries
-    ADD CONSTRAINT b2b_credit_entries_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE SET NULL;
-
-
---
--- Name: b2b_invoices b2b_invoices_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.b2b_invoices
-    ADD CONSTRAINT b2b_invoices_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-
-
---
--- Name: b2b_invoices b2b_invoices_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.b2b_invoices
-    ADD CONSTRAINT b2b_invoices_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE CASCADE;
-
-
---
--- Name: b2b_quotes b2b_quotes_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.b2b_quotes
-    ADD CONSTRAINT b2b_quotes_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
-
-
---
--- Name: b2b_quotes b2b_quotes_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.b2b_quotes
-    ADD CONSTRAINT b2b_quotes_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-
-
---
--- Name: b2b_quotes b2b_quotes_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.b2b_quotes
-    ADD CONSTRAINT b2b_quotes_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE CASCADE;
-
-
---
 -- Name: blog_author_content blog_author_content_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9534,54 +9246,6 @@ ALTER TABLE ONLY public.collection_facet_overrides
 
 ALTER TABLE ONLY public.collection_facet_overrides
     ADD CONSTRAINT collection_facet_overrides_collection_id_fkey FOREIGN KEY (collection_id) REFERENCES public.catalog_collections(id) ON DELETE CASCADE;
-
-
---
--- Name: companies companies_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.companies
-    ADD CONSTRAINT companies_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
-
-
---
--- Name: companies companies_default_customer_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.companies
-    ADD CONSTRAINT companies_default_customer_group_id_fkey FOREIGN KEY (default_customer_group_id) REFERENCES public.customer_groups(id) ON DELETE SET NULL;
-
-
---
--- Name: company_members company_members_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.company_members
-    ADD CONSTRAINT company_members_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-
-
---
--- Name: company_members company_members_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.company_members
-    ADD CONSTRAINT company_members_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE CASCADE;
-
-
---
--- Name: company_prices company_prices_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.company_prices
-    ADD CONSTRAINT company_prices_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-
-
---
--- Name: company_prices company_prices_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.company_prices
-    ADD CONSTRAINT company_prices_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.catalog_products(id) ON DELETE CASCADE;
 
 
 --

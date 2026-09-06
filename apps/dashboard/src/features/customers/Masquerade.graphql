@@ -1,0 +1,7 @@
+mutation MasqueradeCustomer($customerId: ID!) {
+  masqueradeCustomer(customerId: $customerId) {
+    storefrontPath
+    storefrontUrl
+    expiresInSeconds
+  }
+}

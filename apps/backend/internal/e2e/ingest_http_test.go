@@ -49,7 +49,7 @@ func tRequest(t *testing.T, ts *httptest.Server, method, path, channelID, body s
 // The /t surface is public and best-effort - a wrong or missing channel answers 204, never an error a probe could learn the channel inventory from
 func TestIngestWithoutAValidChannelFailsSoft(t *testing.T) {
 	h := newHarness(t)
-	ts := httptest.NewServer(h.d.Root)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
 
 	for name, chID := range map[string]string{
@@ -69,8 +69,8 @@ func TestIngestWithoutAValidChannelFailsSoft(t *testing.T) {
 
 func TestIngestConfigServesTheChannelKnobs(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 5, 1000)
-	ts := httptest.NewServer(h.d.Root)
+	f := h.NewStore(t, 5, 1000)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
 
 	status, hdrs, body := tRequest(t, ts, http.MethodGet, "/t/config", f.Channel.ID.String(), "")
@@ -97,7 +97,7 @@ func TestIngestConfigServesTheChannelKnobs(t *testing.T) {
 
 	// a per-channel override must reach the tracker - this is the operator's sampling dial
 	chScope := config.Scope{Kind: config.ScopeChannel, ChannelID: &f.Channel.ID}
-	if _, err := h.d.Config.Set(h.ctx, "pulse/lens/sampling_rate", "25", chScope); err != nil {
+	if _, err := h.D.Config.Set(h.Ctx, "pulse/lens/sampling_rate", "25", chScope); err != nil {
 		t.Fatalf("set sampling rate: %v", err)
 	}
 	_, _, body = tRequest(t, ts, http.MethodGet, "/t/config", f.Channel.ID.String(), "")
@@ -112,8 +112,8 @@ func TestIngestConfigServesTheChannelKnobs(t *testing.T) {
 // Segment-targeted experiments are the authz-shaped part of /t: identity comes ONLY from a verified session token, so an anonymous caller (or one waving somebody's id in the body) never receives them
 func TestIngestExperimentsGateOnTheVerifiedSession(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 5, 1000)
-	ts := httptest.NewServer(h.d.Root)
+	f := h.NewStore(t, 5, 1000)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
 
 	open := experiment.Input{
@@ -121,13 +121,13 @@ func TestIngestExperimentsGateOnTheVerifiedSession(t *testing.T) {
 		Coverage: 100, GoalEvent: "add_to_cart",
 		Variations: []experiment.Variation{{Key: "control", Weight: 50}, {Key: "b", Weight: 50, Value: "blue"}},
 	}
-	if _, err := h.d.Experiment.Create(h.ctx, open); err != nil {
+	if _, err := h.D.Experiment.Create(h.Ctx, open); err != nil {
 		t.Fatalf("create open experiment: %v", err)
 	}
 	targeted := open
 	targeted.Key = "e2e-vip-" + uuid.NewString()[:8]
 	targeted.SegmentSlug = "e2e-vip-segment-that-nobody-is-in"
-	if _, err := h.d.Experiment.Create(h.ctx, targeted); err != nil {
+	if _, err := h.D.Experiment.Create(h.Ctx, targeted); err != nil {
 		t.Fatalf("create targeted experiment: %v", err)
 	}
 
@@ -165,7 +165,7 @@ func TestIngestExperimentsGateOnTheVerifiedSession(t *testing.T) {
 	}
 
 	// a verified customer who is NOT in the segment still doesn't get it, and the response goes uncacheable
-	cust, err := h.d.Customer.Register(h.ctx, f.Channel.ID, "exp-"+uuid.NewString()[:8]+"@e2e.test", "password123", "", "", nil)
+	cust, err := h.D.Customer.Register(h.Ctx, f.Channel.ID, "exp-"+uuid.NewString()[:8]+"@e2e.test", "password123", "", "", nil)
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -185,12 +185,12 @@ func TestIngestExperimentsGateOnTheVerifiedSession(t *testing.T) {
 
 func TestIngestBackInStockRecordsTheRequest(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 0, 1000)
-	ts := httptest.NewServer(h.d.Root)
+	f := h.NewStore(t, 0, 1000)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
 
 	pending := func() []db.ListPendingBackInStockRow {
-		rows, err := h.d.Queries.ListPendingBackInStock(h.ctx, db.ListPendingBackInStockParams{
+		rows, err := h.D.Queries.ListPendingBackInStock(h.Ctx, db.ListPendingBackInStockParams{
 			ProductID: f.Product.ID, ChannelID: f.Channel.ID,
 		})
 		if err != nil {
@@ -217,7 +217,7 @@ func TestIngestBackInStockRecordsTheRequest(t *testing.T) {
 	}
 
 	// a logged-in shopper's identity comes from the session cookie, never the body
-	cust, err := h.d.Customer.Register(h.ctx, f.Channel.ID, "bis-"+uuid.NewString()[:8]+"@e2e.test", "password123", "", "", nil)
+	cust, err := h.D.Customer.Register(h.Ctx, f.Channel.ID, "bis-"+uuid.NewString()[:8]+"@e2e.test", "password123", "", "", nil)
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -262,11 +262,11 @@ func TestIngestBackInStockRecordsTheRequest(t *testing.T) {
 
 func TestIngestFormsServeAndSubmit(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 5, 1000)
-	ts := httptest.NewServer(h.d.Root)
+	f := h.NewStore(t, 5, 1000)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
 
-	created, err := h.d.Form.Create(h.ctx, form.SaveInput{
+	created, err := h.D.Form.Create(h.Ctx, form.SaveInput{
 		ChannelID: f.Channel.ID, Slug: "e2e-news-" + uuid.NewString()[:8], Name: "Newsletter",
 		Status: "active", Type: "popup", Heading: "Join us", ButtonLabel: "Sign up",
 		SuccessMessage: "Welcome aboard!", CollectName: true,
@@ -313,7 +313,7 @@ func TestIngestFormsServeAndSubmit(t *testing.T) {
 	if out["message"] != "Welcome aboard!" {
 		t.Errorf("message = %q, want the form's success message", out["message"])
 	}
-	n, err := h.d.Form.SubmissionCount(h.ctx, created.ID)
+	n, err := h.D.Form.SubmissionCount(h.Ctx, created.ID)
 	if err != nil || n != 1 {
 		t.Errorf("submissions = %d (%v), want the lead recorded once", n, err)
 	}
@@ -329,10 +329,10 @@ func TestIngestFormsServeAndSubmit(t *testing.T) {
 	}
 
 	// the master switch takes every form off the storefront without touching them
-	if _, err := h.d.Config.Set(h.ctx, "pulse/forms/enabled", "false", config.DefaultScope); err != nil {
+	if _, err := h.D.Config.Set(h.Ctx, "pulse/forms/enabled", "false", config.DefaultScope); err != nil {
 		t.Fatalf("flip master switch: %v", err)
 	}
-	defer func() { _, _ = h.d.Config.Set(h.ctx, "pulse/forms/enabled", "true", config.DefaultScope) }()
+	defer func() { _, _ = h.D.Config.Set(h.Ctx, "pulse/forms/enabled", "true", config.DefaultScope) }()
 	_, _, body = tRequest(t, ts, http.MethodGet, "/t/forms", f.Channel.ID.String(), "")
 	if strings.TrimSpace(body) != "[]" {
 		t.Errorf("forms with the switch off = %q, want an empty list", body)
@@ -341,8 +341,8 @@ func TestIngestFormsServeAndSubmit(t *testing.T) {
 
 func TestIngestBeaconsAlwaysAnswer204(t *testing.T) { // beacons are fire-and-forget from a shopper's browser - no payload shape may turn into an error the page sees
 	h := newHarness(t)
-	f := h.newStore(t, 5, 1000)
-	ts := httptest.NewServer(h.d.Root)
+	f := h.NewStore(t, 5, 1000)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
 
 	for name, call := range map[string]struct{ path, body string }{
@@ -364,8 +364,8 @@ func TestIngestBeaconsAlwaysAnswer204(t *testing.T) { // beacons are fire-and-fo
 // Over-limit GETs get an honest 429 while POST beacons keep answering 204, so a scraper can't tell when it's being throttled - the "other" bucket is used so this test can't starve the real endpoints
 func TestIngestRateLimitThrottlesGetsSilencesPosts(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 5, 1000)
-	ts := httptest.NewServer(h.d.Root)
+	f := h.NewStore(t, 5, 1000)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
 
 	var got429 bool

@@ -53,7 +53,7 @@ type Order {
   customerId:      ID
   billingAddress:  OrderAddress!
   shippingAddress: OrderAddress!
-  # B2B purchase-order reference captured at checkout.
+  # Buyer's PO reference, captured at checkout when they pay by purchase order.
   poNumber: String
   lines:           [OrderLine!]!
   events:          [OrderEvent!]!

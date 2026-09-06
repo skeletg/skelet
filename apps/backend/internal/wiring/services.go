@@ -8,7 +8,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/address"
 	"github.com/skeletg/skelet/apps/backend/internal/adminprefs"
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
-	"github.com/skeletg/skelet/apps/backend/internal/b2b"
 	"github.com/skeletg/skelet/apps/backend/internal/backup"
 	"github.com/skeletg/skelet/apps/backend/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/internal/chat"
@@ -58,7 +57,6 @@ var Services = fx.Module("services",
 		newSuppressionService,
 		newURLRewriteService,
 		newInventoryService,
-		newB2BService,
 		newGiftcardService,
 		newStoreCreditService,
 		newLoyaltyService,
@@ -118,10 +116,6 @@ func newURLRewriteService(q *db.Queries) *urlrewrite.Service {
 
 func newInventoryService(q *db.Queries, txMgr *tx.Manager) *inventory.Service {
 	return inventory.NewService(inventory.NewRepository(q, txMgr), txMgr)
-}
-
-func newB2BService(q *db.Queries, txMgr *tx.Manager) *b2b.Service {
-	return b2b.NewService(q, txMgr)
 }
 
 func newGiftcardService(q *db.Queries, txMgr *tx.Manager) *giftcard.Service { // a kind=giftcard purchase issues a redeemable card, one per gift-card line, off OrderPlaced

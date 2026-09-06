@@ -46,6 +46,15 @@ type Host interface {
 	RegisterShutdown(pluginSlug string, fn ShutdownFunc) error
 	RegisterRoute(pluginSlug, pattern string, h RouteHandler) error
 	RegisterGraphResolver(pluginSlug string, surface GraphSurface, impl any) error
+	RegisterPriceResolver(pluginSlug string, r PriceResolver) error
+	Database() (DB, error)
+	CreateDraftOrder(ctx context.Context, req DraftOrderRequest) (DraftOrderResult, error)
+	ReadCart(ctx context.Context, cartID uuid.UUID) (Cart, error)
+	RequireAdminChannelPermission(ctx context.Context, slug string, channelID uuid.UUID) error
+	PermittedChannels(ctx context.Context, slug string) ([]uuid.UUID, bool, error)
+	ActingAdminID(ctx context.Context) *uuid.UUID
+	RequestCustomerID(ctx context.Context) *uuid.UUID
+	RequestChannelID(ctx context.Context) uuid.UUID
 	RegisterAdminTranslations(pluginSlug string, reg AdminTranslationsRegistration) error
 	RequireAdminPermission(ctx context.Context, slug string) error
 	ReadConfigString(ctx context.Context, path string) (string, error)

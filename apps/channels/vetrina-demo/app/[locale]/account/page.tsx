@@ -22,7 +22,6 @@ import {
   inputClass,
 } from "@/app/components/account/AccountUI";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
-import { getCachedCompany } from "@/app/components/account/company";
 import { PaymentChip } from "@/app/components/account/StatusChip";
 import { resendVerificationEmailAction } from "@/app/lib/auth/actions";
 import { getResolvedConsent } from "@/app/lib/consent/read";
@@ -55,10 +54,9 @@ export default async function AccountPage({
   if (!customer) redirect(await withLocalePrefix("/account/login", await getLocale()));
   const channel = await getChannel();
   const currency = channel?.currencyCode ?? "USD";
-  const [loyalty, referral, company, orders] = await Promise.all([
+  const [loyalty, referral, orders] = await Promise.all([
     getLoyaltyStatus(),
     getMyReferral(),
-    getCachedCompany(),
     loadRecentOrders(),
   ]);
   const sp = await searchParams;
@@ -87,11 +85,7 @@ export default async function AccountPage({
 
       <AccountPageHeader
         title={`Hi, ${customer.firstName}`}
-        description={
-          company
-            ? `Signed in for ${company.name}. Everything you've bought and every detail we hold, in one place.`
-            : "Everything you've bought and every detail we hold, in one place."
-        }
+        description="Everything you've bought and every detail we hold, in one place."
       />
 
       {actionError === "redeem" ? (
