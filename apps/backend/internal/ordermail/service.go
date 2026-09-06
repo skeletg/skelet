@@ -2,6 +2,7 @@ package ordermail
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
 
@@ -29,6 +30,13 @@ type FlowDispatcher interface {
 type OrderReader interface {
 	GetByID(ctx context.Context, id uuid.UUID) (order.Order, error)
 	GetFulfillment(ctx context.Context, id uuid.UUID) (order.Fulfillment, error)
+	ListFulfillments(ctx context.Context, orderID uuid.UUID) ([]order.Fulfillment, error)
+	PaymentLedgerReader
+}
+
+// Split out of OrderReader so the flow engine, which renders the same refund email from a narrower order
+// seam of its own, can share RefundedAmount without having to grow to match
+type PaymentLedgerReader interface {
 	PaymentLedger(ctx context.Context, orderID uuid.UUID) ([]order.PaymentTransaction, error)
 }
 
@@ -81,17 +89,18 @@ func (s *Service) fromAddress(ctx context.Context, ch channel.Channel) string {
 	return addr
 }
 
-func (s *Service) send(ctx context.Context, ch channel.Channel, o order.Order, messageKey, subject, htmlBody, textBody string) {
+func (s *Service) send(ctx context.Context, ch channel.Channel, o order.Order, messageKey, subject, htmlBody, textBody string) error {
 	if o.Email == "" {
-		return // nothing to send to - a draft or an order whose contact never resolved
+		return fmt.Errorf("order %s has no email address", o.Number) // a draft, or an order whose contact never resolved
 	}
 	orderID := o.ID
 	if err := s.sender.Send(ctx, mailsend.Spec{
 		ChannelID: ch.ID, CustomerID: o.CustomerID, From: s.fromAddress(ctx, ch), To: o.Email,
 		MessageKey: messageKey, OrderID: &orderID,
 	}, StorefrontURL(ch), subject, htmlBody, textBody); err != nil {
-		log.Printf("[ordermail] %s to %s for order %s: %v", messageKey, o.Email, o.Number, err)
+		return fmt.Errorf("send %s to %s for order %s: %w", messageKey, o.Email, o.Number, err)
 	}
+	return nil
 }
 
 // Loads the order and its channel - either failing skips the mail rather than sending a half-rendered one

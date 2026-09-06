@@ -352,6 +352,17 @@ extend type Mutation {
   # orders.update.
   generateShippingLabel(fulfillmentId: ID!): ShippingLabel!
 
+  # ---------- Customer mail ----------
+  # Send one of the order's lifecycle emails again: the receipt, a shipment
+  # notice, the cancellation or the refund. Always sends directly, never
+  # through an automation flow - the operator wants this mail now, and
+  # enrolling would restart a journey or hand delivery back to the paused
+  # flow that swallowed the original. SHIPMENT resends the newest shipment's
+  # notice unless fulfillmentId names one, which must belong to this order.
+  # Recorded and tracked like any other transactional send. Requires
+  # orders.update.
+  resendOrderEmail(orderId: ID!, message: OrderEmailMessage!, fulfillmentId: ID): Boolean!
+
   # ---------- Payment ----------
   # Capture previously-authorized funds for an order (manual / early capture;
   # fulfillment auto-captures otherwise). Refund a captured payment (full when
@@ -536,6 +547,14 @@ extend type Query {
 type OrderLineQuantity {
   orderLineId: ID!
   quantity:    Float!
+}
+
+# The order emails an operator can send again from the dashboard.
+enum OrderEmailMessage {
+  CONFIRMATION
+  SHIPMENT
+  CANCELLATION
+  REFUND
 }
 
 extend type Mutation {

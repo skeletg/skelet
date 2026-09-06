@@ -10,6 +10,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
 	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
@@ -392,4 +393,18 @@ func strPtrOrNil(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// Maps the enum the dashboard sends onto the template slot the mail path renders from
+func orderEmailMessageKey(m model.OrderEmailMessage) string {
+	switch m {
+	case model.OrderEmailMessageShipment:
+		return emailtemplate.KeyOrderShipment
+	case model.OrderEmailMessageCancellation:
+		return emailtemplate.KeyOrderCancellation
+	case model.OrderEmailMessageRefund:
+		return emailtemplate.KeyOrderRefund
+	default:
+		return emailtemplate.KeyOrderConfirmation
+	}
 }

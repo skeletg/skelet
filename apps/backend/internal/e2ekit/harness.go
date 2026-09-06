@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/fx"
 
 	"github.com/skeletg/skelet/apps/backend/internal/admin"
@@ -42,6 +43,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/notification"
 	"github.com/skeletg/skelet/apps/backend/internal/observability"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/internal/paymentvault"
@@ -98,6 +100,7 @@ type Deps struct {
 	Shipping     *shipping.Service
 	Experiment   *experiment.Service
 	Flow         *flow.Service // scenarios drive ProcessRuns directly - flow runs advance on a scheduled job the harness doesn't run
+	OrderMail    *ordermail.Service
 	Form         *form.Service
 	BackInStock  *backinstock.Service
 	Integration  *integration.Service
@@ -240,4 +243,31 @@ func (h *Harness) Settle(t TB) {
 		}
 	}
 	t.Fatal("settle: outbox never quiesced after 20 rounds - a handler is enqueueing in a loop")
+}
+
+// AdvanceFlows runs a channel's own flow runs to completion, backdating them first because the engine claims the oldest 100 per tick and every order the suite places leaves one behind
+func (h *Harness) AdvanceFlows(t TB, channelID uuid.UUID) {
+	h.Settle(t) // enrollment rides the outbox, so the runs don't exist yet until this drains
+	for range 20 {
+		res, err := h.D.DB.Exec(
+			`UPDATE flow_runs SET created_at = 'epoch' WHERE id IN (
+			   SELECT r.id FROM flow_runs r JOIN flows f ON f.id = r.flow_id
+			   WHERE f.channel_id = $1 AND (r.status = 'active' OR (r.status = 'waiting' AND r.resume_at <= NOW())))`,
+			channelID)
+		if err != nil {
+			t.Fatalf("backdate flow runs: %v", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			t.Fatalf("backdate flow runs: %v", err)
+		}
+		if n == 0 {
+			return
+		}
+		if err := h.D.Flow.ProcessRuns(h.Ctx); err != nil {
+			t.Fatalf("advance flow runs: %v", err)
+		}
+		h.Settle(t)
+	}
+	t.Fatal("this channel's flow runs never drained after 20 rounds - a flow is re-enrolling in a loop")
 }

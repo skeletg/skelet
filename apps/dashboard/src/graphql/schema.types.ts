@@ -3607,6 +3607,7 @@ export type Mutation = {
   requestMediaAssetUpload: RequestMediaAssetUploadPayload;
   requestProductMediaUpload: RequestMediaUploadPayload;
   requestReturn: OrderReturn;
+  resendOrderEmail: Scalars['Boolean']['output'];
   resetAdminPassword: Scalars['Boolean']['output'];
   resetConfigValue: ConfigValue;
   resolveCMSPageComment: CmsPageComment;
@@ -5295,6 +5296,13 @@ export type MutationRequestReturnArgs = {
 };
 
 
+export type MutationResendOrderEmailArgs = {
+  fulfillmentId?: InputMaybe<Scalars['ID']['input']>;
+  message: OrderEmailMessage;
+  orderId: Scalars['ID']['input'];
+};
+
+
 export type MutationResetAdminPasswordArgs = {
   newPassword: Scalars['String']['input'];
   token: Scalars['String']['input'];
@@ -6411,6 +6419,12 @@ export type OrderDocumentKind =
   | 'CREDIT_MEMO'
   | 'INVOICE'
   | 'PACKING_SLIP';
+
+export type OrderEmailMessage =
+  | 'CANCELLATION'
+  | 'CONFIRMATION'
+  | 'REFUND'
+  | 'SHIPMENT';
 
 export type OrderEvent = {
   __typename?: 'OrderEvent';
