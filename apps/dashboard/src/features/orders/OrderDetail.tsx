@@ -47,6 +47,7 @@ import { isForbiddenError } from '@/shared/errors/isForbiddenError'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import type { OrderStatus } from '@/graphql/schema.types'
+import { ResendEmailMenu } from './ResendEmailMenu'
 import { OrderStatusBadge } from './OrderStatusBadge'
 import { PaymentStatusBadge } from './PaymentStatusBadge'
 import { OrderPaymentsSection } from './OrderPaymentsSection'
@@ -238,6 +239,14 @@ export function OrderDetail() {
   // Per-line shipments make sense once processing and until fully shipped
   const canShip = order.status === 'PROCESSING' || order.status === 'PARTIALLY_FULFILLED'
 
+  const resendProps = {
+    orderId: id,
+    disabled: anyRunning,
+    hasFulfillments: order.fulfillments.length > 0,
+    isCancelled: order.status === 'CANCELLED',
+    isRefunded: order.paymentStatus === 'REFUNDED' || order.paymentStatus === 'PARTIALLY_REFUNDED',
+  }
+
   // What has actually moved per line, from data the page already holds - the columns only
   // appear once something has, so a pending order keeps the narrow table
   const shippedByLine = new Map<string, number>()
@@ -333,10 +342,14 @@ export function OrderDetail() {
               </Button>
             </div>
           ) : isTerminal ? (
-            <DocumentButtons orderId={id} />
+            <>
+              <DocumentButtons orderId={id} />
+              {canUpdate && <ResendEmailMenu {...resendProps} />}
+            </>
           ) : (
             <>
             <DocumentButtons orderId={id} />
+            {canUpdate && <ResendEmailMenu {...resendProps} />}
             <TransitionButtons
               status={order.status}
               disabled={anyRunning}

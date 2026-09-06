@@ -260,6 +260,33 @@ func (r *mutationResolver) GenerateShippingLabel(ctx context.Context, fulfillmen
 	return toShippingLabelModel(label), nil
 }
 
+// The automatic sends are event-driven and may be delivered by a flow - this is the operator's way to send one again
+func (r *mutationResolver) ResendOrderEmail(ctx context.Context, orderID string, message model.OrderEmailMessage, fulfillmentID *string) (bool, error) {
+	oID, err := parseID(orderID, "order")
+	if err != nil {
+		return false, err
+	}
+	o, err := r.OrderSvc.GetByID(ctx, oID)
+	if err != nil {
+		return false, errNotFound("order")
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "orders.update", o.ChannelID, nil); err != nil {
+		return false, err
+	}
+	var fID *uuid.UUID // ordermail checks it against this order's own shipments, so the gate above still holds
+	if fulfillmentID != nil {
+		parsed, perr := parseID(*fulfillmentID, "fulfillment")
+		if perr != nil {
+			return false, perr
+		}
+		fID = &parsed
+	}
+	if err := r.OrderMailSvc.Resend(ctx, oID, orderEmailMessageKey(message), fID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // Fulfillment auto-captures - this is the manual, early or partial path, full amount when `amount` is omitted
 func (r *mutationResolver) CapturePayment(ctx context.Context, orderID string, amount *int32) (*model.Order, error) {
 	o, err := r.orderForPaymentAction(ctx, orderID, "orders.update")

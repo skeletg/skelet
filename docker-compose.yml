@@ -319,7 +319,9 @@ services:
       # client code falls back to NEXT_PUBLIC_BACKEND_URL (host port)
       - BACKEND_INTERNAL_URL=http://app:8080
       # In-network for codegen inside the container - the config defaults to the host port
-      - GRAPHQL_CODEGEN_URL=${GRAPHQL_CODEGEN_URL:-http://app:8080/api/front/graphql}
+      # Its OWN variable: the root .env sets GRAPHQL_CODEGEN_URL to the admin endpoint when
+      # ADMIN_API_SLUG moves it, which would otherwise point this front-surface codegen at the admin schema
+      - GRAPHQL_CODEGEN_URL=${FRONT_GRAPHQL_CODEGEN_URL:-http://app:8080/api/front/graphql}
       # The dashboard's origin, named in this storefront's frame-ancestors CSP and checked on every
       # preview postMessage - pairs with the dashboard's VITE_STOREFRONT_ORIGIN
       - NEXT_PUBLIC_DASHBOARD_ORIGIN=${NEXT_PUBLIC_DASHBOARD_ORIGIN:-http://localhost:5173}
