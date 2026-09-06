@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/money"
+	"github.com/skeletg/skelet/apps/backend/internal/money"
 )
 
 type ProductOptionsResolution struct { // built by the catalog bridge, so the cart never trusts the client for option structure or pricing

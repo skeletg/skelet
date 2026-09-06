@@ -1,8 +1,8 @@
 package front // url_rewrite.resolvers.go helpers live here so gqlgen's quarantine-non-resolver-helpers pass can't bury them in a comment block, same reason blog_helpers.go exists
 
 import (
-	"github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 // Unknown entity_types - plugins and microservices registering their own via the admin syncCanonicalUrlRewrite mutation - collapse to RouteKindPlugin, and the raw string surfaces in RouteResolution.pluginKind for the storefront to switch on

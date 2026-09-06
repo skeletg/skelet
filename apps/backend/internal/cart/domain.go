@@ -5,7 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/skeletg/skelet/internal/pricing"
+	"github.com/skeletg/skelet/apps/backend/internal/pricing"
 	"time"
 
 	"github.com/google/uuid"

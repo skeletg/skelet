@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // Matches when the request clock falls inside the rule's recurring window

@@ -502,53 +502,6 @@ export type AuditLogPage = {
   total: Scalars['Int']['output'];
 };
 
-export type B2BInvoice = {
-  __typename?: 'B2BInvoice';
-  amountCents: Scalars['Int']['output'];
-  companyId: Scalars['ID']['output'];
-  createdAt: Scalars['Time']['output'];
-  dueAt?: Maybe<Scalars['Time']['output']>;
-  id: Scalars['ID']['output'];
-  number: Scalars['String']['output'];
-  orderId: Scalars['ID']['output'];
-  orderNumber: Scalars['String']['output'];
-  overdue: Scalars['Boolean']['output'];
-  paidAt?: Maybe<Scalars['Time']['output']>;
-  status: Scalars['String']['output'];
-};
-
-export type B2BQuote = {
-  __typename?: 'B2BQuote';
-  channelId: Scalars['ID']['output'];
-  companyId?: Maybe<Scalars['ID']['output']>;
-  createdAt: Scalars['Time']['output'];
-  customerId: Scalars['ID']['output'];
-  id: Scalars['ID']['output'];
-  items: Array<B2BQuoteItem>;
-  note: Scalars['String']['output'];
-  sellerNote: Scalars['String']['output'];
-  status: Scalars['String']['output'];
-  totalCents: Scalars['Int']['output'];
-  validUntil?: Maybe<Scalars['Time']['output']>;
-};
-
-export type B2BQuoteItem = {
-  __typename?: 'B2BQuoteItem';
-  name: Scalars['String']['output'];
-  optionsSummary: Scalars['String']['output'];
-  quantity: Scalars['Float']['output'];
-  sku: Scalars['String']['output'];
-  unitPriceCents: Scalars['Int']['output'];
-};
-
-export type B2BQuoteItemInput = {
-  name: Scalars['String']['input'];
-  optionsSummary?: InputMaybe<Scalars['String']['input']>;
-  quantity: Scalars['Float']['input'];
-  sku: Scalars['String']['input'];
-  unitPriceCents: Scalars['Int']['input'];
-};
-
 export type BlogAuthor = {
   __typename?: 'BlogAuthor';
   allContent: Array<BlogAuthorContent>;
@@ -1289,47 +1242,6 @@ export type CollectionCover = {
   status: ProductMediaStatus;
   url: Scalars['String']['output'];
   width: Scalars['Int']['output'];
-};
-
-export type Company = {
-  __typename?: 'Company';
-  channelId: Scalars['ID']['output'];
-  createdAt: Scalars['Time']['output'];
-  creditLimitCents: Scalars['Int']['output'];
-  creditUsedCents: Scalars['Int']['output'];
-  defaultCustomerGroupSlug: Scalars['String']['output'];
-  id: Scalars['ID']['output'];
-  name: Scalars['String']['output'];
-  paymentTermsDays: Scalars['Int']['output'];
-  prices: Array<CompanyPrice>;
-  status: Scalars['String']['output'];
-};
-
-export type CompanyCreditEntry = {
-  __typename?: 'CompanyCreditEntry';
-  amountCents: Scalars['Int']['output'];
-  createdAt: Scalars['Time']['output'];
-  id: Scalars['ID']['output'];
-  orderId?: Maybe<Scalars['ID']['output']>;
-  reason: Scalars['String']['output'];
-};
-
-export type CompanyMember = {
-  __typename?: 'CompanyMember';
-  customerId: Scalars['ID']['output'];
-  email: Scalars['String']['output'];
-  firstName: Scalars['String']['output'];
-  lastName: Scalars['String']['output'];
-  orderLimitCents: Scalars['Int']['output'];
-  role: Scalars['String']['output'];
-};
-
-export type CompanyPrice = {
-  __typename?: 'CompanyPrice';
-  id: Scalars['ID']['output'];
-  priceCents: Scalars['Int']['output'];
-  productId: Scalars['ID']['output'];
-  productSku: Scalars['String']['output'];
 };
 
 export type ConfigGroup = {
@@ -3505,13 +3417,11 @@ export type Mutation = {
   createCategory: Category;
   createChannel: Channel;
   createCollection: Collection;
-  createCompany: Company;
   createCountry: Country;
   createCurrency: Currency;
   createCustomerGroup: CustomerGroup;
   createCustomerSegment: CustomerSegment;
   createDraftOrder: Order;
-  createDraftOrderFromQuote: Order;
   createEmailCampaign: EmailCampaign;
   createEmailGroup: EmailGroup;
   createEventDestination: EventDestination;
@@ -3574,7 +3484,6 @@ export type Mutation = {
   deleteChatConversation: Scalars['Boolean']['output'];
   deleteCollection: Scalars['Boolean']['output'];
   deleteCollectionContent: Scalars['Boolean']['output'];
-  deleteCompanyPrice: Scalars['Boolean']['output'];
   deleteCountry: Scalars['Boolean']['output'];
   deleteCurrency: Scalars['Boolean']['output'];
   deleteCustomer: Scalars['Boolean']['output'];
@@ -3658,7 +3567,6 @@ export type Mutation = {
   moveMediaAsset: MediaAsset;
   pauseSubscription: CustomerSubscription;
   placeDraftOrder: Order;
-  priceB2BQuote: B2BQuote;
   publishBlogPost: BlogPost;
   publishCMSPage: CmsPage;
   purgeCache: Scalars['Boolean']['output'];
@@ -3676,9 +3584,7 @@ export type Mutation = {
   rejectProductQuestion: AdminProductQuestion;
   rejectReturn: OrderReturn;
   rejectReview: Review;
-  releaseCompanyCredit: Company;
   releaseOrder: Order;
-  removeCompanyMember: Scalars['Boolean']['output'];
   removeCustomerFromSegment: Scalars['Boolean']['output'];
   removeGroupedMember: Product;
   removeKitComponent: Product;
@@ -3744,9 +3650,6 @@ export type Mutation = {
   setChannelLocales: Channel;
   setChannelLocations: Channel;
   setCollectionFacetOverrides: Collection;
-  setCompanyCustomerGroup: Company;
-  setCompanyMember: Scalars['Boolean']['output'];
-  setCompanyPrice: CompanyPrice;
   setConfigValue: ConfigValue;
   setConfigurableOptions: Product;
   setCustomerActive: Customer;
@@ -3784,7 +3687,6 @@ export type Mutation = {
   setShippingCarrierEnabled: ShippingCarrierAdmin;
   setSubscriptionTerms: Product;
   setWebhookActive: Webhook;
-  settleB2bInvoice: B2BInvoice;
   signalsChat: SignalsChatReply;
   /** Queues an export - poll the returned job, then download it from /api/admin/data/jobs/{id}/download */
   startDataExport: DataJob;
@@ -3828,7 +3730,6 @@ export type Mutation = {
   updateCategory: Category;
   updateChannel: Channel;
   updateCollection: Collection;
-  updateCompany: Company;
   updateCountry: Country;
   updateCurrency: Currency;
   updateCustomerGroup: CustomerGroup;
@@ -4384,14 +4285,6 @@ export type MutationCreateCollectionArgs = {
 };
 
 
-export type MutationCreateCompanyArgs = {
-  channelId: Scalars['ID']['input'];
-  creditLimitCents: Scalars['Int']['input'];
-  name: Scalars['String']['input'];
-  paymentTermsDays: Scalars['Int']['input'];
-};
-
-
 export type MutationCreateCountryArgs = {
   input: CreateCountryInput;
 };
@@ -4414,11 +4307,6 @@ export type MutationCreateCustomerSegmentArgs = {
 
 export type MutationCreateDraftOrderArgs = {
   input: CreateDraftOrderInput;
-};
-
-
-export type MutationCreateDraftOrderFromQuoteArgs = {
-  quoteId: Scalars['ID']['input'];
 };
 
 
@@ -4741,12 +4629,6 @@ export type MutationDeleteCollectionArgs = {
 export type MutationDeleteCollectionContentArgs = {
   collectionId: Scalars['ID']['input'];
   locale: Scalars['String']['input'];
-};
-
-
-export type MutationDeleteCompanyPriceArgs = {
-  companyId: Scalars['ID']['input'];
-  priceId: Scalars['ID']['input'];
 };
 
 
@@ -5196,14 +5078,6 @@ export type MutationPlaceDraftOrderArgs = {
 };
 
 
-export type MutationPriceB2BQuoteArgs = {
-  id: Scalars['ID']['input'];
-  items: Array<B2BQuoteItemInput>;
-  sellerNote?: InputMaybe<Scalars['String']['input']>;
-  validUntil?: InputMaybe<Scalars['Time']['input']>;
-};
-
-
 export type MutationPublishBlogPostArgs = {
   id: Scalars['ID']['input'];
 };
@@ -5295,20 +5169,8 @@ export type MutationRejectReviewArgs = {
 };
 
 
-export type MutationReleaseCompanyCreditArgs = {
-  amountCents: Scalars['Int']['input'];
-  companyId: Scalars['ID']['input'];
-  reason?: InputMaybe<Scalars['String']['input']>;
-};
-
-
 export type MutationReleaseOrderArgs = {
   id: Scalars['ID']['input'];
-};
-
-
-export type MutationRemoveCompanyMemberArgs = {
-  customerId: Scalars['ID']['input'];
 };
 
 
@@ -5685,27 +5547,6 @@ export type MutationSetCollectionFacetOverridesArgs = {
 };
 
 
-export type MutationSetCompanyCustomerGroupArgs = {
-  companyId: Scalars['ID']['input'];
-  groupSlug: Scalars['String']['input'];
-};
-
-
-export type MutationSetCompanyMemberArgs = {
-  companyId: Scalars['ID']['input'];
-  customerId: Scalars['ID']['input'];
-  orderLimitCents?: InputMaybe<Scalars['Int']['input']>;
-  role: Scalars['String']['input'];
-};
-
-
-export type MutationSetCompanyPriceArgs = {
-  companyId: Scalars['ID']['input'];
-  priceCents: Scalars['Int']['input'];
-  productId: Scalars['ID']['input'];
-};
-
-
 export type MutationSetConfigValueArgs = {
   path: Scalars['String']['input'];
   scope?: InputMaybe<ConfigScopeInput>;
@@ -5937,12 +5778,6 @@ export type MutationSetSubscriptionTermsArgs = {
 export type MutationSetWebhookActiveArgs = {
   active: Scalars['Boolean']['input'];
   id: Scalars['ID']['input'];
-};
-
-
-export type MutationSettleB2bInvoiceArgs = {
-  id: Scalars['ID']['input'];
-  status: Scalars['String']['input'];
 };
 
 
@@ -6179,15 +6014,6 @@ export type MutationUpdateChannelArgs = {
 
 export type MutationUpdateCollectionArgs = {
   input: UpdateCollectionInput;
-};
-
-
-export type MutationUpdateCompanyArgs = {
-  creditLimitCents: Scalars['Int']['input'];
-  id: Scalars['ID']['input'];
-  name: Scalars['String']['input'];
-  paymentTermsDays: Scalars['Int']['input'];
-  status: Scalars['String']['input'];
 };
 
 
@@ -7295,7 +7121,6 @@ export type Query = {
   attributeValueChannelSlugs: Array<AttributeValueChannelSlug>;
   attributes: Array<Attribute>;
   auditLog: AuditLogPage;
-  b2bQuotes: Array<B2BQuote>;
   blogAuthor?: Maybe<BlogAuthor>;
   blogAuthors: Array<BlogAuthor>;
   blogCategories: Array<BlogCategory>;
@@ -7334,11 +7159,6 @@ export type Query = {
   cmsTags: Array<CmsTag>;
   collection: Collection;
   collections: Array<Collection>;
-  companies: Array<Company>;
-  company: Company;
-  companyCreditEntries: Array<CompanyCreditEntry>;
-  companyInvoices: Array<B2BInvoice>;
-  companyMembers: Array<CompanyMember>;
   config: Array<ConfigValue>;
   configSections: Array<ConfigSection>;
   configValue: ConfigValue;
@@ -7548,13 +7368,6 @@ export type QueryAuditLogArgs = {
 };
 
 
-export type QueryB2bQuotesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  status?: InputMaybe<Scalars['String']['input']>;
-};
-
-
 export type QueryBlogAuthorArgs = {
   id?: InputMaybe<Scalars['ID']['input']>;
   slug?: InputMaybe<Scalars['String']['input']>;
@@ -7707,27 +7520,6 @@ export type QueryCmsSnippetArgs = {
 
 export type QueryCollectionArgs = {
   id: Scalars['ID']['input'];
-};
-
-
-export type QueryCompanyArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
-export type QueryCompanyCreditEntriesArgs = {
-  companyId: Scalars['ID']['input'];
-};
-
-
-export type QueryCompanyInvoicesArgs = {
-  companyId: Scalars['ID']['input'];
-  limit?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type QueryCompanyMembersArgs = {
-  companyId: Scalars['ID']['input'];
 };
 
 
@@ -9387,7 +9179,6 @@ export type SeoIssueCount = {
 export type ServerFeatures = {
   __typename?: 'ServerFeatures';
   ai: Scalars['Boolean']['output'];
-  b2b: Scalars['Boolean']['output'];
   signals: Scalars['Boolean']['output'];
 };
 

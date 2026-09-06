@@ -3,7 +3,7 @@ package example
 import (
 	"context"
 
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Quote-only, so the host's capability type-assertion has a carrier that implements neither

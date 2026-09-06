@@ -1,8 +1,8 @@
 package admin
 
 import (
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/health"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/health"
 )
 
 // Lives outside the .resolvers.go file because gqlgen relocates every non-resolver

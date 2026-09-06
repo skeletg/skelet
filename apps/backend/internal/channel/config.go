@@ -1,6 +1,6 @@
 package channel
 
-import "github.com/skeletg/skelet/internal/config"
+import "github.com/skeletg/skelet/apps/backend/internal/config"
 
 // Per-channel knobs live in the config registry rather than as channels-table columns, so admins edit them on Settings while the Channels page stays focused on identity
 // Nested under general/<group>/<field>, with new groups registering lazily - Empty string is the default

@@ -21,9 +21,14 @@ different currencies, languages and brand identities, sharing one product catalo
 where that makes sense and diverging where it doesn't. A clone is a working shop.
 
 Catalog, carts, orders, customers, inventory, promotions, tax, subscriptions, gift
-cards, loyalty, B2B, a blog and a block-based CMS. Plus **Signals**, a built-in
+cards, loyalty, a blog and a block-based CMS. Plus **Signals**, a built-in
 analytics stack with four surfaces - Lens for web, Synapse for customers, Pulse for
 email, Prism for experiments - writing to its own database.
+
+The rest is plugins: Go compiled into the binary, added with `bin/cli plugin add`,
+each one its own versioned module. Payment gateways ship that way, and so does B2B -
+company accounts, credit lines, contract pricing and quotes. See
+[docs/plugins.md](docs/plugins.md).
 
 Underneath: per-channel role permissions, a runtime config registry, machine-to-machine
 integration tokens, HMAC-signed webhooks, a transactional outbox for durable async work,

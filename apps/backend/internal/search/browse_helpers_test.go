@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
 )
 
 func TestBucketKeyToString(t *testing.T) { // OpenSearch hands terms-agg keys back as string, float64 or bool depending on the field mapping

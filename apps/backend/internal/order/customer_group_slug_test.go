@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
 )
 
 // A nil Group pointer is the realistic shape from CLI and test paths that skip GetByIDWithAddresses' group hydration - returning the zero string lets the engine simply not match group-gated rules instead of panicking

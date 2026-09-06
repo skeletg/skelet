@@ -3,9 +3,9 @@ package admin
 import (
 	"context"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 func (r *mutationResolver) CreateRemoteProvider(ctx context.Context, input model.CreateRemoteProviderInput) (*model.CreateRemoteProviderPayload, error) {

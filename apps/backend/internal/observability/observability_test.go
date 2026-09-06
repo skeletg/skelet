@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/skeletg/skelet/internal/observability"
+	"github.com/skeletg/skelet/apps/backend/internal/observability"
 )
 
 func TestInitReturnsUsableShutdown(t *testing.T) {

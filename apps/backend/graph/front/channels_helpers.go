@@ -1,8 +1,8 @@
 package front
 
 import (
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
 )
 
 func toFrontChannelModel(sv channel.Channel) *model.Channel { // identity fields only - branding/contact/legal/timezone moved to the config registry, reachable from a `configValue` query rather than here

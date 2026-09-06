@@ -11,11 +11,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/blockkit"
-	"github.com/skeletg/skelet/internal/cms"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/blockkit"
+	"github.com/skeletg/skelet/apps/backend/internal/cms"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 func applyPageTypeSEODefaults(pt cms.PageType, m *model.CMSPage) { // read-time inheritance - the page's own value always wins

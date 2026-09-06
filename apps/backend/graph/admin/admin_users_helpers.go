@@ -5,12 +5,12 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/action"
-	"github.com/skeletg/skelet/internal/admin"
-	"github.com/skeletg/skelet/internal/auth"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/permission"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/action"
+	"github.com/skeletg/skelet/apps/backend/internal/admin"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/permission"
 )
 
 // toAdminActionModel maps a registered action.Definition to its GraphQL representation. Handler is intentionally not

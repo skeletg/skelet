@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/linkgraph"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/linkgraph"
 )
 
 func hasIssue(issues []linkgraph.Issue, want model.SeoIssue) bool {

@@ -1,8 +1,8 @@
 package catalog
 
 import (
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/revalidate"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/revalidate"
 )
 
 const (

@@ -444,50 +444,6 @@ type AuditLogPage struct {
 	Total   int32            `json:"total"`
 }
 
-type B2BInvoice struct {
-	ID          string     `json:"id"`
-	CompanyID   string     `json:"companyId"`
-	OrderID     string     `json:"orderId"`
-	OrderNumber string     `json:"orderNumber"`
-	Number      string     `json:"number"`
-	AmountCents int32      `json:"amountCents"`
-	Status      string     `json:"status"`
-	Overdue     bool       `json:"overdue"`
-	DueAt       *time.Time `json:"dueAt,omitempty"`
-	PaidAt      *time.Time `json:"paidAt,omitempty"`
-	CreatedAt   time.Time  `json:"createdAt"`
-}
-
-type B2BQuote struct {
-	ID         string          `json:"id"`
-	CompanyID  *string         `json:"companyId,omitempty"`
-	CustomerID string          `json:"customerId"`
-	ChannelID  string          `json:"channelId"`
-	Status     string          `json:"status"`
-	Items      []*B2BQuoteItem `json:"items"`
-	Note       string          `json:"note"`
-	SellerNote string          `json:"sellerNote"`
-	TotalCents int32           `json:"totalCents"`
-	ValidUntil *time.Time      `json:"validUntil,omitempty"`
-	CreatedAt  time.Time       `json:"createdAt"`
-}
-
-type B2BQuoteItem struct {
-	Sku            string  `json:"sku"`
-	Name           string  `json:"name"`
-	Quantity       float64 `json:"quantity"`
-	UnitPriceCents int32   `json:"unitPriceCents"`
-	OptionsSummary string  `json:"optionsSummary"`
-}
-
-type B2BQuoteItemInput struct {
-	Sku            string  `json:"sku"`
-	Name           string  `json:"name"`
-	Quantity       float64 `json:"quantity"`
-	UnitPriceCents int32   `json:"unitPriceCents"`
-	OptionsSummary *string `json:"optionsSummary,omitempty"`
-}
-
 type BlogAuthor struct {
 	ID          string               `json:"id"`
 	Slug        string               `json:"slug"`
@@ -1117,43 +1073,6 @@ type CollectionCover struct {
 	Height   int32              `json:"height"`
 	MimeType string             `json:"mimeType"`
 	Status   ProductMediaStatus `json:"status"`
-}
-
-type Company struct {
-	ID                       string          `json:"id"`
-	ChannelID                string          `json:"channelId"`
-	Name                     string          `json:"name"`
-	Status                   string          `json:"status"`
-	CreditLimitCents         int32           `json:"creditLimitCents"`
-	CreditUsedCents          int32           `json:"creditUsedCents"`
-	PaymentTermsDays         int32           `json:"paymentTermsDays"`
-	DefaultCustomerGroupSlug string          `json:"defaultCustomerGroupSlug"`
-	Prices                   []*CompanyPrice `json:"prices"`
-	CreatedAt                time.Time       `json:"createdAt"`
-}
-
-type CompanyCreditEntry struct {
-	ID          string    `json:"id"`
-	OrderID     *string   `json:"orderId,omitempty"`
-	AmountCents int32     `json:"amountCents"`
-	Reason      string    `json:"reason"`
-	CreatedAt   time.Time `json:"createdAt"`
-}
-
-type CompanyMember struct {
-	CustomerID      string `json:"customerId"`
-	Role            string `json:"role"`
-	Email           string `json:"email"`
-	FirstName       string `json:"firstName"`
-	LastName        string `json:"lastName"`
-	OrderLimitCents int32  `json:"orderLimitCents"`
-}
-
-type CompanyPrice struct {
-	ID         string `json:"id"`
-	ProductID  string `json:"productId"`
-	ProductSku string `json:"productSku"`
-	PriceCents int32  `json:"priceCents"`
 }
 
 type ConfigGroup struct {
@@ -4230,7 +4149,6 @@ type SeoIssueCount struct {
 }
 
 type ServerFeatures struct {
-	B2b     bool `json:"b2b"`
 	Signals bool `json:"signals"`
 	Ai      bool `json:"ai"`
 }

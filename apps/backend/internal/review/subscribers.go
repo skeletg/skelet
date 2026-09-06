@@ -3,7 +3,7 @@ package review
 import (
 	"context"
 
-	"github.com/skeletg/skelet/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
 )
 
 // RegisterSubscribers reacts to the review lifecycle. All async - a classification

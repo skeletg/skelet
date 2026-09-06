@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/testdb"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
 // The claim is what stops a campaign re-mailing someone: the send loop takes it BEFORE handing the message to the sender, so a dropped write costs one unsent email instead of re-sending on every later tick - gated on DATABASE_URL because the guarantee lives in the SQL (the status guard + rows-affected), not in Go

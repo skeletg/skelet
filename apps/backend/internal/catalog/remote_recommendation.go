@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // Merchant HTTP endpoint (remoteprovider kind=recommendation) returning recommended product ids - the escape hatch for Nosto/Dynamic-Yield-class engines without a Go plugin

@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // Prices the SKUs it knows and fails closed on anything else, like the catalog does

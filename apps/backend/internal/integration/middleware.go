@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 // The header carrying the integration's raw token on admin API requests - named for consumer familiarity and stability, though the domain-level name is "integration", not "api token"

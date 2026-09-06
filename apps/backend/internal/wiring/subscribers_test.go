@@ -3,8 +3,8 @@ package wiring
 import (
 	"testing"
 
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
 )
 
 // A $10 partial refund once marked a $500 order refunded - the two money-moving names must route to the amount-aware path and nothing else may

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/skeletg/skelet/internal/pluginset"
+	"github.com/skeletg/skelet/apps/backend/internal/pluginset"
 )
 
 func main() {

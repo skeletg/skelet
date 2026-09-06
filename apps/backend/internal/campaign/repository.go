@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	signalsdb "github.com/skeletg/skelet/internal/db/signals/sqlc"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // Repository is the persistence seam for campaigns + their recipient log

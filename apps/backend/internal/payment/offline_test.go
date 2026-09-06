@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // Boot-critical: these are the engine's only built-in way to take an order, so a drifted slug or a lost IsOffline means checkout offers nothing or tries to authorize a method with no gateway behind it

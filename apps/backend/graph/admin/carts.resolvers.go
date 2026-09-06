@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
 )
 
 func (r *mutationResolver) AdminCreateCart(ctx context.Context, channelID string, customerID *string) (*model.AdminCart, error) {

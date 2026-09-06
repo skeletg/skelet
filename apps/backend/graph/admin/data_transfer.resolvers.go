@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/dataio"
-	"github.com/skeletg/skelet/internal/datajob"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/dataio"
+	"github.com/skeletg/skelet/apps/backend/internal/datajob"
 )
 
 func (r *mutationResolver) StartDataExport(ctx context.Context, input model.StartDataExportInput) (*model.DataJob, error) {

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // EventDedupStore backs sdk.SubscribeAsyncOnce - Claim answers true exactly once per key (durable, so replays across

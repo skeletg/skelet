@@ -11,10 +11,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/permission"
-	"github.com/skeletg/skelet/internal/webhook"
-	_ "github.com/skeletg/skelet/internal/wiring"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/permission"
+	"github.com/skeletg/skelet/apps/backend/internal/webhook"
+	_ "github.com/skeletg/skelet/apps/backend/internal/wiring"
 )
 
 type target struct {

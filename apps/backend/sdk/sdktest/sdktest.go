@@ -20,7 +20,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Permission is one RegisterPermission call, kept flat for assertions
@@ -100,9 +100,23 @@ type Host struct {
 	ShutdownFns         map[string][]sdk.ShutdownFunc
 	Routes              []Route
 	GraphResolvers      []GraphResolver
-	SearchIndexes       map[string]sdk.SearchIndexRegistration
-	SearchDocs          map[string]map[string]any
-	AdminTranslations   []AdminTranslation
+	PriceResolvers      []PriceResolver
+	DraftOrders         []DraftOrder
+	Carts               map[uuid.UUID]sdk.Cart
+	// Per-permission channel scope - an absent slug bypasses, matching a global grant
+	ChannelScope map[string][]uuid.UUID
+	// What sdk.AdminID reports - nil is the integration-token and unauthenticated case
+	ActingAdmin *uuid.UUID
+	// What sdk.CustomerID and sdk.RequestChannelID report on the storefront surface
+	RequestCustomer *uuid.UUID
+	RequestChannel  uuid.UUID
+	// What CreateDraftOrder returns - nil makes it fail like an unwired host
+	DraftOrderFunc func(context.Context, sdk.DraftOrderRequest) (sdk.DraftOrderResult, error)
+	// The handle sdk.Database hands back - nil until SetDatabase wires one
+	DB                sdk.DB
+	SearchIndexes     map[string]sdk.SearchIndexRegistration
+	SearchDocs        map[string]map[string]any
+	AdminTranslations []AdminTranslation
 
 	asyncSubs map[string][]asyncSub
 	syncSubs  map[string][]syncSub
@@ -475,6 +489,163 @@ func (h *Host) RegisterGraphResolver(pluginSlug string, surface sdk.GraphSurface
 	defer h.mu.Unlock()
 	h.GraphResolvers = append(h.GraphResolvers, GraphResolver{PluginSlug: pluginSlug, Surface: surface, Impl: impl})
 	return nil
+}
+
+// PriceResolver is one RegisterPriceResolver call with its owning slug
+type PriceResolver struct {
+	PluginSlug string
+	Resolver   sdk.PriceResolver
+}
+
+func (h *Host) RegisterPriceResolver(pluginSlug string, r sdk.PriceResolver) error {
+	if r == nil {
+		return fmt.Errorf("sdktest: plugin %q registered a nil price resolver", pluginSlug)
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.PriceResolvers = append(h.PriceResolvers, PriceResolver{PluginSlug: pluginSlug, Resolver: r})
+	return nil
+}
+
+// ResolvePrice runs the registered resolvers the way core does - first non-fall-through wins, a
+// disabled plugin is skipped, and an error reads as a fall-through rather than propagating
+func (h *Host) ResolvePrice(ctx context.Context, req sdk.PriceRequest) (int64, bool) {
+	h.mu.Lock()
+	regs := slices.Clone(h.PriceResolvers)
+	h.mu.Unlock()
+	for _, reg := range regs {
+		if h.pluginDisabled(reg.PluginSlug) {
+			continue
+		}
+		cents, ok, err := reg.Resolver.ResolveUnitPrice(ctx, req)
+		if err == nil && ok {
+			return cents, true
+		}
+	}
+	return 0, false
+}
+
+// Database hands back whatever SetDatabase was given - nil until a test wires one, which is the
+// same ErrDBUnavailable a plugin resolving its handle too early sees in production
+func (h *Host) Database() (sdk.DB, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.DB == nil {
+		return nil, sdk.ErrDBUnavailable
+	}
+	return h.DB, nil
+}
+
+// SetDatabase wires the handle sdk.Database returns - pass a *sql.DB against a test database, or a
+// fake implementing the four methods
+func (h *Host) SetDatabase(db sdk.DB) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.DB = db
+}
+
+// DraftOrders records every CreateDraftOrder call, and DraftOrderFunc lets a test decide what comes
+// back - unset, the call fails the way an unwired host does, so a plugin's error path is reachable
+type DraftOrder struct {
+	Request sdk.DraftOrderRequest
+}
+
+func (h *Host) CreateDraftOrder(ctx context.Context, req sdk.DraftOrderRequest) (sdk.DraftOrderResult, error) {
+	h.mu.Lock()
+	h.DraftOrders = append(h.DraftOrders, DraftOrder{Request: req})
+	fn := h.DraftOrderFunc
+	h.mu.Unlock()
+	if fn == nil {
+		return sdk.DraftOrderResult{}, sdk.ErrDraftOrdersUnavailable
+	}
+	return fn(ctx, req)
+}
+
+// Carts is what ReadCart serves, keyed by id - an unseeded id answers ErrCartNotOnStore, the same
+// refusal a foreign cart gets, so a plugin's not-found path is reachable without a database
+func (h *Host) ReadCart(_ context.Context, cartID uuid.UUID) (sdk.Cart, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	c, ok := h.Carts[cartID]
+	if !ok {
+		return sdk.Cart{}, sdk.ErrCartNotOnStore
+	}
+	return c, nil
+}
+
+// SeedCart makes a cart readable through sdk.ReadCart
+func (h *Host) SeedCart(c sdk.Cart) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.Carts == nil {
+		h.Carts = make(map[uuid.UUID]sdk.Cart)
+	}
+	h.Carts[c.ID] = c
+}
+
+// Channel scope for tests: DenyPermission still refuses outright, and ChannelScope names the channels
+// the caller may see. Unset, the caller bypasses - which is the fake's see-everything default, not a
+// claim about production, where an unauthenticated caller never reaches a gated field
+func (h *Host) RequireAdminChannelPermission(ctx context.Context, slug string, channelID uuid.UUID) error {
+	if err := h.RequireAdminPermission(ctx, slug); err != nil {
+		return err
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	ids, scoped := h.ChannelScope[slug]
+	if !scoped {
+		return nil
+	}
+	if slices.Contains(ids, channelID) {
+		return nil
+	}
+	return fmt.Errorf("sdktest: permission %q is not granted on channel %s", slug, channelID)
+}
+
+func (h *Host) PermittedChannels(ctx context.Context, slug string) ([]uuid.UUID, bool, error) {
+	if err := h.RequireAdminPermission(ctx, slug); err != nil {
+		return nil, false, err
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	ids, scoped := h.ChannelScope[slug]
+	if !scoped {
+		return nil, true, nil
+	}
+	return slices.Clone(ids), false, nil
+}
+
+// ScopeToChannels restricts one permission to these channels, so a test can prove a plugin filters
+// its listings rather than only that it checks the permission
+func (h *Host) ScopeToChannels(slug string, ids ...uuid.UUID) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.ChannelScope == nil {
+		h.ChannelScope = make(map[string][]uuid.UUID)
+	}
+	h.ChannelScope[slug] = ids
+}
+
+// ActingAdmin is what AdminID reports - set it to prove a plugin stamps the right admin on an audit
+// row, leave it nil for the integration-token and unauthenticated paths
+func (h *Host) ActingAdminID(context.Context) *uuid.UUID {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.ActingAdmin
+}
+
+// RequestCustomer and RequestChannel are what the two request-scope readers report - set them to
+// drive a front resolver's guest and signed-in paths without a real request
+func (h *Host) RequestCustomerID(context.Context) *uuid.UUID {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.RequestCustomer
+}
+
+func (h *Host) RequestChannelID(context.Context) uuid.UUID {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.RequestChannel
 }
 
 // PublishEvent mirrors the host's Emits enforcement, then delivers to async subscribers

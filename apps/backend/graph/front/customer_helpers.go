@@ -8,11 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	frontmodel "github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/b2b"
-	"github.com/skeletg/skelet/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
 )
 
 func toCustomerModel(c customer.Customer) *model.Customer {
@@ -94,31 +92,6 @@ func (r *mutationResolver) customerPendingVerificationPayload(ctx context.Contex
 	}, nil
 }
 
-func toMyQuoteModel(q b2b.Quote) *frontmodel.MyB2BQuote {
-	out := &frontmodel.MyB2BQuote{
-		ID:         q.ID.String(),
-		Status:     q.Status,
-		Note:       q.Note,
-		SellerNote: q.SellerNote,
-		TotalCents: int32(q.TotalCents),
-		ValidUntil: q.ValidUntil,
-		CreatedAt:  q.CreatedAt,
-		Items:      make([]*frontmodel.MyB2BQuoteItem, 0, len(q.Items)),
-	}
-	for _, it := range q.Items {
-		out.Items = append(out.Items, &frontmodel.MyB2BQuoteItem{
-			Sku:            it.SKU,
-			Name:           it.Name,
-			Quantity:       it.Quantity,
-			UnitPriceCents: int32(it.UnitPriceCents),
-			OptionsSummary: it.OptionsSummary,
-		})
-	}
-	return out
-}
-
-// Everything the controller demonstrably holds gets pulled in, not just profile + addresses + orders - omitting a category the admin UI shows one section below the export button makes the subject-access response incomplete
-// Each source is best-effort, so one unavailable service degrades that section rather than failing the whole export
 func (r *Resolver) enrichDataExport(ctx context.Context, customerID uuid.UUID, currency string, bundle *customer.DataExport) {
 	if r.ConsentSvc != nil {
 		if list, err := r.ConsentSvc.ListForCustomer(ctx, customerID); err == nil {

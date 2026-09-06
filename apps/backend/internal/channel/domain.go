@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/locale"
-	"github.com/skeletg/skelet/internal/permission"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/permission"
 )
 
 func init() {

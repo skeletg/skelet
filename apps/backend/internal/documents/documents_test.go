@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // fpdf deflates its content streams, so asserting on what a document actually SAYS means inflating

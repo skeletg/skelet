@@ -23,7 +23,13 @@ func WriteGraphSchemas(root string) error {
 	for _, surface := range []string{"admin", "front"} {
 		var lines []string
 		for _, slug := range set.EnabledSlugs() {
-			pattern := filepath.Join(pluginsDir, slug, "graphql", surface, "*.graphqls")
+			// In-tree plugins are globbed where they sit; a module plugin's SDL was copied into
+			// StageDir by Stage, because its real home is a versioned path in the module cache
+			base := filepath.Join(pluginsDir, slug)
+			if !set.InTree(slug) {
+				base = filepath.Join(StageDir, slug)
+			}
+			pattern := filepath.Join(base, "graphql", surface, "*.graphqls")
 			matches, err := filepath.Glob(filepath.Join(root, pattern))
 			if err != nil {
 				return err

@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // A merchant HTTP endpoint (remoteprovider kind=shipping_tracking) resolving a shipment's status for ANY carrier - the escape hatch for a universal tracker like AfterShip, EasyPost or Narvar without a Go plugin

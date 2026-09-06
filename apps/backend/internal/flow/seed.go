@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/emailtemplate"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
 )
 
 // The lifecycle flows seeded for every channel - one per transactional trigger, each wired to send the matching slot email

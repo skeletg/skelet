@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
 )
 
 // fakeProvider is a minimal Provider impl that records calls and

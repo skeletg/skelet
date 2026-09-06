@@ -5,10 +5,10 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/ptr"
-	"github.com/skeletg/skelet/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
 )
 
 func (r *mutationResolver) CreateTaxRule(ctx context.Context, input model.CreateTaxRuleInput) (*model.TaxRule, error) {

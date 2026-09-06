@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/ai"
-	"github.com/skeletg/skelet/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 // SignalsChat answers a Signals question grounded in what this admin may see for the channel - config-gated (AI enabled) + permission-gated per Signals product

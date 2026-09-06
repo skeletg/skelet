@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	dbconn "github.com/skeletg/skelet/internal/db"
+	dbconn "github.com/skeletg/skelet/apps/backend/internal/db"
 	"github.com/spf13/cobra"
 )
 

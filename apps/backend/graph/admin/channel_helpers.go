@@ -1,8 +1,8 @@
 package admin
 
 import (
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
 )
 
 func toChannelModel(sv channel.Channel) *model.Channel {

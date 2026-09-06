@@ -11,7 +11,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/ext"
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 )
 
 // zeroUUID is the "none" sentinel for optional UUID columns in the CH schema

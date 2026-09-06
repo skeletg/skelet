@@ -1,6 +1,6 @@
 package promotion
 
-import "github.com/skeletg/skelet/internal/permission"
+import "github.com/skeletg/skelet/apps/backend/internal/permission"
 
 func init() {
 	permission.RegisterGroup(permission.Group{Slug: "promotions", Name: "Promotions", SortOrder: 10})

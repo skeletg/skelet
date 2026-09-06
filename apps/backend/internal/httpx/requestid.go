@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/applog"
 )
 
 const HeaderRequestID = "X-Request-Id"

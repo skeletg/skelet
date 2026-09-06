@@ -3,16 +3,17 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/consent"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
 )
 
 // Deliberately unauthenticated - a Customer object is only reachable through gated queries (myProfile on a customer JWT, customer/customers on customers.view), and lazy so list queries don't pay a consent query per row
@@ -356,6 +357,47 @@ func (r *mutationResolver) AdjustLoyaltyPoints(ctx context.Context, customerID s
 		return nil, err
 	}
 	return r.loyaltySummary(ctx, c.ID)
+}
+
+// A short-lived storefront session so an operator sees the store as that customer does - a support
+// and sales tool, not a B2B one, which is why it stays in core
+func (r *mutationResolver) MasqueradeCustomer(ctx context.Context, customerID string) (*model.MasqueradeSession, error) {
+	claims, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cid, err := parseID(customerID, "customer")
+	if err != nil {
+		return nil, err
+	}
+	cust, err := r.CustomerSvc.GetByID(ctx, cid)
+	if err != nil {
+		return nil, errNotFound("customer")
+	}
+	// Scoped on the CUSTOMER's channel, not the caller's - this mints a real storefront session, so an
+	// unscoped grant would let an operator on one store sign in as any customer on any other
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.manage", cust.ChannelID, nil); err != nil {
+		return nil, err
+	}
+	const ttl = 15 * time.Minute
+	token, err := auth.GenerateCustomerToken(cust.ID, cust.ChannelID, cust.Email, r.JWTSecret, ttl)
+	if err != nil {
+		return nil, err
+	}
+	// Loud trail: masquerade hands an operator the customer's storefront powers, and the order
+	// timeline is not enough on its own - anything they do arrives looking like the customer did it
+	log.Printf("[masquerade] admin %s (%s) minted a session for customer %s (%s)", claims.AdminID, claims.Email, cust.ID, cust.Email)
+	path := "/masquerade?token=" + token
+	fullURL := ""
+	if ch, chErr := r.ChannelSvc.GetByID(ctx, cust.ChannelID); chErr == nil && ch.PublicURL != "" {
+		fullURL = strings.TrimRight(ch.PublicURL, "/") + path
+	}
+	return &model.MasqueradeSession{
+		AccessToken:      token,
+		StorefrontPath:   path,
+		StorefrontURL:    fullURL,
+		ExpiresInSeconds: int32(ttl.Seconds()),
+	}, nil
 }
 
 // An explicit channelId can only narrow the role-granted scope, never widen it

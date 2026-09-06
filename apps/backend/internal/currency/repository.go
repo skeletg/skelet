@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 
-	pgdb "github.com/skeletg/skelet/internal/db"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	pgdb "github.com/skeletg/skelet/apps/backend/internal/db"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 type postgresRepository struct {

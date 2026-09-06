@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/ptr"
-	"github.com/skeletg/skelet/internal/scheduler"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/internal/scheduler"
 )
 
 func (r *mutationResolver) UpdateScheduledJob(ctx context.Context, input model.UpdateScheduledJobInput) (*model.ScheduledJob, error) {

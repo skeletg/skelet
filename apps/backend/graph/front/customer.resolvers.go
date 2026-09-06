@@ -5,19 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	model1 "github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/b2b"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/consent"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	model1 "github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
 )
 
 // Reachable only through myProfile (customer JWT), so no extra auth check here
@@ -363,81 +359,6 @@ func (r *mutationResolver) RedeemLoyaltyPoints(ctx context.Context, points int32
 	}, nil
 }
 
-func (r *mutationResolver) RequestQuote(ctx context.Context, cartID string, note *string) (*model1.MyB2BQuote, error) {
-	if !r.B2BSvc.Enabled() {
-		return nil, b2b.ErrDisabled
-	}
-	if err := r.checkRate(ctx, "quote_request"); err != nil {
-		return nil, err
-	}
-	customerID := auth.OptionalCustomerID(ctx)
-	if customerID == nil {
-		return nil, apperr.New("UNAUTHENTICATED", apperr.ClassAuth, "sign in to request a quote")
-	}
-	chID := channelIDFromContext(ctx)
-	if chID == nil {
-		return nil, storeRequired()
-	}
-	cid, err := uuid.Parse(cartID)
-	if err != nil {
-		return nil, invalidID("cart")
-	}
-	if err := r.assertCartOnCurrentStore(ctx, cid); err != nil {
-		return nil, err
-	}
-	cart, err := r.CartSvc.GetCart(ctx, cid, auth.OptionalCustomerID(ctx))
-	if err != nil {
-		return nil, err
-	}
-	items := make([]b2b.QuoteItem, 0, len(cart.Lines))
-	for _, l := range cart.Lines {
-		var picks []string
-		for _, o := range l.Options {
-			v := o.ValueLabel
-			if v == "" {
-				v = o.TextValue
-			}
-			if v == "" && o.FileURL != "" {
-				v = "uploaded file"
-			}
-			if v != "" {
-				picks = append(picks, o.OptionTitle+": "+v)
-			}
-		}
-		items = append(items, b2b.QuoteItem{
-			SKU:            l.ProductSku,
-			Name:           l.ProductName,
-			Quantity:       l.Quantity,
-			UnitPriceCents: l.UnitPrice,
-			OptionsSummary: strings.Join(picks, "; "),
-		})
-	}
-	q, err := r.B2BSvc.RequestQuote(ctx, *customerID, *chID, items, ptr.Deref(note))
-	if err != nil {
-		return nil, err
-	}
-	return toMyQuoteModel(q), nil
-}
-
-func (r *mutationResolver) RespondToQuote(ctx context.Context, id string, accept bool) (*model1.MyB2BQuote, error) {
-	if !r.B2BSvc.Enabled() {
-		return nil, b2b.ErrDisabled
-	}
-	customerID := auth.OptionalCustomerID(ctx)
-	if customerID == nil {
-		return nil, apperr.New("UNAUTHENTICATED", apperr.ClassAuth, "sign in to respond to a quote")
-	}
-	qid, err := uuid.Parse(id)
-	if err != nil {
-		return nil, invalidID("quote")
-	}
-	q, err := r.B2BSvc.RespondToQuote(ctx, *customerID, qid, accept)
-	if err != nil {
-		return nil, err
-	}
-	return toMyQuoteModel(q), nil
-}
-
 func (r *queryResolver) MyDataExport(ctx context.Context) (string, error) {
 	claims, err := auth.RequireCustomerForCurrentStore(ctx)
 	if err != nil {
@@ -541,113 +462,6 @@ func (r *queryResolver) MyReferral(ctx context.Context) (*model1.ReferralInfo, e
 		RewardedCount:       int32(stats.Rewarded),
 		EarnedCents:         int32(stats.EarnedCents),
 	}, nil
-}
-
-func (r *queryResolver) MyCompany(ctx context.Context) (*model1.MyCompany, error) {
-	if !r.B2BSvc.Enabled() {
-		return nil, nil
-	}
-	customerID := auth.OptionalCustomerID(ctx)
-	if customerID == nil {
-		return nil, nil
-	}
-	m, err := r.B2BSvc.MembershipFor(ctx, *customerID)
-	if err != nil {
-		return nil, nil // not a B2B customer - null, not an error
-	}
-	return &model1.MyCompany{
-		Name:             m.CompanyName,
-		Status:           m.CompanyStatus,
-		Role:             m.Role,
-		CreditLimitCents: int32(m.CreditLimitCents),
-		CreditUsedCents:  int32(m.CreditUsedCents),
-		PaymentTermsDays: m.PaymentTermsDays,
-	}, nil
-}
-
-func (r *queryResolver) MyQuotes(ctx context.Context) ([]*model1.MyB2BQuote, error) {
-	if !r.B2BSvc.Enabled() {
-		return []*model1.MyB2BQuote{}, nil
-	}
-	customerID := auth.OptionalCustomerID(ctx)
-	if customerID == nil {
-		return []*model1.MyB2BQuote{}, nil
-	}
-	quotes, err := r.B2BSvc.QuotesForCustomer(ctx, *customerID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*model1.MyB2BQuote, 0, len(quotes))
-	for _, q := range quotes {
-		out = append(out, toMyQuoteModel(q))
-	}
-	return out, nil
-}
-
-// Company ADMIN members only, mirroring MyCompanyOrders
-func (r *queryResolver) MyCompanyInvoices(ctx context.Context) ([]*model1.MyB2BInvoice, error) {
-	if !r.B2BSvc.Enabled() {
-		return []*model1.MyB2BInvoice{}, nil
-	}
-	customerID := auth.OptionalCustomerID(ctx)
-	if customerID == nil {
-		return []*model1.MyB2BInvoice{}, nil
-	}
-	m, err := r.B2BSvc.MembershipFor(ctx, *customerID)
-	if err != nil || m.Role != "admin" {
-		return []*model1.MyB2BInvoice{}, nil
-	}
-	invoices, err := r.B2BSvc.InvoicesForCompany(ctx, m.CompanyID, 50)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*model1.MyB2BInvoice, 0, len(invoices))
-	for _, inv := range invoices {
-		out = append(out, &model1.MyB2BInvoice{
-			Number:      inv.Number,
-			OrderNumber: inv.OrderNumber,
-			AmountCents: int32(inv.AmountCents),
-			Status:      inv.Status,
-			Overdue:     inv.Status == "open" && inv.DueAt != nil && inv.DueAt.Before(time.Now()),
-			DueAt:       inv.DueAt,
-			PaidAt:      inv.PaidAt,
-			CreatedAt:   inv.CreatedAt,
-		})
-	}
-	return out, nil
-}
-
-// Company ADMIN members only
-func (r *queryResolver) MyCompanyOrders(ctx context.Context) ([]*model1.CompanyOrderSummary, error) {
-	if !r.B2BSvc.Enabled() {
-		return []*model1.CompanyOrderSummary{}, nil
-	}
-	customerID := auth.OptionalCustomerID(ctx)
-	if customerID == nil {
-		return []*model1.CompanyOrderSummary{}, nil
-	}
-	m, err := r.B2BSvc.MembershipFor(ctx, *customerID)
-	if err != nil || m.Role != "admin" {
-		return []*model1.CompanyOrderSummary{}, nil
-	}
-	orders, err := r.B2BSvc.OrdersForCompany(ctx, m.CompanyID, 50)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*model1.CompanyOrderSummary, 0, len(orders))
-	for _, o := range orders {
-		out = append(out, &model1.CompanyOrderSummary{
-			ID:            o.ID.String(),
-			Number:        o.Number,
-			Status:        o.Status,
-			PaymentStatus: o.PaymentStatus,
-			TotalCents:    int32(o.TotalCents),
-			CurrencyCode:  o.CurrencyCode,
-			MemberEmail:   o.MemberEmail,
-			CreatedAt:     o.CreatedAt,
-		})
-	}
-	return out, nil
 }
 
 func (r *Resolver) Customer() CustomerResolver { return &customerResolver{r} }

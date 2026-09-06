@@ -1,6 +1,6 @@
 package locale
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 func init() {
 	apperr.RegisterSentinel(ErrLocaleNotFound, "LOCALE_NOT_FOUND", apperr.ClassNotFound)

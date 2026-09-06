@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/cache"
-	"github.com/skeletg/skelet/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/cache"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
 )
 
 type LocaleValidator interface {

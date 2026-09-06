@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 var ErrSegmentNotFound = errors.New("segment: not found")

@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/pricing"
+	"github.com/skeletg/skelet/apps/backend/internal/pricing"
 )
 
 type ProductChannelListing struct { // per-(product, channel) commerce row - a listing existing means the product is sold on that channel, and Price=nil inherits products.default_price but only when the channel currency matches products.default_currency_code (enforced at the service layer)

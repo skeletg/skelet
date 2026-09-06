@@ -14,7 +14,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 
-	"github.com/skeletg/skelet/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 )
 
 const (

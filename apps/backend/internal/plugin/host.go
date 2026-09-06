@@ -19,18 +19,18 @@ import (
 	"sync/atomic"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/datapatch"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/payment"
-	"github.com/skeletg/skelet/internal/permission"
-	"github.com/skeletg/skelet/internal/pluginmigrate"
-	"github.com/skeletg/skelet/internal/promotion"
-	"github.com/skeletg/skelet/internal/search"
-	"github.com/skeletg/skelet/internal/shipping"
-	"github.com/skeletg/skelet/internal/webhook"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/datapatch"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/internal/permission"
+	"github.com/skeletg/skelet/apps/backend/internal/pluginmigrate"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/search"
+	"github.com/skeletg/skelet/apps/backend/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/webhook"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Host implements sdk.Host and carries the runtime deps a plugin needs, scoped
@@ -53,6 +53,10 @@ type Host struct {
 
 	// wired like configSvc - backs sdk.SubscribeAsyncOnce, nil degrades it to plain SubscribeAsync
 	eventDedup atomic.Pointer[EventDedupStore]
+
+	// the shared pool behind sdk.Database, wired after main.go opens it - lazy like configSvc, since
+	// plugin init() runs long before there is a database to hand out
+	db atomic.Pointer[sql.DB]
 
 	// bus is lazy-wired; subscriptions queue until SetEventBus replays them (pendingMu covers both)
 	bus          atomic.Pointer[events.Bus]
@@ -136,6 +140,31 @@ func SetPermissionChecker(c auth.PermissionChecker) {
 	}
 }
 
+// Wires the pool behind sdk.Database, once main.go has opened it - once only, like the two above,
+// since swapping a plugin's database under it mid-run is never intentional
+func SetDatabase(db *sql.DB) {
+	h := installedHost.Load()
+	if h == nil {
+		panic("plugin.SetDatabase called before plugin.Install")
+	}
+	if db == nil {
+		panic("plugin.SetDatabase called with a nil pool")
+	}
+	if !h.db.CompareAndSwap(nil, db) {
+		panic("plugin.SetDatabase called twice")
+	}
+}
+
+// The pool behind sdk.Database - an error rather than nil, so a plugin resolving the handle too early
+// (in init(), before boot wired it) gets told so instead of panicking on first query
+func (h *Host) Database() (sdk.DB, error) {
+	db := h.db.Load()
+	if db == nil {
+		return nil, sdk.ErrDBUnavailable
+	}
+	return db, nil
+}
+
 // Fails CLOSED when unwired: a plugin gating a privileged field must not be told "allowed" because
 // boot hadn't reached the auth wiring yet
 func (h *Host) RequireAdminPermission(ctx context.Context, slug string) error {
@@ -144,6 +173,67 @@ func (h *Host) RequireAdminPermission(ctx context.Context, slug string) error {
 		return sdk.ErrPermissionUnavailable
 	}
 	return auth.RequirePermission(ctx, *c, slug)
+}
+
+// The channel-scoped check behind sdk.RequireChannelPermission - asserted, not required by the
+// signature, so an unscoped checker refuses instead of panicking
+func (h *Host) RequireAdminChannelPermission(ctx context.Context, slug string, channelID uuid.UUID) error {
+	c := h.permChecker.Load()
+	if c == nil {
+		return sdk.ErrPermissionUnavailable
+	}
+	scoped, ok := (*c).(auth.ScopedPermissionChecker)
+	if !ok {
+		return sdk.ErrPermissionUnavailable // fail CLOSED - an unscoped checker cannot answer this question
+	}
+	return auth.RequireChannelPermission(ctx, scoped, slug, channelID, nil)
+}
+
+// The listing half. The permission check comes FIRST: LoadPermittedChannels hands a caller with no
+// admin claims a bypass, which a listing would read as see-everything, so a plugin that only called
+// this would publish every channel's records to an unauthenticated caller
+func (h *Host) PermittedChannels(ctx context.Context, slug string) ([]uuid.UUID, bool, error) {
+	c := h.permChecker.Load()
+	if c == nil {
+		return nil, false, sdk.ErrPermissionUnavailable
+	}
+	if err := auth.RequirePermission(ctx, *c, slug); err != nil {
+		return nil, false, err
+	}
+	provider, ok := (*c).(auth.ChannelScopeProvider)
+	if !ok {
+		return nil, false, sdk.ErrPermissionUnavailable
+	}
+	p, err := auth.LoadPermittedChannels(ctx, provider, slug)
+	if err != nil {
+		return nil, false, err
+	}
+	if p.Bypass() {
+		return nil, true, nil
+	}
+	return p.IDs(), false, nil
+}
+
+// Who is acting, for audit attribution only - nil for an integration token or an unauthenticated
+// caller, both of which are legitimate ways to reach a plugin and neither of which is an admin
+func (h *Host) ActingAdminID(ctx context.Context) *uuid.UUID {
+	claims, ok := auth.AdminFromContext(ctx)
+	if !ok {
+		return nil
+	}
+	id := claims.AdminID
+	return &id
+}
+
+// The storefront customer behind this request, nil for a guest
+func (h *Host) RequestCustomerID(ctx context.Context) *uuid.UUID {
+	return auth.OptionalCustomerID(ctx)
+}
+
+// The channel this request resolved to - uuid.Nil off a storefront request, which is what the admin
+// graph and background work are
+func (h *Host) RequestChannelID(ctx context.Context) uuid.UUID {
+	return graphChannelID(ctx)
 }
 
 // SetEventBus wires the runtime event bus - Plugin subscriptions queued before this is called are replayed against the bus; new
@@ -249,12 +339,33 @@ func (h *Host) RegisterShippingCarrier(reg sdk.CarrierRegistration) error {
 
 func (h *Host) RegisterPermission(pluginSlug, group, slug, name string) error {
 	recordOwnership(&permissionOwners, slug, pluginSlug, "permission")
+	// permission.RegisterGroup is internal, so a plugin's group is created here on first reference;
+	// SortOrder 80 parks them below every core group so installing one never reorders the screen
+	h.ensurePermissionGroup(pluginSlug, group)
 	permission.Register(permission.Definition{
 		Group: group,
 		Slug:  slug,
 		Name:  name,
 	})
 	return nil
+}
+
+// Registers the group once, ignoring a name core already owns - a plugin adding permissions to an
+// EXISTING core group (customers, orders) is legitimate and must not panic on the duplicate
+func (h *Host) ensurePermissionGroup(pluginSlug, group string) {
+	if group == "" {
+		return
+	}
+	if _, exists := permission.FindGroup(group); exists {
+		return
+	}
+	label := group
+	h.manifestMu.Lock()
+	if m, ok := h.manifestBySlug[pluginSlug]; ok && m.Name != "" {
+		label = m.Name
+	}
+	h.manifestMu.Unlock()
+	permission.RegisterGroup(permission.Group{Slug: group, Name: label, SortOrder: 80})
 }
 
 func (h *Host) RegisterConfigField(pluginSlug, path string, field sdk.ConfigField) error {
@@ -421,7 +532,10 @@ func attachSyncHandler(bus *events.Bus, slug, eventType string, priority int, ha
 		if slug != "" && !isEnabledFromContext(ctx, slug, uuid.Nil) {
 			return nil // disabled - don't participate, don't abort
 		}
-		return handler(ctx, e)
+		// A sync veto is the plugin telling the SHOPPER why their order was refused ("your company
+		// credit line is short"), so classify it here for the same reason the graph boundary does -
+		// unclassified, the presenter scrubs it to "internal error" and the message is wasted
+		return translateUserError(handler(ctx, e))
 	})
 }
 

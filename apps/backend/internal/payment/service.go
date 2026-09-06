@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // The slim view of channel.Service Sync needs to enumerate channels - declared locally so payment -> channel stays one-way

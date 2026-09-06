@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/skeletg/skelet/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
 )
 
 type AddBundleToCartInput struct {
@@ -167,17 +167,6 @@ type CartLineOption struct {
 	FileURL         string  `json:"fileUrl"`
 }
 
-type CompanyOrderSummary struct {
-	ID            string    `json:"id"`
-	Number        string    `json:"number"`
-	Status        string    `json:"status"`
-	PaymentStatus string    `json:"paymentStatus"`
-	TotalCents    int32     `json:"totalCents"`
-	CurrencyCode  string    `json:"currencyCode"`
-	MemberEmail   string    `json:"memberEmail"`
-	CreatedAt     time.Time `json:"createdAt"`
-}
-
 type CountrySettings struct {
 	DefaultCountryCode         string   `json:"defaultCountryCode"`
 	AllowOptionalState         bool     `json:"allowOptionalState"`
@@ -214,45 +203,6 @@ type LoyaltyStatus struct {
 	BalancePoints       int32 `json:"balancePoints"`
 	EarnPointsPerUnit   int32 `json:"earnPointsPerUnit"`
 	RedeemCentsPerPoint int32 `json:"redeemCentsPerPoint"`
-}
-
-type MyB2BInvoice struct {
-	Number      string     `json:"number"`
-	OrderNumber string     `json:"orderNumber"`
-	AmountCents int32      `json:"amountCents"`
-	Status      string     `json:"status"`
-	Overdue     bool       `json:"overdue"`
-	DueAt       *time.Time `json:"dueAt,omitempty"`
-	PaidAt      *time.Time `json:"paidAt,omitempty"`
-	CreatedAt   time.Time  `json:"createdAt"`
-}
-
-type MyB2BQuote struct {
-	ID         string            `json:"id"`
-	Status     string            `json:"status"`
-	Items      []*MyB2BQuoteItem `json:"items"`
-	Note       string            `json:"note"`
-	SellerNote string            `json:"sellerNote"`
-	TotalCents int32             `json:"totalCents"`
-	ValidUntil *time.Time        `json:"validUntil,omitempty"`
-	CreatedAt  time.Time         `json:"createdAt"`
-}
-
-type MyB2BQuoteItem struct {
-	Sku            string  `json:"sku"`
-	Name           string  `json:"name"`
-	Quantity       float64 `json:"quantity"`
-	UnitPriceCents int32   `json:"unitPriceCents"`
-	OptionsSummary string  `json:"optionsSummary"`
-}
-
-type MyCompany struct {
-	Name             string `json:"name"`
-	Status           string `json:"status"`
-	Role             string `json:"role"`
-	CreditLimitCents int32  `json:"creditLimitCents"`
-	CreditUsedCents  int32  `json:"creditUsedCents"`
-	PaymentTermsDays int32  `json:"paymentTermsDays"`
 }
 
 type PaymentMethodOption struct {
@@ -479,7 +429,6 @@ type SitemapEntry struct {
 }
 
 type StoreFeatures struct {
-	B2b     bool `json:"b2b"`
 	Signals bool `json:"signals"`
 }
 

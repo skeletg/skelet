@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 )
 
 func (r *mutationResolver) shippingCarrierModel(ctx context.Context, channelID uuid.UUID, slug string) (*model.ShippingCarrierAdmin, error) { // re-reads after a mutation so the row reflects what was stored

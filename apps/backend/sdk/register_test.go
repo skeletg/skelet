@@ -38,6 +38,7 @@ type fakeHost struct {
 	shutdowns         []attributedRec
 	routes            []attributedRec
 	graphResolvers    []attributedRec
+	priceResolvers    []attributedRec
 	adminTranslations []attributedRec
 }
 
@@ -189,6 +190,37 @@ func (h *fakeHost) RegisterGraphResolver(pluginSlug string, surface GraphSurface
 	h.graphResolvers = append(h.graphResolvers, attributedRec{PluginSlug: pluginSlug, Name: string(surface)})
 	return nil
 }
+
+func (h *fakeHost) RegisterPriceResolver(pluginSlug string, _ PriceResolver) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.priceResolvers = append(h.priceResolvers, attributedRec{PluginSlug: pluginSlug})
+	return nil
+}
+
+// Unwired in these tests, which never reach the database or the order service - a plugin resolving
+// either before boot wired it sees exactly this
+func (h *fakeHost) Database() (DB, error) { return nil, ErrDBUnavailable }
+
+func (h *fakeHost) CreateDraftOrder(context.Context, DraftOrderRequest) (DraftOrderResult, error) {
+	return DraftOrderResult{}, ErrDraftOrdersUnavailable
+}
+
+func (h *fakeHost) ReadCart(context.Context, uuid.UUID) (Cart, error) {
+	return Cart{}, ErrCartsUnavailable
+}
+
+func (h *fakeHost) RequireAdminChannelPermission(context.Context, string, uuid.UUID) error {
+	return ErrPermissionUnavailable
+}
+
+func (h *fakeHost) PermittedChannels(context.Context, string) ([]uuid.UUID, bool, error) {
+	return nil, false, ErrPermissionUnavailable
+}
+
+func (h *fakeHost) ActingAdminID(context.Context) *uuid.UUID     { return nil }
+func (h *fakeHost) RequestCustomerID(context.Context) *uuid.UUID { return nil }
+func (h *fakeHost) RequestChannelID(context.Context) uuid.UUID   { return uuid.Nil }
 
 func (h *fakeHost) RequireAdminPermission(_ context.Context, _ string) error { return nil }
 

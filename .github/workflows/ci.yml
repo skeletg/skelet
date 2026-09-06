@@ -1,7 +1,7 @@
 # Backend + frontend test gate. The point of the service containers: the env-gated
 # integration suites - ClickHouse engine parity, the GDPR/forwarding/lens-grid
-# store tests, and the incremental-engagement equivalence - run on every push
-# here, not only when someone remembers to export the DSNs locally. The queue
+# store tests, and the incremental-engagement equivalence - run here, not only
+# when someone remembers to export the DSNs locally. The queue
 # round-trip needs no service (it embeds nats-server). Mirrors dev: postgres
 # 18, clickhouse 26.7.5, migrate v4.19.1 - keep the pins in sync with
 # docker-compose.yml and apps/backend/Dockerfile.prod.
@@ -9,8 +9,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
+    branches: [main]
 
 permissions:
   contents: read

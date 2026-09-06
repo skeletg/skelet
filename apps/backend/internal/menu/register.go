@@ -1,6 +1,6 @@
 package menu
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 // Registers menu sentinels with the apperr registry, so the presenter forwards their messages verbatim instead of scrubbing them to "internal error"
 func init() {

@@ -8,11 +8,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/giftcard"
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
 )
 
 func toOrderAddressInput(in *model.AddressInput) order.OrderAddress { // nil yields a zero address, which the service's resolveAddress then rejects

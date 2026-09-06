@@ -8,7 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	db "github.com/skeletg/skelet/internal/db"
+	db "github.com/skeletg/skelet/apps/backend/internal/db"
 )
 
 // DEV ONLY, wired behind APP_ENV=development - plants a per-request DB query counter on the context and answers with X-DB-Queries and X-Trace-Id, which the dashboard's dev inspector reads for a one-click jump to the Jaeger trace

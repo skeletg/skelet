@@ -19,7 +19,14 @@ import (
 // public package is recorded in api.json, and apidiff re-checks it against the last release tag using Go's
 // real compatibility rules - so a plugin's range is a real compatibility statement rather than a check
 // against a number that never moves
-const Version = "0.1.0" // 0.x while the surface is unfrozen - breaking changes ride the MINOR, additions the patch; 0.1.0 is the pre-release baseline
+const Version = "0.2.1" // 0.x while the surface is unfrozen - breaking changes ride the MINOR, additions the patch; 0.1.0 is the pre-release baseline
+// 0.2.0 was the import-path move: the module became github.com/skeletg/skelet/apps/backend so it is
+// fetchable at all, since its go.mod sits in a subdirectory and Go requires the path to say so.
+// Nothing in the surface changed there, but every plugin rewrote its imports, which is breaking by
+// any definition that matters to someone installing one
+// 0.2.1 adds the seams a plugin owning a domain needs - Database, Tendering, RegisterPriceResolver,
+// ReadCart, CreateDraftOrder, the channel-scoped authz pair and the request-scope readers. Additive,
+// so a ^0.2.0 plugin still compiles
 
 // A compile-time Go literal rather than a file the host reads at boot - no YAML parsing, no filesystem access, no "where does the manifest live" debate
 // Generate any YAML mirror FROM this struct, never the reverse

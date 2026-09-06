@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/skeletg/skelet/internal/notification"
+	"github.com/skeletg/skelet/apps/backend/internal/notification"
 )
 
 // Scenario: an admin mutes a notification category, over the real API
@@ -17,11 +17,11 @@ import (
 // to show. The admin here is a superuser, so it also pins that a preference outranks scope bypass
 func TestNotificationMuteAppliesToListCountAndMarkAll(t *testing.T) {
 	h := newHarness(t)
-	ts := httptest.NewServer(h.d.Root.Handler)
+	ts := httptest.NewServer(h.D.Root.Handler)
 	defer ts.Close()
 
 	email := fmt.Sprintf("notif-mute-%d@example.com", time.Now().UnixNano())
-	if err := h.d.Admin.CreateSuperuser(h.ctx, email, "notif-mute-password-1", "Mute", "Tester"); err != nil {
+	if err := h.D.Admin.CreateSuperuser(h.Ctx, email, "notif-mute-password-1", "Mute", "Tester"); err != nil {
 		t.Fatalf("create superuser: %v", err)
 	}
 	login, errs := h.adminGqlAuthed(t, ts, "", `mutation($e: String!, $p: String!) {
@@ -38,7 +38,7 @@ func TestNotificationMuteAppliesToListCountAndMarkAll(t *testing.T) {
 	stamp := time.Now().UnixNano()
 	post := func(category, perm, title string) {
 		t.Helper()
-		if err := h.d.Notification.Create(h.ctx, notification.Input{
+		if err := h.D.Notification.Create(h.Ctx, notification.Input{
 			Category:           category,
 			Severity:           notification.SeverityWarning,
 			Title:              title,

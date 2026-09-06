@@ -11,7 +11,7 @@ import (
 	"github.com/go-pdf/fpdf"
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // StoreInfo is the letterhead block (channel name + contact lines)

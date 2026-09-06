@@ -8,45 +8,44 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	authpkg "github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/b2b"
-	"github.com/skeletg/skelet/internal/backinstock"
-	"github.com/skeletg/skelet/internal/blog"
-	"github.com/skeletg/skelet/internal/cache"
-	"github.com/skeletg/skelet/internal/campaign"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/cms"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/consent"
-	"github.com/skeletg/skelet/internal/customer"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/destination"
-	"github.com/skeletg/skelet/internal/email"
-	"github.com/skeletg/skelet/internal/emailtemplate"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/experiment"
-	"github.com/skeletg/skelet/internal/flow"
-	"github.com/skeletg/skelet/internal/geo"
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/lens"
-	"github.com/skeletg/skelet/internal/linkgraph"
-	"github.com/skeletg/skelet/internal/locale"
-	"github.com/skeletg/skelet/internal/media"
-	"github.com/skeletg/skelet/internal/medialibrary"
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/outbox"
-	"github.com/skeletg/skelet/internal/payment"
-	"github.com/skeletg/skelet/internal/revalidate"
-	"github.com/skeletg/skelet/internal/segment"
-	"github.com/skeletg/skelet/internal/signalsboot"
-	"github.com/skeletg/skelet/internal/sitecrawl"
-	"github.com/skeletg/skelet/internal/sms"
-	"github.com/skeletg/skelet/internal/suppression"
-	"github.com/skeletg/skelet/internal/tx"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	authpkg "github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/backinstock"
+	"github.com/skeletg/skelet/apps/backend/internal/blog"
+	"github.com/skeletg/skelet/apps/backend/internal/cache"
+	"github.com/skeletg/skelet/apps/backend/internal/campaign"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/cms"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/destination"
+	"github.com/skeletg/skelet/apps/backend/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/experiment"
+	"github.com/skeletg/skelet/apps/backend/internal/flow"
+	"github.com/skeletg/skelet/apps/backend/internal/geo"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/lens"
+	"github.com/skeletg/skelet/apps/backend/internal/linkgraph"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/outbox"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/internal/revalidate"
+	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
+	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
+	"github.com/skeletg/skelet/apps/backend/internal/sms"
+	"github.com/skeletg/skelet/apps/backend/internal/suppression"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 type RootContext struct{ context.Context } // supplied by the entrypoint rather than provided, since that's where signal handling lives
@@ -86,7 +85,6 @@ var Domain = fx.Module("domain",
 		newOrderService,
 		newCartRepricer,
 		newOutboxEnqueuer,
-		newOnAccountGate,
 		newPaymentAuthorizer,
 		newCatalogService,
 		newCartService,
@@ -192,18 +190,17 @@ func newCartRepository(q *db.Queries) cart.Repository { return cart.NewRepositor
 func newOrderService(
 	q *db.Queries, repo cart.Repository, cust *customer.Service, txMgr *tx.Manager, bus *events.Bus,
 	repricer order.CartRepricer, ob order.OutboxEnqueuer,
-	auth order.PaymentAuthorizer, gate order.OnAccountGate,
+	auth order.PaymentAuthorizer,
 ) (*order.Service, error) {
 	return order.NewService(order.Deps{
 		Repo: order.NewRepository(q), CartRepo: repo, Customer: cust, Tx: txMgr, Bus: bus,
-		Repricer: repricer, Outbox: ob, PaymentAuthorizer: auth, OnAccountGate: gate,
+		Repricer: repricer, Outbox: ob, PaymentAuthorizer: auth,
 	})
 }
 
 // The seams order declares as interfaces because those packages import it - the direction can only run one way
 func newCartRepricer(c *cart.Service) order.CartRepricer      { return c }
 func newOutboxEnqueuer(o *outbox.Outbox) order.OutboxEnqueuer { return o }
-func newOnAccountGate(b *b2b.Service) order.OnAccountGate     { return b }
 func newPaymentAuthorizer(p *payment.Service) order.PaymentAuthorizer {
 	return NewPaymentAuthorizerAdapter(p)
 }

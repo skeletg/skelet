@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // Order tax computed by a merchant HTTP endpoint (remoteprovider kind=tax_provider) instead of the core zone engine - the escape hatch for AvaTax or TaxJar without a Go plugin

@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	signalsdb "github.com/skeletg/skelet/internal/db/signals/sqlc"
-	"github.com/skeletg/skelet/internal/testdb"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
 // Gated on SIGNALS_DB_URL (disposable marker) - proves the pg archive sweep exports whole aged days and deletes exactly what it exported

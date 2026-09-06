@@ -3,9 +3,9 @@ package admin
 import (
 	"context"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/ptr"
 )
 
 func (r *mutationResolver) CreateCMSSnippet(ctx context.Context, input model.CreateCMSSnippetInput) (*model.CMSSnippet, error) {

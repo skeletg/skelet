@@ -12,16 +12,16 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/promotion"
-	shippingpkg "github.com/skeletg/skelet/internal/shipping"
-	"github.com/skeletg/skelet/internal/tax"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	shippingpkg "github.com/skeletg/skelet/apps/backend/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // Returned when an order op runs without a current store - the storefront resolver populates it, surfaced as STORE_REQUIRED
@@ -64,8 +64,6 @@ type Service struct {
 	outbox      OutboxEnqueuer
 	giftcard    GiftCardTender
 	storeCredit StoreCreditTender
-	// Turns the purchase-order method into B2B on-account, reserving company credit in-tx and rejecting over-limit - nil leaves it a plain offline tender
-	onAccountGate OnAccountGate
 	// Authorizes the amount owed after placement - nil leaves the order unpaid
 	paymentAuthorizer PaymentAuthorizer
 	// Resolves the channel auto-hold score - nil or 0 disables it
@@ -159,12 +157,12 @@ type GiftStockChecker interface {
 	CanFulfillSKU(ctx context.Context, channelID uuid.UUID, sku string, qty float64) bool
 }
 
-// Deps is what the service cannot work without - the four below the datastore line are interfaces rather than
-// concrete services because b2b and subscription import this package, so the dependency can only run one way
+// Deps is what the service cannot work without - the three below the datastore line are interfaces rather than
+// concrete services because subscription imports this package, so the dependency can only run one way
 //
 // They were Set* seams, which made them nil-legal: a nil Repricer charges the add-time snapshot price, a nil
-// Outbox drops placement events on a crash, a nil PaymentAuthorizer leaves orders unpaid and a nil OnAccountGate
-// never reserves company credit - all silent, all wrong in any real shop, so construction refuses them instead
+// Outbox drops placement events on a crash and a nil PaymentAuthorizer leaves orders unpaid - all silent, all
+// wrong in any real shop, so construction refuses them instead
 type Deps struct {
 	Repo     Repository
 	CartRepo cart.Repository
@@ -175,7 +173,6 @@ type Deps struct {
 	Repricer          CartRepricer
 	Outbox            OutboxEnqueuer
 	PaymentAuthorizer PaymentAuthorizer
-	OnAccountGate     OnAccountGate
 }
 
 // A seam satisfied by a value type - PaymentAuthorizerAdapter is one - has no nil to test, and asking reflect
@@ -196,7 +193,7 @@ func NewService(d Deps) (*Service, error) {
 	var missing []string
 	for name, dep := range map[string]any{
 		"Repo": d.Repo, "CartRepo": d.CartRepo, "Customer": d.Customer, "Tx": d.Tx, "Bus": d.Bus,
-		"Repricer": d.Repricer, "Outbox": d.Outbox, "PaymentAuthorizer": d.PaymentAuthorizer, "OnAccountGate": d.OnAccountGate,
+		"Repricer": d.Repricer, "Outbox": d.Outbox, "PaymentAuthorizer": d.PaymentAuthorizer,
 	} {
 		if isNil(dep) {
 			missing = append(missing, name)
@@ -208,7 +205,7 @@ func NewService(d Deps) (*Service, error) {
 	}
 	return &Service{
 		repo: d.Repo, cartRepo: d.CartRepo, customerSvc: d.Customer, tx: d.Tx, bus: d.Bus,
-		repricer: d.Repricer, outbox: d.Outbox, paymentAuthorizer: d.PaymentAuthorizer, onAccountGate: d.OnAccountGate,
+		repricer: d.Repricer, outbox: d.Outbox, paymentAuthorizer: d.PaymentAuthorizer,
 	}, nil
 }
 
@@ -310,11 +307,6 @@ type GiftCardTender interface {
 // Spends the customer's balance as a tender in the placement tx - local so order doesn't import storecredit
 type StoreCreditTender interface {
 	RedeemTx(ctx context.Context, tx *sql.Tx, customerID uuid.UUID, amountDue int64, currency string, orderID uuid.UUID) (applied int64, err error)
-}
-
-// Reserves company credit for an on-account order in the placement tx (internal/b2b)
-type OnAccountGate interface {
-	ReserveCreditTx(ctx context.Context, tx *sql.Tx, customerID, orderID uuid.UUID, orderNumber string, amountCents int64) error
 }
 
 // A request to authorize the amount owed - Token is the client-side gateway token, empty for intent-based providers
@@ -548,16 +540,22 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		if err != nil {
 			return err
 		}
-		// B2B on-account - the purchase-order method must fit the company credit line, and the reservation joins this tx
-		if s.onAccountGate != nil && paymentProvider == "purchase-order" {
-			remaining := total - giftCardApplied - storeCreditApplied
-			if remaining > 0 {
-				if in.CustomerID == nil {
-					return apperr.New("B2B_SIGN_IN", apperr.ClassValidation, "sign in with a company account to pay on account")
-				}
-				if err := s.onAccountGate.ReserveCreditTx(ctx, sqlTx, *in.CustomerID, order.ID, order.Number, remaining); err != nil {
-					return err
-				}
+		// The tender seam - a plugin reserves in this tx against the balance core's own tenders left
+		if remaining := total - giftCardApplied - storeCreditApplied; remaining > 0 && s.bus != nil {
+			tendering := &OrderTendering{
+				Tx:             sqlTx,
+				OrderID:        order.ID,
+				OrderNumber:    order.Number,
+				ChannelID:      store.ID,
+				CustomerID:     in.CustomerID,
+				Email:          in.Email,
+				Provider:       paymentProvider,
+				CurrencyCode:   store.CurrencyCode,
+				TotalCents:     total,
+				RemainingCents: remaining,
+			}
+			if err := s.bus.PublishSync(ctx, tendering); err != nil {
+				return err
 			}
 		}
 		if total-giftCardApplied-storeCreditApplied > 0 && paymentProvider == "" {

@@ -9,7 +9,7 @@ import (
 
 	"go.uber.org/goleak"
 
-	"github.com/skeletg/skelet/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
 )
 
 // drainBackground must not return until every tracked loop has finished, because the caller closes the pools the moment it does - and in production the failure is quiet, logging "did not stop in time" and carrying on

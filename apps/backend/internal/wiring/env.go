@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
 )
 
 func EnvInt(key string, def int) int { // only accepts positives - every caller sizes a pool or a limit where a stray 0 means "unset", so it falls back to def

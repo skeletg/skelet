@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/ai"
-	"github.com/skeletg/skelet/internal/sales"
+	"github.com/skeletg/skelet/apps/backend/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/sales"
 )
 
 // salesSignalTools returns the sales / reports tools (reports.view).

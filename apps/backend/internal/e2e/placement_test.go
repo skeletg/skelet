@@ -11,11 +11,11 @@ import (
 // the durable order.placed row must exist before any relay runs, then deliver cleanly on drain
 func TestGuestCODPlacement(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 100, 1990)
-	o := h.placeGuestCOD(t, f, 1)
+	f := h.NewStore(t, 100, 1990)
+	o := h.PlaceGuestCOD(t, f, 1)
 
 	// Committed state, before any async reaction has run
-	row, err := h.d.Queries.GetOrderByID(h.ctx, o.ID)
+	row, err := h.D.Queries.GetOrderByID(h.Ctx, o.ID)
 	if err != nil {
 		t.Fatalf("read order back: %v", err)
 	}
@@ -23,7 +23,7 @@ func TestGuestCODPlacement(t *testing.T) {
 		t.Errorf("payment_status = %q, want unpaid - COD authorizes nothing at placement", row.PaymentStatus)
 	}
 
-	sums, err := h.d.Queries.SumOrderPaymentByKind(h.ctx, o.ID)
+	sums, err := h.D.Queries.SumOrderPaymentByKind(h.Ctx, o.ID)
 	if err != nil {
 		t.Fatalf("ledger sums: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestGuestCODPlacement(t *testing.T) {
 		t.Errorf("ledger has %d kinds for an unpaid COD order, want none: %+v", len(sums), sums)
 	}
 
-	res, err := h.d.Queries.ListReservationsForOrder(h.ctx, uuid.NullUUID{UUID: o.ID, Valid: true})
+	res, err := h.D.Queries.ListReservationsForOrder(h.Ctx, uuid.NullUUID{UUID: o.ID, Valid: true})
 	if err != nil {
 		t.Fatalf("reservations: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestGuestCODPlacement(t *testing.T) {
 		t.Errorf("reservation delta = %v, want -1 (a hold)", res[0].QuantityDelta)
 	}
 
-	levels, err := h.d.Queries.ListInventoryLevelsByItem(h.ctx, f.Item.ID)
+	levels, err := h.D.Queries.ListInventoryLevelsByItem(h.Ctx, f.Item.ID)
 	if err != nil {
 		t.Fatalf("levels: %v", err)
 	}
@@ -54,17 +54,17 @@ func TestGuestCODPlacement(t *testing.T) {
 			levels[0].Quantity, levels[0].ReservedQuantity)
 	}
 
-	if total, _ := h.outboxRows(t, "order.placed", o.ID.String()); total != 1 {
+	if total, _ := h.OutboxRows(t, "order.placed", o.ID.String()); total != 1 {
 		t.Errorf("order.placed outbox rows = %d, want exactly 1", total)
 	}
 
-	h.settle(t)
+	h.Settle(t)
 
 	// Every durable row for this order delivered, and settling changed no money state
-	if _, undelivered := h.outboxRows(t, "order.placed", o.ID.String()); undelivered != 0 {
+	if _, undelivered := h.OutboxRows(t, "order.placed", o.ID.String()); undelivered != 0 {
 		t.Errorf("%d order.placed rows still undelivered after settle", undelivered)
 	}
-	after, err := h.d.Queries.GetOrderByID(h.ctx, o.ID)
+	after, err := h.D.Queries.GetOrderByID(h.Ctx, o.ID)
 	if err != nil {
 		t.Fatalf("re-read order: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestGuestCODPlacement(t *testing.T) {
 		t.Errorf("settle changed order state: status %q->%q payment %q->%q",
 			row.Status, after.Status, row.PaymentStatus, after.PaymentStatus)
 	}
-	levelsAfter, err := h.d.Queries.ListInventoryLevelsByItem(h.ctx, f.Item.ID)
+	levelsAfter, err := h.D.Queries.ListInventoryLevelsByItem(h.Ctx, f.Item.ID)
 	if err != nil {
 		t.Fatalf("levels after settle: %v", err)
 	}

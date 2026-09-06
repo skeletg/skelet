@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
 )
 
 // Every exported catalog sentinel must be paired with a code and class via apperr.RegisterSentinel

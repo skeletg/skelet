@@ -44,37 +44,59 @@ what makes the install need no flags. A deployment that takes card payment
 installs the ones it needs:
 
 ```
-bin/cli plugin install https://github.com/skeletg/payment-stripe@<ref>
+bin/cli plugin add github.com/skeletg/payment-stripe@<version>
 ```
 
 A fresh build therefore ships with NO gateway compiled in - offline payment
-methods (COD, bank transfer, purchase order) work out of the box, card payment
+methods (COD, bank transfer, pay on pickup, purchase order) work out of the box, card payment
 is an install away. Gateways are deliberately Tier 1 rather than remote
 providers - PCI scope argues for in-process code over an HTTP hop.
 
 ### Installing a plugin from outside the tree
 
-A plugin doesn't have to live in this repository. `bin/cli plugin install` vendors
-one in from its own repo (or a local directory) and wires it up:
+A plugin doesn't have to live in this repository. Two ways in, and the first is the one
+to reach for.
+
+**`plugin add` - a Go module dependency.** Nothing is copied into this repo:
+
+```
+bin/cli plugin add github.com/acme/skelet-plugin-fraud@v1.2.0
+bin/cli plugin add github.com/acme/skelet-plugin-fraud        # latest
+```
+
+`go get` fetches it, `plugins/plugins.json` records the module path, and
+`plugins/firstparty` is regenerated to import it. You get a version, a checksum in
+`go.sum`, one copy instead of two, and `go get -u` as the upgrade path.
+
+A module plugin's GraphQL SDL lives read-only in the module cache at a path that carries
+its version and differs per machine, so `bin/codegen` copies it into `plugins/.modules/`
+first (git-ignored, rebuilt every run) and points gqlgen there. That directory is derived
+output - delete it whenever.
+
+A plugin with no published module is written in `plugins/<slug>/` instead - `plugin new`
+scaffolds one. Those are the only two layouts, so a plugin's source is either in the
+module cache or in-tree, never behind a `replace` pointing at a checkout elsewhere.
+
+**`plugin install` - vendored source.** The fallback, for a plugin that is not a module:
+no `go.mod`, or no repo you can fetch from.
 
 ```
 bin/cli plugin install https://github.com/acme/skelet-plugin-fraud@v1.2.0
-bin/cli plugin install git@github.com:acme/plugins.git --dir fraud
 bin/cli plugin install ../my-plugin --slug my-plugin
 ```
 
 The source is copied to `plugins/<slug>/` with its `.git`, `go.mod`, `go.sum` and
-`vendor/` stripped - from then on it compiles as part of this module, its own
-dependencies pulled in by `go mod tidy` and any self-imports rewritten onto the
-vendored path. The command enables it, regenerates `plugins/firstparty`, and
-smoke-builds; a build failure parks the plugin (`plugins/_<slug>`) so the tree
-keeps compiling while you fix it.
+`vendor/` stripped - from then on it compiles as part of this module, its own dependencies
+pulled in by `go mod tidy` and any self-imports rewritten onto the vendored path. A build
+failure parks the plugin (`plugins/_<slug>`) so the tree keeps compiling while you fix it.
 
-Develop an out-of-tree plugin inside a checkout of this repo (so the SDK import
-resolves), publish it to its own repo, and install by URL on the deployments that
-want it. Installing compiles the code into core with full privileges - read it
-before you install it, the manifest's capabilities are a disclosure, not a
-sandbox.
+Either way, installing compiles the code into core with full privileges - read it before
+you install it. The manifest's capabilities are a disclosure, not a sandbox.
+
+One thing to know about graph-extending plugins: their resolvers reference types in core's
+*generated* `graph/*/model` package, which core produces from that plugin's own SDL. So the
+order is always fetch, then codegen, then compile - and such a plugin never builds
+standalone in its own repo. A plugin with no GraphQL does.
 
 ## Remote providers - HTTP, out of process
 
@@ -107,11 +129,108 @@ an endpoint against it.
   and `WebhookRequest.ChannelID` carries it; config reads and the kill switch then
   resolve per channel. Without the parameter, default scope, as before.
 
+## What the SDK gives a plugin that owns a domain
+
+A gateway is the small case. A plugin that owns tables, a graph surface and a place in the
+money path needs more, and the `b2b` plugin is the reference for all of it - company accounts,
+credit lines, quotes and on-account payment, all out of tree.
+
+- **`sdk.Database()`** - the application pool, for a plugin whose own migrations created
+  tables to read on the request path. The same pool core uses, not a sandbox: scope your SQL
+  to tables you created, prefix them with your slug, and reach for an event or a registration
+  seam wherever core has one. Resolve the handle on first use, never in `init()`.
+- **`order.tendering`** - a sync event inside the placement transaction, carrying the balance
+  still owed after core's gift-card and store-credit tenders. Type-assert to `sdk.Tendering`,
+  match on `TenderProvider()`, and write through `PlacementTx()` so a reservation commits or
+  rolls back with the order. Returning an error refuses the placement; return a `UserError` and
+  the shopper reads why.
+- **`RegisterPriceResolver`** - what a specific customer pays for a product, resolved ahead of
+  list and tier pricing. Fail-soft by contract: an error reads as "no plugin price" rather than
+  breaking add-to-cart.
+- **`sdk.RequireChannelPermission` / `sdk.PermittedChannels`** - the channel-scoped half of the
+  admin permission model. Where your object has a channel, gate on these rather than the bare
+  `RequirePermission`, or an admin scoped to one store can act on another's records. Core's
+  authz coverage tests FOLLOW the generated delegation into your source and fail the build if a
+  plugin field has no guard, so this is enforced, not advisory.
+- **`sdk.ReadCart` / `sdk.CreateDraftOrder`** - reading a shopper's cart (scope-checked host-side)
+  and turning agreed lines into a draft order for review. The pair a quote-shaped feature needs.
+- **`sdk.CustomerID` / `sdk.AdminID` / `sdk.RequestChannelID`** - who is asking, for scoping a
+  storefront answer and for audit attribution. `AdminID` is attribution only, never a check.
+
+## The frontend halves
+
+A plugin's Go arrives through `go get`. Its UI does not, and shipping TypeScript through a
+Go module buys nothing - so dashboard and storefront code lives in its own repository,
+destined for npm once there are SDK packages for the two apps to depend on.
+
+Until then it is copied into place by hand. What core provides either way is the registry
+each half hooks into, so a plugin's UI never edits a core page.
+
+**Dashboard.** `apps/dashboard/src/plugins/<slug>/` with a `plugin.tsx` in it. The app's
+`src/plugins/loader.ts` glob imports every one eagerly, and the import-time
+`extendGroup` / `registerNavNode` / `registerDetailRoute` calls are the whole wiring.
+
+**Storefront.** `app/plugins/<slug>/` plus one line in `app/plugins/loaded.ts`. Routes need
+no registration - Next's filesystem router is already the glob, so a page copied to its real
+path simply exists. What `app/plugins/registry.ts` covers is the places a plugin appears
+INSIDE a core page: `registerAccountNavItem` for the account sidebar, and `registerSlot` for
+a zone like `cart:summary` or `cart:actions`.
+
+Everything in the storefront registry is client-safe on purpose. The host components are all
+`"use client"`, so a server-rendered slot could not mount in them; a plugin needing server
+data calls its own `"use server"` action from the slot, which is how `b2b` shows a credit
+hint without core ever fetching a company on its behalf.
+
+`loaded.ts` is a hand-maintained import list rather than a glob, for the same reason
+`plugins/firstparty` is generated from `plugins.json`: the enabled set decides what loads,
+not whatever is sitting in a directory.
+
+Note that a storefront is a template you fork, not an app every install shares. Treat a
+plugin's storefront half as reference markup to restyle rather than a drop-in.
+
+## Testing a plugin
+
+Two levels, and they answer different questions.
+
+**`sdk/sdktest`** is the in-memory fake host. A plugin registers through the real SDK and
+the test drives events, config, the kill switch and permissions against the fake, with no
+database and no boot. Right for registration wiring and handler logic.
+
+**`internal/e2ekit`** is the real thing: one assembled fx graph, the real services, the real
+outbox. A plugin that owns part of the money path writes ordinary `*_test.go` files in its
+own directory and drives it the way core's own scenarios do:
+
+```go
+package myplugin_test
+
+import "github.com/skeletg/skelet/apps/backend/internal/e2ekit"
+
+// Embedded, so the plugin's own helpers can hang off it
+type harness struct{ *e2ekit.Harness }
+
+func newHarness(t *testing.T) *harness { return &harness{e2ekit.New(t)} }
+
+func TestCreditIsReservedInThePlacementTx(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 20, 2000)
+	o, err := h.TryPlace(t, f.Channel, h.NewGuestCart(t, f, 1))
+	// ... h.Settle(t), h.Cancel(t, o.ID), h.RearmOutbox(t, ...), h.D.<any service>
+}
+```
+
+`bin/test-e2e` runs `./plugins/...` alongside `./internal/e2e/...`, so these go green with
+core's suite and need no copying into it. The depguard rule that bars `plugins/**` from
+importing `internal/` carries `"!$test"`, which is what makes the import above legal.
+
+The `b2b` plugin is the worked example: credit reserved inside the placement transaction,
+released on cancel, prorated to the unshipped share, idempotent under outbox redelivery.
+
 ## Known limitations
 
 - **sdktest fidelity.** The fake host covers every registration verb but does not model
   `Instrument` (timeouts, rate limits, kill-switch translation) or `fail_closed`, so
-  those behaviors are testable only against the real host.
+  those behaviors are testable only against the real host - reach for `internal/e2ekit`
+  when that is what you need to prove.
 
 ## Which one
 

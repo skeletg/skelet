@@ -3,7 +3,7 @@ package order
 import (
 	"testing"
 
-	shipping "github.com/skeletg/skelet/internal/shipping"
+	shipping "github.com/skeletg/skelet/apps/backend/internal/shipping"
 )
 
 func TestValidTransition(t *testing.T) {

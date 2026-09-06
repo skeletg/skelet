@@ -1,6 +1,6 @@
 package cms
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 // Pairs each exported sentinel with a stable code + class so resolvers can return them bare and the presenter classifies instead of masking them as INTERNAL - new sentinels get added here (the registry panics at boot on a duplicate code with a different class)
 func init() {

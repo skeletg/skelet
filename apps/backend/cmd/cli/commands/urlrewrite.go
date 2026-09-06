@@ -7,16 +7,16 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/skeletg/skelet/internal/blog"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/cms"
-	"github.com/skeletg/skelet/internal/config"
-	dbconn "github.com/skeletg/skelet/internal/db"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/locale"
-	"github.com/skeletg/skelet/internal/tx"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/internal/blog"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/cms"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	dbconn "github.com/skeletg/skelet/apps/backend/internal/db"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 var URLRewriteCmd = &cobra.Command{

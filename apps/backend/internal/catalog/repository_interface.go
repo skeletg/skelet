@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // Repository is the persistence contract for the catalog domain, satisfied by *postgresRepository - It exists as a seam so the service layer can be tested against an in-memory fake (see service_test.go); production wiring still passes the concrete Postgres implementation - WithTx returns Repository so transactional call sites compose against the interface

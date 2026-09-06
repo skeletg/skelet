@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/ai"
-	"github.com/skeletg/skelet/internal/cms"
+	"github.com/skeletg/skelet/apps/backend/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/cms"
 )
 
 // storeConfigSignalTools returns the store config / content tools.

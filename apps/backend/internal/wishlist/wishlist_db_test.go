@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	dbsqlc "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/testdb"
+	dbsqlc "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
 // A wishlist is per-customer state reached two ways: the signed-in account, and a public share token

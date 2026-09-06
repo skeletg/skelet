@@ -5,9 +5,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/menu"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/menu"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 func menuItem(id uuid.UUID, parent *uuid.UUID, label string, sortOrder int32) menu.MenuItem {

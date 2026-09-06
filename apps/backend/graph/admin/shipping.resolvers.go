@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/ptr"
-	"github.com/skeletg/skelet/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 )
 
 func (r *mutationResolver) CreateShippingZone(ctx context.Context, input model.CreateShippingZoneInput) (*model.ShippingZone, error) {

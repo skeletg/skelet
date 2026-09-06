@@ -5,9 +5,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/emailtrack"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtrack"
 )
 
 // Email open and click tracking - at send time each recipient's HTML gets a 1x1 open pixel and its links rewritten through a click-redirect, using the shared emailtrack signer so campaign, flow and transactional tokens are interchangeable, and the /e/o and /e/c routes decode the token, persist to the analytics spine, and keep the campaign counters in sync through the recipient

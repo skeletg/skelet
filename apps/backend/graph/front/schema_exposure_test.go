@@ -36,24 +36,28 @@ var acknowledgedFrontExposures = map[string]string{
 	// Notes the customer wrote, coming back to the customer who wrote them
 	"Cart.note":          "the shopper's own cart note",
 	"Order.customerNote": "the note the buyer left on their own order",
-	"MyB2BQuote.note":    "the buyer's own note on their own quote request",
 
 	// Store credit - all three hang off the caller's own customer, order or redemption
 	"Customer.storeCreditBalance":            "the caller's own balance, and the resolver re-checks obj.ID against the session",
 	"LoyaltyRedeemResult.storeCreditBalance": "the balance left after the caller's own redemption",
 	"Order.storeCreditAmount":                "how much credit was applied to the caller's own order",
 
-	// B2B - MyCompany and MyB2BQuote are the caller's own company and quotes
-	"MyB2BQuote.sellerNote":           "the seller's pricing reply, written FOR the buyer via priceB2BQuote",
-	"MyCompany.creditLimitCents":      "the caller's own company credit terms",
-	"MyCompany.creditUsedCents":       "the caller's own company credit terms",
-	"CompanyOrderSummary.memberEmail": "which colleague placed the order, on the caller's own company history",
-
 	// Handed to the browser on purpose - these are the public half of a gateway handshake, scoped to one payment
 	"Order.paymentClientSecret": "gateway client secret, meant for the browser that completes the payment",
 
 	// Published author metadata
 	"BlogAuthor.email": "author contact, published deliberately with the post",
+}
+
+// The same, for fields a plugin's SDL publishes - enforced while its type is in the schema, inert
+// when it isn't, and kept in core because the test can't import a plugin's package
+var acknowledgedPluginExposures = map[string]string{
+	// b2b - all resolve the company from the session, never an argument, so no id aims at another account
+	"MyB2BCompany.creditLimitCents": "the caller's own company credit terms",
+	"MyB2BCompany.creditUsedCents":  "the caller's own company credit terms",
+	"MyB2BQuote.note":               "the buyer's own note on their own quote request",
+	"MyB2BQuote.sellerNote":         "the seller's pricing reply, written FOR the buyer",
+	"MyB2BCompanyOrder.memberEmail": "which colleague placed the order, on the caller's own company history, company admins only",
 }
 
 func TestFrontSchemaPublishesNothingSensitiveUnacknowledged(t *testing.T) {
@@ -66,6 +70,9 @@ func TestFrontSchemaPublishesNothingSensitiveUnacknowledged(t *testing.T) {
 			continue
 		}
 		reason, ok := acknowledgedFrontExposures[key]
+		if !ok {
+			reason, ok = acknowledgedPluginExposures[key]
+		}
 		if !ok {
 			unacknowledged = append(unacknowledged, key)
 			continue
@@ -95,6 +102,16 @@ func TestAcknowledgedFrontExposureListIsCurrent(t *testing.T) {
 		}
 		if _, field, _ := strings.Cut(key, "."); !looksSensitive(field) {
 			t.Errorf("acknowledgedFrontExposures lists %s, which no longer matches any sensitive token - drop the entry", key)
+		}
+	}
+
+	// Only checked while the type is in the schema - absent means not installed, not stale
+	for key, reason := range acknowledgedPluginExposures {
+		if reason == "" {
+			t.Errorf("acknowledgedPluginExposures lists %s with no reason", key)
+		}
+		if _, field, _ := strings.Cut(key, "."); !looksSensitive(field) {
+			t.Errorf("acknowledgedPluginExposures lists %s, which no longer matches any sensitive token - drop the entry", key)
 		}
 	}
 }

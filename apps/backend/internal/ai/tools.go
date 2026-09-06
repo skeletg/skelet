@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 type Tool struct {

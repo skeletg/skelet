@@ -7,14 +7,14 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	model1 "github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/graph/front/dataloaders"
-	"github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/applog"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/medialibrary"
-	"github.com/skeletg/skelet/internal/review"
+	model1 "github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/front/dataloaders"
+	"github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
 )
 
 // An authenticated caller becomes the author with replace-on-resubmit semantics (UNIQUE partial index); a guest gets input.GuestName as the visible author, and only when reviews/policy/require_authentication is false - the service rejects the rest

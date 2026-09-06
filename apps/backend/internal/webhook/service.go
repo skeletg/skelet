@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // CfgDeliveryRetentionDays drives the daily webhook-deliveries-prune job; <= 0 keeps the log forever

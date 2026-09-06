@@ -7,12 +7,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/ratelimit"
-	"github.com/skeletg/skelet/internal/review"
-	"github.com/skeletg/skelet/internal/webform"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/ratelimit"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
+	"github.com/skeletg/skelet/apps/backend/internal/webform"
 )
 
 // Notifier turns selected domain events into inbox notifications - It subscribes async (post-commit) on the event bus,

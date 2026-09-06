@@ -5,9 +5,9 @@ import (
 
 	"strings"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/subscription"
 )
 
 // The front schema exposes a customer-facing subset of the shared CustomerSubscription type - no customer/order IDs or invoices

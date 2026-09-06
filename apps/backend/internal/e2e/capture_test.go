@@ -5,19 +5,19 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
 // Scenario 2: money collected outside a gateway lands as real capture rows and the status derives from the ledger - a deposit leaves the
 // order partially captured, the remainder settles it, and a third collection attempt refuses because nothing is owed
 func TestCODOfflineCaptureSettlesLedger(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 50, 2500)
-	o := h.placeGuestCOD(t, f, 1)
-	h.settle(t)
+	f := h.NewStore(t, 50, 2500)
+	o := h.PlaceGuestCOD(t, f, 1)
+	h.Settle(t)
 
-	deposit, err := h.d.Order.RecordOfflinePayment(h.ctx, order.RecordOfflinePaymentInput{
+	deposit, err := h.D.Order.RecordOfflinePayment(h.Ctx, order.RecordOfflinePaymentInput{
 		OrderID:     o.ID,
 		AmountCents: 1000,
 		Method:      "cod",
@@ -31,7 +31,7 @@ func TestCODOfflineCaptureSettlesLedger(t *testing.T) {
 	}
 
 	// Zero amount means the whole remaining balance
-	settled, err := h.d.Order.RecordOfflinePayment(h.ctx, order.RecordOfflinePaymentInput{
+	settled, err := h.D.Order.RecordOfflinePayment(h.Ctx, order.RecordOfflinePaymentInput{
 		OrderID:   o.ID,
 		Method:    "cod",
 		Reference: "e2e-balance",
@@ -47,7 +47,7 @@ func TestCODOfflineCaptureSettlesLedger(t *testing.T) {
 
 	// Over-collection must refuse - a PAID order is not collectable at all, so that guard fires
 	// before the nothing-owed check ever runs
-	if _, err := h.d.Order.RecordOfflinePayment(h.ctx, order.RecordOfflinePaymentInput{
+	if _, err := h.D.Order.RecordOfflinePayment(h.Ctx, order.RecordOfflinePaymentInput{
 		OrderID: o.ID,
 		Method:  "cod",
 	}); err == nil {
@@ -57,12 +57,12 @@ func TestCODOfflineCaptureSettlesLedger(t *testing.T) {
 	}
 	assertCaptureTotal(t, h, o.ID, 2500) // and it must not have written anything
 
-	h.settle(t)
+	h.Settle(t)
 }
 
 func assertCaptureTotal(t *testing.T, h *harness, orderID uuid.UUID, want int64) {
 	t.Helper()
-	sums, err := h.d.Queries.SumOrderPaymentByKind(h.ctx, orderID)
+	sums, err := h.D.Queries.SumOrderPaymentByKind(h.Ctx, orderID)
 	if err != nil {
 		t.Fatalf("ledger sums: %v", err)
 	}

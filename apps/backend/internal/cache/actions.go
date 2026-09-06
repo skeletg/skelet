@@ -7,7 +7,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/skeletg/skelet/internal/action"
+	"github.com/skeletg/skelet/apps/backend/internal/action"
 )
 
 // One source for both the select options and the flush targets - they were two hardcoded lists, so an option added to only one silently flushed nothing

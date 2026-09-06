@@ -11,11 +11,11 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
 
-	dbconn "github.com/skeletg/skelet/internal/db"
-	signalsdb "github.com/skeletg/skelet/internal/db/signals/sqlc"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/otelx"
-	"github.com/skeletg/skelet/internal/tx"
+	dbconn "github.com/skeletg/skelet/apps/backend/internal/db"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/otelx"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 type ( // all four pools are *sql.DB so the graph needs distinct types; the commerce primary keeps the untagged slot

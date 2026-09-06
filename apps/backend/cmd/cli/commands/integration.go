@@ -7,10 +7,10 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	dbconn "github.com/skeletg/skelet/internal/db"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/integration"
-	"github.com/skeletg/skelet/internal/tx"
+	dbconn "github.com/skeletg/skelet/apps/backend/internal/db"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/integration"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 	"github.com/spf13/cobra"
 )
 

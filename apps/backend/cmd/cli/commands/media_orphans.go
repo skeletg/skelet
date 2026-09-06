@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	dbconn "github.com/skeletg/skelet/internal/db"
-	"github.com/skeletg/skelet/internal/media"
+	dbconn "github.com/skeletg/skelet/apps/backend/internal/db"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
 	"github.com/spf13/cobra"
 )
 

@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // The storage primitive under RefreshStore - the security protocol (single-use rotation, grace window, reuse tripwire, events, admin_sessions sync) stays in refresh.go and is identical for every backend, since one copy of the rotation logic is one place for an auth bug to hide rather than two; the owner index is the backend's job (Valkey keeps a SET per owner, Postgres gets it free from an index) and every backend owes two atomicity rules: Consume has at most one winner per hash, and Rotate has at most one winner with everyone else seeing grace

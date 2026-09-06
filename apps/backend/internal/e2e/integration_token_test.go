@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/integration"
+	"github.com/skeletg/skelet/apps/backend/internal/integration"
 )
 
 // adminGqlPost drives the real admin API with an integration token - the request crosses the
@@ -63,23 +63,23 @@ func errorsContain(msgs []string, want string) bool {
 // access on the very next request
 func TestAdminGraphQLIntegrationToken(t *testing.T) {
 	h := newHarness(t)
-	ts := httptest.NewServer(h.d.Root.Handler)
+	ts := httptest.NewServer(h.D.Root.Handler)
 	defer ts.Close()
 
-	granted, err := h.d.Integration.Create(h.ctx, integration.CreateIntegrationInput{
+	granted, err := h.D.Integration.Create(h.Ctx, integration.CreateIntegrationInput{
 		Name: "e2e ERP bridge", Permissions: []string{"admins.manage"},
 	})
 	if err != nil {
 		t.Fatalf("create granted integration: %v", err)
 	}
-	defer func() { _ = h.d.Integration.Delete(h.ctx, granted.Integration.ID) }()
-	ungranted, err := h.d.Integration.Create(h.ctx, integration.CreateIntegrationInput{
+	defer func() { _ = h.D.Integration.Delete(h.Ctx, granted.Integration.ID) }()
+	ungranted, err := h.D.Integration.Create(h.Ctx, integration.CreateIntegrationInput{
 		Name: "e2e read-only feed", Permissions: []string{"orders.view"},
 	})
 	if err != nil {
 		t.Fatalf("create ungranted integration: %v", err)
 	}
-	defer func() { _ = h.d.Integration.Delete(h.ctx, ungranted.Integration.ID) }()
+	defer func() { _ = h.D.Integration.Delete(h.Ctx, ungranted.Integration.ID) }()
 
 	const query = `query { integrations { id name } }` // gated by admins.manage - channel-free, so the test needs no store fixture
 
@@ -109,7 +109,7 @@ func TestAdminGraphQLIntegrationToken(t *testing.T) {
 		t.Error("the listing is missing the integration that made the call - the grant answered with someone else's data")
 	}
 
-	if _, err := h.d.Integration.SetActive(h.ctx, granted.Integration.ID, false); err != nil {
+	if _, err := h.D.Integration.SetActive(h.Ctx, granted.Integration.ID, false); err != nil {
 		t.Fatalf("disable integration: %v", err)
 	}
 	if _, errs := h.adminGqlPost(t, ts, granted.RawToken, query); !errorsContain(errs, "unauthenticated") {

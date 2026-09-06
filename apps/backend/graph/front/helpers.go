@@ -1,7 +1,7 @@
 package front
 
 import (
-	"github.com/skeletg/skelet/graph/modelconv"
+	"github.com/skeletg/skelet/apps/backend/graph/modelconv"
 )
 
 var ( // aliases onto graph/modelconv, the single source of truth - they keep existing call sites unchanged

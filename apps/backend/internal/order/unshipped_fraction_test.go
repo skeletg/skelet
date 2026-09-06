@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	shippingpkg "github.com/skeletg/skelet/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	shippingpkg "github.com/skeletg/skelet/apps/backend/internal/shipping"
 )
 
 type fakeShippedRepo struct {

@@ -75,14 +75,18 @@ func GenerateGraph(root string) error {
 }
 
 // Which Query/Mutation fields each enabled plugin claims on this surface
+//
+// Reads the ENABLED set rather than scanning plugins/ - a module plugin has no directory here at all,
+// so a directory scan silently attributes its fields to nobody, and gqlgen's panicking stub survives
+// instead of being replaced by the delegation
 func sdlFields(root string, set *Set, surface string) (map[string]sdlField, error) {
 	owned := map[string]sdlField{}
-	found, err := Discover(root)
-	if err != nil {
-		return nil, err
-	}
-	for _, slug := range found {
-		files, err := filepath.Glob(filepath.Join(root, pluginsDir, slug, "graphql", surface, "*.graphqls"))
+	for _, slug := range set.EnabledSlugs() {
+		base := filepath.Join(root, pluginsDir, slug)
+		if !set.InTree(slug) {
+			base = filepath.Join(root, StageDir, slug)
+		}
+		files, err := filepath.Glob(filepath.Join(base, "graphql", surface, "*.graphqls"))
 		if err != nil {
 			return nil, err
 		}

@@ -1,6 +1,6 @@
 package menu
 
-import "github.com/skeletg/skelet/internal/revalidate"
+import "github.com/skeletg/skelet/apps/backend/internal/revalidate"
 
 func init() {
 	// The storefront "nav" cache surface - branding, menus, currencies, free-shipping threshold - Homed here since menu edits are the main bust trigger, and it busts whole-surface

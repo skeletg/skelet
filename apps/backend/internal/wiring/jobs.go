@@ -11,42 +11,41 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/fx"
 
-	graphadmin "github.com/skeletg/skelet/graph/admin"
-	"github.com/skeletg/skelet/internal/ai"
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/audit"
-	"github.com/skeletg/skelet/internal/b2b"
-	"github.com/skeletg/skelet/internal/backup"
-	"github.com/skeletg/skelet/internal/blog"
-	"github.com/skeletg/skelet/internal/campaign"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/chat"
-	"github.com/skeletg/skelet/internal/cms"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/currency"
-	"github.com/skeletg/skelet/internal/datajob"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/destination"
-	"github.com/skeletg/skelet/internal/flow"
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/lens"
-	"github.com/skeletg/skelet/internal/linkgraph"
-	"github.com/skeletg/skelet/internal/medialibrary"
-	"github.com/skeletg/skelet/internal/notification"
-	"github.com/skeletg/skelet/internal/order"
-	paymentpkg "github.com/skeletg/skelet/internal/payment"
-	pluginhost "github.com/skeletg/skelet/internal/plugin"
-	"github.com/skeletg/skelet/internal/revalidate"
-	"github.com/skeletg/skelet/internal/review"
-	"github.com/skeletg/skelet/internal/scheduler"
-	"github.com/skeletg/skelet/internal/segment"
-	"github.com/skeletg/skelet/internal/signalsboot"
-	"github.com/skeletg/skelet/internal/sitecrawl"
-	"github.com/skeletg/skelet/internal/subscription"
-	"github.com/skeletg/skelet/internal/urlrewrite"
-	"github.com/skeletg/skelet/internal/webhook"
+	graphadmin "github.com/skeletg/skelet/apps/backend/graph/admin"
+	"github.com/skeletg/skelet/apps/backend/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/audit"
+	"github.com/skeletg/skelet/apps/backend/internal/backup"
+	"github.com/skeletg/skelet/apps/backend/internal/blog"
+	"github.com/skeletg/skelet/apps/backend/internal/campaign"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/chat"
+	"github.com/skeletg/skelet/apps/backend/internal/cms"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/currency"
+	"github.com/skeletg/skelet/apps/backend/internal/datajob"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/destination"
+	"github.com/skeletg/skelet/apps/backend/internal/flow"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/lens"
+	"github.com/skeletg/skelet/apps/backend/internal/linkgraph"
+	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
+	"github.com/skeletg/skelet/apps/backend/internal/notification"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	paymentpkg "github.com/skeletg/skelet/apps/backend/internal/payment"
+	pluginhost "github.com/skeletg/skelet/apps/backend/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/internal/revalidate"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
+	"github.com/skeletg/skelet/apps/backend/internal/scheduler"
+	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
+	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
+	"github.com/skeletg/skelet/apps/backend/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/internal/webhook"
 )
 
 // Jobs owns the periodic-job engine - one engine runs every job; schedules are admin-configurable, persisted in scheduled_jobs, and claimed atomically so it's safe on every replica
@@ -77,7 +76,6 @@ type jobDeps struct {
 	Campaign     *campaign.Service
 	Flow         *flow.Service
 	Inventory    *inventory.Service
-	B2B          *b2b.Service
 	CacheQueue   *revalidate.Queue
 	Cart         *cart.Service
 	Channel      *channel.Service
@@ -322,16 +320,6 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 		func(ctx context.Context) error {
 			return d.Destination.ForwardAll(ctx)
 		})
-	if d.Wcfg.B2BEnabled {
-		jobScheduler.Register("b2b-quote-expiry", "@every 1h", "Expire B2B quotes past their validity window.",
-			func(ctx context.Context) error {
-				n, err := d.B2B.ExpireQuotes(ctx)
-				if n > 0 {
-					log.Printf("[b2b] expired %d quotes", n)
-				}
-				return err
-			})
-	}
 	signalsJob("synapse-segment-refresh", "@every 6h", "Re-materialize Synapse behavioral/trait segment memberships; auto-create attribute-affinity segments for opted-in attributes; enroll new members into segment_entered flows.",
 		func(ctx context.Context) error {
 			now := time.Now()

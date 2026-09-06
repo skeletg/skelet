@@ -6,6 +6,9 @@ import { getChannelLocales } from "@/app/lib/locale/backend-locales";
 import { DefaultLocaleProvider } from "@/app/components/LocaleLink";
 import { Geist_Mono, Inter } from "next/font/google";
 import "@/app/globals.css";
+// Side-effect import: installed storefront plugins register their nav items and slots here, before
+// any page renders - see app/plugins/loaded.ts
+import "@/app/plugins/loaded";
 
 import { AuthUIProvider } from "@/app/components/AuthUIProvider";
 import { CartUIProvider } from "@/app/components/CartUIProvider";
@@ -70,6 +73,12 @@ export const dynamicParams = true;
 // document. Asked of the backend, so adding a locale in admin needs no code change
 export async function generateStaticParams() {
   const { codes } = await getChannelLocales();
+  // Fail the BUILD rather than ship a storefront that renders nothing
+  if (codes.length === 0 && process.env.NEXT_PHASE === "phase-production-build") {
+    throw new Error(
+      "no locales from the backend - check BACKEND_INTERNAL_URL is reachable from the build and STOREFRONT_CHANNEL_ID names a real channel",
+    );
+  }
   return codes.map((locale) => ({ locale }));
 }
 

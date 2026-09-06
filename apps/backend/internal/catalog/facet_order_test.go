@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/testdb"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
 // A facet panel shows at most MaxValues buckets, so which ones get cut matters - ordering by sort_order then truncating drops by POSITION, which on a high-cardinality attribute silently hides the biggest buckets: measured on a 141-value attribute it kept a 193-product value and dropped a 901-product one while the index (a terms agg, so count-ordered) kept the big one, two engines disagreeing about which filters exist - gated on DATABASE_URL because the ordering is in the SQL, and the engine-level test couldn't see this because its fake catalog replaces the very query that does the ordering

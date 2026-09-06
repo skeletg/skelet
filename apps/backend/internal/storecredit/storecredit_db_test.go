@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	dbsqlc "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/testdb"
-	"github.com/skeletg/skelet/internal/tx"
+	dbsqlc "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // Store credit is spendable money, so the guarantees here are the ledger's: a balance is the SUM of

@@ -9,14 +9,14 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/money"
-	"github.com/skeletg/skelet/internal/promotion"
-	shippingpkg "github.com/skeletg/skelet/internal/shipping"
-	"github.com/skeletg/skelet/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/money"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	shippingpkg "github.com/skeletg/skelet/apps/backend/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
 )
 
 // The resolved pre-transaction state for a PlaceOrder call, produced by resolveCheckout and read by the tx and post-commit steps - one struct instead of threading a dozen values through every helper

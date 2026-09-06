@@ -3,8 +3,8 @@ package admin
 import (
 	"fmt"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
 )
 
 // toTaxRuleModel translates the internal tax.Rule (with hydrated conditions/effects) to the gqlgen model. Kept in this

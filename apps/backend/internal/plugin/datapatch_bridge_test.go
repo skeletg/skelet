@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/datapatch"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/datapatch"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Verifies a plugin's SDK data-patch registration lands in the core datapatch registry with its identity intact, and that the patch's *sql.Tx is forwarded to the plugin's Apply
