@@ -10,6 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	"github.com/skeletg/skelet/apps/backend/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/mailsend"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
 )
 
@@ -44,30 +45,21 @@ type ChannelReader interface {
 	GetByID(ctx context.Context, id uuid.UUID) (channel.Channel, error)
 }
 
-// Records the send so a directly-sent receipt still shows up in reporting, exactly as a flow's would
-type SendLog interface {
-	LogTransactional(ctx context.Context, channelID uuid.UUID, customerID *uuid.UUID, to, messageKey string, orderID uuid.UUID) error
-}
-
 type Service struct {
 	flows    FlowDispatcher // optional - nil sends everything directly
 	orders   OrderReader
 	channels ChannelReader
 	render   Renderer
-	sender   email.Sender
+	sender   *mailsend.Sender
 	config   *config.Service
-	sendLog  SendLog // optional
 }
 
-func NewService(orders OrderReader, channels ChannelReader, render Renderer, sender email.Sender, cfg *config.Service) *Service {
+func NewService(orders OrderReader, channels ChannelReader, render Renderer, sender *mailsend.Sender, cfg *config.Service) *Service {
 	return &Service{orders: orders, channels: channels, render: render, sender: sender, config: cfg}
 }
 
 // Optional - without it every order email goes out directly, which is the correct behaviour for an install with no flow engine
 func (s *Service) SetFlowDispatcher(d FlowDispatcher) { s.flows = d }
-
-// Optional - an unrecorded send still reaches the customer, it just won't appear in engagement reporting
-func (s *Service) SetSendLog(l SendLog) { s.sendLog = l }
 
 // The From header, matching what the flow engine builds so a direct send is indistinguishable from a flow one
 func (s *Service) fromAddress(ctx context.Context, ch channel.Channel) string {
@@ -93,16 +85,12 @@ func (s *Service) send(ctx context.Context, ch channel.Channel, o order.Order, m
 	if o.Email == "" {
 		return // nothing to send to - a draft or an order whose contact never resolved
 	}
-	if err := s.sender.Send(ctx, email.Message{
-		From: s.fromAddress(ctx, ch), To: o.Email, Subject: subject, HTMLBody: htmlBody, TextBody: textBody,
-	}); err != nil {
+	orderID := o.ID
+	if err := s.sender.Send(ctx, mailsend.Spec{
+		ChannelID: ch.ID, CustomerID: o.CustomerID, From: s.fromAddress(ctx, ch), To: o.Email,
+		MessageKey: messageKey, OrderID: &orderID,
+	}, StorefrontURL(ch), subject, htmlBody, textBody); err != nil {
 		log.Printf("[ordermail] %s to %s for order %s: %v", messageKey, o.Email, o.Number, err)
-		return
-	}
-	if s.sendLog != nil {
-		if err := s.sendLog.LogTransactional(ctx, ch.ID, o.CustomerID, o.Email, messageKey, o.ID); err != nil {
-			log.Printf("[ordermail] record %s send for order %s: %v", messageKey, o.Number, err)
-		}
 	}
 }
 

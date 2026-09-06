@@ -26,6 +26,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/mailsend"
 	"github.com/skeletg/skelet/apps/backend/internal/media"
 	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
@@ -1002,20 +1003,18 @@ func NewEmailCatalogReader(cat *catalog.Service, ch *channel.Service) EmailCatal
 	return EmailCatalogReader{catalog: cat, chans: ch}
 }
 
-// OrderMailSendLog adapts the analytics Recorder to ordermail.SendLog, so a receipt sent directly
-// lands in the send log the same way a flow's would and stays visible to Pulse reporting
-// SourceTransactional distinguishes it from the flow and campaign senders
-type OrderMailSendLog struct {
+// Adapts the Recorder to mailsend.Log so a direct send is logged like a flow's, with SourceTransactional telling them apart
+type TransactionalSendLog struct {
 	rec *analytics.Recorder
 }
 
-func (l OrderMailSendLog) LogTransactional(ctx context.Context, channelID uuid.UUID, customerID *uuid.UUID, to, messageKey string, orderID uuid.UUID) error {
+func (l TransactionalSendLog) RecordTransactional(ctx context.Context, spec mailsend.Spec) (uuid.UUID, error) {
 	send, err := l.rec.NewSend(ctx, analytics.SendSpec{
-		ChannelID: channelID, Source: analytics.SourceTransactional, Email: to,
-		CustomerID: customerID, MessageKey: messageKey, OrderID: &orderID,
+		ChannelID: spec.ChannelID, Source: analytics.SourceTransactional, Email: spec.To,
+		CustomerID: spec.CustomerID, MessageKey: spec.MessageKey, OrderID: spec.OrderID,
 	})
 	if err != nil {
-		return err
+		return uuid.Nil, err
 	}
-	return l.rec.RecordSent(ctx, send)
+	return send.ID, l.rec.RecordSent(ctx, send)
 }

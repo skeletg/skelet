@@ -33,6 +33,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/internal/linkgraph"
 	"github.com/skeletg/skelet/apps/backend/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/mailsend"
 	"github.com/skeletg/skelet/apps/backend/internal/media"
 	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
@@ -94,6 +95,7 @@ var Domain = fx.Module("domain",
 		newCampaignService,
 		newFlowService,
 		newOrderMailService,
+		newTransactionalSender,
 		newDestinationService,
 		newBackInStockService,
 
@@ -246,10 +248,13 @@ func newCampaignService(
 // The flow dispatcher and send log are attached in wireMarketing, since both would cycle through this provider
 func newOrderMailService(
 	orders *order.Service, ch *channel.Service, tmpl *emailtemplate.Service,
-	sender email.Sender, cfg *config.Service,
+	sender *mailsend.Sender, cfg *config.Service,
 ) *ordermail.Service {
 	return ordermail.NewService(orders, ch, tmpl, sender, cfg)
 }
+
+// The one recorded sender every direct path shares - tracking is attached in wireMarketing, where the Recorder exists
+func newTransactionalSender(sender email.Sender) *mailsend.Sender { return mailsend.New(sender) }
 
 func newFlowService( // marketing automation flows - event-triggered, scheduler-advanced node graphs
 	q *db.Queries, tmpl *emailtemplate.Service, cust *customer.Service, seg *segment.Service,

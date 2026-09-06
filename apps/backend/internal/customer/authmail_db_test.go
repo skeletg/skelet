@@ -14,18 +14,18 @@ import (
 type recordingFallback struct {
 	verifications, resets int
 	lastFrom, lastTo      string
-	lastLink              string
+	lastLink, lastStore   string
 }
 
-func (r *recordingFallback) SendVerification(_ context.Context, _ uuid.UUID, from, to string, d email.VerificationEmailData) error {
+func (r *recordingFallback) SendVerification(_ context.Context, _ uuid.UUID, from, to, storefrontURL string, d email.VerificationEmailData) error {
 	r.verifications++
-	r.lastFrom, r.lastTo, r.lastLink = from, to, d.Link
+	r.lastFrom, r.lastTo, r.lastLink, r.lastStore = from, to, d.Link, storefrontURL
 	return nil
 }
 
-func (r *recordingFallback) SendPasswordReset(_ context.Context, _ uuid.UUID, from, to string, d email.PasswordResetEmailData) error {
+func (r *recordingFallback) SendPasswordReset(_ context.Context, _ uuid.UUID, from, to, storefrontURL string, d email.PasswordResetEmailData) error {
 	r.resets++
-	r.lastFrom, r.lastTo, r.lastLink = from, to, d.Link
+	r.lastFrom, r.lastTo, r.lastLink, r.lastStore = from, to, d.Link, storefrontURL
 	return nil
 }
 
@@ -66,6 +66,9 @@ func TestAuthEmailFallbackSendsWhenNoFlowHandles(t *testing.T) {
 			}
 			if !strings.Contains(fb.lastLink, "https://shop.invalid") {
 				t.Errorf("verification link %q does not point at the store", fb.lastLink)
+			}
+			if fb.lastStore != "https://shop.invalid" {
+				t.Errorf("storefront base = %q, want the bare origin the open pixel resolves against", fb.lastStore)
 			}
 
 			if err := f.svc.RequestPasswordReset(f.ctx, ch, addr); err != nil {

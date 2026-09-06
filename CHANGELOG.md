@@ -11,6 +11,16 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- **Every direct transactional send is recorded and carries an open pixel.** Three domains
+  send mail directly when no flow takes delivery - order receipts, account links and
+  back-in-stock notices - and only the receipts were being logged. A directly-sent
+  verification recorded nothing at all, so a store running without auth flows showed zero
+  verification sends, indistinguishable from mail that was never sent. A shared
+  `internal/mailsend` now records first, points the open pixel at that record, then
+  delivers, which is the order the flow engine already used. Without it a logged send could
+  never register an open and reported as mail nobody read. Transactional mail gets the pixel
+  only, never click-wrapping, so nothing sits in front of a verification or reset link.
+
 - **Core owns the order-lifecycle mail.** The receipt, shipment notice, cancellation and
   refund were delivered entirely by the flow engine, which also owned the subscriptions -
   so a channel whose flow was paused or deleted silently sent nothing, and there is no

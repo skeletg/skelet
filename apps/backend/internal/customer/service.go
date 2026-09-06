@@ -61,8 +61,8 @@ func (s *Service) SetAuthEmailDispatcher(d authEmailDispatcher) { s.authFlows = 
 // Sends account mail when no flow did, so verification and reset never depend on a flow being active - satisfied by *emailtemplate.Service
 // Nil leaves the pure-flow behaviour: no flow means no email
 type authEmailFallback interface {
-	SendVerification(ctx context.Context, channelID uuid.UUID, from, to string, d email.VerificationEmailData) error
-	SendPasswordReset(ctx context.Context, channelID uuid.UUID, from, to string, d email.PasswordResetEmailData) error
+	SendVerification(ctx context.Context, channelID uuid.UUID, from, to, storefrontURL string, d email.VerificationEmailData) error
+	SendPasswordReset(ctx context.Context, channelID uuid.UUID, from, to, storefrontURL string, d email.PasswordResetEmailData) error
 }
 
 func (s *Service) SetAuthEmailFallback(f authEmailFallback) { s.authFallback = f }
@@ -591,7 +591,8 @@ func (s *Service) sendVerificationEmail(ctx context.Context, c Customer) error {
 	if err != nil {
 		return fmt.Errorf("load store for email: %w", err)
 	}
-	link := strings.TrimRight(store.PublicURL, "/") + "/verify-email?token=" + token
+	storefront := strings.TrimRight(store.PublicURL, "/")
+	link := storefront + "/verify-email?token=" + token
 	// A flow on the email_verification trigger delivers this when one is active, so operators can edit the journey
 	if s.authFlows != nil && s.authFlows.OnEmailVerification(ctx, c.ChannelID, c.ID, link, store.EmailFromName, c.FirstName) > 0 {
 		return nil
@@ -601,7 +602,7 @@ func (s *Service) sendVerificationEmail(ctx context.Context, c Customer) error {
 		log.Printf("[email:warn] verification: no flow handled it and no fallback wired; not sent to %s", c.Email)
 		return nil
 	}
-	return s.authFallback.SendVerification(ctx, c.ChannelID, store.fromHeader(), c.Email, email.VerificationEmailData{
+	return s.authFallback.SendVerification(ctx, c.ChannelID, store.fromHeader(), c.Email, storefront, email.VerificationEmailData{
 		FirstName: c.FirstName, Link: link, StoreName: store.EmailFromName,
 	})
 }
@@ -674,7 +675,8 @@ func (s *Service) RequestPasswordReset(ctx context.Context, channelID uuid.UUID,
 	if err != nil {
 		return fmt.Errorf("load store for email: %w", err)
 	}
-	link := strings.TrimRight(store.PublicURL, "/") + "/reset-password?token=" + token
+	storefront := strings.TrimRight(store.PublicURL, "/")
+	link := storefront + "/reset-password?token=" + token
 	expiresIn := humanDuration(s.resetStore.TTL())
 	// A flow on the password_reset trigger delivers this when one is active, sent synchronously
 	if s.authFlows != nil && s.authFlows.OnPasswordReset(ctx, c.ChannelID, c.ID, link, expiresIn, store.EmailFromName, c.FirstName) > 0 {
@@ -686,7 +688,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, channelID uuid.UUID,
 		return nil
 	}
 	// Logged rather than returned: this function always returns nil so the response can't confirm the address exists
-	if err := s.authFallback.SendPasswordReset(ctx, c.ChannelID, store.fromHeader(), c.Email, email.PasswordResetEmailData{
+	if err := s.authFallback.SendPasswordReset(ctx, c.ChannelID, store.fromHeader(), c.Email, storefront, email.PasswordResetEmailData{
 		FirstName: c.FirstName, Link: link, StoreName: store.EmailFromName, ExpiresIn: expiresIn,
 	}); err != nil {
 		log.Printf("[email:error] password reset send to %s: %v", c.Email, err)

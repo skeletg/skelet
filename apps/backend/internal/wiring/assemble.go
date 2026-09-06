@@ -9,6 +9,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/audit"
+	"github.com/skeletg/skelet/apps/backend/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/internal/campaign"
 	"github.com/skeletg/skelet/apps/backend/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/internal/catalog"
@@ -20,6 +21,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/internal/download"
 	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/internal/events"
 	"github.com/skeletg/skelet/apps/backend/internal/flow"
 	"github.com/skeletg/skelet/apps/backend/internal/form"
@@ -28,6 +30,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/internal/locale"
 	"github.com/skeletg/skelet/apps/backend/internal/loyalty"
+	"github.com/skeletg/skelet/apps/backend/internal/mailsend"
 	"github.com/skeletg/skelet/apps/backend/internal/media"
 	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/internal/menu"
@@ -230,16 +233,23 @@ type marketingDeps struct {
 	Segment       *segment.Service
 	OrderMail     *ordermail.Service
 	Recorder      *analytics.Recorder
+
+	TransactionalSender *mailsend.Sender
+	BackInStock         *backinstock.Service
+	Config              Config
 }
 
 func wireMarketing(d marketingDeps) { // transactional mail is delivered as a Pulse flow where one is active, receipts and account emails included
 	d.Flow.SetEnabled(bool(d.Signals))
 	d.Flow.SetSuppression(d.Suppression)
-	d.Flow.SetOrderReader(d.Order)                            // lets order flows populate item / total / tracking / ship-to blocks
-	d.Customer.SetAuthEmailDispatcher(d.Flow)                 // verification + password reset hand their one-time link to the flow engine
-	d.Customer.SetAuthEmailFallback(d.EmailTemplate)          // and go out directly when no flow does, so a paused one can't swallow a password reset
-	d.OrderMail.SetFlowDispatcher(d.Flow)                     // receipts prefer an operator's flow, and fall back to a direct send
-	d.OrderMail.SetSendLog(OrderMailSendLog{rec: d.Recorder}) // a direct receipt still shows up in Pulse reporting
+	d.Flow.SetOrderReader(d.Order)                   // lets order flows populate item / total / tracking / ship-to blocks
+	d.Customer.SetAuthEmailDispatcher(d.Flow)        // verification + password reset hand their one-time link to the flow engine
+	d.Customer.SetAuthEmailFallback(d.EmailTemplate) // and go out directly when no flow does, so a paused one can't swallow a password reset
+	d.OrderMail.SetFlowDispatcher(d.Flow)            // receipts prefer an operator's flow, and fall back to a direct send
+	// Every direct transactional send records and carries an open pixel, so it reports like a flow's rather than as mail nobody opened
+	d.TransactionalSender.SetTracking(TransactionalSendLog{rec: d.Recorder}, emailtrack.NewSigner([]byte(d.Config.JWTSecret)))
+	d.EmailTemplate.SetAccountSender(d.TransactionalSender)
+	d.BackInStock.SetDirectSender(d.TransactionalSender)
 	d.Campaign.SetSuppression(d.Suppression)
 	d.EmailTemplate.SetCatalogReader(NewEmailCatalogReader(d.Catalog, d.Channel))                   // wires the "products" email block to live catalog data
 	d.Form.SetHooks(NewContactAdapter(d.Customer), NewConsentAdapter(d.Consent), d.Segment, d.Flow) // storefront email capture → contact + consent + segment + form_submitted flow
