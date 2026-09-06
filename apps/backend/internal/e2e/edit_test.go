@@ -14,11 +14,11 @@ import (
 // reservedForProduct is reservedFor for a product that isn't the store's own - added lines reserve against their own inventory item
 func (h *harness) reservedForProduct(t *testing.T, productID uuid.UUID) float64 {
 	t.Helper()
-	item, err := h.d.Inventory.EnsureItem(h.ctx, productID, true)
+	item, err := h.D.Inventory.EnsureItem(h.Ctx, productID, true)
 	if err != nil {
 		t.Fatalf("ensure item: %v", err)
 	}
-	levels, err := h.d.Queries.ListInventoryLevelsByItem(h.ctx, item.ID)
+	levels, err := h.D.Queries.ListInventoryLevelsByItem(h.Ctx, item.ID)
 	if err != nil {
 		t.Fatalf("levels: %v", err)
 	}
@@ -31,7 +31,7 @@ func (h *harness) reservedForProduct(t *testing.T, productID uuid.UUID) float64 
 
 func (h *harness) eventTypes(t *testing.T, orderID uuid.UUID) map[string]int {
 	t.Helper()
-	rows, err := h.d.Queries.ListOrderEventsByOrder(h.ctx, orderID)
+	rows, err := h.D.Queries.ListOrderEventsByOrder(h.Ctx, orderID)
 	if err != nil {
 		t.Fatalf("order events: %v", err)
 	}
@@ -44,7 +44,7 @@ func (h *harness) eventTypes(t *testing.T, orderID uuid.UUID) map[string]int {
 
 func (h *harness) lineBySKU(t *testing.T, orderID uuid.UUID, sku string) uuid.UUID {
 	t.Helper()
-	for _, l := range h.orderLines(t, orderID) {
+	for _, l := range h.OrderLines(t, orderID) {
 		if l.ProductSku == sku {
 			return l.ID
 		}
@@ -56,16 +56,16 @@ func (h *harness) lineBySKU(t *testing.T, orderID uuid.UUID, sku string) uuid.UU
 // Scenario: raising a line's quantity re-prices the order from the new line set AND moves the reserved counter with it - a re-price that skipped the re-reservation would oversell
 func TestEditRaisesQuantityRepricesAndReReserves(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 50, 2500)
-	o := h.placeGuestCOD(t, f, 2)
-	h.settle(t)
+	f := h.NewStore(t, 50, 2500)
+	o := h.PlaceGuestCOD(t, f, 2)
+	h.Settle(t)
 
-	if got := h.reservedFor(t, f); got != 2 {
+	if got := h.ReservedFor(t, f); got != 2 {
 		t.Fatalf("reserved after placement = %v, want 2", got)
 	}
-	lineID := h.orderLines(t, o.ID)[0].ID
+	lineID := h.OrderLines(t, o.ID)[0].ID
 
-	edited, err := h.d.Order.EditOrder(h.ctx, order.EditOrderInput{
+	edited, err := h.D.Order.EditOrder(h.Ctx, order.EditOrderInput{
 		OrderID:   o.ID,
 		UpdateQty: []order.EditLineQty{{OrderLineID: lineID, Quantity: 5}},
 	})
@@ -79,24 +79,24 @@ func TestEditRaisesQuantityRepricesAndReReserves(t *testing.T) {
 	if edited.TotalAmount != edited.SubtotalAmount-edited.DiscountAmount+edited.TaxAmount+edited.ShippingAmount {
 		t.Errorf("total %d does not equal its own breakdown %+v", edited.TotalAmount, edited)
 	}
-	if got := h.reservedFor(t, f); got != 5 {
+	if got := h.ReservedFor(t, f); got != 5 {
 		t.Errorf("reserved after raising to 5 = %v, want 5", got)
 	}
 	if got := h.eventTypes(t, o.ID)["order_edited"]; got != 1 {
 		t.Errorf("%d order_edited events, want 1 on the timeline", got)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // Lowering the quantity has to RELEASE the difference, or stock stays held for units nobody bought
 func TestEditLowersQuantityAndReleasesReservation(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 50, 2500)
-	o := h.placeGuestCOD(t, f, 6)
-	h.settle(t)
-	lineID := h.orderLines(t, o.ID)[0].ID
+	f := h.NewStore(t, 50, 2500)
+	o := h.PlaceGuestCOD(t, f, 6)
+	h.Settle(t)
+	lineID := h.OrderLines(t, o.ID)[0].ID
 
-	edited, err := h.d.Order.EditOrder(h.ctx, order.EditOrderInput{
+	edited, err := h.D.Order.EditOrder(h.Ctx, order.EditOrderInput{
 		OrderID:   o.ID,
 		UpdateQty: []order.EditLineQty{{OrderLineID: lineID, Quantity: 2}},
 	})
@@ -106,22 +106,22 @@ func TestEditLowersQuantityAndReleasesReservation(t *testing.T) {
 	if edited.SubtotalAmount != 2*2500 {
 		t.Errorf("subtotal = %d, want %d", edited.SubtotalAmount, 2*2500)
 	}
-	if got := h.reservedFor(t, f); got != 2 {
+	if got := h.ReservedFor(t, f); got != 2 {
 		t.Errorf("reserved after lowering to 2 = %v, want 2", got)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // A removed line stops being part of the order AND gives its stock back
 func TestEditRemovingALineReleasesItsStock(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 50, 2500)
-	extra := h.addProduct(t, f, 1000, true, 20)
+	f := h.NewStore(t, 50, 2500)
+	extra := h.AddProduct(t, f, 1000, true, 20)
 
-	o := h.placeGuestCOD(t, f, 2)
-	h.settle(t)
+	o := h.PlaceGuestCOD(t, f, 2)
+	h.Settle(t)
 	// add the second product through an edit so the order has two lines to work with
-	if _, err := h.d.Order.EditOrder(h.ctx, order.EditOrderInput{
+	if _, err := h.D.Order.EditOrder(h.Ctx, order.EditOrderInput{
 		OrderID: o.ID,
 		AddLine: []order.EditAddLine{{ProductSku: extra.SKU, Quantity: 3}},
 	}); err != nil {
@@ -132,7 +132,7 @@ func TestEditRemovingALineReleasesItsStock(t *testing.T) {
 	}
 
 	extraLine := h.lineBySKU(t, o.ID, extra.SKU)
-	edited, err := h.d.Order.EditOrder(h.ctx, order.EditOrderInput{
+	edited, err := h.D.Order.EditOrder(h.Ctx, order.EditOrderInput{
 		OrderID:    o.ID,
 		RemoveLine: []uuid.UUID{extraLine},
 	})
@@ -140,8 +140,8 @@ func TestEditRemovingALineReleasesItsStock(t *testing.T) {
 		t.Fatalf("remove line: %v", err)
 	}
 
-	if len(h.orderLines(t, o.ID)) != 1 {
-		t.Errorf("%d active lines, want the removed one gone", len(h.orderLines(t, o.ID)))
+	if len(h.OrderLines(t, o.ID)) != 1 {
+		t.Errorf("%d active lines, want the removed one gone", len(h.OrderLines(t, o.ID)))
 	}
 	if edited.SubtotalAmount != 2*2500 {
 		t.Errorf("subtotal = %d, want the removed line's money gone (%d)", edited.SubtotalAmount, 2*2500)
@@ -149,21 +149,21 @@ func TestEditRemovingALineReleasesItsStock(t *testing.T) {
 	if got := h.reservedForProduct(t, extra.ID); got != 0 {
 		t.Errorf("reserved for the removed product = %v, want 0", got)
 	}
-	if got := h.reservedFor(t, f); got != 2 {
+	if got := h.ReservedFor(t, f); got != 2 {
 		t.Errorf("reserved for the kept product = %v, want 2 - a removal must not disturb the other line", got)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // The client names a SKU and a quantity, never a price - an added line is priced from the channel listing, so a caller can't discount itself
 func TestEditPricesAnAddedLineServerSide(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 50, 2500)
-	extra := h.addProduct(t, f, 1750, true, 20)
-	o := h.placeGuestCOD(t, f, 1)
-	h.settle(t)
+	f := h.NewStore(t, 50, 2500)
+	extra := h.AddProduct(t, f, 1750, true, 20)
+	o := h.PlaceGuestCOD(t, f, 1)
+	h.Settle(t)
 
-	edited, err := h.d.Order.EditOrder(h.ctx, order.EditOrderInput{
+	edited, err := h.D.Order.EditOrder(h.Ctx, order.EditOrderInput{
 		OrderID: o.ID,
 		AddLine: []order.EditAddLine{{ProductSku: extra.SKU, Quantity: 2}},
 	})
@@ -172,7 +172,7 @@ func TestEditPricesAnAddedLineServerSide(t *testing.T) {
 	}
 
 	var added bool
-	for _, l := range h.orderLines(t, o.ID) {
+	for _, l := range h.OrderLines(t, o.ID) {
 		if l.ProductSku != extra.SKU {
 			continue
 		}
@@ -193,39 +193,39 @@ func TestEditPricesAnAddedLineServerSide(t *testing.T) {
 	if got := h.reservedForProduct(t, extra.ID); got != 2 {
 		t.Errorf("reserved for the added product = %v, want 2", got)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // The edit runs in one transaction, so a shortage on ANY line has to leave the order exactly as it was - a partial apply would leave lines and reservations disagreeing
 func TestEditShortageRollsTheWholeEditBack(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 4, 2500)
-	o := h.placeGuestCOD(t, f, 2)
-	h.settle(t)
+	f := h.NewStore(t, 4, 2500)
+	o := h.PlaceGuestCOD(t, f, 2)
+	h.Settle(t)
 
-	before := h.orderLines(t, o.ID)
-	beforeReserved := h.reservedFor(t, f)
+	before := h.OrderLines(t, o.ID)
+	beforeReserved := h.ReservedFor(t, f)
 	lineID := before[0].ID
 
 	// 99 is well past the 4 on hand
-	if _, err := h.d.Order.EditOrder(h.ctx, order.EditOrderInput{
+	if _, err := h.D.Order.EditOrder(h.Ctx, order.EditOrderInput{
 		OrderID:   o.ID,
 		UpdateQty: []order.EditLineQty{{OrderLineID: lineID, Quantity: 99}},
 	}); err == nil {
 		t.Fatal("an edit past available stock succeeded")
 	}
 
-	after := h.orderLines(t, o.ID)
+	after := h.OrderLines(t, o.ID)
 	if len(after) != len(before) {
 		t.Errorf("%d lines after the failed edit, want the original %d", len(after), len(before))
 	}
 	if after[0].Quantity != before[0].Quantity {
 		t.Errorf("line quantity = %v after a rolled-back edit, want the original %v", after[0].Quantity, before[0].Quantity)
 	}
-	if got := h.reservedFor(t, f); got != beforeReserved {
+	if got := h.ReservedFor(t, f); got != beforeReserved {
 		t.Errorf("reserved = %v after a rolled-back edit, want the original %v", got, beforeReserved)
 	}
-	reread, err := h.d.Order.GetByID(h.ctx, o.ID)
+	reread, err := h.D.Order.GetByID(h.Ctx, o.ID)
 	if err != nil {
 		t.Fatalf("re-read order: %v", err)
 	}
@@ -236,32 +236,32 @@ func TestEditShortageRollsTheWholeEditBack(t *testing.T) {
 	if got := h.eventTypes(t, o.ID)["order_edited"]; got != 0 {
 		t.Errorf("%d order_edited events after a failed edit, want 0", got)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // Editing is pre-fulfillment only - once units have shipped the snapshot is what the customer was told, and the reservation math no longer describes reality
 func TestEditRefusedAfterFulfillment(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 50, 2500)
-	o := h.placeGuestCOD(t, f, 2)
-	h.settle(t)
-	lineID := h.orderLines(t, o.ID)[0].ID
+	f := h.NewStore(t, 50, 2500)
+	o := h.PlaceGuestCOD(t, f, 2)
+	h.Settle(t)
+	lineID := h.OrderLines(t, o.ID)[0].ID
 
 	// a COD order lands pending, and only a processing order can ship
 	for _, st := range []string{order.OrderStatusConfirmed, order.OrderStatusProcessing} {
-		if _, err := h.d.Order.UpdateStatus(h.ctx, o.ID, st); err != nil {
+		if _, err := h.D.Order.UpdateStatus(h.Ctx, o.ID, st); err != nil {
 			t.Fatalf("advance to %s: %v", st, err)
 		}
 	}
-	if _, err := h.d.Order.CreateFulfillment(h.ctx, order.CreateFulfillmentInput{
+	if _, err := h.D.Order.CreateFulfillment(h.Ctx, order.CreateFulfillmentInput{
 		OrderID: o.ID,
 		Lines:   []order.FulfillmentLineInput{{OrderLineID: lineID, Quantity: 2}},
 	}); err != nil {
 		t.Fatalf("fulfill: %v", err)
 	}
-	h.settle(t)
+	h.Settle(t)
 
-	_, err := h.d.Order.EditOrder(h.ctx, order.EditOrderInput{
+	_, err := h.D.Order.EditOrder(h.Ctx, order.EditOrderInput{
 		OrderID:   o.ID,
 		UpdateQty: []order.EditLineQty{{OrderLineID: lineID, Quantity: 1}},
 	})
@@ -271,16 +271,16 @@ func TestEditRefusedAfterFulfillment(t *testing.T) {
 	if ae, ok := apperr.AsAppError(err); !ok || ae.Code != "ORDER_NOT_EDITABLE" {
 		t.Errorf("error = %v, want code ORDER_NOT_EDITABLE", err)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // Every guard refuses BEFORE anything is written, so a malformed edit can't half-apply
 func TestEditGuardsRefuseWithoutTouchingTheOrder(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 50, 2500)
-	o := h.placeGuestCOD(t, f, 2)
-	h.settle(t)
-	lineID := h.orderLines(t, o.ID)[0].ID
+	f := h.NewStore(t, 50, 2500)
+	o := h.PlaceGuestCOD(t, f, 2)
+	h.Settle(t)
+	lineID := h.OrderLines(t, o.ID)[0].ID
 	foreign := uuid.New()
 
 	for name, tc := range map[string]struct {
@@ -323,7 +323,7 @@ func TestEditGuardsRefuseWithoutTouchingTheOrder(t *testing.T) {
 			"ORDER_EDIT_EMPTY_RESULT",
 		},
 	} {
-		_, err := h.d.Order.EditOrder(h.ctx, tc.in)
+		_, err := h.D.Order.EditOrder(h.Ctx, tc.in)
 		if err == nil {
 			t.Errorf("%s was accepted, want %s", name, tc.code)
 			continue
@@ -334,26 +334,26 @@ func TestEditGuardsRefuseWithoutTouchingTheOrder(t *testing.T) {
 	}
 
 	// and the order is untouched by any of them
-	lines := h.orderLines(t, o.ID)
+	lines := h.OrderLines(t, o.ID)
 	if len(lines) != 1 || lines[0].Quantity != 2 {
 		t.Errorf("order lines = %d at qty %v, want the original 1 line at 2", len(lines), lines[0].Quantity)
 	}
-	if got := h.reservedFor(t, f); got != 2 {
+	if got := h.ReservedFor(t, f); got != 2 {
 		t.Errorf("reserved = %v, want the original 2", got)
 	}
 	if got := h.eventTypes(t, o.ID)["order_edited"]; got != 0 {
 		t.Errorf("%d order_edited events, want 0 - every guard fired before the write", got)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // A bundle's component quantities are fixed at placement, so changing the wrapper's quantity would silently leave the components describing a different order - remove and re-add instead
 func TestEditRefusesABundleLineQuantity(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 50, 2500)
-	comp := h.addProduct(t, f, 1000, true, 30)
+	f := h.NewStore(t, 50, 2500)
+	comp := h.AddProduct(t, f, 1000, true, 30)
 
-	b, err := h.d.Catalog.CreateProduct(h.ctx, catalog.CreateProductInput{
+	b, err := h.D.Catalog.CreateProduct(h.Ctx, catalog.CreateProductInput{
 		ProductTypeID: f.Product.ProductTypeID, Locale: "en",
 		Name: "E2E Edit Bundle " + uuid.NewString()[:8], SKU: "e2e-edit-bundle-" + uuid.NewString()[:8],
 		Kind: catalog.KindBundle, DefaultCurrencyCode: "USD",
@@ -361,38 +361,38 @@ func TestEditRefusesABundleLineQuantity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create bundle: %v", err)
 	}
-	opt, err := h.d.Catalog.AddBundleOption(h.ctx, catalog.AddBundleOptionInput{
+	opt, err := h.D.Catalog.AddBundleOption(h.Ctx, catalog.AddBundleOptionInput{
 		ProductID: b.ID, InputType: catalog.BundleInputCheckbox,
 		IsRequired: true, MinSelections: 1, Locale: "en", Title: "Pick parts",
 	})
 	if err != nil {
 		t.Fatalf("bundle option: %v", err)
 	}
-	sel, err := h.d.Catalog.AddBundleSelection(h.ctx, catalog.AddBundleSelectionInput{
+	sel, err := h.D.Catalog.AddBundleSelection(h.Ctx, catalog.AddBundleSelectionInput{
 		OptionID: opt.ID, ProductID: comp.ID, Quantity: 2,
 	})
 	if err != nil {
 		t.Fatalf("bundle selection: %v", err)
 	}
 
-	c0, err := h.d.Cart.CreateGuestCart(h.ctx, f.Channel.ID)
+	c0, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
 	if err != nil {
 		t.Fatalf("cart: %v", err)
 	}
-	if _, err := h.d.Cart.AddBundleToCart(h.ctx, c0.ID, nil, cart.AddBundleToCartInput{
+	if _, err := h.D.Cart.AddBundleToCart(h.Ctx, c0.ID, nil, cart.AddBundleToCartInput{
 		ProductSku: b.SKU, Quantity: 1,
 		Selections: []cart.AddBundleSelectionInput{{OptionID: opt.ID, SelectionIDs: []uuid.UUID{sel.ID}}},
 	}); err != nil {
 		t.Fatalf("add bundle: %v", err)
 	}
-	o, err := h.tryPlace(t, f.Channel, c0.ID)
+	o, err := h.TryPlace(t, f.Channel, c0.ID)
 	if err != nil {
 		t.Fatalf("place bundle order: %v", err)
 	}
-	h.settle(t)
+	h.Settle(t)
 
 	bundleLine := h.lineBySKU(t, o.ID, b.SKU)
-	_, err = h.d.Order.EditOrder(h.ctx, order.EditOrderInput{
+	_, err = h.D.Order.EditOrder(h.Ctx, order.EditOrderInput{
 		OrderID:   o.ID,
 		UpdateQty: []order.EditLineQty{{OrderLineID: bundleLine, Quantity: 2}},
 	})
@@ -402,41 +402,41 @@ func TestEditRefusesABundleLineQuantity(t *testing.T) {
 	if ae, ok := apperr.AsAppError(err); !ok || ae.Code != "ORDER_EDIT_BUNDLE_QTY" {
 		t.Errorf("error = %v, want code ORDER_EDIT_BUNDLE_QTY", err)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // A re-read order line carries its bundle components, so an edit to an UNRELATED line re-reserves them instead of quietly releasing the stock the order still owes
 func TestEditKeepsABundlesComponentReservation(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 50, 2500)
-	comp := h.addProduct(t, f, 1000, true, 30)
+	f := h.NewStore(t, 50, 2500)
+	comp := h.AddProduct(t, f, 1000, true, 30)
 	b, opt, sel := h.newBundleProduct(t, f, comp, 2)
 
-	c0, err := h.d.Cart.CreateGuestCart(h.ctx, f.Channel.ID)
+	c0, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
 	if err != nil {
 		t.Fatalf("cart: %v", err)
 	}
-	if _, err := h.d.Cart.AddBundleToCart(h.ctx, c0.ID, nil, cart.AddBundleToCartInput{
+	if _, err := h.D.Cart.AddBundleToCart(h.Ctx, c0.ID, nil, cart.AddBundleToCartInput{
 		ProductSku: b.SKU, Quantity: 1,
 		Selections: []cart.AddBundleSelectionInput{{OptionID: opt.ID, SelectionIDs: []uuid.UUID{sel.ID}}},
 	}); err != nil {
 		t.Fatalf("add bundle: %v", err)
 	}
 	// a plain line the edit can legally touch
-	if _, err := h.d.Cart.AddToCart(h.ctx, c0.ID, nil, cart.AddCartLineInput{ProductSku: f.Product.SKU, Quantity: 1}); err != nil {
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c0.ID, nil, cart.AddCartLineInput{ProductSku: f.Product.SKU, Quantity: 1}); err != nil {
 		t.Fatalf("add simple line: %v", err)
 	}
-	o, err := h.tryPlace(t, f.Channel, c0.ID)
+	o, err := h.TryPlace(t, f.Channel, c0.ID)
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
-	h.settle(t)
+	h.Settle(t)
 
 	if got := h.reservedForProduct(t, comp.ID); got != 2 {
 		t.Fatalf("component reserved after placement = %v, want 2", got)
 	}
 	// the re-read has to carry the components, which is what the reservation and the bundle guard both read
-	reread, err := h.d.Order.GetByID(h.ctx, o.ID)
+	reread, err := h.D.Order.GetByID(h.Ctx, o.ID)
 	if err != nil {
 		t.Fatalf("re-read: %v", err)
 	}
@@ -451,7 +451,7 @@ func TestEditKeepsABundlesComponentReservation(t *testing.T) {
 	}
 
 	simpleLine := h.lineBySKU(t, o.ID, f.Product.SKU)
-	if _, err := h.d.Order.EditOrder(h.ctx, order.EditOrderInput{
+	if _, err := h.D.Order.EditOrder(h.Ctx, order.EditOrderInput{
 		OrderID:   o.ID,
 		UpdateQty: []order.EditLineQty{{OrderLineID: simpleLine, Quantity: 3}},
 	}); err != nil {
@@ -461,16 +461,16 @@ func TestEditKeepsABundlesComponentReservation(t *testing.T) {
 	if got := h.reservedForProduct(t, comp.ID); got != 2 {
 		t.Errorf("component reserved after editing an unrelated line = %v, want it still 2", got)
 	}
-	if got := h.reservedFor(t, f); got != 3 {
+	if got := h.ReservedFor(t, f); got != 3 {
 		t.Errorf("simple line reserved = %v, want the edited 3", got)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // newBundleProduct builds a published one-option bundle over a single component
 func (h *harness) newBundleProduct(t *testing.T, f *store, comp catalog.Product, compQty float64) (catalog.Product, catalog.BundleOption, catalog.BundleSelection) {
 	t.Helper()
-	b, err := h.d.Catalog.CreateProduct(h.ctx, catalog.CreateProductInput{
+	b, err := h.D.Catalog.CreateProduct(h.Ctx, catalog.CreateProductInput{
 		ProductTypeID: f.Product.ProductTypeID, Locale: "en",
 		Name: "E2E Edit Bundle " + uuid.NewString()[:8], SKU: "e2e-edit-bundle-" + uuid.NewString()[:8],
 		Kind: catalog.KindBundle, DefaultCurrencyCode: "USD",
@@ -478,14 +478,14 @@ func (h *harness) newBundleProduct(t *testing.T, f *store, comp catalog.Product,
 	if err != nil {
 		t.Fatalf("create bundle: %v", err)
 	}
-	opt, err := h.d.Catalog.AddBundleOption(h.ctx, catalog.AddBundleOptionInput{
+	opt, err := h.D.Catalog.AddBundleOption(h.Ctx, catalog.AddBundleOptionInput{
 		ProductID: b.ID, InputType: catalog.BundleInputCheckbox,
 		IsRequired: true, MinSelections: 1, Locale: "en", Title: "Pick parts",
 	})
 	if err != nil {
 		t.Fatalf("bundle option: %v", err)
 	}
-	sel, err := h.d.Catalog.AddBundleSelection(h.ctx, catalog.AddBundleSelectionInput{
+	sel, err := h.D.Catalog.AddBundleSelection(h.Ctx, catalog.AddBundleSelectionInput{
 		OptionID: opt.ID, ProductID: comp.ID, Quantity: compQty,
 	})
 	if err != nil {

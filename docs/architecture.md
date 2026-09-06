@@ -85,7 +85,7 @@ contract. Everything below is `apps/backend/internal/<name>`.
 
 | Area | Packages |
 |---|---|
-| Selling | `catalog`, `pricing`, `promotion`, `cart`, `order`, `payment`, `shipping`, `tax`, `inventory`, `subscription`, `giftcard`, `storecredit`, `b2b` |
+| Selling | `catalog`, `pricing`, `promotion`, `cart`, `order`, `payment`, `shipping`, `tax`, `inventory`, `subscription`, `giftcard`, `storecredit` |
 | Customers | `customer`, `address`, `loyalty`, `referral`, `review`, `qna`, `wishlist`, `segment` |
 | Content | `cms`, `blog`, `blockkit`, `content`, `menu`, `form`, `webform`, `medialibrary`, `documents` |
 | Merchandising | `search`, `searchmerch`, `urlrewrite`, `sitecrawl`, `linkgraph` |

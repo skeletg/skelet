@@ -7,7 +7,6 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/internal/address"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
-	"github.com/skeletg/skelet/apps/backend/internal/b2b"
 	"github.com/skeletg/skelet/apps/backend/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/internal/blog/preview"
 	"github.com/skeletg/skelet/apps/backend/internal/cart"
@@ -58,7 +57,6 @@ type Resolver struct {
 	PaymentVaultSvc      *paymentvault.Service
 	AddressSvc           *address.Service
 	SearchMerchSvc       *searchmerch.Service
-	B2BSvc               *b2b.Service
 	SignalsEnabled       bool // mirrors SIGNALS_ENABLED (features.signals)
 	QnaSvc               *qna.Service
 	CartSvc              *cart.Service

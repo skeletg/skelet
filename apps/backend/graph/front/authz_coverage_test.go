@@ -62,6 +62,9 @@ var customerScopedFields = map[string]string{
 type funcInfo struct {
 	identifies bool
 	calls      []string
+	// Set when the body is a generated pluginhost.Do delegation - the caller check then lives in that
+	// plugin's own resolver, and authz_plugin_test.go follows it there rather than trusting it
+	pluginSlug string
 }
 
 func TestEveryFrontMutationEstablishesACaller(t *testing.T) {
@@ -74,9 +77,18 @@ func TestEveryFrontMutationEstablishesACaller(t *testing.T) {
 			}
 			continue
 		}
-		if !identifies(name, funcs, 0, map[string]bool{}) {
-			t.Errorf("front mutation %s establishes no caller - require customer auth, resolve the cart, or add it to publicMutations with a reason", name)
+		if identifies(name, funcs, 0, map[string]bool{}) {
+			continue
 		}
+		// A plugin mutation names its caller on the far side of the delegation - follow it, so a
+		// plugin is held to this rather than exempted from it
+		if slug := funcs[name].pluginSlug; slug != "" {
+			if !pluginIdentifies(t, slug, name, 0, map[string]bool{}) {
+				t.Errorf("front mutation %s is served by plugin %q, whose resolver establishes no caller - take sdk.CustomerID and refuse a nil in the plugin", name, slug)
+			}
+			continue
+		}
+		t.Errorf("front mutation %s establishes no caller - require customer auth, resolve the cart, or add it to publicMutations with a reason", name)
 	}
 }
 
@@ -241,6 +253,9 @@ func parseFrontFuncs(t *testing.T) (funcs map[string]funcInfo, mutations map[str
 			info := funcs[fn.Name.Name]
 			info.identifies = info.identifies || bodyIdentifies(fn.Body)
 			info.calls = append(info.calls, bodyCalls(fn.Body)...)
+			if slug := delegatedPluginSlug(fn.Body); slug != "" {
+				info.pluginSlug = slug
+			}
 			funcs[fn.Name.Name] = info
 
 			if isFrontMutation(fn) {

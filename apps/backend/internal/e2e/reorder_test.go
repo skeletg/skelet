@@ -120,7 +120,7 @@ func (h *harness) reorder(t *testing.T, ts *httptest.Server, ch uuid.UUID, token
 func (h *harness) registeredBuyer(t *testing.T, f *store) (uuid.UUID, string, string) {
 	t.Helper()
 	email := "reorder-" + uuid.NewString()[:8] + "@e2e.test"
-	c, err := h.d.Customer.Register(h.ctx, f.Channel.ID, email, "password123", "", "", nil)
+	c, err := h.D.Customer.Register(h.Ctx, f.Channel.ID, email, "password123", "", "", nil)
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -130,17 +130,17 @@ func (h *harness) registeredBuyer(t *testing.T, f *store) (uuid.UUID, string, st
 // Scenario: one-click reorder puts the order's lines back in the customer's cart, at CURRENT catalog prices rather than the order's snapshot
 func TestReorderRebuildsTheCartAtCurrentPrices(t *testing.T) {
 	h := newHarness(t)
-	ts := httptest.NewServer(h.d.Root)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
-	f := h.newStore(t, 50, 2000)
+	f := h.NewStore(t, 50, 2000)
 	buyer, email, token := h.registeredBuyer(t, f)
 
 	o := h.placeFor(t, f, buyer, email, 2)
-	h.settle(t)
+	h.Settle(t)
 
 	// the catalog price moves after the order was placed
 	newPrice := int64(3000)
-	if _, err := h.d.Catalog.SetProductListing(h.ctx, catalog.ProductChannelListingInput{
+	if _, err := h.D.Catalog.SetProductListing(h.Ctx, catalog.ProductChannelListingInput{
 		ProductID: f.Product.ID, ChannelID: f.Channel.ID, Price: &newPrice, IsPublished: true,
 	}); err != nil {
 		t.Fatalf("reprice: %v", err)
@@ -155,7 +155,7 @@ func TestReorderRebuildsTheCartAtCurrentPrices(t *testing.T) {
 	}
 
 	// the cart re-resolves pricing, so it must carry the NEW price and not the order's 2000
-	c, err := h.d.Cart.GetOrCreateCart(h.ctx, buyer, f.Channel.ID)
+	c, err := h.D.Cart.GetOrCreateCart(h.Ctx, buyer, f.Channel.ID)
 	if err != nil {
 		t.Fatalf("read cart: %v", err)
 	}
@@ -165,39 +165,39 @@ func TestReorderRebuildsTheCartAtCurrentPrices(t *testing.T) {
 	if c.Lines[0].UnitPrice != newPrice {
 		t.Errorf("cart unit price = %d, want the current %d rather than the order's snapshot", c.Lines[0].UnitPrice, newPrice)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // A line that no longer validates is reported in `skipped` and the REST still land - a reorder that aborts on the first bad line strands the whole basket
 func TestReorderSkipsUnavailableLinesAndKeepsTheRest(t *testing.T) {
 	h := newHarness(t)
-	ts := httptest.NewServer(h.d.Root)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
-	f := h.newStore(t, 50, 2000)
-	gone := h.addProduct(t, f, 1500, true, 10)
+	f := h.NewStore(t, 50, 2000)
+	gone := h.AddProduct(t, f, 1500, true, 10)
 	buyer, email, token := h.registeredBuyer(t, f)
 
-	c, err := h.d.Cart.GetOrCreateCart(h.ctx, buyer, f.Channel.ID)
+	c, err := h.D.Cart.GetOrCreateCart(h.Ctx, buyer, f.Channel.ID)
 	if err != nil {
 		t.Fatalf("cart: %v", err)
 	}
 	for _, sku := range []string{f.Product.SKU, gone.SKU} {
-		if _, err := h.d.Cart.AddToCart(h.ctx, c.ID, &buyer, cart.AddCartLineInput{ProductSku: sku, Quantity: 1}); err != nil {
+		if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, &buyer, cart.AddCartLineInput{ProductSku: sku, Quantity: 1}); err != nil {
 			t.Fatalf("add %s: %v", sku, err)
 		}
 	}
-	o, err := h.tryPlace(t, f.Channel, c.ID, func(in *order.PlaceOrderInput) {
+	o, err := h.TryPlace(t, f.Channel, c.ID, func(in *order.PlaceOrderInput) {
 		in.CustomerID = &buyer
 		in.Email = email
 	})
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
-	h.settle(t)
+	h.Settle(t)
 
 	// unpublish one product, so its line can no longer be re-added
 	zero := int64(1500)
-	if _, err := h.d.Catalog.SetProductListing(h.ctx, catalog.ProductChannelListingInput{
+	if _, err := h.D.Catalog.SetProductListing(h.Ctx, catalog.ProductChannelListingInput{
 		ProductID: gone.ID, ChannelID: f.Channel.ID, Price: &zero, IsPublished: false,
 	}); err != nil {
 		t.Fatalf("unpublish: %v", err)
@@ -216,37 +216,37 @@ func TestReorderSkipsUnavailableLinesAndKeepsTheRest(t *testing.T) {
 	if _, present := got.lines[gone.SKU]; present {
 		t.Errorf("cart lines = %v, want the unavailable SKU absent", got.lines)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // The resolver branches on len(line.Components), which a re-read order only carries because hydrateOrder attaches them - without that a bundle order reorders down the simple branch, which the cart refuses, so the bundle silently lands in `skipped`
 func TestReorderRebuildsABundleRatherThanSkippingIt(t *testing.T) {
 	h := newHarness(t)
-	ts := httptest.NewServer(h.d.Root)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
-	f := h.newStore(t, 50, 2000)
-	comp := h.addProduct(t, f, 1000, true, 30)
+	f := h.NewStore(t, 50, 2000)
+	comp := h.AddProduct(t, f, 1000, true, 30)
 	b, opt, sel := h.newBundleProduct(t, f, comp, 2)
 	buyer, email, token := h.registeredBuyer(t, f)
 
-	c, err := h.d.Cart.GetOrCreateCart(h.ctx, buyer, f.Channel.ID)
+	c, err := h.D.Cart.GetOrCreateCart(h.Ctx, buyer, f.Channel.ID)
 	if err != nil {
 		t.Fatalf("cart: %v", err)
 	}
-	if _, err := h.d.Cart.AddBundleToCart(h.ctx, c.ID, &buyer, cart.AddBundleToCartInput{
+	if _, err := h.D.Cart.AddBundleToCart(h.Ctx, c.ID, &buyer, cart.AddBundleToCartInput{
 		ProductSku: b.SKU, Quantity: 1,
 		Selections: []cart.AddBundleSelectionInput{{OptionID: opt.ID, SelectionIDs: []uuid.UUID{sel.ID}}},
 	}); err != nil {
 		t.Fatalf("add bundle: %v", err)
 	}
-	o, err := h.tryPlace(t, f.Channel, c.ID, func(in *order.PlaceOrderInput) {
+	o, err := h.TryPlace(t, f.Channel, c.ID, func(in *order.PlaceOrderInput) {
 		in.CustomerID = &buyer
 		in.Email = email
 	})
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
-	h.settle(t)
+	h.Settle(t)
 
 	got := h.reorder(t, ts, f.Channel.ID, token, o.ID)
 	if len(got.skipped) != 0 {
@@ -256,7 +256,7 @@ func TestReorderRebuildsABundleRatherThanSkippingIt(t *testing.T) {
 		t.Errorf("added = %d, want the bundle line re-added", got.added)
 	}
 	// and it comes back as a real bundle, with its component rows - the placed cart was converted, so the reorder built a fresh one
-	reread, err := h.d.Cart.GetOrCreateCart(h.ctx, buyer, f.Channel.ID)
+	reread, err := h.D.Cart.GetOrCreateCart(h.Ctx, buyer, f.Channel.ID)
 	if err != nil {
 		t.Fatalf("read cart: %v", err)
 	}
@@ -272,43 +272,43 @@ func TestReorderRebuildsABundleRatherThanSkippingIt(t *testing.T) {
 	if len(bundleLine.Components) == 0 {
 		t.Error("the reordered bundle line carries no components, so it is not a real bundle")
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // A configured line rebuilds its option picks, so the personalization the customer paid for comes back rather than a bare product
 func TestReorderRebuildsConfiguredOptions(t *testing.T) {
 	h := newHarness(t)
-	ts := httptest.NewServer(h.d.Root)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
-	f := h.newStore(t, 50, 2000)
+	f := h.NewStore(t, 50, 2000)
 	opt, values := h.addSelectOption(t, f.Product.ID, "Mounting", true, 500)
 	buyer, email, token := h.registeredBuyer(t, f)
 
-	c, err := h.d.Cart.GetOrCreateCart(h.ctx, buyer, f.Channel.ID)
+	c, err := h.D.Cart.GetOrCreateCart(h.Ctx, buyer, f.Channel.ID)
 	if err != nil {
 		t.Fatalf("cart: %v", err)
 	}
-	if _, err := h.d.Cart.AddConfiguredToCart(h.ctx, c.ID, &buyer, cart.AddConfiguredToCartInput{
+	if _, err := h.D.Cart.AddConfiguredToCart(h.Ctx, c.ID, &buyer, cart.AddConfiguredToCartInput{
 		ProductSku: f.Product.SKU, Quantity: 1,
 		Options: []cart.CartLineOptionInput{{OptionID: opt.ID, ValueIDs: []uuid.UUID{values[0].ID}}},
 	}); err != nil {
 		t.Fatalf("add configured: %v", err)
 	}
-	o, err := h.tryPlace(t, f.Channel, c.ID, func(in *order.PlaceOrderInput) {
+	o, err := h.TryPlace(t, f.Channel, c.ID, func(in *order.PlaceOrderInput) {
 		in.CustomerID = &buyer
 		in.Email = email
 	})
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
-	h.settle(t)
+	h.Settle(t)
 
 	got := h.reorder(t, ts, f.Channel.ID, token, o.ID)
 	if len(got.skipped) != 0 || got.added != 1 {
 		t.Fatalf("added %d, skipped %v - want the configured line rebuilt", got.added, got.skipped)
 	}
 
-	reread, err := h.d.Cart.GetOrCreateCart(h.ctx, buyer, f.Channel.ID)
+	reread, err := h.D.Cart.GetOrCreateCart(h.Ctx, buyer, f.Channel.ID)
 	if err != nil {
 		t.Fatalf("read cart: %v", err)
 	}
@@ -325,20 +325,20 @@ func TestReorderRebuildsConfiguredOptions(t *testing.T) {
 	if reread.Lines[0].UnitPrice != 2500 {
 		t.Errorf("unit price = %d, want the base 2000 plus the 500 delta", reread.Lines[0].UnitPrice)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // Reorder reads someone's order history, so it must refuse an anonymous caller and another customer's order
 func TestReorderRefusesAnonymousAndForeignOrders(t *testing.T) {
 	h := newHarness(t)
-	ts := httptest.NewServer(h.d.Root)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
-	f := h.newStore(t, 50, 2000)
+	f := h.NewStore(t, 50, 2000)
 	owner, ownerEmail, ownerToken := h.registeredBuyer(t, f)
 	_, _, strangerToken := h.registeredBuyer(t, f)
 
 	o := h.placeFor(t, f, owner, ownerEmail, 1)
-	h.settle(t)
+	h.Settle(t)
 
 	// anonymous
 	_, errs := h.gqlPost(t, ts, f.Channel.ID.String(), fmt.Sprintf(reorderQuery, o.ID.String()))
@@ -357,20 +357,20 @@ func TestReorderRefusesAnonymousAndForeignOrders(t *testing.T) {
 	if got.added != 1 {
 		t.Errorf("the owner's reorder added %d, want 1", got.added)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // A malformed id is a client error, not a 500
 func TestReorderRejectsAMalformedOrderID(t *testing.T) {
 	h := newHarness(t)
-	ts := httptest.NewServer(h.d.Root)
+	ts := httptest.NewServer(h.D.Root)
 	defer ts.Close()
-	f := h.newStore(t, 50, 2000)
+	f := h.NewStore(t, 50, 2000)
 	_, _, token := h.registeredBuyer(t, f)
 
 	_, errs := h.gqlPostAs(t, ts, f.Channel.ID.String(), token, fmt.Sprintf(reorderQuery, "not-a-uuid"))
 	if len(errs) == 0 {
 		t.Error("a malformed order id was accepted")
 	}
-	h.settle(t)
+	h.Settle(t)
 }

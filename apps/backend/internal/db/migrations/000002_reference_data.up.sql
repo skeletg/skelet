@@ -267,12 +267,6 @@ INSERT INTO public.customer_groups VALUES ('4ba1dc40-f2e6-496d-81a2-4e62770a16d9
 
 
 --
--- Data for Name: companies; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
 -- Data for Name: customers; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -292,24 +286,6 @@ INSERT INTO public.customer_groups VALUES ('4ba1dc40-f2e6-496d-81a2-4e62770a16d9
 
 --
 -- Data for Name: orders; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: b2b_credit_entries; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: b2b_invoices; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: b2b_quotes; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -833,18 +809,6 @@ INSERT INTO public.channel_locales VALUES ('56d051bc-0131-4476-bc0b-121d80290684
 
 --
 -- Data for Name: collection_facet_overrides; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: company_members; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: company_prices; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 

@@ -65,8 +65,8 @@ func gqlField(t *testing.T, data map[string]any, object, field string) string {
 // the channel header is identity, and a converted cart can't place twice
 func TestFrontGraphQLCheckout(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 10, 2300)
-	ts := httptest.NewServer(h.d.Root.Handler)
+	f := h.NewStore(t, 10, 2300)
+	ts := httptest.NewServer(h.D.Root.Handler)
 	defer ts.Close()
 
 	// Header-less requests are deployment-defined (the middleware may fall back to an elected default channel), so identity is asserted the
@@ -112,21 +112,21 @@ func TestFrontGraphQLCheckout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("order id: %v", err)
 	}
-	row, err := h.d.Queries.GetOrderByID(h.ctx, orderID)
+	row, err := h.D.Queries.GetOrderByID(h.Ctx, orderID)
 	if err != nil {
 		t.Fatalf("order row: %v", err)
 	}
 	if row.PaymentStatus != "unpaid" || row.Email != email {
 		t.Errorf("db row = %q/%q, want unpaid/%s", row.PaymentStatus, row.Email, email)
 	}
-	lines := h.orderLines(t, orderID)
+	lines := h.OrderLines(t, orderID)
 	if len(lines) != 1 || lines[0].UnitPrice != 2300 {
 		t.Errorf("order line price = %+v, want the listing's 2300, never the client's 1", lines)
 	}
-	if got := h.reservedFor(t, f); got != 1 {
+	if got := h.ReservedFor(t, f); got != 1 {
 		t.Errorf("reserved = %v after the HTTP placement, want 1", got)
 	}
-	h.settle(t)
+	h.Settle(t)
 
 	// A converted cart is spent - the same cart id can't place twice
 	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(

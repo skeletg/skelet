@@ -13,25 +13,20 @@ import { mergePendingRemovals, useCartStore } from "@/app/lib/cart/store";
 import type { CartLine } from "@/app/lib/cart/types";
 import { displayName } from "@/app/lib/display";
 import { formatPrice } from "@/app/lib/format";
-import { CartCreditHint } from "./CartCreditHint";
 import { RecentlyViewedRail } from "@/app/components/RecentlyViewed";
+import { Slots } from "@/app/plugins/Slots";
 import { CouponForm } from "./coupon-form";
 import { SaveForLaterButton, SavedForLater } from "./SavedForLater";
 import { CartEstimator } from "./CartEstimator";
 import { CartNote } from "./CartNote";
-import { RequestQuoteForm } from "./RequestQuoteForm";
 import { mediaThumb } from "@/app/lib/media-thumb";
 
 const FALLBACK_CURRENCY = "USD";
 
 export function CartView({
-  company,
-  b2bEnabled,
   freeShipThreshold,
   recommendations,
 }: {
-  company: { creditLimitCents: number; creditUsedCents: number } | null;
-  b2bEnabled: boolean;
   freeShipThreshold: number;
   recommendations: React.ReactNode;
 }) {
@@ -164,7 +159,7 @@ export function CartView({
             className="mt-6"
           />
 
-          <CartCreditHint company={company} subtotal={netSubtotal} currency={currency} />
+          <Slots zone="cart:summary" ctx={{ subtotal: netSubtotal, currency }} />
 
           <CouponForm
             appliedCodes={cart.appliedCodes}
@@ -209,7 +204,7 @@ export function CartView({
             >
               Proceed to checkout →
             </Link>
-            {b2bEnabled && <RequestQuoteForm />}
+            <Slots zone="cart:actions" />
           </div>
 
           <CartEstimator currency={currency} />

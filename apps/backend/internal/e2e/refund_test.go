@@ -14,16 +14,16 @@ import (
 // shortfall lands on the memo as an adjustment fee so the document still adds up - and only a drained ledger refuses outright
 func TestRefundMemoCeilingAndDerivedStatus(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 10, 2500)
-	o := h.placeGuestCOD(t, f, 1)
-	h.settle(t)
-	if _, err := h.d.Order.RecordOfflinePayment(h.ctx, order.RecordOfflinePaymentInput{
+	f := h.NewStore(t, 10, 2500)
+	o := h.PlaceGuestCOD(t, f, 1)
+	h.Settle(t)
+	if _, err := h.D.Order.RecordOfflinePayment(h.Ctx, order.RecordOfflinePaymentInput{
 		OrderID: o.ID, Method: "cod", Reference: "e2e-cash",
 	}); err != nil {
 		t.Fatalf("collect in full: %v", err)
 	}
 
-	intent, err := h.d.Order.RecordCreditMemoIntent(h.ctx, order.IssueCreditMemoInput{
+	intent, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
 		OrderID:               o.ID,
 		AdjustmentRefundCents: 500,
 	})
@@ -36,7 +36,7 @@ func TestRefundMemoCeilingAndDerivedStatus(t *testing.T) {
 	if !strings.HasPrefix(intent.Memo.Number, "CM-") {
 		t.Errorf("memo number = %q, want CM- prefix", intent.Memo.Number)
 	}
-	afterPartial, _, err := h.d.Order.FinalizeCreditMemo(h.ctx, intent.Txn.ID, true, "manual")
+	afterPartial, _, err := h.D.Order.FinalizeCreditMemo(h.Ctx, intent.Txn.ID, true, "manual")
 	if err != nil {
 		t.Fatalf("finalize first memo: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestRefundMemoCeilingAndDerivedStatus(t *testing.T) {
 
 	// Ceiling is captured-minus-refunded per order: 2000 remains, so an absurd ask clamps to it
 	// and the shortfall becomes the memo's adjustment fee
-	over, err := h.d.Order.RecordCreditMemoIntent(h.ctx, order.IssueCreditMemoInput{
+	over, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
 		OrderID:               o.ID,
 		AdjustmentRefundCents: 9_999_999,
 	})
@@ -59,7 +59,7 @@ func TestRefundMemoCeilingAndDerivedStatus(t *testing.T) {
 	if fee := over.Memo.AdjustmentFeeCents; fee != 9_999_999-2000 {
 		t.Errorf("adjustment fee = %d, want the %d shortfall", fee, 9_999_999-2000)
 	}
-	afterFull, _, err := h.d.Order.FinalizeCreditMemo(h.ctx, over.Txn.ID, true, "manual")
+	afterFull, _, err := h.D.Order.FinalizeCreditMemo(h.Ctx, over.Txn.ID, true, "manual")
 	if err != nil {
 		t.Fatalf("finalize second memo: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestRefundMemoCeilingAndDerivedStatus(t *testing.T) {
 	}
 
 	// Drained ledger refuses a third memo outright
-	if _, err := h.d.Order.RecordCreditMemoIntent(h.ctx, order.IssueCreditMemoInput{
+	if _, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
 		OrderID:               o.ID,
 		AdjustmentRefundCents: 1,
 	}); err == nil {
@@ -78,7 +78,7 @@ func TestRefundMemoCeilingAndDerivedStatus(t *testing.T) {
 	}
 
 	// Ledger accounting: capture and refund both at the order total
-	sums, err := h.d.Queries.SumOrderPaymentByKind(h.ctx, o.ID)
+	sums, err := h.D.Queries.SumOrderPaymentByKind(h.Ctx, o.ID)
 	if err != nil {
 		t.Fatalf("ledger sums: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestRefundMemoCeilingAndDerivedStatus(t *testing.T) {
 	}
 
 	// Memo numbers are sequence-assigned and strictly increasing
-	memos, err := h.d.Queries.ListCreditMemosByOrder(h.ctx, o.ID)
+	memos, err := h.D.Queries.ListCreditMemosByOrder(h.Ctx, o.ID)
 	if err != nil {
 		t.Fatalf("list memos: %v", err)
 	}
@@ -100,11 +100,11 @@ func TestRefundMemoCeilingAndDerivedStatus(t *testing.T) {
 	}
 
 	// Each finalize enqueued a durable order.refunded - deliver and confirm
-	if total, _ := h.outboxRows(t, "order.refunded", o.ID.String()); total != 2 {
+	if total, _ := h.OutboxRows(t, "order.refunded", o.ID.String()); total != 2 {
 		t.Errorf("order.refunded outbox rows = %d, want 2", total)
 	}
-	h.settle(t)
-	if _, undelivered := h.outboxRows(t, "order.refunded", o.ID.String()); undelivered != 0 {
+	h.Settle(t)
+	if _, undelivered := h.OutboxRows(t, "order.refunded", o.ID.String()); undelivered != 0 {
 		t.Errorf("%d order.refunded rows undelivered after settle", undelivered)
 	}
 }
@@ -113,21 +113,21 @@ func TestRefundMemoCeilingAndDerivedStatus(t *testing.T) {
 // first, but never more units than were ordered minus already credited
 func TestRefundLineQuantityGuard(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 10, 1000)
-	o := h.placeGuestCOD(t, f, 2)
-	h.settle(t)
-	if _, err := h.d.Order.RecordOfflinePayment(h.ctx, order.RecordOfflinePaymentInput{
+	f := h.NewStore(t, 10, 1000)
+	o := h.PlaceGuestCOD(t, f, 2)
+	h.Settle(t)
+	if _, err := h.D.Order.RecordOfflinePayment(h.Ctx, order.RecordOfflinePaymentInput{
 		OrderID: o.ID, Method: "cod", Reference: "e2e-cash",
 	}); err != nil {
 		t.Fatalf("collect in full: %v", err)
 	}
-	lines, err := h.d.Queries.ListOrderLinesByOrder(h.ctx, o.ID)
+	lines, err := h.D.Queries.ListOrderLinesByOrder(h.Ctx, o.ID)
 	if err != nil || len(lines) != 1 {
 		t.Fatalf("order lines = %d (%v), want 1", len(lines), err)
 	}
 	lineID := lines[0].ID
 
-	first, err := h.d.Order.RecordCreditMemoIntent(h.ctx, order.IssueCreditMemoInput{
+	first, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
 		OrderID: o.ID,
 		Lines:   []order.CreditMemoLineInput{{OrderLineID: lineID, Quantity: 1}},
 	})
@@ -137,13 +137,13 @@ func TestRefundLineQuantityGuard(t *testing.T) {
 	if first.AmountCents != 1000 {
 		t.Errorf("one unit refunds %d, want 1000", first.AmountCents)
 	}
-	if _, _, err := h.d.Order.FinalizeCreditMemo(h.ctx, first.Txn.ID, true, "manual"); err != nil {
+	if _, _, err := h.D.Order.FinalizeCreditMemo(h.Ctx, first.Txn.ID, true, "manual"); err != nil {
 		t.Fatalf("finalize first unit: %v", err)
 	}
 
 	// Only one unit remains creditable - asking for two must refuse, not clamp: quantity is a
 	// document fact, unlike money
-	if _, err := h.d.Order.RecordCreditMemoIntent(h.ctx, order.IssueCreditMemoInput{
+	if _, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
 		OrderID: o.ID,
 		Lines:   []order.CreditMemoLineInput{{OrderLineID: lineID, Quantity: 2}},
 	}); err == nil {
@@ -152,32 +152,32 @@ func TestRefundLineQuantityGuard(t *testing.T) {
 		t.Errorf("over-quantity error = %v, want code CREDIT_MEMO_EXCEEDS_ORDERED", err)
 	}
 
-	second, err := h.d.Order.RecordCreditMemoIntent(h.ctx, order.IssueCreditMemoInput{
+	second, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
 		OrderID: o.ID,
 		Lines:   []order.CreditMemoLineInput{{OrderLineID: lineID, Quantity: 1}},
 	})
 	if err != nil {
 		t.Fatalf("refund second unit: %v", err)
 	}
-	final, _, err := h.d.Order.FinalizeCreditMemo(h.ctx, second.Txn.ID, true, "manual")
+	final, _, err := h.D.Order.FinalizeCreditMemo(h.Ctx, second.Txn.ID, true, "manual")
 	if err != nil {
 		t.Fatalf("finalize second unit: %v", err)
 	}
 	if final.PaymentStatus != "refunded" {
 		t.Errorf("payment_status = %q after both units refunded, want refunded", final.PaymentStatus)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // Scenario: a gift-card-target refund measures against the TOTAL TENDERED, not captures - it can return money that was
 // never collected through a gateway, which the original-target ceiling correctly refuses
 func TestRefundGiftCardTargetCeilingIsTendered(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 5, 2000)
-	o := h.placeGuestCOD(t, f, 1) // nothing ever collected
-	h.settle(t)
+	f := h.NewStore(t, 5, 2000)
+	o := h.PlaceGuestCOD(t, f, 1) // nothing ever collected
+	h.Settle(t)
 
-	if _, err := h.d.Order.RecordCreditMemoIntent(h.ctx, order.IssueCreditMemoInput{
+	if _, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
 		OrderID: o.ID, AdjustmentRefundCents: 100,
 	}); err == nil {
 		t.Fatal("original-target memo succeeded with zero captured")
@@ -185,7 +185,7 @@ func TestRefundGiftCardTargetCeilingIsTendered(t *testing.T) {
 		t.Errorf("zero-captured memo error = %v, want CREDIT_MEMO_NOTHING_TO_REFUND", err)
 	}
 
-	intent, err := h.d.Order.RecordCreditMemoIntent(h.ctx, order.IssueCreditMemoInput{
+	intent, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
 		OrderID: o.ID, AdjustmentRefundCents: 999_999, RefundTarget: "gift_card",
 	})
 	if err != nil {
@@ -194,48 +194,48 @@ func TestRefundGiftCardTargetCeilingIsTendered(t *testing.T) {
 	if intent.AmountCents != o.TotalAmount {
 		t.Errorf("gift-card-target clamped to %d, want the tendered total %d", intent.AmountCents, o.TotalAmount)
 	}
-	updated, _, err := h.d.Order.FinalizeCreditMemo(h.ctx, intent.Txn.ID, true, "manual")
+	updated, _, err := h.D.Order.FinalizeCreditMemo(h.Ctx, intent.Txn.ID, true, "manual")
 	if err != nil {
 		t.Fatalf("finalize: %v", err)
 	}
 	if updated.PaymentStatus != "refunded" {
 		t.Errorf("payment_status = %q, want refunded - full total returned as a card", updated.PaymentStatus)
 	}
-	sums := h.ledgerByKind(t, o.ID)
+	sums := h.LedgerByKind(t, o.ID)
 	if sums[order.PaymentTxnRefund] != o.TotalAmount || sums[order.PaymentTxnCapture] != 0 {
 		t.Errorf("ledger = %+v, want refund %d against zero captures", sums, o.TotalAmount)
 	}
-	h.settle(t)
+	h.Settle(t)
 }
 
 // Scenario: line memos stay per-line on a two-line order - draining one line's quantity leaves
 // the other line refundable, and the statuses derive across both
 func TestLineMemosAcrossTwoLines(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 10, 800)
-	second := h.addProduct(t, f, 600, true, 10)
-	c, err := h.d.Cart.CreateGuestCart(h.ctx, f.Channel.ID)
+	f := h.NewStore(t, 10, 800)
+	second := h.AddProduct(t, f, 600, true, 10)
+	c, err := h.D.Cart.CreateGuestCart(h.Ctx, f.Channel.ID)
 	if err != nil {
 		t.Fatalf("cart: %v", err)
 	}
 	for _, sku := range []string{f.Product.SKU, second.SKU} {
-		if _, err := h.d.Cart.AddToCart(h.ctx, c.ID, nil, cart.AddCartLineInput{ProductSku: sku, Quantity: 1}); err != nil {
+		if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, cart.AddCartLineInput{ProductSku: sku, Quantity: 1}); err != nil {
 			t.Fatalf("add %s: %v", sku, err)
 		}
 	}
-	o, err := h.tryPlace(t, f.Channel, c.ID)
+	o, err := h.TryPlace(t, f.Channel, c.ID)
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
-	h.settle(t)
-	if _, err := h.d.Order.RecordOfflinePayment(h.ctx, order.RecordOfflinePaymentInput{
+	h.Settle(t)
+	if _, err := h.D.Order.RecordOfflinePayment(h.Ctx, order.RecordOfflinePaymentInput{
 		OrderID: o.ID, Method: "cod", Reference: "e2e-cash",
 	}); err != nil {
 		t.Fatalf("collect: %v", err)
 	}
 
 	var lineA, lineB uuid.UUID
-	for _, l := range h.orderLines(t, o.ID) {
+	for _, l := range h.OrderLines(t, o.ID) {
 		switch l.ProductSku {
 		case f.Product.SKU:
 			lineA = l.ID
@@ -244,7 +244,7 @@ func TestLineMemosAcrossTwoLines(t *testing.T) {
 		}
 	}
 
-	first, err := h.d.Order.RecordCreditMemoIntent(h.ctx, order.IssueCreditMemoInput{
+	first, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
 		OrderID: o.ID, Lines: []order.CreditMemoLineInput{{OrderLineID: lineA, Quantity: 1}},
 	})
 	if err != nil {
@@ -253,7 +253,7 @@ func TestLineMemosAcrossTwoLines(t *testing.T) {
 	if first.AmountCents != 800 {
 		t.Errorf("line A memo = %d, want its 800", first.AmountCents)
 	}
-	partial, _, err := h.d.Order.FinalizeCreditMemo(h.ctx, first.Txn.ID, true, "manual")
+	partial, _, err := h.D.Order.FinalizeCreditMemo(h.Ctx, first.Txn.ID, true, "manual")
 	if err != nil {
 		t.Fatalf("finalize A: %v", err)
 	}
@@ -262,25 +262,25 @@ func TestLineMemosAcrossTwoLines(t *testing.T) {
 	}
 
 	// Line A is drained - only line B still credits
-	if _, err := h.d.Order.RecordCreditMemoIntent(h.ctx, order.IssueCreditMemoInput{
+	if _, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
 		OrderID: o.ID, Lines: []order.CreditMemoLineInput{{OrderLineID: lineA, Quantity: 1}},
 	}); err == nil {
 		t.Fatal("credited line A past its quantity")
 	} else if ae, ok := apperr.AsAppError(err); !ok || ae.Code != "CREDIT_MEMO_EXCEEDS_ORDERED" {
 		t.Errorf("drained line error = %v, want CREDIT_MEMO_EXCEEDS_ORDERED", err)
 	}
-	last, err := h.d.Order.RecordCreditMemoIntent(h.ctx, order.IssueCreditMemoInput{
+	last, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
 		OrderID: o.ID, Lines: []order.CreditMemoLineInput{{OrderLineID: lineB, Quantity: 1}},
 	})
 	if err != nil {
 		t.Fatalf("memo line B: %v", err)
 	}
-	full, _, err := h.d.Order.FinalizeCreditMemo(h.ctx, last.Txn.ID, true, "manual")
+	full, _, err := h.D.Order.FinalizeCreditMemo(h.Ctx, last.Txn.ID, true, "manual")
 	if err != nil {
 		t.Fatalf("finalize B: %v", err)
 	}
 	if full.PaymentStatus != "refunded" {
 		t.Errorf("after both lines: %q, want refunded", full.PaymentStatus)
 	}
-	h.settle(t)
+	h.Settle(t)
 }

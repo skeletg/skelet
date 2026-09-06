@@ -47,7 +47,7 @@ import { EntityChannelForbidden, EntityWrongChannel } from '@/shared/errors/Chan
 import { isForbiddenError } from '@/shared/errors/isForbiddenError'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { GdprActions } from './GdprActions'
-import { MasqueradeButton } from '@/features/b2b/MasqueradeButton'
+import { MasqueradeButton } from '@/features/customers/MasqueradeButton'
 import { LoyaltySection } from './LoyaltySection'
 import { StoreCreditSection } from './StoreCreditSection'
 import { useConfigScope } from '@/lib/config-scope'

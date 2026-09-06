@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 
 import { AccountNav } from "@/app/components/account/AccountNav";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
-import { getCachedCompany } from "@/app/components/account/company";
 import { getCurrentCustomer } from "@/app/lib/customer/read";
 import { logoutAction } from "@/app/lib/auth/actions";
 
@@ -20,8 +19,6 @@ export default async function AccountLayout({
       </main>
     );
   }
-
-  const company = await getCachedCompany();
   const initials =
     `${customer.firstName.charAt(0)}${customer.lastName.charAt(0)}`.toUpperCase();
 
@@ -47,7 +44,7 @@ export default async function AccountLayout({
             </SubmitButton>
           </form>
         </div>
-        <AccountNav hasCompany={Boolean(company)} variant="strip" />
+        <AccountNav variant="strip" />
       </div>
 
       <div className="lg:grid lg:grid-cols-[16rem_1fr] lg:gap-10">
@@ -66,7 +63,7 @@ export default async function AccountLayout({
                 </p>
               </div>
             </div>
-            <AccountNav hasCompany={Boolean(company)} />
+            <AccountNav />
             <form action={logoutAction} className="mt-6 border-t border-border pt-3">
               <SubmitButton
                 className="w-full rounded-lg px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
