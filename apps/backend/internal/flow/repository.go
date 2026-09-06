@@ -27,7 +27,8 @@ type Repository interface {
 	CountLiveRuns(ctx context.Context, flowID, customerID uuid.UUID) (int64, error)
 	CountLiveGuestRuns(ctx context.Context, flowID uuid.UUID, email string) (int64, error)
 	CreateRun(ctx context.Context, r FlowRun) (FlowRun, error)
-	ClaimRunnable(ctx context.Context, limit int32) ([]FlowRun, error)
+	// marketingEnabled false claims only transactional flows' runs - the Signals switch, applied in the query so parked marketing runs don't spend the claim budget
+	ClaimRunnable(ctx context.Context, limit int32, marketingEnabled bool) ([]FlowRun, error)
 	UpdateRun(ctx context.Context, r FlowRun) error
 	ListRuns(ctx context.Context, flowID uuid.UUID, limit int32) ([]FlowRun, error)
 	RunsForCustomer(ctx context.Context, customerID uuid.UUID) ([]CustomerRun, error)
@@ -167,8 +168,8 @@ func (r *repo) CreateRun(ctx context.Context, rn FlowRun) (FlowRun, error) {
 	return toRun(row), nil
 }
 
-func (r *repo) ClaimRunnable(ctx context.Context, limit int32) ([]FlowRun, error) {
-	rows, err := r.q.ClaimRunnableFlowRuns(ctx, limit)
+func (r *repo) ClaimRunnable(ctx context.Context, limit int32, marketingEnabled bool) ([]FlowRun, error) {
+	rows, err := r.q.ClaimRunnableFlowRuns(ctx, db.ClaimRunnableFlowRunsParams{Lim: limit, MarketingEnabled: marketingEnabled})
 	if err != nil {
 		return nil, err
 	}

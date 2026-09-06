@@ -9,6 +9,18 @@ The release process, and which version number means what, is in
 
 ## [Unreleased]
 
+### Fixed
+
+- **A paused marketing flow could stop every transactional email on the server.** The flow engine
+  claims the oldest 100 runnable runs per tick, and a run whose flow was paused or deleted, or a
+  marketing run under `SIGNALS_ENABLED=false`, was claimed and then left exactly as it was. Those
+  runs came back on every tick, so once 100 of them were the oldest in the table nothing behind
+  them ever advanced - and this engine delivers order receipts, verification links and password
+  resets, so they stopped going out. Enrolling a few hundred customers in a campaign and then
+  pausing it was enough to trigger it. The claim now joins `flows` and returns only runs the
+  engine will actually advance, so a run it would refuse no longer spends a slot. Parked runs are
+  still left untouched and resume when the flow is reactivated.
+
 ### Added
 
 - **Resend an order email from the dashboard.** `resendOrderEmail` sends an order's receipt,
