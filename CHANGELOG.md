@@ -11,6 +11,16 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- **Core owns the order-lifecycle mail.** The receipt, shipment notice, cancellation and
+  refund were delivered entirely by the flow engine, which also owned the subscriptions -
+  so a channel whose flow was paused or deleted silently sent nothing, and there is no
+  admin resend to recover it. A new `internal/ordermail` owns those four subscriptions and
+  calls the flow engine as a dispatcher: a flow still wins whenever one is active, and only
+  a zero enrollment falls through to sending directly. The order-to-template mapping moved
+  out of the flow engine so both senders share it. Flow-sent order mail now stamps its
+  `order_id` on the send log, which it never did, so a receipt is attributable to its order
+  whichever sender delivered it.
+
 - **A new channel seeds its own transactional emails and delivery flows.** Seeding was a
   manual `skelet emails seed-transactional` that nothing called, so a channel created
   through the admin API had no flows and silently sent no receipts, no verification and no

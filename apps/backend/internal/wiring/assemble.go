@@ -32,6 +32,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/internal/menu"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/internal/paymentvault"
 	pluginhost "github.com/skeletg/skelet/apps/backend/internal/plugin"
@@ -227,14 +228,18 @@ type marketingDeps struct {
 	Form          *form.Service
 	Consent       *consent.Service
 	Segment       *segment.Service
+	OrderMail     *ordermail.Service
+	Recorder      *analytics.Recorder
 }
 
 func wireMarketing(d marketingDeps) { // transactional mail is delivered as a Pulse flow where one is active, receipts and account emails included
 	d.Flow.SetEnabled(bool(d.Signals))
 	d.Flow.SetSuppression(d.Suppression)
-	d.Flow.SetOrderReader(d.Order)                   // lets order flows populate item / total / tracking / ship-to blocks
-	d.Customer.SetAuthEmailDispatcher(d.Flow)        // verification + password reset hand their one-time link to the flow engine
-	d.Customer.SetAuthEmailFallback(d.EmailTemplate) // and go out directly when no flow does, so a paused one can't swallow a password reset
+	d.Flow.SetOrderReader(d.Order)                            // lets order flows populate item / total / tracking / ship-to blocks
+	d.Customer.SetAuthEmailDispatcher(d.Flow)                 // verification + password reset hand their one-time link to the flow engine
+	d.Customer.SetAuthEmailFallback(d.EmailTemplate)          // and go out directly when no flow does, so a paused one can't swallow a password reset
+	d.OrderMail.SetFlowDispatcher(d.Flow)                     // receipts prefer an operator's flow, and fall back to a direct send
+	d.OrderMail.SetSendLog(OrderMailSendLog{rec: d.Recorder}) // a direct receipt still shows up in Pulse reporting
 	d.Campaign.SetSuppression(d.Suppression)
 	d.EmailTemplate.SetCatalogReader(NewEmailCatalogReader(d.Catalog, d.Channel))                   // wires the "products" email block to live catalog data
 	d.Form.SetHooks(NewContactAdapter(d.Customer), NewConsentAdapter(d.Consent), d.Segment, d.Flow) // storefront email capture → contact + consent + segment + form_submitted flow

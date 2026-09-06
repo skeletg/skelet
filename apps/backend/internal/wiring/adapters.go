@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/audit"
 	"github.com/skeletg/skelet/apps/backend/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/internal/catalog"
@@ -998,4 +1000,22 @@ func NewConsentAdapter(c *consent.Service) ConsentAdapter { return ConsentAdapte
 
 func NewEmailCatalogReader(cat *catalog.Service, ch *channel.Service) EmailCatalogReader {
 	return EmailCatalogReader{catalog: cat, chans: ch}
+}
+
+// OrderMailSendLog adapts the analytics Recorder to ordermail.SendLog, so a receipt sent directly
+// lands in the send log the same way a flow's would and stays visible to Pulse reporting
+// SourceTransactional distinguishes it from the flow and campaign senders
+type OrderMailSendLog struct {
+	rec *analytics.Recorder
+}
+
+func (l OrderMailSendLog) LogTransactional(ctx context.Context, channelID uuid.UUID, customerID *uuid.UUID, to, messageKey string, orderID uuid.UUID) error {
+	send, err := l.rec.NewSend(ctx, analytics.SendSpec{
+		ChannelID: channelID, Source: analytics.SourceTransactional, Email: to,
+		CustomerID: customerID, MessageKey: messageKey, OrderID: &orderID,
+	})
+	if err != nil {
+		return err
+	}
+	return l.rec.RecordSent(ctx, send)
 }

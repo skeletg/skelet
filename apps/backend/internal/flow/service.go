@@ -26,6 +26,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
 	"github.com/skeletg/skelet/apps/backend/internal/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/sms"
@@ -598,9 +599,14 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 		id := cust.ID
 		custIDPtr = &id
 	}
+	// Order-triggered runs stamp the order, so a receipt is attributable to it whichever sender delivered it
+	var orderIDPtr *uuid.UUID
+	if id := orderIDFromRun(run); id != uuid.Nil {
+		orderIDPtr = &id
+	}
 	if send, serr := s.recorder.NewSend(ctx, analytics.SendSpec{
 		ChannelID: ch.ID, Source: analytics.SourceFlow, Email: recipient, CustomerID: custIDPtr,
-		FlowID: &flowID, FlowRunID: &runID, FlowNodeID: node.ID,
+		FlowID: &flowID, FlowRunID: &runID, FlowNodeID: node.ID, OrderID: orderIDPtr,
 	}); serr == nil {
 		_ = s.recorder.RecordSent(ctx, send)
 		if transactional {
@@ -890,6 +896,4 @@ func (s *Service) signToken(customerID uuid.UUID) string {
 	return payload + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-func storefrontURL(ch channel.Channel) string {
-	return strings.TrimRight(strings.TrimSpace(ch.PublicURL), "/")
-}
+func storefrontURL(ch channel.Channel) string { return ordermail.StorefrontURL(ch) }

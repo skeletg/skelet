@@ -32,6 +32,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/download"
 	"github.com/skeletg/skelet/apps/backend/internal/events"
 	"github.com/skeletg/skelet/apps/backend/internal/experiment"
+	"github.com/skeletg/skelet/apps/backend/internal/flow"
 	"github.com/skeletg/skelet/apps/backend/internal/form"
 	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/internal/integration"
@@ -96,6 +97,7 @@ type Deps struct {
 	Tax          *tax.Service
 	Shipping     *shipping.Service
 	Experiment   *experiment.Service
+	Flow         *flow.Service // scenarios drive ProcessRuns directly - flow runs advance on a scheduled job the harness doesn't run
 	Form         *form.Service
 	BackInStock  *backinstock.Service
 	Integration  *integration.Service

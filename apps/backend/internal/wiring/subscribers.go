@@ -26,6 +26,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/notification"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
 	"github.com/skeletg/skelet/apps/backend/internal/ordercapture"
+	"github.com/skeletg/skelet/apps/backend/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/internal/referral"
@@ -51,6 +52,7 @@ type subscriberDeps struct {
 	URLRewrite        *urlrewrite.Service
 	Config            *config.Service
 	Flow              *flow.Service
+	OrderMail         *ordermail.Service
 	Notification      *notification.Service
 	Review            *review.Service
 	AI                *ai.Service
@@ -93,7 +95,10 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)
 	cacheinvalidate.Register(bus, d.RevalidateCli, d.RevalidateQueue, d.URLRewrite, d.Config)
-	flow.RegisterEnrollment(bus, d.Flow, d.Order)
+	flow.RegisterEnrollment(bus, d.Flow)
+	// Owns the order-lifecycle mail: asks the flow engine first, sends directly when no flow took it.
+	// Ahead of the conversion attribution below, which also listens on order.EventPlaced
+	d.OrderMail.Register(bus)
 	notification.NewNotifier(d.Notification).Register(bus) // admin inbox - domain events become store-ops notifications, live-pushed to dashboards over Valkey pub/sub
 	review.RegisterSubscribers(bus, d.Review, d.AI.Enabled())
 	webform.RegisterSubmitEmails(bus, d.Email)

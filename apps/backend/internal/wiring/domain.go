@@ -36,6 +36,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/media"
 	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/internal/revalidate"
@@ -92,6 +93,7 @@ var Domain = fx.Module("domain",
 
 		newCampaignService,
 		newFlowService,
+		newOrderMailService,
 		newDestinationService,
 		newBackInStockService,
 
@@ -238,6 +240,15 @@ func newCampaignService(
 	return campaign.NewService(
 		campaign.NewRepository(q), tmpl, cust, seg, consentSvc, ch, cfg, sender, rec, []byte(wcfg.JWTSecret),
 	)
+}
+
+// Order-lifecycle mail - owns the subscriptions, delegates delivery to a flow when one is active
+// The flow dispatcher and send log are attached in wireMarketing, since both would cycle through this provider
+func newOrderMailService(
+	orders *order.Service, ch *channel.Service, tmpl *emailtemplate.Service,
+	sender email.Sender, cfg *config.Service,
+) *ordermail.Service {
+	return ordermail.NewService(orders, ch, tmpl, sender, cfg)
 }
 
 func newFlowService( // marketing automation flows - event-triggered, scheduler-advanced node graphs
