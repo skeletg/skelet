@@ -246,13 +246,15 @@ func (h *Harness) Settle(t TB) {
 }
 
 // AdvanceFlows runs a channel's own flow runs to completion, backdating them first because the engine claims the oldest 100 per tick and every order the suite places leaves one behind
+// Matches the engine's own claim - a run on a paused or deleted flow is never advanced, so counting it here would spin until the round cap
 func (h *Harness) AdvanceFlows(t TB, channelID uuid.UUID) {
 	h.Settle(t) // enrollment rides the outbox, so the runs don't exist yet until this drains
 	for range 20 {
 		res, err := h.D.DB.Exec(
 			`UPDATE flow_runs SET created_at = 'epoch' WHERE id IN (
 			   SELECT r.id FROM flow_runs r JOIN flows f ON f.id = r.flow_id
-			   WHERE f.channel_id = $1 AND (r.status = 'active' OR (r.status = 'waiting' AND r.resume_at <= NOW())))`,
+			   WHERE f.channel_id = $1 AND f.status = 'active' AND f.deleted_at IS NULL
+			     AND (r.status = 'active' OR (r.status = 'waiting' AND r.resume_at <= NOW())))`,
 			channelID)
 		if err != nil {
 			t.Fatalf("backdate flow runs: %v", err)
