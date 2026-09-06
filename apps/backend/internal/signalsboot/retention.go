@@ -15,10 +15,10 @@ import (
 
 // The retention bodies live here so cmd/server's scheduler jobs and cmd/signals' ticker loops share one implementation, like TraitComputeJob - hand-kept copies of the same config reads drift
 
-// SpinePruneJob is the analytics-prune body: spine hygiene, then event retention (prune or archive per retention_action), then the send log's whole-month retention
+// SpinePruneJob is the analytics-prune body: spine hygiene, then event retention (prune or archive per retention_action)
 func SpinePruneJob(cfgSvc *config.Service, rec *analytics.Recorder) func(context.Context) error {
 	return func(ctx context.Context) error {
-		rec.Maintain(ctx) // hygiene first and unconditionally - partition pre-creation and the GDPR erasure sweep must not die with a keep-forever retention setting
+		rec.Maintain(ctx) // hygiene first and unconditionally - the GDPR erasure sweep must not die with a keep-forever retention setting
 		archive, err := archiveAction(ctx, cfgSvc)
 		if err != nil {
 			return err
@@ -42,21 +42,13 @@ func SpinePruneJob(cfgSvc *config.Service, rec *analytics.Recorder) func(context
 				slog.Info("spine retention", "rows", n, "archived", archive)
 			}
 		}
-		months, err := cfgSvc.GetInt(ctx, "pulse/analytics/email_sends_retention_months", config.DefaultScope)
-		if err != nil || months <= 0 {
-			return err
-		}
-		now := time.Now().UTC()
-		cutoff := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -int(months), 0)
-		n, err := rec.PruneEmailSends(ctx, cutoff, archive)
-		if err != nil {
-			return err
-		}
-		if n > 0 {
-			slog.Info("send-log retention", "rows", n, "archived", archive)
-		}
 		return nil
 	}
+}
+
+// ArchiveAction reports whether aged data is archived before deletion - shared with the core send-log job, which honours the same operator setting
+func ArchiveAction(ctx context.Context, cfgSvc *config.Service) (bool, error) {
+	return archiveAction(ctx, cfgSvc)
 }
 
 // LensPruneJob is the lens-prune body: raw web events + aggregates on the main window, per-day rollups on their own longer window, replay on its shorter one
