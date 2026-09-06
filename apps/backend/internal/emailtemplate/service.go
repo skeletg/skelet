@@ -2,6 +2,7 @@ package emailtemplate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"maps"
@@ -14,6 +15,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	"github.com/skeletg/skelet/apps/backend/internal/email"
 )
+
+// A Service without a Sender can render but not send - the CLI seeder builds one that way
+var errNoSender = errors.New("emailtemplate: no sender wired")
 
 // Renders transactional emails from admin templates, falling back to the built-in internal/email renderers, and backs the admin CRUD, preview and test-send - it reads branding from config and uses a Sender for tests
 type Service struct {
@@ -91,6 +95,31 @@ func (s *Service) RenderPasswordResetEmail(ctx context.Context, channelID uuid.U
 		return email.RenderPasswordResetEmail(d)
 	}
 	return s.renderTemplate(ctx, channelID, tmpl, s.passwordResetCtx(ctx, channelID, d))
+}
+
+// Account mail sent without a flow, so verification and password reset never depend on one being active
+// The channel's own template still wins - only the delivery skips the flow engine, not the branding
+func (s *Service) SendVerification(ctx context.Context, channelID uuid.UUID, from, to string, d email.VerificationEmailData) error {
+	subject, htmlBody, textBody, err := s.RenderVerificationEmail(ctx, channelID, d)
+	if err != nil {
+		return fmt.Errorf("render verification email: %w", err)
+	}
+	return s.send(ctx, from, to, subject, htmlBody, textBody)
+}
+
+func (s *Service) SendPasswordReset(ctx context.Context, channelID uuid.UUID, from, to string, d email.PasswordResetEmailData) error {
+	subject, htmlBody, textBody, err := s.RenderPasswordResetEmail(ctx, channelID, d)
+	if err != nil {
+		return fmt.Errorf("render password reset email: %w", err)
+	}
+	return s.send(ctx, from, to, subject, htmlBody, textBody)
+}
+
+func (s *Service) send(ctx context.Context, from, to, subject, htmlBody, textBody string) error {
+	if s.sender == nil {
+		return errNoSender
+	}
+	return s.sender.Send(ctx, email.Message{From: from, To: to, Subject: subject, HTMLBody: htmlBody, TextBody: textBody})
 }
 
 // Renders standalone content - subject, blocks and theme - with a caller-supplied merge-tag map, for campaigns, which aren't tied to a transactional key or the header/footer layout

@@ -16,12 +16,11 @@ import (
 // The Signals-side erasure GDPR anonymize needs - satisfied by *analytics.Recorder, so the identity delete hits whichever spine engine holds the mappings (Postgres or ClickHouse), not a fixed handle
 type signalsEraser interface {
 	DeleteCustomerIdentities(ctx context.Context, customerID uuid.UUID) error
-	ScrubCustomerEmailSends(ctx context.Context, customerID uuid.UUID, email string) error
 }
 
 type postgresRepository struct {
 	queries *db.Queries
-	signals signalsEraser // GDPR erasure of identity mappings + the send log
+	signals signalsEraser // GDPR erasure of the identity mappings
 	tx      *tx.Manager
 }
 

@@ -687,12 +687,6 @@ func (r *Recorder) CustomersForAnonIDs(ctx context.Context, anonIDs []string) (m
 	return r.spine.CustomersForAnonIDs(ctx, anonIDs)
 }
 
-// GDPR erasure of the send log - the address is redacted but the rows stay, matching the order scrub - email_sends lives on signals Postgres under every engine, so this goes to r.qs not the spine driver
-func (r *Recorder) ScrubCustomerEmailSends(ctx context.Context, customerID uuid.UUID, email string) error {
-	_, err := r.qs.ScrubCustomerEmailSends(ctx, signalsdb.ScrubCustomerEmailSendsParams{CustomerID: customerID, Email: email})
-	return err
-}
-
 type LensCellCount struct {
 	X, Y  int32
 	Count int64

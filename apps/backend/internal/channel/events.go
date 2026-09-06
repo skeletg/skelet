@@ -4,6 +4,7 @@ import "github.com/google/uuid"
 
 const (
 	EventLocalesChanged = "channel.locales.changed"
+	EventCreated        = "channel.created"
 	EventDeleted        = "channel.deleted"
 )
 
@@ -13,6 +14,13 @@ type LocalesChanged struct {
 }
 
 func (*LocalesChanged) Type() string { return EventLocalesChanged }
+
+// Fires after a channel is created - the transactional emails and their delivery flows are seeded from here, so a new channel sends receipts and account mail without anyone running the CLI
+type Created struct {
+	ChannelID uuid.UUID
+}
+
+func (*Created) Type() string { return EventCreated }
 
 type Deleted struct {
 	ChannelID uuid.UUID

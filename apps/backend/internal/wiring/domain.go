@@ -231,12 +231,12 @@ func newCartService(repo cart.Repository, txMgr *tx.Manager, a CartCatalogAdapte
 func newEventOutbox(q *db.Queries, bus *events.Bus) *outbox.Outbox { return outbox.New(q, bus) } // registered events enqueue inside the emitting tx and are delivered at-least-once by the relay
 
 func newCampaignService(
-	q *db.Queries, sq SignalsQueries, tmpl *emailtemplate.Service, cust *customer.Service,
+	q *db.Queries, tmpl *emailtemplate.Service, cust *customer.Service,
 	seg *segment.Service, consentSvc *consent.Service, ch *channel.Service, cfg *config.Service,
 	sender email.Sender, rec *analytics.Recorder, wcfg Config,
 ) *campaign.Service {
 	return campaign.NewService(
-		campaign.NewRepository(q, sq.Queries), tmpl, cust, seg, consentSvc, ch, cfg, sender, rec, []byte(wcfg.JWTSecret),
+		campaign.NewRepository(q), tmpl, cust, seg, consentSvc, ch, cfg, sender, rec, []byte(wcfg.JWTSecret),
 	)
 }
 

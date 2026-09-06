@@ -66,13 +66,13 @@ func (s *Service) AnonymizeInPlace(ctx context.Context, customerID uuid.UUID) er
 	return nil
 }
 
-// PurgeSignalsIdentity clears the analytics side for a HARD delete - the commerce row cascades but Signals lives in its own database with no FK, so without this a deleted customer's email and identity mappings survive indefinitely
+// PurgeSignalsIdentity clears what a HARD delete leaves behind - the send log has no FK to cascade on, and the identity mappings live in their own database, so without this a deleted customer's email survives in both indefinitely
 func (r *postgresRepository) PurgeSignalsIdentity(ctx context.Context, customerID uuid.UUID, email string) error {
+	if _, err := r.queries.ScrubCustomerEmailSends(ctx, db.ScrubCustomerEmailSendsParams{CustomerID: customerID, Email: email}); err != nil {
+		return fmt.Errorf("scrub email sends: %w", err)
+	}
 	if r.signals == nil {
 		return nil
-	}
-	if err := r.signals.ScrubCustomerEmailSends(ctx, customerID, email); err != nil {
-		return fmt.Errorf("scrub email sends: %w", err)
 	}
 	if err := r.signals.DeleteCustomerIdentities(ctx, customerID); err != nil {
 		return fmt.Errorf("delete analytics identities: %w", err)
@@ -80,13 +80,8 @@ func (r *postgresRepository) PurgeSignalsIdentity(ctx context.Context, customerI
 	return nil
 }
 
-// Signals can't ride the commerce tx - the send scrub goes first (its guest-era match needs the pre-scrub address), the identity delete after (a leftover only re-links until the retry)
+// The identity delete can't ride the commerce tx - the spine is its own database - so it goes last, where a leftover only re-links until the retry
 func (r *postgresRepository) Anonymize(ctx context.Context, customerID uuid.UUID, email, passwordHash string) error {
-	if r.signals != nil {
-		if err := r.signals.ScrubCustomerEmailSends(ctx, customerID, email); err != nil {
-			return fmt.Errorf("scrub email sends: %w", err)
-		}
-	}
 	if err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		q := r.queries.WithTx(t)
 		if err := q.AnonymizeCustomerRow(ctx, db.AnonymizeCustomerRowParams{ID: customerID, PasswordHash: passwordHash}); err != nil {
@@ -97,6 +92,10 @@ func (r *postgresRepository) Anonymize(ctx context.Context, customerID uuid.UUID
 		}
 		if _, err := q.ScrubCustomerOrders(ctx, uuid.NullUUID{UUID: customerID, Valid: true}); err != nil {
 			return fmt.Errorf("scrub orders: %w", err)
+		}
+		// Matched on the pre-scrub address as well as the id, so guest-era sends to the same person go too
+		if _, err := q.ScrubCustomerEmailSends(ctx, db.ScrubCustomerEmailSendsParams{CustomerID: customerID, Email: email}); err != nil {
+			return fmt.Errorf("scrub email sends: %w", err)
 		}
 		if err := q.DeleteCustomerWishlist(ctx, customerID); err != nil {
 			return fmt.Errorf("delete wishlist: %w", err)
