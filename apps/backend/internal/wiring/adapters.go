@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/internal/audit"
-	"github.com/skeletg/skelet/apps/backend/internal/b2b"
 	"github.com/skeletg/skelet/apps/backend/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/internal/channel"
@@ -30,10 +29,12 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/order"
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/internal/paymentvault"
+	"github.com/skeletg/skelet/apps/backend/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/internal/pricing"
 	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // CustomerStoreLookup adapts channel.Service to customer.StoreLookup, projecting the fields the customer service needs to render outbound emails (storefront URL, "from" address) - lives in wiring so customer doesn't import channel directly
@@ -110,7 +111,6 @@ func (a AuditURLCollisions) RecordURLCollision(ctx context.Context, entityType, 
 type CartCatalogAdapter struct {
 	svc       *catalog.Service
 	customers *customer.Service // resolves a customer's group for tier pricing - nil in contexts without customer access (then group tiers don't apply)
-	b2b       *b2b.Service
 }
 
 // CartFileAdapter resolves an uploaded media asset for a FILE-type product option pick - it reads the asset row (filename, mime, public URL) and HEADs object storage for the authoritative byte size + existence, so the cart validates against the real upload rather than client-claimed values
@@ -240,10 +240,17 @@ func (a CartCatalogAdapter) ResolveSimplePricing(ctx context.Context, channelID 
 	if p.CostCents != nil {
 		out.CostCents = *p.CostCents
 	}
-	// B2B contract price: a negotiated per-company unit price REPLACES list + tier pricing outright for that company's members - predictable invoicing beats opportunistic quantity breaks
-	if customerID != nil && a.b2b != nil {
-		if contract, ok := a.b2b.ContractPriceFor(ctx, *customerID, p.ID); ok {
-			out.UnitPrice = contract
+	// A plugin's per-customer price REPLACES list + tier pricing outright - a negotiated contract rate is
+	// a promise about what this buyer pays, so an opportunistic quantity break must not undercut or beat it
+	// Skipped for guests: a price keyed on who is buying has nothing to resolve against
+	if customerID != nil && plugin.HasPriceResolvers() {
+		if cents, ok := plugin.ResolveUnitPrice(ctx, sdk.PriceRequest{
+			CustomerID: *customerID,
+			ProductID:  p.ID,
+			ChannelID:  channelID,
+			SKU:        p.SKU,
+		}); ok {
+			out.UnitPrice = cents
 			return out, nil
 		}
 	}
@@ -824,8 +831,8 @@ func NewAuditURLCollisions(auditSvc *audit.Service) AuditURLCollisions {
 	return AuditURLCollisions{audit: auditSvc}
 }
 
-func NewCartCatalogAdapter(cat *catalog.Service, customers *customer.Service, b2bSvc *b2b.Service) CartCatalogAdapter {
-	return CartCatalogAdapter{svc: cat, customers: customers, b2b: b2bSvc}
+func NewCartCatalogAdapter(cat *catalog.Service, customers *customer.Service) CartCatalogAdapter {
+	return CartCatalogAdapter{svc: cat, customers: customers}
 }
 
 func NewCartFileAdapter(lib *medialibrary.Service, store *media.Storage) CartFileAdapter {

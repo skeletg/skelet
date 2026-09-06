@@ -85,7 +85,7 @@ while [ $# -gt 0 ]; do
 done
 
 # Last run's answers become this run's defaults, so re-running is not an interrogation
-SKELET_TARGET=dev SKELET_SIGNALS=true SKELET_B2B=true SKELET_AI=true
+SKELET_TARGET=dev SKELET_SIGNALS=true SKELET_AI=true
 SKELET_SEARCH=opensearch SKELET_SPINE=postgres SKELET_ADMIN_SLUG=0
 SKELET_GATEWAYS="$(IFS=,; printf '%s' "${gateways[*]-}")"
 # shellcheck disable=SC1090
@@ -243,8 +243,6 @@ if [ "$interactive" = 1 ]; then
     echo "==> Which suites do you want? (all default on)"
     ask_yn "    Signals - analytics: Lens, Synapse, Pulse, Prism?" "$([ "$SKELET_SIGNALS" = true ] && echo y || echo n)" \
         && SKELET_SIGNALS=true || SKELET_SIGNALS=false
-    ask_yn "    B2B - companies, credit lines, quotes?" "$([ "$SKELET_B2B" = true ] && echo y || echo n)" \
-        && SKELET_B2B=true || SKELET_B2B=false
     ask_yn "    AI - admin assistant, review classification?" "$([ "$SKELET_AI" = true ] && echo y || echo n)" \
         && SKELET_AI=true || SKELET_AI=false
 
@@ -280,7 +278,6 @@ cat > "$PROFILE" <<EOF
 # Written by bin/setup - your answers, so a re-run defaults to them
 SKELET_TARGET=$SKELET_TARGET
 SKELET_SIGNALS=$SKELET_SIGNALS
-SKELET_B2B=$SKELET_B2B
 SKELET_AI=$SKELET_AI
 SKELET_SEARCH=$SKELET_SEARCH
 SKELET_SPINE=$SKELET_SPINE
@@ -289,7 +286,7 @@ SKELET_ADMIN_SLUG=$SKELET_ADMIN_SLUG
 SKELET_APPS_SELECTED=$apps
 SKELET_DOCKER_APPS=$docker_apps
 EOF
-echo "==> Profile: $SKELET_TARGET, signals=$SKELET_SIGNALS b2b=$SKELET_B2B ai=$SKELET_AI, search=$SKELET_SEARCH  (saved to $PROFILE)"
+echo "==> Profile: $SKELET_TARGET, signals=$SKELET_SIGNALS ai=$SKELET_AI, search=$SKELET_SEARCH  (saved to $PROFILE)"
 
 # ---------------------------------------------------------------- env files
 case "$SKELET_TARGET" in
@@ -319,7 +316,6 @@ done
 
 # The backend env file is where the suites and the search tier live
 set_env "$backend_env" SIGNALS_ENABLED "$SKELET_SIGNALS"
-set_env "$backend_env" B2B_ENABLED "$SKELET_B2B"
 set_env "$backend_env" AI_ENABLED "$SKELET_AI"
 
 echo "==> Secrets"

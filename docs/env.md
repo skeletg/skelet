@@ -548,7 +548,6 @@ All default to true.
 
 | Var | Off means |
 |---|---|
-| `B2B_ENABLED` | no wholesale surface |
 | `SIGNALS_ENABLED` | no Signals suite (Pulse campaigns/flows, Lens, Synapse, Prism, spine ingestion, forwarding). Transactional email keeps sending, and still needs `SIGNALS_DB_URL` to record it. |
 | `AI_ENABLED` | no LLM integrations, including the Settings > AI section |
 

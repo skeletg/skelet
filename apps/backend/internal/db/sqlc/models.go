@@ -359,44 +359,6 @@ type AuthToken struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-type B2bCreditEntry struct {
-	ID          uuid.UUID     `json:"id"`
-	CompanyID   uuid.UUID     `json:"company_id"`
-	OrderID     uuid.NullUUID `json:"order_id"`
-	AmountCents int64         `json:"amount_cents"`
-	Reason      string        `json:"reason"`
-	AdminID     uuid.NullUUID `json:"admin_id"`
-	CreatedAt   time.Time     `json:"created_at"`
-}
-
-type B2bInvoice struct {
-	ID          uuid.UUID    `json:"id"`
-	CompanyID   uuid.UUID    `json:"company_id"`
-	OrderID     uuid.UUID    `json:"order_id"`
-	Number      string       `json:"number"`
-	AmountCents int64        `json:"amount_cents"`
-	Status      string       `json:"status"`
-	DueAt       sql.NullTime `json:"due_at"`
-	PaidAt      sql.NullTime `json:"paid_at"`
-	CreatedAt   time.Time    `json:"created_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
-}
-
-type B2bQuote struct {
-	ID         uuid.UUID       `json:"id"`
-	CompanyID  uuid.NullUUID   `json:"company_id"`
-	CustomerID uuid.UUID       `json:"customer_id"`
-	ChannelID  uuid.UUID       `json:"channel_id"`
-	Status     string          `json:"status"`
-	Items      json.RawMessage `json:"items"`
-	Note       string          `json:"note"`
-	SellerNote string          `json:"seller_note"`
-	TotalCents int64           `json:"total_cents"`
-	ValidUntil sql.NullTime    `json:"valid_until"`
-	CreatedAt  time.Time       `json:"created_at"`
-	UpdatedAt  time.Time       `json:"updated_at"`
-}
-
 type BackInStockRequest struct {
 	ID           uuid.UUID     `json:"id"`
 	ChannelID    uuid.UUID     `json:"channel_id"`
@@ -1153,36 +1115,6 @@ type CollectionProduct struct {
 	CollectionID uuid.UUID `json:"collection_id"`
 	ProductID    uuid.UUID `json:"product_id"`
 	SortOrder    int32     `json:"sort_order"`
-}
-
-type Company struct {
-	ID                     uuid.UUID     `json:"id"`
-	ChannelID              uuid.UUID     `json:"channel_id"`
-	Name                   string        `json:"name"`
-	Status                 string        `json:"status"`
-	CreditLimitCents       int64         `json:"credit_limit_cents"`
-	CreditUsedCents        int64         `json:"credit_used_cents"`
-	PaymentTermsDays       int32         `json:"payment_terms_days"`
-	CreatedAt              time.Time     `json:"created_at"`
-	UpdatedAt              time.Time     `json:"updated_at"`
-	DefaultCustomerGroupID uuid.NullUUID `json:"default_customer_group_id"`
-}
-
-type CompanyMember struct {
-	CompanyID       uuid.UUID `json:"company_id"`
-	CustomerID      uuid.UUID `json:"customer_id"`
-	Role            string    `json:"role"`
-	CreatedAt       time.Time `json:"created_at"`
-	OrderLimitCents int64     `json:"order_limit_cents"`
-}
-
-type CompanyPrice struct {
-	ID         uuid.UUID `json:"id"`
-	CompanyID  uuid.UUID `json:"company_id"`
-	ProductID  uuid.UUID `json:"product_id"`
-	PriceCents int64     `json:"price_cents"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type ConfigValue struct {

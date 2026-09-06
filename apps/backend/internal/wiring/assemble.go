@@ -9,7 +9,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/audit"
-	"github.com/skeletg/skelet/apps/backend/internal/b2b"
 	"github.com/skeletg/skelet/apps/backend/internal/campaign"
 	"github.com/skeletg/skelet/apps/backend/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/internal/catalog"
@@ -35,6 +34,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/order"
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/internal/paymentvault"
+	pluginhost "github.com/skeletg/skelet/apps/backend/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/internal/qna"
 	"github.com/skeletg/skelet/apps/backend/internal/referral"
@@ -64,7 +64,7 @@ var Wiring = fx.Module("wiring",
 		wireCatalogInventory,
 		wireSEOCrawl,
 		WireValkeyCaches,
-		wireB2B,
+		wirePluginRuntime,
 		wireSegments,
 		wireMarketing,
 		wireWebForms,
@@ -115,7 +115,6 @@ type orderPlacementDeps struct {
 	Inventory   *inventory.Service
 	Channel     *channel.Service
 	Customer    *customer.Service
-	B2B         *b2b.Service
 	Config      *config.Service
 }
 
@@ -132,7 +131,7 @@ func wireOrderPlacement(d orderPlacementDeps) {
 	d.Order.SetGiftStockChecker(d.Inventory) // lets placement drop a promotion free gift stock can't cover, rather than appending a line the reservation rejects and taking the whole paid order down
 	d.Order.SetInventoryEditor(d.Inventory)
 	d.Order.SetChannelLoader(NewOrderChannelLoader(d.Channel)) // pre-fulfillment editing: the order's channel drives the tax-inclusive recompute
-	d.Order.SetProductPricer(NewOrderProductPricer(NewCartCatalogAdapter(d.Catalog, d.Customer, d.B2B)))
+	d.Order.SetProductPricer(NewOrderProductPricer(NewCartCatalogAdapter(d.Catalog, d.Customer)))
 	d.Order.SetRiskHoldThreshold(NewRiskHoldThreshold(d.Config))
 }
 
@@ -262,15 +261,19 @@ func wireCart(c *cart.Service, bus *events.Bus, ml *medialibrary.Service, ms *me
 }
 
 // The audience layer, plus the one consumer that reads through it
+// The runtime capabilities a plugin resolves on first USE rather than at registration - the pool
+// behind sdk.Database, and the draft-order seam. Both are late-wired for the same reason config is:
+// plugin init() runs before any of them exists
+func wirePluginRuntime(conn *sql.DB, ord *order.Service, cust *customer.Service, c *cart.Service) {
+	pluginhost.SetDatabase(conn)
+	pluginhost.SetDraftOrderCreator(ord, cust)
+	pluginhost.SetCartReader(c)
+}
+
 func wireSegments(seg *segment.Service, bus *events.Bus, conn *sql.DB, promo *promotion.Service) {
 	seg.SetEventBus(bus)
 	seg.SetDB(conn)
 	promo.SetCustomerSegments(seg) // core.customer_in_segment can't match without this - EvaluateCart resolves the slugs itself so the storefront cart and order placement can't disagree
-}
-
-func wireB2B(b *b2b.Service, bus *events.Bus, cfg Config) {
-	b.SetEventBus(bus)
-	b.SetEnabled(cfg.B2BEnabled) // false leaves the whole wholesale surface inert - API, contract pricing, on-account credit, quote expiry
 }
 
 func wireWebForms(wf *webform.Service, bus *events.Bus, ms *media.Storage) { // admin-built CMS forms - submissions and their file uploads land through the object store
@@ -292,9 +295,6 @@ func wireReviews(r *review.Service, bus *events.Bus, cfg *config.Service, ch *ch
 
 // Each subsystem is already inert behind its flag - this is so a confused operator can see which one from the boot log
 func logInertSubsystems(cfg Config, aiSvc *ai.Service) {
-	if !cfg.B2BEnabled {
-		slog.Info("B2B disabled - no wholesale API, contract pricing, on-account credit or quote expiry", "flag", "B2B_ENABLED=false")
-	}
 	if !aiSvc.Enabled() {
 		slog.Info("AI content assistant disabled", "flag", "AI_ENABLED=false")
 	}

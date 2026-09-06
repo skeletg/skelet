@@ -58,11 +58,11 @@ fi
 
 echo "==> shape"
 if [ -f .skelet-profile ]; then
-    pass "target=$SKELET_TARGET signals=$SKELET_SIGNALS b2b=$SKELET_B2B ai=$SKELET_AI search=$SKELET_SEARCH spine=$SKELET_SPINE"
+    pass "target=$SKELET_TARGET signals=$SKELET_SIGNALS ai=$SKELET_AI search=$SKELET_SEARCH spine=$SKELET_SPINE"
     pass "gateways: ${SKELET_GATEWAYS:-none}"
     # The env file is the truth the backend reads - a profile that disagrees with it is the
     # confusing state, since the dashboard shows one shape and the API serves another
-    for pair in "SIGNALS_ENABLED:$SKELET_SIGNALS" "B2B_ENABLED:$SKELET_B2B" "AI_ENABLED:$SKELET_AI"; do
+    for pair in "SIGNALS_ENABLED:$SKELET_SIGNALS" "AI_ENABLED:$SKELET_AI"; do
         key="${pair%%:*}"; want="${pair#*:}"
         got="$(grep -hE "^${key}=" "${want_env[@]}" 2>/dev/null | head -1 | cut -d= -f2-)"
         [ -z "$got" ] && got="(unset, defaults true)"

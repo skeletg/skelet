@@ -10,20 +10,20 @@ import (
 // order.placed row simulates the crash window between dispatch and mark-delivered: a second full delivery must change no money state
 func TestOrderPlacedReplayIsIdempotent(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 30, 990)
-	o := h.placeGuestCOD(t, f, 1)
-	h.settle(t)
+	f := h.NewStore(t, 30, 990)
+	o := h.PlaceGuestCOD(t, f, 1)
+	h.Settle(t)
 
 	before := h.orderSnapshot(t, f, o.ID)
 
-	h.rearmOutbox(t, "order.placed", o.ID.String(), 1)
-	h.settle(t) // full second delivery to every subscriber
+	h.RearmOutbox(t, "order.placed", o.ID.String(), 1)
+	h.Settle(t) // full second delivery to every subscriber
 
 	after := h.orderSnapshot(t, f, o.ID)
 	if after != before {
 		t.Errorf("replay changed state:\n before %+v\n after  %+v", before, after)
 	}
-	if _, undelivered := h.outboxRows(t, "order.placed", o.ID.String()); undelivered != 0 {
+	if _, undelivered := h.OutboxRows(t, "order.placed", o.ID.String()); undelivered != 0 {
 		t.Errorf("%d order.placed rows still undelivered after replay settle", undelivered)
 	}
 }
@@ -39,15 +39,15 @@ type snapshot struct {
 
 func (h *harness) orderSnapshot(t *testing.T, f *store, orderID uuid.UUID) snapshot {
 	t.Helper()
-	row, err := h.d.Queries.GetOrderByID(h.ctx, orderID)
+	row, err := h.D.Queries.GetOrderByID(h.Ctx, orderID)
 	if err != nil {
 		t.Fatalf("snapshot order: %v", err)
 	}
-	res, err := h.d.Queries.ListReservationsForOrder(h.ctx, uuid.NullUUID{UUID: orderID, Valid: true})
+	res, err := h.D.Queries.ListReservationsForOrder(h.Ctx, uuid.NullUUID{UUID: orderID, Valid: true})
 	if err != nil {
 		t.Fatalf("snapshot reservations: %v", err)
 	}
-	levels, err := h.d.Queries.ListInventoryLevelsByItem(h.ctx, f.Item.ID)
+	levels, err := h.D.Queries.ListInventoryLevelsByItem(h.Ctx, f.Item.ID)
 	if err != nil {
 		t.Fatalf("snapshot levels: %v", err)
 	}
@@ -55,7 +55,7 @@ func (h *harness) orderSnapshot(t *testing.T, f *store, orderID uuid.UUID) snaps
 	for _, l := range levels {
 		reserved += l.ReservedQuantity
 	}
-	sums, err := h.d.Queries.SumOrderPaymentByKind(h.ctx, orderID)
+	sums, err := h.D.Queries.SumOrderPaymentByKind(h.Ctx, orderID)
 	if err != nil {
 		t.Fatalf("snapshot ledger: %v", err)
 	}

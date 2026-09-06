@@ -60,9 +60,16 @@ echo "==> migrating commerce ($E2E_DB)"
 docker compose exec -T app migrate -path internal/db/migrations -database "$E2E_DB_URL" up
 echo "==> migrating signals ($E2E_SIG_DB)"
 docker compose exec -T app migrate -path internal/db/signals/migrations -database "$E2E_SIG_URL" up
+# Plugin-owned tables are not in internal/db/migrations - a plugin ships its own, applied through the
+# CLI, and without this any suite touching a plugin's data fails on a missing relation
+echo "==> migrating enabled plugins ($E2E_DB)"
+docker compose exec -T -e DATABASE_URL="$E2E_DB_URL" app go run ./cmd/cli plugin migrate up
 
+# plugins/... as well as internal/e2e: a plugin owning part of the money path carries its own
+# scenarios against internal/e2ekit, and those are e2e tests wherever the file happens to live.
+# A plugin's cheaper contract tests come along and cost nothing
 echo "==> running e2e suite"
 docker compose exec -T "${USER_FLAG[@]}" \
     -e DATABASE_URL="$E2E_DB_URL" \
     -e SIGNALS_DB_URL="$E2E_SIG_URL" \
-    app go test ./internal/e2e/... -count=1 "$@"
+    app go test ./internal/e2e/... ./plugins/... -count=1 "$@"

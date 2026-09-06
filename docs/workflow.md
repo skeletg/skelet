@@ -176,7 +176,7 @@ found in a template first:
 | Which apps | `SKELET_APPS_SELECTED` in the profile, plus sparse-checkout of the rest |
 | Where the frontends run | `.skelet-apps` - empty means the host, which is the default |
 | Deployment target - dev / small / prod | materializes only that target's env files |
-| Suites - Signals, B2B, AI | `SIGNALS_ENABLED` / `B2B_ENABLED` / `AI_ENABLED` |
+| Suites - Signals, AI | `SIGNALS_ENABLED` / `AI_ENABLED` |
 | Search tier, analytics spine | `OPENSEARCH_URL`, `SIGNALS_ENGINE` in the root `.env` |
 | Payment gateways | `apps/backend/plugins/plugins.json`, then `bin/codegen` if it changed |
 | Hide the admin API | `ADMIN_API_SLUG` + the matching dashboard URLs |

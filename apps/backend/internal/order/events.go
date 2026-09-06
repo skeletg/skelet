@@ -12,6 +12,7 @@ import (
 const (
 	EventCheckoutValidating   = "checkout.validating"
 	EventPlacing              = "order.placing"
+	EventTendering            = "order.tendering"
 	EventPlaced               = "order.placed"
 	EventCancelling           = "order.cancelling"
 	EventCancelled            = "order.cancelled"
@@ -104,6 +105,46 @@ type OrderPlacing struct {
 func (*OrderPlacing) Type() string { return EventPlacing }
 
 func (o *OrderPlacing) EventChannelID() uuid.UUID { return o.ChannelID }
+
+// Fires inside the placement tx after core's own tenders, with RemainingCents the balance still owed.
+// Fires for every placement carrying one - match on Provider to decide if it's yours.
+// Returning an error rolls the placement back; sdk.UserError tells the shopper why.
+// Not a mutation seam: the totals are already written, so record against the order rather than reprice it
+type OrderTendering struct {
+	// The placement transaction - a subscriber's writes commit or roll back with the order - JSON-excluded
+	Tx *sql.Tx `json:"-"`
+
+	OrderID     uuid.UUID
+	OrderNumber string
+	ChannelID   uuid.UUID
+	// nil for a guest checkout - a tender keyed on who is buying must refuse rather than assume
+	CustomerID   *uuid.UUID
+	Email        string
+	Provider     string
+	CurrencyCode string
+	TotalCents   int64
+	// What is still owed after gift cards and store credit, always > 0 - core doesn't publish for a
+	// fully covered order, since there is nothing left to tender
+	RemainingCents int64
+}
+
+func (*OrderTendering) Type() string { return EventTendering }
+
+func (e *OrderTendering) EventChannelID() uuid.UUID { return e.ChannelID }
+
+// Accessors, because a plugin reaches this through sdk.SubscribeSync's `any` and cannot name the
+// concrete type - a structural interface assertion sees METHODS, never fields, so the fields above are
+// for core and these are the plugin contract (sdk.Tendering). Renaming one is a breaking SDK change
+func (e *OrderTendering) PlacementTx() *sql.Tx         { return e.Tx }
+func (e *OrderTendering) TenderOrderID() uuid.UUID     { return e.OrderID }
+func (e *OrderTendering) TenderOrderNumber() string    { return e.OrderNumber }
+func (e *OrderTendering) TenderChannelID() uuid.UUID   { return e.ChannelID }
+func (e *OrderTendering) TenderCustomerID() *uuid.UUID { return e.CustomerID }
+func (e *OrderTendering) TenderEmail() string          { return e.Email }
+func (e *OrderTendering) TenderProvider() string       { return e.Provider }
+func (e *OrderTendering) TenderCurrency() string       { return e.CurrencyCode }
+func (e *OrderTendering) TenderTotalCents() int64      { return e.TotalCents }
+func (e *OrderTendering) TenderRemainingCents() int64  { return e.RemainingCents }
 
 // Response {reject, reason, discountCents, riskScore, tags} - across multiple webhooks discountCents accumulates, riskScore takes the max, tags append
 // Tax, shipping and total are NOT settable here, since the remote providers and pointer seams own them and there should be one override path each - An empty body accepts, malformed JSON aborts

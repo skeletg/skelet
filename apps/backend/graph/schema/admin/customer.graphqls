@@ -402,3 +402,25 @@ type CustomerPage {
   totalCount: Int!
   items:      [Customer!]!
 }
+
+# A short-lived storefront session an operator can use to see the store as one
+# customer sees it - their prices, their saved addresses, their order history.
+# The support tool for "it looks wrong on my account", and the sales-rep tool
+# for placing an order on someone's behalf.
+type MasqueradeSession {
+  accessToken: String!
+  # Relative storefront path that installs the session and redirects home.
+  storefrontPath: String!
+  # Absolute link when the customer's channel has a public URL, else "".
+  storefrontUrl: String!
+  expiresInSeconds: Int!
+}
+
+extend type Mutation {
+  # Mint a SHORT-LIVED (15 min) customer session token for a storefront visit
+  # as this customer. Scoped on the CUSTOMER's channel, not the caller's, and
+  # logged explicitly - this hands an operator the customer's own storefront
+  # powers, which the order timeline alone would not record.
+  # Open the storefront at /masquerade?token=<accessToken>. customers.manage.
+  masqueradeCustomer(customerId: ID!): MasqueradeSession!
+}

@@ -7,7 +7,6 @@ query PublicConfig {
 
 query StoreFeatures {
   features {
-    b2b
     signals
   }
 }

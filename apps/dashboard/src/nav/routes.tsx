@@ -58,8 +58,6 @@ registerNavNode({
     { title: 'All customers', path: '/customers', element: lazyPage(() => import('@/features/customers/CustomersList'), 'CustomersList'), permission: 'customers.view' },
     { title: 'Groups', path: '/customers/groups', element: lazyPage(() => import('@/features/customers/CustomerGroupsList'), 'CustomerGroupsList'), permission: 'customers.view' },
     { title: 'Segments', path: '/segments', element: lazyPage(() => import('@/features/segments/SegmentsListPage'), 'SegmentsListPage'), permission: 'promotions.view' },
-    { title: 'Companies', path: '/b2b/companies', element: lazyPage(() => import('@/features/b2b/CompaniesPage'), 'CompaniesPage'), permission: 'b2b.view', feature: 'b2b' },
-    { title: 'B2B quotes', path: '/b2b/quotes', element: lazyPage(() => import('@/features/b2b/B2BQuotesPage'), 'B2BQuotesPage'), permission: 'b2b.view', feature: 'b2b' },
   ],
 })
 
@@ -496,7 +494,6 @@ const detailLeaves = [
   { title: 'New shipping zone', path: '/shipping/new', element: lazyPage(() => import('@/features/shipping/ShippingZonesList'), 'ShippingZonesList'), permission: 'settings.manage' },
   { title: 'Edit shipping zone', path: '/shipping/:id', element: lazyPage(() => import('@/features/shipping/ShippingZonesList'), 'ShippingZonesList'), permission: 'settings.manage' },
   { title: 'Segment detail', path: '/segments/:id', element: lazyPage(() => import('@/features/segments/SegmentDetailPage'), 'SegmentDetailPage'), permission: 'promotions.view' },
-  { title: 'Company detail', path: '/b2b/companies/:id', element: lazyPage(() => import('@/features/b2b/CompanyDetailPage'), 'CompanyDetailPage'), permission: 'b2b.view', feature: 'b2b' },
   {
     title: 'Promotion analytics redirect',
     path: '/promotions/analytics',

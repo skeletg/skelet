@@ -16,8 +16,6 @@ const NAV_LABELS: Record<string, MessageDescriptor> = {
   'All customers': msg`All customers`,
   'Groups': msg`Groups`,
   'Segments': msg`Segments`,
-  'Companies': msg`Companies`,
-  'B2B quotes': msg`B2B quotes`,
   'Orders': msg`Orders`,
   'All orders': msg`All orders`,
   'Carts': msg`Carts`,
@@ -117,7 +115,6 @@ const NAV_LABELS: Record<string, MessageDescriptor> = {
   'New shipping zone': msg`New shipping zone`,
   'Edit shipping zone': msg`Edit shipping zone`,
   'Segment detail': msg`Segment detail`,
-  'Company detail': msg`Company detail`,
   'Promotion analytics redirect': msg`Promotion analytics redirect`,
   'New promotion': msg`New promotion`,
   'Edit promotion': msg`Edit promotion`,
@@ -192,10 +189,19 @@ const NAV_LABELS: Record<string, MessageDescriptor> = {
   'Boneyard': msg`Boneyard`,
 }
 
+// A plugin registers translations for the titles it registers, at import time alongside
+// its nav nodes. Core's table is generated from routes.tsx, so anything a plugin added
+// would be dropped on the next regeneration
+const PLUGIN_LABELS: Record<string, MessageDescriptor> = {}
+
+export function registerNavLabels(labels: Record<string, MessageDescriptor>) {
+  Object.assign(PLUGIN_LABELS, labels)
+}
+
 export function useNavLabel(): (label: string) => string {
   const { _ } = useLingui()
   return (label) => {
-    const d = NAV_LABELS[label]
+    const d = NAV_LABELS[label] ?? PLUGIN_LABELS[label]
     return d ? _(d) : label
   }
 }

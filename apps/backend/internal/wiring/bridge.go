@@ -14,7 +14,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/audit"
 	authpkg "github.com/skeletg/skelet/apps/backend/internal/auth"
-	"github.com/skeletg/skelet/apps/backend/internal/b2b"
 	"github.com/skeletg/skelet/apps/backend/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/internal/backup"
 	"github.com/skeletg/skelet/apps/backend/internal/blog"
@@ -134,7 +133,6 @@ type Svcs struct {
 	Suppression   *suppression.Service
 	URLRewrite    *urlrewrite.Service
 	Inventory     *inventory.Service
-	B2B           *b2b.Service
 	Giftcard      *giftcard.Service
 	StoreCredit   *storecredit.Service
 	Loyalty       *loyalty.Service
