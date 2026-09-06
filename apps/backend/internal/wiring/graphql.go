@@ -89,6 +89,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		SignalsEnabled:       bool(s.SignalsEnabled),
 		CartSvc:              s.Cart,
 		OrderSvc:             s.Order,
+		OrderMailSvc:         s.OrderMail,
 		ConfigSvc:            s.Config,
 		ConsentSvc:           s.Consent,
 		ActionSvc:            s.Action,

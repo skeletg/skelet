@@ -51,6 +51,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/menu"
 	"github.com/skeletg/skelet/apps/backend/internal/notification"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/internal/paymentvault"
@@ -172,12 +173,13 @@ type Svcs struct {
 	RevalidateCli   *revalidate.Client
 	RevalidateQueue *revalidate.Queue
 
-	Customer *customer.Service
-	CartRepo cart.Repository
-	Cart     *cart.Service
-	Order    *order.Service
-	Catalog  *catalog.Service
-	Outbox   *outbox.Outbox
+	Customer  *customer.Service
+	CartRepo  cart.Repository
+	Cart      *cart.Service
+	Order     *order.Service
+	OrderMail *ordermail.Service
+	Catalog   *catalog.Service
+	Outbox    *outbox.Outbox
 
 	Campaign    *campaign.Service
 	Flow        *flow.Service

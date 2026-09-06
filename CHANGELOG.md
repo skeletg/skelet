@@ -9,6 +9,34 @@ The release process, and which version number means what, is in
 
 ## [Unreleased]
 
+### Added
+
+- **Resend an order email from the dashboard.** `resendOrderEmail` sends an order's receipt,
+  shipment notice, cancellation or refund again, which is the recovery path for mail a paused
+  flow swallowed or a customer never received - previously there was none, and the automatic
+  sends are event-driven with no way to replay them. It deliberately skips the flow engine:
+  the operator wants that mail now, and enrolling would either restart a multi-step journey or
+  hand delivery back to the same flow that lost the original. `SHIPMENT` resends the newest
+  shipment's notice unless a `fulfillmentId` names one, which is checked against the order's
+  own shipments so the channel permission gate can't be sidestepped with a fulfillment id from
+  another order. Recorded and pixel-tracked like any other transactional send. Requires
+  `orders.update`. The order detail page carries a **Resend email** menu that offers each
+  notice only once the order has something to say in it, so a shipment notice never appears
+  on an unshipped order.
+
+### Fixed
+
+- **Frontend codegen was silently skipped whenever `ADMIN_API_SLUG` was set.** `bin/codegen`
+  probed the fixed `/api/admin/graphql` to decide whether the backend was up, but that is
+  exactly the path the slug moves, so the probe timed out and both the dashboard and the
+  storefront kept their stale generated types with only a note in the output. The probe now
+  reads the slug from `.env` and follows the endpoint.
+
+- **Storefront codegen validated its documents against the admin schema.** The dashboard and
+  the storefront services both read `GRAPHQL_CODEGEN_URL`, and `bin/setup` sets it to the
+  admin endpoint when it moves the admin API, which overrode the storefront's own front-API
+  default. The storefront now reads `FRONT_GRAPHQL_CODEGEN_URL` so the two can't collide.
+
 ### Changed
 
 - **Every direct transactional send is recorded and carries an open pixel.** Three domains
