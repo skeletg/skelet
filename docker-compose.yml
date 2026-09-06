@@ -51,7 +51,12 @@ services:
       - "8080:8080"
     volumes:
       - ./apps/backend:/var/www/app
+      - ./.git:/var/www/.git:ro
     environment:
+      GIT_DISCOVERY_ACROSS_FILESYSTEM: "1"
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: "/var/www"
       <<: [*backend-base, *signals-env]
       # true -> app stops running the Signals retention/forward jobs (the `signals` profile service runs them instead) -
       # safe either way; the jobs are idempotent - enable together: SIGNALS_JOBS_EXTERNAL=true + --profile signals
