@@ -33,9 +33,11 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/internal/linkgraph"
 	"github.com/skeletg/skelet/apps/backend/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/mailsend"
 	"github.com/skeletg/skelet/apps/backend/internal/media"
 	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/internal/revalidate"
@@ -92,6 +94,8 @@ var Domain = fx.Module("domain",
 
 		newCampaignService,
 		newFlowService,
+		newOrderMailService,
+		newTransactionalSender,
 		newDestinationService,
 		newBackInStockService,
 
@@ -231,14 +235,26 @@ func newCartService(repo cart.Repository, txMgr *tx.Manager, a CartCatalogAdapte
 func newEventOutbox(q *db.Queries, bus *events.Bus) *outbox.Outbox { return outbox.New(q, bus) } // registered events enqueue inside the emitting tx and are delivered at-least-once by the relay
 
 func newCampaignService(
-	q *db.Queries, sq SignalsQueries, tmpl *emailtemplate.Service, cust *customer.Service,
+	q *db.Queries, tmpl *emailtemplate.Service, cust *customer.Service,
 	seg *segment.Service, consentSvc *consent.Service, ch *channel.Service, cfg *config.Service,
 	sender email.Sender, rec *analytics.Recorder, wcfg Config,
 ) *campaign.Service {
 	return campaign.NewService(
-		campaign.NewRepository(q, sq.Queries), tmpl, cust, seg, consentSvc, ch, cfg, sender, rec, []byte(wcfg.JWTSecret),
+		campaign.NewRepository(q), tmpl, cust, seg, consentSvc, ch, cfg, sender, rec, []byte(wcfg.JWTSecret),
 	)
 }
+
+// Order-lifecycle mail - owns the subscriptions, delegates delivery to a flow when one is active
+// The flow dispatcher and send log are attached in wireMarketing, since both would cycle through this provider
+func newOrderMailService(
+	orders *order.Service, ch *channel.Service, tmpl *emailtemplate.Service,
+	sender *mailsend.Sender, cfg *config.Service,
+) *ordermail.Service {
+	return ordermail.NewService(orders, ch, tmpl, sender, cfg)
+}
+
+// The one recorded sender every direct path shares - tracking is attached in wireMarketing, where the Recorder exists
+func newTransactionalSender(sender email.Sender) *mailsend.Sender { return mailsend.New(sender) }
 
 func newFlowService( // marketing automation flows - event-triggered, scheduler-advanced node graphs
 	q *db.Queries, tmpl *emailtemplate.Service, cust *customer.Service, seg *segment.Service,

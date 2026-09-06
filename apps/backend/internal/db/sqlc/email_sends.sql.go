@@ -3,7 +3,7 @@
 //   sqlc v1.31.1
 // source: email_sends.sql
 
-package signalsdb
+package db
 
 import (
 	"context"
@@ -34,8 +34,8 @@ type CampaignVariantStatsRow struct {
 }
 
 // Per-variant sent / opened / clicked (human, bot-filtered) for the A/B results view
-// and the winner decision. Groups on the denormalized variant rather than joining
-// email_campaign_recipients, which lives in the commerce db.
+// and the winner decision. Groups on the denormalized variant, which is cheaper than
+// joining email_campaign_recipients.
 func (q *Queries) CampaignVariantStats(ctx context.Context, campaignID uuid.NullUUID) ([]CampaignVariantStatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, campaignVariantStats, campaignID)
 	if err != nil {

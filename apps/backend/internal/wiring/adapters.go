@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/audit"
 	"github.com/skeletg/skelet/apps/backend/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/internal/catalog"
@@ -24,6 +26,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/mailsend"
 	"github.com/skeletg/skelet/apps/backend/internal/media"
 	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
@@ -998,4 +1001,20 @@ func NewConsentAdapter(c *consent.Service) ConsentAdapter { return ConsentAdapte
 
 func NewEmailCatalogReader(cat *catalog.Service, ch *channel.Service) EmailCatalogReader {
 	return EmailCatalogReader{catalog: cat, chans: ch}
+}
+
+// Adapts the Recorder to mailsend.Log so a direct send is logged like a flow's, with SourceTransactional telling them apart
+type TransactionalSendLog struct {
+	rec *analytics.Recorder
+}
+
+func (l TransactionalSendLog) RecordTransactional(ctx context.Context, spec mailsend.Spec) (uuid.UUID, error) {
+	send, err := l.rec.NewSend(ctx, analytics.SendSpec{
+		ChannelID: spec.ChannelID, Source: analytics.SourceTransactional, Email: spec.To,
+		CustomerID: spec.CustomerID, MessageKey: spec.MessageKey, OrderID: spec.OrderID,
+	})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return send.ID, l.rec.RecordSent(ctx, send)
 }

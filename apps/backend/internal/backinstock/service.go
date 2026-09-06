@@ -17,6 +17,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/email"
 	"github.com/skeletg/skelet/apps/backend/internal/events"
 	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/mailsend"
 )
 
 type salableReader interface { // narrow dependency seams - accepting interfaces keeps the package testable and free of import cycles
@@ -44,12 +45,27 @@ type Service struct {
 	chans    channelReader
 	config   *config.Service
 	sender   email.Sender
+	direct   *mailsend.Sender // records and tracks the notices sent here rather than through a flow
 	suppress suppressionChecker
 	bus      *events.Bus
 }
 
+// Names this notice in the send log - back-in-stock has no editable slot, so it is not an emailtemplate key
+const MessageKey = "back_in_stock"
+
 func New(q *db.Queries, inv salableReader, cust customerFinder, flows flowEnroller, chans channelReader, cfg *config.Service, sender email.Sender, suppress suppressionChecker) *Service {
-	return &Service{q: q, inv: inv, cust: cust, flows: flows, chans: chans, config: cfg, sender: sender, suppress: suppress}
+	return &Service{q: q, inv: inv, cust: cust, flows: flows, chans: chans, config: cfg, sender: sender, direct: mailsend.New(sender), suppress: suppress}
+}
+
+// Optional - without it the notice still goes out, just unrecorded
+func (s *Service) SetDirectSender(a *mailsend.Sender) { s.direct = a }
+
+// Falls back to an untracked sender so a Service assembled without New still delivers rather than panicking
+func (s *Service) directSender() *mailsend.Sender {
+	if s.direct != nil {
+		return s.direct
+	}
+	return mailsend.New(s.sender)
 }
 
 type Request struct {
@@ -190,7 +206,9 @@ func (s *Service) sendDirect(ctx context.Context, from, to, name, image, url str
 <p style="color:#888;font-size:12px">You asked to be notified when this item returned.</p>
 </div>`, htmlEscape(name), img, htmlEscape(url))
 	text := fmt.Sprintf("Good news - %s is back in stock.\nShop now: %s\n\nYou asked to be notified when this item returned.", name, url)
-	if err := s.sender.Send(ctx, email.Message{From: from, To: to, Subject: subject, HTMLBody: html, TextBody: text}); err != nil {
+	if err := s.directSender().Send(ctx, mailsend.Spec{
+		ChannelID: ch.ID, From: from, To: to, MessageKey: MessageKey,
+	}, strings.TrimRight(strings.TrimSpace(ch.PublicURL), "/"), subject, html, text); err != nil {
 		log.Printf("[backinstock] direct notify %s: %v", to, err)
 	}
 }

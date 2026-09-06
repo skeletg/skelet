@@ -12,10 +12,12 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/internal/cacheinvalidate"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	"github.com/skeletg/skelet/apps/backend/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/internal/download"
 	"github.com/skeletg/skelet/apps/backend/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
 	"github.com/skeletg/skelet/apps/backend/internal/events"
 	"github.com/skeletg/skelet/apps/backend/internal/flow"
 	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
@@ -24,6 +26,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/notification"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
 	"github.com/skeletg/skelet/apps/backend/internal/ordercapture"
+	"github.com/skeletg/skelet/apps/backend/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/internal/referral"
@@ -49,10 +52,12 @@ type subscriberDeps struct {
 	URLRewrite        *urlrewrite.Service
 	Config            *config.Service
 	Flow              *flow.Service
+	OrderMail         *ordermail.Service
 	Notification      *notification.Service
 	Review            *review.Service
 	AI                *ai.Service
 	Email             email.Sender
+	EmailTemplate     *emailtemplate.Service
 	Recorder          *analytics.Recorder
 	Signals           SignalsEnabled
 	BackInStock       *backinstock.Service
@@ -90,10 +95,14 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)
 	cacheinvalidate.Register(bus, d.RevalidateCli, d.RevalidateQueue, d.URLRewrite, d.Config)
-	flow.RegisterEnrollment(bus, d.Flow, d.Order)
+	flow.RegisterEnrollment(bus, d.Flow)
+	// Owns the order-lifecycle mail: asks the flow engine first, sends directly when no flow took it.
+	// Ahead of the conversion attribution below, which also listens on order.EventPlaced
+	d.OrderMail.Register(bus)
 	notification.NewNotifier(d.Notification).Register(bus) // admin inbox - domain events become store-ops notifications, live-pushed to dashboards over Valkey pub/sub
 	review.RegisterSubscribers(bus, d.Review, d.AI.Enabled())
 	webform.RegisterSubmitEmails(bus, d.Email)
+	registerChannelSeed(bus, d.EmailTemplate, d.Flow)
 	activity.RegisterConversionAttribution(bus, d.Recorder)
 
 	if !d.Signals {
@@ -101,6 +110,24 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	}
 	activity.NewTracker(d.Recorder, d.Order).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
 	d.BackInStock.Register(bus)                             // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
+}
+
+// Gives a new channel its transactional emails and the flows that deliver them, so receipts and account mail work without anyone running `skelet emails seed-transactional`
+// Emails first - a seeded flow points at the slot email it sends, and SeedTransactionalFlows skips a trigger whose slot email isn't there yet
+// Registered before the Signals gate below on purpose: transactional mail is not part of the analytics suite
+// Best-effort, since the channel already exists - both seeders are idempotent, so the CLI still fixes a channel this missed
+func registerChannelSeed(bus *events.Bus, tmpl *emailtemplate.Service, flows *flow.Service) {
+	bus.Subscribe(channel.EventCreated, func(ctx context.Context, e events.Event) error {
+		channelID := e.(*channel.Created).ChannelID
+		if _, err := tmpl.SeedTransactional(ctx, channelID); err != nil {
+			log.Printf("[channel] seed transactional emails for %s: %v", channelID, err)
+			return nil // the flows would all skip without their slot emails
+		}
+		if _, err := flows.SeedTransactionalFlows(ctx, channelID); err != nil {
+			log.Printf("[channel] seed transactional flows for %s: %v", channelID, err)
+		}
+		return nil
+	})
 }
 
 // Everything reacting to an order's lifecycle - all outbox-durable, so every handler here has to tolerate a replay

@@ -22,8 +22,8 @@ x-backend-base: &backend-base
 # Everything that talks to the spine - not media, it only resizes images - and all four have to agree on the engine: analytics-prune runs through
 # the spine driver, so a worker pruning Postgres while the app writes ClickHouse is a silent data-loss bug rather than an error
 x-signals-env: &signals-env
-  # Signals' own database (signals-db below) - required even with SIGNALS_ENABLED=false, since transactional mail still
-  # records sends into email_sends, which lives here
+  # Signals' own database (signals-db below) - required even with SIGNALS_ENABLED=false, since the
+  # spine and Lens tables live here and the pool opens either way
   SIGNALS_DB_URL: "postgres://skelet:skelet@signals-db:5432/skelet_signals?sslmode=disable"
   # Spine engine: empty = Postgres (default) - SIGNALS_ENGINE=clickhouse switches to the columnar
   # one, and bin/_lib turns the clickhouse profile on from that same value
