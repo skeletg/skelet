@@ -11,6 +11,34 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- **A new channel seeds its own transactional emails and delivery flows.** Seeding was a
+  manual `skelet emails seed-transactional` that nothing called, so a channel created
+  through the admin API had no flows and silently sent no receipts, no verification and no
+  password resets - with no admin resend to recover them. Channel creation now publishes
+  `channel.created` and a subscriber seeds both, emails first since a flow points at the
+  slot email it sends. Best-effort and idempotent, so the CLI still repairs a channel this
+  missed, and it is registered ahead of the `SIGNALS_ENABLED` gate because transactional
+  mail is not part of the analytics suite.
+
+- **Account email no longer depends on a flow being active.** Verification and password
+  reset were delivered only by the seeded Pulse flows, and nothing guaranteed those exist:
+  seeding is a manual `skelet emails seed-transactional`, archived flows are deliberately
+  never re-seeded, and a flow can be paused or deleted outright. When none ran, the
+  storefront still answered "check your email" and only a log line recorded that nothing
+  was sent. Both now fall back to sending directly, through the channel's own template
+  where it has one, so a missing flow can no longer lock a customer out of their account.
+  The flow still wins whenever one is active, so nothing double-sends.
+
+- **The email send log moved to the commerce database.** `email_sends` lived in the
+  Signals database, but the flow engine writes it on every send and the flow engine is
+  what delivers transactional mail - order receipts, shipping notices, email verification,
+  password reset. That put `signals-db` on the password-reset path. Nothing joined the
+  table across the two databases, so it moved without a schema change: commerce migration
+  `000003` creates it, signals `000002` drops it, and `skelet db move-email-sends` copies
+  existing rows between the two (it goes between the two `db migrate` calls). GDPR's send
+  scrub is now a local query inside the anonymize transaction instead of a best-effort
+  call before it, and the campaign package no longer opens a Signals handle at all.
+
 - **The Go module is now `github.com/skeletg/skelet/apps/backend`.** It was declaring a
   repo-root path while its `go.mod` sat in a subdirectory, which Go cannot resolve - so
   nothing could ever `go get` it. Imports gain `apps/backend/`; module tags become

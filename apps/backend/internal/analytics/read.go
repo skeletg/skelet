@@ -945,7 +945,7 @@ type EmailEngagement struct { // a customer's lifetime Pulse email engagement, r
 }
 
 func (r *Recorder) CustomerEmailEngagement(ctx context.Context, customerID uuid.UUID) (EmailEngagement, error) { // every email sent to a customer plus distinct opens and clicks - zero-valued with no error when they've never been sent one
-	row, err := r.sigRead().CustomerEmailEngagement(ctx, uuid.NullUUID{UUID: customerID, Valid: true})
+	row, err := r.read().CustomerEmailEngagement(ctx, uuid.NullUUID{UUID: customerID, Valid: true})
 	if err != nil {
 		return EmailEngagement{}, err
 	}

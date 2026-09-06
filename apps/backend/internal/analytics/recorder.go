@@ -61,12 +61,11 @@ func (e *EmailEngaged) Type() string { return "analytics." + e.Kind }
 
 type Recorder struct {
 	q       *db.Queries        // commerce db, primary read-write: traits, identity + orchestration - takes all writes
-	qs      *signalsdb.Queries // signals write handle: the send log, plus the default pg spine driver
+	qs      *signalsdb.Queries // signals write handle, backing the default pg spine driver
 	qr      *db.Queries        // optional dedicated read pool (replica or bulkhead) the heavy read.go aggregations route to - never used for writes
-	qsr     *signalsdb.Queries // optional signals read pool, mirroring qr
 	spine   SpineStore         // the pluggable engine driver, Postgres today and ClickHouse later - ALL spine access goes through it (ingest, identity, every analytical read) and the Recorder only orchestrates spine plus commerce
 	archive ArchiveSink        // optional retention-archive destination (the BACKUP_* bucket) - nil makes retention_action=archive fail closed
-	// The server-wide Signals switch - every spine write no-ops (web, activity, sends, identity), while NewSend/GetSend bookkeeping keeps working so transactional email is untouched
+	// The server-wide Signals switch - every spine write no-ops (web, activity, sends, identity). NewSend/GetSend are not gated by it: the flow engine delivers transactional mail either way
 	disabled bool
 }
 
@@ -74,7 +73,6 @@ func (r *Recorder) SetReadQueries(qr *db.Queries) { r.qr = qr } // optional - un
 
 // Gives the default Postgres spine driver its read pool, so spine aggregations don't run on the write pool - no-op for a non-pg driver
 func (r *Recorder) SetSpineReadQueries(qsr *signalsdb.Queries) {
-	r.qsr = qsr
 	if _, ok := r.spine.(*pgSpine); ok || r.spine == nil {
 		r.spine = newPGSpine(r.qs, qsr)
 	}
@@ -101,13 +99,6 @@ func (r *Recorder) read() *db.Queries { // read-only aggregations - writes alway
 		return r.qr
 	}
 	return r.q
-}
-
-func (r *Recorder) sigRead() *signalsdb.Queries { // the signals read pool when configured, else the write handle
-	if r.qsr != nil {
-		return r.qsr
-	}
-	return r.qs
 }
 
 func NewRecorder(q *db.Queries, qs *signalsdb.Queries) *Recorder { // defaults to the Postgres spine driver - SetSpine swaps in ClickHouse
@@ -155,7 +146,7 @@ type Hit struct {
 }
 
 func (r *Recorder) NewSend(ctx context.Context, sp SendSpec) (Send, error) { // the returned ID is the tracking token's subject
-	id, err := r.qs.InsertEmailSend(ctx, signalsdb.InsertEmailSendParams{
+	id, err := r.q.InsertEmailSend(ctx, db.InsertEmailSendParams{
 		ChannelID:   sp.ChannelID,
 		Source:      sp.Source,
 		Email:       sp.Email,
@@ -179,7 +170,7 @@ func (r *Recorder) NewSend(ctx context.Context, sp SendSpec) (Send, error) { // 
 }
 
 func (r *Recorder) GetSend(ctx context.Context, id uuid.UUID) (Send, bool, error) {
-	row, err := r.sigRead().GetEmailSend(ctx, id)
+	row, err := r.read().GetEmailSend(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Send{}, false, nil
 	}
@@ -213,7 +204,7 @@ func (r *Recorder) RecordOpen(ctx context.Context, s Send, h Hit) (bool, error) 
 		return false, err
 	}
 	if !h.Machine {
-		_ = r.qs.MarkSendOpened(ctx, s.ID)
+		_ = r.q.MarkSendOpened(ctx, s.ID)
 	}
 	return true, nil
 }
@@ -229,7 +220,7 @@ func (r *Recorder) RecordClick(ctx context.Context, s Send, url string, linkInde
 		return false, err
 	}
 	if !h.Machine {
-		_ = r.qs.MarkSendClicked(ctx, s.ID)
+		_ = r.q.MarkSendClicked(ctx, s.ID)
 	}
 	return true, nil
 }
@@ -307,11 +298,11 @@ func (r *Recorder) mostRecentEngagement(ctx context.Context, customerID uuid.UUI
 	for _, c := range cands {
 		ids = append(ids, c.SendID)
 	}
-	sends, err := r.sigRead().EmailSendsByIDs(ctx, ids)
+	sends, err := r.read().EmailSendsByIDs(ctx, ids)
 	if err != nil {
 		return emailAnchor{}, false, err
 	}
-	origin := make(map[uuid.UUID]signalsdb.EmailSendsByIDsRow, len(sends))
+	origin := make(map[uuid.UUID]db.EmailSendsByIDsRow, len(sends))
 	for _, s := range sends {
 		origin[s.ID] = s
 	}
@@ -342,7 +333,7 @@ func (r *Recorder) Prune(ctx context.Context, before time.Time) (int64, error) {
 
 // Engine hygiene that must NOT hang off the retention decision - partition pre-creation and the queued ClickHouse erasures still have to run under keep-forever retention, or erasure requests sit unswept and sends start landing in the DEFAULT partition once the pre-created months run out
 func (r *Recorder) Maintain(ctx context.Context) {
-	if err := r.qs.EnsureEmailSendPartitions(ctx); err != nil {
+	if err := r.q.EnsureEmailSendPartitions(ctx); err != nil {
 		log.Printf("[analytics] ensure send-log partitions: %v", err)
 	}
 	if err := r.sweepIdentityErasures(ctx); err != nil {

@@ -229,11 +229,12 @@ type marketingDeps struct {
 	Segment       *segment.Service
 }
 
-func wireMarketing(d marketingDeps) { // all transactional mail is delivered as a Pulse flow, receipts and account emails included
+func wireMarketing(d marketingDeps) { // transactional mail is delivered as a Pulse flow where one is active, receipts and account emails included
 	d.Flow.SetEnabled(bool(d.Signals))
 	d.Flow.SetSuppression(d.Suppression)
-	d.Flow.SetOrderReader(d.Order)            // lets order flows populate item / total / tracking / ship-to blocks
-	d.Customer.SetAuthEmailDispatcher(d.Flow) // verification + password reset hand their one-time link to the flow engine
+	d.Flow.SetOrderReader(d.Order)                   // lets order flows populate item / total / tracking / ship-to blocks
+	d.Customer.SetAuthEmailDispatcher(d.Flow)        // verification + password reset hand their one-time link to the flow engine
+	d.Customer.SetAuthEmailFallback(d.EmailTemplate) // and go out directly when no flow does, so a paused one can't swallow a password reset
 	d.Campaign.SetSuppression(d.Suppression)
 	d.EmailTemplate.SetCatalogReader(NewEmailCatalogReader(d.Catalog, d.Channel))                   // wires the "products" email block to live catalog data
 	d.Form.SetHooks(NewContactAdapter(d.Customer), NewConsentAdapter(d.Consent), d.Segment, d.Flow) // storefront email capture → contact + consent + segment + form_submitted flow

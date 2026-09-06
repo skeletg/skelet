@@ -12,6 +12,7 @@ import (
 	_ "github.com/lib/pq"
 
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
@@ -107,14 +108,14 @@ func (downSink) Put(_ context.Context, _, _ string, body io.Reader) error {
 
 // Exercises the two send-log retention functions inside one rolled-back transaction, so partitions and rows are untouched afterwards (DDL is transactional in Postgres)
 func TestEmailSendRetentionFunctions(t *testing.T) {
-	conn := testdb.RequireSignals(t)
+	conn := testdb.Require(t)
 	ctx := context.Background()
 	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	q := signalsdb.New(tx)
+	q := db.New(tx)
 
 	now := time.Now().UTC()
 	month := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -4, 0)

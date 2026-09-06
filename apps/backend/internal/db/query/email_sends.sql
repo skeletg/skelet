@@ -79,8 +79,8 @@ WHERE customer_id = sqlc.arg(customer_id)::uuid
 
 -- name: CampaignVariantStats :many
 -- Per-variant sent / opened / clicked (human, bot-filtered) for the A/B results view
--- and the winner decision. Groups on the denormalized variant rather than joining
--- email_campaign_recipients, which lives in the commerce db.
+-- and the winner decision. Groups on the denormalized variant, which is cheaper than
+-- joining email_campaign_recipients.
 SELECT
     variant                                                   AS variant,
     COUNT(*)::int                                             AS sent,
