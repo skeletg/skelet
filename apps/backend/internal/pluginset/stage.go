@@ -61,6 +61,16 @@ func Stage(root string) error {
 
 // Asks the go tool where a module resolved to, which honours replace directives and workspaces - so a
 // plugin being developed from a local checkout stages from there, and a published one from the cache
+// SourceDir is where a plugin's Go source actually lives: in-tree under plugins/<slug>/, or the
+// module cache for a module plugin. Anything reading plugin source has to ask - the two layouts
+// differ per machine and the manifest is the only thing that knows which one a slug uses
+func (s *Set) SourceDir(root, slug string) (string, error) {
+	if s.InTree(slug) {
+		return filepath.Join(root, "plugins", slug), nil
+	}
+	return moduleDir(root, s.Plugins[slug].Module)
+}
+
 func moduleDir(root, module string) (string, error) {
 	cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", module)
 	cmd.Dir = root

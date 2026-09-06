@@ -435,17 +435,6 @@ type ComplexityRoot struct {
 		Width    func(childComplexity int) int
 	}
 
-	CompanyOrderSummary struct {
-		CreatedAt     func(childComplexity int) int
-		CurrencyCode  func(childComplexity int) int
-		ID            func(childComplexity int) int
-		MemberEmail   func(childComplexity int) int
-		Number        func(childComplexity int) int
-		PaymentStatus func(childComplexity int) int
-		Status        func(childComplexity int) int
-		TotalCents    func(childComplexity int) int
-	}
-
 	ConfigGroup struct {
 		Fields func(childComplexity int) int
 		Label  func(childComplexity int) int
@@ -690,12 +679,10 @@ type ComplexityRoot struct {
 		Reorder                        func(childComplexity int, orderID string) int
 		RequestPasswordReset           func(childComplexity int, email string) int
 		RequestProductOptionFileUpload func(childComplexity int, productSku string, optionID string, filename string, mimeType string, sizeBytes int32) int
-		RequestQuote                   func(childComplexity int, cartID string, note *string) int
 		RequestReturn                  func(childComplexity int, input model.RequestReturnInput) int
 		RequestReviewMediaUpload       func(childComplexity int, productID string, filename string, mimeType string, sizeBytes int32) int
 		ResendVerificationEmail        func(childComplexity int) int
 		ResetPassword                  func(childComplexity int, token string, newPassword string) int
-		RespondToQuote                 func(childComplexity int, id string, accept bool) int
 		SaveForLater                   func(childComplexity int, cartID string, lineID string) int
 		SavePaymentMethod              func(childComplexity int, providerSlug string, token string) int
 		SetCartEmail                   func(childComplexity int, cartID string, email string) int
@@ -712,45 +699,6 @@ type ComplexityRoot struct {
 		UpdateProfile                  func(childComplexity int, firstName *string, lastName *string, phone *string) int
 		VerifyEmail                    func(childComplexity int, token string) int
 		VoteReview                     func(childComplexity int, reviewID string, value int32) int
-	}
-
-	MyB2BInvoice struct {
-		AmountCents func(childComplexity int) int
-		CreatedAt   func(childComplexity int) int
-		DueAt       func(childComplexity int) int
-		Number      func(childComplexity int) int
-		OrderNumber func(childComplexity int) int
-		Overdue     func(childComplexity int) int
-		PaidAt      func(childComplexity int) int
-		Status      func(childComplexity int) int
-	}
-
-	MyB2BQuote struct {
-		CreatedAt  func(childComplexity int) int
-		ID         func(childComplexity int) int
-		Items      func(childComplexity int) int
-		Note       func(childComplexity int) int
-		SellerNote func(childComplexity int) int
-		Status     func(childComplexity int) int
-		TotalCents func(childComplexity int) int
-		ValidUntil func(childComplexity int) int
-	}
-
-	MyB2BQuoteItem struct {
-		Name           func(childComplexity int) int
-		OptionsSummary func(childComplexity int) int
-		Quantity       func(childComplexity int) int
-		Sku            func(childComplexity int) int
-		UnitPriceCents func(childComplexity int) int
-	}
-
-	MyCompany struct {
-		CreditLimitCents func(childComplexity int) int
-		CreditUsedCents  func(childComplexity int) int
-		Name             func(childComplexity int) int
-		PaymentTermsDays func(childComplexity int) int
-		Role             func(childComplexity int) int
-		Status           func(childComplexity int) int
 	}
 
 	Order struct {
@@ -1096,16 +1044,12 @@ type ComplexityRoot struct {
 		Menu                  func(childComplexity int, slug string) int
 		Menus                 func(childComplexity int, slugs []string) int
 		MyCart                func(childComplexity int) int
-		MyCompany             func(childComplexity int) int
-		MyCompanyInvoices     func(childComplexity int) int
-		MyCompanyOrders       func(childComplexity int) int
 		MyDataExport          func(childComplexity int) int
 		MyDownloads           func(childComplexity int) int
 		MyOrder               func(childComplexity int, id string) int
 		MyOrders              func(childComplexity int) int
 		MyPaymentMethods      func(childComplexity int) int
 		MyProfile             func(childComplexity int) int
-		MyQuotes              func(childComplexity int) int
 		MyReferral            func(childComplexity int) int
 		MySubscriptions       func(childComplexity int) int
 		MyWishlist            func(childComplexity int) int
@@ -1286,7 +1230,6 @@ type ComplexityRoot struct {
 	}
 
 	StoreFeatures struct {
-		B2b     func(childComplexity int) int
 		Signals func(childComplexity int) int
 	}
 
@@ -1371,8 +1314,6 @@ type MutationResolver interface {
 	SetDefaultShippingAddress(ctx context.Context, id string) (*model.Customer, error)
 	SetConsent(ctx context.Context, kind string, optedIn bool) (*model.CustomerConsent, error)
 	RedeemLoyaltyPoints(ctx context.Context, points int32) (*model1.LoyaltyRedeemResult, error)
-	RequestQuote(ctx context.Context, cartID string, note *string) (*model1.MyB2BQuote, error)
-	RespondToQuote(ctx context.Context, id string, accept bool) (*model1.MyB2BQuote, error)
 	FinalizeOrderPayment(ctx context.Context, orderID string) (bool, error)
 	Reorder(ctx context.Context, orderID string) (*model1.ReorderResult, error)
 	RequestReturn(ctx context.Context, input model.RequestReturnInput) (*model.OrderReturn, error)
@@ -1480,10 +1421,6 @@ type QueryResolver interface {
 	ConsentDefinitions(ctx context.Context) ([]*model.ConsentDefinition, error)
 	LoyaltyStatus(ctx context.Context) (*model1.LoyaltyStatus, error)
 	MyReferral(ctx context.Context) (*model1.ReferralInfo, error)
-	MyCompany(ctx context.Context) (*model1.MyCompany, error)
-	MyQuotes(ctx context.Context) ([]*model1.MyB2BQuote, error)
-	MyCompanyInvoices(ctx context.Context) ([]*model1.MyB2BInvoice, error)
-	MyCompanyOrders(ctx context.Context) ([]*model1.CompanyOrderSummary, error)
 	MyDownloads(ctx context.Context) ([]*model1.DownloadGrant, error)
 	Locales(ctx context.Context, activeOnly *bool) ([]*model.Locale, error)
 	Locale(ctx context.Context, code string) (*model.Locale, error)
@@ -3202,55 +3139,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CollectionCover.Width(childComplexity), true
 
-	case "CompanyOrderSummary.createdAt":
-		if e.ComplexityRoot.CompanyOrderSummary.CreatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.CreatedAt(childComplexity), true
-	case "CompanyOrderSummary.currencyCode":
-		if e.ComplexityRoot.CompanyOrderSummary.CurrencyCode == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.CurrencyCode(childComplexity), true
-	case "CompanyOrderSummary.id":
-		if e.ComplexityRoot.CompanyOrderSummary.ID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.ID(childComplexity), true
-	case "CompanyOrderSummary.memberEmail":
-		if e.ComplexityRoot.CompanyOrderSummary.MemberEmail == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.MemberEmail(childComplexity), true
-	case "CompanyOrderSummary.number":
-		if e.ComplexityRoot.CompanyOrderSummary.Number == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.Number(childComplexity), true
-	case "CompanyOrderSummary.paymentStatus":
-		if e.ComplexityRoot.CompanyOrderSummary.PaymentStatus == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.PaymentStatus(childComplexity), true
-	case "CompanyOrderSummary.status":
-		if e.ComplexityRoot.CompanyOrderSummary.Status == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.Status(childComplexity), true
-	case "CompanyOrderSummary.totalCents":
-		if e.ComplexityRoot.CompanyOrderSummary.TotalCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.TotalCents(childComplexity), true
-
 	case "ConfigGroup.fields":
 		if e.ComplexityRoot.ConfigGroup.Fields == nil {
 			break
@@ -4463,17 +4351,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RequestProductOptionFileUpload(childComplexity, args["productSku"].(string), args["optionId"].(string), args["filename"].(string), args["mimeType"].(string), args["sizeBytes"].(int32)), true
-	case "Mutation.requestQuote":
-		if e.ComplexityRoot.Mutation.RequestQuote == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_requestQuote_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.RequestQuote(childComplexity, args["cartId"].(string), args["note"].(*string)), true
 	case "Mutation.requestReturn":
 		if e.ComplexityRoot.Mutation.RequestReturn == nil {
 			break
@@ -4513,17 +4390,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ResetPassword(childComplexity, args["token"].(string), args["newPassword"].(string)), true
-	case "Mutation.respondToQuote":
-		if e.ComplexityRoot.Mutation.RespondToQuote == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_respondToQuote_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.RespondToQuote(childComplexity, args["id"].(string), args["accept"].(bool)), true
 	case "Mutation.saveForLater":
 		if e.ComplexityRoot.Mutation.SaveForLater == nil {
 			break
@@ -4700,172 +4566,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.VoteReview(childComplexity, args["reviewId"].(string), args["value"].(int32)), true
-
-	case "MyB2BInvoice.amountCents":
-		if e.ComplexityRoot.MyB2BInvoice.AmountCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.AmountCents(childComplexity), true
-	case "MyB2BInvoice.createdAt":
-		if e.ComplexityRoot.MyB2BInvoice.CreatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.CreatedAt(childComplexity), true
-	case "MyB2BInvoice.dueAt":
-		if e.ComplexityRoot.MyB2BInvoice.DueAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.DueAt(childComplexity), true
-	case "MyB2BInvoice.number":
-		if e.ComplexityRoot.MyB2BInvoice.Number == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.Number(childComplexity), true
-	case "MyB2BInvoice.orderNumber":
-		if e.ComplexityRoot.MyB2BInvoice.OrderNumber == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.OrderNumber(childComplexity), true
-	case "MyB2BInvoice.overdue":
-		if e.ComplexityRoot.MyB2BInvoice.Overdue == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.Overdue(childComplexity), true
-	case "MyB2BInvoice.paidAt":
-		if e.ComplexityRoot.MyB2BInvoice.PaidAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.PaidAt(childComplexity), true
-	case "MyB2BInvoice.status":
-		if e.ComplexityRoot.MyB2BInvoice.Status == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.Status(childComplexity), true
-
-	case "MyB2BQuote.createdAt":
-		if e.ComplexityRoot.MyB2BQuote.CreatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.CreatedAt(childComplexity), true
-	case "MyB2BQuote.id":
-		if e.ComplexityRoot.MyB2BQuote.ID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.ID(childComplexity), true
-	case "MyB2BQuote.items":
-		if e.ComplexityRoot.MyB2BQuote.Items == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.Items(childComplexity), true
-	case "MyB2BQuote.note":
-		if e.ComplexityRoot.MyB2BQuote.Note == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.Note(childComplexity), true
-	case "MyB2BQuote.sellerNote":
-		if e.ComplexityRoot.MyB2BQuote.SellerNote == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.SellerNote(childComplexity), true
-	case "MyB2BQuote.status":
-		if e.ComplexityRoot.MyB2BQuote.Status == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.Status(childComplexity), true
-	case "MyB2BQuote.totalCents":
-		if e.ComplexityRoot.MyB2BQuote.TotalCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.TotalCents(childComplexity), true
-	case "MyB2BQuote.validUntil":
-		if e.ComplexityRoot.MyB2BQuote.ValidUntil == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.ValidUntil(childComplexity), true
-
-	case "MyB2BQuoteItem.name":
-		if e.ComplexityRoot.MyB2BQuoteItem.Name == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuoteItem.Name(childComplexity), true
-	case "MyB2BQuoteItem.optionsSummary":
-		if e.ComplexityRoot.MyB2BQuoteItem.OptionsSummary == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuoteItem.OptionsSummary(childComplexity), true
-	case "MyB2BQuoteItem.quantity":
-		if e.ComplexityRoot.MyB2BQuoteItem.Quantity == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuoteItem.Quantity(childComplexity), true
-	case "MyB2BQuoteItem.sku":
-		if e.ComplexityRoot.MyB2BQuoteItem.Sku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuoteItem.Sku(childComplexity), true
-	case "MyB2BQuoteItem.unitPriceCents":
-		if e.ComplexityRoot.MyB2BQuoteItem.UnitPriceCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuoteItem.UnitPriceCents(childComplexity), true
-
-	case "MyCompany.creditLimitCents":
-		if e.ComplexityRoot.MyCompany.CreditLimitCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyCompany.CreditLimitCents(childComplexity), true
-	case "MyCompany.creditUsedCents":
-		if e.ComplexityRoot.MyCompany.CreditUsedCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyCompany.CreditUsedCents(childComplexity), true
-	case "MyCompany.name":
-		if e.ComplexityRoot.MyCompany.Name == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyCompany.Name(childComplexity), true
-	case "MyCompany.paymentTermsDays":
-		if e.ComplexityRoot.MyCompany.PaymentTermsDays == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyCompany.PaymentTermsDays(childComplexity), true
-	case "MyCompany.role":
-		if e.ComplexityRoot.MyCompany.Role == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyCompany.Role(childComplexity), true
-	case "MyCompany.status":
-		if e.ComplexityRoot.MyCompany.Status == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyCompany.Status(childComplexity), true
 
 	case "Order.amountDue":
 		if e.ComplexityRoot.Order.AmountDue == nil {
@@ -6643,24 +6343,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MyCart(childComplexity), true
-	case "Query.myCompany":
-		if e.ComplexityRoot.Query.MyCompany == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Query.MyCompany(childComplexity), true
-	case "Query.myCompanyInvoices":
-		if e.ComplexityRoot.Query.MyCompanyInvoices == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Query.MyCompanyInvoices(childComplexity), true
-	case "Query.myCompanyOrders":
-		if e.ComplexityRoot.Query.MyCompanyOrders == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Query.MyCompanyOrders(childComplexity), true
 	case "Query.myDataExport":
 		if e.ComplexityRoot.Query.MyDataExport == nil {
 			break
@@ -6702,12 +6384,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MyProfile(childComplexity), true
-	case "Query.myQuotes":
-		if e.ComplexityRoot.Query.MyQuotes == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Query.MyQuotes(childComplexity), true
 	case "Query.myReferral":
 		if e.ComplexityRoot.Query.MyReferral == nil {
 			break
@@ -7501,12 +7177,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.SitemapEntry.UpdatedAt(childComplexity), true
 
-	case "StoreFeatures.b2b":
-		if e.ComplexityRoot.StoreFeatures.B2b == nil {
-			break
-		}
-
-		return e.ComplexityRoot.StoreFeatures.B2b(childComplexity), true
 	case "StoreFeatures.signals":
 		if e.ComplexityRoot.StoreFeatures.Signals == nil {
 			break
@@ -8876,8 +8546,6 @@ type ConfigGroup {
 # Server-wide feature switches (env-driven) so the storefront can hide
 # UI for subsystems the deployment turned off.
 type StoreFeatures {
-  # B2B_ENABLED - company accounts, quotes, on-account payment.
-  b2b: Boolean!
   # SIGNALS_ENABLED - web tracking, session replay, experiments,
   # back-in-stock alerts, signup forms.
   signals: Boolean!
@@ -9139,78 +8807,6 @@ type ReferralInfo {
 extend type Query {
   # Requires a signed-in customer; mints the share code on first read.
   myReferral: ReferralInfo!
-}
-
-# --- B2B ---
-
-type MyCompany {
-  name:             String!
-  status:           String!
-  role:             String!
-  creditLimitCents: Int!
-  creditUsedCents:  Int!
-  paymentTermsDays: Int!
-}
-
-type MyB2BQuoteItem {
-  sku:            String!
-  name:           String!
-  quantity:       Float!
-  unitPriceCents: Int!
-  optionsSummary: String!
-}
-
-type MyB2BQuote {
-  id:         ID!
-  status:     String!
-  items:      [MyB2BQuoteItem!]!
-  note:       String!
-  sellerNote: String!
-  totalCents: Int!
-  validUntil: Time
-  createdAt:  Time!
-}
-
-type CompanyOrderSummary {
-  id:            ID!
-  number:        String!
-  status:        String!
-  paymentStatus: String!
-  totalCents:    Int!
-  currencyCode:  String!
-  memberEmail:   String!
-  createdAt:     Time!
-}
-
-# One of the company's on-account invoices (buyer portal view).
-type MyB2BInvoice {
-  number:      String!
-  orderNumber: String!
-  amountCents: Int!
-  status:      String!
-  overdue:     Boolean!
-  dueAt:       Time
-  paidAt:      Time
-  createdAt:   Time!
-}
-
-extend type Query {
-  # The signed-in customer's company account, or null when not B2B.
-  myCompany: MyCompany
-  myQuotes: [MyB2BQuote!]!
-  # Company invoices - company ADMINS only (mirrors myCompanyOrders).
-  myCompanyInvoices: [MyB2BInvoice!]!
-  # Company-wide order history - company ADMINS only (buyers see just
-  # their own orders via the regular account pages).
-  myCompanyOrders: [CompanyOrderSummary!]!
-}
-
-extend type Mutation {
-  # Snapshot the current cart's lines into a quote request for the
-  # store team to price.
-  requestQuote(cartId: ID!, note: String): MyB2BQuote!
-  # Accept or decline a quoted offer.
-  respondToQuote(id: ID!, accept: Boolean!): MyB2BQuote!
 }
 `, BuiltIn: false},
 	{Name: "../schema/front/downloads.graphqls", Input: `# Digital downloads the customer has access to (granted when an order with a
@@ -9544,7 +9140,7 @@ extend type Mutation {
     email: String!
     cartId: ID
     customerNote: String
-    # Purchase-order reference (B2B on-account checkout).
+    # Buyer's PO reference, when they pay by purchase order.
     poNumber: String
     # Chosen shipping option from shippingQuotes, identified by its carrier slug
     # + method code. Omit both to let the server pick the cheapest. The price is
@@ -10894,28 +10490,6 @@ func (ec *executionContext) childFields_CollectionCover(ctx context.Context, fie
 	return nil, fmt.Errorf("no field named %q was found under type CollectionCover", field.Name)
 }
 
-func (ec *executionContext) childFields_CompanyOrderSummary(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "id":
-		return ec.fieldContext_CompanyOrderSummary_id(ctx, field)
-	case "number":
-		return ec.fieldContext_CompanyOrderSummary_number(ctx, field)
-	case "status":
-		return ec.fieldContext_CompanyOrderSummary_status(ctx, field)
-	case "paymentStatus":
-		return ec.fieldContext_CompanyOrderSummary_paymentStatus(ctx, field)
-	case "totalCents":
-		return ec.fieldContext_CompanyOrderSummary_totalCents(ctx, field)
-	case "currencyCode":
-		return ec.fieldContext_CompanyOrderSummary_currencyCode(ctx, field)
-	case "memberEmail":
-		return ec.fieldContext_CompanyOrderSummary_memberEmail(ctx, field)
-	case "createdAt":
-		return ec.fieldContext_CompanyOrderSummary_createdAt(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type CompanyOrderSummary", field.Name)
-}
-
 func (ec *executionContext) childFields_ConfigGroup(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "slug":
@@ -11340,84 +10914,6 @@ func (ec *executionContext) childFields_MenuItem(ctx context.Context, field grap
 		return ec.fieldContext_MenuItem_children(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type MenuItem", field.Name)
-}
-
-func (ec *executionContext) childFields_MyB2BInvoice(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "number":
-		return ec.fieldContext_MyB2BInvoice_number(ctx, field)
-	case "orderNumber":
-		return ec.fieldContext_MyB2BInvoice_orderNumber(ctx, field)
-	case "amountCents":
-		return ec.fieldContext_MyB2BInvoice_amountCents(ctx, field)
-	case "status":
-		return ec.fieldContext_MyB2BInvoice_status(ctx, field)
-	case "overdue":
-		return ec.fieldContext_MyB2BInvoice_overdue(ctx, field)
-	case "dueAt":
-		return ec.fieldContext_MyB2BInvoice_dueAt(ctx, field)
-	case "paidAt":
-		return ec.fieldContext_MyB2BInvoice_paidAt(ctx, field)
-	case "createdAt":
-		return ec.fieldContext_MyB2BInvoice_createdAt(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type MyB2BInvoice", field.Name)
-}
-
-func (ec *executionContext) childFields_MyB2BQuote(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "id":
-		return ec.fieldContext_MyB2BQuote_id(ctx, field)
-	case "status":
-		return ec.fieldContext_MyB2BQuote_status(ctx, field)
-	case "items":
-		return ec.fieldContext_MyB2BQuote_items(ctx, field)
-	case "note":
-		return ec.fieldContext_MyB2BQuote_note(ctx, field)
-	case "sellerNote":
-		return ec.fieldContext_MyB2BQuote_sellerNote(ctx, field)
-	case "totalCents":
-		return ec.fieldContext_MyB2BQuote_totalCents(ctx, field)
-	case "validUntil":
-		return ec.fieldContext_MyB2BQuote_validUntil(ctx, field)
-	case "createdAt":
-		return ec.fieldContext_MyB2BQuote_createdAt(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type MyB2BQuote", field.Name)
-}
-
-func (ec *executionContext) childFields_MyB2BQuoteItem(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "sku":
-		return ec.fieldContext_MyB2BQuoteItem_sku(ctx, field)
-	case "name":
-		return ec.fieldContext_MyB2BQuoteItem_name(ctx, field)
-	case "quantity":
-		return ec.fieldContext_MyB2BQuoteItem_quantity(ctx, field)
-	case "unitPriceCents":
-		return ec.fieldContext_MyB2BQuoteItem_unitPriceCents(ctx, field)
-	case "optionsSummary":
-		return ec.fieldContext_MyB2BQuoteItem_optionsSummary(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type MyB2BQuoteItem", field.Name)
-}
-
-func (ec *executionContext) childFields_MyCompany(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "name":
-		return ec.fieldContext_MyCompany_name(ctx, field)
-	case "status":
-		return ec.fieldContext_MyCompany_status(ctx, field)
-	case "role":
-		return ec.fieldContext_MyCompany_role(ctx, field)
-	case "creditLimitCents":
-		return ec.fieldContext_MyCompany_creditLimitCents(ctx, field)
-	case "creditUsedCents":
-		return ec.fieldContext_MyCompany_creditUsedCents(ctx, field)
-	case "paymentTermsDays":
-		return ec.fieldContext_MyCompany_paymentTermsDays(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type MyCompany", field.Name)
 }
 
 func (ec *executionContext) childFields_Order(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -12310,8 +11806,6 @@ func (ec *executionContext) childFields_SitemapEntry(ctx context.Context, field 
 
 func (ec *executionContext) childFields_StoreFeatures(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
-	case "b2b":
-		return ec.fieldContext_StoreFeatures_b2b(ctx, field)
 	case "signals":
 		return ec.fieldContext_StoreFeatures_signals(ctx, field)
 	}
@@ -13152,28 +12646,6 @@ func (ec *executionContext) field_Mutation_requestProductOptionFileUpload_args(c
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_requestQuote_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["cartId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "note",
-		func(ctx context.Context, v any) (*string, error) {
-			return ec.unmarshalOString2ᚖstring(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["note"] = arg1
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_requestReturn_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -13245,28 +12717,6 @@ func (ec *executionContext) field_Mutation_resetPassword_args(ctx context.Contex
 		return nil, err
 	}
 	args["newPassword"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_respondToQuote_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "accept",
-		func(ctx context.Context, v any) (bool, error) {
-			return ec.unmarshalNBoolean2bool(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["accept"] = arg1
 	return args, nil
 }
 
@@ -21226,190 +20676,6 @@ func (ec *executionContext) fieldContext_CollectionCover_mimeType(_ context.Cont
 	return graphql.NewScalarFieldContext("CollectionCover", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _CompanyOrderSummary_id(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_id(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_number(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_number(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Number, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_number(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_status(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_status(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_paymentStatus(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_paymentStatus(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.PaymentStatus, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_paymentStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_totalCents(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_totalCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.TotalCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_totalCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_currencyCode(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_currencyCode(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CurrencyCode, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_currencyCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_memberEmail(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_memberEmail(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.MemberEmail, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_memberEmail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_createdAt(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_createdAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
 func (ec *executionContext) _ConfigGroup_slug(ctx context.Context, field graphql.CollectedField, obj *model.ConfigGroup) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -26312,94 +25578,6 @@ func (ec *executionContext) fieldContext_Mutation_redeemLoyaltyPoints(ctx contex
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_requestQuote(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_requestQuote(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().RequestQuote(ctx, fc.Args["cartId"].(string), fc.Args["note"].(*string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model1.MyB2BQuote) graphql.Marshaler {
-			return ec.marshalNMyB2BQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BQuote(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_requestQuote(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_MyB2BQuote(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_requestQuote_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_respondToQuote(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_respondToQuote(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().RespondToQuote(ctx, fc.Args["id"].(string), fc.Args["accept"].(bool))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model1.MyB2BQuote) graphql.Marshaler {
-			return ec.marshalNMyB2BQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BQuote(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_respondToQuote(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_MyB2BQuote(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_respondToQuote_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Mutation_finalizeOrderPayment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27146,636 +26324,6 @@ func (ec *executionContext) fieldContext_Mutation_moveToCart(ctx context.Context
 		return fc, err
 	}
 	return fc, nil
-}
-
-func (ec *executionContext) _MyB2BInvoice_number(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_number(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Number, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_number(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_orderNumber(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_orderNumber(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.OrderNumber, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_orderNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_amountCents(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_amountCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.AmountCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_amountCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_status(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_status(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_overdue(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_overdue(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Overdue, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_overdue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_dueAt(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_dueAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.DueAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
-			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_dueAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_paidAt(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_paidAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.PaidAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
-			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_paidAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_createdAt(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_createdAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_id(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_id(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_status(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_status(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_items(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_items(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Items, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model1.MyB2BQuoteItem) graphql.Marshaler {
-			return ec.marshalNMyB2BQuoteItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BQuoteItemᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "MyB2BQuote",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_MyB2BQuoteItem(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _MyB2BQuote_note(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_note(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Note, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_note(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_sellerNote(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_sellerNote(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.SellerNote, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_sellerNote(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_totalCents(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_totalCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.TotalCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_totalCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_validUntil(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_validUntil(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ValidUntil, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
-			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_validUntil(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_createdAt(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_createdAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuoteItem_sku(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuoteItem) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuoteItem_sku(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Sku, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuoteItem_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuoteItem", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuoteItem_name(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuoteItem) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuoteItem_name(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuoteItem_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuoteItem", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuoteItem_quantity(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuoteItem) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuoteItem_quantity(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Quantity, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuoteItem_quantity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuoteItem", field, false, false, errors.New("field of type Float does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuoteItem_unitPriceCents(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuoteItem) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuoteItem_unitPriceCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.UnitPriceCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuoteItem_unitPriceCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuoteItem", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuoteItem_optionsSummary(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuoteItem) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuoteItem_optionsSummary(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.OptionsSummary, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuoteItem_optionsSummary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuoteItem", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyCompany_name(ctx context.Context, field graphql.CollectedField, obj *model1.MyCompany) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyCompany_name(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyCompany_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyCompany", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyCompany_status(ctx context.Context, field graphql.CollectedField, obj *model1.MyCompany) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyCompany_status(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyCompany_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyCompany", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyCompany_role(ctx context.Context, field graphql.CollectedField, obj *model1.MyCompany) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyCompany_role(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Role, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyCompany_role(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyCompany", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyCompany_creditLimitCents(ctx context.Context, field graphql.CollectedField, obj *model1.MyCompany) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyCompany_creditLimitCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreditLimitCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyCompany_creditLimitCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyCompany", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _MyCompany_creditUsedCents(ctx context.Context, field graphql.CollectedField, obj *model1.MyCompany) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyCompany_creditUsedCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreditUsedCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyCompany_creditUsedCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyCompany", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _MyCompany_paymentTermsDays(ctx context.Context, field graphql.CollectedField, obj *model1.MyCompany) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyCompany_paymentTermsDays(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.PaymentTermsDays, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyCompany_paymentTermsDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyCompany", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _Order_id(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
@@ -35369,134 +33917,6 @@ func (ec *executionContext) fieldContext_Query_myReferral(_ context.Context, fie
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_myCompany(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_myCompany(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().MyCompany(ctx)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model1.MyCompany) graphql.Marshaler {
-			return ec.marshalOMyCompany2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyCompany(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_Query_myCompany(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_MyCompany(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_myQuotes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_myQuotes(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().MyQuotes(ctx)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model1.MyB2BQuote) graphql.Marshaler {
-			return ec.marshalNMyB2BQuote2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BQuoteᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_myQuotes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_MyB2BQuote(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_myCompanyInvoices(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_myCompanyInvoices(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().MyCompanyInvoices(ctx)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model1.MyB2BInvoice) graphql.Marshaler {
-			return ec.marshalNMyB2BInvoice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BInvoiceᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_myCompanyInvoices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_MyB2BInvoice(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_myCompanyOrders(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_myCompanyOrders(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().MyCompanyOrders(ctx)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model1.CompanyOrderSummary) graphql.Marshaler {
-			return ec.marshalNCompanyOrderSummary2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCompanyOrderSummaryᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_myCompanyOrders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_CompanyOrderSummary(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Query_myDownloads(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38546,29 +36966,6 @@ func (ec *executionContext) _SitemapEntry_updatedAt(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_SitemapEntry_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SitemapEntry", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _StoreFeatures_b2b(ctx context.Context, field graphql.CollectedField, obj *model1.StoreFeatures) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_StoreFeatures_b2b(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.B2b, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_StoreFeatures_b2b(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("StoreFeatures", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _StoreFeatures_signals(ctx context.Context, field graphql.CollectedField, obj *model1.StoreFeatures) (ret graphql.Marshaler) {
@@ -43732,79 +42129,6 @@ func (ec *executionContext) _CollectionCover(ctx context.Context, sel ast.Select
 	return out
 }
 
-var companyOrderSummaryImplementors = []string{"CompanyOrderSummary"}
-
-func (ec *executionContext) _CompanyOrderSummary(ctx context.Context, sel ast.SelectionSet, obj *model1.CompanyOrderSummary) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, companyOrderSummaryImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("CompanyOrderSummary")
-		case "id":
-			out.Values[i] = ec._CompanyOrderSummary_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "number":
-			out.Values[i] = ec._CompanyOrderSummary_number(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._CompanyOrderSummary_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "paymentStatus":
-			out.Values[i] = ec._CompanyOrderSummary_paymentStatus(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "totalCents":
-			out.Values[i] = ec._CompanyOrderSummary_totalCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "currencyCode":
-			out.Values[i] = ec._CompanyOrderSummary_currencyCode(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "memberEmail":
-			out.Values[i] = ec._CompanyOrderSummary_memberEmail(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "createdAt":
-			out.Values[i] = ec._CompanyOrderSummary_createdAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
 var configGroupImplementors = []string{"ConfigGroup"}
 
 func (ec *executionContext) _ConfigGroup(ctx context.Context, sel ast.SelectionSet, obj *model.ConfigGroup) graphql.Marshaler {
@@ -45601,20 +43925,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "requestQuote":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_requestQuote(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "respondToQuote":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_respondToQuote(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "finalizeOrderPayment":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_finalizeOrderPayment(ctx, field)
@@ -45731,273 +44041,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_moveToCart(ctx, field)
 			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var myB2BInvoiceImplementors = []string{"MyB2BInvoice"}
-
-func (ec *executionContext) _MyB2BInvoice(ctx context.Context, sel ast.SelectionSet, obj *model1.MyB2BInvoice) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, myB2BInvoiceImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("MyB2BInvoice")
-		case "number":
-			out.Values[i] = ec._MyB2BInvoice_number(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "orderNumber":
-			out.Values[i] = ec._MyB2BInvoice_orderNumber(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "amountCents":
-			out.Values[i] = ec._MyB2BInvoice_amountCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._MyB2BInvoice_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "overdue":
-			out.Values[i] = ec._MyB2BInvoice_overdue(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "dueAt":
-			out.Values[i] = ec._MyB2BInvoice_dueAt(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
-		case "paidAt":
-			out.Values[i] = ec._MyB2BInvoice_paidAt(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
-		case "createdAt":
-			out.Values[i] = ec._MyB2BInvoice_createdAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var myB2BQuoteImplementors = []string{"MyB2BQuote"}
-
-func (ec *executionContext) _MyB2BQuote(ctx context.Context, sel ast.SelectionSet, obj *model1.MyB2BQuote) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, myB2BQuoteImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("MyB2BQuote")
-		case "id":
-			out.Values[i] = ec._MyB2BQuote_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._MyB2BQuote_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "items":
-			out.Values[i] = ec._MyB2BQuote_items(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "note":
-			out.Values[i] = ec._MyB2BQuote_note(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "sellerNote":
-			out.Values[i] = ec._MyB2BQuote_sellerNote(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "totalCents":
-			out.Values[i] = ec._MyB2BQuote_totalCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "validUntil":
-			out.Values[i] = ec._MyB2BQuote_validUntil(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
-		case "createdAt":
-			out.Values[i] = ec._MyB2BQuote_createdAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var myB2BQuoteItemImplementors = []string{"MyB2BQuoteItem"}
-
-func (ec *executionContext) _MyB2BQuoteItem(ctx context.Context, sel ast.SelectionSet, obj *model1.MyB2BQuoteItem) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, myB2BQuoteItemImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("MyB2BQuoteItem")
-		case "sku":
-			out.Values[i] = ec._MyB2BQuoteItem_sku(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "name":
-			out.Values[i] = ec._MyB2BQuoteItem_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "quantity":
-			out.Values[i] = ec._MyB2BQuoteItem_quantity(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "unitPriceCents":
-			out.Values[i] = ec._MyB2BQuoteItem_unitPriceCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "optionsSummary":
-			out.Values[i] = ec._MyB2BQuoteItem_optionsSummary(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var myCompanyImplementors = []string{"MyCompany"}
-
-func (ec *executionContext) _MyCompany(ctx context.Context, sel ast.SelectionSet, obj *model1.MyCompany) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, myCompanyImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("MyCompany")
-		case "name":
-			out.Values[i] = ec._MyCompany_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._MyCompany_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "role":
-			out.Values[i] = ec._MyCompany_role(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "creditLimitCents":
-			out.Values[i] = ec._MyCompany_creditLimitCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "creditUsedCents":
-			out.Values[i] = ec._MyCompany_creditUsedCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "paymentTermsDays":
-			out.Values[i] = ec._MyCompany_paymentTermsDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -49900,94 +47943,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "myCompany":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_myCompany(ctx, field)
-				if res == graphql.RequiredNull {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "myQuotes":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_myQuotes(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "myCompanyInvoices":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_myCompanyInvoices(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "myCompanyOrders":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_myCompanyOrders(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "myDownloads":
 			field := field
 
@@ -51843,11 +49798,6 @@ func (ec *executionContext) _StoreFeatures(ctx context.Context, sel ast.Selectio
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("StoreFeatures")
-		case "b2b":
-			out.Values[i] = ec._StoreFeatures_b2b(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "signals":
 			out.Values[i] = ec._StoreFeatures_signals(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -53309,32 +51259,6 @@ func (ec *executionContext) marshalNCollection2ᚖgithubᚗcomᚋskeletgᚋskele
 	return ec._Collection(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCompanyOrderSummary2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCompanyOrderSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.CompanyOrderSummary) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNCompanyOrderSummary2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCompanyOrderSummary(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNCompanyOrderSummary2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCompanyOrderSummary(ctx context.Context, sel ast.SelectionSet, v *model1.CompanyOrderSummary) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._CompanyOrderSummary(ctx, sel, v)
-}
-
 func (ec *executionContext) marshalNConfigGroup2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ConfigGroup) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -53985,88 +51909,6 @@ func (ec *executionContext) marshalNMenuItem2ᚖgithubᚗcomᚋskeletgᚋskelet�
 		return graphql.Null
 	}
 	return ec._MenuItem(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNMyB2BInvoice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BInvoiceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.MyB2BInvoice) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNMyB2BInvoice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BInvoice(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNMyB2BInvoice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BInvoice(ctx context.Context, sel ast.SelectionSet, v *model1.MyB2BInvoice) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._MyB2BInvoice(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNMyB2BQuote2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BQuote(ctx context.Context, sel ast.SelectionSet, v model1.MyB2BQuote) graphql.Marshaler {
-	return ec._MyB2BQuote(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNMyB2BQuote2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BQuoteᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.MyB2BQuote) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNMyB2BQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BQuote(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNMyB2BQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BQuote(ctx context.Context, sel ast.SelectionSet, v *model1.MyB2BQuote) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._MyB2BQuote(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNMyB2BQuoteItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BQuoteItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.MyB2BQuoteItem) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNMyB2BQuoteItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BQuoteItem(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNMyB2BQuoteItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyB2BQuoteItem(ctx context.Context, sel ast.SelectionSet, v *model1.MyB2BQuoteItem) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._MyB2BQuoteItem(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNOrder2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrder(ctx context.Context, sel ast.SelectionSet, v model.Order) graphql.Marshaler {
@@ -55913,13 +53755,6 @@ func (ec *executionContext) marshalOMenuItemTargetType2ᚖgithubᚗcomᚋskeletg
 		return graphql.Null
 	}
 	return v
-}
-
-func (ec *executionContext) marshalOMyCompany2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMyCompany(ctx context.Context, sel ast.SelectionSet, v *model1.MyCompany) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return ec._MyCompany(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrder(ctx context.Context, sel ast.SelectionSet, v *model.Order) graphql.Marshaler {

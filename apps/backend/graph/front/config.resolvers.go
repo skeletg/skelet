@@ -29,5 +29,5 @@ func (r *queryResolver) PublicConfigSections(ctx context.Context) ([]*model.Conf
 }
 
 func (r *queryResolver) Features(ctx context.Context) (*model1.StoreFeatures, error) {
-	return &model1.StoreFeatures{B2b: r.B2BSvc.Enabled(), Signals: r.SignalsEnabled}, nil
+	return &model1.StoreFeatures{Signals: r.SignalsEnabled}, nil
 }

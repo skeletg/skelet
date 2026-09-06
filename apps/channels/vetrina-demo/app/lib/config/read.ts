@@ -158,9 +158,8 @@ export const getBranding = cache(async (): Promise<Branding> => {
   }
 });
 
-// Server-wide feature switches (env-driven on the backend, e.g. B2B_ENABLED /
-// SIGNALS_ENABLED)
-const getFeatures = cache(async (): Promise<{ b2b: boolean; signals: boolean }> => {
+// Server-wide feature switches (env-driven on the backend, e.g. SIGNALS_ENABLED)
+const getFeatures = cache(async (): Promise<{ signals: boolean }> => {
   try {
     const res = await gqlFetch(StoreFeaturesDocument, {}, {
       cache: "force-cache",
@@ -170,13 +169,9 @@ const getFeatures = cache(async (): Promise<{ b2b: boolean; signals: boolean }> 
     const data = res.data as StoreFeaturesQuery;
     return data.features;
   } catch {
-    return { b2b: true, signals: true };
+    return { signals: true };
   }
 });
-
-export async function getB2BEnabled(): Promise<boolean> {
-  return (await getFeatures()).b2b;
-}
 
 export async function getSignalsEnabled(): Promise<boolean> {
   return (await getFeatures()).signals;

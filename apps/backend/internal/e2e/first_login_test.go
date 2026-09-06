@@ -14,12 +14,12 @@ import (
 // read-then-written
 func TestAdminLoginReportsTheFirstLoginOnce(t *testing.T) {
 	h := newHarness(t)
-	ts := httptest.NewServer(h.d.Root.Handler)
+	ts := httptest.NewServer(h.D.Root.Handler)
 	defer ts.Close()
 
 	email := fmt.Sprintf("first-login-%d@example.com", time.Now().UnixNano())
 	const password = "first-login-password-1"
-	if _, err := h.d.Admin.CreateAdmin(h.ctx, email, password, "First", "Login", nil); err != nil {
+	if _, err := h.D.Admin.CreateAdmin(h.Ctx, email, password, "First", "Login", nil); err != nil {
 		t.Fatalf("create admin: %v", err)
 	}
 

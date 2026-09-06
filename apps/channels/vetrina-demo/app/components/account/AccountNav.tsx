@@ -1,9 +1,10 @@
 "use client";
 
 import { Link, usePathname } from "@/app/components/LocaleLink";
+import type { ComponentType } from "react";
+import { getAccountNavItems, type AccountNavItem } from "@/app/plugins/registry";
 
 import {
-  Building2Icon,
   CreditCardIcon,
   DownloadIcon,
   HeartIcon,
@@ -16,7 +17,10 @@ import {
   UserIcon,
 } from "lucide-react";
 
-type Item = { href: string; label: string; Icon: typeof UserIcon };
+// Icon is structural rather than lucide's own type: core's entries are all lucide, but a plugin
+// contributing a nav item should not be forced to depend on the same icon library
+type NavIcon = ComponentType<{ className?: string }>;
+type Item = { href: string; label: string; Icon: NavIcon };
 
 const SHOPPING: Item[] = [
   { href: "/account/orders", label: "Orders", Icon: PackageIcon },
@@ -48,19 +52,14 @@ const OVERVIEW: Item = {
 };
 
 export function AccountNav({
-  hasCompany,
   variant = "sidebar",
 }: {
-  hasCompany: boolean;
   variant?: "sidebar" | "strip";
 }) {
   const pathname = usePathname();
-  const shopping = hasCompany
-    ? [
-        ...SHOPPING,
-        { href: "/account/company", label: "Company", Icon: Building2Icon },
-      ]
-    : SHOPPING;
+  const shopping = SHOPPING;
+  // Plugin-contributed links sit after the built-in shopping ones - see app/plugins/registry.ts
+  const pluginItems = getAccountNavItems();
 
   if (variant === "strip") {
     return (
@@ -69,12 +68,29 @@ export function AccountNav({
         className="-mx-6 overflow-x-auto px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <ul className="flex w-max gap-2 text-sm">
-          {[OVERVIEW, ...shopping, ...DETAILS].map((it) => (
+          {[OVERVIEW, ...shopping].map((it) => (
             <li key={it.href}>
               <NavLink
                 {...it}
                 pathname={pathname}
                 exact={it.href === OVERVIEW.href}
+                className="whitespace-nowrap border border-border"
+              />
+            </li>
+          ))}
+          {pluginItems.map((it) => (
+            <PluginNavItem
+              key={it.id}
+              item={it}
+              pathname={pathname}
+              className="whitespace-nowrap border border-border"
+            />
+          ))}
+          {DETAILS.map((it) => (
+            <li key={it.href}>
+              <NavLink
+                {...it}
+                pathname={pathname}
                 className="whitespace-nowrap border border-border"
               />
             </li>
@@ -87,7 +103,7 @@ export function AccountNav({
   return (
     <nav aria-label="Account" className="text-sm">
       <NavLink {...OVERVIEW} pathname={pathname} exact />
-      <Group title="Shopping" items={shopping} pathname={pathname} />
+      <Group title="Shopping" items={shopping} pathname={pathname} extra={pluginItems} />
       <Group title="Your details" items={DETAILS} pathname={pathname} />
     </nav>
   );
@@ -97,10 +113,12 @@ function Group({
   title,
   items,
   pathname,
+  extra = [],
 }: {
   title: string;
   items: Item[];
   pathname: string;
+  extra?: AccountNavItem[];
 }) {
   return (
     <div className="mt-6">
@@ -113,8 +131,37 @@ function Group({
             <NavLink {...it} pathname={pathname} />
           </li>
         ))}
+        {extra.map((it) => (
+          <PluginNavItem key={it.id} item={it} pathname={pathname} />
+        ))}
       </ul>
     </div>
+  );
+}
+
+// One component per plugin item, so its useVisible hook is called unconditionally within its own
+// render rather than inside a loop - a plugin that answers "not for this account" renders nothing
+function PluginNavItem({
+  item,
+  pathname,
+  className = "",
+}: {
+  item: AccountNavItem;
+  pathname: string;
+  className?: string;
+}) {
+  const visible = item.useVisible ? item.useVisible() : true;
+  if (!visible) return null;
+  return (
+    <li>
+      <NavLink
+        href={item.href}
+        label={item.label}
+        Icon={item.Icon}
+        pathname={pathname}
+        className={className}
+      />
+    </li>
   );
 }
 

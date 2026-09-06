@@ -10,7 +10,6 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	authpkg "github.com/skeletg/skelet/apps/backend/internal/auth"
-	"github.com/skeletg/skelet/apps/backend/internal/b2b"
 	"github.com/skeletg/skelet/apps/backend/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/internal/cache"
@@ -86,7 +85,6 @@ var Domain = fx.Module("domain",
 		newOrderService,
 		newCartRepricer,
 		newOutboxEnqueuer,
-		newOnAccountGate,
 		newPaymentAuthorizer,
 		newCatalogService,
 		newCartService,
@@ -192,18 +190,17 @@ func newCartRepository(q *db.Queries) cart.Repository { return cart.NewRepositor
 func newOrderService(
 	q *db.Queries, repo cart.Repository, cust *customer.Service, txMgr *tx.Manager, bus *events.Bus,
 	repricer order.CartRepricer, ob order.OutboxEnqueuer,
-	auth order.PaymentAuthorizer, gate order.OnAccountGate,
+	auth order.PaymentAuthorizer,
 ) (*order.Service, error) {
 	return order.NewService(order.Deps{
 		Repo: order.NewRepository(q), CartRepo: repo, Customer: cust, Tx: txMgr, Bus: bus,
-		Repricer: repricer, Outbox: ob, PaymentAuthorizer: auth, OnAccountGate: gate,
+		Repricer: repricer, Outbox: ob, PaymentAuthorizer: auth,
 	})
 }
 
 // The seams order declares as interfaces because those packages import it - the direction can only run one way
 func newCartRepricer(c *cart.Service) order.CartRepricer      { return c }
 func newOutboxEnqueuer(o *outbox.Outbox) order.OutboxEnqueuer { return o }
-func newOnAccountGate(b *b2b.Service) order.OnAccountGate     { return b }
 func newPaymentAuthorizer(p *payment.Service) order.PaymentAuthorizer {
 	return NewPaymentAuthorizerAdapter(p)
 }

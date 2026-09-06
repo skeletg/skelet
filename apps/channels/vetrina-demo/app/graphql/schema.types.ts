@@ -538,18 +538,6 @@ export type CollectionCover = {
   width: Scalars['Int']['output'];
 };
 
-export type CompanyOrderSummary = {
-  __typename?: 'CompanyOrderSummary';
-  createdAt: Scalars['Time']['output'];
-  currencyCode: Scalars['String']['output'];
-  id: Scalars['ID']['output'];
-  memberEmail: Scalars['String']['output'];
-  number: Scalars['String']['output'];
-  paymentStatus: Scalars['String']['output'];
-  status: Scalars['String']['output'];
-  totalCents: Scalars['Int']['output'];
-};
-
 export type ConfigGroup = {
   __typename?: 'ConfigGroup';
   fields: Array<ConfigValue>;
@@ -868,12 +856,10 @@ export type Mutation = {
   reorder: ReorderResult;
   requestPasswordReset: Scalars['Boolean']['output'];
   requestProductOptionFileUpload: ProductOptionFileUpload;
-  requestQuote: MyB2BQuote;
   requestReturn: OrderReturn;
   requestReviewMediaUpload: ReviewMediaUpload;
   resendVerificationEmail: Scalars['Boolean']['output'];
   resetPassword: Scalars['Boolean']['output'];
-  respondToQuote: MyB2BQuote;
   saveForLater: Cart;
   savePaymentMethod: SavedPaymentMethod;
   setCartEmail: Cart;
@@ -1070,12 +1056,6 @@ export type MutationRequestProductOptionFileUploadArgs = {
 };
 
 
-export type MutationRequestQuoteArgs = {
-  cartId: Scalars['ID']['input'];
-  note?: InputMaybe<Scalars['String']['input']>;
-};
-
-
 export type MutationRequestReturnArgs = {
   input: RequestReturnInput;
 };
@@ -1092,12 +1072,6 @@ export type MutationRequestReviewMediaUploadArgs = {
 export type MutationResetPasswordArgs = {
   newPassword: Scalars['String']['input'];
   token: Scalars['String']['input'];
-};
-
-
-export type MutationRespondToQuoteArgs = {
-  accept: Scalars['Boolean']['input'];
-  id: Scalars['ID']['input'];
 };
 
 
@@ -1193,49 +1167,6 @@ export type MutationVerifyEmailArgs = {
 export type MutationVoteReviewArgs = {
   reviewId: Scalars['ID']['input'];
   value: Scalars['Int']['input'];
-};
-
-export type MyB2BInvoice = {
-  __typename?: 'MyB2BInvoice';
-  amountCents: Scalars['Int']['output'];
-  createdAt: Scalars['Time']['output'];
-  dueAt?: Maybe<Scalars['Time']['output']>;
-  number: Scalars['String']['output'];
-  orderNumber: Scalars['String']['output'];
-  overdue: Scalars['Boolean']['output'];
-  paidAt?: Maybe<Scalars['Time']['output']>;
-  status: Scalars['String']['output'];
-};
-
-export type MyB2BQuote = {
-  __typename?: 'MyB2BQuote';
-  createdAt: Scalars['Time']['output'];
-  id: Scalars['ID']['output'];
-  items: Array<MyB2BQuoteItem>;
-  note: Scalars['String']['output'];
-  sellerNote: Scalars['String']['output'];
-  status: Scalars['String']['output'];
-  totalCents: Scalars['Int']['output'];
-  validUntil?: Maybe<Scalars['Time']['output']>;
-};
-
-export type MyB2BQuoteItem = {
-  __typename?: 'MyB2BQuoteItem';
-  name: Scalars['String']['output'];
-  optionsSummary: Scalars['String']['output'];
-  quantity: Scalars['Float']['output'];
-  sku: Scalars['String']['output'];
-  unitPriceCents: Scalars['Int']['output'];
-};
-
-export type MyCompany = {
-  __typename?: 'MyCompany';
-  creditLimitCents: Scalars['Int']['output'];
-  creditUsedCents: Scalars['Int']['output'];
-  name: Scalars['String']['output'];
-  paymentTermsDays: Scalars['Int']['output'];
-  role: Scalars['String']['output'];
-  status: Scalars['String']['output'];
 };
 
 export type Order = {
@@ -1688,16 +1619,12 @@ export type Query = {
   menu?: Maybe<Menu>;
   menus: Array<Menu>;
   myCart: Cart;
-  myCompany?: Maybe<MyCompany>;
-  myCompanyInvoices: Array<MyB2BInvoice>;
-  myCompanyOrders: Array<CompanyOrderSummary>;
   myDataExport: Scalars['String']['output'];
   myDownloads: Array<DownloadGrant>;
   myOrder: Order;
   myOrders: Array<Order>;
   myPaymentMethods: Array<SavedPaymentMethod>;
   myProfile: Customer;
-  myQuotes: Array<MyB2BQuote>;
   myReferral: ReferralInfo;
   mySubscriptions: Array<CustomerSubscription>;
   myWishlist: Array<Product>;
@@ -2190,7 +2117,6 @@ export type SitemapEntry = {
 
 export type StoreFeatures = {
   __typename?: 'StoreFeatures';
-  b2b: Scalars['Boolean']['output'];
   signals: Scalars['Boolean']['output'];
 };
 

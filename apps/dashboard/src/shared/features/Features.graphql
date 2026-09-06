@@ -1,6 +1,5 @@
 query ServerFeatures {
   serverFeatures {
-    b2b
     signals
     ai
   }

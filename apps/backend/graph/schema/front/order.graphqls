@@ -229,7 +229,7 @@ extend type Mutation {
     email: String!
     cartId: ID
     customerNote: String
-    # Purchase-order reference (B2B on-account checkout).
+    # Buyer's PO reference, when they pay by purchase order.
     poNumber: String
     # Chosen shipping option from shippingQuotes, identified by its carrier slug
     # + method code. Omit both to let the server pick the cheapest. The price is

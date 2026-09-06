@@ -21,12 +21,14 @@ dependency. Nothing is copied into this repo.
 
   bin/cli plugin add github.com/skeletg/lang-sr@v0.1.0
   bin/cli plugin add github.com/skeletg/lang-sr            # latest
-  bin/cli plugin add --local ../../skelet-plugins/lang-sr  # unpublished, in development
+
+A plugin with no published module is written in plugins/<slug>/ instead, by
+plugin new. Those two are the only layouts - there is no replace-to-a-checkout
+route, so a plugin's source is either in the module cache or in-tree.
 
 What it does, in order:
 
-  1. Resolves the module - go get for a published one, a require plus a replace
-     for --local, so a plugin with no remote yet still works.
+  1. go get the module.
   2. Verifies the module registers a plugin, and warns on internal/* imports.
   3. Records it in plugins.json with its module path, and regenerates
      plugins/firstparty so the binary imports it.
@@ -49,59 +51,24 @@ in the manifest are a disclosure, not a sandbox.`,
 func init() {
 	PluginCmd.AddCommand(pluginAddCmd)
 	pluginAddCmd.Flags().String("slug", "", "Name to record it under (default: the module path's last element)")
-	pluginAddCmd.Flags().Bool("local", false, "Treat the argument as a local directory: require plus replace, no fetch")
 }
 
 func runPluginAdd(cmd *cobra.Command, args []string) error {
-	local, _ := cmd.Flags().GetBool("local")
 	slugFlag, _ := cmd.Flags().GetString("slug")
 
 	module, version := splitModuleVersion(args[0])
 
-	var modDir string
-	if local {
-		abs, err := filepath.Abs(module)
-		if err != nil {
-			return err
-		}
-		mod, err := modulePathOf(abs)
-		if err != nil {
-			return err
-		}
-		module, modDir = mod, abs
-		// RELATIVE, not absolute. The dev stack builds inside a container that mounts this directory
-		// elsewhere, so an absolute host path resolves to nothing in there and the build dies on
-		// "replacement directory does not exist". A relative path resolves the same on both sides, as
-		// long as the plugin checkout sits where the container mount puts it
-		dir, err := relativeToModule(abs)
-		if err != nil {
-			return err
-		}
-		// A replace makes the unresolvable require resolvable without a fetch. v0.0.0 is a placeholder
-		// the replace shadows entirely - it is never looked up, which is exactly why this works before
-		// the plugin has a remote
-		if out, err := exec.Command("go", "mod", "edit",
-			"-require="+module+"@v0.0.0", "-replace="+module+"="+dir).CombinedOutput(); err != nil {
-			return fmt.Errorf("go mod edit: %w\n%s", err, out)
-		}
-		fmt.Printf("  required %s, replaced by %s\n", module, dir)
-		fmt.Println("  NOTE: --local is a development shortcut. The replace is relative, so the dev")
-		fmt.Println("  container needs this checkout mounted at the matching path, and the replace has")
-		fmt.Println("  to come out before release - a replace is ignored by anyone consuming the module.")
-	} else {
-		target := module
-		if version != "" {
-			target = module + "@" + version
-		}
-		fmt.Printf("  go get %s\n", target)
-		if out, err := exec.Command("go", "get", target).CombinedOutput(); err != nil {
-			return fmt.Errorf("go get %s: %w\n%s", target, err, out)
-		}
-		dir, err := resolvedModuleDir(module)
-		if err != nil {
-			return err
-		}
-		modDir = dir
+	target := module
+	if version != "" {
+		target = module + "@" + version
+	}
+	fmt.Printf("  go get %s\n", target)
+	if out, err := exec.Command("go", "get", target).CombinedOutput(); err != nil {
+		return fmt.Errorf("go get %s: %w\n%s", target, err, out)
+	}
+	modDir, err := resolvedModuleDir(module)
+	if err != nil {
+		return err
 	}
 
 	slug := slugFlag
@@ -216,38 +183,6 @@ func splitModuleVersion(s string) (module, version string) {
 		return s[:at], s[at+1:]
 	}
 	return s, ""
-}
-
-// Relative to the directory holding go.mod, always slash-separated, which is what go.mod wants
-func relativeToModule(abs string) (string, error) {
-	root, err := filepath.Abs(".")
-	if err != nil {
-		return "", err
-	}
-	rel, err := filepath.Rel(root, abs)
-	if err != nil {
-		return "", fmt.Errorf("%s is not reachable by a relative path from the module root: %w", abs, err)
-	}
-	rel = filepath.ToSlash(rel)
-	if !strings.HasPrefix(rel, ".") {
-		rel = "./" + rel
-	}
-	return rel, nil
-}
-
-// The module path a local directory declares, so --local takes a path the user can see rather than one
-// they have to look up
-func modulePathOf(dir string) (string, error) {
-	raw, err := os.ReadFile(filepath.Join(dir, "go.mod"))
-	if err != nil {
-		return "", fmt.Errorf("%s has no go.mod - it is not a module, so `plugin install` is the command for it", dir)
-	}
-	for line := range strings.SplitSeq(string(raw), "\n") {
-		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
-			return strings.TrimSpace(rest), nil
-		}
-	}
-	return "", fmt.Errorf("%s/go.mod declares no module path", dir)
 }
 
 func resolvedModuleDir(module string) (string, error) {

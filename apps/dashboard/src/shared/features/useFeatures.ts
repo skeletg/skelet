@@ -12,8 +12,6 @@ export function useFeatures() {
     enabled: (flag: string): boolean => {
       if (!features) return false
       switch (flag) {
-        case 'b2b':
-          return features.b2b
         case 'signals':
           return features.signals
         case 'ai':

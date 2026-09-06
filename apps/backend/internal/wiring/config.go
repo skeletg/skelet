@@ -34,7 +34,6 @@ type Config struct {
 
 	JobsExternal        bool
 	SignalsJobsExternal bool // SIGNALS_JOBS_EXTERNAL hands retention/forwarding/trait-compute to cmd/signals
-	B2BEnabled          bool // B2B_ENABLED=false switches off the whole wholesale surface
 	RunBackground       bool // False only when the server role hands the background layer to a worker
 
 	DatabaseURL    string
@@ -85,7 +84,6 @@ func loadBase() (Config, error) {
 		TrustedProxies:      os.Getenv("TRUSTED_PROXIES"),
 		JobsExternal:        EnvBool("JOBS_EXTERNAL", false),
 		SignalsJobsExternal: EnvBool("SIGNALS_JOBS_EXTERNAL", false),
-		B2BEnabled:          EnvBool("B2B_ENABLED", true),
 
 		ConfigEncryptionKey: strings.TrimSpace(os.Getenv("CONFIG_ENCRYPTION_KEY")),
 

@@ -34,6 +34,11 @@ var offlineMethods = []offlineMethod{
 		instructions: "Reserve now and pay in store when you collect your order.",
 	},
 	{
+		// Core owns the METHOD - it behaves exactly like bank transfer, placing unpaid against an
+		// invoice reconciled by hand, and orders.po_number is a core column any store can use
+		//
+		// A plugin adds the credit line ON TOP by subscribing to order.tendering and matching this
+		// slug, so B2B turns it into a real on-account purchase without owning the method itself
 		slug:         "purchase-order",
 		displayName:  "Purchase Order",
 		instructions: "Enter your PO number in the order notes. We'll invoice you on your agreed terms.",

@@ -7,7 +7,7 @@ import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-
 export type ServerFeaturesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type ServerFeaturesQuery = { serverFeatures: { b2b: boolean, signals: boolean, ai: boolean } };
+export type ServerFeaturesQuery = { serverFeatures: { signals: boolean, ai: boolean } };
 
 
-export const ServerFeaturesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ServerFeatures"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"serverFeatures"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"b2b"}},{"kind":"Field","name":{"kind":"Name","value":"signals"}},{"kind":"Field","name":{"kind":"Name","value":"ai"}}]}}]}}]} as unknown as DocumentNode<ServerFeaturesQuery, ServerFeaturesQueryVariables>;
+export const ServerFeaturesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ServerFeatures"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"serverFeatures"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"signals"}},{"kind":"Field","name":{"kind":"Name","value":"ai"}}]}}]}}]} as unknown as DocumentNode<ServerFeaturesQuery, ServerFeaturesQueryVariables>;

@@ -13,8 +13,8 @@ export type PublicConfigQuery = { publicConfig: Array<{ path: string, value: str
 export type StoreFeaturesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type StoreFeaturesQuery = { features: { b2b: boolean, signals: boolean } };
+export type StoreFeaturesQuery = { features: { signals: boolean } };
 
 
 export const PublicConfigDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"PublicConfig"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"publicConfig"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"value"}}]}}]}}]} as unknown as DocumentNode<PublicConfigQuery, PublicConfigQueryVariables>;
-export const StoreFeaturesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"StoreFeatures"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"features"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"b2b"}},{"kind":"Field","name":{"kind":"Name","value":"signals"}}]}}]}}]} as unknown as DocumentNode<StoreFeaturesQuery, StoreFeaturesQueryVariables>;
+export const StoreFeaturesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"StoreFeatures"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"features"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"signals"}}]}}]}}]} as unknown as DocumentNode<StoreFeaturesQuery, StoreFeaturesQueryVariables>;

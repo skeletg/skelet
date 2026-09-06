@@ -10,7 +10,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/activity"
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
-	"github.com/skeletg/skelet/apps/backend/internal/b2b"
 	"github.com/skeletg/skelet/apps/backend/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/internal/cacheinvalidate"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
@@ -64,7 +63,6 @@ type subscriberDeps struct {
 	Loyalty      *loyalty.Service
 	Referral     *referral.Service
 	Download     *download.Service
-	B2B          *b2b.Service
 	Subscription *subscription.Service
 }
 
@@ -115,7 +113,6 @@ func subscribeOrderReactors(d subscriberDeps) {
 	d.Loyalty.SubscribeToOrderEvents(bus)     // earned on placement, revoked on cancel or refund
 	d.Referral.SubscribeToOrderEvents(bus)    // give-get payout on the referee's first order
 	d.Download.SubscribeToOrderEvents(bus)    // grants the buyer access to a purchased product's downloads
-	d.B2B.SubscribeToOrderEvents(bus)         // releases the on-account credit hold
 	d.Subscription.SubscribeToOrderEvents(bus)
 }
 

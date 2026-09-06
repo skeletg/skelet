@@ -54,7 +54,6 @@ var parentGatedFieldResolvers = map[string]string{
 	"Product.Downloads":                  "digital assets attached to the parent product",
 	"Product.ProductOptions":             "the parent product's own option set",
 	"Product.PartOf":                     "reads memberships off the parent, no service call",
-	"Company.Prices":                     "the parent company's own price list, same b2b.view as the parent",
 	"PromotionRule.Codes":                "coupon codes belonging to the parent rule",
 	"PromotionRule.Contents":             "the parent rule's own localized copy",
 	"PromotionRule.LabelMedia":           "formats a URL from a field on the parent",

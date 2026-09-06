@@ -53,11 +53,11 @@ func (h *harness) adminGqlAuthed(t *testing.T, ts *httptest.Server, bearer, quer
 // the two non-admin callers (anonymous, integration token) are refused - prefs are person-shaped state, machine tokens have no admin row
 func TestAdminPreferencesRoundtrip(t *testing.T) {
 	h := newHarness(t)
-	ts := httptest.NewServer(h.d.Root.Handler)
+	ts := httptest.NewServer(h.D.Root.Handler)
 	defer ts.Close()
 
 	email := fmt.Sprintf("prefs-e2e-%d@example.com", time.Now().UnixNano())
-	if _, err := h.d.Admin.CreateAdmin(h.ctx, email, "prefs-e2e-password-1", "Prefs", "Tester", nil); err != nil {
+	if _, err := h.D.Admin.CreateAdmin(h.Ctx, email, "prefs-e2e-password-1", "Prefs", "Tester", nil); err != nil {
 		t.Fatalf("create admin: %v", err)
 	}
 	login, errs := h.adminGqlAuthed(t, ts, "", `mutation($e: String!, $p: String!) {
@@ -110,11 +110,11 @@ func TestAdminPreferencesRoundtrip(t *testing.T) {
 	}
 
 	// integration tokens authorize resolvers by grant set, but prefs demand an admin identity
-	tok, err := h.d.Integration.Create(h.ctx, integration.CreateIntegrationInput{Name: "prefs e2e token"})
+	tok, err := h.D.Integration.Create(h.Ctx, integration.CreateIntegrationInput{Name: "prefs e2e token"})
 	if err != nil {
 		t.Fatalf("create integration: %v", err)
 	}
-	defer func() { _ = h.d.Integration.Delete(h.ctx, tok.Integration.ID) }()
+	defer func() { _ = h.D.Integration.Delete(h.Ctx, tok.Integration.ID) }()
 	if _, errs := h.adminGqlPost(t, ts, tok.RawToken, `query { myPreferences { key } }`); !errorsContain(errs, "unauthenticated") {
 		t.Errorf("integration-token myPreferences = %v, want unauthenticated", errs)
 	}

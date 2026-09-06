@@ -15,10 +15,47 @@ The release process, and which version number means what, is in
   repo-root path while its `go.mod` sat in a subdirectory, which Go cannot resolve - so
   nothing could ever `go get` it. Imports gain `apps/backend/`; module tags become
   `apps/backend/vX.Y.Z`.
-- **SDK 0.2.0.** No declaration changed, but every plugin rewrites its imports, which is
-  breaking for anyone installing one. The surface gate caught it, which is what it is for.
+- **SDK 0.2.1.** 0.2.0 was the import-path move: no declaration changed, but every plugin
+  rewrites its imports, which is breaking for anyone installing one, and the surface gate
+  caught it. 0.2.1 adds the seams below.
+- **B2B is a plugin, not part of core.** Company accounts, credit lines, contract
+  pricing, quotes and on-account payment moved out of `internal/b2b` into a standalone
+  Tier 1 plugin with its own repository. Core no longer contains the word B2B outside
+  a few comments: the couplings that used to be core code are registered seams now -
+  an `order.tendering` subscriber that reserves credit inside the placement
+  transaction, an `order.cancelled` subscriber that releases the unshipped share, and
+  a price resolver for negotiated rates. The `purchase-order` payment method stays in
+  core next to COD and bank transfer, where it is a plain pay-later tender any store
+  can use; the plugin adds the credit line on top by matching its slug.
+- **`B2B_ENABLED` is gone.** The plugin's own kill switch replaces it, which is per
+  channel rather than server-wide: `plugins/plugins.json` decides whether it compiles
+  in, `plugin/b2b/enabled` in Settings switches it off per store. `bin/setup` asks the
+  same question and writes the plugin file instead of an env var.
+- **`masqueradeCustomer` moved to the core customer surface** and is gated on
+  `customers.manage` rather than `b2b.manage`. It was never a B2B feature - it is the
+  support tool for "it looks wrong on my account", and it hangs off the customer detail
+  page, where it now lives.
+- **Six tables renamed.** `companies`, `company_members` and `company_prices` became
+  `b2b_companies`, `b2b_company_members` and `b2b_company_prices`; the three that were
+  already prefixed kept their names. The plugin's migration adopts existing tables by
+  renaming them in place, so an upgrade carries its rows, foreign keys and grants over.
 
 ### Added
+
+- **Plugin permission groups register themselves.** A plugin naming a group core does
+  not have used to fail boot with "references unknown group" and no way to fix it from
+  the plugin side; the host now creates it from the manifest name on first reference.
+- **Storefront plugin surface** - `app/plugins/` in vetrina-demo: a slot registry
+  (`registerAccountNavItem`, `registerSlot` with per-zone context) and a `loaded.ts` import
+  list, so a plugin's buyer-facing UI lives in `app/plugins/<slug>/` instead of threaded
+  through the cart and account pages. Routes need no registration, since Next's filesystem
+  router already is the glob. B2B was the first consumer and no core storefront page
+  mentions it any more.
+- **`internal/e2ekit`** - core's end-to-end harness extracted from `internal/e2e`'s test
+  files into a normal package, so a plugin can write real end-to-end tests in its own
+  directory instead of copying files into a core package. It takes a four-method `TB`
+  rather than `*testing.T`, so it imports no `testing`. `bin/test-e2e` now runs
+  `./plugins/...` too, and applies enabled plugins' migrations before the suite.
 
 - **`bin/cli plugin add` - plugins as Go module dependencies.** `go get` fetches the
   plugin, `plugins.json` records its module path, and `plugins/firstparty` imports it.
