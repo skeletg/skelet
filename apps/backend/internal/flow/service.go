@@ -400,7 +400,7 @@ func (s *Service) enroll(ctx context.Context, f Flow, customerID uuid.UUID, emai
 
 // Advances every runnable flow run one or more steps - driven by the flow-engine scheduler job, serialized by the job lease
 func (s *Service) ProcessRuns(ctx context.Context) error {
-	runs, err := s.repo.ClaimRunnable(ctx, 100)
+	runs, err := s.repo.ClaimRunnable(ctx, 100, !s.disabled)
 	if err != nil {
 		return err
 	}

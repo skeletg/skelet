@@ -101,8 +101,8 @@ func (r *fakeRepo) CreateRun(_ context.Context, run FlowRun) (FlowRun, error) {
 	r.runs[run.ID] = run
 	return run, nil
 }
-func (r *fakeRepo) ClaimRunnable(context.Context, int32) ([]FlowRun, error) { return nil, nil }
-func (r *fakeRepo) UpdateRun(_ context.Context, run FlowRun) error          { r.runs[run.ID] = run; return nil }
+func (r *fakeRepo) ClaimRunnable(context.Context, int32, bool) ([]FlowRun, error) { return nil, nil }
+func (r *fakeRepo) UpdateRun(_ context.Context, run FlowRun) error                { r.runs[run.ID] = run; return nil }
 func (r *fakeRepo) ListRuns(context.Context, uuid.UUID, int32) ([]FlowRun, error) {
 	return nil, nil
 }
