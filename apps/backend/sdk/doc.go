@@ -20,7 +20,7 @@
 //
 //	package paymentacme
 //
-//	import "github.com/skeletg/skelet/sdk"
+//	import "github.com/skeletg/skelet/apps/backend/sdk"
 //
 //	func init() {
 //	    p := sdk.RegisterPlugin(sdk.Manifest{

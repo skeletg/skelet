@@ -11,12 +11,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/datapatch"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/payment"
-	pluginhost "github.com/skeletg/skelet/internal/plugin"
-	"github.com/skeletg/skelet/internal/promotion"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/datapatch"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
+	pluginhost "github.com/skeletg/skelet/apps/backend/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // SetEventBus is single-shot, so every test needing the bus shares this one

@@ -3,8 +3,8 @@ package order
 import (
 	"testing"
 
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
 )
 
 func TestAllocateLineTaxInputs(t *testing.T) {

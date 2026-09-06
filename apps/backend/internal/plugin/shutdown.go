@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Without this, init() is the whole plugin lifecycle and anything a plugin STARTS - a pool, a queue consumer, the goroutines the manifest's "long-running" capability describes - leaks through every restart

@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
-	dbsqlc "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/payment"
-	"github.com/skeletg/skelet/internal/testdb"
+	dbsqlc "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
 // This table is a pointer at money: each row is a token the gateway will charge off-session, so the

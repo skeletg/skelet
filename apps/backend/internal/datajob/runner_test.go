@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/dataio"
+	"github.com/skeletg/skelet/apps/backend/internal/dataio"
 )
 
 // A store that records what it was given, so a test can assert on what actually reached it

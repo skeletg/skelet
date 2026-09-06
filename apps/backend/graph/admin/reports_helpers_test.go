@@ -3,7 +3,7 @@ package admin
 import (
 	"testing"
 
-	"github.com/skeletg/skelet/internal/sales"
+	"github.com/skeletg/skelet/apps/backend/internal/sales"
 )
 
 func strptr(s string) *string { return &s }

@@ -2,7 +2,7 @@ package cms
 
 import (
 	"github.com/google/uuid"
-	contentpkg "github.com/skeletg/skelet/internal/content"
+	contentpkg "github.com/skeletg/skelet/apps/backend/internal/content"
 )
 
 // Event types the CMS domain emits - subscribers commonly trigger a static-site rebuild or CDN purge when a page goes live

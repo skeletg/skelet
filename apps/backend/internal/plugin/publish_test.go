@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // The Emits contract both ways: a declared type reaches subscribers with the exact payload, an

@@ -3,7 +3,7 @@ package inventory
 import (
 	"context"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // RegisterConfigSources backs the select/multiselect options for this domain's

@@ -1,6 +1,6 @@
 package emailtemplate
 
-import "github.com/skeletg/skelet/internal/permission"
+import "github.com/skeletg/skelet/apps/backend/internal/permission"
 
 func init() {
 	permission.RegisterGroup(permission.Group{Slug: "emails", Name: "Email Library", SortOrder: 14})

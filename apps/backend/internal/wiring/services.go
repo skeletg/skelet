@@ -4,47 +4,46 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/action"
-	"github.com/skeletg/skelet/internal/address"
-	"github.com/skeletg/skelet/internal/adminprefs"
-	"github.com/skeletg/skelet/internal/ai"
-	"github.com/skeletg/skelet/internal/b2b"
-	"github.com/skeletg/skelet/internal/backup"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/chat"
-	"github.com/skeletg/skelet/internal/config"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/download"
-	"github.com/skeletg/skelet/internal/email"
-	"github.com/skeletg/skelet/internal/emailtemplate"
-	"github.com/skeletg/skelet/internal/form"
-	"github.com/skeletg/skelet/internal/giftcard"
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/loyalty"
-	"github.com/skeletg/skelet/internal/menu"
-	"github.com/skeletg/skelet/internal/notification"
-	"github.com/skeletg/skelet/internal/payment"
-	"github.com/skeletg/skelet/internal/paymentvault"
-	"github.com/skeletg/skelet/internal/promotion"
-	"github.com/skeletg/skelet/internal/promotion/actions"
-	"github.com/skeletg/skelet/internal/promotion/conditions"
-	"github.com/skeletg/skelet/internal/qna"
-	"github.com/skeletg/skelet/internal/referral"
-	"github.com/skeletg/skelet/internal/review"
-	"github.com/skeletg/skelet/internal/sales"
-	"github.com/skeletg/skelet/internal/searchmerch"
-	"github.com/skeletg/skelet/internal/segment"
-	"github.com/skeletg/skelet/internal/shipping"
-	"github.com/skeletg/skelet/internal/storecredit"
-	"github.com/skeletg/skelet/internal/subscription"
-	"github.com/skeletg/skelet/internal/suppression"
-	"github.com/skeletg/skelet/internal/tax"
-	taxconditions "github.com/skeletg/skelet/internal/tax/conditions"
-	taxeffects "github.com/skeletg/skelet/internal/tax/effects"
-	"github.com/skeletg/skelet/internal/tx"
-	"github.com/skeletg/skelet/internal/urlrewrite"
-	"github.com/skeletg/skelet/internal/webform"
-	"github.com/skeletg/skelet/internal/wishlist"
+	"github.com/skeletg/skelet/apps/backend/internal/action"
+	"github.com/skeletg/skelet/apps/backend/internal/address"
+	"github.com/skeletg/skelet/apps/backend/internal/adminprefs"
+	"github.com/skeletg/skelet/apps/backend/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/backup"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/chat"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/download"
+	"github.com/skeletg/skelet/apps/backend/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
+	"github.com/skeletg/skelet/apps/backend/internal/form"
+	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/loyalty"
+	"github.com/skeletg/skelet/apps/backend/internal/menu"
+	"github.com/skeletg/skelet/apps/backend/internal/notification"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/internal/paymentvault"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion/actions"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion/conditions"
+	"github.com/skeletg/skelet/apps/backend/internal/qna"
+	"github.com/skeletg/skelet/apps/backend/internal/referral"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
+	"github.com/skeletg/skelet/apps/backend/internal/sales"
+	"github.com/skeletg/skelet/apps/backend/internal/searchmerch"
+	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
+	"github.com/skeletg/skelet/apps/backend/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/internal/suppression"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
+	taxconditions "github.com/skeletg/skelet/apps/backend/internal/tax/conditions"
+	taxeffects "github.com/skeletg/skelet/apps/backend/internal/tax/effects"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/internal/webform"
+	"github.com/skeletg/skelet/apps/backend/internal/wishlist"
 )
 
 // Construction needs nothing but the datastore, settings and each other - cycle breakers, subscriptions and optional providers are still wired by the entrypoint
@@ -58,7 +57,6 @@ var Services = fx.Module("services",
 		newSuppressionService,
 		newURLRewriteService,
 		newInventoryService,
-		newB2BService,
 		newGiftcardService,
 		newStoreCreditService,
 		newLoyaltyService,
@@ -118,10 +116,6 @@ func newURLRewriteService(q *db.Queries) *urlrewrite.Service {
 
 func newInventoryService(q *db.Queries, txMgr *tx.Manager) *inventory.Service {
 	return inventory.NewService(inventory.NewRepository(q, txMgr), txMgr)
-}
-
-func newB2BService(q *db.Queries, txMgr *tx.Manager) *b2b.Service {
-	return b2b.NewService(q, txMgr)
 }
 
 func newGiftcardService(q *db.Queries, txMgr *tx.Manager) *giftcard.Service { // a kind=giftcard purchase issues a redeemable card, one per gift-card line, off OrderPlaced

@@ -73,3 +73,4 @@ node_modules/
 # Playwright, when run from the repo root rather than apps/dashboard
 test-results/
 playwright-report/
+plugins/.modules/

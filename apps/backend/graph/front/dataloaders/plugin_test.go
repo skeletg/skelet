@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/graph-gophers/dataloader/v7"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // The whole plugin loader path without booting the real host - fake registration in, Plugin[K, V] out, and the batch fn had better fire once for two concurrent Loads

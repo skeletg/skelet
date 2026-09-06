@@ -17,7 +17,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { Textarea } from '@/components/ui/textarea'
 import { LoadError } from '@/shared/errors/LoadError'
 import { EntityChannelForbidden, EntityWrongChannel } from '@/shared/errors/ChannelScopeError'
-import { isForbiddenError } from '@/shared/errors/forbidden'
+import { isForbiddenError } from '@/shared/errors/isForbiddenError'
 import { useConfigScope } from '@/lib/config-scope'
 import { cn } from '@/lib/utils'
 import {

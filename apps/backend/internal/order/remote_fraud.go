@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // A merchant HTTP endpoint (remoteprovider kind=fraud_risk) screening an order before it commits - the escape hatch for Signifyd, Riskified or Kount without a Go plugin

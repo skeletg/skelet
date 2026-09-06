@@ -3,7 +3,7 @@ package scheduler
 import (
 	"context"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // Global scheduler settings, stored in the config registry so admins flip them

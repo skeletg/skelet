@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/debug"
+	"strings"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/applog"
 )
 
 // Catches panics in handlers downstream and converts them into a structured 500 - the full stack is logged, and the client sees only request_id plus a generic message
@@ -41,6 +42,13 @@ func Recover(next http.Handler) http.Handler {
 				writeInternalErrorJSON(w, requestID)
 			}
 		}()
+		// A websocket upgrade needs the raw writer hijacked - writeTracker doesn't implement
+		// http.Hijacker, same reasoning as devDebugWriter in devdebug.go - the defer above still
+		// catches a panic on this path since it closes over w, not ww
+		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+			next.ServeHTTP(w, r)
+			return
+		}
 		next.ServeHTTP(ww, r)
 	})
 }

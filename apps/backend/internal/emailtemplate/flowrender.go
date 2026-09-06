@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/email"
 )
 
 // Render entry points for the flow engine's transactional send_email node - unlike the built-in RenderOrder* functions, which resolve the slot email and fall back to the hardcoded template, these render a specific flow-chosen library email

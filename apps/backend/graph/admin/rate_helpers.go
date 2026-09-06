@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/ratelimit"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/ratelimit"
 )
 
 var ErrRateLimited = errors.New("too many requests; please try again later") // deliberately generic - the dashboard shows a "try again later" notice, not the operator's quota policy

@@ -5,10 +5,10 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/cache"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/menu"
+	"github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/cache"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/menu"
 )
 
 // Gated on a resolved channel AND assignment to it - unassigned menus are drafts, hidden from every storefront; any miss returns null so navigation degrades silently instead of erroring the page

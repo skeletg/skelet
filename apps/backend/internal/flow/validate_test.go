@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/emailtemplate"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
 )
 
 // validate is the only gate between the flow composer and the run engine: a node the engine can't execute parks every enrolled customer

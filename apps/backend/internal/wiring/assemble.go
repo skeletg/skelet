@@ -6,48 +6,48 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/ai"
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/audit"
-	"github.com/skeletg/skelet/internal/b2b"
-	"github.com/skeletg/skelet/internal/campaign"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/consent"
-	"github.com/skeletg/skelet/internal/country"
-	"github.com/skeletg/skelet/internal/currency"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/download"
-	"github.com/skeletg/skelet/internal/emailtemplate"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/flow"
-	"github.com/skeletg/skelet/internal/form"
-	"github.com/skeletg/skelet/internal/giftcard"
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/lens"
-	"github.com/skeletg/skelet/internal/locale"
-	"github.com/skeletg/skelet/internal/loyalty"
-	"github.com/skeletg/skelet/internal/media"
-	"github.com/skeletg/skelet/internal/medialibrary"
-	"github.com/skeletg/skelet/internal/menu"
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/payment"
-	"github.com/skeletg/skelet/internal/paymentvault"
-	"github.com/skeletg/skelet/internal/promotion"
-	"github.com/skeletg/skelet/internal/qna"
-	"github.com/skeletg/skelet/internal/referral"
-	"github.com/skeletg/skelet/internal/review"
-	"github.com/skeletg/skelet/internal/segment"
-	"github.com/skeletg/skelet/internal/shipping"
-	"github.com/skeletg/skelet/internal/storecredit"
-	"github.com/skeletg/skelet/internal/subscription"
-	"github.com/skeletg/skelet/internal/suppression"
-	"github.com/skeletg/skelet/internal/tax"
-	"github.com/skeletg/skelet/internal/urlrewrite"
-	"github.com/skeletg/skelet/internal/webform"
-	"github.com/skeletg/skelet/internal/wishlist"
+	"github.com/skeletg/skelet/apps/backend/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/audit"
+	"github.com/skeletg/skelet/apps/backend/internal/campaign"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/internal/country"
+	"github.com/skeletg/skelet/apps/backend/internal/currency"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/download"
+	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/flow"
+	"github.com/skeletg/skelet/apps/backend/internal/form"
+	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/lens"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/loyalty"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/medialibrary"
+	"github.com/skeletg/skelet/apps/backend/internal/menu"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/internal/paymentvault"
+	pluginhost "github.com/skeletg/skelet/apps/backend/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/qna"
+	"github.com/skeletg/skelet/apps/backend/internal/referral"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
+	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
+	"github.com/skeletg/skelet/apps/backend/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/internal/suppression"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/internal/webform"
+	"github.com/skeletg/skelet/apps/backend/internal/wishlist"
 )
 
 // The wiring the graph can't express through constructors: seams that would be import cycles if the dependency were declared, the ordered event subscriptions, and registries that can only be filled once services exist
@@ -64,7 +64,7 @@ var Wiring = fx.Module("wiring",
 		wireCatalogInventory,
 		wireSEOCrawl,
 		WireValkeyCaches,
-		wireB2B,
+		wirePluginRuntime,
 		wireSegments,
 		wireMarketing,
 		wireWebForms,
@@ -115,7 +115,6 @@ type orderPlacementDeps struct {
 	Inventory   *inventory.Service
 	Channel     *channel.Service
 	Customer    *customer.Service
-	B2B         *b2b.Service
 	Config      *config.Service
 }
 
@@ -132,7 +131,7 @@ func wireOrderPlacement(d orderPlacementDeps) {
 	d.Order.SetGiftStockChecker(d.Inventory) // lets placement drop a promotion free gift stock can't cover, rather than appending a line the reservation rejects and taking the whole paid order down
 	d.Order.SetInventoryEditor(d.Inventory)
 	d.Order.SetChannelLoader(NewOrderChannelLoader(d.Channel)) // pre-fulfillment editing: the order's channel drives the tax-inclusive recompute
-	d.Order.SetProductPricer(NewOrderProductPricer(NewCartCatalogAdapter(d.Catalog, d.Customer, d.B2B)))
+	d.Order.SetProductPricer(NewOrderProductPricer(NewCartCatalogAdapter(d.Catalog, d.Customer)))
 	d.Order.SetRiskHoldThreshold(NewRiskHoldThreshold(d.Config))
 }
 
@@ -262,15 +261,19 @@ func wireCart(c *cart.Service, bus *events.Bus, ml *medialibrary.Service, ms *me
 }
 
 // The audience layer, plus the one consumer that reads through it
+// The runtime capabilities a plugin resolves on first USE rather than at registration - the pool
+// behind sdk.Database, and the draft-order seam. Both are late-wired for the same reason config is:
+// plugin init() runs before any of them exists
+func wirePluginRuntime(conn *sql.DB, ord *order.Service, cust *customer.Service, c *cart.Service) {
+	pluginhost.SetDatabase(conn)
+	pluginhost.SetDraftOrderCreator(ord, cust)
+	pluginhost.SetCartReader(c)
+}
+
 func wireSegments(seg *segment.Service, bus *events.Bus, conn *sql.DB, promo *promotion.Service) {
 	seg.SetEventBus(bus)
 	seg.SetDB(conn)
 	promo.SetCustomerSegments(seg) // core.customer_in_segment can't match without this - EvaluateCart resolves the slugs itself so the storefront cart and order placement can't disagree
-}
-
-func wireB2B(b *b2b.Service, bus *events.Bus, cfg Config) {
-	b.SetEventBus(bus)
-	b.SetEnabled(cfg.B2BEnabled) // false leaves the whole wholesale surface inert - API, contract pricing, on-account credit, quote expiry
 }
 
 func wireWebForms(wf *webform.Service, bus *events.Bus, ms *media.Storage) { // admin-built CMS forms - submissions and their file uploads land through the object store
@@ -292,9 +295,6 @@ func wireReviews(r *review.Service, bus *events.Bus, cfg *config.Service, ch *ch
 
 // Each subsystem is already inert behind its flag - this is so a confused operator can see which one from the boot log
 func logInertSubsystems(cfg Config, aiSvc *ai.Service) {
-	if !cfg.B2BEnabled {
-		slog.Info("B2B disabled - no wholesale API, contract pricing, on-account credit or quote expiry", "flag", "B2B_ENABLED=false")
-	}
 	if !aiSvc.Enabled() {
 		slog.Info("AI content assistant disabled", "flag", "AI_ENABLED=false")
 	}

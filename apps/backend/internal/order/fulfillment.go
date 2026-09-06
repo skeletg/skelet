@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/apperr"
-	"github.com/skeletg/skelet/internal/money"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/money"
 )
 
 // Records a shipment of a subset of line quantities - Carrier and TrackingNumber seed the OrderFulfilling hook, which a plugin may override

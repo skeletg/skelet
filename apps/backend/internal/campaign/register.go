@@ -1,6 +1,6 @@
 package campaign
 
-import "github.com/skeletg/skelet/internal/permission"
+import "github.com/skeletg/skelet/apps/backend/internal/permission"
 
 func init() {
 	permission.RegisterGroup(permission.Group{Slug: "campaigns", Name: "Email Campaigns", SortOrder: 12})

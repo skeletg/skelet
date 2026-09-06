@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 func resetTranslations(t *testing.T) *Host {

@@ -9,7 +9,7 @@ import (
 	"regexp"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/urlguard"
+	"github.com/skeletg/skelet/apps/backend/internal/urlguard"
 )
 
 const (

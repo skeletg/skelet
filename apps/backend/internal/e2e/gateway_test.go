@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/payment"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // A deterministic gateway registered through the real SDK - authorize succeeds with a stable
@@ -96,11 +96,11 @@ func (h *harness) gatewayStore(t *testing.T, stock float64, priceCents int64) *s
 	gatewayOnce.Do(func() {
 		sdk.NewPluginForTest(gwSlug).RegisterPaymentProvider(gwSlug, fakeGW)
 	})
-	f := h.newStore(t, stock, priceCents)
-	if err := h.d.Payment.Sync(h.ctx); err != nil {
+	f := h.NewStore(t, stock, priceCents)
+	if err := h.D.Payment.Sync(h.Ctx); err != nil {
 		t.Fatalf("payment sync for gateway: %v", err)
 	}
-	if _, err := h.d.Payment.SetEnabled(h.ctx, f.Channel.ID, gwSlug, true); err != nil {
+	if _, err := h.D.Payment.SetEnabled(h.Ctx, f.Channel.ID, gwSlug, true); err != nil {
 		t.Fatalf("enable gateway: %v", err)
 	}
 	return f
@@ -109,7 +109,7 @@ func (h *harness) gatewayStore(t *testing.T, stock float64, priceCents int64) *s
 func (h *harness) placeWithGateway(t *testing.T, f *store) order.Order {
 	t.Helper()
 	gw := gwSlug
-	o, err := h.tryPlace(t, f.Channel, h.newGuestCart(t, f, 1), func(in *order.PlaceOrderInput) {
+	o, err := h.TryPlace(t, f.Channel, h.NewGuestCart(t, f, 1), func(in *order.PlaceOrderInput) {
 		in.PaymentProviderSlug = &gw
 	})
 	if err != nil {
@@ -125,12 +125,12 @@ func TestGatewayAuthorizeAtPlacement(t *testing.T) {
 	f := h.gatewayStore(t, 5, 2600)
 	o := h.placeWithGateway(t, f)
 
-	sums := h.ledgerByKind(t, o.ID)
+	sums := h.LedgerByKind(t, o.ID)
 	if sums[order.PaymentTxnAuthorize] != 2600 {
 		t.Errorf("authorize ledger = %+v, want 2600", sums)
 	}
-	h.settle(t)
-	row, err := h.d.Queries.GetOrderByID(h.ctx, o.ID)
+	h.Settle(t)
+	row, err := h.D.Queries.GetOrderByID(h.Ctx, o.ID)
 	if err != nil {
 		t.Fatalf("re-read order: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestGatewayReceivesThePaymentToken(t *testing.T) {
 	f := h.gatewayStore(t, 5, 2600)
 	gw := gwSlug
 	tok := "tok-" + uuid.NewString()[:8]
-	if _, err := h.tryPlace(t, f.Channel, h.newGuestCart(t, f, 1), func(in *order.PlaceOrderInput) {
+	if _, err := h.TryPlace(t, f.Channel, h.NewGuestCart(t, f, 1), func(in *order.PlaceOrderInput) {
 		in.PaymentProviderSlug = &gw
 		in.PaymentToken = &tok
 	}); err != nil {
@@ -169,29 +169,29 @@ func TestGatewayCaptureOnFulfillment(t *testing.T) {
 	f := h.gatewayStore(t, 5, 2600)
 	fakeGW.setCaptureRef("") // empty reference: the event bridge settles status without a second ledger row
 	o := h.placeWithGateway(t, f)
-	h.settle(t)
+	h.Settle(t)
 
 	for _, status := range []string{"confirmed", "processing"} {
-		if _, err := h.d.Order.UpdateStatus(h.ctx, o.ID, status); err != nil {
+		if _, err := h.D.Order.UpdateStatus(h.Ctx, o.ID, status); err != nil {
 			t.Fatalf("advance to %s: %v", status, err)
 		}
 	}
-	if _, err := h.d.Order.FulfillRemaining(h.ctx, o.ID, "", "", 0); err != nil {
+	if _, err := h.D.Order.FulfillRemaining(h.Ctx, o.ID, "", "", 0); err != nil {
 		t.Fatalf("fulfill: %v", err)
 	}
-	if total, _ := h.outboxRows(t, "order.fulfillment_created", o.ID.String()); total != 1 {
+	if total, _ := h.OutboxRows(t, "order.fulfillment_created", o.ID.String()); total != 1 {
 		t.Errorf("fulfillment outbox rows = %d, want 1 - capture rides on it", total)
 	}
-	h.settle(t)
+	h.Settle(t)
 
-	row, err := h.d.Queries.GetOrderByID(h.ctx, o.ID)
+	row, err := h.D.Queries.GetOrderByID(h.Ctx, o.ID)
 	if err != nil {
 		t.Fatalf("re-read order: %v", err)
 	}
 	if row.PaymentStatus != "paid" {
 		t.Errorf("payment_status = %q after capture, want paid", row.PaymentStatus)
 	}
-	sums := h.ledgerByKind(t, o.ID)
+	sums := h.LedgerByKind(t, o.ID)
 	if sums[order.PaymentTxnCapture] != 2600 {
 		t.Errorf("capture ledger = %+v, want exactly 2600", sums)
 	}
@@ -204,19 +204,19 @@ func TestGatewayCaptureLedgerNotDoubleCounted(t *testing.T) {
 	f := h.gatewayStore(t, 5, 1800)
 	fakeGW.setCaptureRef("cap-" + uuid.NewString()[:8])
 	o := h.placeWithGateway(t, f)
-	h.settle(t)
+	h.Settle(t)
 
 	for _, status := range []string{"confirmed", "processing"} {
-		if _, err := h.d.Order.UpdateStatus(h.ctx, o.ID, status); err != nil {
+		if _, err := h.D.Order.UpdateStatus(h.Ctx, o.ID, status); err != nil {
 			t.Fatalf("advance to %s: %v", status, err)
 		}
 	}
-	if _, err := h.d.Order.FulfillRemaining(h.ctx, o.ID, "", "", 0); err != nil {
+	if _, err := h.D.Order.FulfillRemaining(h.Ctx, o.ID, "", "", 0); err != nil {
 		t.Fatalf("fulfill: %v", err)
 	}
-	h.settle(t)
+	h.Settle(t)
 
-	sums := h.ledgerByKind(t, o.ID)
+	sums := h.LedgerByKind(t, o.ID)
 	if sums[order.PaymentTxnCapture] != 1800 {
 		t.Errorf("capture ledger = %+v, want 1800 booked exactly once - a reference-bearing capture must not settle twice", sums)
 	}
@@ -228,21 +228,21 @@ func TestWebhookReplayAndOutOfOrder(t *testing.T) {
 	h := newHarness(t)
 	f := h.gatewayStore(t, 5, 2100)
 	o := h.placeWithGateway(t, f)
-	h.settle(t)
+	h.Settle(t)
 
 	webhook := func(event, ref string) {
 		t.Helper()
 		body := `{"order_id":"` + o.ID.String() + `","event":"` + event + `","ref":"` + ref + `"}`
 		req := httptest.NewRequest("POST", "/api/v1/payments/webhook/"+gwSlug, strings.NewReader(body))
-		if err := h.d.Payment.DispatchWebhook(h.ctx, gwSlug, req); err != nil {
+		if err := h.D.Payment.DispatchWebhook(h.Ctx, gwSlug, req); err != nil {
 			t.Fatalf("webhook %s: %v", event, err)
 		}
-		h.settle(t)
+		h.Settle(t)
 	}
 
 	paymentStatus := func() string {
 		t.Helper()
-		row, err := h.d.Queries.GetOrderByID(h.ctx, o.ID)
+		row, err := h.D.Queries.GetOrderByID(h.Ctx, o.ID)
 		if err != nil {
 			t.Fatalf("re-read order: %v", err)
 		}
@@ -263,7 +263,7 @@ func TestWebhookReplayAndOutOfOrder(t *testing.T) {
 	}
 
 	// The webhook path is status-only: the ledger still holds nothing but the placement authorize
-	sums := h.ledgerByKind(t, o.ID)
+	sums := h.LedgerByKind(t, o.ID)
 	if sums[order.PaymentTxnCapture] != 0 || sums[order.PaymentTxnAuthorize] != 2100 {
 		t.Errorf("ledger = %+v, want authorize 2100 and no capture rows from webhooks", sums)
 	}
@@ -274,34 +274,34 @@ func TestVoidAuthorizedOrder(t *testing.T) {
 	h := newHarness(t)
 	f := h.gatewayStore(t, 5, 3100)
 	o := h.placeWithGateway(t, f)
-	h.settle(t)
+	h.Settle(t)
 
-	row, err := h.d.Queries.GetOrderByID(h.ctx, o.ID)
+	row, err := h.D.Queries.GetOrderByID(h.Ctx, o.ID)
 	if err != nil {
 		t.Fatalf("re-read order: %v", err)
 	}
 	ref := row.PaymentReference
-	if _, err := h.d.Payment.Void(h.ctx, gwSlug, payment.VoidRequest{
+	if _, err := h.D.Payment.Void(h.Ctx, gwSlug, payment.VoidRequest{
 		OrderID: o.ID, ChannelID: f.Channel.ID, ProviderReference: ref,
 	}); err != nil {
 		t.Fatalf("gateway void: %v", err)
 	}
-	if _, err := h.d.Order.RecordVoid(h.ctx, o.ID, 3100, gwSlug, ref); err != nil {
+	if _, err := h.D.Order.RecordVoid(h.Ctx, o.ID, 3100, gwSlug, ref); err != nil {
 		t.Fatalf("record void: %v", err)
 	}
-	if _, err := h.d.Order.SettlePayment(h.ctx, o.ID, order.PaymentVoided, ref); err != nil {
+	if _, err := h.D.Order.SettlePayment(h.Ctx, o.ID, order.PaymentVoided, ref); err != nil {
 		t.Fatalf("settle void: %v", err)
 	}
-	h.settle(t) // the duplicate settle from payment.voided must no-op
+	h.Settle(t) // the duplicate settle from payment.voided must no-op
 
-	after, err := h.d.Queries.GetOrderByID(h.ctx, o.ID)
+	after, err := h.D.Queries.GetOrderByID(h.Ctx, o.ID)
 	if err != nil {
 		t.Fatalf("re-read order: %v", err)
 	}
 	if after.PaymentStatus != "voided" {
 		t.Errorf("payment_status = %q, want voided", after.PaymentStatus)
 	}
-	sums := h.ledgerByKind(t, o.ID)
+	sums := h.LedgerByKind(t, o.ID)
 	if sums[order.PaymentTxnVoid] != 3100 {
 		t.Errorf("void ledger = %+v, want 3100", sums)
 	}

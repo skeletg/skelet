@@ -43,7 +43,7 @@ import {
 import { formatCents } from '@/lib/format'
 import { LoadError } from '@/shared/errors/LoadError'
 import { EntityChannelForbidden, EntityWrongChannel } from '@/shared/errors/ChannelScopeError'
-import { isForbiddenError } from '@/shared/errors/forbidden'
+import { isForbiddenError } from '@/shared/errors/isForbiddenError'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import type { OrderStatus } from '@/graphql/schema.types'

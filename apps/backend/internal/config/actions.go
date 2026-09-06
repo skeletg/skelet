@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/skeletg/skelet/internal/action"
+	"github.com/skeletg/skelet/apps/backend/internal/action"
 )
 
 // main.go calls this after the config Service is built, so the handlers close over a live reference

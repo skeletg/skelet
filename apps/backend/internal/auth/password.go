@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/skeletg/skelet/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
 )
 
 const (

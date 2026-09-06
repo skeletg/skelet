@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
 )
 
 func (r *mutationResolver) AddBundleOption(ctx context.Context, input model.AddBundleOptionInput) (*model.Product, error) {

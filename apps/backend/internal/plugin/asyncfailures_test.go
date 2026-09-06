@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // The drain is what the notification scan reads - failures tally per (plugin, event), a drain

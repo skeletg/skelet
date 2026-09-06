@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/apperr"
+	"github.com/skeletg/skelet/apps/backend/internal/apperr"
 )
 
 var ( // test-local sentinels for the remaining class predicates, owned by the test package so they don't pollute domain registries

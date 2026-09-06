@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // The simplest events.Event for testing - JSON marshals to a single field so assertions are easy

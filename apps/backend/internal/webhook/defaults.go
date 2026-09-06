@@ -1,28 +1,27 @@
 package webhook
 
 import (
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/b2b"
-	"github.com/skeletg/skelet/internal/backinstock"
-	"github.com/skeletg/skelet/internal/blog"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/cms"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/download"
-	"github.com/skeletg/skelet/internal/giftcard"
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/menu"
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/payment"
-	"github.com/skeletg/skelet/internal/qna"
-	"github.com/skeletg/skelet/internal/ratelimit"
-	"github.com/skeletg/skelet/internal/segment"
-	"github.com/skeletg/skelet/internal/subscription"
-	"github.com/skeletg/skelet/internal/urlrewrite"
-	"github.com/skeletg/skelet/internal/webform"
-	"github.com/skeletg/skelet/internal/wishlist"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/backinstock"
+	"github.com/skeletg/skelet/apps/backend/internal/blog"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/cms"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/download"
+	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/menu"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/internal/qna"
+	"github.com/skeletg/skelet/apps/backend/internal/ratelimit"
+	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/internal/webform"
+	"github.com/skeletg/skelet/apps/backend/internal/wishlist"
 )
 
 func init() {
@@ -625,6 +624,14 @@ func init() {
 			"Tax/shipping/total are owned by the remote tax + shipping providers, not this webhook.",
 	})
 	RegisterEvent(EventDefinition{
+		Type: order.EventTendering,
+		Kind: KindSync,
+		Name: "Order Tendering (sync)",
+		Description: "Fires inside the placement transaction once the order exists and core's gift-card and store-credit tenders have been applied, carrying the balance still owed - the veto point for a credit line or pay-later arrangement, which refuses by rejecting. Payload: OrderID, OrderNumber, ChannelID, CustomerID (null for guests), Email, Provider, CurrencyCode, TotalCents, RemainingCents. " +
+			`Response schema: {"reject": bool, "reason": string}. ` +
+			"Published for every method with a balance, so match on Provider before acting. A slow endpoint here holds the placement transaction open - prefer checkout.validating for anything that only needs to say no.",
+	})
+	RegisterEvent(EventDefinition{
 		Type: order.EventCancelling,
 		Kind: KindSync,
 		Name: "Order Cancelling (sync)",
@@ -759,56 +766,6 @@ func init() {
 		Name: "Password Reset Requesting (sync)",
 		Description: "Fires before a password-reset token is minted. Reject to refuse the reset (e.g. SSO-only accounts that must not reset via email). A rejection is applied silently — the caller sees the same response as an unknown email — to preserve the enumeration defense. " +
 			`Response schema: {"reject": bool, "reason": string}.`,
-	})
-
-	// B2B lifecycle - the ERP-integration suite - All async post-commit
-	RegisterEvent(EventDefinition{
-		Type:        b2b.EventCompanyCreated,
-		Kind:        KindAsync,
-		Name:        "Company Created",
-		Description: "Fires after a wholesale company is created. Payload: CompanyID, ChannelID, Name, CreditLimitCents, PaymentTermsDays.",
-	})
-	RegisterEvent(EventDefinition{
-		Type:        b2b.EventCompanyUpdated,
-		Kind:        KindAsync,
-		Name:        "Company Updated",
-		Description: "Fires after a company is renamed, suspended/reactivated, or its credit limit / payment terms change. Payload includes the new Status.",
-	})
-	RegisterEvent(EventDefinition{
-		Type:        b2b.EventCompanyMemberChanged,
-		Kind:        KindAsync,
-		Name:        "Company Member Changed",
-		Description: "Fires when a customer is attached to or removed from a company. Action is added|removed; Role is admin|buyer on add.",
-	})
-	RegisterEvent(EventDefinition{
-		Type:        b2b.EventCompanyCreditReleased,
-		Kind:        KindAsync,
-		Name:        "Company Credit Released",
-		Description: "Fires after an admin manually releases reserved on-account credit. Invoice settlements emit b2b.invoice.settled instead.",
-	})
-	RegisterEvent(EventDefinition{
-		Type:        b2b.EventQuoteRequested,
-		Kind:        KindAsync,
-		Name:        "B2B Quote Requested",
-		Description: "Fires when a storefront customer submits a quote request. Payload: QuoteID, CompanyID (null for non-members), CustomerID, ChannelID, Lines, Note.",
-	})
-	RegisterEvent(EventDefinition{
-		Type:        b2b.EventQuotePriced,
-		Kind:        KindAsync,
-		Name:        "B2B Quote Priced",
-		Description: "Fires when an admin prices a quote and publishes it to the customer. Payload includes TotalCents.",
-	})
-	RegisterEvent(EventDefinition{
-		Type:        b2b.EventQuoteResponded,
-		Kind:        KindAsync,
-		Name:        "B2B Quote Responded",
-		Description: "Fires when the customer accepts or declines a quoted offer. Status is accepted|declined.",
-	})
-	RegisterEvent(EventDefinition{
-		Type:        b2b.EventInvoiceSettled,
-		Kind:        KindAsync,
-		Name:        "B2B Invoice Settled",
-		Description: "Fires after an open on-account invoice is marked paid or void; the reserved company credit was released in the same transaction. Payload: InvoiceID, CompanyID, OrderID, Number, Status, AmountCents.",
 	})
 
 	// Segments - one event per rules refresh (never per member)

@@ -3,7 +3,7 @@ package admin
 import (
 	"testing"
 
-	"github.com/skeletg/skelet/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
 )
 
 // A nil address block has to come out zeroed so the service's own resolveAddress refuses it, rather than the resolver panicking on a draft order with no address yet

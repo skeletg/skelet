@@ -11,10 +11,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/ai"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // Resolves the global default content locale - localized question reads fall back to it when the requested locale has no content row

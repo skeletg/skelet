@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/otelx"
-	"github.com/skeletg/skelet/internal/webhook"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/otelx"
+	"github.com/skeletg/skelet/apps/backend/internal/webhook"
 )
 
 var ErrNotConfigured = errors.New("ai: not configured (enable AI and set a provider + API key in Settings → AI)") // resolvers surface it as a friendly "AI not configured"

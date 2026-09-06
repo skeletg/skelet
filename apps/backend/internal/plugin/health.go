@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/sdk"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/sdk"
 )
 
 // Plugins register named probes via sdk.RegisterHealthCheck / RegisterReadinessCheck, recorded under the calling plugin's slug plus the supplied name

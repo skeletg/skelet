@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/circuit"
+	"github.com/skeletg/skelet/apps/backend/internal/circuit"
 )
 
 // Circuit breaker for sync webhook targets, a thin wrapper over the shared internal/circuit breaker - a subscriber that keeps failing stops being called for a cooldown window instead of adding its timeout to every user-facing operation it gates

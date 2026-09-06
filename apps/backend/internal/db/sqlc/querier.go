@@ -44,9 +44,6 @@ type Querier interface {
 	AddProductToCollection(ctx context.Context, arg AddProductToCollectionParams) error
 	// Customer wishlist rows
 	AddWishlistItem(ctx context.Context, arg AddWishlistItemParams) error
-	// Signed delta: on-account placement reserves (+), recording payment
-	// releases (-) - floored at zero on release
-	AdjustCompanyCreditUsed(ctx context.Context, arg AdjustCompanyCreditUsedParams) (Company, error)
 	// Atomic delta on the flat-mode quantity column - positive delta
 	// adds stock (cancel/refund); negative delta subtracts (order place)
 	// The caller is responsible for checking backorderable / sufficient
@@ -112,15 +109,11 @@ type Querier interface {
 	// ==================== Page Type Attributes ====================
 	AssignCMSAttributeToPageType(ctx context.Context, arg AssignCMSAttributeToPageTypeParams) error
 	AssignCMSPage(ctx context.Context, arg AssignCMSPageParams) (CmsPage, error)
-	// B2B member attach moves the customer into the company's wholesale
-	// group so the existing group/tier pricing engine applies
-	AssignCustomerGroup(ctx context.Context, arg AssignCustomerGroupParams) error
 	// Send the winning variant to the held-back remainder (phase flips to 'send')
 	AssignHoldoutToWinner(ctx context.Context, arg AssignHoldoutToWinnerParams) error
 	AssignLibraryEmailSlot(ctx context.Context, arg AssignLibraryEmailSlotParams) error
 	// ==================== Question Assignments (per Product Type) ====================
 	AssignReviewQuestion(ctx context.Context, arg AssignReviewQuestionParams) error
-	B2BCreditEntriesForOrder(ctx context.Context, orderID uuid.NullUUID) ([]B2bCreditEntry, error)
 	// Flips multi-location -> flat: one quantity per product, taken from SALABLE (physical minus held),
 	// because flat mode's quantity IS the number customers can buy - its placement path decrements it
 	// Reserved is floored at 0 so a drifted negative can't inflate the result, matching Salable's clamp
@@ -259,9 +252,6 @@ type Querier interface {
 	// Single-use for the non-rotating paths (ValidateAndRevoke) - delete and return
 	// the owner in one statement, so two concurrent callers can't both succeed
 	ConsumeRefreshToken(ctx context.Context, arg ConsumeRefreshTokenParams) (uuid.UUID, error)
-	// The negotiated unit price a customer gets on a product through
-	// their (active) company membership
-	ContractPriceForCustomer(ctx context.Context, arg ContractPriceForCustomerParams) (int64, error)
 	CountApprovedReviewsForProduct(ctx context.Context, productID uuid.UUID) (int64, error)
 	CountAttributeValues(ctx context.Context, attributeID uuid.UUID) (int64, error)
 	CountAuditLog(ctx context.Context, arg CountAuditLogParams) (int64, error)
@@ -354,8 +344,6 @@ type Querier interface {
 	CreateAttributeGroup(ctx context.Context, arg CreateAttributeGroupParams) (AttributeGroup, error)
 	// ==================== Attribute Values ====================
 	CreateAttributeValue(ctx context.Context, arg CreateAttributeValueParams) (AttributeValue, error)
-	// Invoices (on-account orders; settling releases reserved credit)
-	CreateB2BInvoice(ctx context.Context, arg CreateB2BInvoiceParams) (B2bInvoice, error)
 	// ==================== Blog Authors ====================
 	CreateBlogAuthor(ctx context.Context, arg CreateBlogAuthorParams) (BlogAuthor, error)
 	// ==================== Blog Categories ====================
@@ -389,7 +377,6 @@ type Querier interface {
 	CreateChannel(ctx context.Context, arg CreateChannelParams) (Channel, error)
 	// ==================== Collections ====================
 	CreateCollection(ctx context.Context, arg CreateCollectionParams) (Collection, error)
-	CreateCompany(ctx context.Context, arg CreateCompanyParams) (Company, error)
 	CreateCountry(ctx context.Context, arg CreateCountryParams) (Country, error)
 	// The number is sequence-assigned by the column default
 	CreateCreditMemo(ctx context.Context, arg CreateCreditMemoParams) (CreditMemo, error)
@@ -583,11 +570,6 @@ type Querier interface {
 	DeleteCollection(ctx context.Context, id uuid.UUID) error
 	DeleteCollectionContent(ctx context.Context, arg DeleteCollectionContentParams) (int64, error)
 	DeleteCollectionFacetOverrides(ctx context.Context, collectionID uuid.UUID) error
-	DeleteCompany(ctx context.Context, id uuid.UUID) error
-	// Scoped by company so a price id belonging to a DIFFERENT company can't be
-	// deleted by an admin who only manages this one - the resolver checks the
-	// permission against company_id, so the delete has to key on it too
-	DeleteCompanyPrice(ctx context.Context, arg DeleteCompanyPriceParams) (int64, error)
 	DeleteConfigValue(ctx context.Context, arg DeleteConfigValueParams) error
 	DeleteCountry(ctx context.Context, upper interface{}) error
 	DeleteCurrency(ctx context.Context, upper interface{}) error
@@ -704,9 +686,6 @@ type Querier interface {
 	// Returns rows affected (0 when coalesced against an existing pending task)
 	EnqueueRebuildTask(ctx context.Context, arg EnqueueRebuildTaskParams) (int64, error)
 	EnqueueWebhookDelivery(ctx context.Context, arg EnqueueWebhookDeliveryParams) (WebhookQueue, error)
-	// Sweep quotes past their validity window into 'expired' (rather than
-	// only checked lazily at accept time)
-	ExpireB2BQuotes(ctx context.Context) (int64, error)
 	// Returns the keys to delete from the object store - the row stays so the history survives its artifact
 	ExpireDataJobArtifacts(ctx context.Context) ([]ExpireDataJobArtifactsRow, error)
 	// Back-office CSV export feeds (customers + accounting-shaped order lines)
@@ -747,8 +726,6 @@ type Querier interface {
 	// Expiry is filtered here, not left to the prune sweep, so a token can't validate
 	// past its TTL even if pruning is behind
 	GetAuthToken(ctx context.Context, tokenKey string) (uuid.UUID, error)
-	GetB2BInvoice(ctx context.Context, id uuid.UUID) (B2bInvoice, error)
-	GetB2BQuote(ctx context.Context, id uuid.UUID) (B2bQuote, error)
 	GetBlogAuthorByID(ctx context.Context, id uuid.UUID) (BlogAuthor, error)
 	GetBlogAuthorBySlug(ctx context.Context, slug string) (BlogAuthor, error)
 	GetBlogAuthorContent(ctx context.Context, arg GetBlogAuthorContentParams) (BlogAuthorContent, error)
@@ -800,8 +777,6 @@ type Querier interface {
 	GetChatConversation(ctx context.Context, arg GetChatConversationParams) (GetChatConversationRow, error)
 	GetCollectionByID(ctx context.Context, id uuid.UUID) (Collection, error)
 	GetCollectionContent(ctx context.Context, arg GetCollectionContentParams) (CollectionContent, error)
-	GetCompany(ctx context.Context, id uuid.UUID) (Company, error)
-	GetCompanyForUpdate(ctx context.Context, id uuid.UUID) (Company, error)
 	// Returns rows needed for fallback resolution - for a locale-specific store
 	// view scope this can yield up to 3 rows: exact channel+locale,
 	// channel default (NULL locale), and default scope
@@ -816,8 +791,6 @@ type Querier interface {
 	GetCustomerConsent(ctx context.Context, arg GetCustomerConsentParams) (CustomerConsent, error)
 	GetCustomerGroupByID(ctx context.Context, id uuid.UUID) (CustomerGroup, error)
 	GetCustomerGroupBySlug(ctx context.Context, slug string) (CustomerGroup, error)
-	GetCustomerGroupIDBySlug(ctx context.Context, slug string) (uuid.UUID, error)
-	GetCustomerGroupSlugByID(ctx context.Context, id uuid.UUID) (string, error)
 	GetCustomerPaymentMethod(ctx context.Context, arg GetCustomerPaymentMethodParams) (CustomerPaymentMethod, error)
 	GetCustomerSegment(ctx context.Context, id uuid.UUID) (CustomerSegment, error)
 	GetCustomerSegmentBySlug(ctx context.Context, slug string) (CustomerSegment, error)
@@ -896,7 +869,6 @@ type Querier interface {
 	GetMediaAssetByID(ctx context.Context, id uuid.UUID) (MediaAsset, error)
 	GetMediaAssetByObjectKey(ctx context.Context, objectKey string) (MediaAsset, error)
 	GetMediaAssetsByIDs(ctx context.Context, ids []uuid.UUID) ([]MediaAsset, error)
-	GetMembershipByCustomer(ctx context.Context, customerID uuid.UUID) (GetMembershipByCustomerRow, error)
 	GetMenuByID(ctx context.Context, id uuid.UUID) (Menu, error)
 	GetMenuBySlug(ctx context.Context, slug string) (Menu, error)
 	// Storefront-side fetch - returns the menu only when the request's
@@ -1095,8 +1067,6 @@ type Querier interface {
 	IncrementRuleUsage(ctx context.Context, id uuid.UUID) (int64, error)
 	// Admin audit trail
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) error
-	InsertB2BCreditEntry(ctx context.Context, arg InsertB2BCreditEntryParams) (B2bCreditEntry, error)
-	InsertB2BQuote(ctx context.Context, arg InsertB2BQuoteParams) (B2bQuote, error)
 	InsertCacheRevalidation(ctx context.Context, arg InsertCacheRevalidationParams) error
 	InsertCampaignRecipient(ctx context.Context, arg InsertCampaignRecipientParams) error
 	// Cart line components capture the customer's per-option picks on a
@@ -1264,10 +1234,6 @@ type Querier interface {
 	ListAttributeValuesByAttributeIDs(ctx context.Context, attributeIds []uuid.UUID) ([]AttributeValue, error)
 	ListAttributes(ctx context.Context) ([]Attribute, error)
 	ListAuditLog(ctx context.Context, arg ListAuditLogParams) ([]AuditLog, error)
-	ListB2BCreditEntries(ctx context.Context, arg ListB2BCreditEntriesParams) ([]B2bCreditEntry, error)
-	ListB2BInvoicesByCompany(ctx context.Context, arg ListB2BInvoicesByCompanyParams) ([]ListB2BInvoicesByCompanyRow, error)
-	ListB2BQuotesForAdmin(ctx context.Context, arg ListB2BQuotesForAdminParams) ([]B2bQuote, error)
-	ListB2BQuotesForCustomer(ctx context.Context, customerID uuid.UUID) ([]B2bQuote, error)
 	ListBlogAuthorContent(ctx context.Context, authorID uuid.UUID) ([]BlogAuthorContent, error)
 	ListBlogAuthorContentByScope(ctx context.Context, arg ListBlogAuthorContentByScopeParams) ([]BlogAuthorContent, error)
 	ListBlogAuthors(ctx context.Context) ([]BlogAuthor, error)
@@ -1373,9 +1339,6 @@ type Querier interface {
 	ListCollections(ctx context.Context) ([]Collection, error)
 	ListCollectionsByProduct(ctx context.Context, productID uuid.UUID) ([]Collection, error)
 	ListCollectionsByProductIDs(ctx context.Context, productIds []uuid.UUID) ([]ListCollectionsByProductIDsRow, error)
-	ListCompanies(ctx context.Context, arg ListCompaniesParams) ([]Company, error)
-	ListCompanyMembers(ctx context.Context, companyID uuid.UUID) ([]ListCompanyMembersRow, error)
-	ListCompanyPrices(ctx context.Context, companyID uuid.UUID) ([]ListCompanyPricesRow, error)
 	ListConditionsByRule(ctx context.Context, ruleID uuid.UUID) ([]PromotionCondition, error)
 	// Engine hot path: load all conditions for all candidate rules in
 	// one query rather than N+1
@@ -1535,7 +1498,6 @@ type Querier interface {
 	// The reconciliation sweep's worklist: gateway orders parked unpaid with a provider reference to ask
 	// about - the lower bound stops ancient abandoned orders polling gateways forever
 	ListOrdersAwaitingPaymentSync(ctx context.Context, arg ListOrdersAwaitingPaymentSyncParams) ([]Order, error)
-	ListOrdersByCompany(ctx context.Context, arg ListOrdersByCompanyParams) ([]ListOrdersByCompanyRow, error)
 	ListOrdersByCustomer(ctx context.Context, customerID uuid.NullUUID) ([]Order, error)
 	// Server-side page for the admin list - ListOrders returns the WHOLE table,
 	// which the dashboard then paged in the browser - orders is the one table
@@ -1981,7 +1943,6 @@ type Querier interface {
 	// Find the rule via the code join and delete the cart row
 	RemoveCodeFromCartByCode(ctx context.Context, arg RemoveCodeFromCartByCodeParams) error
 	RemoveCodeFromCartByRule(ctx context.Context, arg RemoveCodeFromCartByRuleParams) error
-	RemoveCompanyMember(ctx context.Context, customerID uuid.UUID) error
 	RemoveCountryFromZone(ctx context.Context, arg RemoveCountryFromZoneParams) error
 	RemoveCustomerFromSegment(ctx context.Context, arg RemoveCustomerFromSegmentParams) error
 	RemoveProductChild(ctx context.Context, arg RemoveProductChildParams) (int64, error)
@@ -2153,8 +2114,6 @@ type Querier interface {
 	// Bulk facet opt-in from the SEO page - a targeted UPDATE rather than N UpdateAttributeValue
 	// calls, which rewrite the whole row and re-run the slug-rename URL regeneration
 	SetAttributeValuesIndexable(ctx context.Context, arg SetAttributeValuesIndexableParams) (int64, error)
-	SetB2BQuoteStatus(ctx context.Context, arg SetB2BQuoteStatusParams) (B2bQuote, error)
-	SetB2BQuoteStatusAdmin(ctx context.Context, arg SetB2BQuoteStatusAdminParams) (B2bQuote, error)
 	SetBlogPostStatus(ctx context.Context, arg SetBlogPostStatusParams) (BlogPost, error)
 	// ==================== Page Attribute Values & Relationships ====================
 	SetCMSPageAttributeValue(ctx context.Context, arg SetCMSPageAttributeValueParams) error
@@ -2183,8 +2142,6 @@ type Querier interface {
 	SetChannelAsDefault(ctx context.Context, id uuid.UUID) (Channel, error)
 	// ==================== Cover image ====================
 	SetCollectionCover(ctx context.Context, arg SetCollectionCoverParams) (Collection, error)
-	SetCompanyDefaultGroup(ctx context.Context, arg SetCompanyDefaultGroupParams) (Company, error)
-	SetCompanyMemberOrderLimit(ctx context.Context, arg SetCompanyMemberOrderLimitParams) error
 	// ==================== Configurable Options ====================
 	// Atomically replaces the configurable options for a product
 	// Caller deletes all then re-inserts in a transaction
@@ -2259,10 +2216,6 @@ type Querier interface {
 	SetSubscriptionPaymentMethod(ctx context.Context, arg SetSubscriptionPaymentMethodParams) (Subscription, error)
 	SetSubscriptionStatus(ctx context.Context, arg SetSubscriptionStatusParams) (Subscription, error)
 	SetWebhookActive(ctx context.Context, arg SetWebhookActiveParams) (Webhook, error)
-	// SettleB2BInvoice flips an OPEN invoice to paid/void atomically - the
-	// WHERE guard makes double-settlement return no row instead of
-	// double-releasing credit
-	SettleB2BInvoice(ctx context.Context, arg SettleB2BInvoiceParams) (B2bInvoice, error)
 	SitemapCategoryCount(ctx context.Context, channelID uuid.UUID) (int64, error)
 	SitemapCategoryPaths(ctx context.Context, arg SitemapCategoryPathsParams) ([]SitemapCategoryPathsRow, error)
 	SitemapCollectionCount(ctx context.Context, channelID uuid.NullUUID) (int64, error)
@@ -2335,8 +2288,6 @@ type Querier interface {
 	UpdateAttribute(ctx context.Context, arg UpdateAttributeParams) (Attribute, error)
 	UpdateAttributeGroup(ctx context.Context, arg UpdateAttributeGroupParams) (AttributeGroup, error)
 	UpdateAttributeValue(ctx context.Context, arg UpdateAttributeValueParams) (AttributeValue, error)
-	// Admin prices the quote: per-line unit prices land back in items, seller_note is the reply the buyer reads
-	UpdateB2BQuoteAdmin(ctx context.Context, arg UpdateB2BQuoteAdminParams) (B2bQuote, error)
 	UpdateBlogAuthor(ctx context.Context, arg UpdateBlogAuthorParams) (BlogAuthor, error)
 	UpdateBlogCategory(ctx context.Context, arg UpdateBlogCategoryParams) (BlogCategory, error)
 	UpdateBlogCategoryURLPath(ctx context.Context, arg UpdateBlogCategoryURLPathParams) error
@@ -2364,7 +2315,6 @@ type Querier interface {
 	UpdateChannel(ctx context.Context, arg UpdateChannelParams) (Channel, error)
 	UpdateChatConversation(ctx context.Context, arg UpdateChatConversationParams) (uuid.UUID, error)
 	UpdateCollection(ctx context.Context, arg UpdateCollectionParams) (Collection, error)
-	UpdateCompany(ctx context.Context, arg UpdateCompanyParams) (Company, error)
 	UpdateCountry(ctx context.Context, arg UpdateCountryParams) (Country, error)
 	// Enrich an existing country with its alpha-3 + numeric-3 ISO codes
 	// No-op when the country code isn't present
@@ -2500,8 +2450,6 @@ type Querier interface {
 	UpsertChannelEngagementFor(ctx context.Context, arg UpsertChannelEngagementForParams) error
 	// ==================== Collection Content ====================
 	UpsertCollectionContent(ctx context.Context, arg UpsertCollectionContentParams) (CollectionContent, error)
-	UpsertCompanyMember(ctx context.Context, arg UpsertCompanyMemberParams) error
-	UpsertCompanyPrice(ctx context.Context, arg UpsertCompanyPriceParams) (CompanyPrice, error)
 	UpsertConfigValue(ctx context.Context, arg UpsertConfigValueParams) (ConfigValue, error)
 	// Configured (options-bearing) cart-line upsert - like the bundle path the
 	// ON CONFLICT REPLACES rather than sums: re-adding the same SKU submits a
@@ -2568,12 +2516,6 @@ type Querier interface {
 	// Catalog: a subscription product's recurring terms (admin-configured, 1:1)
 	UpsertSubscriptionTerms(ctx context.Context, arg UpsertSubscriptionTermsParams) (CatalogSubscriptionTerm, error)
 	UpsertWishlistShare(ctx context.Context, arg UpsertWishlistShareParams) (WishlistShare, error)
-	// Closes the invoice when its order is cancelled - without this the invoice
-	// stays 'open' after releaseForOrder already returned the headroom, and
-	// SettleB2BInvoice's status='open' guard is still satisfied - so voiding it
-	// in the admin releases the SAME amount a second time and inflates the
-	// company's available credit
-	VoidOpenB2BInvoiceForOrder(ctx context.Context, orderID uuid.UUID) (int64, error)
 	// Aggregate delivery health for a single webhook over its stored delivery
 	// rows - retries are stored as separate rows, so total/succeeded/failed are
 	// attempt-level counts. avg_success_ms averages only successful attempts

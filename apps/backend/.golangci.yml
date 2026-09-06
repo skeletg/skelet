@@ -37,7 +37,7 @@ linters:
             - "**/plugins/**"
             - "!$test"
           deny:
-            - pkg: github.com/skeletg/skelet/internal
+            - pkg: github.com/skeletg/skelet/apps/backend/internal
               desc: plugins reach core only through the SDK - a SubscribeSync handler needing a domain's event shape is the one sanctioned exception, allow-listed here per package when it happens
     modernize:
       # newexpr rewrites ptr(x) helpers onto Go 1.26's new(expr), which then makes govet's

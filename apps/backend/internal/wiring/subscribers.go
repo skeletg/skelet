@@ -7,34 +7,33 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/activity"
-	"github.com/skeletg/skelet/internal/ai"
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/b2b"
-	"github.com/skeletg/skelet/internal/backinstock"
-	"github.com/skeletg/skelet/internal/cacheinvalidate"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/customer"
-	"github.com/skeletg/skelet/internal/download"
-	"github.com/skeletg/skelet/internal/email"
-	"github.com/skeletg/skelet/internal/events"
-	"github.com/skeletg/skelet/internal/flow"
-	"github.com/skeletg/skelet/internal/giftcard"
-	"github.com/skeletg/skelet/internal/inventory"
-	"github.com/skeletg/skelet/internal/loyalty"
-	"github.com/skeletg/skelet/internal/notification"
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/ordercapture"
-	"github.com/skeletg/skelet/internal/outbox"
-	"github.com/skeletg/skelet/internal/payment"
-	"github.com/skeletg/skelet/internal/referral"
-	"github.com/skeletg/skelet/internal/revalidate"
-	"github.com/skeletg/skelet/internal/review"
-	"github.com/skeletg/skelet/internal/storecredit"
-	"github.com/skeletg/skelet/internal/subscription"
-	"github.com/skeletg/skelet/internal/urlrewrite"
-	"github.com/skeletg/skelet/internal/webform"
-	"github.com/skeletg/skelet/internal/webhook"
+	"github.com/skeletg/skelet/apps/backend/internal/activity"
+	"github.com/skeletg/skelet/apps/backend/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/backinstock"
+	"github.com/skeletg/skelet/apps/backend/internal/cacheinvalidate"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/internal/download"
+	"github.com/skeletg/skelet/apps/backend/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/flow"
+	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
+	"github.com/skeletg/skelet/apps/backend/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/internal/loyalty"
+	"github.com/skeletg/skelet/apps/backend/internal/notification"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/ordercapture"
+	"github.com/skeletg/skelet/apps/backend/internal/outbox"
+	"github.com/skeletg/skelet/apps/backend/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/internal/referral"
+	"github.com/skeletg/skelet/apps/backend/internal/revalidate"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
+	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
+	"github.com/skeletg/skelet/apps/backend/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/internal/webform"
+	"github.com/skeletg/skelet/apps/backend/internal/webhook"
 )
 
 // The one call the entrypoint makes - every "what reacts when X fires" decision is below it, and registration order is load-bearing where sync priorities tie, so treat the sequence here as part of the contract
@@ -64,7 +63,6 @@ type subscriberDeps struct {
 	Loyalty      *loyalty.Service
 	Referral     *referral.Service
 	Download     *download.Service
-	B2B          *b2b.Service
 	Subscription *subscription.Service
 }
 
@@ -115,7 +113,6 @@ func subscribeOrderReactors(d subscriberDeps) {
 	d.Loyalty.SubscribeToOrderEvents(bus)     // earned on placement, revoked on cancel or refund
 	d.Referral.SubscribeToOrderEvents(bus)    // give-get payout on the referee's first order
 	d.Download.SubscribeToOrderEvents(bus)    // grants the buyer access to a purchased product's downloads
-	d.B2B.SubscribeToOrderEvents(bus)         // releases the on-account credit hold
 	d.Subscription.SubscribeToOrderEvents(bus)
 }
 

@@ -2,8 +2,8 @@ package admin
 
 import (
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 func toUrlRewriteModel(u urlrewrite.UrlRewrite) *model.URLRewrite {

@@ -7,8 +7,8 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/observability"
-	"github.com/skeletg/skelet/internal/wiring"
+	"github.com/skeletg/skelet/apps/backend/internal/observability"
+	"github.com/skeletg/skelet/apps/backend/internal/wiring"
 )
 
 // Mirrors what cmd/server composes per role - keep in step with run(), or this stops covering what actually boots

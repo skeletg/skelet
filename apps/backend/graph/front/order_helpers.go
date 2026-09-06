@@ -7,12 +7,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	frontmodel "github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/cart"
-	"github.com/skeletg/skelet/internal/order"
-	"github.com/skeletg/skelet/internal/paymentvault"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	frontmodel "github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/paymentvault"
 )
 
 func addressInputToOrderAddress(in model.AddressInput) order.OrderAddress {

@@ -14,8 +14,8 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
-	"github.com/skeletg/skelet/graph/admin/model"
-	model1 "github.com/skeletg/skelet/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	model1 "github.com/skeletg/skelet/apps/backend/graph/front/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -435,17 +435,6 @@ type ComplexityRoot struct {
 		Width    func(childComplexity int) int
 	}
 
-	CompanyOrderSummary struct {
-		CreatedAt     func(childComplexity int) int
-		CurrencyCode  func(childComplexity int) int
-		ID            func(childComplexity int) int
-		MemberEmail   func(childComplexity int) int
-		Number        func(childComplexity int) int
-		PaymentStatus func(childComplexity int) int
-		Status        func(childComplexity int) int
-		TotalCents    func(childComplexity int) int
-	}
-
 	ConfigGroup struct {
 		Fields func(childComplexity int) int
 		Label  func(childComplexity int) int
@@ -690,12 +679,10 @@ type ComplexityRoot struct {
 		Reorder                        func(childComplexity int, orderID string) int
 		RequestPasswordReset           func(childComplexity int, email string) int
 		RequestProductOptionFileUpload func(childComplexity int, productSku string, optionID string, filename string, mimeType string, sizeBytes int32) int
-		RequestQuote                   func(childComplexity int, cartID string, note *string) int
 		RequestReturn                  func(childComplexity int, input model.RequestReturnInput) int
 		RequestReviewMediaUpload       func(childComplexity int, productID string, filename string, mimeType string, sizeBytes int32) int
 		ResendVerificationEmail        func(childComplexity int) int
 		ResetPassword                  func(childComplexity int, token string, newPassword string) int
-		RespondToQuote                 func(childComplexity int, id string, accept bool) int
 		SaveForLater                   func(childComplexity int, cartID string, lineID string) int
 		SavePaymentMethod              func(childComplexity int, providerSlug string, token string) int
 		SetCartEmail                   func(childComplexity int, cartID string, email string) int
@@ -712,45 +699,6 @@ type ComplexityRoot struct {
 		UpdateProfile                  func(childComplexity int, firstName *string, lastName *string, phone *string) int
 		VerifyEmail                    func(childComplexity int, token string) int
 		VoteReview                     func(childComplexity int, reviewID string, value int32) int
-	}
-
-	MyB2BInvoice struct {
-		AmountCents func(childComplexity int) int
-		CreatedAt   func(childComplexity int) int
-		DueAt       func(childComplexity int) int
-		Number      func(childComplexity int) int
-		OrderNumber func(childComplexity int) int
-		Overdue     func(childComplexity int) int
-		PaidAt      func(childComplexity int) int
-		Status      func(childComplexity int) int
-	}
-
-	MyB2BQuote struct {
-		CreatedAt  func(childComplexity int) int
-		ID         func(childComplexity int) int
-		Items      func(childComplexity int) int
-		Note       func(childComplexity int) int
-		SellerNote func(childComplexity int) int
-		Status     func(childComplexity int) int
-		TotalCents func(childComplexity int) int
-		ValidUntil func(childComplexity int) int
-	}
-
-	MyB2BQuoteItem struct {
-		Name           func(childComplexity int) int
-		OptionsSummary func(childComplexity int) int
-		Quantity       func(childComplexity int) int
-		Sku            func(childComplexity int) int
-		UnitPriceCents func(childComplexity int) int
-	}
-
-	MyCompany struct {
-		CreditLimitCents func(childComplexity int) int
-		CreditUsedCents  func(childComplexity int) int
-		Name             func(childComplexity int) int
-		PaymentTermsDays func(childComplexity int) int
-		Role             func(childComplexity int) int
-		Status           func(childComplexity int) int
 	}
 
 	Order struct {
@@ -1096,16 +1044,12 @@ type ComplexityRoot struct {
 		Menu                  func(childComplexity int, slug string) int
 		Menus                 func(childComplexity int, slugs []string) int
 		MyCart                func(childComplexity int) int
-		MyCompany             func(childComplexity int) int
-		MyCompanyInvoices     func(childComplexity int) int
-		MyCompanyOrders       func(childComplexity int) int
 		MyDataExport          func(childComplexity int) int
 		MyDownloads           func(childComplexity int) int
 		MyOrder               func(childComplexity int, id string) int
 		MyOrders              func(childComplexity int) int
 		MyPaymentMethods      func(childComplexity int) int
 		MyProfile             func(childComplexity int) int
-		MyQuotes              func(childComplexity int) int
 		MyReferral            func(childComplexity int) int
 		MySubscriptions       func(childComplexity int) int
 		MyWishlist            func(childComplexity int) int
@@ -1286,7 +1230,6 @@ type ComplexityRoot struct {
 	}
 
 	StoreFeatures struct {
-		B2b     func(childComplexity int) int
 		Signals func(childComplexity int) int
 	}
 
@@ -1371,8 +1314,6 @@ type MutationResolver interface {
 	SetDefaultShippingAddress(ctx context.Context, id string) (*model.Customer, error)
 	SetConsent(ctx context.Context, kind string, optedIn bool) (*model.CustomerConsent, error)
 	RedeemLoyaltyPoints(ctx context.Context, points int32) (*model1.LoyaltyRedeemResult, error)
-	RequestQuote(ctx context.Context, cartID string, note *string) (*model1.MyB2BQuote, error)
-	RespondToQuote(ctx context.Context, id string, accept bool) (*model1.MyB2BQuote, error)
 	FinalizeOrderPayment(ctx context.Context, orderID string) (bool, error)
 	Reorder(ctx context.Context, orderID string) (*model1.ReorderResult, error)
 	RequestReturn(ctx context.Context, input model.RequestReturnInput) (*model.OrderReturn, error)
@@ -1480,10 +1421,6 @@ type QueryResolver interface {
 	ConsentDefinitions(ctx context.Context) ([]*model.ConsentDefinition, error)
 	LoyaltyStatus(ctx context.Context) (*model1.LoyaltyStatus, error)
 	MyReferral(ctx context.Context) (*model1.ReferralInfo, error)
-	MyCompany(ctx context.Context) (*model1.MyCompany, error)
-	MyQuotes(ctx context.Context) ([]*model1.MyB2BQuote, error)
-	MyCompanyInvoices(ctx context.Context) ([]*model1.MyB2BInvoice, error)
-	MyCompanyOrders(ctx context.Context) ([]*model1.CompanyOrderSummary, error)
 	MyDownloads(ctx context.Context) ([]*model1.DownloadGrant, error)
 	Locales(ctx context.Context, activeOnly *bool) ([]*model.Locale, error)
 	Locale(ctx context.Context, code string) (*model.Locale, error)
@@ -3202,55 +3139,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CollectionCover.Width(childComplexity), true
 
-	case "CompanyOrderSummary.createdAt":
-		if e.ComplexityRoot.CompanyOrderSummary.CreatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.CreatedAt(childComplexity), true
-	case "CompanyOrderSummary.currencyCode":
-		if e.ComplexityRoot.CompanyOrderSummary.CurrencyCode == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.CurrencyCode(childComplexity), true
-	case "CompanyOrderSummary.id":
-		if e.ComplexityRoot.CompanyOrderSummary.ID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.ID(childComplexity), true
-	case "CompanyOrderSummary.memberEmail":
-		if e.ComplexityRoot.CompanyOrderSummary.MemberEmail == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.MemberEmail(childComplexity), true
-	case "CompanyOrderSummary.number":
-		if e.ComplexityRoot.CompanyOrderSummary.Number == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.Number(childComplexity), true
-	case "CompanyOrderSummary.paymentStatus":
-		if e.ComplexityRoot.CompanyOrderSummary.PaymentStatus == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.PaymentStatus(childComplexity), true
-	case "CompanyOrderSummary.status":
-		if e.ComplexityRoot.CompanyOrderSummary.Status == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.Status(childComplexity), true
-	case "CompanyOrderSummary.totalCents":
-		if e.ComplexityRoot.CompanyOrderSummary.TotalCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CompanyOrderSummary.TotalCents(childComplexity), true
-
 	case "ConfigGroup.fields":
 		if e.ComplexityRoot.ConfigGroup.Fields == nil {
 			break
@@ -4463,17 +4351,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RequestProductOptionFileUpload(childComplexity, args["productSku"].(string), args["optionId"].(string), args["filename"].(string), args["mimeType"].(string), args["sizeBytes"].(int32)), true
-	case "Mutation.requestQuote":
-		if e.ComplexityRoot.Mutation.RequestQuote == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_requestQuote_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.RequestQuote(childComplexity, args["cartId"].(string), args["note"].(*string)), true
 	case "Mutation.requestReturn":
 		if e.ComplexityRoot.Mutation.RequestReturn == nil {
 			break
@@ -4513,17 +4390,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ResetPassword(childComplexity, args["token"].(string), args["newPassword"].(string)), true
-	case "Mutation.respondToQuote":
-		if e.ComplexityRoot.Mutation.RespondToQuote == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_respondToQuote_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.RespondToQuote(childComplexity, args["id"].(string), args["accept"].(bool)), true
 	case "Mutation.saveForLater":
 		if e.ComplexityRoot.Mutation.SaveForLater == nil {
 			break
@@ -4700,172 +4566,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.VoteReview(childComplexity, args["reviewId"].(string), args["value"].(int32)), true
-
-	case "MyB2BInvoice.amountCents":
-		if e.ComplexityRoot.MyB2BInvoice.AmountCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.AmountCents(childComplexity), true
-	case "MyB2BInvoice.createdAt":
-		if e.ComplexityRoot.MyB2BInvoice.CreatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.CreatedAt(childComplexity), true
-	case "MyB2BInvoice.dueAt":
-		if e.ComplexityRoot.MyB2BInvoice.DueAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.DueAt(childComplexity), true
-	case "MyB2BInvoice.number":
-		if e.ComplexityRoot.MyB2BInvoice.Number == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.Number(childComplexity), true
-	case "MyB2BInvoice.orderNumber":
-		if e.ComplexityRoot.MyB2BInvoice.OrderNumber == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.OrderNumber(childComplexity), true
-	case "MyB2BInvoice.overdue":
-		if e.ComplexityRoot.MyB2BInvoice.Overdue == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.Overdue(childComplexity), true
-	case "MyB2BInvoice.paidAt":
-		if e.ComplexityRoot.MyB2BInvoice.PaidAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.PaidAt(childComplexity), true
-	case "MyB2BInvoice.status":
-		if e.ComplexityRoot.MyB2BInvoice.Status == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BInvoice.Status(childComplexity), true
-
-	case "MyB2BQuote.createdAt":
-		if e.ComplexityRoot.MyB2BQuote.CreatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.CreatedAt(childComplexity), true
-	case "MyB2BQuote.id":
-		if e.ComplexityRoot.MyB2BQuote.ID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.ID(childComplexity), true
-	case "MyB2BQuote.items":
-		if e.ComplexityRoot.MyB2BQuote.Items == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.Items(childComplexity), true
-	case "MyB2BQuote.note":
-		if e.ComplexityRoot.MyB2BQuote.Note == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.Note(childComplexity), true
-	case "MyB2BQuote.sellerNote":
-		if e.ComplexityRoot.MyB2BQuote.SellerNote == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.SellerNote(childComplexity), true
-	case "MyB2BQuote.status":
-		if e.ComplexityRoot.MyB2BQuote.Status == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.Status(childComplexity), true
-	case "MyB2BQuote.totalCents":
-		if e.ComplexityRoot.MyB2BQuote.TotalCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.TotalCents(childComplexity), true
-	case "MyB2BQuote.validUntil":
-		if e.ComplexityRoot.MyB2BQuote.ValidUntil == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuote.ValidUntil(childComplexity), true
-
-	case "MyB2BQuoteItem.name":
-		if e.ComplexityRoot.MyB2BQuoteItem.Name == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuoteItem.Name(childComplexity), true
-	case "MyB2BQuoteItem.optionsSummary":
-		if e.ComplexityRoot.MyB2BQuoteItem.OptionsSummary == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuoteItem.OptionsSummary(childComplexity), true
-	case "MyB2BQuoteItem.quantity":
-		if e.ComplexityRoot.MyB2BQuoteItem.Quantity == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuoteItem.Quantity(childComplexity), true
-	case "MyB2BQuoteItem.sku":
-		if e.ComplexityRoot.MyB2BQuoteItem.Sku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuoteItem.Sku(childComplexity), true
-	case "MyB2BQuoteItem.unitPriceCents":
-		if e.ComplexityRoot.MyB2BQuoteItem.UnitPriceCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyB2BQuoteItem.UnitPriceCents(childComplexity), true
-
-	case "MyCompany.creditLimitCents":
-		if e.ComplexityRoot.MyCompany.CreditLimitCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyCompany.CreditLimitCents(childComplexity), true
-	case "MyCompany.creditUsedCents":
-		if e.ComplexityRoot.MyCompany.CreditUsedCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyCompany.CreditUsedCents(childComplexity), true
-	case "MyCompany.name":
-		if e.ComplexityRoot.MyCompany.Name == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyCompany.Name(childComplexity), true
-	case "MyCompany.paymentTermsDays":
-		if e.ComplexityRoot.MyCompany.PaymentTermsDays == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyCompany.PaymentTermsDays(childComplexity), true
-	case "MyCompany.role":
-		if e.ComplexityRoot.MyCompany.Role == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyCompany.Role(childComplexity), true
-	case "MyCompany.status":
-		if e.ComplexityRoot.MyCompany.Status == nil {
-			break
-		}
-
-		return e.ComplexityRoot.MyCompany.Status(childComplexity), true
 
 	case "Order.amountDue":
 		if e.ComplexityRoot.Order.AmountDue == nil {
@@ -6643,24 +6343,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MyCart(childComplexity), true
-	case "Query.myCompany":
-		if e.ComplexityRoot.Query.MyCompany == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Query.MyCompany(childComplexity), true
-	case "Query.myCompanyInvoices":
-		if e.ComplexityRoot.Query.MyCompanyInvoices == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Query.MyCompanyInvoices(childComplexity), true
-	case "Query.myCompanyOrders":
-		if e.ComplexityRoot.Query.MyCompanyOrders == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Query.MyCompanyOrders(childComplexity), true
 	case "Query.myDataExport":
 		if e.ComplexityRoot.Query.MyDataExport == nil {
 			break
@@ -6702,12 +6384,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MyProfile(childComplexity), true
-	case "Query.myQuotes":
-		if e.ComplexityRoot.Query.MyQuotes == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Query.MyQuotes(childComplexity), true
 	case "Query.myReferral":
 		if e.ComplexityRoot.Query.MyReferral == nil {
 			break
@@ -7501,12 +7177,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.SitemapEntry.UpdatedAt(childComplexity), true
 
-	case "StoreFeatures.b2b":
-		if e.ComplexityRoot.StoreFeatures.B2b == nil {
-			break
-		}
-
-		return e.ComplexityRoot.StoreFeatures.B2b(childComplexity), true
 	case "StoreFeatures.signals":
 		if e.ComplexityRoot.StoreFeatures.Signals == nil {
 			break
@@ -8876,8 +8546,6 @@ type ConfigGroup {
 # Server-wide feature switches (env-driven) so the storefront can hide
 # UI for subsystems the deployment turned off.
 type StoreFeatures {
-  # B2B_ENABLED - company accounts, quotes, on-account payment.
-  b2b: Boolean!
   # SIGNALS_ENABLED - web tracking, session replay, experiments,
   # back-in-stock alerts, signup forms.
   signals: Boolean!
@@ -9139,78 +8807,6 @@ type ReferralInfo {
 extend type Query {
   # Requires a signed-in customer; mints the share code on first read.
   myReferral: ReferralInfo!
-}
-
-# --- B2B ---
-
-type MyCompany {
-  name:             String!
-  status:           String!
-  role:             String!
-  creditLimitCents: Int!
-  creditUsedCents:  Int!
-  paymentTermsDays: Int!
-}
-
-type MyB2BQuoteItem {
-  sku:            String!
-  name:           String!
-  quantity:       Float!
-  unitPriceCents: Int!
-  optionsSummary: String!
-}
-
-type MyB2BQuote {
-  id:         ID!
-  status:     String!
-  items:      [MyB2BQuoteItem!]!
-  note:       String!
-  sellerNote: String!
-  totalCents: Int!
-  validUntil: Time
-  createdAt:  Time!
-}
-
-type CompanyOrderSummary {
-  id:            ID!
-  number:        String!
-  status:        String!
-  paymentStatus: String!
-  totalCents:    Int!
-  currencyCode:  String!
-  memberEmail:   String!
-  createdAt:     Time!
-}
-
-# One of the company's on-account invoices (buyer portal view).
-type MyB2BInvoice {
-  number:      String!
-  orderNumber: String!
-  amountCents: Int!
-  status:      String!
-  overdue:     Boolean!
-  dueAt:       Time
-  paidAt:      Time
-  createdAt:   Time!
-}
-
-extend type Query {
-  # The signed-in customer's company account, or null when not B2B.
-  myCompany: MyCompany
-  myQuotes: [MyB2BQuote!]!
-  # Company invoices - company ADMINS only (mirrors myCompanyOrders).
-  myCompanyInvoices: [MyB2BInvoice!]!
-  # Company-wide order history - company ADMINS only (buyers see just
-  # their own orders via the regular account pages).
-  myCompanyOrders: [CompanyOrderSummary!]!
-}
-
-extend type Mutation {
-  # Snapshot the current cart's lines into a quote request for the
-  # store team to price.
-  requestQuote(cartId: ID!, note: String): MyB2BQuote!
-  # Accept or decline a quoted offer.
-  respondToQuote(id: ID!, accept: Boolean!): MyB2BQuote!
 }
 `, BuiltIn: false},
 	{Name: "../schema/front/downloads.graphqls", Input: `# Digital downloads the customer has access to (granted when an order with a
@@ -9544,7 +9140,7 @@ extend type Mutation {
     email: String!
     cartId: ID
     customerNote: String
-    # Purchase-order reference (B2B on-account checkout).
+    # Buyer's PO reference, when they pay by purchase order.
     poNumber: String
     # Chosen shipping option from shippingQuotes, identified by its carrier slug
     # + method code. Omit both to let the server pick the cheapest. The price is
@@ -10894,28 +10490,6 @@ func (ec *executionContext) childFields_CollectionCover(ctx context.Context, fie
 	return nil, fmt.Errorf("no field named %q was found under type CollectionCover", field.Name)
 }
 
-func (ec *executionContext) childFields_CompanyOrderSummary(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "id":
-		return ec.fieldContext_CompanyOrderSummary_id(ctx, field)
-	case "number":
-		return ec.fieldContext_CompanyOrderSummary_number(ctx, field)
-	case "status":
-		return ec.fieldContext_CompanyOrderSummary_status(ctx, field)
-	case "paymentStatus":
-		return ec.fieldContext_CompanyOrderSummary_paymentStatus(ctx, field)
-	case "totalCents":
-		return ec.fieldContext_CompanyOrderSummary_totalCents(ctx, field)
-	case "currencyCode":
-		return ec.fieldContext_CompanyOrderSummary_currencyCode(ctx, field)
-	case "memberEmail":
-		return ec.fieldContext_CompanyOrderSummary_memberEmail(ctx, field)
-	case "createdAt":
-		return ec.fieldContext_CompanyOrderSummary_createdAt(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type CompanyOrderSummary", field.Name)
-}
-
 func (ec *executionContext) childFields_ConfigGroup(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "slug":
@@ -11340,84 +10914,6 @@ func (ec *executionContext) childFields_MenuItem(ctx context.Context, field grap
 		return ec.fieldContext_MenuItem_children(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type MenuItem", field.Name)
-}
-
-func (ec *executionContext) childFields_MyB2BInvoice(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "number":
-		return ec.fieldContext_MyB2BInvoice_number(ctx, field)
-	case "orderNumber":
-		return ec.fieldContext_MyB2BInvoice_orderNumber(ctx, field)
-	case "amountCents":
-		return ec.fieldContext_MyB2BInvoice_amountCents(ctx, field)
-	case "status":
-		return ec.fieldContext_MyB2BInvoice_status(ctx, field)
-	case "overdue":
-		return ec.fieldContext_MyB2BInvoice_overdue(ctx, field)
-	case "dueAt":
-		return ec.fieldContext_MyB2BInvoice_dueAt(ctx, field)
-	case "paidAt":
-		return ec.fieldContext_MyB2BInvoice_paidAt(ctx, field)
-	case "createdAt":
-		return ec.fieldContext_MyB2BInvoice_createdAt(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type MyB2BInvoice", field.Name)
-}
-
-func (ec *executionContext) childFields_MyB2BQuote(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "id":
-		return ec.fieldContext_MyB2BQuote_id(ctx, field)
-	case "status":
-		return ec.fieldContext_MyB2BQuote_status(ctx, field)
-	case "items":
-		return ec.fieldContext_MyB2BQuote_items(ctx, field)
-	case "note":
-		return ec.fieldContext_MyB2BQuote_note(ctx, field)
-	case "sellerNote":
-		return ec.fieldContext_MyB2BQuote_sellerNote(ctx, field)
-	case "totalCents":
-		return ec.fieldContext_MyB2BQuote_totalCents(ctx, field)
-	case "validUntil":
-		return ec.fieldContext_MyB2BQuote_validUntil(ctx, field)
-	case "createdAt":
-		return ec.fieldContext_MyB2BQuote_createdAt(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type MyB2BQuote", field.Name)
-}
-
-func (ec *executionContext) childFields_MyB2BQuoteItem(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "sku":
-		return ec.fieldContext_MyB2BQuoteItem_sku(ctx, field)
-	case "name":
-		return ec.fieldContext_MyB2BQuoteItem_name(ctx, field)
-	case "quantity":
-		return ec.fieldContext_MyB2BQuoteItem_quantity(ctx, field)
-	case "unitPriceCents":
-		return ec.fieldContext_MyB2BQuoteItem_unitPriceCents(ctx, field)
-	case "optionsSummary":
-		return ec.fieldContext_MyB2BQuoteItem_optionsSummary(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type MyB2BQuoteItem", field.Name)
-}
-
-func (ec *executionContext) childFields_MyCompany(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "name":
-		return ec.fieldContext_MyCompany_name(ctx, field)
-	case "status":
-		return ec.fieldContext_MyCompany_status(ctx, field)
-	case "role":
-		return ec.fieldContext_MyCompany_role(ctx, field)
-	case "creditLimitCents":
-		return ec.fieldContext_MyCompany_creditLimitCents(ctx, field)
-	case "creditUsedCents":
-		return ec.fieldContext_MyCompany_creditUsedCents(ctx, field)
-	case "paymentTermsDays":
-		return ec.fieldContext_MyCompany_paymentTermsDays(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type MyCompany", field.Name)
 }
 
 func (ec *executionContext) childFields_Order(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -12310,8 +11806,6 @@ func (ec *executionContext) childFields_SitemapEntry(ctx context.Context, field 
 
 func (ec *executionContext) childFields_StoreFeatures(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
-	case "b2b":
-		return ec.fieldContext_StoreFeatures_b2b(ctx, field)
 	case "signals":
 		return ec.fieldContext_StoreFeatures_signals(ctx, field)
 	}
@@ -12495,7 +11989,7 @@ func (ec *executionContext) field_Mutation_addAddress_args(ctx context.Context, 
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.AddressInput, error) {
-			return ec.unmarshalNAddressInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddressInput(ctx, v)
+			return ec.unmarshalNAddressInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddressInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -12509,7 +12003,7 @@ func (ec *executionContext) field_Mutation_addBundleToCart_args(ctx context.Cont
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model1.AddBundleToCartInput, error) {
-			return ec.unmarshalNAddBundleToCartInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddBundleToCartInput(ctx, v)
+			return ec.unmarshalNAddBundleToCartInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddBundleToCartInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -12523,7 +12017,7 @@ func (ec *executionContext) field_Mutation_addConfiguredToCart_args(ctx context.
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model1.AddConfiguredToCartInput, error) {
-			return ec.unmarshalNAddConfiguredToCartInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddConfiguredToCartInput(ctx, v)
+			return ec.unmarshalNAddConfiguredToCartInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddConfiguredToCartInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -12669,7 +12163,7 @@ func (ec *executionContext) field_Mutation_customerLogin_args(ctx context.Contex
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.CustomerLoginInput, error) {
-			return ec.unmarshalNCustomerLoginInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerLoginInput(ctx, v)
+			return ec.unmarshalNCustomerLoginInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerLoginInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -12711,7 +12205,7 @@ func (ec *executionContext) field_Mutation_customerRegister_args(ctx context.Con
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.CustomerRegisterInput, error) {
-			return ec.unmarshalNCustomerRegisterInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerRegisterInput(ctx, v)
+			return ec.unmarshalNCustomerRegisterInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerRegisterInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -12897,7 +12391,7 @@ func (ec *executionContext) field_Mutation_placeOrder_args(ctx context.Context, 
 	args["shippingAddressId"] = arg9
 	arg10, err := graphql.ProcessArgField(ctx, rawArgs, "billingAddress",
 		func(ctx context.Context, v any) (*model.AddressInput, error) {
-			return ec.unmarshalOAddressInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddressInput(ctx, v)
+			return ec.unmarshalOAddressInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddressInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -12905,7 +12399,7 @@ func (ec *executionContext) field_Mutation_placeOrder_args(ctx context.Context, 
 	args["billingAddress"] = arg10
 	arg11, err := graphql.ProcessArgField(ctx, rawArgs, "shippingAddress",
 		func(ctx context.Context, v any) (*model.AddressInput, error) {
-			return ec.unmarshalOAddressInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddressInput(ctx, v)
+			return ec.unmarshalOAddressInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddressInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -13152,34 +12646,12 @@ func (ec *executionContext) field_Mutation_requestProductOptionFileUpload_args(c
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_requestQuote_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["cartId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "note",
-		func(ctx context.Context, v any) (*string, error) {
-			return ec.unmarshalOString2ᚖstring(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["note"] = arg1
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_requestReturn_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.RequestReturnInput, error) {
-			return ec.unmarshalNRequestReturnInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐRequestReturnInput(ctx, v)
+			return ec.unmarshalNRequestReturnInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐRequestReturnInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -13245,28 +12717,6 @@ func (ec *executionContext) field_Mutation_resetPassword_args(ctx context.Contex
 		return nil, err
 	}
 	args["newPassword"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_respondToQuote_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "accept",
-		func(ctx context.Context, v any) (bool, error) {
-			return ec.unmarshalNBoolean2bool(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["accept"] = arg1
 	return args, nil
 }
 
@@ -13473,7 +12923,7 @@ func (ec *executionContext) field_Mutation_submitProductReview_args(ctx context.
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model1.SubmitReviewInput, error) {
-			return ec.unmarshalNSubmitReviewInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSubmitReviewInput(ctx, v)
+			return ec.unmarshalNSubmitReviewInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSubmitReviewInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -13487,7 +12937,7 @@ func (ec *executionContext) field_Mutation_submitWebForm_args(ctx context.Contex
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model1.SubmitWebFormInput, error) {
-			return ec.unmarshalNSubmitWebFormInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSubmitWebFormInput(ctx, v)
+			return ec.unmarshalNSubmitWebFormInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSubmitWebFormInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -13509,7 +12959,7 @@ func (ec *executionContext) field_Mutation_updateAddress_args(ctx context.Contex
 	args["id"] = arg0
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.AddressInput, error) {
-			return ec.unmarshalNAddressInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddressInput(ctx, v)
+			return ec.unmarshalNAddressInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddressInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -13669,7 +13119,7 @@ func (ec *executionContext) field_Product_linkedProducts_args(ctx context.Contex
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "kind",
 		func(ctx context.Context, v any) (model.ProductLinkKind, error) {
-			return ec.unmarshalNProductLinkKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductLinkKind(ctx, v)
+			return ec.unmarshalNProductLinkKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductLinkKind(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -13699,7 +13149,7 @@ func (ec *executionContext) field_Product_reviews_args(ctx context.Context, rawA
 	args["offset"] = arg1
 	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "sort",
 		func(ctx context.Context, v any) (*model1.ReviewSort, error) {
-			return ec.unmarshalOReviewSort2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewSort(ctx, v)
+			return ec.unmarshalOReviewSort2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewSort(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -13843,7 +13293,7 @@ func (ec *executionContext) field_Query_blogPosts_args(ctx context.Context, rawA
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter",
 		func(ctx context.Context, v any) (*model.BlogPostFilter, error) {
-			return ec.unmarshalOBlogPostFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPostFilter(ctx, v)
+			return ec.unmarshalOBlogPostFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPostFilter(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -13903,7 +13353,7 @@ func (ec *executionContext) field_Query_browseProducts_args(ctx context.Context,
 	args["query"] = arg0
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "filter",
 		func(ctx context.Context, v any) (*model1.BrowseProductsFilter, error) {
-			return ec.unmarshalOBrowseProductsFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseProductsFilter(ctx, v)
+			return ec.unmarshalOBrowseProductsFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseProductsFilter(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -14057,7 +13507,7 @@ func (ec *executionContext) field_Query_cmsPages_args(ctx context.Context, rawAr
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter",
 		func(ctx context.Context, v any) (*model.CMSPageFilter, error) {
-			return ec.unmarshalOCMSPageFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageFilter(ctx, v)
+			return ec.unmarshalOCMSPageFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageFilter(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -14485,7 +13935,7 @@ func (ec *executionContext) field_Query_sitemapEntries_args(ctx context.Context,
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "entityType",
 		func(ctx context.Context, v any) (model1.SitemapEntityType, error) {
-			return ec.unmarshalNSitemapEntityType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSitemapEntityType(ctx, v)
+			return ec.unmarshalNSitemapEntityType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSitemapEntityType(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -15074,7 +14524,7 @@ func (ec *executionContext) _AddressValidationResult_normalized(ctx context.Cont
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.AddressInput2) graphql.Marshaler {
-			return ec.marshalOAddressInput22ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddressInput2(ctx, selections, v)
+			return ec.marshalOAddressInput22ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddressInput2(ctx, selections, v)
 		},
 		true,
 		false,
@@ -15290,7 +14740,7 @@ func (ec *executionContext) _AppliedPromotionCode_freeGifts(ctx context.Context,
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.PromotionFreeGift) graphql.Marshaler {
-			return ec.marshalNPromotionFreeGift2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPromotionFreeGiftᚄ(ctx, selections, v)
+			return ec.marshalNPromotionFreeGift2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPromotionFreeGiftᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -15391,7 +14841,7 @@ func (ec *executionContext) _Attribute_inputType(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.AttributeInputType) graphql.Marshaler {
-			return ec.marshalNAttributeInputType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeInputType(ctx, selections, v)
+			return ec.marshalNAttributeInputType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeInputType(ctx, selections, v)
 		},
 		true,
 		true,
@@ -15414,7 +14864,7 @@ func (ec *executionContext) _Attribute_relationshipTarget(ctx context.Context, f
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.AttributeReferenceTarget) graphql.Marshaler {
-			return ec.marshalOAttributeReferenceTarget2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeReferenceTarget(ctx, selections, v)
+			return ec.marshalOAttributeReferenceTarget2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeReferenceTarget(ctx, selections, v)
 		},
 		true,
 		false,
@@ -15575,7 +15025,7 @@ func (ec *executionContext) _Attribute_values(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.AttributeValue) graphql.Marshaler {
-			return ec.marshalNAttributeValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeValueᚄ(ctx, selections, v)
+			return ec.marshalNAttributeValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeValueᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -15814,7 +15264,7 @@ func (ec *executionContext) _BlogAuthor_content(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BlogAuthorContent) graphql.Marshaler {
-			return ec.marshalOBlogAuthorContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogAuthorContent(ctx, selections, v)
+			return ec.marshalOBlogAuthorContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogAuthorContent(ctx, selections, v)
 		},
 		true,
 		false,
@@ -15938,7 +15388,7 @@ func (ec *executionContext) _BlogCategory_parent(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BlogCategory) graphql.Marshaler {
-			return ec.marshalOBlogCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogCategory(ctx, selections, v)
+			return ec.marshalOBlogCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogCategory(ctx, selections, v)
 		},
 		true,
 		false,
@@ -16085,7 +15535,7 @@ func (ec *executionContext) _BlogCategory_content(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BlogCategoryContent) graphql.Marshaler {
-			return ec.marshalOBlogCategoryContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogCategoryContent(ctx, selections, v)
+			return ec.marshalOBlogCategoryContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogCategoryContent(ctx, selections, v)
 		},
 		true,
 		false,
@@ -16117,7 +15567,7 @@ func (ec *executionContext) _BlogCategory_children(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.BlogCategory) graphql.Marshaler {
-			return ec.marshalNBlogCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogCategoryᚄ(ctx, selections, v)
+			return ec.marshalNBlogCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogCategoryᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -16333,7 +15783,7 @@ func (ec *executionContext) _BlogPost_status(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.BlogPostStatus) graphql.Marshaler {
-			return ec.marshalNBlogPostStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPostStatus(ctx, selections, v)
+			return ec.marshalNBlogPostStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPostStatus(ctx, selections, v)
 		},
 		true,
 		true,
@@ -16425,7 +15875,7 @@ func (ec *executionContext) _BlogPost_author(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BlogAuthor) graphql.Marshaler {
-			return ec.marshalOBlogAuthor2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogAuthor(ctx, selections, v)
+			return ec.marshalOBlogAuthor2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogAuthor(ctx, selections, v)
 		},
 		true,
 		false,
@@ -16457,7 +15907,7 @@ func (ec *executionContext) _BlogPost_content(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BlogPostContent) graphql.Marshaler {
-			return ec.marshalOBlogPostContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPostContent(ctx, selections, v)
+			return ec.marshalOBlogPostContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPostContent(ctx, selections, v)
 		},
 		true,
 		false,
@@ -16489,7 +15939,7 @@ func (ec *executionContext) _BlogPost_categories(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.BlogCategory) graphql.Marshaler {
-			return ec.marshalNBlogCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogCategoryᚄ(ctx, selections, v)
+			return ec.marshalNBlogCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogCategoryᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -16521,7 +15971,7 @@ func (ec *executionContext) _BlogPost_tags(ctx context.Context, field graphql.Co
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.BlogTag) graphql.Marshaler {
-			return ec.marshalNBlogTag2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogTagᚄ(ctx, selections, v)
+			return ec.marshalNBlogTag2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogTagᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -16737,7 +16187,7 @@ func (ec *executionContext) _BlogPostList_items(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.BlogPost) graphql.Marshaler {
-			return ec.marshalNBlogPost2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPostᚄ(ctx, selections, v)
+			return ec.marshalNBlogPost2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPostᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -16930,7 +16380,7 @@ func (ec *executionContext) _BlogPostSearchResult_items(ctx context.Context, fie
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.BlogPostSearchHit) graphql.Marshaler {
-			return ec.marshalNBlogPostSearchHit2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBlogPostSearchHitᚄ(ctx, selections, v)
+			return ec.marshalNBlogPostSearchHit2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBlogPostSearchHitᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -17054,7 +16504,7 @@ func (ec *executionContext) _BlogTag_content(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BlogTagContent) graphql.Marshaler {
-			return ec.marshalOBlogTagContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogTagContent(ctx, selections, v)
+			return ec.marshalOBlogTagContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogTagContent(ctx, selections, v)
 		},
 		true,
 		false,
@@ -17339,7 +16789,7 @@ func (ec *executionContext) _BrowseFacet_h1Position(ctx context.Context, field g
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model1.BrowseFacetH1Position) graphql.Marshaler {
-			return ec.marshalNBrowseFacetH1Position2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseFacetH1Position(ctx, selections, v)
+			return ec.marshalNBrowseFacetH1Position2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseFacetH1Position(ctx, selections, v)
 		},
 		true,
 		true,
@@ -17362,7 +16812,7 @@ func (ec *executionContext) _BrowseFacet_buckets(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.BrowseFacetBucket) graphql.Marshaler {
-			return ec.marshalNBrowseFacetBucket2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseFacetBucketᚄ(ctx, selections, v)
+			return ec.marshalNBrowseFacetBucket2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseFacetBucketᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -17509,7 +16959,7 @@ func (ec *executionContext) _BrowseProductsResult_items(ctx context.Context, fie
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -17564,7 +17014,7 @@ func (ec *executionContext) _BrowseProductsResult_facets(ctx context.Context, fi
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.BrowseFacet) graphql.Marshaler {
-			return ec.marshalNBrowseFacet2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseFacetᚄ(ctx, selections, v)
+			return ec.marshalNBrowseFacet2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseFacetᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -17596,7 +17046,7 @@ func (ec *executionContext) _BundleMembership_bundle(ctx context.Context, field 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
 		},
 		true,
 		true,
@@ -17628,7 +17078,7 @@ func (ec *executionContext) _BundleMembership_option(ctx context.Context, field 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BundleOption) graphql.Marshaler {
-			return ec.marshalNBundleOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleOption(ctx, selections, v)
+			return ec.marshalNBundleOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleOption(ctx, selections, v)
 		},
 		true,
 		true,
@@ -17729,7 +17179,7 @@ func (ec *executionContext) _BundleMembership_siblings(ctx context.Context, fiel
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.BundleSelection) graphql.Marshaler {
-			return ec.marshalNBundleSelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleSelectionᚄ(ctx, selections, v)
+			return ec.marshalNBundleSelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleSelectionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -17784,7 +17234,7 @@ func (ec *executionContext) _BundleOption_inputType(ctx context.Context, field g
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.BundleInputType) graphql.Marshaler {
-			return ec.marshalNBundleInputType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleInputType(ctx, selections, v)
+			return ec.marshalNBundleInputType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleInputType(ctx, selections, v)
 		},
 		true,
 		true,
@@ -17876,7 +17326,7 @@ func (ec *executionContext) _BundleOption_selections(ctx context.Context, field 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.BundleSelection) graphql.Marshaler {
-			return ec.marshalNBundleSelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleSelectionᚄ(ctx, selections, v)
+			return ec.marshalNBundleSelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleSelectionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -17931,7 +17381,7 @@ func (ec *executionContext) _BundleSelection_product(ctx context.Context, field 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
 		},
 		true,
 		true,
@@ -18285,7 +17735,7 @@ func (ec *executionContext) _CMSPage_content(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CMSPageContent) graphql.Marshaler {
-			return ec.marshalOCMSPageContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageContent(ctx, selections, v)
+			return ec.marshalOCMSPageContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageContent(ctx, selections, v)
 		},
 		true,
 		false,
@@ -18317,7 +17767,7 @@ func (ec *executionContext) _CMSPage_selections(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.CMSPageSelection) graphql.Marshaler {
-			return ec.marshalNCMSPageSelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageSelectionᚄ(ctx, selections, v)
+			return ec.marshalNCMSPageSelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageSelectionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -18349,7 +17799,7 @@ func (ec *executionContext) _CMSPage_relationships(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.CMSPageRelationship) graphql.Marshaler {
-			return ec.marshalNCMSPageRelationship2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageRelationshipᚄ(ctx, selections, v)
+			return ec.marshalNCMSPageRelationship2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageRelationshipᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -18404,7 +17854,7 @@ func (ec *executionContext) _CMSPage_variants(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.CMSPageVariant) graphql.Marshaler {
-			return ec.marshalNCMSPageVariant2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageVariantᚄ(ctx, selections, v)
+			return ec.marshalNCMSPageVariant2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageVariantᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -18735,7 +18185,7 @@ func (ec *executionContext) _CMSPageRelationship_targetType(ctx context.Context,
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.CMSRelationshipTarget) graphql.Marshaler {
-			return ec.marshalNCMSRelationshipTarget2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSRelationshipTarget(ctx, selections, v)
+			return ec.marshalNCMSRelationshipTarget2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSRelationshipTarget(ctx, selections, v)
 		},
 		true,
 		true,
@@ -18942,7 +18392,7 @@ func (ec *executionContext) _Cart_lines(ctx context.Context, field graphql.Colle
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.CartLine) graphql.Marshaler {
-			return ec.marshalNCartLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartLineᚄ(ctx, selections, v)
+			return ec.marshalNCartLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartLineᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -18974,7 +18424,7 @@ func (ec *executionContext) _Cart_savedItems(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.SavedItem) graphql.Marshaler {
-			return ec.marshalNSavedItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSavedItemᚄ(ctx, selections, v)
+			return ec.marshalNSavedItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSavedItemᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -19029,7 +18479,7 @@ func (ec *executionContext) _Cart_appliedCodes(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.AppliedPromotionCode) graphql.Marshaler {
-			return ec.marshalNAppliedPromotionCode2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAppliedPromotionCodeᚄ(ctx, selections, v)
+			return ec.marshalNAppliedPromotionCode2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAppliedPromotionCodeᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -19107,7 +18557,7 @@ func (ec *executionContext) _CartEstimate_shippingOptions(ctx context.Context, f
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.ShippingQuote) graphql.Marshaler {
-			return ec.marshalNShippingQuote2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐShippingQuoteᚄ(ctx, selections, v)
+			return ec.marshalNShippingQuote2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐShippingQuoteᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -19415,7 +18865,7 @@ func (ec *executionContext) _CartLine_components(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.CartLineComponent) graphql.Marshaler {
-			return ec.marshalNCartLineComponent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartLineComponentᚄ(ctx, selections, v)
+			return ec.marshalNCartLineComponent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartLineComponentᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -19447,7 +18897,7 @@ func (ec *executionContext) _CartLine_options(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.CartLineOption) graphql.Marshaler {
-			return ec.marshalNCartLineOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartLineOptionᚄ(ctx, selections, v)
+			return ec.marshalNCartLineOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartLineOptionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -20054,7 +19504,7 @@ func (ec *executionContext) _Category_parent(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Category) graphql.Marshaler {
-			return ec.marshalOCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategory(ctx, selections, v)
+			return ec.marshalOCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategory(ctx, selections, v)
 		},
 		true,
 		false,
@@ -20086,7 +19536,7 @@ func (ec *executionContext) _Category_children(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Category) graphql.Marshaler {
-			return ec.marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategoryᚄ(ctx, selections, v)
+			return ec.marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategoryᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -20118,7 +19568,7 @@ func (ec *executionContext) _Category_ancestors(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Category) graphql.Marshaler {
-			return ec.marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategoryᚄ(ctx, selections, v)
+			return ec.marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategoryᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -20173,7 +19623,7 @@ func (ec *executionContext) _Category_coverImage(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CollectionCover) graphql.Marshaler {
-			return ec.marshalOCollectionCover2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCollectionCover(ctx, selections, v)
+			return ec.marshalOCollectionCover2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCollectionCover(ctx, selections, v)
 		},
 		true,
 		false,
@@ -20320,7 +19770,7 @@ func (ec *executionContext) _Category_products(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -20628,7 +20078,7 @@ func (ec *executionContext) _Channel_currency(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Currency) graphql.Marshaler {
-			return ec.marshalNCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCurrency(ctx, selections, v)
+			return ec.marshalNCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCurrency(ctx, selections, v)
 		},
 		true,
 		true,
@@ -20683,7 +20133,7 @@ func (ec *executionContext) _Channel_locales(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Locale) graphql.Marshaler {
-			return ec.marshalNLocale2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐLocaleᚄ(ctx, selections, v)
+			return ec.marshalNLocale2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐLocaleᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -20922,7 +20372,7 @@ func (ec *executionContext) _Collection_coverImage(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CollectionCover) graphql.Marshaler {
-			return ec.marshalOCollectionCover2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCollectionCover(ctx, selections, v)
+			return ec.marshalOCollectionCover2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCollectionCover(ctx, selections, v)
 		},
 		true,
 		false,
@@ -20954,7 +20404,7 @@ func (ec *executionContext) _Collection_products(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -21226,190 +20676,6 @@ func (ec *executionContext) fieldContext_CollectionCover_mimeType(_ context.Cont
 	return graphql.NewScalarFieldContext("CollectionCover", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _CompanyOrderSummary_id(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_id(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_number(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_number(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Number, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_number(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_status(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_status(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_paymentStatus(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_paymentStatus(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.PaymentStatus, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_paymentStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_totalCents(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_totalCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.TotalCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_totalCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_currencyCode(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_currencyCode(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CurrencyCode, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_currencyCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_memberEmail(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_memberEmail(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.MemberEmail, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_memberEmail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _CompanyOrderSummary_createdAt(ctx context.Context, field graphql.CollectedField, obj *model1.CompanyOrderSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CompanyOrderSummary_createdAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_CompanyOrderSummary_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CompanyOrderSummary", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
 func (ec *executionContext) _ConfigGroup_slug(ctx context.Context, field graphql.CollectedField, obj *model.ConfigGroup) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -21469,7 +20735,7 @@ func (ec *executionContext) _ConfigGroup_fields(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ConfigValue) graphql.Marshaler {
-			return ec.marshalNConfigValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigValueᚄ(ctx, selections, v)
+			return ec.marshalNConfigValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigValueᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -21547,7 +20813,7 @@ func (ec *executionContext) _ConfigScope_kind(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.ConfigScopeKind) graphql.Marshaler {
-			return ec.marshalNConfigScopeKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigScopeKind(ctx, selections, v)
+			return ec.marshalNConfigScopeKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigScopeKind(ctx, selections, v)
 		},
 		true,
 		true,
@@ -21662,7 +20928,7 @@ func (ec *executionContext) _ConfigSection_groups(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ConfigGroup) graphql.Marshaler {
-			return ec.marshalNConfigGroup2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigGroupᚄ(ctx, selections, v)
+			return ec.marshalNConfigGroup2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigGroupᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -21786,7 +21052,7 @@ func (ec *executionContext) _ConfigValue_type(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.ConfigType) graphql.Marshaler {
-			return ec.marshalNConfigType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigType(ctx, selections, v)
+			return ec.marshalNConfigType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigType(ctx, selections, v)
 		},
 		true,
 		true,
@@ -21901,7 +21167,7 @@ func (ec *executionContext) _ConfigValue_scope(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ConfigScope) graphql.Marshaler {
-			return ec.marshalNConfigScope2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigScope(ctx, selections, v)
+			return ec.marshalNConfigScope2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigScope(ctx, selections, v)
 		},
 		true,
 		true,
@@ -21933,7 +21199,7 @@ func (ec *executionContext) _ConfigValue_options(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ConfigOption) graphql.Marshaler {
-			return ec.marshalOConfigOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigOptionᚄ(ctx, selections, v)
+			return ec.marshalOConfigOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigOptionᚄ(ctx, selections, v)
 		},
 		true,
 		false,
@@ -21988,7 +21254,7 @@ func (ec *executionContext) _ConfigurableMembership_parent(ctx context.Context, 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
 		},
 		true,
 		true,
@@ -22020,7 +21286,7 @@ func (ec *executionContext) _ConfigurableMembership_variantMode(ctx context.Cont
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.VariantMode) graphql.Marshaler {
-			return ec.marshalOVariantMode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐVariantMode(ctx, selections, v)
+			return ec.marshalOVariantMode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐVariantMode(ctx, selections, v)
 		},
 		true,
 		false,
@@ -22043,7 +21309,7 @@ func (ec *executionContext) _ConfigurableMembership_optionValues(ctx context.Con
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ProductAttributeValue) graphql.Marshaler {
-			return ec.marshalNProductAttributeValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductAttributeValueᚄ(ctx, selections, v)
+			return ec.marshalNProductAttributeValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductAttributeValueᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -22098,7 +21364,7 @@ func (ec *executionContext) _ConfigurableMembership_siblings(ctx context.Context
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -22199,7 +21465,7 @@ func (ec *executionContext) _ConsentDefinition_purpose(ctx context.Context, fiel
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.ConsentPurpose) graphql.Marshaler {
-			return ec.marshalNConsentPurpose2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConsentPurpose(ctx, selections, v)
+			return ec.marshalNConsentPurpose2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConsentPurpose(ctx, selections, v)
 		},
 		true,
 		true,
@@ -22222,7 +21488,7 @@ func (ec *executionContext) _ConsentDefinition_channel(ctx context.Context, fiel
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.ConsentChannel) graphql.Marshaler {
-			return ec.marshalNConsentChannel2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConsentChannel(ctx, selections, v)
+			return ec.marshalNConsentChannel2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConsentChannel(ctx, selections, v)
 		},
 		true,
 		true,
@@ -22429,7 +21695,7 @@ func (ec *executionContext) _Country_defaultCurrency(ctx context.Context, field 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Currency) graphql.Marshaler {
-			return ec.marshalOCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCurrency(ctx, selections, v)
+			return ec.marshalOCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCurrency(ctx, selections, v)
 		},
 		true,
 		false,
@@ -22921,7 +22187,7 @@ func (ec *executionContext) _Customer_addresses(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Address) graphql.Marshaler {
-			return ec.marshalNAddress2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddressᚄ(ctx, selections, v)
+			return ec.marshalNAddress2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddressᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -22953,7 +22219,7 @@ func (ec *executionContext) _Customer_defaultBillingAddress(ctx context.Context,
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Address) graphql.Marshaler {
-			return ec.marshalOAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddress(ctx, selections, v)
+			return ec.marshalOAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddress(ctx, selections, v)
 		},
 		true,
 		false,
@@ -22985,7 +22251,7 @@ func (ec *executionContext) _Customer_defaultShippingAddress(ctx context.Context
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Address) graphql.Marshaler {
-			return ec.marshalOAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddress(ctx, selections, v)
+			return ec.marshalOAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddress(ctx, selections, v)
 		},
 		true,
 		false,
@@ -23017,7 +22283,7 @@ func (ec *executionContext) _Customer_consents(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.CustomerConsent) graphql.Marshaler {
-			return ec.marshalNCustomerConsent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerConsentᚄ(ctx, selections, v)
+			return ec.marshalNCustomerConsent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerConsentᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -23118,7 +22384,7 @@ func (ec *executionContext) _CustomerAuthPayload_customer(ctx context.Context, f
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Customer) graphql.Marshaler {
-			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
+			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
 		},
 		true,
 		true,
@@ -23196,7 +22462,7 @@ func (ec *executionContext) _CustomerConsent_definition(ctx context.Context, fie
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ConsentDefinition) graphql.Marshaler {
-			return ec.marshalNConsentDefinition2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConsentDefinition(ctx, selections, v)
+			return ec.marshalNConsentDefinition2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConsentDefinition(ctx, selections, v)
 		},
 		true,
 		true,
@@ -23389,7 +22655,7 @@ func (ec *executionContext) _CustomerSubscription_status(ctx context.Context, fi
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.SubscriptionStatus) graphql.Marshaler {
-			return ec.marshalNSubscriptionStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐSubscriptionStatus(ctx, selections, v)
+			return ec.marshalNSubscriptionStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSubscriptionStatus(ctx, selections, v)
 		},
 		true,
 		true,
@@ -23412,7 +22678,7 @@ func (ec *executionContext) _CustomerSubscription_intervalUnit(ctx context.Conte
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.SubscriptionInterval) graphql.Marshaler {
-			return ec.marshalNSubscriptionInterval2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐSubscriptionInterval(ctx, selections, v)
+			return ec.marshalNSubscriptionInterval2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSubscriptionInterval(ctx, selections, v)
 		},
 		true,
 		true,
@@ -23895,7 +23161,7 @@ func (ec *executionContext) _GroupedMember_member(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
 		},
 		true,
 		true,
@@ -23973,7 +23239,7 @@ func (ec *executionContext) _GroupedMembership_groupedProduct(ctx context.Contex
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
 		},
 		true,
 		true,
@@ -24051,7 +23317,7 @@ func (ec *executionContext) _GroupedMembership_siblings(ctx context.Context, fie
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.GroupedMember) graphql.Marshaler {
-			return ec.marshalNGroupedMember2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐGroupedMemberᚄ(ctx, selections, v)
+			return ec.marshalNGroupedMember2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐGroupedMemberᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -24681,7 +23947,7 @@ func (ec *executionContext) _Menu_items(ctx context.Context, field graphql.Colle
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.MenuItem) graphql.Marshaler {
-			return ec.marshalNMenuItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMenuItemᚄ(ctx, selections, v)
+			return ec.marshalNMenuItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMenuItemᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -24782,7 +24048,7 @@ func (ec *executionContext) _MenuItem_targetType(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.MenuItemTargetType) graphql.Marshaler {
-			return ec.marshalOMenuItemTargetType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐMenuItemTargetType(ctx, selections, v)
+			return ec.marshalOMenuItemTargetType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐMenuItemTargetType(ctx, selections, v)
 		},
 		true,
 		false,
@@ -24874,7 +24140,7 @@ func (ec *executionContext) _MenuItem_children(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.MenuItem) graphql.Marshaler {
-			return ec.marshalNMenuItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMenuItemᚄ(ctx, selections, v)
+			return ec.marshalNMenuItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMenuItemᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -24906,7 +24172,7 @@ func (ec *executionContext) _Mutation_createGuestCart(ctx context.Context, field
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -24939,7 +24205,7 @@ func (ec *executionContext) _Mutation_addToCart(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -24983,7 +24249,7 @@ func (ec *executionContext) _Mutation_addBundleToCart(ctx context.Context, field
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25027,7 +24293,7 @@ func (ec *executionContext) _Mutation_addConfiguredToCart(ctx context.Context, f
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25071,7 +24337,7 @@ func (ec *executionContext) _Mutation_requestProductOptionFileUpload(ctx context
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.ProductOptionFileUpload) graphql.Marshaler {
-			return ec.marshalNProductOptionFileUpload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductOptionFileUpload(ctx, selections, v)
+			return ec.marshalNProductOptionFileUpload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductOptionFileUpload(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25115,7 +24381,7 @@ func (ec *executionContext) _Mutation_updateCartLine(ctx context.Context, field 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25159,7 +24425,7 @@ func (ec *executionContext) _Mutation_removeFromCart(ctx context.Context, field 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25203,7 +24469,7 @@ func (ec *executionContext) _Mutation_setCartEmail(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25247,7 +24513,7 @@ func (ec *executionContext) _Mutation_setCartNote(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25291,7 +24557,7 @@ func (ec *executionContext) _Mutation_saveForLater(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25335,7 +24601,7 @@ func (ec *executionContext) _Mutation_moveSavedToCart(ctx context.Context, field
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25379,7 +24645,7 @@ func (ec *executionContext) _Mutation_removeSavedItem(ctx context.Context, field
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25423,7 +24689,7 @@ func (ec *executionContext) _Mutation_clearCart(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25467,7 +24733,7 @@ func (ec *executionContext) _Mutation_mergeGuestCart(ctx context.Context, field 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25511,7 +24777,7 @@ func (ec *executionContext) _Mutation_applyCoupon(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25555,7 +24821,7 @@ func (ec *executionContext) _Mutation_removeCoupon(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25599,7 +24865,7 @@ func (ec *executionContext) _Mutation_customerRegister(ctx context.Context, fiel
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerAuthPayload) graphql.Marshaler {
-			return ec.marshalNCustomerAuthPayload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerAuthPayload(ctx, selections, v)
+			return ec.marshalNCustomerAuthPayload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerAuthPayload(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25643,7 +24909,7 @@ func (ec *executionContext) _Mutation_customerLogin(ctx context.Context, field g
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerAuthPayload) graphql.Marshaler {
-			return ec.marshalNCustomerAuthPayload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerAuthPayload(ctx, selections, v)
+			return ec.marshalNCustomerAuthPayload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerAuthPayload(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25687,7 +24953,7 @@ func (ec *executionContext) _Mutation_customerRefreshToken(ctx context.Context, 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerAuthPayload) graphql.Marshaler {
-			return ec.marshalNCustomerAuthPayload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerAuthPayload(ctx, selections, v)
+			return ec.marshalNCustomerAuthPayload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerAuthPayload(ctx, selections, v)
 		},
 		true,
 		true,
@@ -25775,7 +25041,7 @@ func (ec *executionContext) _Mutation_updateProfile(ctx context.Context, field g
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Customer) graphql.Marshaler {
-			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
+			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26018,7 +25284,7 @@ func (ec *executionContext) _Mutation_addAddress(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Address) graphql.Marshaler {
-			return ec.marshalNAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddress(ctx, selections, v)
+			return ec.marshalNAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddress(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26062,7 +25328,7 @@ func (ec *executionContext) _Mutation_updateAddress(ctx context.Context, field g
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Address) graphql.Marshaler {
-			return ec.marshalNAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddress(ctx, selections, v)
+			return ec.marshalNAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddress(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26150,7 +25416,7 @@ func (ec *executionContext) _Mutation_setDefaultBillingAddress(ctx context.Conte
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Customer) graphql.Marshaler {
-			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
+			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26194,7 +25460,7 @@ func (ec *executionContext) _Mutation_setDefaultShippingAddress(ctx context.Cont
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Customer) graphql.Marshaler {
-			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
+			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26238,7 +25504,7 @@ func (ec *executionContext) _Mutation_setConsent(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerConsent) graphql.Marshaler {
-			return ec.marshalNCustomerConsent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerConsent(ctx, selections, v)
+			return ec.marshalNCustomerConsent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerConsent(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26282,7 +25548,7 @@ func (ec *executionContext) _Mutation_redeemLoyaltyPoints(ctx context.Context, f
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.LoyaltyRedeemResult) graphql.Marshaler {
-			return ec.marshalNLoyaltyRedeemResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐLoyaltyRedeemResult(ctx, selections, v)
+			return ec.marshalNLoyaltyRedeemResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐLoyaltyRedeemResult(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26306,94 +25572,6 @@ func (ec *executionContext) fieldContext_Mutation_redeemLoyaltyPoints(ctx contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_redeemLoyaltyPoints_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_requestQuote(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_requestQuote(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().RequestQuote(ctx, fc.Args["cartId"].(string), fc.Args["note"].(*string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model1.MyB2BQuote) graphql.Marshaler {
-			return ec.marshalNMyB2BQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BQuote(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_requestQuote(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_MyB2BQuote(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_requestQuote_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_respondToQuote(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_respondToQuote(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().RespondToQuote(ctx, fc.Args["id"].(string), fc.Args["accept"].(bool))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model1.MyB2BQuote) graphql.Marshaler {
-			return ec.marshalNMyB2BQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BQuote(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_respondToQuote(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_MyB2BQuote(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_respondToQuote_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -26458,7 +25636,7 @@ func (ec *executionContext) _Mutation_reorder(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.ReorderResult) graphql.Marshaler {
-			return ec.marshalNReorderResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReorderResult(ctx, selections, v)
+			return ec.marshalNReorderResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReorderResult(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26502,7 +25680,7 @@ func (ec *executionContext) _Mutation_requestReturn(ctx context.Context, field g
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.OrderReturn) graphql.Marshaler {
-			return ec.marshalNOrderReturn2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderReturn(ctx, selections, v)
+			return ec.marshalNOrderReturn2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderReturn(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26546,7 +25724,7 @@ func (ec *executionContext) _Mutation_placeOrder(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Order) graphql.Marshaler {
-			return ec.marshalNOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrder(ctx, selections, v)
+			return ec.marshalNOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrder(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26590,7 +25768,7 @@ func (ec *executionContext) _Mutation_savePaymentMethod(ctx context.Context, fie
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.SavedPaymentMethod) graphql.Marshaler {
-			return ec.marshalNSavedPaymentMethod2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSavedPaymentMethod(ctx, selections, v)
+			return ec.marshalNSavedPaymentMethod2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSavedPaymentMethod(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26722,7 +25900,7 @@ func (ec *executionContext) _Mutation_submitProductReview(ctx context.Context, f
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Review) graphql.Marshaler {
-			return ec.marshalNReview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReview(ctx, selections, v)
+			return ec.marshalNReview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReview(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26766,7 +25944,7 @@ func (ec *executionContext) _Mutation_requestReviewMediaUpload(ctx context.Conte
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.ReviewMediaUpload) graphql.Marshaler {
-			return ec.marshalNReviewMediaUpload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewMediaUpload(ctx, selections, v)
+			return ec.marshalNReviewMediaUpload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewMediaUpload(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26810,7 +25988,7 @@ func (ec *executionContext) _Mutation_voteReview(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Review) graphql.Marshaler {
-			return ec.marshalNReview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReview(ctx, selections, v)
+			return ec.marshalNReview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReview(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26854,7 +26032,7 @@ func (ec *executionContext) _Mutation_cancelSubscription(ctx context.Context, fi
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerSubscription) graphql.Marshaler {
-			return ec.marshalNCustomerSubscription2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerSubscription(ctx, selections, v)
+			return ec.marshalNCustomerSubscription2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSubscription(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26942,7 +26120,7 @@ func (ec *executionContext) _Mutation_submitWebForm(ctx context.Context, field g
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.SubmitWebFormResult) graphql.Marshaler {
-			return ec.marshalNSubmitWebFormResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSubmitWebFormResult(ctx, selections, v)
+			return ec.marshalNSubmitWebFormResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSubmitWebFormResult(ctx, selections, v)
 		},
 		true,
 		true,
@@ -26986,7 +26164,7 @@ func (ec *executionContext) _Mutation_presignWebFormUpload(ctx context.Context, 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.WebFormUploadTicket) graphql.Marshaler {
-			return ec.marshalNWebFormUploadTicket2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐWebFormUploadTicket(ctx, selections, v)
+			return ec.marshalNWebFormUploadTicket2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐWebFormUploadTicket(ctx, selections, v)
 		},
 		true,
 		true,
@@ -27118,7 +26296,7 @@ func (ec *executionContext) _Mutation_moveToCart(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -27146,636 +26324,6 @@ func (ec *executionContext) fieldContext_Mutation_moveToCart(ctx context.Context
 		return fc, err
 	}
 	return fc, nil
-}
-
-func (ec *executionContext) _MyB2BInvoice_number(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_number(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Number, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_number(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_orderNumber(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_orderNumber(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.OrderNumber, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_orderNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_amountCents(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_amountCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.AmountCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_amountCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_status(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_status(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_overdue(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_overdue(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Overdue, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_overdue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_dueAt(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_dueAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.DueAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
-			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_dueAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_paidAt(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_paidAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.PaidAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
-			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_paidAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BInvoice_createdAt(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BInvoice) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BInvoice_createdAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BInvoice_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BInvoice", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_id(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_id(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_status(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_status(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_items(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_items(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Items, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model1.MyB2BQuoteItem) graphql.Marshaler {
-			return ec.marshalNMyB2BQuoteItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BQuoteItemᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "MyB2BQuote",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_MyB2BQuoteItem(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _MyB2BQuote_note(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_note(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Note, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_note(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_sellerNote(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_sellerNote(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.SellerNote, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_sellerNote(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_totalCents(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_totalCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.TotalCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_totalCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_validUntil(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_validUntil(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ValidUntil, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
-			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_validUntil(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuote_createdAt(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuote) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuote_createdAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuote_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuote", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuoteItem_sku(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuoteItem) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuoteItem_sku(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Sku, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuoteItem_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuoteItem", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuoteItem_name(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuoteItem) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuoteItem_name(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuoteItem_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuoteItem", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuoteItem_quantity(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuoteItem) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuoteItem_quantity(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Quantity, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuoteItem_quantity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuoteItem", field, false, false, errors.New("field of type Float does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuoteItem_unitPriceCents(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuoteItem) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuoteItem_unitPriceCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.UnitPriceCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuoteItem_unitPriceCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuoteItem", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _MyB2BQuoteItem_optionsSummary(ctx context.Context, field graphql.CollectedField, obj *model1.MyB2BQuoteItem) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyB2BQuoteItem_optionsSummary(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.OptionsSummary, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyB2BQuoteItem_optionsSummary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyB2BQuoteItem", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyCompany_name(ctx context.Context, field graphql.CollectedField, obj *model1.MyCompany) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyCompany_name(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyCompany_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyCompany", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyCompany_status(ctx context.Context, field graphql.CollectedField, obj *model1.MyCompany) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyCompany_status(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyCompany_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyCompany", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyCompany_role(ctx context.Context, field graphql.CollectedField, obj *model1.MyCompany) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyCompany_role(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Role, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyCompany_role(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyCompany", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _MyCompany_creditLimitCents(ctx context.Context, field graphql.CollectedField, obj *model1.MyCompany) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyCompany_creditLimitCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreditLimitCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyCompany_creditLimitCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyCompany", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _MyCompany_creditUsedCents(ctx context.Context, field graphql.CollectedField, obj *model1.MyCompany) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyCompany_creditUsedCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreditUsedCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyCompany_creditUsedCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyCompany", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _MyCompany_paymentTermsDays(ctx context.Context, field graphql.CollectedField, obj *model1.MyCompany) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_MyCompany_paymentTermsDays(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.PaymentTermsDays, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_MyCompany_paymentTermsDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("MyCompany", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _Order_id(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
@@ -27837,7 +26385,7 @@ func (ec *executionContext) _Order_status(ctx context.Context, field graphql.Col
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.OrderStatus) graphql.Marshaler {
-			return ec.marshalNOrderStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderStatus(ctx, selections, v)
+			return ec.marshalNOrderStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderStatus(ctx, selections, v)
 		},
 		true,
 		true,
@@ -27860,7 +26408,7 @@ func (ec *executionContext) _Order_paymentStatus(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.PaymentStatus) graphql.Marshaler {
-			return ec.marshalNPaymentStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐPaymentStatus(ctx, selections, v)
+			return ec.marshalNPaymentStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐPaymentStatus(ctx, selections, v)
 		},
 		true,
 		true,
@@ -27952,7 +26500,7 @@ func (ec *executionContext) _Order_billingAddress(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.OrderAddress) graphql.Marshaler {
-			return ec.marshalNOrderAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderAddress(ctx, selections, v)
+			return ec.marshalNOrderAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderAddress(ctx, selections, v)
 		},
 		true,
 		true,
@@ -27984,7 +26532,7 @@ func (ec *executionContext) _Order_shippingAddress(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.OrderAddress) graphql.Marshaler {
-			return ec.marshalNOrderAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderAddress(ctx, selections, v)
+			return ec.marshalNOrderAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderAddress(ctx, selections, v)
 		},
 		true,
 		true,
@@ -28016,7 +26564,7 @@ func (ec *executionContext) _Order_lines(ctx context.Context, field graphql.Coll
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrderLine) graphql.Marshaler {
-			return ec.marshalNOrderLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderLineᚄ(ctx, selections, v)
+			return ec.marshalNOrderLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderLineᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -28048,7 +26596,7 @@ func (ec *executionContext) _Order_events(ctx context.Context, field graphql.Col
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrderEvent) graphql.Marshaler {
-			return ec.marshalNOrderEvent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderEventᚄ(ctx, selections, v)
+			return ec.marshalNOrderEvent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderEventᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -28402,7 +26950,7 @@ func (ec *executionContext) _Order_returns(ctx context.Context, field graphql.Co
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrderReturn) graphql.Marshaler {
-			return ec.marshalNOrderReturn2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderReturnᚄ(ctx, selections, v)
+			return ec.marshalNOrderReturn2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderReturnᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -28434,7 +26982,7 @@ func (ec *executionContext) _Order_returnableLines(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.ReturnableLine) graphql.Marshaler {
-			return ec.marshalNReturnableLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReturnableLineᚄ(ctx, selections, v)
+			return ec.marshalNReturnableLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReturnableLineᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -28949,7 +27497,7 @@ func (ec *executionContext) _OrderLine_options(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrderLineOption) graphql.Marshaler {
-			return ec.marshalNOrderLineOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderLineOptionᚄ(ctx, selections, v)
+			return ec.marshalNOrderLineOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderLineOptionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -29326,7 +27874,7 @@ func (ec *executionContext) _OrderReturn_lines(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrderReturnLine) graphql.Marshaler {
-			return ec.marshalNOrderReturnLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderReturnLineᚄ(ctx, selections, v)
+			return ec.marshalNOrderReturnLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderReturnLineᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -29910,7 +28458,7 @@ func (ec *executionContext) _Product_productType(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ProductType) graphql.Marshaler {
-			return ec.marshalNProductType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductType(ctx, selections, v)
+			return ec.marshalNProductType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductType(ctx, selections, v)
 		},
 		true,
 		true,
@@ -29942,7 +28490,7 @@ func (ec *executionContext) _Product_kind(ctx context.Context, field graphql.Col
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.ProductKind) graphql.Marshaler {
-			return ec.marshalNProductKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductKind(ctx, selections, v)
+			return ec.marshalNProductKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductKind(ctx, selections, v)
 		},
 		true,
 		true,
@@ -30352,7 +28900,7 @@ func (ec *executionContext) _Product_tierPrices(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.TierPrice) graphql.Marshaler {
-			return ec.marshalNTierPrice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐTierPriceᚄ(ctx, selections, v)
+			return ec.marshalNTierPrice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐTierPriceᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -30385,7 +28933,7 @@ func (ec *executionContext) _Product_linkedProducts(ctx context.Context, field g
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -30429,7 +28977,7 @@ func (ec *executionContext) _Product_alsoBought(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -30633,7 +29181,7 @@ func (ec *executionContext) _Product_attributeValues(ctx context.Context, field 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ProductAttributeValue) graphql.Marshaler {
-			return ec.marshalNProductAttributeValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductAttributeValueᚄ(ctx, selections, v)
+			return ec.marshalNProductAttributeValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductAttributeValueᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -30688,7 +29236,7 @@ func (ec *executionContext) _Product_children(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -30720,7 +29268,7 @@ func (ec *executionContext) _Product_configurableOptions(ctx context.Context, fi
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Attribute) graphql.Marshaler {
-			return ec.marshalNAttribute2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeᚄ(ctx, selections, v)
+			return ec.marshalNAttribute2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -30752,7 +29300,7 @@ func (ec *executionContext) _Product_bundleOptions(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.BundleOption) graphql.Marshaler {
-			return ec.marshalNBundleOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleOptionᚄ(ctx, selections, v)
+			return ec.marshalNBundleOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleOptionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -30784,7 +29332,7 @@ func (ec *executionContext) _Product_groupedMembers(ctx context.Context, field g
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.GroupedMember) graphql.Marshaler {
-			return ec.marshalNGroupedMember2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐGroupedMemberᚄ(ctx, selections, v)
+			return ec.marshalNGroupedMember2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐGroupedMemberᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -30816,7 +29364,7 @@ func (ec *executionContext) _Product_options(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.ProductCustomOption) graphql.Marshaler {
-			return ec.marshalNProductCustomOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductCustomOptionᚄ(ctx, selections, v)
+			return ec.marshalNProductCustomOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductCustomOptionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -30848,7 +29396,7 @@ func (ec *executionContext) _Product_subscriptionTerms(ctx context.Context, fiel
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.SubscriptionTerms) graphql.Marshaler {
-			return ec.marshalOSubscriptionTerms2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐSubscriptionTerms(ctx, selections, v)
+			return ec.marshalOSubscriptionTerms2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSubscriptionTerms(ctx, selections, v)
 		},
 		true,
 		false,
@@ -30880,7 +29428,7 @@ func (ec *executionContext) _Product_media(ctx context.Context, field graphql.Co
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ProductMedia) graphql.Marshaler {
-			return ec.marshalNProductMedia2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductMediaᚄ(ctx, selections, v)
+			return ec.marshalNProductMedia2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductMediaᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -30912,7 +29460,7 @@ func (ec *executionContext) _Product_mainImage(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ProductMedia) graphql.Marshaler {
-			return ec.marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductMedia(ctx, selections, v)
+			return ec.marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductMedia(ctx, selections, v)
 		},
 		true,
 		false,
@@ -30944,7 +29492,7 @@ func (ec *executionContext) _Product_thumbnail(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ProductMedia) graphql.Marshaler {
-			return ec.marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductMedia(ctx, selections, v)
+			return ec.marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductMedia(ctx, selections, v)
 		},
 		true,
 		false,
@@ -30976,7 +29524,7 @@ func (ec *executionContext) _Product_ogImage(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ProductMedia) graphql.Marshaler {
-			return ec.marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductMedia(ctx, selections, v)
+			return ec.marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductMedia(ctx, selections, v)
 		},
 		true,
 		false,
@@ -31008,7 +29556,7 @@ func (ec *executionContext) _Product_categories(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Category) graphql.Marshaler {
-			return ec.marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategoryᚄ(ctx, selections, v)
+			return ec.marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategoryᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -31040,7 +29588,7 @@ func (ec *executionContext) _Product_primaryCategory(ctx context.Context, field 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Category) graphql.Marshaler {
-			return ec.marshalOCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategory(ctx, selections, v)
+			return ec.marshalOCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategory(ctx, selections, v)
 		},
 		true,
 		false,
@@ -31072,7 +29620,7 @@ func (ec *executionContext) _Product_collections(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Collection) graphql.Marshaler {
-			return ec.marshalNCollection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCollectionᚄ(ctx, selections, v)
+			return ec.marshalNCollection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCollectionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -31104,7 +29652,7 @@ func (ec *executionContext) _Product_promotionalDisplays(ctx context.Context, fi
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.PromotionalDisplay) graphql.Marshaler {
-			return ec.marshalNPromotionalDisplay2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPromotionalDisplayᚄ(ctx, selections, v)
+			return ec.marshalNPromotionalDisplay2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPromotionalDisplayᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -31136,7 +29684,7 @@ func (ec *executionContext) _Product_partOf(ctx context.Context, field graphql.C
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.ProductMemberships) graphql.Marshaler {
-			return ec.marshalNProductMemberships2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductMemberships(ctx, selections, v)
+			return ec.marshalNProductMemberships2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductMemberships(ctx, selections, v)
 		},
 		true,
 		true,
@@ -31168,7 +29716,7 @@ func (ec *executionContext) _Product_variantMode(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.VariantMode) graphql.Marshaler {
-			return ec.marshalOVariantMode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐVariantMode(ctx, selections, v)
+			return ec.marshalOVariantMode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐVariantMode(ctx, selections, v)
 		},
 		true,
 		false,
@@ -31191,7 +29739,7 @@ func (ec *executionContext) _Product_reviewQuestions(ctx context.Context, field 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ReviewQuestion) graphql.Marshaler {
-			return ec.marshalNReviewQuestion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewQuestionᚄ(ctx, selections, v)
+			return ec.marshalNReviewQuestion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewQuestionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -31224,7 +29772,7 @@ func (ec *executionContext) _Product_reviews(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Review) graphql.Marshaler {
-			return ec.marshalNReview2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewᚄ(ctx, selections, v)
+			return ec.marshalNReview2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -31267,7 +29815,7 @@ func (ec *executionContext) _Product_reviewAggregates(ctx context.Context, field
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.ReviewAggregates) graphql.Marshaler {
-			return ec.marshalNReviewAggregates2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewAggregates(ctx, selections, v)
+			return ec.marshalNReviewAggregates2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewAggregates(ctx, selections, v)
 		},
 		true,
 		true,
@@ -31322,7 +29870,7 @@ func (ec *executionContext) _Product_customerCanReview(ctx context.Context, fiel
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.ReviewEligibility) graphql.Marshaler {
-			return ec.marshalNReviewEligibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewEligibility(ctx, selections, v)
+			return ec.marshalNReviewEligibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewEligibility(ctx, selections, v)
 		},
 		true,
 		true,
@@ -31354,7 +29902,7 @@ func (ec *executionContext) _ProductAttributeReference_targetType(ctx context.Co
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.AttributeReferenceTarget) graphql.Marshaler {
-			return ec.marshalNAttributeReferenceTarget2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeReferenceTarget(ctx, selections, v)
+			return ec.marshalNAttributeReferenceTarget2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeReferenceTarget(ctx, selections, v)
 		},
 		true,
 		true,
@@ -31446,7 +29994,7 @@ func (ec *executionContext) _ProductAttributeValue_attribute(ctx context.Context
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Attribute) graphql.Marshaler {
-			return ec.marshalNAttribute2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttribute(ctx, selections, v)
+			return ec.marshalNAttribute2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttribute(ctx, selections, v)
 		},
 		true,
 		true,
@@ -31478,7 +30026,7 @@ func (ec *executionContext) _ProductAttributeValue_selectedValues(ctx context.Co
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.AttributeValue) graphql.Marshaler {
-			return ec.marshalNAttributeValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeValueᚄ(ctx, selections, v)
+			return ec.marshalNAttributeValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeValueᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -31533,7 +30081,7 @@ func (ec *executionContext) _ProductAttributeValue_references(ctx context.Contex
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ProductAttributeReference) graphql.Marshaler {
-			return ec.marshalNProductAttributeReference2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductAttributeReferenceᚄ(ctx, selections, v)
+			return ec.marshalNProductAttributeReference2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductAttributeReferenceᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -32002,7 +30550,7 @@ func (ec *executionContext) _ProductCustomOption_values(ctx context.Context, fie
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.ProductCustomOptionValue) graphql.Marshaler {
-			return ec.marshalNProductCustomOptionValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductCustomOptionValueᚄ(ctx, selections, v)
+			return ec.marshalNProductCustomOptionValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductCustomOptionValueᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -32218,7 +30766,7 @@ func (ec *executionContext) _ProductCustomOptionValue_sourceProduct(ctx context.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
-			return ec.marshalOProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+			return ec.marshalOProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
 		},
 		true,
 		false,
@@ -32478,7 +31026,7 @@ func (ec *executionContext) _ProductMemberships_configurable(ctx context.Context
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.ConfigurableMembership) graphql.Marshaler {
-			return ec.marshalOConfigurableMembership2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐConfigurableMembership(ctx, selections, v)
+			return ec.marshalOConfigurableMembership2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐConfigurableMembership(ctx, selections, v)
 		},
 		true,
 		false,
@@ -32510,7 +31058,7 @@ func (ec *executionContext) _ProductMemberships_bundles(ctx context.Context, fie
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.BundleMembership) graphql.Marshaler {
-			return ec.marshalNBundleMembership2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBundleMembershipᚄ(ctx, selections, v)
+			return ec.marshalNBundleMembership2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBundleMembershipᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -32542,7 +31090,7 @@ func (ec *executionContext) _ProductMemberships_groupedProducts(ctx context.Cont
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.GroupedMembership) graphql.Marshaler {
-			return ec.marshalNGroupedMembership2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐGroupedMembershipᚄ(ctx, selections, v)
+			return ec.marshalNGroupedMembership2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐGroupedMembershipᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -32873,7 +31421,7 @@ func (ec *executionContext) _ProductSearchResult_items(ctx context.Context, fiel
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.ProductSearchHit) graphql.Marshaler {
-			return ec.marshalNProductSearchHit2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductSearchHitᚄ(ctx, selections, v)
+			return ec.marshalNProductSearchHit2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductSearchHitᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -33342,7 +31890,7 @@ func (ec *executionContext) _PromotionalDisplay_labelMedia(ctx context.Context, 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ProductMedia) graphql.Marshaler {
-			return ec.marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductMedia(ctx, selections, v)
+			return ec.marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductMedia(ctx, selections, v)
 		},
 		true,
 		false,
@@ -33374,7 +31922,7 @@ func (ec *executionContext) _PromotionalDisplay_bannerMedia(ctx context.Context,
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ProductMedia) graphql.Marshaler {
-			return ec.marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductMedia(ctx, selections, v)
+			return ec.marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductMedia(ctx, selections, v)
 		},
 		true,
 		false,
@@ -33476,7 +32024,7 @@ func (ec *executionContext) _Query_blogPost(ctx context.Context, field graphql.C
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BlogPost) graphql.Marshaler {
-			return ec.marshalOBlogPost2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPost(ctx, selections, v)
+			return ec.marshalOBlogPost2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPost(ctx, selections, v)
 		},
 		true,
 		false,
@@ -33520,7 +32068,7 @@ func (ec *executionContext) _Query_blogPosts(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BlogPostList) graphql.Marshaler {
-			return ec.marshalNBlogPostList2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPostList(ctx, selections, v)
+			return ec.marshalNBlogPostList2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPostList(ctx, selections, v)
 		},
 		true,
 		true,
@@ -33564,7 +32112,7 @@ func (ec *executionContext) _Query_previewBlogPost(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BlogPost) graphql.Marshaler {
-			return ec.marshalOBlogPost2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPost(ctx, selections, v)
+			return ec.marshalOBlogPost2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPost(ctx, selections, v)
 		},
 		true,
 		false,
@@ -33608,7 +32156,7 @@ func (ec *executionContext) _Query_blogCategory(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BlogCategory) graphql.Marshaler {
-			return ec.marshalOBlogCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogCategory(ctx, selections, v)
+			return ec.marshalOBlogCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogCategory(ctx, selections, v)
 		},
 		true,
 		false,
@@ -33652,7 +32200,7 @@ func (ec *executionContext) _Query_blogCategories(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.BlogCategory) graphql.Marshaler {
-			return ec.marshalNBlogCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogCategoryᚄ(ctx, selections, v)
+			return ec.marshalNBlogCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogCategoryᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -33696,7 +32244,7 @@ func (ec *executionContext) _Query_blogTag(ctx context.Context, field graphql.Co
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BlogTag) graphql.Marshaler {
-			return ec.marshalOBlogTag2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogTag(ctx, selections, v)
+			return ec.marshalOBlogTag2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogTag(ctx, selections, v)
 		},
 		true,
 		false,
@@ -33739,7 +32287,7 @@ func (ec *executionContext) _Query_blogTags(ctx context.Context, field graphql.C
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.BlogTag) graphql.Marshaler {
-			return ec.marshalNBlogTag2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogTagᚄ(ctx, selections, v)
+			return ec.marshalNBlogTag2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogTagᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -33772,7 +32320,7 @@ func (ec *executionContext) _Query_blogAuthor(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.BlogAuthor) graphql.Marshaler {
-			return ec.marshalOBlogAuthor2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogAuthor(ctx, selections, v)
+			return ec.marshalOBlogAuthor2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogAuthor(ctx, selections, v)
 		},
 		true,
 		false,
@@ -33815,7 +32363,7 @@ func (ec *executionContext) _Query_blogAuthors(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.BlogAuthor) graphql.Marshaler {
-			return ec.marshalNBlogAuthor2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogAuthorᚄ(ctx, selections, v)
+			return ec.marshalNBlogAuthor2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogAuthorᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -33848,7 +32396,7 @@ func (ec *executionContext) _Query_searchBlogPosts(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.BlogPostSearchResult) graphql.Marshaler {
-			return ec.marshalNBlogPostSearchResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBlogPostSearchResult(ctx, selections, v)
+			return ec.marshalNBlogPostSearchResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBlogPostSearchResult(ctx, selections, v)
 		},
 		true,
 		true,
@@ -33891,7 +32439,7 @@ func (ec *executionContext) _Query_myCart(ctx context.Context, field graphql.Col
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -33924,7 +32472,7 @@ func (ec *executionContext) _Query_cart(ctx context.Context, field graphql.Colle
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalOCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalOCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		false,
@@ -33968,7 +32516,7 @@ func (ec *executionContext) _Query_shippingQuotes(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.ShippingQuote) graphql.Marshaler {
-			return ec.marshalNShippingQuote2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐShippingQuoteᚄ(ctx, selections, v)
+			return ec.marshalNShippingQuote2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐShippingQuoteᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34011,7 +32559,7 @@ func (ec *executionContext) _Query_pickupLocations(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.PickupLocation) graphql.Marshaler {
-			return ec.marshalNPickupLocation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPickupLocationᚄ(ctx, selections, v)
+			return ec.marshalNPickupLocation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPickupLocationᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34044,7 +32592,7 @@ func (ec *executionContext) _Query_cartEstimate(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.CartEstimate) graphql.Marshaler {
-			return ec.marshalNCartEstimate2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartEstimate(ctx, selections, v)
+			return ec.marshalNCartEstimate2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartEstimate(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34132,7 +32680,7 @@ func (ec *executionContext) _Query_cartRecommendations(ctx context.Context, fiel
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34176,7 +32724,7 @@ func (ec *executionContext) _Query_productsByIds(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34219,7 +32767,7 @@ func (ec *executionContext) _Query_attributes(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Attribute) graphql.Marshaler {
-			return ec.marshalNAttribute2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeᚄ(ctx, selections, v)
+			return ec.marshalNAttribute2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34252,7 +32800,7 @@ func (ec *executionContext) _Query_attribute(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Attribute) graphql.Marshaler {
-			return ec.marshalNAttribute2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttribute(ctx, selections, v)
+			return ec.marshalNAttribute2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttribute(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34296,7 +32844,7 @@ func (ec *executionContext) _Query_product(ctx context.Context, field graphql.Co
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34339,7 +32887,7 @@ func (ec *executionContext) _Query_collections(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Collection) graphql.Marshaler {
-			return ec.marshalNCollection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCollectionᚄ(ctx, selections, v)
+			return ec.marshalNCollection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCollectionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34372,7 +32920,7 @@ func (ec *executionContext) _Query_collection(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Collection) graphql.Marshaler {
-			return ec.marshalNCollection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCollection(ctx, selections, v)
+			return ec.marshalNCollection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCollection(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34415,7 +32963,7 @@ func (ec *executionContext) _Query_rootCategories(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Category) graphql.Marshaler {
-			return ec.marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategoryᚄ(ctx, selections, v)
+			return ec.marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategoryᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34448,7 +32996,7 @@ func (ec *executionContext) _Query_categoryChildren(ctx context.Context, field g
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Category) graphql.Marshaler {
-			return ec.marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategoryᚄ(ctx, selections, v)
+			return ec.marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategoryᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34492,7 +33040,7 @@ func (ec *executionContext) _Query_category(ctx context.Context, field graphql.C
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Category) graphql.Marshaler {
-			return ec.marshalNCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategory(ctx, selections, v)
+			return ec.marshalNCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategory(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34536,7 +33084,7 @@ func (ec *executionContext) _Query_searchProducts(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.ProductSearchResult) graphql.Marshaler {
-			return ec.marshalNProductSearchResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductSearchResult(ctx, selections, v)
+			return ec.marshalNProductSearchResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductSearchResult(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34580,7 +33128,7 @@ func (ec *executionContext) _Query_browseProducts(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.BrowseProductsResult) graphql.Marshaler {
-			return ec.marshalNBrowseProductsResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseProductsResult(ctx, selections, v)
+			return ec.marshalNBrowseProductsResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseProductsResult(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34623,7 +33171,7 @@ func (ec *executionContext) _Query_productSortOptions(ctx context.Context, field
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.ProductSortOption) graphql.Marshaler {
-			return ec.marshalNProductSortOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductSortOptionᚄ(ctx, selections, v)
+			return ec.marshalNProductSortOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductSortOptionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34655,7 +33203,7 @@ func (ec *executionContext) _Query_currentChannel(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Channel) graphql.Marshaler {
-			return ec.marshalOChannel2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐChannel(ctx, selections, v)
+			return ec.marshalOChannel2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐChannel(ctx, selections, v)
 		},
 		true,
 		false,
@@ -34688,7 +33236,7 @@ func (ec *executionContext) _Query_cmsPage(ctx context.Context, field graphql.Co
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CMSPage) graphql.Marshaler {
-			return ec.marshalOCMSPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPage(ctx, selections, v)
+			return ec.marshalOCMSPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPage(ctx, selections, v)
 		},
 		true,
 		false,
@@ -34732,7 +33280,7 @@ func (ec *executionContext) _Query_cmsPages(ctx context.Context, field graphql.C
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.CMSPage) graphql.Marshaler {
-			return ec.marshalNCMSPage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageᚄ(ctx, selections, v)
+			return ec.marshalNCMSPage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34776,7 +33324,7 @@ func (ec *executionContext) _Query_previewCMSPage(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CMSPage) graphql.Marshaler {
-			return ec.marshalOCMSPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPage(ctx, selections, v)
+			return ec.marshalOCMSPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPage(ctx, selections, v)
 		},
 		true,
 		false,
@@ -34819,7 +33367,7 @@ func (ec *executionContext) _Query_homePage(ctx context.Context, field graphql.C
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.CMSPage) graphql.Marshaler {
-			return ec.marshalOCMSPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPage(ctx, selections, v)
+			return ec.marshalOCMSPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPage(ctx, selections, v)
 		},
 		true,
 		false,
@@ -34851,7 +33399,7 @@ func (ec *executionContext) _Query_publicConfig(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ConfigValue) graphql.Marshaler {
-			return ec.marshalNConfigValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigValueᚄ(ctx, selections, v)
+			return ec.marshalNConfigValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigValueᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34883,7 +33431,7 @@ func (ec *executionContext) _Query_publicConfigSections(ctx context.Context, fie
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ConfigSection) graphql.Marshaler {
-			return ec.marshalNConfigSection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigSectionᚄ(ctx, selections, v)
+			return ec.marshalNConfigSection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigSectionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34915,7 +33463,7 @@ func (ec *executionContext) _Query_features(ctx context.Context, field graphql.C
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.StoreFeatures) graphql.Marshaler {
-			return ec.marshalNStoreFeatures2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐStoreFeatures(ctx, selections, v)
+			return ec.marshalNStoreFeatures2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐStoreFeatures(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34948,7 +33496,7 @@ func (ec *executionContext) _Query_countries(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Country) graphql.Marshaler {
-			return ec.marshalNCountry2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCountryᚄ(ctx, selections, v)
+			return ec.marshalNCountry2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCountryᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34992,7 +33540,7 @@ func (ec *executionContext) _Query_country(ctx context.Context, field graphql.Co
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Country) graphql.Marshaler {
-			return ec.marshalNCountry2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCountry(ctx, selections, v)
+			return ec.marshalNCountry2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCountry(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35036,7 +33584,7 @@ func (ec *executionContext) _Query_regions(ctx context.Context, field graphql.Co
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Region) graphql.Marshaler {
-			return ec.marshalNRegion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐRegionᚄ(ctx, selections, v)
+			return ec.marshalNRegion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐRegionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35079,7 +33627,7 @@ func (ec *executionContext) _Query_countrySettings(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.CountrySettings) graphql.Marshaler {
-			return ec.marshalNCountrySettings2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCountrySettings(ctx, selections, v)
+			return ec.marshalNCountrySettings2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCountrySettings(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35112,7 +33660,7 @@ func (ec *executionContext) _Query_currencies(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Currency) graphql.Marshaler {
-			return ec.marshalNCurrency2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCurrencyᚄ(ctx, selections, v)
+			return ec.marshalNCurrency2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCurrencyᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35156,7 +33704,7 @@ func (ec *executionContext) _Query_currency(ctx context.Context, field graphql.C
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Currency) graphql.Marshaler {
-			return ec.marshalNCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCurrency(ctx, selections, v)
+			return ec.marshalNCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCurrency(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35199,7 +33747,7 @@ func (ec *executionContext) _Query_presentmentCurrencies(ctx context.Context, fi
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.PresentmentCurrency) graphql.Marshaler {
-			return ec.marshalNPresentmentCurrency2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPresentmentCurrencyᚄ(ctx, selections, v)
+			return ec.marshalNPresentmentCurrency2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPresentmentCurrencyᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35254,7 +33802,7 @@ func (ec *executionContext) _Query_myProfile(ctx context.Context, field graphql.
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Customer) graphql.Marshaler {
-			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
+			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35286,7 +33834,7 @@ func (ec *executionContext) _Query_consentDefinitions(ctx context.Context, field
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ConsentDefinition) graphql.Marshaler {
-			return ec.marshalNConsentDefinition2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConsentDefinitionᚄ(ctx, selections, v)
+			return ec.marshalNConsentDefinition2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConsentDefinitionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35318,7 +33866,7 @@ func (ec *executionContext) _Query_loyaltyStatus(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.LoyaltyStatus) graphql.Marshaler {
-			return ec.marshalNLoyaltyStatus2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐLoyaltyStatus(ctx, selections, v)
+			return ec.marshalNLoyaltyStatus2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐLoyaltyStatus(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35350,7 +33898,7 @@ func (ec *executionContext) _Query_myReferral(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.ReferralInfo) graphql.Marshaler {
-			return ec.marshalNReferralInfo2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReferralInfo(ctx, selections, v)
+			return ec.marshalNReferralInfo2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReferralInfo(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35369,134 +33917,6 @@ func (ec *executionContext) fieldContext_Query_myReferral(_ context.Context, fie
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_myCompany(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_myCompany(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().MyCompany(ctx)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model1.MyCompany) graphql.Marshaler {
-			return ec.marshalOMyCompany2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyCompany(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_Query_myCompany(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_MyCompany(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_myQuotes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_myQuotes(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().MyQuotes(ctx)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model1.MyB2BQuote) graphql.Marshaler {
-			return ec.marshalNMyB2BQuote2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BQuoteᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_myQuotes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_MyB2BQuote(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_myCompanyInvoices(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_myCompanyInvoices(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().MyCompanyInvoices(ctx)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model1.MyB2BInvoice) graphql.Marshaler {
-			return ec.marshalNMyB2BInvoice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BInvoiceᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_myCompanyInvoices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_MyB2BInvoice(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_myCompanyOrders(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_myCompanyOrders(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().MyCompanyOrders(ctx)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model1.CompanyOrderSummary) graphql.Marshaler {
-			return ec.marshalNCompanyOrderSummary2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCompanyOrderSummaryᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_myCompanyOrders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_CompanyOrderSummary(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Query_myDownloads(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -35510,7 +33930,7 @@ func (ec *executionContext) _Query_myDownloads(ctx context.Context, field graphq
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.DownloadGrant) graphql.Marshaler {
-			return ec.marshalNDownloadGrant2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐDownloadGrantᚄ(ctx, selections, v)
+			return ec.marshalNDownloadGrant2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐDownloadGrantᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35543,7 +33963,7 @@ func (ec *executionContext) _Query_locales(ctx context.Context, field graphql.Co
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Locale) graphql.Marshaler {
-			return ec.marshalNLocale2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐLocaleᚄ(ctx, selections, v)
+			return ec.marshalNLocale2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐLocaleᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35587,7 +34007,7 @@ func (ec *executionContext) _Query_locale(ctx context.Context, field graphql.Col
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Locale) graphql.Marshaler {
-			return ec.marshalNLocale2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐLocale(ctx, selections, v)
+			return ec.marshalNLocale2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐLocale(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35631,7 +34051,7 @@ func (ec *executionContext) _Query_menu(ctx context.Context, field graphql.Colle
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Menu) graphql.Marshaler {
-			return ec.marshalOMenu2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMenu(ctx, selections, v)
+			return ec.marshalOMenu2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMenu(ctx, selections, v)
 		},
 		true,
 		false,
@@ -35675,7 +34095,7 @@ func (ec *executionContext) _Query_menus(ctx context.Context, field graphql.Coll
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.Menu) graphql.Marshaler {
-			return ec.marshalNMenu2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMenuᚄ(ctx, selections, v)
+			return ec.marshalNMenu2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMenuᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35719,7 +34139,7 @@ func (ec *executionContext) _Query_giftCardBalance(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.GiftCardBalance) graphql.Marshaler {
-			return ec.marshalOGiftCardBalance2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐGiftCardBalance(ctx, selections, v)
+			return ec.marshalOGiftCardBalance2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐGiftCardBalance(ctx, selections, v)
 		},
 		true,
 		false,
@@ -35762,7 +34182,7 @@ func (ec *executionContext) _Query_myOrders(ctx context.Context, field graphql.C
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Order) graphql.Marshaler {
-			return ec.marshalNOrder2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderᚄ(ctx, selections, v)
+			return ec.marshalNOrder2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35795,7 +34215,7 @@ func (ec *executionContext) _Query_myOrder(ctx context.Context, field graphql.Co
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Order) graphql.Marshaler {
-			return ec.marshalNOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrder(ctx, selections, v)
+			return ec.marshalNOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrder(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35839,7 +34259,7 @@ func (ec *executionContext) _Query_guestOrder(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Order) graphql.Marshaler {
-			return ec.marshalOOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrder(ctx, selections, v)
+			return ec.marshalOOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrder(ctx, selections, v)
 		},
 		true,
 		false,
@@ -35882,7 +34302,7 @@ func (ec *executionContext) _Query_myPaymentMethods(ctx context.Context, field g
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.SavedPaymentMethod) graphql.Marshaler {
-			return ec.marshalNSavedPaymentMethod2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSavedPaymentMethodᚄ(ctx, selections, v)
+			return ec.marshalNSavedPaymentMethod2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSavedPaymentMethodᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35915,7 +34335,7 @@ func (ec *executionContext) _Query_validateAddress(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.AddressValidationResult) graphql.Marshaler {
-			return ec.marshalNAddressValidationResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddressValidationResult(ctx, selections, v)
+			return ec.marshalNAddressValidationResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddressValidationResult(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35959,7 +34379,7 @@ func (ec *executionContext) _Query_paymentMethods(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.PaymentMethodOption) graphql.Marshaler {
-			return ec.marshalNPaymentMethodOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPaymentMethodOptionᚄ(ctx, selections, v)
+			return ec.marshalNPaymentMethodOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPaymentMethodOptionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -36003,7 +34423,7 @@ func (ec *executionContext) _Query_productQuestions(ctx context.Context, field g
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.ProductQuestion) graphql.Marshaler {
-			return ec.marshalNProductQuestion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductQuestionᚄ(ctx, selections, v)
+			return ec.marshalNProductQuestion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductQuestionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -36046,7 +34466,7 @@ func (ec *executionContext) _Query_sitemapCounts(ctx context.Context, field grap
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.SitemapCounts) graphql.Marshaler {
-			return ec.marshalNSitemapCounts2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSitemapCounts(ctx, selections, v)
+			return ec.marshalNSitemapCounts2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSitemapCounts(ctx, selections, v)
 		},
 		true,
 		true,
@@ -36079,7 +34499,7 @@ func (ec *executionContext) _Query_sitemapEntries(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.SitemapEntry) graphql.Marshaler {
-			return ec.marshalNSitemapEntry2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSitemapEntryᚄ(ctx, selections, v)
+			return ec.marshalNSitemapEntry2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSitemapEntryᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -36122,7 +34542,7 @@ func (ec *executionContext) _Query_mySubscriptions(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.CustomerSubscription) graphql.Marshaler {
-			return ec.marshalNCustomerSubscription2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerSubscriptionᚄ(ctx, selections, v)
+			return ec.marshalNCustomerSubscription2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSubscriptionᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -36155,7 +34575,7 @@ func (ec *executionContext) _Query_route(ctx context.Context, field graphql.Coll
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.RouteResolution) graphql.Marshaler {
-			return ec.marshalORouteResolution2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐRouteResolution(ctx, selections, v)
+			return ec.marshalORouteResolution2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐRouteResolution(ctx, selections, v)
 		},
 		true,
 		false,
@@ -36221,7 +34641,7 @@ func (ec *executionContext) _Query_myWishlist(ctx context.Context, field graphql
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -36277,7 +34697,7 @@ func (ec *executionContext) _Query_sharedWishlist(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
-			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
+			return ec.marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -36649,7 +35069,7 @@ func (ec *executionContext) _ReorderResult_cart(ctx context.Context, field graph
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
-			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
+			return ec.marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx, selections, v)
 		},
 		true,
 		true,
@@ -36704,7 +35124,7 @@ func (ec *executionContext) _ReorderResult_skipped(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.ReorderSkippedLine) graphql.Marshaler {
-			return ec.marshalNReorderSkippedLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReorderSkippedLineᚄ(ctx, selections, v)
+			return ec.marshalNReorderSkippedLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReorderSkippedLineᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -36989,7 +35409,7 @@ func (ec *executionContext) _Review_answers(ctx context.Context, field graphql.C
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ReviewAnswer) graphql.Marshaler {
-			return ec.marshalNReviewAnswer2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewAnswerᚄ(ctx, selections, v)
+			return ec.marshalNReviewAnswer2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewAnswerᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -37021,7 +35441,7 @@ func (ec *executionContext) _Review_media(ctx context.Context, field graphql.Col
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ReviewMedia) graphql.Marshaler {
-			return ec.marshalNReviewMedia2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewMediaᚄ(ctx, selections, v)
+			return ec.marshalNReviewMedia2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewMediaᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -37260,7 +35680,7 @@ func (ec *executionContext) _ReviewAggregates_perQuestion(ctx context.Context, f
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.ReviewQuestionAverage) graphql.Marshaler {
-			return ec.marshalNReviewQuestionAverage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewQuestionAverageᚄ(ctx, selections, v)
+			return ec.marshalNReviewQuestionAverage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewQuestionAverageᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -37292,7 +35712,7 @@ func (ec *executionContext) _ReviewAggregates_votingPolicy(ctx context.Context, 
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.ReviewVotingPolicy) graphql.Marshaler {
-			return ec.marshalNReviewVotingPolicy2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewVotingPolicy(ctx, selections, v)
+			return ec.marshalNReviewVotingPolicy2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewVotingPolicy(ctx, selections, v)
 		},
 		true,
 		true,
@@ -37324,7 +35744,7 @@ func (ec *executionContext) _ReviewAnswer_question(ctx context.Context, field gr
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ReviewQuestion) graphql.Marshaler {
-			return ec.marshalNReviewQuestion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewQuestion(ctx, selections, v)
+			return ec.marshalNReviewQuestion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewQuestion(ctx, selections, v)
 		},
 		true,
 		true,
@@ -37448,7 +35868,7 @@ func (ec *executionContext) _ReviewEligibility_reason(ctx context.Context, field
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.ReviewIneligibilityReason) graphql.Marshaler {
-			return ec.marshalOReviewIneligibilityReason2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewIneligibilityReason(ctx, selections, v)
+			return ec.marshalOReviewIneligibilityReason2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewIneligibilityReason(ctx, selections, v)
 		},
 		true,
 		false,
@@ -37724,7 +36144,7 @@ func (ec *executionContext) _ReviewQuestion_inputType(ctx context.Context, field
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.ReviewQuestionInputType) graphql.Marshaler {
-			return ec.marshalNReviewQuestionInputType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewQuestionInputType(ctx, selections, v)
+			return ec.marshalNReviewQuestionInputType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewQuestionInputType(ctx, selections, v)
 		},
 		true,
 		true,
@@ -37862,7 +36282,7 @@ func (ec *executionContext) _ReviewQuestionAverage_question(ctx context.Context,
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ReviewQuestion) graphql.Marshaler {
-			return ec.marshalNReviewQuestion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewQuestion(ctx, selections, v)
+			return ec.marshalNReviewQuestion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewQuestion(ctx, selections, v)
 		},
 		true,
 		true,
@@ -37963,7 +36383,7 @@ func (ec *executionContext) _RouteResolution_kind(ctx context.Context, field gra
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model1.RouteKind) graphql.Marshaler {
-			return ec.marshalNRouteKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐRouteKind(ctx, selections, v)
+			return ec.marshalNRouteKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐRouteKind(ctx, selections, v)
 		},
 		true,
 		true,
@@ -38548,29 +36968,6 @@ func (ec *executionContext) fieldContext_SitemapEntry_updatedAt(_ context.Contex
 	return graphql.NewScalarFieldContext("SitemapEntry", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
-func (ec *executionContext) _StoreFeatures_b2b(ctx context.Context, field graphql.CollectedField, obj *model1.StoreFeatures) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_StoreFeatures_b2b(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.B2b, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_StoreFeatures_b2b(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("StoreFeatures", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
 func (ec *executionContext) _StoreFeatures_signals(ctx context.Context, field graphql.CollectedField, obj *model1.StoreFeatures) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38676,7 +37073,7 @@ func (ec *executionContext) _SubmitWebFormResult_errors(ctx context.Context, fie
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.WebFormFieldError) graphql.Marshaler {
-			return ec.marshalNWebFormFieldError2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐWebFormFieldErrorᚄ(ctx, selections, v)
+			return ec.marshalNWebFormFieldError2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐWebFormFieldErrorᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -38708,7 +37105,7 @@ func (ec *executionContext) _SubscriptionTerms_intervalUnit(ctx context.Context,
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v model.SubscriptionInterval) graphql.Marshaler {
-			return ec.marshalNSubscriptionInterval2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐSubscriptionInterval(ctx, selections, v)
+			return ec.marshalNSubscriptionInterval2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSubscriptionInterval(ctx, selections, v)
 		},
 		true,
 		true,
@@ -40002,7 +38399,7 @@ func (ec *executionContext) unmarshalInputAddBundleToCartInput(ctx context.Conte
 			it.Quantity = data
 		case "selections":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("selections"))
-			data, err := ec.unmarshalNAddBundleToCartSelectionInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddBundleToCartSelectionInputᚄ(ctx, v)
+			data, err := ec.unmarshalNAddBundleToCartSelectionInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddBundleToCartSelectionInputᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -40090,7 +38487,7 @@ func (ec *executionContext) unmarshalInputAddConfiguredToCartInput(ctx context.C
 			it.Quantity = data
 		case "options":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("options"))
-			data, err := ec.unmarshalNProductOptionSelectionInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductOptionSelectionInputᚄ(ctx, v)
+			data, err := ec.unmarshalNProductOptionSelectionInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductOptionSelectionInputᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -40315,7 +38712,7 @@ func (ec *executionContext) unmarshalInputBrowseProductsFilter(ctx context.Conte
 			it.CollectionID = data
 		case "attributes":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("attributes"))
-			data, err := ec.unmarshalOAttributeFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAttributeFilterInputᚄ(ctx, v)
+			data, err := ec.unmarshalOAttributeFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAttributeFilterInputᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -40336,7 +38733,7 @@ func (ec *executionContext) unmarshalInputBrowseProductsFilter(ctx context.Conte
 			it.PriceMaxCents = data
 		case "kinds":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kinds"))
-			data, err := ec.unmarshalOProductKind2ᚕgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductKindᚄ(ctx, v)
+			data, err := ec.unmarshalOProductKind2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductKindᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -40577,7 +38974,7 @@ func (ec *executionContext) unmarshalInputRequestReturnInput(ctx context.Context
 			it.OrderID = data
 		case "lines":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("lines"))
-			data, err := ec.unmarshalNReturnLineInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReturnLineInputᚄ(ctx, v)
+			data, err := ec.unmarshalNReturnLineInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReturnLineInputᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -40737,7 +39134,7 @@ func (ec *executionContext) unmarshalInputSubmitReviewInput(ctx context.Context,
 			it.Body = data
 		case "answers":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("answers"))
-			data, err := ec.unmarshalNReviewAnswerInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewAnswerInputᚄ(ctx, v)
+			data, err := ec.unmarshalNReviewAnswerInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewAnswerInputᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -40802,7 +39199,7 @@ func (ec *executionContext) unmarshalInputSubmitWebFormInput(ctx context.Context
 			it.Values = data
 		case "files":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("files"))
-			data, err := ec.unmarshalOWebFormFileInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐWebFormFileInputᚄ(ctx, v)
+			data, err := ec.unmarshalOWebFormFileInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐWebFormFileInputᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -43732,79 +42129,6 @@ func (ec *executionContext) _CollectionCover(ctx context.Context, sel ast.Select
 	return out
 }
 
-var companyOrderSummaryImplementors = []string{"CompanyOrderSummary"}
-
-func (ec *executionContext) _CompanyOrderSummary(ctx context.Context, sel ast.SelectionSet, obj *model1.CompanyOrderSummary) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, companyOrderSummaryImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("CompanyOrderSummary")
-		case "id":
-			out.Values[i] = ec._CompanyOrderSummary_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "number":
-			out.Values[i] = ec._CompanyOrderSummary_number(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._CompanyOrderSummary_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "paymentStatus":
-			out.Values[i] = ec._CompanyOrderSummary_paymentStatus(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "totalCents":
-			out.Values[i] = ec._CompanyOrderSummary_totalCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "currencyCode":
-			out.Values[i] = ec._CompanyOrderSummary_currencyCode(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "memberEmail":
-			out.Values[i] = ec._CompanyOrderSummary_memberEmail(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "createdAt":
-			out.Values[i] = ec._CompanyOrderSummary_createdAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
 var configGroupImplementors = []string{"ConfigGroup"}
 
 func (ec *executionContext) _ConfigGroup(ctx context.Context, sel ast.SelectionSet, obj *model.ConfigGroup) graphql.Marshaler {
@@ -45601,20 +43925,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "requestQuote":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_requestQuote(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "respondToQuote":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_respondToQuote(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "finalizeOrderPayment":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_finalizeOrderPayment(ctx, field)
@@ -45731,273 +44041,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_moveToCart(ctx, field)
 			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var myB2BInvoiceImplementors = []string{"MyB2BInvoice"}
-
-func (ec *executionContext) _MyB2BInvoice(ctx context.Context, sel ast.SelectionSet, obj *model1.MyB2BInvoice) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, myB2BInvoiceImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("MyB2BInvoice")
-		case "number":
-			out.Values[i] = ec._MyB2BInvoice_number(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "orderNumber":
-			out.Values[i] = ec._MyB2BInvoice_orderNumber(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "amountCents":
-			out.Values[i] = ec._MyB2BInvoice_amountCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._MyB2BInvoice_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "overdue":
-			out.Values[i] = ec._MyB2BInvoice_overdue(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "dueAt":
-			out.Values[i] = ec._MyB2BInvoice_dueAt(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
-		case "paidAt":
-			out.Values[i] = ec._MyB2BInvoice_paidAt(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
-		case "createdAt":
-			out.Values[i] = ec._MyB2BInvoice_createdAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var myB2BQuoteImplementors = []string{"MyB2BQuote"}
-
-func (ec *executionContext) _MyB2BQuote(ctx context.Context, sel ast.SelectionSet, obj *model1.MyB2BQuote) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, myB2BQuoteImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("MyB2BQuote")
-		case "id":
-			out.Values[i] = ec._MyB2BQuote_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._MyB2BQuote_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "items":
-			out.Values[i] = ec._MyB2BQuote_items(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "note":
-			out.Values[i] = ec._MyB2BQuote_note(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "sellerNote":
-			out.Values[i] = ec._MyB2BQuote_sellerNote(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "totalCents":
-			out.Values[i] = ec._MyB2BQuote_totalCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "validUntil":
-			out.Values[i] = ec._MyB2BQuote_validUntil(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
-		case "createdAt":
-			out.Values[i] = ec._MyB2BQuote_createdAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var myB2BQuoteItemImplementors = []string{"MyB2BQuoteItem"}
-
-func (ec *executionContext) _MyB2BQuoteItem(ctx context.Context, sel ast.SelectionSet, obj *model1.MyB2BQuoteItem) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, myB2BQuoteItemImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("MyB2BQuoteItem")
-		case "sku":
-			out.Values[i] = ec._MyB2BQuoteItem_sku(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "name":
-			out.Values[i] = ec._MyB2BQuoteItem_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "quantity":
-			out.Values[i] = ec._MyB2BQuoteItem_quantity(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "unitPriceCents":
-			out.Values[i] = ec._MyB2BQuoteItem_unitPriceCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "optionsSummary":
-			out.Values[i] = ec._MyB2BQuoteItem_optionsSummary(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var myCompanyImplementors = []string{"MyCompany"}
-
-func (ec *executionContext) _MyCompany(ctx context.Context, sel ast.SelectionSet, obj *model1.MyCompany) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, myCompanyImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("MyCompany")
-		case "name":
-			out.Values[i] = ec._MyCompany_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._MyCompany_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "role":
-			out.Values[i] = ec._MyCompany_role(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "creditLimitCents":
-			out.Values[i] = ec._MyCompany_creditLimitCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "creditUsedCents":
-			out.Values[i] = ec._MyCompany_creditUsedCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "paymentTermsDays":
-			out.Values[i] = ec._MyCompany_paymentTermsDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -49900,94 +47943,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "myCompany":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_myCompany(ctx, field)
-				if res == graphql.RequiredNull {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "myQuotes":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_myQuotes(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "myCompanyInvoices":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_myCompanyInvoices(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "myCompanyOrders":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_myCompanyOrders(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "myDownloads":
 			field := field
 
@@ -51843,11 +49798,6 @@ func (ec *executionContext) _StoreFeatures(ctx context.Context, sel ast.Selectio
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("StoreFeatures")
-		case "b2b":
-			out.Values[i] = ec._StoreFeatures_b2b(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "signals":
 			out.Values[i] = ec._StoreFeatures_signals(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -52496,18 +50446,18 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
-func (ec *executionContext) unmarshalNAddBundleToCartInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddBundleToCartInput(ctx context.Context, v any) (model1.AddBundleToCartInput, error) {
+func (ec *executionContext) unmarshalNAddBundleToCartInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddBundleToCartInput(ctx context.Context, v any) (model1.AddBundleToCartInput, error) {
 	res, err := ec.unmarshalInputAddBundleToCartInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNAddBundleToCartSelectionInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddBundleToCartSelectionInputᚄ(ctx context.Context, v any) ([]*model1.AddBundleToCartSelectionInput, error) {
+func (ec *executionContext) unmarshalNAddBundleToCartSelectionInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddBundleToCartSelectionInputᚄ(ctx context.Context, v any) ([]*model1.AddBundleToCartSelectionInput, error) {
 	vSlice := graphql.CoerceList(v)
 	var err error
 	res := make([]*model1.AddBundleToCartSelectionInput, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNAddBundleToCartSelectionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddBundleToCartSelectionInput(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNAddBundleToCartSelectionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddBundleToCartSelectionInput(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -52515,25 +50465,25 @@ func (ec *executionContext) unmarshalNAddBundleToCartSelectionInput2ᚕᚖgithub
 	return res, nil
 }
 
-func (ec *executionContext) unmarshalNAddBundleToCartSelectionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddBundleToCartSelectionInput(ctx context.Context, v any) (*model1.AddBundleToCartSelectionInput, error) {
+func (ec *executionContext) unmarshalNAddBundleToCartSelectionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddBundleToCartSelectionInput(ctx context.Context, v any) (*model1.AddBundleToCartSelectionInput, error) {
 	res, err := ec.unmarshalInputAddBundleToCartSelectionInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNAddConfiguredToCartInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddConfiguredToCartInput(ctx context.Context, v any) (model1.AddConfiguredToCartInput, error) {
+func (ec *executionContext) unmarshalNAddConfiguredToCartInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddConfiguredToCartInput(ctx context.Context, v any) (model1.AddConfiguredToCartInput, error) {
 	res, err := ec.unmarshalInputAddConfiguredToCartInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNAddress2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddress(ctx context.Context, sel ast.SelectionSet, v model.Address) graphql.Marshaler {
+func (ec *executionContext) marshalNAddress2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddress(ctx context.Context, sel ast.SelectionSet, v model.Address) graphql.Marshaler {
 	return ec._Address(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNAddress2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddressᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Address) graphql.Marshaler {
+func (ec *executionContext) marshalNAddress2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddressᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Address) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddress(ctx, sel, v[i])
+		return ec.marshalNAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddress(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52545,7 +50495,7 @@ func (ec *executionContext) marshalNAddress2ᚕᚖgithubᚗcomᚋskeletgᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddress(ctx context.Context, sel ast.SelectionSet, v *model.Address) graphql.Marshaler {
+func (ec *executionContext) marshalNAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddress(ctx context.Context, sel ast.SelectionSet, v *model.Address) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52555,16 +50505,16 @@ func (ec *executionContext) marshalNAddress2ᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ec._Address(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNAddressInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddressInput(ctx context.Context, v any) (model.AddressInput, error) {
+func (ec *executionContext) unmarshalNAddressInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddressInput(ctx context.Context, v any) (model.AddressInput, error) {
 	res, err := ec.unmarshalInputAddressInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNAddressValidationResult2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddressValidationResult(ctx context.Context, sel ast.SelectionSet, v model1.AddressValidationResult) graphql.Marshaler {
+func (ec *executionContext) marshalNAddressValidationResult2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddressValidationResult(ctx context.Context, sel ast.SelectionSet, v model1.AddressValidationResult) graphql.Marshaler {
 	return ec._AddressValidationResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNAddressValidationResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddressValidationResult(ctx context.Context, sel ast.SelectionSet, v *model1.AddressValidationResult) graphql.Marshaler {
+func (ec *executionContext) marshalNAddressValidationResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddressValidationResult(ctx context.Context, sel ast.SelectionSet, v *model1.AddressValidationResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52574,11 +50524,11 @@ func (ec *executionContext) marshalNAddressValidationResult2ᚖgithubᚗcomᚋsk
 	return ec._AddressValidationResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNAppliedPromotionCode2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAppliedPromotionCodeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.AppliedPromotionCode) graphql.Marshaler {
+func (ec *executionContext) marshalNAppliedPromotionCode2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAppliedPromotionCodeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.AppliedPromotionCode) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNAppliedPromotionCode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAppliedPromotionCode(ctx, sel, v[i])
+		return ec.marshalNAppliedPromotionCode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAppliedPromotionCode(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52590,7 +50540,7 @@ func (ec *executionContext) marshalNAppliedPromotionCode2ᚕᚖgithubᚗcomᚋsk
 	return ret
 }
 
-func (ec *executionContext) marshalNAppliedPromotionCode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAppliedPromotionCode(ctx context.Context, sel ast.SelectionSet, v *model1.AppliedPromotionCode) graphql.Marshaler {
+func (ec *executionContext) marshalNAppliedPromotionCode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAppliedPromotionCode(ctx context.Context, sel ast.SelectionSet, v *model1.AppliedPromotionCode) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52600,15 +50550,15 @@ func (ec *executionContext) marshalNAppliedPromotionCode2ᚖgithubᚗcomᚋskele
 	return ec._AppliedPromotionCode(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNAttribute2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttribute(ctx context.Context, sel ast.SelectionSet, v model.Attribute) graphql.Marshaler {
+func (ec *executionContext) marshalNAttribute2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttribute(ctx context.Context, sel ast.SelectionSet, v model.Attribute) graphql.Marshaler {
 	return ec._Attribute(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNAttribute2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Attribute) graphql.Marshaler {
+func (ec *executionContext) marshalNAttribute2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Attribute) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNAttribute2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttribute(ctx, sel, v[i])
+		return ec.marshalNAttribute2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttribute(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52620,7 +50570,7 @@ func (ec *executionContext) marshalNAttribute2ᚕᚖgithubᚗcomᚋskeletgᚋske
 	return ret
 }
 
-func (ec *executionContext) marshalNAttribute2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttribute(ctx context.Context, sel ast.SelectionSet, v *model.Attribute) graphql.Marshaler {
+func (ec *executionContext) marshalNAttribute2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttribute(ctx context.Context, sel ast.SelectionSet, v *model.Attribute) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52630,36 +50580,36 @@ func (ec *executionContext) marshalNAttribute2ᚖgithubᚗcomᚋskeletgᚋskelet
 	return ec._Attribute(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNAttributeFilterInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAttributeFilterInput(ctx context.Context, v any) (*model1.AttributeFilterInput, error) {
+func (ec *executionContext) unmarshalNAttributeFilterInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAttributeFilterInput(ctx context.Context, v any) (*model1.AttributeFilterInput, error) {
 	res, err := ec.unmarshalInputAttributeFilterInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNAttributeInputType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeInputType(ctx context.Context, v any) (model.AttributeInputType, error) {
+func (ec *executionContext) unmarshalNAttributeInputType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeInputType(ctx context.Context, v any) (model.AttributeInputType, error) {
 	var res model.AttributeInputType
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNAttributeInputType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeInputType(ctx context.Context, sel ast.SelectionSet, v model.AttributeInputType) graphql.Marshaler {
+func (ec *executionContext) marshalNAttributeInputType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeInputType(ctx context.Context, sel ast.SelectionSet, v model.AttributeInputType) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) unmarshalNAttributeReferenceTarget2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeReferenceTarget(ctx context.Context, v any) (model.AttributeReferenceTarget, error) {
+func (ec *executionContext) unmarshalNAttributeReferenceTarget2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeReferenceTarget(ctx context.Context, v any) (model.AttributeReferenceTarget, error) {
 	var res model.AttributeReferenceTarget
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNAttributeReferenceTarget2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeReferenceTarget(ctx context.Context, sel ast.SelectionSet, v model.AttributeReferenceTarget) graphql.Marshaler {
+func (ec *executionContext) marshalNAttributeReferenceTarget2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeReferenceTarget(ctx context.Context, sel ast.SelectionSet, v model.AttributeReferenceTarget) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNAttributeValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeValueᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AttributeValue) graphql.Marshaler {
+func (ec *executionContext) marshalNAttributeValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeValueᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AttributeValue) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNAttributeValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeValue(ctx, sel, v[i])
+		return ec.marshalNAttributeValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeValue(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52671,7 +50621,7 @@ func (ec *executionContext) marshalNAttributeValue2ᚕᚖgithubᚗcomᚋskeletg�
 	return ret
 }
 
-func (ec *executionContext) marshalNAttributeValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeValue(ctx context.Context, sel ast.SelectionSet, v *model.AttributeValue) graphql.Marshaler {
+func (ec *executionContext) marshalNAttributeValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeValue(ctx context.Context, sel ast.SelectionSet, v *model.AttributeValue) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52681,11 +50631,11 @@ func (ec *executionContext) marshalNAttributeValue2ᚖgithubᚗcomᚋskeletgᚋs
 	return ec._AttributeValue(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNBlogAuthor2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogAuthorᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BlogAuthor) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogAuthor2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogAuthorᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BlogAuthor) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNBlogAuthor2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogAuthor(ctx, sel, v[i])
+		return ec.marshalNBlogAuthor2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogAuthor(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52697,7 +50647,7 @@ func (ec *executionContext) marshalNBlogAuthor2ᚕᚖgithubᚗcomᚋskeletgᚋsk
 	return ret
 }
 
-func (ec *executionContext) marshalNBlogAuthor2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogAuthor(ctx context.Context, sel ast.SelectionSet, v *model.BlogAuthor) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogAuthor2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogAuthor(ctx context.Context, sel ast.SelectionSet, v *model.BlogAuthor) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52707,11 +50657,11 @@ func (ec *executionContext) marshalNBlogAuthor2ᚖgithubᚗcomᚋskeletgᚋskele
 	return ec._BlogAuthor(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNBlogCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogCategoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BlogCategory) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogCategoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BlogCategory) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNBlogCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogCategory(ctx, sel, v[i])
+		return ec.marshalNBlogCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogCategory(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52723,7 +50673,7 @@ func (ec *executionContext) marshalNBlogCategory2ᚕᚖgithubᚗcomᚋskeletgᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNBlogCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogCategory(ctx context.Context, sel ast.SelectionSet, v *model.BlogCategory) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogCategory(ctx context.Context, sel ast.SelectionSet, v *model.BlogCategory) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52733,11 +50683,11 @@ func (ec *executionContext) marshalNBlogCategory2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._BlogCategory(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNBlogPost2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPostᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BlogPost) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogPost2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPostᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BlogPost) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNBlogPost2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPost(ctx, sel, v[i])
+		return ec.marshalNBlogPost2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPost(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52749,7 +50699,7 @@ func (ec *executionContext) marshalNBlogPost2ᚕᚖgithubᚗcomᚋskeletgᚋskel
 	return ret
 }
 
-func (ec *executionContext) marshalNBlogPost2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPost(ctx context.Context, sel ast.SelectionSet, v *model.BlogPost) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogPost2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPost(ctx context.Context, sel ast.SelectionSet, v *model.BlogPost) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52759,11 +50709,11 @@ func (ec *executionContext) marshalNBlogPost2ᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ec._BlogPost(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNBlogPostList2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPostList(ctx context.Context, sel ast.SelectionSet, v model.BlogPostList) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogPostList2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPostList(ctx context.Context, sel ast.SelectionSet, v model.BlogPostList) graphql.Marshaler {
 	return ec._BlogPostList(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNBlogPostList2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPostList(ctx context.Context, sel ast.SelectionSet, v *model.BlogPostList) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogPostList2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPostList(ctx context.Context, sel ast.SelectionSet, v *model.BlogPostList) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52773,11 +50723,11 @@ func (ec *executionContext) marshalNBlogPostList2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._BlogPostList(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNBlogPostSearchHit2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBlogPostSearchHitᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.BlogPostSearchHit) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogPostSearchHit2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBlogPostSearchHitᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.BlogPostSearchHit) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNBlogPostSearchHit2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBlogPostSearchHit(ctx, sel, v[i])
+		return ec.marshalNBlogPostSearchHit2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBlogPostSearchHit(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52789,7 +50739,7 @@ func (ec *executionContext) marshalNBlogPostSearchHit2ᚕᚖgithubᚗcomᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNBlogPostSearchHit2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBlogPostSearchHit(ctx context.Context, sel ast.SelectionSet, v *model1.BlogPostSearchHit) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogPostSearchHit2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBlogPostSearchHit(ctx context.Context, sel ast.SelectionSet, v *model1.BlogPostSearchHit) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52799,11 +50749,11 @@ func (ec *executionContext) marshalNBlogPostSearchHit2ᚖgithubᚗcomᚋskeletg�
 	return ec._BlogPostSearchHit(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNBlogPostSearchResult2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBlogPostSearchResult(ctx context.Context, sel ast.SelectionSet, v model1.BlogPostSearchResult) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogPostSearchResult2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBlogPostSearchResult(ctx context.Context, sel ast.SelectionSet, v model1.BlogPostSearchResult) graphql.Marshaler {
 	return ec._BlogPostSearchResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNBlogPostSearchResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBlogPostSearchResult(ctx context.Context, sel ast.SelectionSet, v *model1.BlogPostSearchResult) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogPostSearchResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBlogPostSearchResult(ctx context.Context, sel ast.SelectionSet, v *model1.BlogPostSearchResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52813,21 +50763,21 @@ func (ec *executionContext) marshalNBlogPostSearchResult2ᚖgithubᚗcomᚋskele
 	return ec._BlogPostSearchResult(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNBlogPostStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPostStatus(ctx context.Context, v any) (model.BlogPostStatus, error) {
+func (ec *executionContext) unmarshalNBlogPostStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPostStatus(ctx context.Context, v any) (model.BlogPostStatus, error) {
 	var res model.BlogPostStatus
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNBlogPostStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPostStatus(ctx context.Context, sel ast.SelectionSet, v model.BlogPostStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogPostStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPostStatus(ctx context.Context, sel ast.SelectionSet, v model.BlogPostStatus) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNBlogTag2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogTagᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BlogTag) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogTag2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogTagᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BlogTag) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNBlogTag2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogTag(ctx, sel, v[i])
+		return ec.marshalNBlogTag2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogTag(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52839,7 +50789,7 @@ func (ec *executionContext) marshalNBlogTag2ᚕᚖgithubᚗcomᚋskeletgᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNBlogTag2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogTag(ctx context.Context, sel ast.SelectionSet, v *model.BlogTag) graphql.Marshaler {
+func (ec *executionContext) marshalNBlogTag2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogTag(ctx context.Context, sel ast.SelectionSet, v *model.BlogTag) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52865,11 +50815,11 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) marshalNBrowseFacet2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseFacetᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.BrowseFacet) graphql.Marshaler {
+func (ec *executionContext) marshalNBrowseFacet2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseFacetᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.BrowseFacet) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNBrowseFacet2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseFacet(ctx, sel, v[i])
+		return ec.marshalNBrowseFacet2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseFacet(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52881,7 +50831,7 @@ func (ec *executionContext) marshalNBrowseFacet2ᚕᚖgithubᚗcomᚋskeletgᚋs
 	return ret
 }
 
-func (ec *executionContext) marshalNBrowseFacet2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseFacet(ctx context.Context, sel ast.SelectionSet, v *model1.BrowseFacet) graphql.Marshaler {
+func (ec *executionContext) marshalNBrowseFacet2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseFacet(ctx context.Context, sel ast.SelectionSet, v *model1.BrowseFacet) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52891,11 +50841,11 @@ func (ec *executionContext) marshalNBrowseFacet2ᚖgithubᚗcomᚋskeletgᚋskel
 	return ec._BrowseFacet(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNBrowseFacetBucket2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseFacetBucketᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.BrowseFacetBucket) graphql.Marshaler {
+func (ec *executionContext) marshalNBrowseFacetBucket2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseFacetBucketᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.BrowseFacetBucket) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNBrowseFacetBucket2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseFacetBucket(ctx, sel, v[i])
+		return ec.marshalNBrowseFacetBucket2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseFacetBucket(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52907,7 +50857,7 @@ func (ec *executionContext) marshalNBrowseFacetBucket2ᚕᚖgithubᚗcomᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNBrowseFacetBucket2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseFacetBucket(ctx context.Context, sel ast.SelectionSet, v *model1.BrowseFacetBucket) graphql.Marshaler {
+func (ec *executionContext) marshalNBrowseFacetBucket2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseFacetBucket(ctx context.Context, sel ast.SelectionSet, v *model1.BrowseFacetBucket) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52917,21 +50867,21 @@ func (ec *executionContext) marshalNBrowseFacetBucket2ᚖgithubᚗcomᚋskeletg�
 	return ec._BrowseFacetBucket(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNBrowseFacetH1Position2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseFacetH1Position(ctx context.Context, v any) (model1.BrowseFacetH1Position, error) {
+func (ec *executionContext) unmarshalNBrowseFacetH1Position2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseFacetH1Position(ctx context.Context, v any) (model1.BrowseFacetH1Position, error) {
 	var res model1.BrowseFacetH1Position
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNBrowseFacetH1Position2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseFacetH1Position(ctx context.Context, sel ast.SelectionSet, v model1.BrowseFacetH1Position) graphql.Marshaler {
+func (ec *executionContext) marshalNBrowseFacetH1Position2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseFacetH1Position(ctx context.Context, sel ast.SelectionSet, v model1.BrowseFacetH1Position) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNBrowseProductsResult2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseProductsResult(ctx context.Context, sel ast.SelectionSet, v model1.BrowseProductsResult) graphql.Marshaler {
+func (ec *executionContext) marshalNBrowseProductsResult2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseProductsResult(ctx context.Context, sel ast.SelectionSet, v model1.BrowseProductsResult) graphql.Marshaler {
 	return ec._BrowseProductsResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNBrowseProductsResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseProductsResult(ctx context.Context, sel ast.SelectionSet, v *model1.BrowseProductsResult) graphql.Marshaler {
+func (ec *executionContext) marshalNBrowseProductsResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseProductsResult(ctx context.Context, sel ast.SelectionSet, v *model1.BrowseProductsResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52941,21 +50891,21 @@ func (ec *executionContext) marshalNBrowseProductsResult2ᚖgithubᚗcomᚋskele
 	return ec._BrowseProductsResult(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNBundleInputType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleInputType(ctx context.Context, v any) (model.BundleInputType, error) {
+func (ec *executionContext) unmarshalNBundleInputType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleInputType(ctx context.Context, v any) (model.BundleInputType, error) {
 	var res model.BundleInputType
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNBundleInputType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleInputType(ctx context.Context, sel ast.SelectionSet, v model.BundleInputType) graphql.Marshaler {
+func (ec *executionContext) marshalNBundleInputType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleInputType(ctx context.Context, sel ast.SelectionSet, v model.BundleInputType) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNBundleMembership2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBundleMembershipᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.BundleMembership) graphql.Marshaler {
+func (ec *executionContext) marshalNBundleMembership2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBundleMembershipᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.BundleMembership) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNBundleMembership2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBundleMembership(ctx, sel, v[i])
+		return ec.marshalNBundleMembership2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBundleMembership(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52967,7 +50917,7 @@ func (ec *executionContext) marshalNBundleMembership2ᚕᚖgithubᚗcomᚋskelet
 	return ret
 }
 
-func (ec *executionContext) marshalNBundleMembership2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBundleMembership(ctx context.Context, sel ast.SelectionSet, v *model1.BundleMembership) graphql.Marshaler {
+func (ec *executionContext) marshalNBundleMembership2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBundleMembership(ctx context.Context, sel ast.SelectionSet, v *model1.BundleMembership) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -52977,11 +50927,11 @@ func (ec *executionContext) marshalNBundleMembership2ᚖgithubᚗcomᚋskeletg�
 	return ec._BundleMembership(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNBundleOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BundleOption) graphql.Marshaler {
+func (ec *executionContext) marshalNBundleOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BundleOption) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNBundleOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleOption(ctx, sel, v[i])
+		return ec.marshalNBundleOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleOption(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -52993,7 +50943,7 @@ func (ec *executionContext) marshalNBundleOption2ᚕᚖgithubᚗcomᚋskeletgᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNBundleOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleOption(ctx context.Context, sel ast.SelectionSet, v *model.BundleOption) graphql.Marshaler {
+func (ec *executionContext) marshalNBundleOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleOption(ctx context.Context, sel ast.SelectionSet, v *model.BundleOption) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53003,11 +50953,11 @@ func (ec *executionContext) marshalNBundleOption2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._BundleOption(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNBundleSelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleSelectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BundleSelection) graphql.Marshaler {
+func (ec *executionContext) marshalNBundleSelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleSelectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BundleSelection) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNBundleSelection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleSelection(ctx, sel, v[i])
+		return ec.marshalNBundleSelection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleSelection(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53019,7 +50969,7 @@ func (ec *executionContext) marshalNBundleSelection2ᚕᚖgithubᚗcomᚋskeletg
 	return ret
 }
 
-func (ec *executionContext) marshalNBundleSelection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBundleSelection(ctx context.Context, sel ast.SelectionSet, v *model.BundleSelection) graphql.Marshaler {
+func (ec *executionContext) marshalNBundleSelection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBundleSelection(ctx context.Context, sel ast.SelectionSet, v *model.BundleSelection) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53029,11 +50979,11 @@ func (ec *executionContext) marshalNBundleSelection2ᚖgithubᚗcomᚋskeletgᚋ
 	return ec._BundleSelection(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCMSPage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CMSPage) graphql.Marshaler {
+func (ec *executionContext) marshalNCMSPage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CMSPage) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCMSPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPage(ctx, sel, v[i])
+		return ec.marshalNCMSPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPage(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53045,7 +50995,7 @@ func (ec *executionContext) marshalNCMSPage2ᚕᚖgithubᚗcomᚋskeletgᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNCMSPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPage(ctx context.Context, sel ast.SelectionSet, v *model.CMSPage) graphql.Marshaler {
+func (ec *executionContext) marshalNCMSPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPage(ctx context.Context, sel ast.SelectionSet, v *model.CMSPage) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53055,11 +51005,11 @@ func (ec *executionContext) marshalNCMSPage2ᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ec._CMSPage(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCMSPageRelationship2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageRelationshipᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CMSPageRelationship) graphql.Marshaler {
+func (ec *executionContext) marshalNCMSPageRelationship2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageRelationshipᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CMSPageRelationship) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCMSPageRelationship2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageRelationship(ctx, sel, v[i])
+		return ec.marshalNCMSPageRelationship2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageRelationship(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53071,7 +51021,7 @@ func (ec *executionContext) marshalNCMSPageRelationship2ᚕᚖgithubᚗcomᚋske
 	return ret
 }
 
-func (ec *executionContext) marshalNCMSPageRelationship2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageRelationship(ctx context.Context, sel ast.SelectionSet, v *model.CMSPageRelationship) graphql.Marshaler {
+func (ec *executionContext) marshalNCMSPageRelationship2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageRelationship(ctx context.Context, sel ast.SelectionSet, v *model.CMSPageRelationship) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53081,11 +51031,11 @@ func (ec *executionContext) marshalNCMSPageRelationship2ᚖgithubᚗcomᚋskelet
 	return ec._CMSPageRelationship(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCMSPageSelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageSelectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CMSPageSelection) graphql.Marshaler {
+func (ec *executionContext) marshalNCMSPageSelection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageSelectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CMSPageSelection) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCMSPageSelection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageSelection(ctx, sel, v[i])
+		return ec.marshalNCMSPageSelection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageSelection(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53097,7 +51047,7 @@ func (ec *executionContext) marshalNCMSPageSelection2ᚕᚖgithubᚗcomᚋskelet
 	return ret
 }
 
-func (ec *executionContext) marshalNCMSPageSelection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageSelection(ctx context.Context, sel ast.SelectionSet, v *model.CMSPageSelection) graphql.Marshaler {
+func (ec *executionContext) marshalNCMSPageSelection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageSelection(ctx context.Context, sel ast.SelectionSet, v *model.CMSPageSelection) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53107,11 +51057,11 @@ func (ec *executionContext) marshalNCMSPageSelection2ᚖgithubᚗcomᚋskeletg�
 	return ec._CMSPageSelection(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCMSPageVariant2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageVariantᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CMSPageVariant) graphql.Marshaler {
+func (ec *executionContext) marshalNCMSPageVariant2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageVariantᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CMSPageVariant) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCMSPageVariant2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageVariant(ctx, sel, v[i])
+		return ec.marshalNCMSPageVariant2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageVariant(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53123,7 +51073,7 @@ func (ec *executionContext) marshalNCMSPageVariant2ᚕᚖgithubᚗcomᚋskeletg�
 	return ret
 }
 
-func (ec *executionContext) marshalNCMSPageVariant2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageVariant(ctx context.Context, sel ast.SelectionSet, v *model.CMSPageVariant) graphql.Marshaler {
+func (ec *executionContext) marshalNCMSPageVariant2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageVariant(ctx context.Context, sel ast.SelectionSet, v *model.CMSPageVariant) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53133,21 +51083,21 @@ func (ec *executionContext) marshalNCMSPageVariant2ᚖgithubᚗcomᚋskeletgᚋs
 	return ec._CMSPageVariant(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNCMSRelationshipTarget2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSRelationshipTarget(ctx context.Context, v any) (model.CMSRelationshipTarget, error) {
+func (ec *executionContext) unmarshalNCMSRelationshipTarget2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSRelationshipTarget(ctx context.Context, v any) (model.CMSRelationshipTarget, error) {
 	var res model.CMSRelationshipTarget
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNCMSRelationshipTarget2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSRelationshipTarget(ctx context.Context, sel ast.SelectionSet, v model.CMSRelationshipTarget) graphql.Marshaler {
+func (ec *executionContext) marshalNCMSRelationshipTarget2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSRelationshipTarget(ctx context.Context, sel ast.SelectionSet, v model.CMSRelationshipTarget) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNCart2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx context.Context, sel ast.SelectionSet, v model1.Cart) graphql.Marshaler {
+func (ec *executionContext) marshalNCart2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx context.Context, sel ast.SelectionSet, v model1.Cart) graphql.Marshaler {
 	return ec._Cart(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx context.Context, sel ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
+func (ec *executionContext) marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx context.Context, sel ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53157,11 +51107,11 @@ func (ec *executionContext) marshalNCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgr
 	return ec._Cart(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCartEstimate2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartEstimate(ctx context.Context, sel ast.SelectionSet, v model1.CartEstimate) graphql.Marshaler {
+func (ec *executionContext) marshalNCartEstimate2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartEstimate(ctx context.Context, sel ast.SelectionSet, v model1.CartEstimate) graphql.Marshaler {
 	return ec._CartEstimate(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCartEstimate2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartEstimate(ctx context.Context, sel ast.SelectionSet, v *model1.CartEstimate) graphql.Marshaler {
+func (ec *executionContext) marshalNCartEstimate2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartEstimate(ctx context.Context, sel ast.SelectionSet, v *model1.CartEstimate) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53171,11 +51121,11 @@ func (ec *executionContext) marshalNCartEstimate2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._CartEstimate(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCartLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.CartLine) graphql.Marshaler {
+func (ec *executionContext) marshalNCartLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.CartLine) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCartLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartLine(ctx, sel, v[i])
+		return ec.marshalNCartLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartLine(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53187,7 +51137,7 @@ func (ec *executionContext) marshalNCartLine2ᚕᚖgithubᚗcomᚋskeletgᚋskel
 	return ret
 }
 
-func (ec *executionContext) marshalNCartLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartLine(ctx context.Context, sel ast.SelectionSet, v *model1.CartLine) graphql.Marshaler {
+func (ec *executionContext) marshalNCartLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartLine(ctx context.Context, sel ast.SelectionSet, v *model1.CartLine) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53197,11 +51147,11 @@ func (ec *executionContext) marshalNCartLine2ᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ec._CartLine(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCartLineComponent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartLineComponentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.CartLineComponent) graphql.Marshaler {
+func (ec *executionContext) marshalNCartLineComponent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartLineComponentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.CartLineComponent) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCartLineComponent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartLineComponent(ctx, sel, v[i])
+		return ec.marshalNCartLineComponent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartLineComponent(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53213,7 +51163,7 @@ func (ec *executionContext) marshalNCartLineComponent2ᚕᚖgithubᚗcomᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNCartLineComponent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartLineComponent(ctx context.Context, sel ast.SelectionSet, v *model1.CartLineComponent) graphql.Marshaler {
+func (ec *executionContext) marshalNCartLineComponent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartLineComponent(ctx context.Context, sel ast.SelectionSet, v *model1.CartLineComponent) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53223,11 +51173,11 @@ func (ec *executionContext) marshalNCartLineComponent2ᚖgithubᚗcomᚋskeletg�
 	return ec._CartLineComponent(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCartLineOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartLineOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.CartLineOption) graphql.Marshaler {
+func (ec *executionContext) marshalNCartLineOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartLineOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.CartLineOption) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCartLineOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartLineOption(ctx, sel, v[i])
+		return ec.marshalNCartLineOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartLineOption(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53239,7 +51189,7 @@ func (ec *executionContext) marshalNCartLineOption2ᚕᚖgithubᚗcomᚋskeletg�
 	return ret
 }
 
-func (ec *executionContext) marshalNCartLineOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCartLineOption(ctx context.Context, sel ast.SelectionSet, v *model1.CartLineOption) graphql.Marshaler {
+func (ec *executionContext) marshalNCartLineOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCartLineOption(ctx context.Context, sel ast.SelectionSet, v *model1.CartLineOption) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53249,15 +51199,15 @@ func (ec *executionContext) marshalNCartLineOption2ᚖgithubᚗcomᚋskeletgᚋs
 	return ec._CartLineOption(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCategory2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v model.Category) graphql.Marshaler {
+func (ec *executionContext) marshalNCategory2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v model.Category) graphql.Marshaler {
 	return ec._Category(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Category) graphql.Marshaler {
+func (ec *executionContext) marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Category) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategory(ctx, sel, v[i])
+		return ec.marshalNCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategory(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53269,7 +51219,7 @@ func (ec *executionContext) marshalNCategory2ᚕᚖgithubᚗcomᚋskeletgᚋskel
 	return ret
 }
 
-func (ec *executionContext) marshalNCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v *model.Category) graphql.Marshaler {
+func (ec *executionContext) marshalNCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v *model.Category) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53279,15 +51229,15 @@ func (ec *executionContext) marshalNCategory2ᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ec._Category(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCollection2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCollection(ctx context.Context, sel ast.SelectionSet, v model.Collection) graphql.Marshaler {
+func (ec *executionContext) marshalNCollection2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCollection(ctx context.Context, sel ast.SelectionSet, v model.Collection) graphql.Marshaler {
 	return ec._Collection(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCollection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCollectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Collection) graphql.Marshaler {
+func (ec *executionContext) marshalNCollection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCollectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Collection) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCollection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCollection(ctx, sel, v[i])
+		return ec.marshalNCollection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCollection(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53299,7 +51249,7 @@ func (ec *executionContext) marshalNCollection2ᚕᚖgithubᚗcomᚋskeletgᚋsk
 	return ret
 }
 
-func (ec *executionContext) marshalNCollection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCollection(ctx context.Context, sel ast.SelectionSet, v *model.Collection) graphql.Marshaler {
+func (ec *executionContext) marshalNCollection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCollection(ctx context.Context, sel ast.SelectionSet, v *model.Collection) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53309,11 +51259,11 @@ func (ec *executionContext) marshalNCollection2ᚖgithubᚗcomᚋskeletgᚋskele
 	return ec._Collection(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCompanyOrderSummary2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCompanyOrderSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.CompanyOrderSummary) graphql.Marshaler {
+func (ec *executionContext) marshalNConfigGroup2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ConfigGroup) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCompanyOrderSummary2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCompanyOrderSummary(ctx, sel, v[i])
+		return ec.marshalNConfigGroup2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigGroup(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53325,33 +51275,7 @@ func (ec *executionContext) marshalNCompanyOrderSummary2ᚕᚖgithubᚗcomᚋske
 	return ret
 }
 
-func (ec *executionContext) marshalNCompanyOrderSummary2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCompanyOrderSummary(ctx context.Context, sel ast.SelectionSet, v *model1.CompanyOrderSummary) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._CompanyOrderSummary(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNConfigGroup2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ConfigGroup) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNConfigGroup2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigGroup(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNConfigGroup2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigGroup(ctx context.Context, sel ast.SelectionSet, v *model.ConfigGroup) graphql.Marshaler {
+func (ec *executionContext) marshalNConfigGroup2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigGroup(ctx context.Context, sel ast.SelectionSet, v *model.ConfigGroup) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53361,7 +51285,7 @@ func (ec *executionContext) marshalNConfigGroup2ᚖgithubᚗcomᚋskeletgᚋskel
 	return ec._ConfigGroup(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNConfigOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigOption(ctx context.Context, sel ast.SelectionSet, v *model.ConfigOption) graphql.Marshaler {
+func (ec *executionContext) marshalNConfigOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigOption(ctx context.Context, sel ast.SelectionSet, v *model.ConfigOption) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53371,7 +51295,7 @@ func (ec *executionContext) marshalNConfigOption2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._ConfigOption(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNConfigScope2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigScope(ctx context.Context, sel ast.SelectionSet, v *model.ConfigScope) graphql.Marshaler {
+func (ec *executionContext) marshalNConfigScope2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigScope(ctx context.Context, sel ast.SelectionSet, v *model.ConfigScope) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53381,21 +51305,21 @@ func (ec *executionContext) marshalNConfigScope2ᚖgithubᚗcomᚋskeletgᚋskel
 	return ec._ConfigScope(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNConfigScopeKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigScopeKind(ctx context.Context, v any) (model.ConfigScopeKind, error) {
+func (ec *executionContext) unmarshalNConfigScopeKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigScopeKind(ctx context.Context, v any) (model.ConfigScopeKind, error) {
 	var res model.ConfigScopeKind
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNConfigScopeKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigScopeKind(ctx context.Context, sel ast.SelectionSet, v model.ConfigScopeKind) graphql.Marshaler {
+func (ec *executionContext) marshalNConfigScopeKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigScopeKind(ctx context.Context, sel ast.SelectionSet, v model.ConfigScopeKind) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNConfigSection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigSectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ConfigSection) graphql.Marshaler {
+func (ec *executionContext) marshalNConfigSection2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigSectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ConfigSection) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNConfigSection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigSection(ctx, sel, v[i])
+		return ec.marshalNConfigSection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigSection(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53407,7 +51331,7 @@ func (ec *executionContext) marshalNConfigSection2ᚕᚖgithubᚗcomᚋskeletg�
 	return ret
 }
 
-func (ec *executionContext) marshalNConfigSection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigSection(ctx context.Context, sel ast.SelectionSet, v *model.ConfigSection) graphql.Marshaler {
+func (ec *executionContext) marshalNConfigSection2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigSection(ctx context.Context, sel ast.SelectionSet, v *model.ConfigSection) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53417,21 +51341,21 @@ func (ec *executionContext) marshalNConfigSection2ᚖgithubᚗcomᚋskeletgᚋsk
 	return ec._ConfigSection(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNConfigType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigType(ctx context.Context, v any) (model.ConfigType, error) {
+func (ec *executionContext) unmarshalNConfigType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigType(ctx context.Context, v any) (model.ConfigType, error) {
 	var res model.ConfigType
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNConfigType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigType(ctx context.Context, sel ast.SelectionSet, v model.ConfigType) graphql.Marshaler {
+func (ec *executionContext) marshalNConfigType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigType(ctx context.Context, sel ast.SelectionSet, v model.ConfigType) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNConfigValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigValueᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ConfigValue) graphql.Marshaler {
+func (ec *executionContext) marshalNConfigValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigValueᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ConfigValue) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNConfigValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigValue(ctx, sel, v[i])
+		return ec.marshalNConfigValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigValue(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53443,7 +51367,7 @@ func (ec *executionContext) marshalNConfigValue2ᚕᚖgithubᚗcomᚋskeletgᚋs
 	return ret
 }
 
-func (ec *executionContext) marshalNConfigValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigValue(ctx context.Context, sel ast.SelectionSet, v *model.ConfigValue) graphql.Marshaler {
+func (ec *executionContext) marshalNConfigValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigValue(ctx context.Context, sel ast.SelectionSet, v *model.ConfigValue) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53453,21 +51377,21 @@ func (ec *executionContext) marshalNConfigValue2ᚖgithubᚗcomᚋskeletgᚋskel
 	return ec._ConfigValue(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNConsentChannel2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConsentChannel(ctx context.Context, v any) (model.ConsentChannel, error) {
+func (ec *executionContext) unmarshalNConsentChannel2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConsentChannel(ctx context.Context, v any) (model.ConsentChannel, error) {
 	var res model.ConsentChannel
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNConsentChannel2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConsentChannel(ctx context.Context, sel ast.SelectionSet, v model.ConsentChannel) graphql.Marshaler {
+func (ec *executionContext) marshalNConsentChannel2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConsentChannel(ctx context.Context, sel ast.SelectionSet, v model.ConsentChannel) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNConsentDefinition2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConsentDefinitionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ConsentDefinition) graphql.Marshaler {
+func (ec *executionContext) marshalNConsentDefinition2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConsentDefinitionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ConsentDefinition) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNConsentDefinition2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConsentDefinition(ctx, sel, v[i])
+		return ec.marshalNConsentDefinition2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConsentDefinition(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53479,7 +51403,7 @@ func (ec *executionContext) marshalNConsentDefinition2ᚕᚖgithubᚗcomᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNConsentDefinition2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConsentDefinition(ctx context.Context, sel ast.SelectionSet, v *model.ConsentDefinition) graphql.Marshaler {
+func (ec *executionContext) marshalNConsentDefinition2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConsentDefinition(ctx context.Context, sel ast.SelectionSet, v *model.ConsentDefinition) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53489,25 +51413,25 @@ func (ec *executionContext) marshalNConsentDefinition2ᚖgithubᚗcomᚋskeletg�
 	return ec._ConsentDefinition(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNConsentPurpose2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConsentPurpose(ctx context.Context, v any) (model.ConsentPurpose, error) {
+func (ec *executionContext) unmarshalNConsentPurpose2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConsentPurpose(ctx context.Context, v any) (model.ConsentPurpose, error) {
 	var res model.ConsentPurpose
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNConsentPurpose2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConsentPurpose(ctx context.Context, sel ast.SelectionSet, v model.ConsentPurpose) graphql.Marshaler {
+func (ec *executionContext) marshalNConsentPurpose2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConsentPurpose(ctx context.Context, sel ast.SelectionSet, v model.ConsentPurpose) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNCountry2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCountry(ctx context.Context, sel ast.SelectionSet, v model.Country) graphql.Marshaler {
+func (ec *executionContext) marshalNCountry2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCountry(ctx context.Context, sel ast.SelectionSet, v model.Country) graphql.Marshaler {
 	return ec._Country(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCountry2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCountryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Country) graphql.Marshaler {
+func (ec *executionContext) marshalNCountry2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCountryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Country) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCountry2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCountry(ctx, sel, v[i])
+		return ec.marshalNCountry2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCountry(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53519,7 +51443,7 @@ func (ec *executionContext) marshalNCountry2ᚕᚖgithubᚗcomᚋskeletgᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNCountry2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCountry(ctx context.Context, sel ast.SelectionSet, v *model.Country) graphql.Marshaler {
+func (ec *executionContext) marshalNCountry2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCountry(ctx context.Context, sel ast.SelectionSet, v *model.Country) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53529,11 +51453,11 @@ func (ec *executionContext) marshalNCountry2ᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ec._Country(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCountrySettings2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCountrySettings(ctx context.Context, sel ast.SelectionSet, v model1.CountrySettings) graphql.Marshaler {
+func (ec *executionContext) marshalNCountrySettings2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCountrySettings(ctx context.Context, sel ast.SelectionSet, v model1.CountrySettings) graphql.Marshaler {
 	return ec._CountrySettings(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCountrySettings2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCountrySettings(ctx context.Context, sel ast.SelectionSet, v *model1.CountrySettings) graphql.Marshaler {
+func (ec *executionContext) marshalNCountrySettings2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCountrySettings(ctx context.Context, sel ast.SelectionSet, v *model1.CountrySettings) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53543,15 +51467,15 @@ func (ec *executionContext) marshalNCountrySettings2ᚖgithubᚗcomᚋskeletgᚋ
 	return ec._CountrySettings(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCurrency2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCurrency(ctx context.Context, sel ast.SelectionSet, v model.Currency) graphql.Marshaler {
+func (ec *executionContext) marshalNCurrency2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCurrency(ctx context.Context, sel ast.SelectionSet, v model.Currency) graphql.Marshaler {
 	return ec._Currency(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCurrency2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCurrencyᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Currency) graphql.Marshaler {
+func (ec *executionContext) marshalNCurrency2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCurrencyᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Currency) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCurrency(ctx, sel, v[i])
+		return ec.marshalNCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCurrency(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53563,7 +51487,7 @@ func (ec *executionContext) marshalNCurrency2ᚕᚖgithubᚗcomᚋskeletgᚋskel
 	return ret
 }
 
-func (ec *executionContext) marshalNCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCurrency(ctx context.Context, sel ast.SelectionSet, v *model.Currency) graphql.Marshaler {
+func (ec *executionContext) marshalNCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCurrency(ctx context.Context, sel ast.SelectionSet, v *model.Currency) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53573,11 +51497,11 @@ func (ec *executionContext) marshalNCurrency2ᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ec._Currency(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCustomer2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomer(ctx context.Context, sel ast.SelectionSet, v model.Customer) graphql.Marshaler {
+func (ec *executionContext) marshalNCustomer2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomer(ctx context.Context, sel ast.SelectionSet, v model.Customer) graphql.Marshaler {
 	return ec._Customer(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomer(ctx context.Context, sel ast.SelectionSet, v *model.Customer) graphql.Marshaler {
+func (ec *executionContext) marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomer(ctx context.Context, sel ast.SelectionSet, v *model.Customer) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53587,11 +51511,11 @@ func (ec *executionContext) marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ec._Customer(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCustomerAuthPayload2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerAuthPayload(ctx context.Context, sel ast.SelectionSet, v model.CustomerAuthPayload) graphql.Marshaler {
+func (ec *executionContext) marshalNCustomerAuthPayload2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerAuthPayload(ctx context.Context, sel ast.SelectionSet, v model.CustomerAuthPayload) graphql.Marshaler {
 	return ec._CustomerAuthPayload(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCustomerAuthPayload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerAuthPayload(ctx context.Context, sel ast.SelectionSet, v *model.CustomerAuthPayload) graphql.Marshaler {
+func (ec *executionContext) marshalNCustomerAuthPayload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerAuthPayload(ctx context.Context, sel ast.SelectionSet, v *model.CustomerAuthPayload) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53601,15 +51525,15 @@ func (ec *executionContext) marshalNCustomerAuthPayload2ᚖgithubᚗcomᚋskelet
 	return ec._CustomerAuthPayload(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCustomerConsent2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerConsent(ctx context.Context, sel ast.SelectionSet, v model.CustomerConsent) graphql.Marshaler {
+func (ec *executionContext) marshalNCustomerConsent2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerConsent(ctx context.Context, sel ast.SelectionSet, v model.CustomerConsent) graphql.Marshaler {
 	return ec._CustomerConsent(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCustomerConsent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerConsentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CustomerConsent) graphql.Marshaler {
+func (ec *executionContext) marshalNCustomerConsent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerConsentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CustomerConsent) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCustomerConsent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerConsent(ctx, sel, v[i])
+		return ec.marshalNCustomerConsent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerConsent(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53621,7 +51545,7 @@ func (ec *executionContext) marshalNCustomerConsent2ᚕᚖgithubᚗcomᚋskeletg
 	return ret
 }
 
-func (ec *executionContext) marshalNCustomerConsent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerConsent(ctx context.Context, sel ast.SelectionSet, v *model.CustomerConsent) graphql.Marshaler {
+func (ec *executionContext) marshalNCustomerConsent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerConsent(ctx context.Context, sel ast.SelectionSet, v *model.CustomerConsent) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53631,25 +51555,25 @@ func (ec *executionContext) marshalNCustomerConsent2ᚖgithubᚗcomᚋskeletgᚋ
 	return ec._CustomerConsent(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNCustomerLoginInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerLoginInput(ctx context.Context, v any) (model.CustomerLoginInput, error) {
+func (ec *executionContext) unmarshalNCustomerLoginInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerLoginInput(ctx context.Context, v any) (model.CustomerLoginInput, error) {
 	res, err := ec.unmarshalInputCustomerLoginInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNCustomerRegisterInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerRegisterInput(ctx context.Context, v any) (model.CustomerRegisterInput, error) {
+func (ec *executionContext) unmarshalNCustomerRegisterInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerRegisterInput(ctx context.Context, v any) (model.CustomerRegisterInput, error) {
 	res, err := ec.unmarshalInputCustomerRegisterInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNCustomerSubscription2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerSubscription(ctx context.Context, sel ast.SelectionSet, v model.CustomerSubscription) graphql.Marshaler {
+func (ec *executionContext) marshalNCustomerSubscription2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSubscription(ctx context.Context, sel ast.SelectionSet, v model.CustomerSubscription) graphql.Marshaler {
 	return ec._CustomerSubscription(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCustomerSubscription2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerSubscriptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CustomerSubscription) graphql.Marshaler {
+func (ec *executionContext) marshalNCustomerSubscription2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSubscriptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CustomerSubscription) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNCustomerSubscription2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerSubscription(ctx, sel, v[i])
+		return ec.marshalNCustomerSubscription2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSubscription(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53661,7 +51585,7 @@ func (ec *executionContext) marshalNCustomerSubscription2ᚕᚖgithubᚗcomᚋsk
 	return ret
 }
 
-func (ec *executionContext) marshalNCustomerSubscription2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCustomerSubscription(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSubscription) graphql.Marshaler {
+func (ec *executionContext) marshalNCustomerSubscription2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSubscription(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSubscription) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53671,11 +51595,11 @@ func (ec *executionContext) marshalNCustomerSubscription2ᚖgithubᚗcomᚋskele
 	return ec._CustomerSubscription(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNDownloadGrant2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐDownloadGrantᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.DownloadGrant) graphql.Marshaler {
+func (ec *executionContext) marshalNDownloadGrant2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐDownloadGrantᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.DownloadGrant) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNDownloadGrant2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐDownloadGrant(ctx, sel, v[i])
+		return ec.marshalNDownloadGrant2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐDownloadGrant(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53687,7 +51611,7 @@ func (ec *executionContext) marshalNDownloadGrant2ᚕᚖgithubᚗcomᚋskeletg�
 	return ret
 }
 
-func (ec *executionContext) marshalNDownloadGrant2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐDownloadGrant(ctx context.Context, sel ast.SelectionSet, v *model1.DownloadGrant) graphql.Marshaler {
+func (ec *executionContext) marshalNDownloadGrant2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐDownloadGrant(ctx context.Context, sel ast.SelectionSet, v *model1.DownloadGrant) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53713,11 +51637,11 @@ func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.S
 	return graphql.WrapContextMarshaler(ctx, res)
 }
 
-func (ec *executionContext) marshalNGroupedMember2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐGroupedMemberᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GroupedMember) graphql.Marshaler {
+func (ec *executionContext) marshalNGroupedMember2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐGroupedMemberᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GroupedMember) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNGroupedMember2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐGroupedMember(ctx, sel, v[i])
+		return ec.marshalNGroupedMember2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐGroupedMember(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53729,7 +51653,7 @@ func (ec *executionContext) marshalNGroupedMember2ᚕᚖgithubᚗcomᚋskeletg�
 	return ret
 }
 
-func (ec *executionContext) marshalNGroupedMember2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐGroupedMember(ctx context.Context, sel ast.SelectionSet, v *model.GroupedMember) graphql.Marshaler {
+func (ec *executionContext) marshalNGroupedMember2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐGroupedMember(ctx context.Context, sel ast.SelectionSet, v *model.GroupedMember) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53739,11 +51663,11 @@ func (ec *executionContext) marshalNGroupedMember2ᚖgithubᚗcomᚋskeletgᚋsk
 	return ec._GroupedMember(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNGroupedMembership2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐGroupedMembershipᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.GroupedMembership) graphql.Marshaler {
+func (ec *executionContext) marshalNGroupedMembership2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐGroupedMembershipᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.GroupedMembership) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNGroupedMembership2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐGroupedMembership(ctx, sel, v[i])
+		return ec.marshalNGroupedMembership2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐGroupedMembership(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53755,7 +51679,7 @@ func (ec *executionContext) marshalNGroupedMembership2ᚕᚖgithubᚗcomᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNGroupedMembership2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐGroupedMembership(ctx context.Context, sel ast.SelectionSet, v *model1.GroupedMembership) graphql.Marshaler {
+func (ec *executionContext) marshalNGroupedMembership2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐGroupedMembership(ctx context.Context, sel ast.SelectionSet, v *model1.GroupedMembership) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53877,15 +51801,15 @@ func (ec *executionContext) marshalNJSON2interface(ctx context.Context, sel ast.
 	return res
 }
 
-func (ec *executionContext) marshalNLocale2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐLocale(ctx context.Context, sel ast.SelectionSet, v model.Locale) graphql.Marshaler {
+func (ec *executionContext) marshalNLocale2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐLocale(ctx context.Context, sel ast.SelectionSet, v model.Locale) graphql.Marshaler {
 	return ec._Locale(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNLocale2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐLocaleᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Locale) graphql.Marshaler {
+func (ec *executionContext) marshalNLocale2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐLocaleᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Locale) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNLocale2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐLocale(ctx, sel, v[i])
+		return ec.marshalNLocale2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐLocale(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53897,7 +51821,7 @@ func (ec *executionContext) marshalNLocale2ᚕᚖgithubᚗcomᚋskeletgᚋskelet
 	return ret
 }
 
-func (ec *executionContext) marshalNLocale2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐLocale(ctx context.Context, sel ast.SelectionSet, v *model.Locale) graphql.Marshaler {
+func (ec *executionContext) marshalNLocale2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐLocale(ctx context.Context, sel ast.SelectionSet, v *model.Locale) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53907,11 +51831,11 @@ func (ec *executionContext) marshalNLocale2ᚖgithubᚗcomᚋskeletgᚋskeletᚋ
 	return ec._Locale(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNLoyaltyRedeemResult2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐLoyaltyRedeemResult(ctx context.Context, sel ast.SelectionSet, v model1.LoyaltyRedeemResult) graphql.Marshaler {
+func (ec *executionContext) marshalNLoyaltyRedeemResult2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐLoyaltyRedeemResult(ctx context.Context, sel ast.SelectionSet, v model1.LoyaltyRedeemResult) graphql.Marshaler {
 	return ec._LoyaltyRedeemResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNLoyaltyRedeemResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐLoyaltyRedeemResult(ctx context.Context, sel ast.SelectionSet, v *model1.LoyaltyRedeemResult) graphql.Marshaler {
+func (ec *executionContext) marshalNLoyaltyRedeemResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐLoyaltyRedeemResult(ctx context.Context, sel ast.SelectionSet, v *model1.LoyaltyRedeemResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53921,11 +51845,11 @@ func (ec *executionContext) marshalNLoyaltyRedeemResult2ᚖgithubᚗcomᚋskelet
 	return ec._LoyaltyRedeemResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNLoyaltyStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐLoyaltyStatus(ctx context.Context, sel ast.SelectionSet, v model1.LoyaltyStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNLoyaltyStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐLoyaltyStatus(ctx context.Context, sel ast.SelectionSet, v model1.LoyaltyStatus) graphql.Marshaler {
 	return ec._LoyaltyStatus(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNLoyaltyStatus2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐLoyaltyStatus(ctx context.Context, sel ast.SelectionSet, v *model1.LoyaltyStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNLoyaltyStatus2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐLoyaltyStatus(ctx context.Context, sel ast.SelectionSet, v *model1.LoyaltyStatus) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53935,11 +51859,11 @@ func (ec *executionContext) marshalNLoyaltyStatus2ᚖgithubᚗcomᚋskeletgᚋsk
 	return ec._LoyaltyStatus(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNMenu2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMenuᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.Menu) graphql.Marshaler {
+func (ec *executionContext) marshalNMenu2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMenuᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.Menu) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNMenu2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMenu(ctx, sel, v[i])
+		return ec.marshalNMenu2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMenu(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53951,7 +51875,7 @@ func (ec *executionContext) marshalNMenu2ᚕᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ret
 }
 
-func (ec *executionContext) marshalNMenu2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMenu(ctx context.Context, sel ast.SelectionSet, v *model1.Menu) graphql.Marshaler {
+func (ec *executionContext) marshalNMenu2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMenu(ctx context.Context, sel ast.SelectionSet, v *model1.Menu) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53961,11 +51885,11 @@ func (ec *executionContext) marshalNMenu2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgr
 	return ec._Menu(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNMenuItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMenuItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.MenuItem) graphql.Marshaler {
+func (ec *executionContext) marshalNMenuItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMenuItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.MenuItem) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNMenuItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMenuItem(ctx, sel, v[i])
+		return ec.marshalNMenuItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMenuItem(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -53977,7 +51901,7 @@ func (ec *executionContext) marshalNMenuItem2ᚕᚖgithubᚗcomᚋskeletgᚋskel
 	return ret
 }
 
-func (ec *executionContext) marshalNMenuItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMenuItem(ctx context.Context, sel ast.SelectionSet, v *model1.MenuItem) graphql.Marshaler {
+func (ec *executionContext) marshalNMenuItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMenuItem(ctx context.Context, sel ast.SelectionSet, v *model1.MenuItem) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -53987,97 +51911,15 @@ func (ec *executionContext) marshalNMenuItem2ᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ec._MenuItem(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNMyB2BInvoice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BInvoiceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.MyB2BInvoice) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNMyB2BInvoice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BInvoice(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNMyB2BInvoice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BInvoice(ctx context.Context, sel ast.SelectionSet, v *model1.MyB2BInvoice) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._MyB2BInvoice(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNMyB2BQuote2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BQuote(ctx context.Context, sel ast.SelectionSet, v model1.MyB2BQuote) graphql.Marshaler {
-	return ec._MyB2BQuote(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNMyB2BQuote2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BQuoteᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.MyB2BQuote) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNMyB2BQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BQuote(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNMyB2BQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BQuote(ctx context.Context, sel ast.SelectionSet, v *model1.MyB2BQuote) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._MyB2BQuote(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNMyB2BQuoteItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BQuoteItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.MyB2BQuoteItem) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNMyB2BQuoteItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BQuoteItem(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNMyB2BQuoteItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyB2BQuoteItem(ctx context.Context, sel ast.SelectionSet, v *model1.MyB2BQuoteItem) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._MyB2BQuoteItem(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNOrder2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrder(ctx context.Context, sel ast.SelectionSet, v model.Order) graphql.Marshaler {
+func (ec *executionContext) marshalNOrder2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrder(ctx context.Context, sel ast.SelectionSet, v model.Order) graphql.Marshaler {
 	return ec._Order(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNOrder2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Order) graphql.Marshaler {
+func (ec *executionContext) marshalNOrder2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Order) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrder(ctx, sel, v[i])
+		return ec.marshalNOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrder(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54089,7 +51931,7 @@ func (ec *executionContext) marshalNOrder2ᚕᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ret
 }
 
-func (ec *executionContext) marshalNOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrder(ctx context.Context, sel ast.SelectionSet, v *model.Order) graphql.Marshaler {
+func (ec *executionContext) marshalNOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrder(ctx context.Context, sel ast.SelectionSet, v *model.Order) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54099,7 +51941,7 @@ func (ec *executionContext) marshalNOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋg
 	return ec._Order(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNOrderAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderAddress(ctx context.Context, sel ast.SelectionSet, v *model.OrderAddress) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderAddress(ctx context.Context, sel ast.SelectionSet, v *model.OrderAddress) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54109,11 +51951,11 @@ func (ec *executionContext) marshalNOrderAddress2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._OrderAddress(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNOrderEvent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderEventᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderEvent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderEventᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderEvent) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNOrderEvent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderEvent(ctx, sel, v[i])
+		return ec.marshalNOrderEvent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderEvent(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54125,7 +51967,7 @@ func (ec *executionContext) marshalNOrderEvent2ᚕᚖgithubᚗcomᚋskeletgᚋsk
 	return ret
 }
 
-func (ec *executionContext) marshalNOrderEvent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderEvent(ctx context.Context, sel ast.SelectionSet, v *model.OrderEvent) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderEvent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderEvent(ctx context.Context, sel ast.SelectionSet, v *model.OrderEvent) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54135,11 +51977,11 @@ func (ec *executionContext) marshalNOrderEvent2ᚖgithubᚗcomᚋskeletgᚋskele
 	return ec._OrderEvent(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNOrderLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderLine) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderLine) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNOrderLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderLine(ctx, sel, v[i])
+		return ec.marshalNOrderLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderLine(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54151,7 +51993,7 @@ func (ec *executionContext) marshalNOrderLine2ᚕᚖgithubᚗcomᚋskeletgᚋske
 	return ret
 }
 
-func (ec *executionContext) marshalNOrderLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderLine(ctx context.Context, sel ast.SelectionSet, v *model.OrderLine) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderLine(ctx context.Context, sel ast.SelectionSet, v *model.OrderLine) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54161,11 +52003,11 @@ func (ec *executionContext) marshalNOrderLine2ᚖgithubᚗcomᚋskeletgᚋskelet
 	return ec._OrderLine(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNOrderLineOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderLineOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderLineOption) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderLineOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderLineOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderLineOption) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNOrderLineOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderLineOption(ctx, sel, v[i])
+		return ec.marshalNOrderLineOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderLineOption(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54177,7 +52019,7 @@ func (ec *executionContext) marshalNOrderLineOption2ᚕᚖgithubᚗcomᚋskeletg
 	return ret
 }
 
-func (ec *executionContext) marshalNOrderLineOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderLineOption(ctx context.Context, sel ast.SelectionSet, v *model.OrderLineOption) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderLineOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderLineOption(ctx context.Context, sel ast.SelectionSet, v *model.OrderLineOption) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54187,15 +52029,15 @@ func (ec *executionContext) marshalNOrderLineOption2ᚖgithubᚗcomᚋskeletgᚋ
 	return ec._OrderLineOption(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNOrderReturn2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderReturn(ctx context.Context, sel ast.SelectionSet, v model.OrderReturn) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderReturn2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderReturn(ctx context.Context, sel ast.SelectionSet, v model.OrderReturn) graphql.Marshaler {
 	return ec._OrderReturn(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNOrderReturn2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderReturnᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderReturn) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderReturn2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderReturnᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderReturn) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNOrderReturn2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderReturn(ctx, sel, v[i])
+		return ec.marshalNOrderReturn2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderReturn(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54207,7 +52049,7 @@ func (ec *executionContext) marshalNOrderReturn2ᚕᚖgithubᚗcomᚋskeletgᚋs
 	return ret
 }
 
-func (ec *executionContext) marshalNOrderReturn2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderReturn(ctx context.Context, sel ast.SelectionSet, v *model.OrderReturn) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderReturn2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderReturn(ctx context.Context, sel ast.SelectionSet, v *model.OrderReturn) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54217,11 +52059,11 @@ func (ec *executionContext) marshalNOrderReturn2ᚖgithubᚗcomᚋskeletgᚋskel
 	return ec._OrderReturn(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNOrderReturnLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderReturnLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderReturnLine) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderReturnLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderReturnLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrderReturnLine) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNOrderReturnLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderReturnLine(ctx, sel, v[i])
+		return ec.marshalNOrderReturnLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderReturnLine(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54233,7 +52075,7 @@ func (ec *executionContext) marshalNOrderReturnLine2ᚕᚖgithubᚗcomᚋskeletg
 	return ret
 }
 
-func (ec *executionContext) marshalNOrderReturnLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderReturnLine(ctx context.Context, sel ast.SelectionSet, v *model.OrderReturnLine) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderReturnLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderReturnLine(ctx context.Context, sel ast.SelectionSet, v *model.OrderReturnLine) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54243,21 +52085,21 @@ func (ec *executionContext) marshalNOrderReturnLine2ᚖgithubᚗcomᚋskeletgᚋ
 	return ec._OrderReturnLine(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNOrderStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderStatus(ctx context.Context, v any) (model.OrderStatus, error) {
+func (ec *executionContext) unmarshalNOrderStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderStatus(ctx context.Context, v any) (model.OrderStatus, error) {
 	var res model.OrderStatus
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNOrderStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrderStatus(ctx context.Context, sel ast.SelectionSet, v model.OrderStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNOrderStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderStatus(ctx context.Context, sel ast.SelectionSet, v model.OrderStatus) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNPaymentMethodOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPaymentMethodOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PaymentMethodOption) graphql.Marshaler {
+func (ec *executionContext) marshalNPaymentMethodOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPaymentMethodOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PaymentMethodOption) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNPaymentMethodOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPaymentMethodOption(ctx, sel, v[i])
+		return ec.marshalNPaymentMethodOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPaymentMethodOption(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54269,7 +52111,7 @@ func (ec *executionContext) marshalNPaymentMethodOption2ᚕᚖgithubᚗcomᚋske
 	return ret
 }
 
-func (ec *executionContext) marshalNPaymentMethodOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPaymentMethodOption(ctx context.Context, sel ast.SelectionSet, v *model1.PaymentMethodOption) graphql.Marshaler {
+func (ec *executionContext) marshalNPaymentMethodOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPaymentMethodOption(ctx context.Context, sel ast.SelectionSet, v *model1.PaymentMethodOption) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54279,21 +52121,21 @@ func (ec *executionContext) marshalNPaymentMethodOption2ᚖgithubᚗcomᚋskelet
 	return ec._PaymentMethodOption(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNPaymentStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐPaymentStatus(ctx context.Context, v any) (model.PaymentStatus, error) {
+func (ec *executionContext) unmarshalNPaymentStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐPaymentStatus(ctx context.Context, v any) (model.PaymentStatus, error) {
 	var res model.PaymentStatus
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNPaymentStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐPaymentStatus(ctx context.Context, sel ast.SelectionSet, v model.PaymentStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNPaymentStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐPaymentStatus(ctx context.Context, sel ast.SelectionSet, v model.PaymentStatus) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNPickupLocation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPickupLocationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PickupLocation) graphql.Marshaler {
+func (ec *executionContext) marshalNPickupLocation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPickupLocationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PickupLocation) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNPickupLocation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPickupLocation(ctx, sel, v[i])
+		return ec.marshalNPickupLocation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPickupLocation(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54305,7 +52147,7 @@ func (ec *executionContext) marshalNPickupLocation2ᚕᚖgithubᚗcomᚋskeletg�
 	return ret
 }
 
-func (ec *executionContext) marshalNPickupLocation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPickupLocation(ctx context.Context, sel ast.SelectionSet, v *model1.PickupLocation) graphql.Marshaler {
+func (ec *executionContext) marshalNPickupLocation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPickupLocation(ctx context.Context, sel ast.SelectionSet, v *model1.PickupLocation) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54315,11 +52157,11 @@ func (ec *executionContext) marshalNPickupLocation2ᚖgithubᚗcomᚋskeletgᚋs
 	return ec._PickupLocation(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPresentmentCurrency2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPresentmentCurrencyᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PresentmentCurrency) graphql.Marshaler {
+func (ec *executionContext) marshalNPresentmentCurrency2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPresentmentCurrencyᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PresentmentCurrency) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNPresentmentCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPresentmentCurrency(ctx, sel, v[i])
+		return ec.marshalNPresentmentCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPresentmentCurrency(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54331,7 +52173,7 @@ func (ec *executionContext) marshalNPresentmentCurrency2ᚕᚖgithubᚗcomᚋske
 	return ret
 }
 
-func (ec *executionContext) marshalNPresentmentCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPresentmentCurrency(ctx context.Context, sel ast.SelectionSet, v *model1.PresentmentCurrency) graphql.Marshaler {
+func (ec *executionContext) marshalNPresentmentCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPresentmentCurrency(ctx context.Context, sel ast.SelectionSet, v *model1.PresentmentCurrency) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54341,15 +52183,15 @@ func (ec *executionContext) marshalNPresentmentCurrency2ᚖgithubᚗcomᚋskelet
 	return ec._PresentmentCurrency(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProduct2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProduct(ctx context.Context, sel ast.SelectionSet, v model.Product) graphql.Marshaler {
+func (ec *executionContext) marshalNProduct2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProduct(ctx context.Context, sel ast.SelectionSet, v model.Product) graphql.Marshaler {
 	return ec._Product(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Product) graphql.Marshaler {
+func (ec *executionContext) marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Product) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProduct(ctx, sel, v[i])
+		return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProduct(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54361,7 +52203,7 @@ func (ec *executionContext) marshalNProduct2ᚕᚖgithubᚗcomᚋskeletgᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProduct(ctx context.Context, sel ast.SelectionSet, v *model.Product) graphql.Marshaler {
+func (ec *executionContext) marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProduct(ctx context.Context, sel ast.SelectionSet, v *model.Product) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54371,11 +52213,11 @@ func (ec *executionContext) marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ec._Product(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProductAttributeReference2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductAttributeReferenceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ProductAttributeReference) graphql.Marshaler {
+func (ec *executionContext) marshalNProductAttributeReference2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductAttributeReferenceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ProductAttributeReference) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNProductAttributeReference2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductAttributeReference(ctx, sel, v[i])
+		return ec.marshalNProductAttributeReference2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductAttributeReference(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54387,7 +52229,7 @@ func (ec *executionContext) marshalNProductAttributeReference2ᚕᚖgithubᚗcom
 	return ret
 }
 
-func (ec *executionContext) marshalNProductAttributeReference2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductAttributeReference(ctx context.Context, sel ast.SelectionSet, v *model.ProductAttributeReference) graphql.Marshaler {
+func (ec *executionContext) marshalNProductAttributeReference2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductAttributeReference(ctx context.Context, sel ast.SelectionSet, v *model.ProductAttributeReference) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54397,11 +52239,11 @@ func (ec *executionContext) marshalNProductAttributeReference2ᚖgithubᚗcomᚋ
 	return ec._ProductAttributeReference(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProductAttributeValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductAttributeValueᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ProductAttributeValue) graphql.Marshaler {
+func (ec *executionContext) marshalNProductAttributeValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductAttributeValueᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ProductAttributeValue) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNProductAttributeValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductAttributeValue(ctx, sel, v[i])
+		return ec.marshalNProductAttributeValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductAttributeValue(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54413,7 +52255,7 @@ func (ec *executionContext) marshalNProductAttributeValue2ᚕᚖgithubᚗcomᚋs
 	return ret
 }
 
-func (ec *executionContext) marshalNProductAttributeValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductAttributeValue(ctx context.Context, sel ast.SelectionSet, v *model.ProductAttributeValue) graphql.Marshaler {
+func (ec *executionContext) marshalNProductAttributeValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductAttributeValue(ctx context.Context, sel ast.SelectionSet, v *model.ProductAttributeValue) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54423,11 +52265,11 @@ func (ec *executionContext) marshalNProductAttributeValue2ᚖgithubᚗcomᚋskel
 	return ec._ProductAttributeValue(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProductCustomOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductCustomOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ProductCustomOption) graphql.Marshaler {
+func (ec *executionContext) marshalNProductCustomOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductCustomOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ProductCustomOption) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNProductCustomOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductCustomOption(ctx, sel, v[i])
+		return ec.marshalNProductCustomOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductCustomOption(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54439,7 +52281,7 @@ func (ec *executionContext) marshalNProductCustomOption2ᚕᚖgithubᚗcomᚋske
 	return ret
 }
 
-func (ec *executionContext) marshalNProductCustomOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductCustomOption(ctx context.Context, sel ast.SelectionSet, v *model1.ProductCustomOption) graphql.Marshaler {
+func (ec *executionContext) marshalNProductCustomOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductCustomOption(ctx context.Context, sel ast.SelectionSet, v *model1.ProductCustomOption) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54449,11 +52291,11 @@ func (ec *executionContext) marshalNProductCustomOption2ᚖgithubᚗcomᚋskelet
 	return ec._ProductCustomOption(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProductCustomOptionValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductCustomOptionValueᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ProductCustomOptionValue) graphql.Marshaler {
+func (ec *executionContext) marshalNProductCustomOptionValue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductCustomOptionValueᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ProductCustomOptionValue) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNProductCustomOptionValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductCustomOptionValue(ctx, sel, v[i])
+		return ec.marshalNProductCustomOptionValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductCustomOptionValue(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54465,7 +52307,7 @@ func (ec *executionContext) marshalNProductCustomOptionValue2ᚕᚖgithubᚗcom�
 	return ret
 }
 
-func (ec *executionContext) marshalNProductCustomOptionValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductCustomOptionValue(ctx context.Context, sel ast.SelectionSet, v *model1.ProductCustomOptionValue) graphql.Marshaler {
+func (ec *executionContext) marshalNProductCustomOptionValue2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductCustomOptionValue(ctx context.Context, sel ast.SelectionSet, v *model1.ProductCustomOptionValue) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54475,31 +52317,31 @@ func (ec *executionContext) marshalNProductCustomOptionValue2ᚖgithubᚗcomᚋs
 	return ec._ProductCustomOptionValue(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNProductKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductKind(ctx context.Context, v any) (model.ProductKind, error) {
+func (ec *executionContext) unmarshalNProductKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductKind(ctx context.Context, v any) (model.ProductKind, error) {
 	var res model.ProductKind
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNProductKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductKind(ctx context.Context, sel ast.SelectionSet, v model.ProductKind) graphql.Marshaler {
+func (ec *executionContext) marshalNProductKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductKind(ctx context.Context, sel ast.SelectionSet, v model.ProductKind) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) unmarshalNProductLinkKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductLinkKind(ctx context.Context, v any) (model.ProductLinkKind, error) {
+func (ec *executionContext) unmarshalNProductLinkKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductLinkKind(ctx context.Context, v any) (model.ProductLinkKind, error) {
 	var res model.ProductLinkKind
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNProductLinkKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductLinkKind(ctx context.Context, sel ast.SelectionSet, v model.ProductLinkKind) graphql.Marshaler {
+func (ec *executionContext) marshalNProductLinkKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductLinkKind(ctx context.Context, sel ast.SelectionSet, v model.ProductLinkKind) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNProductMedia2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductMediaᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ProductMedia) graphql.Marshaler {
+func (ec *executionContext) marshalNProductMedia2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductMediaᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ProductMedia) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductMedia(ctx, sel, v[i])
+		return ec.marshalNProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductMedia(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54511,7 +52353,7 @@ func (ec *executionContext) marshalNProductMedia2ᚕᚖgithubᚗcomᚋskeletgᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductMedia(ctx context.Context, sel ast.SelectionSet, v *model.ProductMedia) graphql.Marshaler {
+func (ec *executionContext) marshalNProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductMedia(ctx context.Context, sel ast.SelectionSet, v *model.ProductMedia) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54521,11 +52363,11 @@ func (ec *executionContext) marshalNProductMedia2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._ProductMedia(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProductMemberships2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductMemberships(ctx context.Context, sel ast.SelectionSet, v model1.ProductMemberships) graphql.Marshaler {
+func (ec *executionContext) marshalNProductMemberships2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductMemberships(ctx context.Context, sel ast.SelectionSet, v model1.ProductMemberships) graphql.Marshaler {
 	return ec._ProductMemberships(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNProductMemberships2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductMemberships(ctx context.Context, sel ast.SelectionSet, v *model1.ProductMemberships) graphql.Marshaler {
+func (ec *executionContext) marshalNProductMemberships2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductMemberships(ctx context.Context, sel ast.SelectionSet, v *model1.ProductMemberships) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54535,11 +52377,11 @@ func (ec *executionContext) marshalNProductMemberships2ᚖgithubᚗcomᚋskeletg
 	return ec._ProductMemberships(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProductOptionFileUpload2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductOptionFileUpload(ctx context.Context, sel ast.SelectionSet, v model1.ProductOptionFileUpload) graphql.Marshaler {
+func (ec *executionContext) marshalNProductOptionFileUpload2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductOptionFileUpload(ctx context.Context, sel ast.SelectionSet, v model1.ProductOptionFileUpload) graphql.Marshaler {
 	return ec._ProductOptionFileUpload(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNProductOptionFileUpload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductOptionFileUpload(ctx context.Context, sel ast.SelectionSet, v *model1.ProductOptionFileUpload) graphql.Marshaler {
+func (ec *executionContext) marshalNProductOptionFileUpload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductOptionFileUpload(ctx context.Context, sel ast.SelectionSet, v *model1.ProductOptionFileUpload) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54549,13 +52391,13 @@ func (ec *executionContext) marshalNProductOptionFileUpload2ᚖgithubᚗcomᚋsk
 	return ec._ProductOptionFileUpload(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNProductOptionSelectionInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductOptionSelectionInputᚄ(ctx context.Context, v any) ([]*model1.ProductOptionSelectionInput, error) {
+func (ec *executionContext) unmarshalNProductOptionSelectionInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductOptionSelectionInputᚄ(ctx context.Context, v any) ([]*model1.ProductOptionSelectionInput, error) {
 	vSlice := graphql.CoerceList(v)
 	var err error
 	res := make([]*model1.ProductOptionSelectionInput, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNProductOptionSelectionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductOptionSelectionInput(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNProductOptionSelectionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductOptionSelectionInput(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -54563,16 +52405,16 @@ func (ec *executionContext) unmarshalNProductOptionSelectionInput2ᚕᚖgithub�
 	return res, nil
 }
 
-func (ec *executionContext) unmarshalNProductOptionSelectionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductOptionSelectionInput(ctx context.Context, v any) (*model1.ProductOptionSelectionInput, error) {
+func (ec *executionContext) unmarshalNProductOptionSelectionInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductOptionSelectionInput(ctx context.Context, v any) (*model1.ProductOptionSelectionInput, error) {
 	res, err := ec.unmarshalInputProductOptionSelectionInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNProductQuestion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductQuestionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ProductQuestion) graphql.Marshaler {
+func (ec *executionContext) marshalNProductQuestion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductQuestionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ProductQuestion) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNProductQuestion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductQuestion(ctx, sel, v[i])
+		return ec.marshalNProductQuestion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductQuestion(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54584,7 +52426,7 @@ func (ec *executionContext) marshalNProductQuestion2ᚕᚖgithubᚗcomᚋskeletg
 	return ret
 }
 
-func (ec *executionContext) marshalNProductQuestion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductQuestion(ctx context.Context, sel ast.SelectionSet, v *model1.ProductQuestion) graphql.Marshaler {
+func (ec *executionContext) marshalNProductQuestion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductQuestion(ctx context.Context, sel ast.SelectionSet, v *model1.ProductQuestion) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54594,11 +52436,11 @@ func (ec *executionContext) marshalNProductQuestion2ᚖgithubᚗcomᚋskeletgᚋ
 	return ec._ProductQuestion(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProductSearchHit2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductSearchHitᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ProductSearchHit) graphql.Marshaler {
+func (ec *executionContext) marshalNProductSearchHit2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductSearchHitᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ProductSearchHit) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNProductSearchHit2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductSearchHit(ctx, sel, v[i])
+		return ec.marshalNProductSearchHit2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductSearchHit(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54610,7 +52452,7 @@ func (ec *executionContext) marshalNProductSearchHit2ᚕᚖgithubᚗcomᚋskelet
 	return ret
 }
 
-func (ec *executionContext) marshalNProductSearchHit2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductSearchHit(ctx context.Context, sel ast.SelectionSet, v *model1.ProductSearchHit) graphql.Marshaler {
+func (ec *executionContext) marshalNProductSearchHit2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductSearchHit(ctx context.Context, sel ast.SelectionSet, v *model1.ProductSearchHit) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54620,11 +52462,11 @@ func (ec *executionContext) marshalNProductSearchHit2ᚖgithubᚗcomᚋskeletg�
 	return ec._ProductSearchHit(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProductSearchResult2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductSearchResult(ctx context.Context, sel ast.SelectionSet, v model1.ProductSearchResult) graphql.Marshaler {
+func (ec *executionContext) marshalNProductSearchResult2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductSearchResult(ctx context.Context, sel ast.SelectionSet, v model1.ProductSearchResult) graphql.Marshaler {
 	return ec._ProductSearchResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNProductSearchResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductSearchResult(ctx context.Context, sel ast.SelectionSet, v *model1.ProductSearchResult) graphql.Marshaler {
+func (ec *executionContext) marshalNProductSearchResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductSearchResult(ctx context.Context, sel ast.SelectionSet, v *model1.ProductSearchResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54634,11 +52476,11 @@ func (ec *executionContext) marshalNProductSearchResult2ᚖgithubᚗcomᚋskelet
 	return ec._ProductSearchResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProductSortOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductSortOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ProductSortOption) graphql.Marshaler {
+func (ec *executionContext) marshalNProductSortOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductSortOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ProductSortOption) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNProductSortOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductSortOption(ctx, sel, v[i])
+		return ec.marshalNProductSortOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductSortOption(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54650,7 +52492,7 @@ func (ec *executionContext) marshalNProductSortOption2ᚕᚖgithubᚗcomᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNProductSortOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐProductSortOption(ctx context.Context, sel ast.SelectionSet, v *model1.ProductSortOption) graphql.Marshaler {
+func (ec *executionContext) marshalNProductSortOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐProductSortOption(ctx context.Context, sel ast.SelectionSet, v *model1.ProductSortOption) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54660,7 +52502,7 @@ func (ec *executionContext) marshalNProductSortOption2ᚖgithubᚗcomᚋskeletg�
 	return ec._ProductSortOption(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNProductType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductType(ctx context.Context, sel ast.SelectionSet, v *model.ProductType) graphql.Marshaler {
+func (ec *executionContext) marshalNProductType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductType(ctx context.Context, sel ast.SelectionSet, v *model.ProductType) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54670,11 +52512,11 @@ func (ec *executionContext) marshalNProductType2ᚖgithubᚗcomᚋskeletgᚋskel
 	return ec._ProductType(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPromotionFreeGift2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPromotionFreeGiftᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PromotionFreeGift) graphql.Marshaler {
+func (ec *executionContext) marshalNPromotionFreeGift2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPromotionFreeGiftᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PromotionFreeGift) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNPromotionFreeGift2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPromotionFreeGift(ctx, sel, v[i])
+		return ec.marshalNPromotionFreeGift2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPromotionFreeGift(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54686,7 +52528,7 @@ func (ec *executionContext) marshalNPromotionFreeGift2ᚕᚖgithubᚗcomᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNPromotionFreeGift2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPromotionFreeGift(ctx context.Context, sel ast.SelectionSet, v *model1.PromotionFreeGift) graphql.Marshaler {
+func (ec *executionContext) marshalNPromotionFreeGift2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPromotionFreeGift(ctx context.Context, sel ast.SelectionSet, v *model1.PromotionFreeGift) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54696,11 +52538,11 @@ func (ec *executionContext) marshalNPromotionFreeGift2ᚖgithubᚗcomᚋskeletg�
 	return ec._PromotionFreeGift(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPromotionalDisplay2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPromotionalDisplayᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PromotionalDisplay) graphql.Marshaler {
+func (ec *executionContext) marshalNPromotionalDisplay2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPromotionalDisplayᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.PromotionalDisplay) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNPromotionalDisplay2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPromotionalDisplay(ctx, sel, v[i])
+		return ec.marshalNPromotionalDisplay2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPromotionalDisplay(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54712,7 +52554,7 @@ func (ec *executionContext) marshalNPromotionalDisplay2ᚕᚖgithubᚗcomᚋskel
 	return ret
 }
 
-func (ec *executionContext) marshalNPromotionalDisplay2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐPromotionalDisplay(ctx context.Context, sel ast.SelectionSet, v *model1.PromotionalDisplay) graphql.Marshaler {
+func (ec *executionContext) marshalNPromotionalDisplay2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐPromotionalDisplay(ctx context.Context, sel ast.SelectionSet, v *model1.PromotionalDisplay) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54722,11 +52564,11 @@ func (ec *executionContext) marshalNPromotionalDisplay2ᚖgithubᚗcomᚋskeletg
 	return ec._PromotionalDisplay(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNReferralInfo2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReferralInfo(ctx context.Context, sel ast.SelectionSet, v model1.ReferralInfo) graphql.Marshaler {
+func (ec *executionContext) marshalNReferralInfo2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReferralInfo(ctx context.Context, sel ast.SelectionSet, v model1.ReferralInfo) graphql.Marshaler {
 	return ec._ReferralInfo(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNReferralInfo2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReferralInfo(ctx context.Context, sel ast.SelectionSet, v *model1.ReferralInfo) graphql.Marshaler {
+func (ec *executionContext) marshalNReferralInfo2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReferralInfo(ctx context.Context, sel ast.SelectionSet, v *model1.ReferralInfo) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54736,11 +52578,11 @@ func (ec *executionContext) marshalNReferralInfo2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._ReferralInfo(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNRegion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐRegionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Region) graphql.Marshaler {
+func (ec *executionContext) marshalNRegion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐRegionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Region) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNRegion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐRegion(ctx, sel, v[i])
+		return ec.marshalNRegion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐRegion(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54752,7 +52594,7 @@ func (ec *executionContext) marshalNRegion2ᚕᚖgithubᚗcomᚋskeletgᚋskelet
 	return ret
 }
 
-func (ec *executionContext) marshalNRegion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐRegion(ctx context.Context, sel ast.SelectionSet, v *model.Region) graphql.Marshaler {
+func (ec *executionContext) marshalNRegion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐRegion(ctx context.Context, sel ast.SelectionSet, v *model.Region) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54762,11 +52604,11 @@ func (ec *executionContext) marshalNRegion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋ
 	return ec._Region(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNReorderResult2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReorderResult(ctx context.Context, sel ast.SelectionSet, v model1.ReorderResult) graphql.Marshaler {
+func (ec *executionContext) marshalNReorderResult2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReorderResult(ctx context.Context, sel ast.SelectionSet, v model1.ReorderResult) graphql.Marshaler {
 	return ec._ReorderResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNReorderResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReorderResult(ctx context.Context, sel ast.SelectionSet, v *model1.ReorderResult) graphql.Marshaler {
+func (ec *executionContext) marshalNReorderResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReorderResult(ctx context.Context, sel ast.SelectionSet, v *model1.ReorderResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54776,11 +52618,11 @@ func (ec *executionContext) marshalNReorderResult2ᚖgithubᚗcomᚋskeletgᚋsk
 	return ec._ReorderResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNReorderSkippedLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReorderSkippedLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ReorderSkippedLine) graphql.Marshaler {
+func (ec *executionContext) marshalNReorderSkippedLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReorderSkippedLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ReorderSkippedLine) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNReorderSkippedLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReorderSkippedLine(ctx, sel, v[i])
+		return ec.marshalNReorderSkippedLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReorderSkippedLine(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54792,7 +52634,7 @@ func (ec *executionContext) marshalNReorderSkippedLine2ᚕᚖgithubᚗcomᚋskel
 	return ret
 }
 
-func (ec *executionContext) marshalNReorderSkippedLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReorderSkippedLine(ctx context.Context, sel ast.SelectionSet, v *model1.ReorderSkippedLine) graphql.Marshaler {
+func (ec *executionContext) marshalNReorderSkippedLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReorderSkippedLine(ctx context.Context, sel ast.SelectionSet, v *model1.ReorderSkippedLine) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54802,18 +52644,18 @@ func (ec *executionContext) marshalNReorderSkippedLine2ᚖgithubᚗcomᚋskeletg
 	return ec._ReorderSkippedLine(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNRequestReturnInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐRequestReturnInput(ctx context.Context, v any) (model.RequestReturnInput, error) {
+func (ec *executionContext) unmarshalNRequestReturnInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐRequestReturnInput(ctx context.Context, v any) (model.RequestReturnInput, error) {
 	res, err := ec.unmarshalInputRequestReturnInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNReturnLineInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReturnLineInputᚄ(ctx context.Context, v any) ([]*model.ReturnLineInput, error) {
+func (ec *executionContext) unmarshalNReturnLineInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReturnLineInputᚄ(ctx context.Context, v any) ([]*model.ReturnLineInput, error) {
 	vSlice := graphql.CoerceList(v)
 	var err error
 	res := make([]*model.ReturnLineInput, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNReturnLineInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReturnLineInput(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNReturnLineInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReturnLineInput(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -54821,16 +52663,16 @@ func (ec *executionContext) unmarshalNReturnLineInput2ᚕᚖgithubᚗcomᚋskele
 	return res, nil
 }
 
-func (ec *executionContext) unmarshalNReturnLineInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReturnLineInput(ctx context.Context, v any) (*model.ReturnLineInput, error) {
+func (ec *executionContext) unmarshalNReturnLineInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReturnLineInput(ctx context.Context, v any) (*model.ReturnLineInput, error) {
 	res, err := ec.unmarshalInputReturnLineInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNReturnableLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReturnableLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ReturnableLine) graphql.Marshaler {
+func (ec *executionContext) marshalNReturnableLine2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReturnableLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ReturnableLine) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNReturnableLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReturnableLine(ctx, sel, v[i])
+		return ec.marshalNReturnableLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReturnableLine(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54842,7 +52684,7 @@ func (ec *executionContext) marshalNReturnableLine2ᚕᚖgithubᚗcomᚋskeletg�
 	return ret
 }
 
-func (ec *executionContext) marshalNReturnableLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReturnableLine(ctx context.Context, sel ast.SelectionSet, v *model1.ReturnableLine) graphql.Marshaler {
+func (ec *executionContext) marshalNReturnableLine2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReturnableLine(ctx context.Context, sel ast.SelectionSet, v *model1.ReturnableLine) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54852,15 +52694,15 @@ func (ec *executionContext) marshalNReturnableLine2ᚖgithubᚗcomᚋskeletgᚋs
 	return ec._ReturnableLine(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNReview2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReview(ctx context.Context, sel ast.SelectionSet, v model.Review) graphql.Marshaler {
+func (ec *executionContext) marshalNReview2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReview(ctx context.Context, sel ast.SelectionSet, v model.Review) graphql.Marshaler {
 	return ec._Review(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNReview2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Review) graphql.Marshaler {
+func (ec *executionContext) marshalNReview2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Review) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNReview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReview(ctx, sel, v[i])
+		return ec.marshalNReview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReview(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54872,7 +52714,7 @@ func (ec *executionContext) marshalNReview2ᚕᚖgithubᚗcomᚋskeletgᚋskelet
 	return ret
 }
 
-func (ec *executionContext) marshalNReview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReview(ctx context.Context, sel ast.SelectionSet, v *model.Review) graphql.Marshaler {
+func (ec *executionContext) marshalNReview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReview(ctx context.Context, sel ast.SelectionSet, v *model.Review) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54882,11 +52724,11 @@ func (ec *executionContext) marshalNReview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋ
 	return ec._Review(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNReviewAggregates2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewAggregates(ctx context.Context, sel ast.SelectionSet, v model1.ReviewAggregates) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewAggregates2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewAggregates(ctx context.Context, sel ast.SelectionSet, v model1.ReviewAggregates) graphql.Marshaler {
 	return ec._ReviewAggregates(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNReviewAggregates2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewAggregates(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewAggregates) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewAggregates2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewAggregates(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewAggregates) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54896,11 +52738,11 @@ func (ec *executionContext) marshalNReviewAggregates2ᚖgithubᚗcomᚋskeletg�
 	return ec._ReviewAggregates(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNReviewAnswer2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewAnswerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ReviewAnswer) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewAnswer2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewAnswerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ReviewAnswer) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNReviewAnswer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewAnswer(ctx, sel, v[i])
+		return ec.marshalNReviewAnswer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewAnswer(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54912,7 +52754,7 @@ func (ec *executionContext) marshalNReviewAnswer2ᚕᚖgithubᚗcomᚋskeletgᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNReviewAnswer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewAnswer(ctx context.Context, sel ast.SelectionSet, v *model.ReviewAnswer) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewAnswer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewAnswer(ctx context.Context, sel ast.SelectionSet, v *model.ReviewAnswer) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54922,13 +52764,13 @@ func (ec *executionContext) marshalNReviewAnswer2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._ReviewAnswer(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNReviewAnswerInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewAnswerInputᚄ(ctx context.Context, v any) ([]*model1.ReviewAnswerInput, error) {
+func (ec *executionContext) unmarshalNReviewAnswerInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewAnswerInputᚄ(ctx context.Context, v any) ([]*model1.ReviewAnswerInput, error) {
 	vSlice := graphql.CoerceList(v)
 	var err error
 	res := make([]*model1.ReviewAnswerInput, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNReviewAnswerInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewAnswerInput(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNReviewAnswerInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewAnswerInput(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -54936,16 +52778,16 @@ func (ec *executionContext) unmarshalNReviewAnswerInput2ᚕᚖgithubᚗcomᚋske
 	return res, nil
 }
 
-func (ec *executionContext) unmarshalNReviewAnswerInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewAnswerInput(ctx context.Context, v any) (*model1.ReviewAnswerInput, error) {
+func (ec *executionContext) unmarshalNReviewAnswerInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewAnswerInput(ctx context.Context, v any) (*model1.ReviewAnswerInput, error) {
 	res, err := ec.unmarshalInputReviewAnswerInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNReviewEligibility2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewEligibility(ctx context.Context, sel ast.SelectionSet, v model1.ReviewEligibility) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewEligibility2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewEligibility(ctx context.Context, sel ast.SelectionSet, v model1.ReviewEligibility) graphql.Marshaler {
 	return ec._ReviewEligibility(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNReviewEligibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewEligibility(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewEligibility) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewEligibility2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewEligibility(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewEligibility) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54955,11 +52797,11 @@ func (ec *executionContext) marshalNReviewEligibility2ᚖgithubᚗcomᚋskeletg�
 	return ec._ReviewEligibility(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNReviewMedia2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewMediaᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ReviewMedia) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewMedia2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewMediaᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ReviewMedia) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNReviewMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewMedia(ctx, sel, v[i])
+		return ec.marshalNReviewMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewMedia(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -54971,7 +52813,7 @@ func (ec *executionContext) marshalNReviewMedia2ᚕᚖgithubᚗcomᚋskeletgᚋs
 	return ret
 }
 
-func (ec *executionContext) marshalNReviewMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewMedia(ctx context.Context, sel ast.SelectionSet, v *model.ReviewMedia) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewMedia(ctx context.Context, sel ast.SelectionSet, v *model.ReviewMedia) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54981,11 +52823,11 @@ func (ec *executionContext) marshalNReviewMedia2ᚖgithubᚗcomᚋskeletgᚋskel
 	return ec._ReviewMedia(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNReviewMediaUpload2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewMediaUpload(ctx context.Context, sel ast.SelectionSet, v model1.ReviewMediaUpload) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewMediaUpload2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewMediaUpload(ctx context.Context, sel ast.SelectionSet, v model1.ReviewMediaUpload) graphql.Marshaler {
 	return ec._ReviewMediaUpload(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNReviewMediaUpload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewMediaUpload(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewMediaUpload) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewMediaUpload2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewMediaUpload(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewMediaUpload) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -54995,11 +52837,11 @@ func (ec *executionContext) marshalNReviewMediaUpload2ᚖgithubᚗcomᚋskeletg�
 	return ec._ReviewMediaUpload(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNReviewQuestion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewQuestionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ReviewQuestion) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewQuestion2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewQuestionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ReviewQuestion) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNReviewQuestion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewQuestion(ctx, sel, v[i])
+		return ec.marshalNReviewQuestion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewQuestion(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -55011,7 +52853,7 @@ func (ec *executionContext) marshalNReviewQuestion2ᚕᚖgithubᚗcomᚋskeletg�
 	return ret
 }
 
-func (ec *executionContext) marshalNReviewQuestion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewQuestion(ctx context.Context, sel ast.SelectionSet, v *model.ReviewQuestion) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewQuestion2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewQuestion(ctx context.Context, sel ast.SelectionSet, v *model.ReviewQuestion) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55021,11 +52863,11 @@ func (ec *executionContext) marshalNReviewQuestion2ᚖgithubᚗcomᚋskeletgᚋs
 	return ec._ReviewQuestion(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNReviewQuestionAverage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewQuestionAverageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ReviewQuestionAverage) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewQuestionAverage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewQuestionAverageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ReviewQuestionAverage) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNReviewQuestionAverage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewQuestionAverage(ctx, sel, v[i])
+		return ec.marshalNReviewQuestionAverage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewQuestionAverage(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -55037,7 +52879,7 @@ func (ec *executionContext) marshalNReviewQuestionAverage2ᚕᚖgithubᚗcomᚋs
 	return ret
 }
 
-func (ec *executionContext) marshalNReviewQuestionAverage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewQuestionAverage(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewQuestionAverage) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewQuestionAverage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewQuestionAverage(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewQuestionAverage) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55047,17 +52889,17 @@ func (ec *executionContext) marshalNReviewQuestionAverage2ᚖgithubᚗcomᚋskel
 	return ec._ReviewQuestionAverage(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNReviewQuestionInputType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewQuestionInputType(ctx context.Context, v any) (model.ReviewQuestionInputType, error) {
+func (ec *executionContext) unmarshalNReviewQuestionInputType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewQuestionInputType(ctx context.Context, v any) (model.ReviewQuestionInputType, error) {
 	var res model.ReviewQuestionInputType
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNReviewQuestionInputType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐReviewQuestionInputType(ctx context.Context, sel ast.SelectionSet, v model.ReviewQuestionInputType) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewQuestionInputType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐReviewQuestionInputType(ctx context.Context, sel ast.SelectionSet, v model.ReviewQuestionInputType) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNReviewVotingPolicy2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewVotingPolicy(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewVotingPolicy) graphql.Marshaler {
+func (ec *executionContext) marshalNReviewVotingPolicy2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewVotingPolicy(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewVotingPolicy) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55067,21 +52909,21 @@ func (ec *executionContext) marshalNReviewVotingPolicy2ᚖgithubᚗcomᚋskeletg
 	return ec._ReviewVotingPolicy(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNRouteKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐRouteKind(ctx context.Context, v any) (model1.RouteKind, error) {
+func (ec *executionContext) unmarshalNRouteKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐRouteKind(ctx context.Context, v any) (model1.RouteKind, error) {
 	var res model1.RouteKind
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNRouteKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐRouteKind(ctx context.Context, sel ast.SelectionSet, v model1.RouteKind) graphql.Marshaler {
+func (ec *executionContext) marshalNRouteKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐRouteKind(ctx context.Context, sel ast.SelectionSet, v model1.RouteKind) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNSavedItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSavedItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.SavedItem) graphql.Marshaler {
+func (ec *executionContext) marshalNSavedItem2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSavedItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.SavedItem) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNSavedItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSavedItem(ctx, sel, v[i])
+		return ec.marshalNSavedItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSavedItem(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -55093,7 +52935,7 @@ func (ec *executionContext) marshalNSavedItem2ᚕᚖgithubᚗcomᚋskeletgᚋske
 	return ret
 }
 
-func (ec *executionContext) marshalNSavedItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSavedItem(ctx context.Context, sel ast.SelectionSet, v *model1.SavedItem) graphql.Marshaler {
+func (ec *executionContext) marshalNSavedItem2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSavedItem(ctx context.Context, sel ast.SelectionSet, v *model1.SavedItem) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55103,15 +52945,15 @@ func (ec *executionContext) marshalNSavedItem2ᚖgithubᚗcomᚋskeletgᚋskelet
 	return ec._SavedItem(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSavedPaymentMethod2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSavedPaymentMethod(ctx context.Context, sel ast.SelectionSet, v model1.SavedPaymentMethod) graphql.Marshaler {
+func (ec *executionContext) marshalNSavedPaymentMethod2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSavedPaymentMethod(ctx context.Context, sel ast.SelectionSet, v model1.SavedPaymentMethod) graphql.Marshaler {
 	return ec._SavedPaymentMethod(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSavedPaymentMethod2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSavedPaymentMethodᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.SavedPaymentMethod) graphql.Marshaler {
+func (ec *executionContext) marshalNSavedPaymentMethod2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSavedPaymentMethodᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.SavedPaymentMethod) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNSavedPaymentMethod2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSavedPaymentMethod(ctx, sel, v[i])
+		return ec.marshalNSavedPaymentMethod2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSavedPaymentMethod(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -55123,7 +52965,7 @@ func (ec *executionContext) marshalNSavedPaymentMethod2ᚕᚖgithubᚗcomᚋskel
 	return ret
 }
 
-func (ec *executionContext) marshalNSavedPaymentMethod2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSavedPaymentMethod(ctx context.Context, sel ast.SelectionSet, v *model1.SavedPaymentMethod) graphql.Marshaler {
+func (ec *executionContext) marshalNSavedPaymentMethod2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSavedPaymentMethod(ctx context.Context, sel ast.SelectionSet, v *model1.SavedPaymentMethod) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55133,11 +52975,11 @@ func (ec *executionContext) marshalNSavedPaymentMethod2ᚖgithubᚗcomᚋskeletg
 	return ec._SavedPaymentMethod(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNShippingQuote2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐShippingQuoteᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ShippingQuote) graphql.Marshaler {
+func (ec *executionContext) marshalNShippingQuote2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐShippingQuoteᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.ShippingQuote) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNShippingQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐShippingQuote(ctx, sel, v[i])
+		return ec.marshalNShippingQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐShippingQuote(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -55149,7 +52991,7 @@ func (ec *executionContext) marshalNShippingQuote2ᚕᚖgithubᚗcomᚋskeletg�
 	return ret
 }
 
-func (ec *executionContext) marshalNShippingQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐShippingQuote(ctx context.Context, sel ast.SelectionSet, v *model1.ShippingQuote) graphql.Marshaler {
+func (ec *executionContext) marshalNShippingQuote2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐShippingQuote(ctx context.Context, sel ast.SelectionSet, v *model1.ShippingQuote) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55159,11 +53001,11 @@ func (ec *executionContext) marshalNShippingQuote2ᚖgithubᚗcomᚋskeletgᚋsk
 	return ec._ShippingQuote(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSitemapCounts2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSitemapCounts(ctx context.Context, sel ast.SelectionSet, v model1.SitemapCounts) graphql.Marshaler {
+func (ec *executionContext) marshalNSitemapCounts2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSitemapCounts(ctx context.Context, sel ast.SelectionSet, v model1.SitemapCounts) graphql.Marshaler {
 	return ec._SitemapCounts(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSitemapCounts2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSitemapCounts(ctx context.Context, sel ast.SelectionSet, v *model1.SitemapCounts) graphql.Marshaler {
+func (ec *executionContext) marshalNSitemapCounts2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSitemapCounts(ctx context.Context, sel ast.SelectionSet, v *model1.SitemapCounts) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55173,21 +53015,21 @@ func (ec *executionContext) marshalNSitemapCounts2ᚖgithubᚗcomᚋskeletgᚋsk
 	return ec._SitemapCounts(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNSitemapEntityType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSitemapEntityType(ctx context.Context, v any) (model1.SitemapEntityType, error) {
+func (ec *executionContext) unmarshalNSitemapEntityType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSitemapEntityType(ctx context.Context, v any) (model1.SitemapEntityType, error) {
 	var res model1.SitemapEntityType
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNSitemapEntityType2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSitemapEntityType(ctx context.Context, sel ast.SelectionSet, v model1.SitemapEntityType) graphql.Marshaler {
+func (ec *executionContext) marshalNSitemapEntityType2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSitemapEntityType(ctx context.Context, sel ast.SelectionSet, v model1.SitemapEntityType) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNSitemapEntry2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSitemapEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.SitemapEntry) graphql.Marshaler {
+func (ec *executionContext) marshalNSitemapEntry2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSitemapEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.SitemapEntry) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNSitemapEntry2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSitemapEntry(ctx, sel, v[i])
+		return ec.marshalNSitemapEntry2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSitemapEntry(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -55199,7 +53041,7 @@ func (ec *executionContext) marshalNSitemapEntry2ᚕᚖgithubᚗcomᚋskeletgᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNSitemapEntry2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSitemapEntry(ctx context.Context, sel ast.SelectionSet, v *model1.SitemapEntry) graphql.Marshaler {
+func (ec *executionContext) marshalNSitemapEntry2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSitemapEntry(ctx context.Context, sel ast.SelectionSet, v *model1.SitemapEntry) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55209,11 +53051,11 @@ func (ec *executionContext) marshalNSitemapEntry2ᚖgithubᚗcomᚋskeletgᚋske
 	return ec._SitemapEntry(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNStoreFeatures2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐStoreFeatures(ctx context.Context, sel ast.SelectionSet, v model1.StoreFeatures) graphql.Marshaler {
+func (ec *executionContext) marshalNStoreFeatures2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐStoreFeatures(ctx context.Context, sel ast.SelectionSet, v model1.StoreFeatures) graphql.Marshaler {
 	return ec._StoreFeatures(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNStoreFeatures2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐStoreFeatures(ctx context.Context, sel ast.SelectionSet, v *model1.StoreFeatures) graphql.Marshaler {
+func (ec *executionContext) marshalNStoreFeatures2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐStoreFeatures(ctx context.Context, sel ast.SelectionSet, v *model1.StoreFeatures) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55268,21 +53110,21 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	return ret
 }
 
-func (ec *executionContext) unmarshalNSubmitReviewInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSubmitReviewInput(ctx context.Context, v any) (model1.SubmitReviewInput, error) {
+func (ec *executionContext) unmarshalNSubmitReviewInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSubmitReviewInput(ctx context.Context, v any) (model1.SubmitReviewInput, error) {
 	res, err := ec.unmarshalInputSubmitReviewInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNSubmitWebFormInput2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSubmitWebFormInput(ctx context.Context, v any) (model1.SubmitWebFormInput, error) {
+func (ec *executionContext) unmarshalNSubmitWebFormInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSubmitWebFormInput(ctx context.Context, v any) (model1.SubmitWebFormInput, error) {
 	res, err := ec.unmarshalInputSubmitWebFormInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNSubmitWebFormResult2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSubmitWebFormResult(ctx context.Context, sel ast.SelectionSet, v model1.SubmitWebFormResult) graphql.Marshaler {
+func (ec *executionContext) marshalNSubmitWebFormResult2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSubmitWebFormResult(ctx context.Context, sel ast.SelectionSet, v model1.SubmitWebFormResult) graphql.Marshaler {
 	return ec._SubmitWebFormResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSubmitWebFormResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐSubmitWebFormResult(ctx context.Context, sel ast.SelectionSet, v *model1.SubmitWebFormResult) graphql.Marshaler {
+func (ec *executionContext) marshalNSubmitWebFormResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐSubmitWebFormResult(ctx context.Context, sel ast.SelectionSet, v *model1.SubmitWebFormResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55292,31 +53134,31 @@ func (ec *executionContext) marshalNSubmitWebFormResult2ᚖgithubᚗcomᚋskelet
 	return ec._SubmitWebFormResult(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNSubscriptionInterval2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐSubscriptionInterval(ctx context.Context, v any) (model.SubscriptionInterval, error) {
+func (ec *executionContext) unmarshalNSubscriptionInterval2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSubscriptionInterval(ctx context.Context, v any) (model.SubscriptionInterval, error) {
 	var res model.SubscriptionInterval
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNSubscriptionInterval2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐSubscriptionInterval(ctx context.Context, sel ast.SelectionSet, v model.SubscriptionInterval) graphql.Marshaler {
+func (ec *executionContext) marshalNSubscriptionInterval2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSubscriptionInterval(ctx context.Context, sel ast.SelectionSet, v model.SubscriptionInterval) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) unmarshalNSubscriptionStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐSubscriptionStatus(ctx context.Context, v any) (model.SubscriptionStatus, error) {
+func (ec *executionContext) unmarshalNSubscriptionStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSubscriptionStatus(ctx context.Context, v any) (model.SubscriptionStatus, error) {
 	var res model.SubscriptionStatus
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNSubscriptionStatus2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐSubscriptionStatus(ctx context.Context, sel ast.SelectionSet, v model.SubscriptionStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNSubscriptionStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSubscriptionStatus(ctx context.Context, sel ast.SelectionSet, v model.SubscriptionStatus) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNTierPrice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐTierPriceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.TierPrice) graphql.Marshaler {
+func (ec *executionContext) marshalNTierPrice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐTierPriceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.TierPrice) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNTierPrice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐTierPrice(ctx, sel, v[i])
+		return ec.marshalNTierPrice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐTierPrice(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -55328,7 +53170,7 @@ func (ec *executionContext) marshalNTierPrice2ᚕᚖgithubᚗcomᚋskeletgᚋske
 	return ret
 }
 
-func (ec *executionContext) marshalNTierPrice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐTierPrice(ctx context.Context, sel ast.SelectionSet, v *model1.TierPrice) graphql.Marshaler {
+func (ec *executionContext) marshalNTierPrice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐTierPrice(ctx context.Context, sel ast.SelectionSet, v *model1.TierPrice) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55354,11 +53196,11 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalNWebFormFieldError2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐWebFormFieldErrorᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.WebFormFieldError) graphql.Marshaler {
+func (ec *executionContext) marshalNWebFormFieldError2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐWebFormFieldErrorᚄ(ctx context.Context, sel ast.SelectionSet, v []*model1.WebFormFieldError) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNWebFormFieldError2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐWebFormFieldError(ctx, sel, v[i])
+		return ec.marshalNWebFormFieldError2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐWebFormFieldError(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -55370,7 +53212,7 @@ func (ec *executionContext) marshalNWebFormFieldError2ᚕᚖgithubᚗcomᚋskele
 	return ret
 }
 
-func (ec *executionContext) marshalNWebFormFieldError2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐWebFormFieldError(ctx context.Context, sel ast.SelectionSet, v *model1.WebFormFieldError) graphql.Marshaler {
+func (ec *executionContext) marshalNWebFormFieldError2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐWebFormFieldError(ctx context.Context, sel ast.SelectionSet, v *model1.WebFormFieldError) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55380,16 +53222,16 @@ func (ec *executionContext) marshalNWebFormFieldError2ᚖgithubᚗcomᚋskeletg�
 	return ec._WebFormFieldError(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNWebFormFileInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐWebFormFileInput(ctx context.Context, v any) (*model1.WebFormFileInput, error) {
+func (ec *executionContext) unmarshalNWebFormFileInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐWebFormFileInput(ctx context.Context, v any) (*model1.WebFormFileInput, error) {
 	res, err := ec.unmarshalInputWebFormFileInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNWebFormUploadTicket2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐWebFormUploadTicket(ctx context.Context, sel ast.SelectionSet, v model1.WebFormUploadTicket) graphql.Marshaler {
+func (ec *executionContext) marshalNWebFormUploadTicket2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐWebFormUploadTicket(ctx context.Context, sel ast.SelectionSet, v model1.WebFormUploadTicket) graphql.Marshaler {
 	return ec._WebFormUploadTicket(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNWebFormUploadTicket2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐWebFormUploadTicket(ctx context.Context, sel ast.SelectionSet, v *model1.WebFormUploadTicket) graphql.Marshaler {
+func (ec *executionContext) marshalNWebFormUploadTicket2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐWebFormUploadTicket(ctx context.Context, sel ast.SelectionSet, v *model1.WebFormUploadTicket) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -55539,21 +53381,21 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 	return res
 }
 
-func (ec *executionContext) marshalOAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddress(ctx context.Context, sel ast.SelectionSet, v *model.Address) graphql.Marshaler {
+func (ec *executionContext) marshalOAddress2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddress(ctx context.Context, sel ast.SelectionSet, v *model.Address) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Address(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOAddressInput22ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAddressInput2(ctx context.Context, sel ast.SelectionSet, v *model1.AddressInput2) graphql.Marshaler {
+func (ec *executionContext) marshalOAddressInput22ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAddressInput2(ctx context.Context, sel ast.SelectionSet, v *model1.AddressInput2) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._AddressInput2(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOAddressInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAddressInput(ctx context.Context, v any) (*model.AddressInput, error) {
+func (ec *executionContext) unmarshalOAddressInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAddressInput(ctx context.Context, v any) (*model.AddressInput, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -55561,7 +53403,7 @@ func (ec *executionContext) unmarshalOAddressInput2ᚖgithubᚗcomᚋskeletgᚋs
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalOAttributeFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAttributeFilterInputᚄ(ctx context.Context, v any) ([]*model1.AttributeFilterInput, error) {
+func (ec *executionContext) unmarshalOAttributeFilterInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAttributeFilterInputᚄ(ctx context.Context, v any) ([]*model1.AttributeFilterInput, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -55570,7 +53412,7 @@ func (ec *executionContext) unmarshalOAttributeFilterInput2ᚕᚖgithubᚗcomᚋ
 	res := make([]*model1.AttributeFilterInput, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNAttributeFilterInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐAttributeFilterInput(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNAttributeFilterInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐAttributeFilterInput(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -55578,7 +53420,7 @@ func (ec *executionContext) unmarshalOAttributeFilterInput2ᚕᚖgithubᚗcomᚋ
 	return res, nil
 }
 
-func (ec *executionContext) unmarshalOAttributeReferenceTarget2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeReferenceTarget(ctx context.Context, v any) (*model.AttributeReferenceTarget, error) {
+func (ec *executionContext) unmarshalOAttributeReferenceTarget2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeReferenceTarget(ctx context.Context, v any) (*model.AttributeReferenceTarget, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -55587,56 +53429,56 @@ func (ec *executionContext) unmarshalOAttributeReferenceTarget2ᚖgithubᚗcom�
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOAttributeReferenceTarget2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐAttributeReferenceTarget(ctx context.Context, sel ast.SelectionSet, v *model.AttributeReferenceTarget) graphql.Marshaler {
+func (ec *executionContext) marshalOAttributeReferenceTarget2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributeReferenceTarget(ctx context.Context, sel ast.SelectionSet, v *model.AttributeReferenceTarget) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return v
 }
 
-func (ec *executionContext) marshalOBlogAuthor2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogAuthor(ctx context.Context, sel ast.SelectionSet, v *model.BlogAuthor) graphql.Marshaler {
+func (ec *executionContext) marshalOBlogAuthor2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogAuthor(ctx context.Context, sel ast.SelectionSet, v *model.BlogAuthor) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._BlogAuthor(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOBlogAuthorContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogAuthorContent(ctx context.Context, sel ast.SelectionSet, v *model.BlogAuthorContent) graphql.Marshaler {
+func (ec *executionContext) marshalOBlogAuthorContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogAuthorContent(ctx context.Context, sel ast.SelectionSet, v *model.BlogAuthorContent) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._BlogAuthorContent(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOBlogCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogCategory(ctx context.Context, sel ast.SelectionSet, v *model.BlogCategory) graphql.Marshaler {
+func (ec *executionContext) marshalOBlogCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogCategory(ctx context.Context, sel ast.SelectionSet, v *model.BlogCategory) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._BlogCategory(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOBlogCategoryContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogCategoryContent(ctx context.Context, sel ast.SelectionSet, v *model.BlogCategoryContent) graphql.Marshaler {
+func (ec *executionContext) marshalOBlogCategoryContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogCategoryContent(ctx context.Context, sel ast.SelectionSet, v *model.BlogCategoryContent) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._BlogCategoryContent(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOBlogPost2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPost(ctx context.Context, sel ast.SelectionSet, v *model.BlogPost) graphql.Marshaler {
+func (ec *executionContext) marshalOBlogPost2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPost(ctx context.Context, sel ast.SelectionSet, v *model.BlogPost) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._BlogPost(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOBlogPostContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPostContent(ctx context.Context, sel ast.SelectionSet, v *model.BlogPostContent) graphql.Marshaler {
+func (ec *executionContext) marshalOBlogPostContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPostContent(ctx context.Context, sel ast.SelectionSet, v *model.BlogPostContent) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._BlogPostContent(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOBlogPostFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogPostFilter(ctx context.Context, v any) (*model.BlogPostFilter, error) {
+func (ec *executionContext) unmarshalOBlogPostFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogPostFilter(ctx context.Context, v any) (*model.BlogPostFilter, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -55644,14 +53486,14 @@ func (ec *executionContext) unmarshalOBlogPostFilter2ᚖgithubᚗcomᚋskeletg�
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOBlogTag2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogTag(ctx context.Context, sel ast.SelectionSet, v *model.BlogTag) graphql.Marshaler {
+func (ec *executionContext) marshalOBlogTag2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogTag(ctx context.Context, sel ast.SelectionSet, v *model.BlogTag) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._BlogTag(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOBlogTagContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐBlogTagContent(ctx context.Context, sel ast.SelectionSet, v *model.BlogTagContent) graphql.Marshaler {
+func (ec *executionContext) marshalOBlogTagContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐBlogTagContent(ctx context.Context, sel ast.SelectionSet, v *model.BlogTagContent) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -55688,7 +53530,7 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) unmarshalOBrowseProductsFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐBrowseProductsFilter(ctx context.Context, v any) (*model1.BrowseProductsFilter, error) {
+func (ec *executionContext) unmarshalOBrowseProductsFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐBrowseProductsFilter(ctx context.Context, v any) (*model1.BrowseProductsFilter, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -55696,21 +53538,21 @@ func (ec *executionContext) unmarshalOBrowseProductsFilter2ᚖgithubᚗcomᚋske
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOCMSPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPage(ctx context.Context, sel ast.SelectionSet, v *model.CMSPage) graphql.Marshaler {
+func (ec *executionContext) marshalOCMSPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPage(ctx context.Context, sel ast.SelectionSet, v *model.CMSPage) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._CMSPage(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOCMSPageContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageContent(ctx context.Context, sel ast.SelectionSet, v *model.CMSPageContent) graphql.Marshaler {
+func (ec *executionContext) marshalOCMSPageContent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageContent(ctx context.Context, sel ast.SelectionSet, v *model.CMSPageContent) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._CMSPageContent(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOCMSPageFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCMSPageFilter(ctx context.Context, v any) (*model.CMSPageFilter, error) {
+func (ec *executionContext) unmarshalOCMSPageFilter2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCMSPageFilter(ctx context.Context, v any) (*model.CMSPageFilter, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -55718,42 +53560,42 @@ func (ec *executionContext) unmarshalOCMSPageFilter2ᚖgithubᚗcomᚋskeletgᚋ
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐCart(ctx context.Context, sel ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
+func (ec *executionContext) marshalOCart2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐCart(ctx context.Context, sel ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Cart(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v *model.Category) graphql.Marshaler {
+func (ec *executionContext) marshalOCategory2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v *model.Category) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Category(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOChannel2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐChannel(ctx context.Context, sel ast.SelectionSet, v *model.Channel) graphql.Marshaler {
+func (ec *executionContext) marshalOChannel2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐChannel(ctx context.Context, sel ast.SelectionSet, v *model.Channel) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Channel(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOCollectionCover2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCollectionCover(ctx context.Context, sel ast.SelectionSet, v *model.CollectionCover) graphql.Marshaler {
+func (ec *executionContext) marshalOCollectionCover2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCollectionCover(ctx context.Context, sel ast.SelectionSet, v *model.CollectionCover) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._CollectionCover(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOConfigOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ConfigOption) graphql.Marshaler {
+func (ec *executionContext) marshalOConfigOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ConfigOption) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNConfigOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐConfigOption(ctx, sel, v[i])
+		return ec.marshalNConfigOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐConfigOption(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -55765,14 +53607,14 @@ func (ec *executionContext) marshalOConfigOption2ᚕᚖgithubᚗcomᚋskeletgᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalOConfigurableMembership2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐConfigurableMembership(ctx context.Context, sel ast.SelectionSet, v *model1.ConfigurableMembership) graphql.Marshaler {
+func (ec *executionContext) marshalOConfigurableMembership2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐConfigurableMembership(ctx context.Context, sel ast.SelectionSet, v *model1.ConfigurableMembership) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._ConfigurableMembership(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐCurrency(ctx context.Context, sel ast.SelectionSet, v *model.Currency) graphql.Marshaler {
+func (ec *executionContext) marshalOCurrency2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCurrency(ctx context.Context, sel ast.SelectionSet, v *model.Currency) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -55796,7 +53638,7 @@ func (ec *executionContext) marshalOFloat2ᚖfloat64(ctx context.Context, sel as
 	return graphql.WrapContextMarshaler(ctx, res)
 }
 
-func (ec *executionContext) marshalOGiftCardBalance2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐGiftCardBalance(ctx context.Context, sel ast.SelectionSet, v *model1.GiftCardBalance) graphql.Marshaler {
+func (ec *executionContext) marshalOGiftCardBalance2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐGiftCardBalance(ctx context.Context, sel ast.SelectionSet, v *model1.GiftCardBalance) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -55892,14 +53734,14 @@ func (ec *executionContext) marshalOJSON2interface(ctx context.Context, sel ast.
 	return res
 }
 
-func (ec *executionContext) marshalOMenu2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMenu(ctx context.Context, sel ast.SelectionSet, v *model1.Menu) graphql.Marshaler {
+func (ec *executionContext) marshalOMenu2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐMenu(ctx context.Context, sel ast.SelectionSet, v *model1.Menu) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Menu(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOMenuItemTargetType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐMenuItemTargetType(ctx context.Context, v any) (*model.MenuItemTargetType, error) {
+func (ec *executionContext) unmarshalOMenuItemTargetType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐMenuItemTargetType(ctx context.Context, v any) (*model.MenuItemTargetType, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -55908,35 +53750,28 @@ func (ec *executionContext) unmarshalOMenuItemTargetType2ᚖgithubᚗcomᚋskele
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOMenuItemTargetType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐMenuItemTargetType(ctx context.Context, sel ast.SelectionSet, v *model.MenuItemTargetType) graphql.Marshaler {
+func (ec *executionContext) marshalOMenuItemTargetType2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐMenuItemTargetType(ctx context.Context, sel ast.SelectionSet, v *model.MenuItemTargetType) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return v
 }
 
-func (ec *executionContext) marshalOMyCompany2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐMyCompany(ctx context.Context, sel ast.SelectionSet, v *model1.MyCompany) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return ec._MyCompany(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalOOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐOrder(ctx context.Context, sel ast.SelectionSet, v *model.Order) graphql.Marshaler {
+func (ec *executionContext) marshalOOrder2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrder(ctx context.Context, sel ast.SelectionSet, v *model.Order) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Order(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProduct(ctx context.Context, sel ast.SelectionSet, v *model.Product) graphql.Marshaler {
+func (ec *executionContext) marshalOProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProduct(ctx context.Context, sel ast.SelectionSet, v *model.Product) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Product(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOProductKind2ᚕgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductKindᚄ(ctx context.Context, v any) ([]model.ProductKind, error) {
+func (ec *executionContext) unmarshalOProductKind2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductKindᚄ(ctx context.Context, v any) ([]model.ProductKind, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -55945,7 +53780,7 @@ func (ec *executionContext) unmarshalOProductKind2ᚕgithubᚗcomᚋskeletgᚋsk
 	res := make([]model.ProductKind, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNProductKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductKind(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNProductKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductKind(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -55953,14 +53788,14 @@ func (ec *executionContext) unmarshalOProductKind2ᚕgithubᚗcomᚋskeletgᚋsk
 	return res, nil
 }
 
-func (ec *executionContext) marshalOProductKind2ᚕgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductKindᚄ(ctx context.Context, sel ast.SelectionSet, v []model.ProductKind) graphql.Marshaler {
+func (ec *executionContext) marshalOProductKind2ᚕgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductKindᚄ(ctx context.Context, sel ast.SelectionSet, v []model.ProductKind) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNProductKind2githubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductKind(ctx, sel, v[i])
+		return ec.marshalNProductKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductKind(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -55972,14 +53807,14 @@ func (ec *executionContext) marshalOProductKind2ᚕgithubᚗcomᚋskeletgᚋskel
 	return ret
 }
 
-func (ec *executionContext) marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐProductMedia(ctx context.Context, sel ast.SelectionSet, v *model.ProductMedia) graphql.Marshaler {
+func (ec *executionContext) marshalOProductMedia2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐProductMedia(ctx context.Context, sel ast.SelectionSet, v *model.ProductMedia) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._ProductMedia(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOReviewIneligibilityReason2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewIneligibilityReason(ctx context.Context, v any) (*model1.ReviewIneligibilityReason, error) {
+func (ec *executionContext) unmarshalOReviewIneligibilityReason2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewIneligibilityReason(ctx context.Context, v any) (*model1.ReviewIneligibilityReason, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -55988,14 +53823,14 @@ func (ec *executionContext) unmarshalOReviewIneligibilityReason2ᚖgithubᚗcom�
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOReviewIneligibilityReason2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewIneligibilityReason(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewIneligibilityReason) graphql.Marshaler {
+func (ec *executionContext) marshalOReviewIneligibilityReason2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewIneligibilityReason(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewIneligibilityReason) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return v
 }
 
-func (ec *executionContext) unmarshalOReviewSort2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewSort(ctx context.Context, v any) (*model1.ReviewSort, error) {
+func (ec *executionContext) unmarshalOReviewSort2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewSort(ctx context.Context, v any) (*model1.ReviewSort, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -56004,14 +53839,14 @@ func (ec *executionContext) unmarshalOReviewSort2ᚖgithubᚗcomᚋskeletgᚋske
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOReviewSort2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐReviewSort(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewSort) graphql.Marshaler {
+func (ec *executionContext) marshalOReviewSort2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐReviewSort(ctx context.Context, sel ast.SelectionSet, v *model1.ReviewSort) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return v
 }
 
-func (ec *executionContext) marshalORouteResolution2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐRouteResolution(ctx context.Context, sel ast.SelectionSet, v *model1.RouteResolution) graphql.Marshaler {
+func (ec *executionContext) marshalORouteResolution2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐRouteResolution(ctx context.Context, sel ast.SelectionSet, v *model1.RouteResolution) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -56071,7 +53906,7 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalOSubscriptionTerms2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐSubscriptionTerms(ctx context.Context, sel ast.SelectionSet, v *model.SubscriptionTerms) graphql.Marshaler {
+func (ec *executionContext) marshalOSubscriptionTerms2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSubscriptionTerms(ctx context.Context, sel ast.SelectionSet, v *model.SubscriptionTerms) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -56096,7 +53931,7 @@ func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel
 	return res
 }
 
-func (ec *executionContext) unmarshalOVariantMode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐVariantMode(ctx context.Context, v any) (*model.VariantMode, error) {
+func (ec *executionContext) unmarshalOVariantMode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐVariantMode(ctx context.Context, v any) (*model.VariantMode, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -56105,14 +53940,14 @@ func (ec *executionContext) unmarshalOVariantMode2ᚖgithubᚗcomᚋskeletgᚋsk
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOVariantMode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋadminᚋmodelᚐVariantMode(ctx context.Context, sel ast.SelectionSet, v *model.VariantMode) graphql.Marshaler {
+func (ec *executionContext) marshalOVariantMode2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐVariantMode(ctx context.Context, sel ast.SelectionSet, v *model.VariantMode) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return v
 }
 
-func (ec *executionContext) unmarshalOWebFormFileInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐWebFormFileInputᚄ(ctx context.Context, v any) ([]*model1.WebFormFileInput, error) {
+func (ec *executionContext) unmarshalOWebFormFileInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐWebFormFileInputᚄ(ctx context.Context, v any) ([]*model1.WebFormFileInput, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -56121,7 +53956,7 @@ func (ec *executionContext) unmarshalOWebFormFileInput2ᚕᚖgithubᚗcomᚋskel
 	res := make([]*model1.WebFormFileInput, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNWebFormFileInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋgraphᚋfrontᚋmodelᚐWebFormFileInput(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNWebFormFileInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋfrontᚋmodelᚐWebFormFileInput(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}

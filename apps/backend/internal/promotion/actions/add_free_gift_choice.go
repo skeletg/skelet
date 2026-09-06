@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // The multi-SKU variant of core.add_free_gift - instead of forcing one SKU the rule offers a list, and the engine queues each as a candidate on the Ledger at qty 0, meaning "offered, not picked"

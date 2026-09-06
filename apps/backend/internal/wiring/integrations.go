@@ -3,11 +3,11 @@ package wiring
 import (
 	"go.uber.org/fx"
 
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/otelx"
-	"github.com/skeletg/skelet/internal/remoteprovider"
-	"github.com/skeletg/skelet/internal/tx"
-	"github.com/skeletg/skelet/internal/webhook"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/otelx"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/webhook"
 )
 
 type AllowPrivateTargets bool // its own type so the graph can't confuse it with another bool - cmd/signals reads the same env so both agree

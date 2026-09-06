@@ -7,13 +7,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/skeletg/skelet/internal/analytics"
-	"github.com/skeletg/skelet/internal/analytics/spinech"
-	dbconn "github.com/skeletg/skelet/internal/db"
-	signalsdb "github.com/skeletg/skelet/internal/db/signals/sqlc"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/lens"
-	"github.com/skeletg/skelet/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics/spinech"
+	dbconn "github.com/skeletg/skelet/apps/backend/internal/db"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/lens"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
 )
 
 var LensCmd = &cobra.Command{

@@ -11,11 +11,11 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/consent"
-	"github.com/skeletg/skelet/internal/email"
-	"github.com/skeletg/skelet/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/internal/email"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
 )
 
 // Declared locally to avoid importing channel and cycling with auth

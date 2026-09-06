@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/skeletg/skelet/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 )
 
 // An alternate FX source for the refresh job (remoteprovider kind=currency_rate) in place of the built-in frankfurter.dev fetch, so a merchant can point at their bank or paid feed without a Go plugin

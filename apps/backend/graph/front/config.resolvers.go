@@ -3,8 +3,8 @@ package front
 import (
 	"context"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	model1 "github.com/skeletg/skelet/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	model1 "github.com/skeletg/skelet/apps/backend/graph/front/model"
 )
 
 // Unauthenticated on purpose - the storefront loads store name, currency, "allow guest checkout" and the like from here
@@ -29,5 +29,5 @@ func (r *queryResolver) PublicConfigSections(ctx context.Context) ([]*model.Conf
 }
 
 func (r *queryResolver) Features(ctx context.Context) (*model1.StoreFeatures, error) {
-	return &model1.StoreFeatures{B2b: r.B2BSvc.Enabled(), Signals: r.SignalsEnabled}, nil
+	return &model1.StoreFeatures{Signals: r.SignalsEnabled}, nil
 }

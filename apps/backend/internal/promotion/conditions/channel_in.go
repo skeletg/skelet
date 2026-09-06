@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/skeletg/skelet/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 )
 
 // channelIn matches when the current channel slug is in the configured

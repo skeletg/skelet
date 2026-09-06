@@ -54,7 +54,6 @@ var parentGatedFieldResolvers = map[string]string{
 	"Product.Downloads":                  "digital assets attached to the parent product",
 	"Product.ProductOptions":             "the parent product's own option set",
 	"Product.PartOf":                     "reads memberships off the parent, no service call",
-	"Company.Prices":                     "the parent company's own price list, same b2b.view as the parent",
 	"PromotionRule.Codes":                "coupon codes belonging to the parent rule",
 	"PromotionRule.Contents":             "the parent rule's own localized copy",
 	"PromotionRule.LabelMedia":           "formats a URL from a field on the parent",
@@ -82,6 +81,9 @@ type funcInfo struct {
 	guards    bool     // calls auth.Require* directly
 	authGates []string // which ones - a bare RequirePermission is a weaker gate than the channel-aware ones
 	calls     []string // package funcs and resolver methods it invokes
+	// Set when the body is a generated pluginhost.Do delegation - the guard then lives in that
+	// plugin's own resolver, and authz_plugin_test.go follows it there rather than trusting it
+	pluginSlug string
 }
 
 func TestEveryAdminResolverIsGated(t *testing.T) {
@@ -94,9 +96,18 @@ func TestEveryAdminResolverIsGated(t *testing.T) {
 			}
 			continue
 		}
-		if !gates(name, funcs, 0, map[string]bool{}) {
-			t.Errorf("%s resolver %s has no permission guard - add an auth.Require* check, or allowlist it in publicResolvers with a reason", kind, name)
+		if gates(name, funcs, 0, map[string]bool{}) {
+			continue
 		}
+		// A plugin field carries no guard HERE by construction - follow the delegation and demand one
+		// on the far side, so a plugin is held to the same standard rather than exempted from it
+		if slug := funcs[name].pluginSlug; slug != "" {
+			if !pluginGates(t, slug, name) {
+				t.Errorf("%s resolver %s is served by plugin %q, whose resolver has no sdk.Require*/PermittedChannels guard - gate it in the plugin", kind, name, slug)
+			}
+			continue
+		}
+		t.Errorf("%s resolver %s has no permission guard - add an auth.Require* check, or allowlist it in publicResolvers with a reason", kind, name)
 	}
 }
 
@@ -286,6 +297,9 @@ func parsePackageFuncs(t *testing.T) (funcs map[string]funcInfo, resolvers map[s
 			info.guards = info.guards || len(gates) > 0
 			info.authGates = append(info.authGates, gates...)
 			info.calls = append(info.calls, bodyCalls(fn.Body)...)
+			if slug := delegatedPluginSlug(fn.Body); slug != "" {
+				info.pluginSlug = slug
+			}
 			funcs[fn.Name.Name] = info
 
 			if kind := resolverKind(fn); kind != "" {

@@ -14,14 +14,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { usePermissions } from '@/shared/auth/usePermissions'
-import { useFeatures } from '@/shared/features/useFeatures'
 
-import { MasqueradeCustomerDocument } from './B2B.gql'
+import { MasqueradeCustomerDocument } from './Masquerade.gql'
 
 type Session = { path: string; url: string; expiresInSeconds: number }
 
-// Sales-rep masquerade: mints a short-lived customer session and hands the operator the storefront link - Renders
-// nothing without b2b.manage (or with the b2b feature switched off)
+// Mints a short-lived customer session and hands the operator the storefront link, so support can see
+// what the customer sees and a rep can order on their behalf - renders nothing without customers.manage
 export function MasqueradeButton({
   customerId,
   variant = 'outline',
@@ -32,11 +31,10 @@ export function MasqueradeButton({
   label?: string
 }) {
   const { has } = usePermissions()
-  const { enabled } = useFeatures()
   const [session, setSession] = useState<Session | null>(null)
   const [mint, { loading }] = useMutation(MasqueradeCustomerDocument)
 
-  if (!enabled('b2b') || !has('b2b.manage')) return null
+  if (!has('customers.manage')) return null
 
   const start = async () => {
     try {

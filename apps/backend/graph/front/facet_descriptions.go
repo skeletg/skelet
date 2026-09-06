@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/search"
+	"github.com/skeletg/skelet/apps/backend/internal/search"
 )
 
 // Keyed by the visible strings the resolver already holds (attribute slug, bucket display value) so no further uuid plumbing is needed

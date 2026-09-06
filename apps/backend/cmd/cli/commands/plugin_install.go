@@ -117,7 +117,7 @@ func runPluginInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if srcModule != "" && srcModule != "github.com/skeletg/skelet" {
-		n, err := rewriteSelfImports(dest, srcModule, "github.com/skeletg/skelet/plugins/"+slug)
+		n, err := rewriteSelfImports(dest, srcModule, "github.com/skeletg/skelet/apps/backend/plugins/"+slug)
 		if err != nil {
 			return err
 		}
@@ -281,7 +281,7 @@ func internalImports(dir string) []string {
 		}
 		for _, imp := range f.Imports {
 			p := strings.Trim(imp.Path.Value, `"`)
-			if strings.HasPrefix(p, "github.com/skeletg/skelet/internal/") && !seen[p] {
+			if strings.HasPrefix(p, "github.com/skeletg/skelet/apps/backend/internal/") && !seen[p] {
 				seen[p] = true
 				bad = append(bad, p)
 			}

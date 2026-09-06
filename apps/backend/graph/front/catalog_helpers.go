@@ -9,20 +9,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skeletg/skelet/internal/search"
+	"github.com/skeletg/skelet/apps/backend/internal/search"
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/graph/front/dataloaders"
-	model1 "github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/graph/modelconv"
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/pricing"
-	"github.com/skeletg/skelet/internal/promotion"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/front/dataloaders"
+	model1 "github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/graph/modelconv"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/pricing"
+	"github.com/skeletg/skelet/apps/backend/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 // Reads the request-scoped cache (primed by list resolvers) only when channelID matches the store it was primed against, else falls back to a single-product call

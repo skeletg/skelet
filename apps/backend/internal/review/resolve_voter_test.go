@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/review"
+	"github.com/skeletg/skelet/apps/backend/internal/review"
 )
 
 // ResolveVoter is the single source of truth for "who is voting on this review?" - the dataloader path and the GraphQL resolver both call it, so the table below is the contract gating anonymous voting

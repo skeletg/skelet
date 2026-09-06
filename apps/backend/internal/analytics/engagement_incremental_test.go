@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	signalsdb "github.com/skeletg/skelet/internal/db/signals/sqlc"
-	db "github.com/skeletg/skelet/internal/db/sqlc"
-	"github.com/skeletg/skelet/internal/testdb"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
 // Gated on DATABASE_URL + SIGNALS_DB_URL - an incremental refresh must land the projection on exactly what a full recompute would produce: aged-out customers deleted, fresh ones upserted, untouched ones untouched

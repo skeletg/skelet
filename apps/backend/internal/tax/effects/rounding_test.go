@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
 )
 
 // Every case is a single rule with a single effect, so the ledger total IS that effect's output

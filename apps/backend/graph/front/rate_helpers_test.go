@@ -8,8 +8,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/skeletg/skelet/internal/auth"
-	"github.com/skeletg/skelet/internal/ratelimit"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/ratelimit"
 )
 
 // In-memory limiter plus a pre-seeded config memo (no channel in ctx resolves to the "default" memo key), so count, delay and refusal all run exactly as in production minus the DB read

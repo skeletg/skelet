@@ -10,16 +10,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/catalog"
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/locale"
+	"github.com/skeletg/skelet/apps/backend/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/locale"
 )
 
 // A store whose channel carries en (default) and an ACTIVE de
 func (h *harness) bilingualStore(t *testing.T, stock float64, priceCents int64) *store {
 	t.Helper()
-	h.ensureLocale(t, "de")
-	return h.newStoreOpt(t, stock, priceCents, func(in *channel.CreateChannelInput) {
+	h.EnsureLocale(t, "de")
+	return h.NewStoreOpt(t, stock, priceCents, func(in *channel.CreateChannelInput) {
 		in.DefaultLocale = "en"
 		in.Locales = []string{"en", "de"}
 	})
@@ -29,21 +29,21 @@ func (h *harness) bilingualStore(t *testing.T, stock float64, priceCents int64) 
 // locale, writes validate the locale, and the default row is undeletable while translations remain
 func TestProductContentLocalizesAndFallsBack(t *testing.T) {
 	h := newHarness(t)
-	f := h.newStore(t, 5, 1000)
-	if _, err := h.d.Catalog.UpsertProductContent(h.ctx, f.Product.ID, catalog.ProductContentInput{
+	f := h.NewStore(t, 5, 1000)
+	if _, err := h.D.Catalog.UpsertProductContent(h.Ctx, f.Product.ID, catalog.ProductContentInput{
 		Locale: "xx", Name: "nope",
 	}); !errors.Is(err, locale.ErrLocaleNotFound) {
 		t.Errorf("unregistered locale write = %v, want ErrLocaleNotFound", err)
 	}
 
-	h.ensureLocale(t, "de")
-	if _, err := h.d.Catalog.UpsertProductContent(h.ctx, f.Product.ID, catalog.ProductContentInput{
+	h.EnsureLocale(t, "de")
+	if _, err := h.D.Catalog.UpsertProductContent(h.Ctx, f.Product.ID, catalog.ProductContentInput{
 		Locale: "de", Name: "Werkzeug DE",
 	}); err != nil {
 		t.Fatalf("write de content: %v", err)
 	}
 
-	hit, err := h.d.Catalog.GetProduct(h.ctx, f.Product.ID, "de")
+	hit, err := h.D.Catalog.GetProduct(h.Ctx, f.Product.ID, "de")
 	if err != nil || hit.Content == nil {
 		t.Fatalf("read de: %v (content %v)", err, hit.Content)
 	}
@@ -55,8 +55,8 @@ func TestProductContentLocalizesAndFallsBack(t *testing.T) {
 	}
 
 	// A product with no de row serves the default locale's content instead
-	other := h.addProduct(t, f, 700, true, 5)
-	miss, err := h.d.Catalog.GetProduct(h.ctx, other.ID, "de")
+	other := h.AddProduct(t, f, 700, true, 5)
+	miss, err := h.D.Catalog.GetProduct(h.Ctx, other.ID, "de")
 	if err != nil || miss.Content == nil {
 		t.Fatalf("fallback read: %v (content %v)", err, miss.Content)
 	}
@@ -65,12 +65,12 @@ func TestProductContentLocalizesAndFallsBack(t *testing.T) {
 	}
 
 	// The default-locale row anchors the fallbacks - it refuses to die first
-	if err := h.d.Catalog.DeleteProductContent(h.ctx, f.Product.ID, "en"); !errors.Is(err, catalog.ErrCannotDeleteDefaultLocale) {
+	if err := h.D.Catalog.DeleteProductContent(h.Ctx, f.Product.ID, "en"); !errors.Is(err, catalog.ErrCannotDeleteDefaultLocale) {
 		t.Errorf("default-delete error = %v, want ErrCannotDeleteDefaultLocale", err)
 	}
 
 	// And products are only ever BORN in the default locale
-	if _, err := h.d.Catalog.CreateProduct(h.ctx, catalog.CreateProductInput{
+	if _, err := h.D.Catalog.CreateProduct(h.Ctx, catalog.CreateProductInput{
 		ProductTypeID: f.Product.ProductTypeID, Locale: "de",
 		Name: "Geboren", DefaultCurrencyCode: "USD",
 	}); !errors.Is(err, catalog.ErrLocaleMustBeDefault) {
@@ -120,18 +120,18 @@ func (h *harness) gqlPostLocale(t *testing.T, ts *httptest.Server, channelID, lo
 func TestLocaleHeaderClampsOverHTTP(t *testing.T) {
 	h := newHarness(t)
 	f := h.bilingualStore(t, 5, 1500)
-	if _, err := h.d.Catalog.UpsertProductContent(h.ctx, f.Product.ID, catalog.ProductContentInput{
+	if _, err := h.D.Catalog.UpsertProductContent(h.Ctx, f.Product.ID, catalog.ProductContentInput{
 		Locale: "de", Name: "Werkzeug DE",
 	}); err != nil {
 		t.Fatalf("write de content: %v", err)
 	}
-	en, err := h.d.Catalog.GetProduct(h.ctx, f.Product.ID, "en")
+	en, err := h.D.Catalog.GetProduct(h.Ctx, f.Product.ID, "en")
 	if err != nil || en.Content == nil {
 		t.Fatalf("read en content: %v", err)
 	}
 	englishName := en.Content.Name
 
-	ts := httptest.NewServer(h.d.Root.Handler)
+	ts := httptest.NewServer(h.D.Root.Handler)
 	defer ts.Close()
 	query := fmt.Sprintf(`{ product(id: %q) { name } }`, f.Product.ID)
 
@@ -158,8 +158,8 @@ func TestLocaleHeaderClampsOverHTTP(t *testing.T) {
 	}
 
 	// A monolingual store never serves de, translation or not
-	mono := h.newStore(t, 5, 1200)
-	if _, err := h.d.Catalog.UpsertProductContent(h.ctx, mono.Product.ID, catalog.ProductContentInput{
+	mono := h.NewStore(t, 5, 1200)
+	if _, err := h.D.Catalog.UpsertProductContent(h.Ctx, mono.Product.ID, catalog.ProductContentInput{
 		Locale: "de", Name: "Unsichtbar DE",
 	}); err != nil {
 		t.Fatalf("write de on mono product: %v", err)

@@ -3,8 +3,8 @@ package front
 import (
 	"context"
 
-	"github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 )
 
 // No resolved channel = zeros, not an error - a misconfigured host still renders an empty (valid) sitemap

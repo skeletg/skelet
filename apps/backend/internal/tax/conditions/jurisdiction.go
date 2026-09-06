@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/skeletg/skelet/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/internal/tax"
 )
 
 // jurisdiction matches the order's shipping country/region - An empty field means "any" - {country:"US"} matches any US

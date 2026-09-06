@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/media"
+	"github.com/skeletg/skelet/apps/backend/internal/media"
 )
 
 // Each case is a way an SVG has been used to run script or phone home in the wild. The assertion is

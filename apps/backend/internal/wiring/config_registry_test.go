@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skeletg/skelet/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 )
 
 // Importing wiring pulls in every domain package, so these assert over the WHOLE live config registry - config.Validate already runs at boot; the rules below are the ones nothing enforces

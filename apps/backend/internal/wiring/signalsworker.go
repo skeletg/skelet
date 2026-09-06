@@ -5,12 +5,12 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/internal/channel"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/destination"
-	"github.com/skeletg/skelet/internal/lens"
-	"github.com/skeletg/skelet/internal/secrets"
-	"github.com/skeletg/skelet/internal/signalsboot"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/destination"
+	"github.com/skeletg/skelet/apps/backend/internal/lens"
+	"github.com/skeletg/skelet/apps/backend/internal/secrets"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
 )
 
 // Excludes Registries and the Platform wiring invoke on purpose - a worker must not replay plugin registrations, sync permissions, or install the admin seams

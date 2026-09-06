@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skeletg/skelet/internal/action"
+	"github.com/skeletg/skelet/apps/backend/internal/action"
 )
 
 // Called from main.go after the search tier exists so the handler closes over the live registry - which by then holds the core indexes plus

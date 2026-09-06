@@ -3,8 +3,8 @@ package admin
 import (
 	"fmt"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	"github.com/skeletg/skelet/internal/webhook"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/webhook"
 )
 
 func toWebhookModel(w webhook.Webhook) *model.Webhook {

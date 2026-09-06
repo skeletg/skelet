@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/circuit"
-	"github.com/skeletg/skelet/internal/remoteprovider/contract"
+	"github.com/skeletg/skelet/apps/backend/internal/circuit"
+	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider/contract"
 )
 
 const (

@@ -1,7 +1,7 @@
 package model
 
 import (
-	adminmodel "github.com/skeletg/skelet/graph/admin/model"
+	adminmodel "github.com/skeletg/skelet/apps/backend/graph/admin/model"
 )
 
 // Product.partOf inverse relationships, pinned in gqlgen.front.yml's `models:` block - the ProductMemberships field resolvers fill these in whole, so every leaf below binds straight to a struct field with no per-leaf resolver

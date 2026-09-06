@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/cache"
-	"github.com/skeletg/skelet/internal/config"
-	"github.com/skeletg/skelet/internal/events"
+	"github.com/skeletg/skelet/apps/backend/internal/cache"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
+	"github.com/skeletg/skelet/apps/backend/internal/events"
 )
 
 // The slice of catalog.Service the currency-change guard needs - wired post-construction to dodge an import cycle, since catalog already depends on channel

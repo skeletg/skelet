@@ -4,9 +4,9 @@ import (
 	"context"
 	"sort"
 
-	"github.com/skeletg/skelet/graph/admin/model"
-	model1 "github.com/skeletg/skelet/graph/front/model"
-	"github.com/skeletg/skelet/internal/country"
+	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	model1 "github.com/skeletg/skelet/apps/backend/graph/front/model"
+	"github.com/skeletg/skelet/apps/backend/internal/country"
 )
 
 // Honors the channel's "allowed countries" setting, all active when unset, and pins "top destinations" to the front

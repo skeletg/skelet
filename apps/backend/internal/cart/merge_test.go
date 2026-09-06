@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/internal/tx"
+	"github.com/skeletg/skelet/apps/backend/internal/tx"
 )
 
 // No-op sql driver so tx.Manager can hand out real transactions - the fake repo

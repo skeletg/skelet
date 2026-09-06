@@ -1,6 +1,6 @@
 package subscription
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 func init() {
 	apperr.RegisterSentinel(ErrNotFound, "SUBSCRIPTION_NOT_FOUND", apperr.ClassNotFound)

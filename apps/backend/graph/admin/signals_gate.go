@@ -1,6 +1,6 @@
 package admin
 
-import "github.com/skeletg/skelet/internal/apperr"
+import "github.com/skeletg/skelet/apps/backend/internal/apperr"
 
 var errSignalsDisabled = apperr.New("SIGNALS_DISABLED", apperr.ClassValidation, "Signals features are disabled on this server") // server-wide SIGNALS_ENABLED switch
 
