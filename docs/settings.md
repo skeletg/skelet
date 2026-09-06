@@ -228,7 +228,7 @@ waiting to be written rather than a setting with nothing to say.
 |---|---|---|---|---|---|
 | `pulse/analytics/spine_retention_days` | The raw per-event log behind every Pulse report. Rollups outlive it, so trends survive a short window - individual events do not. | int | global |  | `365` |
 | `pulse/analytics/retention_action` | Prune deletes; archive writes identity-stripped copies to your backup bucket first. | select | global |  | `prune` |
-| `pulse/analytics/email_sends_retention_months` | Email send-log retention (months, 0 = keep forever) | int | global |  | `0` |
+| `pulse/analytics/email_sends_retention_months` | Email send-log retention (months, 0 = keep forever) | int | global |  | `24` |
 
 **Web Analytics**
 
