@@ -11,6 +11,54 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- **Every direct transactional send is recorded and carries an open pixel.** Three domains
+  send mail directly when no flow takes delivery - order receipts, account links and
+  back-in-stock notices - and only the receipts were being logged. A directly-sent
+  verification recorded nothing at all, so a store running without auth flows showed zero
+  verification sends, indistinguishable from mail that was never sent. A shared
+  `internal/mailsend` now records first, points the open pixel at that record, then
+  delivers, which is the order the flow engine already used. Without it a logged send could
+  never register an open and reported as mail nobody read. Transactional mail gets the pixel
+  only, never click-wrapping, so nothing sits in front of a verification or reset link.
+
+- **Core owns the order-lifecycle mail.** The receipt, shipment notice, cancellation and
+  refund were delivered entirely by the flow engine, which also owned the subscriptions -
+  so a channel whose flow was paused or deleted silently sent nothing, and there is no
+  admin resend to recover it. A new `internal/ordermail` owns those four subscriptions and
+  calls the flow engine as a dispatcher: a flow still wins whenever one is active, and only
+  a zero enrollment falls through to sending directly. The order-to-template mapping moved
+  out of the flow engine so both senders share it. Flow-sent order mail now stamps its
+  `order_id` on the send log, which it never did, so a receipt is attributable to its order
+  whichever sender delivered it.
+
+- **A new channel seeds its own transactional emails and delivery flows.** Seeding was a
+  manual `skelet emails seed-transactional` that nothing called, so a channel created
+  through the admin API had no flows and silently sent no receipts, no verification and no
+  password resets - with no admin resend to recover them. Channel creation now publishes
+  `channel.created` and a subscriber seeds both, emails first since a flow points at the
+  slot email it sends. Best-effort and idempotent, so the CLI still repairs a channel this
+  missed, and it is registered ahead of the `SIGNALS_ENABLED` gate because transactional
+  mail is not part of the analytics suite.
+
+- **Account email no longer depends on a flow being active.** Verification and password
+  reset were delivered only by the seeded Pulse flows, and nothing guaranteed those exist:
+  seeding is a manual `skelet emails seed-transactional`, archived flows are deliberately
+  never re-seeded, and a flow can be paused or deleted outright. When none ran, the
+  storefront still answered "check your email" and only a log line recorded that nothing
+  was sent. Both now fall back to sending directly, through the channel's own template
+  where it has one, so a missing flow can no longer lock a customer out of their account.
+  The flow still wins whenever one is active, so nothing double-sends.
+
+- **The email send log moved to the commerce database.** `email_sends` lived in the
+  Signals database, but the flow engine writes it on every send and the flow engine is
+  what delivers transactional mail - order receipts, shipping notices, email verification,
+  password reset. That put `signals-db` on the password-reset path. Nothing joined the
+  table across the two databases, so it moved without a schema change: commerce migration
+  `000003` creates it, signals `000002` drops it, and `skelet db move-email-sends` copies
+  existing rows between the two (it goes between the two `db migrate` calls). GDPR's send
+  scrub is now a local query inside the anonymize transaction instead of a best-effort
+  call before it, and the campaign package no longer opens a Signals handle at all.
+
 - **The Go module is now `github.com/skeletg/skelet/apps/backend`.** It was declaring a
   repo-root path while its `go.mod` sat in a subdirectory, which Go cannot resolve - so
   nothing could ever `go get` it. Imports gain `apps/backend/`; module tags become

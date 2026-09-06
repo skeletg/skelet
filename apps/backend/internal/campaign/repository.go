@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 
-	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
@@ -58,14 +57,12 @@ type Repository interface {
 	BumpClicked(ctx context.Context, campaignID uuid.UUID) error
 }
 
-// qs reaches the send log, which lives on the Signals stream - the A/B rollup reads it
 type repo struct {
-	q  *db.Queries
-	qs *signalsdb.Queries
+	q *db.Queries
 }
 
 // NewRepository wires the sqlc-backed repository
-func NewRepository(q *db.Queries, qs *signalsdb.Queries) Repository { return &repo{q: q, qs: qs} }
+func NewRepository(q *db.Queries) Repository { return &repo{q: q} }
 
 func (r *repo) Create(ctx context.Context, c Campaign) (Campaign, error) {
 	blocks, styles, err := marshalContent(c)
@@ -241,7 +238,7 @@ func (r *repo) SetWinner(ctx context.Context, campaignID uuid.UUID, winner strin
 }
 
 func (r *repo) VariantStats(ctx context.Context, campaignID uuid.UUID) ([]VariantStat, error) {
-	rows, err := r.qs.CampaignVariantStats(ctx, uuid.NullUUID{UUID: campaignID, Valid: true})
+	rows, err := r.q.CampaignVariantStats(ctx, uuid.NullUUID{UUID: campaignID, Valid: true})
 	if err != nil {
 		return nil, err
 	}

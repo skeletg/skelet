@@ -59,10 +59,6 @@ type Querier interface {
 	// identities live on the spine engine, which this Postgres table can't join);
 	// paging bounds the fetch and each resolve batch on an arbitrarily busy window.
 	BrowseSeenSincePage(ctx context.Context, arg BrowseSeenSincePageParams) ([]BrowseSeen, error)
-	// Per-variant sent / opened / clicked (human, bot-filtered) for the A/B results view
-	// and the winner decision. Groups on the denormalized variant rather than joining
-	// email_campaign_recipients, which lives in the commerce db.
-	CampaignVariantStats(ctx context.Context, campaignID uuid.NullUUID) ([]CampaignVariantStatsRow, error)
 	// Spine half of trait compute (the `act` CTE), split out of the commerce RecomputeChannelTraits - feeds the
 	// commerce-side customer_engagement_30d projection the recompute reads
 	// Per-customer last-window spine event count for a channel, capped at 100 (any
@@ -72,11 +68,6 @@ type Querier interface {
 	// recomputes only the changed customers.
 	ChannelEngagementCountsFor(ctx context.Context, arg ChannelEngagementCountsForParams) ([]ChannelEngagementCountsForRow, error)
 	CustomerConversions(ctx context.Context, arg CustomerConversionsParams) ([]CustomerConversionsRow, error)
-	// Lifetime Pulse email engagement for a customer, read from the authoritative
-	// email_sends projection (first_open_at / first_click_at are bot-filtered at write
-	// time, so a non-null value = a real human open/click). MAX columns are left uncast
-	// so sqlc types them nullable (a customer may have zero sends).
-	CustomerEmailEngagement(ctx context.Context, customerID uuid.NullUUID) (CustomerEmailEngagementRow, error)
 	// Spine half of the app-side conversion-attribution lookback (recorder's
 	// RecordConversion): every marketing open/click the customer logged since the
 	// cutoff, best-first (a click outranks an open; then most-recent). The caller
@@ -105,28 +96,12 @@ type Querier interface {
 	DeleteCustomerAnalyticsIdentities(ctx context.Context, customerIds []uuid.UUID) (int64, error)
 	// Only after the batched spine delete landed - a failed sweep retries these.
 	DeleteIdentityErasures(ctx context.Context, customerIds []uuid.UUID) error
-	// Drops one whole month of sends (partition drop + stray delete), returning
-	// the rows removed. Only called for months the archive export has committed,
-	// or directly under retention_action=prune.
-	DropEmailSendMonth(ctx context.Context, month time.Time) (int64, error)
-	// The send-log retention sweep's work list: months (partitions + any
-	// default-partition strays) lying entirely before the cutoff.
-	EmailSendMonthsBefore(ctx context.Context, cutoff time.Time) ([]time.Time, error)
-	// Origin (source + campaign/flow) of a batch of sends, for the conversion-attribution
-	// lookback - the spine surfaces the customer's recent open/click send ids and this
-	// resolves which came from a campaign or flow. The attribution windows are days,
-	// so the pruning bound is far outside anything the caller asks about.
-	EmailSendsByIDs(ctx context.Context, ids []uuid.UUID) ([]EmailSendsByIDsRow, error)
 	// Channel-scoped open/click/conversion counts since a cutoff. Opens/clicks are
 	// split raw vs human (machine-flagged excluded) for honest rates.
 	EngagementSummary(ctx context.Context, arg EngagementSummaryParams) (EngagementSummaryRow, error)
 	// ClickHouse-engine erasures batch through this queue (one mutation per sweep,
 	// not per request) - the upsert makes re-requesting free.
 	EnqueueIdentityErasure(ctx context.Context, customerID uuid.UUID) error
-	// Pre-creates the next monthly partitions so inserts never land in the DEFAULT
-	// safety net (a populated DEFAULT blocks creating the month it holds). Rides
-	// the daily analytics prune.
-	EnsureEmailSendPartitions(ctx context.Context) error
 	// Total events + distinct people for an event over a single window [start, end).
 	// Called for the current and prior windows to drive Insights' period-over-period
 	// delta. Optional event filter ('' = any). Resolved across anon + identity.
@@ -168,18 +143,10 @@ type Querier interface {
 	// streaming their rows into the walker is pure waste (a funnel starting at
 	// page_view still degenerates to everyone, but typical funnels start narrower).
 	FunnelEvents(ctx context.Context, arg FunnelEventsParams) ([]FunnelEventsRow, error)
-	// The pixel/click hot path. The 90-day bound exists for partition pruning - the
-	// table is monthly-partitioned on sent_at and an id-only probe would touch every
-	// partition forever. An older send just stops recording engagement (click
-	// redirects never break: the destination URL rides the token, not this row).
-	GetEmailSend(ctx context.Context, id uuid.UUID) (EmailSend, error)
 	// Customers with events RECEIVED in [from, to) - the incremental refresh's fresh
 	// slice keys on arrival time, so a queue-backlog drain or an outbox redelivery
 	// whose occurred_at predates the window still gets its customer recomputed.
 	IngestedSpineCustomerIDs(ctx context.Context, arg IngestedSpineCustomerIDsParams) ([]uuid.UUID, error)
-	// The email send log. Append-only history of what went out, plus the human-only
-	// first-open/first-click stamps the spine-write path maintains.
-	InsertEmailSend(ctx context.Context, arg InsertEmailSendParams) (uuid.UUID, error)
 	// Ad-hoc breakdown: per time bucket (day/week) × breakdown-property value, the
 	// total events + distinct people. Optional event filter (''=any). breakdown is a
 	// jsonb property key (''=no breakdown → all rows group under '(none)'). The
@@ -323,11 +290,6 @@ type Querier interface {
 	// are identity-stripped (dedupe keys can embed anon/customer ids, e.g.
 	// identify's).
 	ListAnalyticsEventsForArchive(ctx context.Context, arg ListAnalyticsEventsForArchiveParams) ([]ListAnalyticsEventsForArchiveRow, error)
-	// One keyset page of a month for the archive export, ordered by id (uuidv7,
-	// so the (id, sent_at) primary key walks it in near-time order). customer_id,
-	// email and recipient_id are deliberately not selected - archives are
-	// identity-stripped, keeping campaign/flow/order linkage for aggregate stats.
-	ListEmailSendsForArchive(ctx context.Context, arg ListEmailSendsForArchiveParams) ([]ListEmailSendsForArchiveRow, error)
 	// Spine read for the event-forwarding sweep (destination.Service). The destination rows + cursor live in commerce
 	// (event_destinations); only this page-the-spine read moved here
 	// The 5s watermark keeps the page behind any still-committing insert: a row can
@@ -335,8 +297,6 @@ type Querier interface {
 	// would never be forwarded. Nothing lands that late, so no event is skipped.
 	ListEventsForForwarding(ctx context.Context, arg ListEventsForForwardingParams) ([]ListEventsForForwardingRow, error)
 	MarkBrowseNotified(ctx context.Context, arg MarkBrowseNotifiedParams) error
-	MarkSendClicked(ctx context.Context, id uuid.UUID) error
-	MarkSendOpened(ctx context.Context, id uuid.UUID) error
 	// The archive sweep's day finder: the oldest aged event (optionally source-
 	// scoped, '' = any) tells it which received_at day to export next, so it never
 	// iterates empty days. Index-ordered scan on analytics_events_received.
@@ -396,10 +356,6 @@ type Querier interface {
 	// new-vs-returning split. Active = any tracked event (optional event filter),
 	// resolved across anon + identity. Window length is the store's return cadence.
 	ReturnWindowStats(ctx context.Context, arg ReturnWindowStatsParams) (ReturnWindowStatsRow, error)
-	// GDPR erasure: redact the address on the customer's sends. Matched by customer
-	// id plus the pre-scrub address itself, which also catches guest-era sends to
-	// the same person. The rows stay (the send happened), like the order scrub.
-	ScrubCustomerEmailSends(ctx context.Context, arg ScrubCustomerEmailSendsParams) (int64, error)
 	// Spine half of the app-side SegmentTopAffinities read: top attr:<slug> = value
 	// among a segment's members (their customer ids passed in - the commerce half,
 	// customer_segment_memberships, lives in the commerce db). Distinct-member counts,

@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 // ArchiveSink is the object-storage seam, satisfied by the BACKUP_* destination adapter in signalsboot - Put must return nil only once the object is durably stored and verified, because the sweep deletes rows on its word
@@ -145,7 +146,7 @@ func (r *Recorder) PruneEmailSends(ctx context.Context, before time.Time, archiv
 	if archive && r.archive == nil {
 		return 0, ErrNoArchiveSink
 	}
-	months, err := r.qs.EmailSendMonthsBefore(ctx, before)
+	months, err := r.q.EmailSendMonthsBefore(ctx, before)
 	if err != nil {
 		return 0, err
 	}
@@ -156,7 +157,7 @@ func (r *Recorder) PruneEmailSends(ctx context.Context, before time.Time, archiv
 				return total, err
 			}
 		}
-		n, err := r.qs.DropEmailSendMonth(ctx, m)
+		n, err := r.q.DropEmailSendMonth(ctx, m)
 		if err != nil {
 			return total, err
 		}
@@ -170,7 +171,7 @@ func (r *Recorder) archiveEmailSendMonth(ctx context.Context, month time.Time) e
 	cursor := uuid.Nil
 	from, to := month.UTC(), month.UTC().AddDate(0, 1, 0)
 	for {
-		rows, err := r.qs.ListEmailSendsForArchive(ctx, signalsdb.ListEmailSendsForArchiveParams{
+		rows, err := r.q.ListEmailSendsForArchive(ctx, db.ListEmailSendsForArchiveParams{
 			FromAt: from, ToAt: to, CursorID: cursor, Lim: archivePageSize,
 		})
 		if err != nil {

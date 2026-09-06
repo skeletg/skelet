@@ -151,6 +151,9 @@ func (s *Service) Create(ctx context.Context, input CreateChannelInput) (Channel
 	}
 	sv.Locales = locales
 	s.invalidate(ctx)
+	if s.bus != nil {
+		s.bus.Publish(ctx, &Created{ChannelID: sv.ID})
+	}
 	return sv, nil
 }
 

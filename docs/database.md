@@ -77,7 +77,7 @@ everyone with an existing database has to re-pin afterwards.
 7. Re-pin every existing database with `migrate force <new latest version>`,
    and drop the e2e databases so `bin/test-e2e --fresh` rebuilds them
 
-The Signals baseline needs one extra step. `email_sends` is RANGE-partitioned by
+The commerce baseline needs one extra step. `email_sends` is RANGE-partitioned by
 month, so a dump freezes whichever months existed when it was taken. Drop every
 `email_sends_YYYYMM` block from the dump and end the file with
 `SELECT public.ensure_email_send_partitions(3);` instead, so a fresh install gets

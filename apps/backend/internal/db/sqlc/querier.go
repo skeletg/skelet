@@ -167,6 +167,10 @@ type Querier interface {
 	BumpCampaignOpened(ctx context.Context, id uuid.UUID) error
 	CMSPageSlugExists(ctx context.Context, slug string) (bool, error)
 	CMSTagUsageCounts(ctx context.Context) ([]CMSTagUsageCountsRow, error)
+	// Per-variant sent / opened / clicked (human, bot-filtered) for the A/B results view
+	// and the winner decision. Groups on the denormalized variant, which is cheaper than
+	// joining email_campaign_recipients.
+	CampaignVariantStats(ctx context.Context, campaignID uuid.NullUUID) ([]CampaignVariantStatsRow, error)
 	// A running job is stopped by its runner noticing the lease renewal stopped matching, within one renewal interval
 	CancelDataJob(ctx context.Context, id uuid.UUID) (DataJob, error)
 	CancelEmailCampaign(ctx context.Context, id uuid.UUID) (int64, error)
@@ -499,6 +503,11 @@ type Querier interface {
 	CreateWebhook(ctx context.Context, arg CreateWebhookParams) (Webhook, error)
 	CreateWebhookDelivery(ctx context.Context, arg CreateWebhookDeliveryParams) (WebhookDelivery, error)
 	CreateWebhookJob(ctx context.Context, arg CreateWebhookJobParams) (ScheduledJob, error)
+	// Lifetime Pulse email engagement for a customer, read from the authoritative
+	// email_sends projection (first_open_at / first_click_at are bot-filtered at write
+	// time, so a non-null value = a real human open/click). MAX columns are left uncast
+	// so sqlc types them nullable (a customer may have zero sends).
+	CustomerEmailEngagement(ctx context.Context, customerID uuid.NullUUID) (CustomerEmailEngagementRow, error)
 	DeleteAddress(ctx context.Context, id uuid.UUID) error
 	DeleteAdminPreference(ctx context.Context, arg DeleteAdminPreferenceParams) error
 	DeleteAdminRole(ctx context.Context, id uuid.UUID) error
@@ -680,12 +689,28 @@ type Querier interface {
 	DeleteWebhookDeliveriesByWebhook(ctx context.Context, webhookID uuid.UUID) (int64, error)
 	DeleteWebhookQueueItem(ctx context.Context, id uuid.UUID) error
 	DisableAdminTotp(ctx context.Context, id uuid.UUID) error
+	// Drops one whole month of sends (partition drop + stray delete), returning
+	// the rows removed. Only called for months the archive export has committed,
+	// or directly under retention_action=prune.
+	DropEmailSendMonth(ctx context.Context, month time.Time) (int64, error)
+	// The send-log retention sweep's work list: months (partitions + any
+	// default-partition strays) lying entirely before the cutoff.
+	EmailSendMonthsBefore(ctx context.Context, cutoff time.Time) ([]time.Time, error)
+	// Origin (source + campaign/flow) of a batch of sends, for the conversion-attribution
+	// lookback - the spine surfaces the customer's recent open/click send ids and this
+	// resolves which came from a campaign or flow. The attribution windows are days,
+	// so the pruning bound is far outside anything the caller asks about.
+	EmailSendsByIDs(ctx context.Context, ids []uuid.UUID) ([]EmailSendsByIDsRow, error)
 	// Promotes the pending secret + stores hashed recovery codes
 	EnableAdminTotp(ctx context.Context, arg EnableAdminTotpParams) error
 	// ==================== Rebuild queue ====================
 	// Returns rows affected (0 when coalesced against an existing pending task)
 	EnqueueRebuildTask(ctx context.Context, arg EnqueueRebuildTaskParams) (int64, error)
 	EnqueueWebhookDelivery(ctx context.Context, arg EnqueueWebhookDeliveryParams) (WebhookQueue, error)
+	// Pre-creates the next monthly partitions so inserts never land in the DEFAULT
+	// safety net (a populated DEFAULT blocks creating the month it holds). Rides
+	// the daily analytics prune.
+	EnsureEmailSendPartitions(ctx context.Context) error
 	// Returns the keys to delete from the object store - the row stays so the history survives its artifact
 	ExpireDataJobArtifacts(ctx context.Context) ([]ExpireDataJobArtifactsRow, error)
 	// Back-office CSV export feeds (customers + accounting-shaped order lines)
@@ -813,6 +838,11 @@ type Querier interface {
 	GetEmailCampaign(ctx context.Context, id uuid.UUID) (EmailCampaign, error)
 	GetEmailGroup(ctx context.Context, id uuid.UUID) (EmailGroup, error)
 	GetEmailRevision(ctx context.Context, id uuid.UUID) (EmailLibraryRevision, error)
+	// The pixel/click hot path. The 90-day bound exists for partition pruning - the
+	// table is monthly-partitioned on sent_at and an id-only probe would touch every
+	// partition forever. An older send just stops recording engagement (click
+	// redirects never break: the destination URL rides the token, not this row).
+	GetEmailSend(ctx context.Context, id uuid.UUID) (EmailSend, error)
 	// Fetch one template by key + scope - pass channel_id NULL for the global row,
 	// a uuid for a channel override - IS NOT DISTINCT FROM matches NULL to NULL
 	GetEmailTemplate(ctx context.Context, arg GetEmailTemplateParams) (EmailTemplate, error)
@@ -1087,6 +1117,9 @@ type Querier interface {
 	InsertDataPatch(ctx context.Context, arg InsertDataPatchParams) error
 	// --- email version history ---
 	InsertEmailRevision(ctx context.Context, arg InsertEmailRevisionParams) error
+	// The email send log. Append-only history of what went out, plus the human-only
+	// first-open/first-click stamps the spine-write path maintains.
+	InsertEmailSend(ctx context.Context, arg InsertEmailSendParams) (uuid.UUID, error)
 	InsertEmailTemplate(ctx context.Context, arg InsertEmailTemplateParams) (EmailTemplate, error)
 	InsertGiftCardTransaction(ctx context.Context, arg InsertGiftCardTransactionParams) (GiftCardTransaction, error)
 	// ==================== Reservations (append-only ledger) ====================
@@ -1394,6 +1427,11 @@ type Querier interface {
 	// --- email groups (admin taxonomy) ---
 	ListEmailGroups(ctx context.Context) ([]EmailGroup, error)
 	ListEmailRevisions(ctx context.Context, arg ListEmailRevisionsParams) ([]EmailLibraryRevision, error)
+	// One keyset page of a month for the archive export, ordered by id (uuidv7,
+	// so the (id, sent_at) primary key walks it in near-time order). customer_id,
+	// email and recipient_id are deliberately not selected - archives are
+	// identity-stripped, keeping campaign/flow/order linkage for aggregate stats.
+	ListEmailSendsForArchive(ctx context.Context, arg ListEmailSendsForArchiveParams) ([]ListEmailSendsForArchiveRow, error)
 	ListEmailTemplates(ctx context.Context) ([]EmailTemplate, error)
 	ListEnabledPaymentMethodsByChannel(ctx context.Context, channelID uuid.UUID) ([]PaymentMethod, error)
 	ListEnabledShippingCarriersByChannel(ctx context.Context, channelID uuid.UUID) ([]ShippingCarrier, error)
@@ -1789,6 +1827,8 @@ type Querier interface {
 	// first order can't be replayed into another payout
 	MarkReferralReversed(ctx context.Context, id uuid.UUID) error
 	MarkReferralRewarded(ctx context.Context, arg MarkReferralRewardedParams) error
+	MarkSendClicked(ctx context.Context, id uuid.UUID) error
+	MarkSendOpened(ctx context.Context, id uuid.UUID) error
 	MarkWebhookQueueItemDead(ctx context.Context, arg MarkWebhookQueueItemDeadParams) error
 	// Google Merchant product feed page - one row per product published on the channel: channel-priced, default-locale content, first ready
 	// image, and the denormalized inventory totals for availability - pages by product id for stable iteration
@@ -2046,6 +2086,10 @@ type Querier interface {
 	// carts.email makes an abandoned cart addressable by the recovery flow, so an
 	// un-scrubbed row keeps emailing a customer who asked to be erased
 	ScrubCustomerCarts(ctx context.Context, customerID uuid.NullUUID) (int64, error)
+	// GDPR erasure: redact the address on the customer's sends. Matched by customer
+	// id plus the pre-scrub address itself, which also catches guest-era sends to
+	// the same person. The rows stay (the send happened), like the order scrub.
+	ScrubCustomerEmailSends(ctx context.Context, arg ScrubCustomerEmailSendsParams) (int64, error)
 	// customer_note, po_number and metadata are free text the shopper typed -
 	// "leave with Jane at #42, ring me on +44 7700 900123" is exactly the kind of
 	// content that survived an erasure while the structured address columns next

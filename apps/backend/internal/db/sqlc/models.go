@@ -1444,6 +1444,44 @@ type EmailLibraryRevision struct {
 	CreatedAt     time.Time       `json:"created_at"`
 }
 
+type EmailSend struct {
+	ID           uuid.UUID     `json:"id"`
+	ChannelID    uuid.UUID     `json:"channel_id"`
+	Source       string        `json:"source"`
+	CustomerID   uuid.NullUUID `json:"customer_id"`
+	Email        string        `json:"email"`
+	CampaignID   uuid.NullUUID `json:"campaign_id"`
+	RecipientID  uuid.NullUUID `json:"recipient_id"`
+	Variant      string        `json:"variant"`
+	FlowID       uuid.NullUUID `json:"flow_id"`
+	FlowRunID    uuid.NullUUID `json:"flow_run_id"`
+	FlowNodeID   string        `json:"flow_node_id"`
+	MessageKey   string        `json:"message_key"`
+	OrderID      uuid.NullUUID `json:"order_id"`
+	SentAt       time.Time     `json:"sent_at"`
+	FirstOpenAt  sql.NullTime  `json:"first_open_at"`
+	FirstClickAt sql.NullTime  `json:"first_click_at"`
+}
+
+type EmailSendsDefault struct {
+	ID           uuid.UUID     `json:"id"`
+	ChannelID    uuid.UUID     `json:"channel_id"`
+	Source       string        `json:"source"`
+	CustomerID   uuid.NullUUID `json:"customer_id"`
+	Email        string        `json:"email"`
+	CampaignID   uuid.NullUUID `json:"campaign_id"`
+	RecipientID  uuid.NullUUID `json:"recipient_id"`
+	Variant      string        `json:"variant"`
+	FlowID       uuid.NullUUID `json:"flow_id"`
+	FlowRunID    uuid.NullUUID `json:"flow_run_id"`
+	FlowNodeID   string        `json:"flow_node_id"`
+	MessageKey   string        `json:"message_key"`
+	OrderID      uuid.NullUUID `json:"order_id"`
+	SentAt       time.Time     `json:"sent_at"`
+	FirstOpenAt  sql.NullTime  `json:"first_open_at"`
+	FirstClickAt sql.NullTime  `json:"first_click_at"`
+}
+
 type EmailSuppression struct {
 	ID          uuid.UUID `json:"id"`
 	Email       string    `json:"email"`

@@ -108,14 +108,14 @@ Pool sizes: `DB_MAX_CONNS` (25) and `ANALYTICS_DB_MAX_CONNS` (8).
 
 ### Signals Postgres
 
-`SIGNALS_DB_URL` holds the event spine, Lens, identities and the email
-send log. The commerce schema carries none of those tables, so there is no
-falling back to `DATABASE_URL`.
+`SIGNALS_DB_URL` holds the event spine, Lens and identities. The commerce
+schema carries none of those tables, so there is no falling back to
+`DATABASE_URL`.
 
-**It's required even with `SIGNALS_ENABLED=false`.** `email_sends` lives
-here, and transactional mail keeps recording sends when the suite is off,
-so verification and password-reset mail have nowhere to write without it.
-Turning Signals off saves the ingest and job load, not the database.
+**It's required even with `SIGNALS_ENABLED=false`.** The pool opens either
+way, and retention still has to reach the spine so old data ages out with
+the suite off. Turning Signals off saves the ingest and job load, not the
+database.
 
 It does not need a separate server. A second database on the commerce
 Postgres instance works exactly the same, which is the usual answer for
@@ -216,8 +216,8 @@ needs them, they aren't sidecars). `bin/doctor` fails if the engine is set to
 clickhouse and either the container or `signals.analytics_events` is missing.
 `analytics_events` and
 `analytics_identities` move there and the Lens heatmap grid derives from
-raw events, while sessions, snapshots, rollups and the send log stay on
-Postgres - so it's additive, not a replacement.
+raw events, while sessions, snapshots and rollups stay on Postgres - so
+it's additive, not a replacement.
 
 Existing Postgres spine history migrates with `bin/signals-ch-backfill`,
 which is safe to re-run.
