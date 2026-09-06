@@ -2,6 +2,7 @@ package ordermail
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/google/uuid"
@@ -32,7 +33,7 @@ func (s *Service) Register(bus *events.Bus) {
 			return nil
 		}
 		if o, ch, ok := s.context(ctx, evt.OrderID); ok {
-			s.sendConfirmation(ctx, o, ch)
+			logSend(s.sendConfirmation(ctx, o, ch))
 		}
 		return nil
 	})
@@ -49,7 +50,7 @@ func (s *Service) Register(bus *events.Bus) {
 		}) {
 			return nil
 		}
-		s.sendShipment(ctx, o, ch, evt.FulfillmentID)
+		logSend(s.sendShipment(ctx, o, ch, evt.FulfillmentID))
 		return nil
 	})
 
@@ -67,7 +68,7 @@ func (s *Service) Register(bus *events.Bus) {
 		}) {
 			return nil
 		}
-		s.sendCancellation(ctx, o, ch)
+		logSend(s.sendCancellation(ctx, o, ch))
 		return nil
 	})
 
@@ -89,9 +90,16 @@ func (s *Service) Register(bus *events.Bus) {
 		}) {
 			return nil
 		}
-		s.sendRefund(ctx, o, ch)
+		logSend(s.sendRefund(ctx, o, ch))
 		return nil
 	})
+}
+
+// An event-driven send has nobody to report to, so a failure is logged and the subscriber still succeeds
+func logSend(err error) {
+	if err != nil {
+		log.Printf("[ordermail] %v", err)
+	}
 }
 
 // No dispatcher wired means nothing else can be sending, so every order email is ours
@@ -108,7 +116,7 @@ func customerIDOrNil(id *uuid.UUID) uuid.UUID {
 	return *id
 }
 
-func (s *Service) sendConfirmation(ctx context.Context, o order.Order, ch channel.Channel) {
+func (s *Service) sendConfirmation(ctx context.Context, o order.Order, ch channel.Channel) error {
 	subject, htmlBody, textBody, err := s.render.RenderOrderConfirmation(ctx, ch.ID, email.OrderConfirmationData{
 		StoreName: StoreName(ctx, s.config, ch), OrderNumber: o.Number, FirstName: FirstName(o), Currency: o.CurrencyCode,
 		Lines: Lines(o), Subtotal: o.SubtotalAmount, Discount: o.DiscountAmount,
@@ -116,17 +124,15 @@ func (s *Service) sendConfirmation(ctx context.Context, o order.Order, ch channe
 		ShipTo: AddressLines(o.ShippingAddress), StorefrontURL: StorefrontURL(ch),
 	})
 	if err != nil {
-		log.Printf("[ordermail] render %s for order %s: %v", emailtemplate.KeyOrderConfirmation, o.Number, err)
-		return
+		return fmt.Errorf("render %s for order %s: %w", emailtemplate.KeyOrderConfirmation, o.Number, err)
 	}
-	s.send(ctx, ch, o, emailtemplate.KeyOrderConfirmation, subject, htmlBody, textBody)
+	return s.send(ctx, ch, o, emailtemplate.KeyOrderConfirmation, subject, htmlBody, textBody)
 }
 
-func (s *Service) sendShipment(ctx context.Context, o order.Order, ch channel.Channel, fulfillmentID uuid.UUID) {
+func (s *Service) sendShipment(ctx context.Context, o order.Order, ch channel.Channel, fulfillmentID uuid.UUID) error {
 	ful, err := s.orders.GetFulfillment(ctx, fulfillmentID)
 	if err != nil {
-		log.Printf("[ordermail] load fulfillment %s for order %s: %v", fulfillmentID, o.Number, err)
-		return
+		return fmt.Errorf("load fulfillment %s for order %s: %w", fulfillmentID, o.Number, err)
 	}
 	subject, htmlBody, textBody, err := s.render.RenderOrderShipment(ctx, ch.ID, email.OrderShipmentData{
 		StoreName: StoreName(ctx, s.config, ch), OrderNumber: o.Number, FirstName: FirstName(o),
@@ -134,37 +140,34 @@ func (s *Service) sendShipment(ctx context.Context, o order.Order, ch channel.Ch
 		Lines: ShipmentLines(o, ful), Currency: o.CurrencyCode, StorefrontURL: StorefrontURL(ch),
 	})
 	if err != nil {
-		log.Printf("[ordermail] render %s for order %s: %v", emailtemplate.KeyOrderShipment, o.Number, err)
-		return
+		return fmt.Errorf("render %s for order %s: %w", emailtemplate.KeyOrderShipment, o.Number, err)
 	}
-	s.send(ctx, ch, o, emailtemplate.KeyOrderShipment, subject, htmlBody, textBody)
+	return s.send(ctx, ch, o, emailtemplate.KeyOrderShipment, subject, htmlBody, textBody)
 }
 
-func (s *Service) sendCancellation(ctx context.Context, o order.Order, ch channel.Channel) {
+func (s *Service) sendCancellation(ctx context.Context, o order.Order, ch channel.Channel) error {
 	subject, htmlBody, textBody, err := s.render.RenderOrderCancellation(ctx, ch.ID, email.OrderCancellationData{
 		StoreName: StoreName(ctx, s.config, ch), OrderNumber: o.Number, FirstName: FirstName(o), StorefrontURL: StorefrontURL(ch),
 	})
 	if err != nil {
-		log.Printf("[ordermail] render %s for order %s: %v", emailtemplate.KeyOrderCancellation, o.Number, err)
-		return
+		return fmt.Errorf("render %s for order %s: %w", emailtemplate.KeyOrderCancellation, o.Number, err)
 	}
-	s.send(ctx, ch, o, emailtemplate.KeyOrderCancellation, subject, htmlBody, textBody)
+	return s.send(ctx, ch, o, emailtemplate.KeyOrderCancellation, subject, htmlBody, textBody)
 }
 
-func (s *Service) sendRefund(ctx context.Context, o order.Order, ch channel.Channel) {
+func (s *Service) sendRefund(ctx context.Context, o order.Order, ch channel.Channel) error {
 	subject, htmlBody, textBody, err := s.render.RenderOrderRefund(ctx, ch.ID, email.OrderRefundData{
 		StoreName: StoreName(ctx, s.config, ch), OrderNumber: o.Number, FirstName: FirstName(o),
 		Currency: o.CurrencyCode, RefundedAmount: RefundedAmount(ctx, s.orders, o.ID), StorefrontURL: StorefrontURL(ch),
 	})
 	if err != nil {
-		log.Printf("[ordermail] render %s for order %s: %v", emailtemplate.KeyOrderRefund, o.Number, err)
-		return
+		return fmt.Errorf("render %s for order %s: %w", emailtemplate.KeyOrderRefund, o.Number, err)
 	}
-	s.send(ctx, ch, o, emailtemplate.KeyOrderRefund, subject, htmlBody, textBody)
+	return s.send(ctx, ch, o, emailtemplate.KeyOrderRefund, subject, htmlBody, textBody)
 }
 
 // RefundedAmount totals what actually left the merchant's account - a pending or failed refund doesn't count
-func RefundedAmount(ctx context.Context, orders OrderReader, orderID uuid.UUID) int64 {
+func RefundedAmount(ctx context.Context, orders PaymentLedgerReader, orderID uuid.UUID) int64 {
 	var refunded int64
 	txns, err := orders.PaymentLedger(ctx, orderID)
 	if err != nil {

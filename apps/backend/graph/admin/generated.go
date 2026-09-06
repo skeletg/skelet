@@ -2414,6 +2414,7 @@ type ComplexityRoot struct {
 		RequestMediaAssetUpload           func(childComplexity int, input model.RequestMediaAssetUploadInput) int
 		RequestProductMediaUpload         func(childComplexity int, input model.RequestProductMediaUploadInput) int
 		RequestReturn                     func(childComplexity int, input model.RequestReturnInput) int
+		ResendOrderEmail                  func(childComplexity int, orderID string, message model.OrderEmailMessage, fulfillmentID *string) int
 		ResetAdminPassword                func(childComplexity int, token string, newPassword string) int
 		ResetConfigValue                  func(childComplexity int, path string, scope *model.ConfigScopeInput) int
 		ResolveCMSPageComment             func(childComplexity int, id string, resolved bool) int
@@ -4751,6 +4752,7 @@ type MutationResolver interface {
 	EditOrderAddress(ctx context.Context, input model.EditOrderAddressInput) (*model.Order, error)
 	CreateFulfillment(ctx context.Context, input model.CreateFulfillmentInput) (*model.Order, error)
 	GenerateShippingLabel(ctx context.Context, fulfillmentID string) (*model.ShippingLabel, error)
+	ResendOrderEmail(ctx context.Context, orderID string, message model.OrderEmailMessage, fulfillmentID *string) (bool, error)
 	CapturePayment(ctx context.Context, orderID string, amount *int32) (*model.Order, error)
 	RefundPayment(ctx context.Context, orderID string, amount *int32, reason *string) (*model.Order, error)
 	VoidPayment(ctx context.Context, orderID string) (*model.Order, error)
@@ -17083,6 +17085,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RequestReturn(childComplexity, args["input"].(model.RequestReturnInput)), true
+	case "Mutation.resendOrderEmail":
+		if e.ComplexityRoot.Mutation.ResendOrderEmail == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_resendOrderEmail_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ResendOrderEmail(childComplexity, args["orderId"].(string), args["message"].(model.OrderEmailMessage), args["fulfillmentId"].(*string)), true
 	case "Mutation.resetAdminPassword":
 		if e.ComplexityRoot.Mutation.ResetAdminPassword == nil {
 			break
@@ -34501,6 +34514,17 @@ extend type Mutation {
   # orders.update.
   generateShippingLabel(fulfillmentId: ID!): ShippingLabel!
 
+  # ---------- Customer mail ----------
+  # Send one of the order's lifecycle emails again: the receipt, a shipment
+  # notice, the cancellation or the refund. Always sends directly, never
+  # through an automation flow - the operator wants this mail now, and
+  # enrolling would restart a journey or hand delivery back to the paused
+  # flow that swallowed the original. SHIPMENT resends the newest shipment's
+  # notice unless fulfillmentId names one, which must belong to this order.
+  # Recorded and tracked like any other transactional send. Requires
+  # orders.update.
+  resendOrderEmail(orderId: ID!, message: OrderEmailMessage!, fulfillmentId: ID): Boolean!
+
   # ---------- Payment ----------
   # Capture previously-authorized funds for an order (manual / early capture;
   # fulfillment auto-captures otherwise). Refund a captured payment (full when
@@ -34685,6 +34709,14 @@ extend type Query {
 type OrderLineQuantity {
   orderLineId: ID!
   quantity:    Float!
+}
+
+# The order emails an operator can send again from the dashboard.
+enum OrderEmailMessage {
+  CONFIRMATION
+  SHIPMENT
+  CANCELLATION
+  REFUND
 }
 
 extend type Mutation {
@@ -49280,6 +49312,36 @@ func (ec *executionContext) field_Mutation_requestReturn_args(ctx context.Contex
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_resendOrderEmail_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "orderId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["orderId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "message",
+		func(ctx context.Context, v any) (model.OrderEmailMessage, error) {
+			return ec.unmarshalNOrderEmailMessage2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderEmailMessage(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["message"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "fulfillmentId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["fulfillmentId"] = arg2
 	return args, nil
 }
 
@@ -107646,6 +107708,50 @@ func (ec *executionContext) fieldContext_Mutation_generateShippingLabel(ctx cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_generateShippingLabel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_resendOrderEmail(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_resendOrderEmail(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ResendOrderEmail(ctx, fc.Args["orderId"].(string), fc.Args["message"].(model.OrderEmailMessage), fc.Args["fulfillmentId"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_resendOrderEmail(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_resendOrderEmail_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -178848,6 +178954,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "resendOrderEmail":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_resendOrderEmail(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "capturePayment":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_capturePayment(ctx, field)
@@ -202127,6 +202240,16 @@ func (ec *executionContext) unmarshalNOrderDocumentKind2githubᚗcomᚋskeletg�
 }
 
 func (ec *executionContext) marshalNOrderDocumentKind2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderDocumentKind(ctx context.Context, sel ast.SelectionSet, v model.OrderDocumentKind) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNOrderEmailMessage2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderEmailMessage(ctx context.Context, v any) (model.OrderEmailMessage, error) {
+	var res model.OrderEmailMessage
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNOrderEmailMessage2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐOrderEmailMessage(ctx context.Context, sel ast.SelectionSet, v model.OrderEmailMessage) graphql.Marshaler {
 	return v
 }
 

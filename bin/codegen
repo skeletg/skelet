@@ -106,12 +106,16 @@ fi
 
 echo "==> dashboard codegen"
 # Probe the real GraphQL endpoint - /health says ok before gqlgen handlers rewire after an Air rebuild
+# ADMIN_API_SLUG moves that endpoint, so the probe has to follow it or it waits 30s and skips every time
+admin_gql_probe="http://localhost:8080/api/admin/graphql"
+admin_slug="$(sed -n 's/^ADMIN_API_SLUG=//p' .env 2>/dev/null | tail -n 1 | tr -d '\r')"
+[ -n "$admin_slug" ] && admin_gql_probe="http://localhost:8080/api/admin/$admin_slug/graphql"
 backend_ready=0
 for _ in $(seq 1 30); do
     if curl -fsS --max-time 1 \
             -X POST -H 'Content-Type: application/json' \
             -d '{"query":"{__typename}"}' \
-            http://localhost:8080/api/admin/graphql >/dev/null 2>&1; then
+            "$admin_gql_probe" >/dev/null 2>&1; then
         backend_ready=1
         break
     fi
@@ -126,7 +130,7 @@ run_ts_codegen() {
         if curl -fsS --max-time 1 \
                 -X POST -H 'Content-Type: application/json' \
                 -d '{"query":"{__typename}"}' \
-                http://localhost:8080/api/admin/graphql >/dev/null 2>&1; then
+                "$admin_gql_probe" >/dev/null 2>&1; then
             break
         fi
         sleep 1

@@ -6921,6 +6921,65 @@ func (e OrderDocumentKind) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+type OrderEmailMessage string
+
+const (
+	OrderEmailMessageConfirmation OrderEmailMessage = "CONFIRMATION"
+	OrderEmailMessageShipment     OrderEmailMessage = "SHIPMENT"
+	OrderEmailMessageCancellation OrderEmailMessage = "CANCELLATION"
+	OrderEmailMessageRefund       OrderEmailMessage = "REFUND"
+)
+
+var AllOrderEmailMessage = []OrderEmailMessage{
+	OrderEmailMessageConfirmation,
+	OrderEmailMessageShipment,
+	OrderEmailMessageCancellation,
+	OrderEmailMessageRefund,
+}
+
+func (e OrderEmailMessage) IsValid() bool {
+	switch e {
+	case OrderEmailMessageConfirmation, OrderEmailMessageShipment, OrderEmailMessageCancellation, OrderEmailMessageRefund:
+		return true
+	}
+	return false
+}
+
+func (e OrderEmailMessage) String() string {
+	return string(e)
+}
+
+func (e *OrderEmailMessage) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = OrderEmailMessage(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid OrderEmailMessage", str)
+	}
+	return nil
+}
+
+func (e OrderEmailMessage) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *OrderEmailMessage) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e OrderEmailMessage) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type OrderStatus string
 
 const (

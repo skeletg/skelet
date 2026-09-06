@@ -189,6 +189,10 @@ mutation GenerateShippingLabel($fulfillmentId: ID!) {
   }
 }
 
+mutation ResendOrderEmail($orderId: ID!, $message: OrderEmailMessage!, $fulfillmentId: ID) {
+  resendOrderEmail(orderId: $orderId, message: $message, fulfillmentId: $fulfillmentId)
+}
+
 mutation ConfirmOrder($id: ID!) {
   confirmOrder(id: $id) {
     id

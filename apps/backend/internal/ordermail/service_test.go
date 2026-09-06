@@ -12,13 +12,19 @@ import (
 )
 
 type fakeOrders struct {
-	o   order.Order
-	err error
+	o            order.Order
+	err          error
+	fulfillments []order.Fulfillment
+	fulErr       error
 }
 
 func (f fakeOrders) GetByID(context.Context, uuid.UUID) (order.Order, error) { return f.o, f.err }
 func (f fakeOrders) GetFulfillment(context.Context, uuid.UUID) (order.Fulfillment, error) {
 	return order.Fulfillment{}, nil
+}
+
+func (f fakeOrders) ListFulfillments(context.Context, uuid.UUID) ([]order.Fulfillment, error) {
+	return f.fulfillments, f.fulErr
 }
 
 func (f fakeOrders) PaymentLedger(context.Context, uuid.UUID) ([]order.PaymentTransaction, error) {

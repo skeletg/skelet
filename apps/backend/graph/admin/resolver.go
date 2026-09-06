@@ -46,6 +46,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/menu"
 	"github.com/skeletg/skelet/apps/backend/internal/notification"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
+	"github.com/skeletg/skelet/apps/backend/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/internal/qna"
@@ -79,6 +80,7 @@ type Resolver struct {
 	SignalsEnabled       bool // mirrors SIGNALS_ENABLED - false rejects every Signals-suite resolver (Pulse/Lens/Synapse/Prism/spine)
 	CartSvc              *cart.Service
 	OrderSvc             *order.Service
+	OrderMailSvc         *ordermail.Service // the resend path - flows own the automatic sends, this is the operator's manual one
 	ConfigSvc            *config.Service
 	ConsentSvc           *consent.Service
 	ActionSvc            *action.Service
