@@ -34,6 +34,10 @@ extend type Query {
   flowTriggerTypes: [String!]!
   # Merge tags available to flow email nodes (same set as campaigns).
   flowMergeTags: [String!]!
+  # Split-condition kinds the composer should offer. Registered rather than
+  # fixed: the suite that owns a condition's data contributes it, so an install
+  # without that suite never offers a condition nothing can answer.
+  flowConditionKinds: [String!]!
 }
 
 extend type Mutation {
