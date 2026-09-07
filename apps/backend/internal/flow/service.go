@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -42,23 +41,24 @@ const maxSteps = 64
 
 // Admin CRUD, event enrollment and the scheduler-driven run engine - the scheduler job lease serializes ProcessRuns, so advancement needs no extra cross-replica locking
 type Service struct {
-	repo      Repository
-	tmpl      *emailtemplate.Service
-	customers *customer.Service
-	segments  *segment.Service
-	consent   *consent.Service
-	channels  *channel.Service
-	config    *config.Service
-	sender    email.Sender
-	sms       sms.Sender
-	recorder  *analytics.Recorder
-	sends     *sendlog.Store
-	track     *emailtrack.Signer
-	http      *http.Client
-	allowPriv bool
-	unsubKey  []byte
-	suppress  suppressionChecker
-	orders    orderReader
+	repo       Repository
+	tmpl       *emailtemplate.Service
+	customers  *customer.Service
+	segments   *segment.Service
+	consent    *consent.Service
+	channels   *channel.Service
+	config     *config.Service
+	sender     email.Sender
+	sms        sms.Sender
+	recorder   *analytics.Recorder
+	conditions *ConditionRegistry
+	sends      *sendlog.Store
+	track      *emailtrack.Signer
+	http       *http.Client
+	allowPriv  bool
+	unsubKey   []byte
+	suppress   suppressionChecker
+	orders     orderReader
 	// Back the remote_action node (see remote_action.go) - both nil makes those nodes no-op, and main.go wires them via SetRemoteActions
 	remoteProviders *remoteprovider.Service
 	remoteInvoker   *remoteprovider.Invoker
@@ -87,17 +87,27 @@ func (s *Service) SetEnabled(v bool) { s.disabled = !v }
 
 // unsubKey signs unsubscribe links, sharing the campaign scheme so the same /unsubscribe endpoint validates both
 func NewService(repo Repository, tmpl *emailtemplate.Service, customers *customer.Service, segments *segment.Service, cons *consent.Service, channels *channel.Service, cfg *config.Service, sender email.Sender, smsSender sms.Sender, recorder *analytics.Recorder, sends *sendlog.Store, allowPrivateWebhook bool, unsubKey []byte) *Service {
-	return &Service{
+	s := &Service{
 		repo: repo, tmpl: tmpl, customers: customers, segments: segments, consent: cons,
 		channels: channels, config: cfg, sender: sender, sms: smsSender,
-		recorder:  recorder,
-		sends:     sends,
-		track:     emailtrack.NewSigner(unsubKey),
-		http:      &http.Client{Transport: webhook.SafeTransport(allowPrivateWebhook), Timeout: 10 * time.Second},
-		allowPriv: allowPrivateWebhook,
-		unsubKey:  unsubKey,
+		recorder:   recorder,
+		sends:      sends,
+		conditions: NewConditionRegistry(),
+		track:      emailtrack.NewSigner(unsubKey),
+		http:       &http.Client{Transport: webhook.SafeTransport(allowPrivateWebhook), Timeout: 10 * time.Second},
+		allowPriv:  allowPrivateWebhook,
+		unsubKey:   unsubKey,
 	}
+	s.RegisterCondition(consentCondition{consent: cons})
+	s.RegisterCondition(emailActivityCondition{sends: sends})
+	return s
 }
+
+// RegisterCondition adds a split condition the engine can evaluate - core registers the two it can answer alone, and the suites that own trait and segment data add theirs
+func (s *Service) RegisterCondition(e ConditionEvaluator) { s.conditions.Register(e) }
+
+// ConditionKinds is what validation accepts and the builder can offer, so an uninstalled suite's conditions simply aren't there
+func (s *Service) ConditionKinds() []string { return s.conditions.Kinds() }
 
 // --- admin CRUD ---
 
@@ -124,7 +134,7 @@ func (s *Service) validate(in Input) error {
 				return fmt.Errorf("remote action node %q: provider is required", n.ID)
 			}
 		case NodeSplit:
-			if n.Data.Condition == nil || !validConditionKind(n.Data.Condition.Kind) {
+			if n.Data.Condition == nil || !s.validConditionKind(n.Data.Condition.Kind) {
 				return fmt.Errorf("split node %q: choose a valid condition", n.ID)
 			}
 		case NodeSendSMS:
@@ -145,7 +155,7 @@ func (s *Service) validate(in Input) error {
 		if err := json.Unmarshal(in.TriggerConfig, &tc); err != nil {
 			return fmt.Errorf("invalid triggerConfig: %w", err)
 		}
-		if tc.EnrollmentFilter != nil && !validConditionKind(tc.EnrollmentFilter.Kind) {
+		if tc.EnrollmentFilter != nil && !s.validConditionKind(tc.EnrollmentFilter.Kind) {
 			return fmt.Errorf("enrollment filter: choose a valid condition")
 		}
 	}
@@ -777,56 +787,11 @@ func (s *Service) evalConditionFor(ctx context.Context, c *Condition, customerID
 }
 
 func (s *Service) evalConditionBase(ctx context.Context, c *Condition, customerID uuid.UUID) bool {
-	switch c.Kind {
-	case "segment", conditionInSegmentAlias:
-		sid, err := uuid.Parse(c.SegmentID)
-		if err != nil {
-			return false
-		}
-		ids, err := s.segments.MemberIDs(ctx, sid)
-		if err != nil {
-			return false
-		}
-		return slices.Contains(ids, customerID)
-
-	case "lifecycle":
-		if len(c.Lifecycle) == 0 {
-			return false
-		}
-		t, ok, err := s.recorder.CustomerTraits(ctx, customerID)
-		if err != nil || !ok {
-			return false
-		}
-		return slices.Contains(c.Lifecycle, t.Lifecycle)
-
-	case "rfm":
-		t, ok, err := s.recorder.CustomerTraits(ctx, customerID)
-		if err != nil || !ok {
-			return false
-		}
-		return t.RFMRecency >= c.MinRecency &&
-			t.RFMFrequency >= c.MinFrequency &&
-			t.RFMMonetary >= c.MinMonetary &&
-			t.EngagementScore >= c.MinEngagement
-
-	case "email_activity":
-		eng, err := s.recorder.CustomerEmailEngagement(ctx, customerID)
-		if err != nil {
-			return false
-		}
-		return eng.Opened >= c.MinOpens && eng.Clicked >= c.MinClicks
-
-	case "consent":
-		kind := strings.TrimSpace(c.ConsentKind)
-		if kind == "" {
-			return false
-		}
-		optedIn, _ := s.consent.IsOptedIn(ctx, customerID, kind)
-		return optedIn == c.OptedIn
-
-	default:
-		return false
+	e, ok := s.conditions.Lookup(c.Kind)
+	if !ok {
+		return false // an unregistered kind means the suite that answers it isn't installed
 	}
+	return e.Matches(ctx, customerID, c)
 }
 
 // --- email vars / from / unsubscribe (shares the campaign token scheme) ---

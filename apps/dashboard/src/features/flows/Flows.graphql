@@ -27,6 +27,10 @@ query FlowTriggerTypes {
   flowTriggerTypes
 }
 
+query FlowConditionKinds {
+  flowConditionKinds
+}
+
 query FlowMergeTags {
   flowMergeTags
 }

@@ -147,3 +147,32 @@ func pt(t sql.NullTime) *time.Time {
 	v := t.Time
 	return &v
 }
+
+// Engagement is a customer's lifetime email engagement, counted off the log where opens and clicks are bot-filtered at write time
+type Engagement struct {
+	Sent       int
+	Opened     int
+	Clicked    int
+	LastSentAt *time.Time
+	LastOpenAt *time.Time
+}
+
+// CustomerEngagement is zero-valued with no error for a customer who has never been sent anything
+func (s *Store) CustomerEngagement(ctx context.Context, customerID uuid.UUID) (Engagement, error) {
+	row, err := s.read().CustomerEmailEngagement(ctx, uuid.NullUUID{UUID: customerID, Valid: true})
+	if err != nil {
+		return Engagement{}, err
+	}
+	return Engagement{
+		Sent: int(row.Sent), Opened: int(row.Opened), Clicked: int(row.Clicked),
+		LastSentAt: asTime(row.LastSentAt), LastOpenAt: asTime(row.LastOpenAt),
+	}, nil
+}
+
+// The MAX columns come back untyped, since a customer may have no sends at all
+func asTime(v any) *time.Time {
+	if t, ok := v.(time.Time); ok {
+		return &t
+	}
+	return nil
+}

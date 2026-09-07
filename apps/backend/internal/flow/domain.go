@@ -145,14 +145,6 @@ type Condition struct {
 // Older split condition kind - saved flows still carry it, so it stays accepted
 const conditionInSegmentAlias = "in_segment"
 
-func validConditionKind(k string) bool {
-	switch k {
-	case "segment", conditionInSegmentAlias, "lifecycle", "rfm", "email_activity", "consent":
-		return true
-	}
-	return false
-}
-
 // The parsed triggerConfig JSON, carrying the optional enrollment filter - kept here so storage stays a plain JSON scalar with no migration
 type TriggerConfig struct {
 	EnrollmentFilter *Condition `json:"enrollmentFilter,omitempty"`
