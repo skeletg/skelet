@@ -34,6 +34,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/paymentvault"
 	"github.com/skeletg/skelet/apps/backend/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/internal/pricing"
+	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/internal/subscription"
@@ -1003,14 +1004,15 @@ func NewEmailCatalogReader(cat *catalog.Service, ch *channel.Service) EmailCatal
 	return EmailCatalogReader{catalog: cat, chans: ch}
 }
 
-// Adapts the Recorder to mailsend.Log so a direct send is logged like a flow's, with SourceTransactional telling them apart
+// Adapts the send log to mailsend.Log so a direct send is recorded like a flow's - the row always lands, the spine event beside it no-ops with Signals off
 type TransactionalSendLog struct {
-	rec *analytics.Recorder
+	sends *sendlog.Store
+	rec   *analytics.Recorder
 }
 
 func (l TransactionalSendLog) RecordTransactional(ctx context.Context, spec mailsend.Spec) (uuid.UUID, error) {
-	send, err := l.rec.NewSend(ctx, analytics.SendSpec{
-		ChannelID: spec.ChannelID, Source: analytics.SourceTransactional, Email: spec.To,
+	send, err := l.sends.New(ctx, sendlog.Spec{
+		ChannelID: spec.ChannelID, Source: sendlog.SourceTransactional, Email: spec.To,
 		CustomerID: spec.CustomerID, MessageKey: spec.MessageKey, OrderID: spec.OrderID,
 	})
 	if err != nil {

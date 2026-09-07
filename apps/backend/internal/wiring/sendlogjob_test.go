@@ -32,12 +32,12 @@ type fakeSendLog struct {
 	pruneErr   error
 }
 
-func (f *fakeSendLog) EnsureEmailSendPartitions(context.Context) error {
+func (f *fakeSendLog) EnsurePartitions(context.Context) error {
 	f.partitions++
 	return f.ensureErr
 }
 
-func (f *fakeSendLog) PruneEmailSends(_ context.Context, before time.Time, archive bool) (int64, error) {
+func (f *fakeSendLog) Prune(_ context.Context, before time.Time, archive bool) (int64, error) {
 	f.pruned = append(f.pruned, before)
 	f.archived = append(f.archived, archive)
 	return 1, f.pruneErr

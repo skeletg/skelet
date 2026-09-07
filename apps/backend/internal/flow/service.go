@@ -29,6 +29,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/internal/sms"
 	"github.com/skeletg/skelet/apps/backend/internal/webhook"
 )
@@ -51,6 +52,7 @@ type Service struct {
 	sender    email.Sender
 	sms       sms.Sender
 	recorder  *analytics.Recorder
+	sends     *sendlog.Store
 	track     *emailtrack.Signer
 	http      *http.Client
 	allowPriv bool
@@ -84,11 +86,12 @@ func (s *Service) SetSuppression(sc suppressionChecker) { s.suppress = sc }
 func (s *Service) SetEnabled(v bool) { s.disabled = !v }
 
 // unsubKey signs unsubscribe links, sharing the campaign scheme so the same /unsubscribe endpoint validates both
-func NewService(repo Repository, tmpl *emailtemplate.Service, customers *customer.Service, segments *segment.Service, cons *consent.Service, channels *channel.Service, cfg *config.Service, sender email.Sender, smsSender sms.Sender, recorder *analytics.Recorder, allowPrivateWebhook bool, unsubKey []byte) *Service {
+func NewService(repo Repository, tmpl *emailtemplate.Service, customers *customer.Service, segments *segment.Service, cons *consent.Service, channels *channel.Service, cfg *config.Service, sender email.Sender, smsSender sms.Sender, recorder *analytics.Recorder, sends *sendlog.Store, allowPrivateWebhook bool, unsubKey []byte) *Service {
 	return &Service{
 		repo: repo, tmpl: tmpl, customers: customers, segments: segments, consent: cons,
 		channels: channels, config: cfg, sender: sender, sms: smsSender,
 		recorder:  recorder,
+		sends:     sends,
 		track:     emailtrack.NewSigner(unsubKey),
 		http:      &http.Client{Transport: webhook.SafeTransport(allowPrivateWebhook), Timeout: 10 * time.Second},
 		allowPriv: allowPrivateWebhook,
@@ -604,8 +607,8 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 	if id := orderIDFromRun(run); id != uuid.Nil {
 		orderIDPtr = &id
 	}
-	if send, serr := s.recorder.NewSend(ctx, analytics.SendSpec{
-		ChannelID: ch.ID, Source: analytics.SourceFlow, Email: recipient, CustomerID: custIDPtr,
+	if send, serr := s.sends.New(ctx, sendlog.Spec{
+		ChannelID: ch.ID, Source: sendlog.SourceFlow, Email: recipient, CustomerID: custIDPtr,
 		FlowID: &flowID, FlowRunID: &runID, FlowNodeID: node.ID, OrderID: orderIDPtr,
 	}); serr == nil {
 		_ = s.recorder.RecordSent(ctx, send)
