@@ -17,7 +17,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/internal/qna"
 	"github.com/skeletg/skelet/apps/backend/internal/ratelimit"
-	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/internal/webform"
@@ -766,14 +765,6 @@ func init() {
 		Name: "Password Reset Requesting (sync)",
 		Description: "Fires before a password-reset token is minted. Reject to refuse the reset (e.g. SSO-only accounts that must not reset via email). A rejection is applied silently — the caller sees the same response as an unknown email — to preserve the enumeration defense. " +
 			`Response schema: {"reject": bool, "reason": string}.`,
-	})
-
-	// Segments - one event per rules refresh (never per member)
-	RegisterEvent(EventDefinition{
-		Type:        segment.EventRefreshed,
-		Kind:        KindAsync,
-		Name:        "Segment Refreshed",
-		Description: "Fires after a dynamic (rule-based) segment recomputes its membership. Payload: SegmentID, Slug, Matched (member count). One event per refresh - bulk sweeps stay webhook-safe.",
 	})
 
 	// Back-in-stock demand signal
