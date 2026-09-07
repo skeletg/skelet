@@ -219,8 +219,10 @@ type Querier interface {
 	// Consuming = stamping rotated_at (arms the tripwire) and parking the raw
 	// successor for the grace window
 	ClaimRefreshTokenForRotate(ctx context.Context, arg ClaimRefreshTokenForRotateParams) (uuid.UUID, error)
-	// Runs the engine can advance now: active, or waiting past their resume time
-	ClaimRunnableFlowRuns(ctx context.Context, lim int32) ([]FlowRun, error)
+	// Runs the engine can advance now - the flow join is load-bearing: a run it would refuse still fills a
+	// LIMIT slot, and oldest-first means enough of them starve every newer run behind them
+	// OF r so the claim never locks a flow an operator is editing
+	ClaimRunnableFlowRuns(ctx context.Context, arg ClaimRunnableFlowRunsParams) ([]FlowRun, error)
 	// Its own statement, run in the same transaction as RebuildAlsoBought - a DELETE
 	// inside the rebuild's CTE ran but was INVISIBLE to the INSERT (data-modifying CTEs
 	// share one snapshot), so every rebuild after the first died on the primary key

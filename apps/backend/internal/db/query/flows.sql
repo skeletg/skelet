@@ -53,12 +53,18 @@ VALUES (sqlc.arg(flow_id), sqlc.narg(customer_id), sqlc.arg(email), sqlc.arg(cur
 RETURNING *;
 
 -- name: ClaimRunnableFlowRuns :many
--- Runs the engine can advance now: active, or waiting past their resume time
-SELECT * FROM flow_runs
-WHERE status = 'active' OR (status = 'waiting' AND resume_at <= NOW())
-ORDER BY created_at
+-- Runs the engine can advance now - the flow join is load-bearing: a run it would refuse still fills a
+-- LIMIT slot, and oldest-first means enough of them starve every newer run behind them
+-- OF r so the claim never locks a flow an operator is editing
+SELECT r.* FROM flow_runs r
+JOIN flows f ON f.id = r.flow_id
+WHERE (r.status = 'active' OR (r.status = 'waiting' AND r.resume_at <= NOW()))
+  AND f.status = 'active'
+  AND f.deleted_at IS NULL
+  AND (sqlc.arg('marketing_enabled')::boolean OR f.trigger_config->'transactional' = 'true'::jsonb)
+ORDER BY r.created_at
 LIMIT sqlc.arg('lim')
-FOR UPDATE SKIP LOCKED;
+FOR UPDATE OF r SKIP LOCKED;
 
 -- name: UpdateFlowRun :exec
 UPDATE flow_runs
