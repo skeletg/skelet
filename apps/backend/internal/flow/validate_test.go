@@ -13,7 +13,12 @@ import (
 // mid-journey, and a trigger it never fires for means a flow that looks live in the dashboard and sends nothing
 
 func validator() *Service {
-	return &Service{tmpl: emailtemplate.NewService(nil, nil, nil)}
+	s := &Service{tmpl: emailtemplate.NewService(nil, nil, nil), conditions: NewConditionRegistry()}
+	// validation accepts what is registered, so the suite-backed kinds have to be present for the split cases
+	s.RegisterCondition(lifecycleCondition{})
+	s.RegisterCondition(consentCondition{})
+	s.RegisterCondition(segmentAliasCondition{})
+	return s
 }
 
 func draft(nodes ...Node) Input {

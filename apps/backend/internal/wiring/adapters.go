@@ -23,6 +23,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/internal/download"
 	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
+	"github.com/skeletg/skelet/apps/backend/internal/flow"
 	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/internal/locale"
@@ -1019,4 +1020,18 @@ func (l TransactionalSendLog) RecordTransactional(ctx context.Context, spec mail
 		return uuid.Nil, err
 	}
 	return send.ID, l.rec.RecordSent(ctx, send)
+}
+
+// Maps the Recorder's trait projection onto the slice flow's split conditions read, so flow declares the shape rather than importing Synapse for it
+type FlowTraitReader struct{ rec *analytics.Recorder }
+
+func (t FlowTraitReader) CustomerTraits(ctx context.Context, customerID uuid.UUID) (flow.CustomerTraits, bool, error) {
+	src, ok, err := t.rec.CustomerTraits(ctx, customerID)
+	if err != nil || !ok {
+		return flow.CustomerTraits{}, false, err
+	}
+	return flow.CustomerTraits{
+		RFMRecency: src.RFMRecency, RFMFrequency: src.RFMFrequency, RFMMonetary: src.RFMMonetary,
+		Lifecycle: src.Lifecycle, EngagementScore: src.EngagementScore,
+	}, true, nil
 }

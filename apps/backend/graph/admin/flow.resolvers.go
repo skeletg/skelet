@@ -163,3 +163,13 @@ func (r *queryResolver) FlowMergeTags(ctx context.Context) ([]string, error) {
 	// browsed-product tags for abandoned-cart / browse-abandonment flows.
 	return append(campaign.CampaignMergeTags(), "cart.recoveryUrl", "product.name", "product.image", "product.url"), nil
 }
+
+func (r *queryResolver) FlowConditionKinds(ctx context.Context) ([]string, error) {
+	if err := r.requireSignals(); err != nil {
+		return nil, err
+	}
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "flows.view"); err != nil {
+		return nil, err
+	}
+	return r.FlowSvc.ConditionKinds(), nil
+}
