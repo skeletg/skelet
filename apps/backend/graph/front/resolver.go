@@ -36,7 +36,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/review"
 	"github.com/skeletg/skelet/apps/backend/internal/search"
 	"github.com/skeletg/skelet/apps/backend/internal/searchmerch"
-	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/internal/subscription"
@@ -80,7 +79,7 @@ type Resolver struct {
 	ProductSearch        search.Engine           // the Engine interface, not the OpenSearch indexer - main wires a tier that falls back to Postgres, so the resolver never branches on availability
 	BlogPostSearch       *search.BlogPostIndexer // the indexer doubles as the read handle; optional - nil means the search resolvers return empty results because the cluster is off or was unavailable at boot
 	PromotionSvc         *promotion.Service
-	SegmentSvc           *segment.Service
+	SegmentSvc           CustomerSegments
 	ShippingSvc          *shipping.Service
 	TaxSvc               *tax.Service
 	PaymentSvc           *payment.Service
