@@ -5,9 +5,7 @@ package analytics
 import (
 	"context"
 	"crypto/sha1"
-	"database/sql"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"log"
 	"maps"
@@ -17,6 +15,7 @@ import (
 
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 )
 
 const (
@@ -34,13 +33,10 @@ const (
 )
 
 const (
-	SourceCampaign      = "campaign"
-	SourceFlow          = "flow"
-	SourceTransactional = "transactional"
-	SourceWeb           = "web"      // storefront behaviour (Lens)
-	SourceCommerce      = "commerce" // server-side commerce actions (order/cart/return/review/...)
-	SourceAccount       = "account"  // server-side account actions (auth/registration/profile/...)
-	SourceLens          = "lens"     // heatmap grid increments under the ClickHouse engine - own source so behaviour reads never see them and Lens prunes them on its window
+	SourceWeb      = "web"      // storefront behaviour (Lens)
+	SourceCommerce = "commerce" // server-side commerce actions (order/cart/return/review/...)
+	SourceAccount  = "account"  // server-side account actions (auth/registration/profile/...)
+	SourceLens     = "lens"     // heatmap grid increments under the ClickHouse engine - own source so behaviour reads never see them and Lens prunes them on its window
 )
 
 const ( // bus event types for human email engagement, consumed by the flow engine
@@ -60,6 +56,7 @@ type EmailEngaged struct {
 func (e *EmailEngaged) Type() string { return "analytics." + e.Kind }
 
 type Recorder struct {
+	sends   *sendlog.Store     // engagement attribution reads the send log; core owns it
 	q       *db.Queries        // commerce db, primary read-write: traits, identity + orchestration - takes all writes
 	qs      *signalsdb.Queries // signals write handle, backing the default pg spine driver
 	qr      *db.Queries        // optional dedicated read pool (replica or bulkhead) the heavy read.go aggregations route to - never used for writes
@@ -69,7 +66,10 @@ type Recorder struct {
 	disabled bool
 }
 
-func (r *Recorder) SetReadQueries(qr *db.Queries) { r.qr = qr } // optional - unset means reads use the primary pool
+func (r *Recorder) SetReadQueries(qr *db.Queries) { // optional - unset means reads use the primary pool
+	r.qr = qr
+	r.sends.SetReadQueries(qr)
+}
 
 // Gives the default Postgres spine driver its read pool, so spine aggregations don't run on the write pool - no-op for a non-pg driver
 func (r *Recorder) SetSpineReadQueries(qsr *signalsdb.Queries) {
@@ -102,33 +102,7 @@ func (r *Recorder) read() *db.Queries { // read-only aggregations - writes alway
 }
 
 func NewRecorder(q *db.Queries, qs *signalsdb.Queries) *Recorder { // defaults to the Postgres spine driver - SetSpine swaps in ClickHouse
-	return &Recorder{q: q, qs: qs, spine: newPGSpine(qs, nil)}
-}
-
-type SendSpec struct {
-	ChannelID   uuid.UUID
-	Source      string
-	Email       string
-	CustomerID  *uuid.UUID
-	CampaignID  *uuid.UUID
-	RecipientID *uuid.UUID
-	Variant     string // A/B arm, copied from the recipient so the rollup needn't join commerce
-	FlowID      *uuid.UUID
-	FlowRunID   *uuid.UUID
-	FlowNodeID  string
-	MessageKey  string
-	OrderID     *uuid.UUID
-}
-
-type Send struct { // the resolved send identity /e/o and /e/c need at action time
-	ID          uuid.UUID
-	ChannelID   uuid.UUID
-	Source      string
-	Email       string
-	CustomerID  *uuid.UUID
-	CampaignID  *uuid.UUID
-	RecipientID *uuid.UUID
-	SentAt      time.Time
+	return &Recorder{q: q, qs: qs, spine: newPGSpine(qs, nil), sends: sendlog.NewStore(q)}
 }
 
 type Hit struct {
@@ -145,46 +119,7 @@ type Hit struct {
 	BotCat  string // bot category when IsBot (ai|search|social|seo|monitoring|scraper|other)
 }
 
-func (r *Recorder) NewSend(ctx context.Context, sp SendSpec) (Send, error) { // the returned ID is the tracking token's subject
-	id, err := r.q.InsertEmailSend(ctx, db.InsertEmailSendParams{
-		ChannelID:   sp.ChannelID,
-		Source:      sp.Source,
-		Email:       sp.Email,
-		CustomerID:  nu(sp.CustomerID),
-		CampaignID:  nu(sp.CampaignID),
-		RecipientID: nu(sp.RecipientID),
-		Variant:     sp.Variant,
-		FlowID:      nu(sp.FlowID),
-		FlowRunID:   nu(sp.FlowRunID),
-		FlowNodeID:  sp.FlowNodeID,
-		MessageKey:  sp.MessageKey,
-		OrderID:     nu(sp.OrderID),
-	})
-	if err != nil {
-		return Send{}, err
-	}
-	return Send{
-		ID: id, ChannelID: sp.ChannelID, Source: sp.Source, Email: sp.Email,
-		CustomerID: sp.CustomerID, CampaignID: sp.CampaignID, RecipientID: sp.RecipientID, SentAt: time.Now(),
-	}, nil
-}
-
-func (r *Recorder) GetSend(ctx context.Context, id uuid.UUID) (Send, bool, error) {
-	row, err := r.read().GetEmailSend(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return Send{}, false, nil
-	}
-	if err != nil {
-		return Send{}, false, err
-	}
-	return Send{
-		ID: row.ID, ChannelID: row.ChannelID, Source: row.Source, Email: row.Email,
-		CustomerID: pu(row.CustomerID), CampaignID: pu(row.CampaignID), RecipientID: pu(row.RecipientID),
-		SentAt: row.SentAt,
-	}, true, nil
-}
-
-func (r *Recorder) RecordSent(ctx context.Context, s Send) error {
+func (r *Recorder) RecordSent(ctx context.Context, s sendlog.Send) error {
 	if r.disabled {
 		return nil
 	}
@@ -193,7 +128,7 @@ func (r *Recorder) RecordSent(ctx context.Context, s Send) error {
 }
 
 // Repeat opens within the same minute from the same client collapse on the dedupe key, and the send's human-open projection only bumps on a genuinely new non-machine open
-func (r *Recorder) RecordOpen(ctx context.Context, s Send, h Hit) (bool, error) {
+func (r *Recorder) RecordOpen(ctx context.Context, s sendlog.Send, h Hit) (bool, error) {
 	if r.disabled {
 		return false, nil
 	}
@@ -209,7 +144,7 @@ func (r *Recorder) RecordOpen(ctx context.Context, s Send, h Hit) (bool, error) 
 	return true, nil
 }
 
-func (r *Recorder) RecordClick(ctx context.Context, s Send, url string, linkIndex int, h Hit) (bool, error) {
+func (r *Recorder) RecordClick(ctx context.Context, s sendlog.Send, url string, linkIndex int, h Hit) (bool, error) {
 	if r.disabled {
 		return false, nil
 	}
@@ -270,7 +205,7 @@ func (r *Recorder) RecordConversion(ctx context.Context, cs ConversionSpec) (boo
 		props["flow_id"] = anchor.flowID.UUID.String()
 	}
 	cust := cs.CustomerID
-	s := Send{ID: anchor.sendID, ChannelID: cs.ChannelID, CustomerID: &cust, Source: anchor.source}
+	s := sendlog.Send{ID: anchor.sendID, ChannelID: cs.ChannelID, CustomerID: &cust, Source: anchor.source}
 	ok, err = r.record(ctx, EventConversion, s, at, props, "conversion:"+cs.OrderID.String())
 	return ok, err
 }
@@ -298,7 +233,7 @@ func (r *Recorder) mostRecentEngagement(ctx context.Context, customerID uuid.UUI
 	for _, c := range cands {
 		ids = append(ids, c.SendID)
 	}
-	sends, err := r.read().EmailSendsByIDs(ctx, ids)
+	sends, err := r.sends.ByIDs(ctx, ids) // the send log is core's, and this is Signals reading it - the direction that keeps the dependency one-way
 	if err != nil {
 		return emailAnchor{}, false, err
 	}
@@ -308,7 +243,7 @@ func (r *Recorder) mostRecentEngagement(ctx context.Context, customerID uuid.UUI
 	}
 	for _, c := range cands {
 		s, found := origin[c.SendID]
-		if !found || (s.Source != SourceCampaign && s.Source != SourceFlow) {
+		if !found || (s.Source != sendlog.SourceCampaign && s.Source != sendlog.SourceFlow) {
 			continue
 		}
 		return emailAnchor{
@@ -460,7 +395,7 @@ func (r *Recorder) Identify(ctx context.Context, anonID string, customerID, chan
 	return nil
 }
 
-func (r *Recorder) record(ctx context.Context, name string, s Send, at time.Time, props map[string]any, dedupeKey string) (bool, error) { // false on dedupe
+func (r *Recorder) record(ctx context.Context, name string, s sendlog.Send, at time.Time, props map[string]any, dedupeKey string) (bool, error) { // false on dedupe
 	return r.spine.AppendEvent(ctx, SpineEvent{
 		EventName:  name,
 		OccurredAt: at,

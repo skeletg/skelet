@@ -24,6 +24,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
 	"github.com/skeletg/skelet/apps/backend/internal/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 )
 
 var ErrInvalidToken = errors.New("invalid unsubscribe token")
@@ -41,6 +42,7 @@ type Service struct {
 	config    *config.Service
 	sender    email.Sender
 	recorder  *analytics.Recorder
+	sends     *sendlog.Store
 	track     *emailtrack.Signer
 	unsubKey  []byte
 	suppress  suppressionChecker
@@ -54,8 +56,8 @@ type suppressionChecker interface { // the slice of the suppression service the 
 }
 
 // unsubKey signs unsubscribe and tracking links, and recorder persists sends plus open and click events onto the analytics spine
-func NewService(repo Repository, tmpl *emailtemplate.Service, customers *customer.Service, segments *segment.Service, cons *consent.Service, channels *channel.Service, cfg *config.Service, sender email.Sender, recorder *analytics.Recorder, unsubKey []byte) *Service {
-	return &Service{repo: repo, tmpl: tmpl, customers: customers, segments: segments, consent: cons, channels: channels, config: cfg, sender: sender, recorder: recorder, track: emailtrack.NewSigner(unsubKey), unsubKey: unsubKey}
+func NewService(repo Repository, tmpl *emailtemplate.Service, customers *customer.Service, segments *segment.Service, cons *consent.Service, channels *channel.Service, cfg *config.Service, sender email.Sender, recorder *analytics.Recorder, sends *sendlog.Store, unsubKey []byte) *Service {
+	return &Service{repo: repo, tmpl: tmpl, customers: customers, segments: segments, consent: cons, channels: channels, config: cfg, sender: sender, recorder: recorder, sends: sends, track: emailtrack.NewSigner(unsubKey), unsubKey: unsubKey}
 }
 
 func (s *Service) SetSuppression(sc suppressionChecker) { s.suppress = sc } // optional - leaving it unset means no suppression
@@ -446,8 +448,8 @@ func (s *Service) send(ctx context.Context, c Campaign) error {
 				continue
 			}
 			rid := r.ID
-			send, serr := s.recorder.NewSend(ctx, analytics.SendSpec{
-				ChannelID: c.ChannelID, Source: analytics.SourceCampaign, Email: r.Email,
+			send, serr := s.sends.New(ctx, sendlog.Spec{
+				ChannelID: c.ChannelID, Source: sendlog.SourceCampaign, Email: r.Email,
 				CustomerID: r.CustomerID, CampaignID: &c.ID, RecipientID: &rid, Variant: r.Variant,
 			})
 			if serr != nil {

@@ -9,6 +9,7 @@ The release process, and which version number means what, is in
 
 ## [Unreleased]
 
+
 ### Fixed
 
 - **A paused marketing flow could stop every transactional email on the server.** The flow engine
@@ -50,6 +51,15 @@ The release process, and which version number means what, is in
   default. The storefront now reads `FRONT_GRAPHQL_CODEGEN_URL` so the two can't collide.
 
 ### Changed
+
+- **The email send log is core's now, not the analytics stack's.** `email_sends` moved to the commerce
+  database earlier, but the code that owned it stayed in `internal/analytics` - so a core package
+  delivering a password reset reached into the Signals stack to record it. A new `internal/sendlog`
+  owns the table: the `Send`/`Spec` types, the three send sources, the reads, the engagement marks,
+  partition pre-creation and whole-month retention. `analytics` keeps the spine side and now imports
+  `sendlog` to attribute engagement, which is the one-way direction the split needs. The gzip-JSONL
+  archive writer both retention paths share moved to `internal/archivefile`, with `analytics` aliasing
+  its old names so `spinech` and `signalsboot` are untouched. No behaviour or schema change.
 
 - **The email send log now ages out by default, and core owns the job.** `email_sends` moved to
   the commerce database, but its retention still defaulted to keep-forever and its prune lived in

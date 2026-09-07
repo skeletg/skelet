@@ -44,6 +44,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/referral"
 	"github.com/skeletg/skelet/apps/backend/internal/review"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/internal/subscription"
@@ -232,6 +233,7 @@ type marketingDeps struct {
 	Consent       *consent.Service
 	Segment       *segment.Service
 	OrderMail     *ordermail.Service
+	SendLog       *sendlog.Store
 	Recorder      *analytics.Recorder
 
 	TransactionalSender *mailsend.Sender
@@ -247,7 +249,7 @@ func wireMarketing(d marketingDeps) { // transactional mail is delivered as a Pu
 	d.Customer.SetAuthEmailFallback(d.EmailTemplate) // and go out directly when no flow does, so a paused one can't swallow a password reset
 	d.OrderMail.SetFlowDispatcher(d.Flow)            // receipts prefer an operator's flow, and fall back to a direct send
 	// Every direct transactional send records and carries an open pixel, so it reports like a flow's rather than as mail nobody opened
-	d.TransactionalSender.SetTracking(TransactionalSendLog{rec: d.Recorder}, emailtrack.NewSigner([]byte(d.Config.JWTSecret)))
+	d.TransactionalSender.SetTracking(TransactionalSendLog{sends: d.SendLog, rec: d.Recorder}, emailtrack.NewSigner([]byte(d.Config.JWTSecret)))
 	d.EmailTemplate.SetAccountSender(d.TransactionalSender)
 	d.BackInStock.SetDirectSender(d.TransactionalSender)
 	d.Campaign.SetSuppression(d.Suppression)
