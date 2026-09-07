@@ -331,14 +331,16 @@ func (r *Recorder) Prune(ctx context.Context, before time.Time) (int64, error) {
 	return r.spine.PruneEvents(ctx, before)
 }
 
-// Engine hygiene that must NOT hang off the retention decision - partition pre-creation and the queued ClickHouse erasures still have to run under keep-forever retention, or erasure requests sit unswept and sends start landing in the DEFAULT partition once the pre-created months run out
+// Spine hygiene that must NOT hang off the retention decision - queued ClickHouse erasures still have to run under keep-forever retention, or erasure requests sit unswept
 func (r *Recorder) Maintain(ctx context.Context) {
-	if err := r.q.EnsureEmailSendPartitions(ctx); err != nil {
-		log.Printf("[analytics] ensure send-log partitions: %v", err)
-	}
 	if err := r.sweepIdentityErasures(ctx); err != nil {
 		log.Printf("[analytics] identity erasure sweep: %v", err)
 	}
+}
+
+// Pre-creates the send log's upcoming month partitions - core owns the schedule, since the table is commerce-side and fills whether or not Signals runs
+func (r *Recorder) EnsureEmailSendPartitions(ctx context.Context) error {
+	return r.q.EnsureEmailSendPartitions(ctx)
 }
 
 type LensCellIncrement struct { // a binned heatmap increment from one tracker flush - ClickHouse appends these as raw events where Postgres upserts hot counter rows

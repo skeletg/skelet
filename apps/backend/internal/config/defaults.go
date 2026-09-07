@@ -67,8 +67,9 @@ func init() {
 		{Value: "prune", Label: "Prune (delete)"},
 		{Value: "archive", Label: "Archive to object storage, then delete"},
 	}})
-	// whole months only (the send log's partition unit); the default keeps today's behavior - opting in is what starts dropping attribution history
-	Register(Definition{Path: "pulse/analytics/email_sends_retention_months", Type: TypeInt, Default: "0", Label: "Email send-log retention (months, 0 = keep forever)", Public: false})
+	// whole months only (the send log's partition unit) - the log lives in the commerce database and every transactional
+	// mail writes a row, so it ages out by default rather than growing forever on a store that never opens Signals
+	Register(Definition{Path: "pulse/analytics/email_sends_retention_months", Type: TypeInt, Default: "24", Label: "Email send-log retention (months, 0 = keep forever)", Public: false})
 
 	// lifecycle windows: set ascending (new<=active<=at_risk), per-channel repurchase cadence
 	Register(Definition{Path: "pulse/synapse/lifecycle_new_days", Type: TypeInt, Default: "30", Label: "Lifecycle: new within (days)", Public: false})
