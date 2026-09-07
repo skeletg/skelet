@@ -20,8 +20,8 @@ import (
 
 const (
 	EventEmailSent     = "email_sent"
-	EventEmailOpened   = "email_opened"
-	EventEmailClicked  = "email_clicked"
+	EventEmailOpened   = sendlog.KindOpened
+	EventEmailClicked  = sendlog.KindClicked
 	EventConversion    = "conversion"
 	EventPageView      = "page_view"      // web (Lens)
 	EventCustom        = "custom"         // web (Lens) - arbitrary client event
@@ -38,22 +38,6 @@ const (
 	SourceAccount  = "account"  // server-side account actions (auth/registration/profile/...)
 	SourceLens     = "lens"     // heatmap grid increments under the ClickHouse engine - own source so behaviour reads never see them and Lens prunes them on its window
 )
-
-const ( // bus event types for human email engagement, consumed by the flow engine
-	BusEmailOpened  = "analytics." + EventEmailOpened
-	BusEmailClicked = "analytics." + EventEmailClicked
-)
-
-// Fires for a human (non-machine) open or click by a known customer - satisfies events.Event structurally, so this package stays a leaf
-type EmailEngaged struct {
-	Kind       string // EventEmailOpened | EventEmailClicked
-	ChannelID  uuid.UUID
-	CustomerID uuid.UUID
-	CampaignID *uuid.UUID
-	FlowID     *uuid.UUID
-}
-
-func (e *EmailEngaged) Type() string { return "analytics." + e.Kind }
 
 type Recorder struct {
 	sends   *sendlog.Store     // engagement attribution reads the send log; core owns it
