@@ -262,13 +262,13 @@ func newSendLogStore(s *signalsboot.Stack) *sendlog.Store { return s.SendLog }
 func newTransactionalSender(sender email.Sender) *mailsend.Sender { return mailsend.New(sender) }
 
 func newFlowService( // marketing automation flows - event-triggered, scheduler-advanced node graphs
-	q *db.Queries, tmpl *emailtemplate.Service, cust *customer.Service, seg *segment.Service,
+	q *db.Queries, tmpl *emailtemplate.Service, cust *customer.Service,
 	consentSvc *consent.Service, ch *channel.Service, cfg *config.Service,
 	sender email.Sender, texter sms.Sender, rec *analytics.Recorder, sends *sendlog.Store,
 	allow AllowPrivateTargets, wcfg Config,
 ) *flow.Service {
 	return flow.NewService(
-		flow.NewRepository(q), tmpl, cust, seg, consentSvc, ch, cfg, sender, texter,
+		flow.NewRepository(q), tmpl, cust, consentSvc, ch, cfg, sender, texter,
 		rec, sends, bool(allow), []byte(wcfg.JWTSecret),
 	)
 }

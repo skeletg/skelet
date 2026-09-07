@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	"github.com/skeletg/skelet/apps/backend/internal/consent"
@@ -27,7 +26,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/order"
 	"github.com/skeletg/skelet/apps/backend/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/internal/remoteprovider"
-	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/internal/sms"
 	"github.com/skeletg/skelet/apps/backend/internal/webhook"
@@ -44,14 +42,15 @@ type Service struct {
 	repo       Repository
 	tmpl       *emailtemplate.Service
 	customers  *customer.Service
-	segments   *segment.Service
 	consent    *consent.Service
 	channels   *channel.Service
 	config     *config.Service
 	sender     email.Sender
 	sms        sms.Sender
-	recorder   *analytics.Recorder
+	spine      spineRecorder
 	conditions *ConditionRegistry
+	varSources *mergeVarProviders
+	nodes      *NodeRegistry
 	sends      *sendlog.Store
 	track      *emailtrack.Signer
 	http       *http.Client
@@ -86,13 +85,14 @@ func (s *Service) SetSuppression(sc suppressionChecker) { s.suppress = sc }
 func (s *Service) SetEnabled(v bool) { s.disabled = !v }
 
 // unsubKey signs unsubscribe links, sharing the campaign scheme so the same /unsubscribe endpoint validates both
-func NewService(repo Repository, tmpl *emailtemplate.Service, customers *customer.Service, segments *segment.Service, cons *consent.Service, channels *channel.Service, cfg *config.Service, sender email.Sender, smsSender sms.Sender, recorder *analytics.Recorder, sends *sendlog.Store, allowPrivateWebhook bool, unsubKey []byte) *Service {
+func NewService(repo Repository, tmpl *emailtemplate.Service, customers *customer.Service, cons *consent.Service, channels *channel.Service, cfg *config.Service, sender email.Sender, smsSender sms.Sender, spine spineRecorder, sends *sendlog.Store, allowPrivateWebhook bool, unsubKey []byte) *Service {
 	s := &Service{
-		repo: repo, tmpl: tmpl, customers: customers, segments: segments, consent: cons,
+		repo: repo, tmpl: tmpl, customers: customers, consent: cons,
 		channels: channels, config: cfg, sender: sender, sms: smsSender,
-		recorder:   recorder,
+		spine:      spine,
 		sends:      sends,
 		conditions: NewConditionRegistry(),
+		nodes:      NewNodeRegistry(),
 		track:      emailtrack.NewSigner(unsubKey),
 		http:       &http.Client{Transport: webhook.SafeTransport(allowPrivateWebhook), Timeout: 10 * time.Second},
 		allowPriv:  allowPrivateWebhook,
@@ -507,8 +507,6 @@ func (s *Service) advanceWithFlow(ctx context.Context, run FlowRun, f Flow, ok b
 			s.execEmail(ctx, f, node, run)
 		case NodeSendSMS:
 			s.execSMS(ctx, f, node, run)
-		case NodeAddSegment:
-			s.execAddSegment(ctx, node, run)
 		case NodeWebhook:
 			s.execWebhook(ctx, node, run)
 		case NodeRemoteAction:
@@ -523,7 +521,9 @@ func (s *Service) advanceWithFlow(ctx context.Context, run FlowRun, f Flow, ok b
 		case NodeTrigger:
 			// entry anchor - pass through
 		default:
-			return s.failRun(ctx, run, "unknown node type "+node.Type)
+			if !s.runSideEffect(ctx, node, run) {
+				return s.failRun(ctx, run, "unknown node type "+node.Type)
+			}
 		}
 		nxt, ok := f.Graph.next(node.ID)
 		if !ok {
@@ -621,7 +621,7 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 		ChannelID: ch.ID, Source: sendlog.SourceFlow, Email: recipient, CustomerID: custIDPtr,
 		FlowID: &flowID, FlowRunID: &runID, FlowNodeID: node.ID, OrderID: orderIDPtr,
 	}); serr == nil {
-		_ = s.recorder.RecordSent(ctx, send)
+		s.recordSent(ctx, send)
 		if transactional {
 			html = s.track.InjectPixel(html, storefrontURL(ch), send.ID)
 		} else {
@@ -729,19 +729,6 @@ func renderText(tmpl string, vars map[string]string) string {
 	return out
 }
 
-func (s *Service) execAddSegment(ctx context.Context, node Node, run FlowRun) {
-	if run.IsGuest() {
-		return // no customer to add to a segment
-	}
-	sid, err := uuid.Parse(node.Data.SegmentID)
-	if err != nil {
-		return
-	}
-	if err := s.segments.AssignCustomers(ctx, sid, []uuid.UUID{run.CustomerID}); err != nil {
-		log.Printf("[flow] add_segment %s: %v", sid, err)
-	}
-}
-
 func (s *Service) execWebhook(ctx context.Context, node Node, run FlowRun) {
 	url := strings.TrimSpace(node.Data.URL)
 	if url == "" {
@@ -815,25 +802,8 @@ func (s *Service) vars(ctx context.Context, ch channel.Channel, cust customer.Cu
 		"customer.email":     cust.Email,
 		"unsubscribe.link":   storefrontURL(ch) + "/unsubscribe/" + s.signToken(cust.ID),
 	}
-	// Synapse traits and segment membership for personalization, so an email can say "you're one of our {{customer.lifecycle}} customers" - best-effort, absent tags just render empty
-	if s.recorder != nil {
-		if t, ok, _ := s.recorder.CustomerTraits(ctx, cust.ID); ok {
-			m["customer.lifecycle"] = t.Lifecycle
-			m["customer.orders"] = fmt.Sprintf("%d", t.Frequency)
-			m["customer.ltv"] = fmt.Sprintf("%.2f", float64(t.MonetaryCents)/100)
-		}
-		// Attribute affinities become {{customer.affinity.<slug>}}, e.g. "your size, 205/55R16, is back in stock"
-		if affs, _ := s.recorder.CustomerTopAffinities(ctx, cust.ID, time.Now().AddDate(0, 0, -90)); len(affs) > 0 {
-			for slug, val := range affs {
-				m["customer.affinity."+slug] = val
-			}
-		}
-	}
-	if s.segments != nil {
-		if slugs, err := s.segments.SlugsForCustomer(ctx, cust.ID); err == nil {
-			m["customer.segments"] = strings.Join(slugs, ", ")
-		}
-	}
+	// Personalization tags a suite computes - absent ones just render empty, which is what a failed read already did
+	s.varSources.merge(ctx, ch.ID, cust.ID, m)
 	return m
 }
 
