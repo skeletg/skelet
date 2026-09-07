@@ -235,6 +235,11 @@ func (r *queryResolver) cmsFormResolver(ctx context.Context) blockkit.FormResolv
 	}
 }
 
+// The audience read CMS block visibility needs - a one-method seam, so the front API doesn't import Synapse for it
+type CustomerSegments interface {
+	SlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error)
+}
+
 // The per-request audience for server-side block visibility - anonymous visitors get an empty segment set, so segment-allowlisted blocks hide; v1 targets logged-in customers only
 func (r *queryResolver) cmsEvalContext(ctx context.Context) blockkit.EvalContext {
 	ec := blockkit.EvalContext{Now: time.Now(), Segments: map[string]bool{}}
