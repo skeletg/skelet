@@ -42,6 +42,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
 	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/internal/sms"
@@ -92,6 +93,7 @@ var Domain = fx.Module("domain",
 		newCartService,
 		newEventOutbox,
 
+		newSendLogStore,
 		newCampaignService,
 		newFlowService,
 		newOrderMailService,
@@ -237,10 +239,10 @@ func newEventOutbox(q *db.Queries, bus *events.Bus) *outbox.Outbox { return outb
 func newCampaignService(
 	q *db.Queries, tmpl *emailtemplate.Service, cust *customer.Service,
 	seg *segment.Service, consentSvc *consent.Service, ch *channel.Service, cfg *config.Service,
-	sender email.Sender, rec *analytics.Recorder, wcfg Config,
+	sender email.Sender, rec *analytics.Recorder, sends *sendlog.Store, wcfg Config,
 ) *campaign.Service {
 	return campaign.NewService(
-		campaign.NewRepository(q), tmpl, cust, seg, consentSvc, ch, cfg, sender, rec, []byte(wcfg.JWTSecret),
+		campaign.NewRepository(q), tmpl, cust, seg, consentSvc, ch, cfg, sender, rec, sends, []byte(wcfg.JWTSecret),
 	)
 }
 
@@ -253,18 +255,21 @@ func newOrderMailService(
 	return ordermail.NewService(orders, ch, tmpl, sender, cfg)
 }
 
+// Core owns the send log, but it comes off the stack like the Recorder does - that is where the read pool and archive sink are attached
+func newSendLogStore(s *signalsboot.Stack) *sendlog.Store { return s.SendLog }
+
 // The one recorded sender every direct path shares - tracking is attached in wireMarketing, where the Recorder exists
 func newTransactionalSender(sender email.Sender) *mailsend.Sender { return mailsend.New(sender) }
 
 func newFlowService( // marketing automation flows - event-triggered, scheduler-advanced node graphs
 	q *db.Queries, tmpl *emailtemplate.Service, cust *customer.Service, seg *segment.Service,
 	consentSvc *consent.Service, ch *channel.Service, cfg *config.Service,
-	sender email.Sender, texter sms.Sender, rec *analytics.Recorder,
+	sender email.Sender, texter sms.Sender, rec *analytics.Recorder, sends *sendlog.Store,
 	allow AllowPrivateTargets, wcfg Config,
 ) *flow.Service {
 	return flow.NewService(
 		flow.NewRepository(q), tmpl, cust, seg, consentSvc, ch, cfg, sender, texter,
-		rec, bool(allow), []byte(wcfg.JWTSecret),
+		rec, sends, bool(allow), []byte(wcfg.JWTSecret),
 	)
 }
 

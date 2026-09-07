@@ -89,7 +89,7 @@ func runEmailsSeedTransactional(cmd *cobra.Command, args []string) error {
 
 	queries := db.New(conn)
 	svc := emailtemplate.NewService(emailtemplate.NewRepository(queries), nil, nil)
-	flowSvc := flow.NewService(flow.NewRepository(queries), svc, nil, nil, nil, nil, nil, nil, nil, nil, false, nil) // seeding needs only the repo + template service (slot lookups) - the other deps go unused
+	flowSvc := flow.NewService(flow.NewRepository(queries), svc, nil, nil, nil, nil, nil, nil, nil, nil, nil, false, nil) // seeding needs only the repo + template service (slot lookups) - the other deps go unused
 	ctx := context.Background()
 
 	channels, err := resolveSeedChannels(ctx, queries, seedTxChannel)

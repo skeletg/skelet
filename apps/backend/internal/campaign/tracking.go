@@ -24,7 +24,7 @@ func (s *Service) RecordOpen(ctx context.Context, token string, h analytics.Hit)
 	if err != nil {
 		return nil
 	}
-	send, ok, err := s.recorder.GetSend(ctx, p.S)
+	send, ok, err := s.sends.Get(ctx, p.S)
 	if err != nil || !ok {
 		return nil
 	}
@@ -52,7 +52,7 @@ func (s *Service) RecordClick(ctx context.Context, token string, h analytics.Hit
 		return "", nil
 	}
 	var ev *analytics.EmailEngaged
-	if send, ok, err := s.recorder.GetSend(ctx, p.S); err == nil && ok {
+	if send, ok, err := s.sends.Get(ctx, p.S); err == nil && ok {
 		enr := analytics.Classify(h.UA, h.At.Sub(send.SentAt))
 		h.Machine, h.Device, h.Client = enr.Machine, enr.Device, enr.Client
 		_, _ = s.recorder.RecordClick(ctx, send, p.U, p.L, h)
