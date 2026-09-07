@@ -249,6 +249,8 @@ func wireMarketing(d marketingDeps) { // transactional mail is delivered as a Pu
 	d.Flow.RegisterCondition(flow.NewSegmentAliasCondition(d.Segment)) // saved flows still carry the older spelling
 	d.Flow.RegisterCondition(flow.NewLifecycleCondition(FlowTraitReader{rec: d.Recorder}))
 	d.Flow.RegisterCondition(flow.NewRFMCondition(FlowTraitReader{rec: d.Recorder}))
+	d.Flow.RegisterNode(flow.NewAddSegmentNode(d.Segment))
+	d.Flow.RegisterMergeVars(SynapseMergeVars{rec: d.Recorder, seg: d.Segment})
 	d.Flow.SetOrderReader(d.Order)                   // lets order flows populate item / total / tracking / ship-to blocks
 	d.Customer.SetAuthEmailDispatcher(d.Flow)        // verification + password reset hand their one-time link to the flow engine
 	d.Customer.SetAuthEmailFallback(d.EmailTemplate) // and go out directly when no flow does, so a paused one can't swallow a password reset
