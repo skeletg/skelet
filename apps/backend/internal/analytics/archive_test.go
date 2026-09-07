@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/internal/archivefile"
 )
 
 // Collects committed objects; failKey simulates a destination outage for one key
@@ -119,7 +121,7 @@ func TestArchiveFileCloseSurfacesSinkFailure(t *testing.T) {
 
 func TestArchiveFileAbortDiscardsObject(t *testing.T) {
 	sink := newFakeSink()
-	f := newArchiveFile(context.Background(), sink, "spine/2026-05-01-deadbeef.jsonl.gz")
+	f := archivefile.New(context.Background(), sink, "spine/2026-05-01-deadbeef.jsonl.gz")
 	if err := f.Write(ArchivedEvent{ID: uuid.New(), EventName: "page_view"}); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -137,9 +139,6 @@ func TestArchiveModeFailsClosedWithoutSink(t *testing.T) {
 	}
 	if _, err := rec.ArchiveEventsBySource(ctx, SourceWeb, time.Now()); !errors.Is(err, ErrNoArchiveSink) {
 		t.Fatalf("ArchiveEventsBySource err = %v", err)
-	}
-	if _, err := rec.PruneEmailSends(ctx, time.Now(), true); !errors.Is(err, ErrNoArchiveSink) {
-		t.Fatalf("PruneEmailSends err = %v", err)
 	}
 }
 

@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 )
 
 // Every write on a disabled Recorder must no-op BEFORE it touches the spine or commerce handles - the nil handles here panic if any guard goes missing
@@ -20,16 +22,16 @@ func TestRecorderDisabledNoOps(t *testing.T) {
 	if ok, err := r.RecordActivity(ctx, ActivitySpec{EventName: "order_placed", Source: SourceCommerce, CustomerID: &cid, DedupeKey: "act:x"}); ok || err != nil {
 		t.Fatalf("RecordActivity = %v, %v, want false, nil", ok, err)
 	}
-	if err := r.RecordSent(ctx, Send{ID: uuid.New(), ChannelID: uuid.New()}); err != nil {
+	if err := r.RecordSent(ctx, sendlog.Send{ID: uuid.New(), ChannelID: uuid.New()}); err != nil {
 		t.Fatalf("RecordSent = %v, want nil", err)
 	}
 	if err := r.Identify(ctx, "anon", cid, uuid.New()); err != nil {
 		t.Fatalf("Identify = %v, want nil", err)
 	}
-	if ok, err := r.RecordOpen(ctx, Send{ID: uuid.New()}, Hit{}); ok || err != nil {
+	if ok, err := r.RecordOpen(ctx, sendlog.Send{ID: uuid.New()}, Hit{}); ok || err != nil {
 		t.Fatalf("RecordOpen = %v, %v, want false, nil", ok, err)
 	}
-	if ok, err := r.RecordClick(ctx, Send{ID: uuid.New()}, "https://x", 0, Hit{}); ok || err != nil {
+	if ok, err := r.RecordClick(ctx, sendlog.Send{ID: uuid.New()}, "https://x", 0, Hit{}); ok || err != nil {
 		t.Fatalf("RecordClick = %v, %v, want false, nil", ok, err)
 	}
 	if ok, err := r.RecordConversion(ctx, ConversionSpec{CustomerID: cid, OrderID: uuid.New()}); ok || err != nil {

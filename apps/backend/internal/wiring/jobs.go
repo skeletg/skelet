@@ -41,6 +41,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/review"
 	"github.com/skeletg/skelet/apps/backend/internal/scheduler"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
 	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/internal/subscription"
@@ -88,6 +89,7 @@ type jobDeps struct {
 	Backup       *backup.Service
 	Destination  *destination.Service
 	Recorder     *analytics.Recorder
+	SendLog      *sendlog.Store
 	Order        *order.Service
 	Payment      *paymentpkg.Service
 
@@ -319,7 +321,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 	// Core, not a Signals job: the send log is a commerce table that every transactional mail writes, so it has to be
 	// maintained on a server with Signals off and on one that hands its Signals jobs to cmd/signals
 	jobScheduler.Register("send-log-retention", "@every 24h", "Pre-create the email send log's upcoming month partitions and drop whole months past the retention window - deleted, or exported to the archive destination first under retention_action=archive.",
-		sendLogRetentionJob(d.Config, d.Recorder, signalsboot.ArchiveAction))
+		sendLogRetentionJob(d.Config, d.SendLog, signalsboot.ArchiveAction))
 	signalsWorkerJob("event-destinations-forward", "@every 1m", "Forward analytics-spine events to configured external destinations (webhooks, GA4, Meta CAPI) with durable per-destination cursors.",
 		func(ctx context.Context) error {
 			return d.Destination.ForwardAll(ctx)
