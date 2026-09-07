@@ -9,19 +9,17 @@ The release process, and which version number means what, is in
 
 ## [Unreleased]
 
-### Changed
+### Fixed
 
-- **The email send log now ages out by default, and core owns the job.** `email_sends` moved to
-  the commerce database, but its retention still defaulted to keep-forever and its prune lived in
-  the Signals `analytics-prune` job. Every transactional mail writes a row - receipts, verification,
-  password resets, shipment notices - so a store that never opens Signals still grew the table
-  forever in its primary database, and the maintenance stopped entirely with
-  `SIGNALS_JOBS_EXTERNAL=true` and no signals container. A new core `send-log-retention` job
-  pre-creates the upcoming month partitions and drops whole months past the window, registered
-  unconditionally so it runs with Signals off. `pulse/analytics/email_sends_retention_months`
-  now defaults to `24`; set it to `0` to keep the old keep-forever behaviour. Existing installs
-  that never set it will start dropping months older than two years on the next daily run.
-
+- **A paused marketing flow could stop every transactional email on the server.** The flow engine
+  claims the oldest 100 runnable runs per tick, and a run whose flow was paused or deleted, or a
+  marketing run under `SIGNALS_ENABLED=false`, was claimed and then left exactly as it was. Those
+  runs came back on every tick, so once 100 of them were the oldest in the table nothing behind
+  them ever advanced - and this engine delivers order receipts, verification links and password
+  resets, so they stopped going out. Enrolling a few hundred customers in a campaign and then
+  pausing it was enough to trigger it. The claim now joins `flows` and returns only runs the
+  engine will actually advance, so a run it would refuse no longer spends a slot. Parked runs are
+  still left untouched and resume when the flow is reactivated.
 
 ### Added
 
@@ -52,6 +50,17 @@ The release process, and which version number means what, is in
   default. The storefront now reads `FRONT_GRAPHQL_CODEGEN_URL` so the two can't collide.
 
 ### Changed
+
+- **The email send log now ages out by default, and core owns the job.** `email_sends` moved to
+  the commerce database, but its retention still defaulted to keep-forever and its prune lived in
+  the Signals `analytics-prune` job. Every transactional mail writes a row - receipts, verification,
+  password resets, shipment notices - so a store that never opens Signals still grew the table
+  forever in its primary database, and the maintenance stopped entirely with
+  `SIGNALS_JOBS_EXTERNAL=true` and no signals container. A new core `send-log-retention` job
+  pre-creates the upcoming month partitions and drops whole months past the window, registered
+  unconditionally so it runs with Signals off. `pulse/analytics/email_sends_retention_months`
+  now defaults to `24`; set it to `0` to keep the old keep-forever behaviour. Existing installs
+  that never set it will start dropping months older than two years on the next daily run.
 
 - **Every direct transactional send is recorded and carries an open pixel.** Three domains
   send mail directly when no flow takes delivery - order receipts, account links and
