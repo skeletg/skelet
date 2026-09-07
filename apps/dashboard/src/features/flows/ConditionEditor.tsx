@@ -8,6 +8,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useQuery } from '@apollo/client/react'
+
+import { FlowConditionKindsDocument } from './Flows.gql'
 import {
   CONDITION_KINDS,
   LIFECYCLE_STAGES,
@@ -30,6 +33,12 @@ export function ConditionEditor({
 }) {
   // 'in_segment' is the wire alias; show it as 'segment' in the picker
   const kind = value.kind === 'in_segment' ? 'segment' : value.kind
+  // Only offer what this install registered, unfiltered until the query answers so an existing flow's kind is never dropped
+  const { data } = useQuery(FlowConditionKindsDocument)
+  const registered = data?.flowConditionKinds
+  const kinds = registered
+    ? CONDITION_KINDS.filter((c) => registered.includes(c.value) || c.value === kind)
+    : CONDITION_KINDS
   const set = (patch: Partial<FlowCondition>) => onChange({ ...value, ...patch })
 
   const num = (v: string) => {
@@ -46,7 +55,7 @@ export function ConditionEditor({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {CONDITION_KINDS.map((c) => (
+            {kinds.map((c) => (
               <SelectItem key={c.value} value={c.value}>
                 {c.label}
               </SelectItem>

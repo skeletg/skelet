@@ -7218,6 +7218,7 @@ export type Query = {
   experimentsOverview: ExperimentsOverview;
   exportCustomerData: Scalars['String']['output'];
   flow?: Maybe<Flow>;
+  flowConditionKinds: Array<Scalars['String']['output']>;
   flowMergeTags: Array<Scalars['String']['output']>;
   flowTriggerTypes: Array<Scalars['String']['output']>;
   flows: Array<Flow>;

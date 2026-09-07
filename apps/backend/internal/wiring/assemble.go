@@ -244,6 +244,11 @@ type marketingDeps struct {
 func wireMarketing(d marketingDeps) { // transactional mail is delivered as a Pulse flow where one is active, receipts and account emails included
 	d.Flow.SetEnabled(bool(d.Signals))
 	d.Flow.SetSuppression(d.Suppression)
+	// Synapse answers these, so they are registered here rather than declared by core - without the suite they are simply absent
+	d.Flow.RegisterCondition(flow.NewSegmentCondition(d.Segment))
+	d.Flow.RegisterCondition(flow.NewSegmentAliasCondition(d.Segment)) // saved flows still carry the older spelling
+	d.Flow.RegisterCondition(flow.NewLifecycleCondition(FlowTraitReader{rec: d.Recorder}))
+	d.Flow.RegisterCondition(flow.NewRFMCondition(FlowTraitReader{rec: d.Recorder}))
 	d.Flow.SetOrderReader(d.Order)                   // lets order flows populate item / total / tracking / ship-to blocks
 	d.Customer.SetAuthEmailDispatcher(d.Flow)        // verification + password reset hand their one-time link to the flow engine
 	d.Customer.SetAuthEmailFallback(d.EmailTemplate) // and go out directly when no flow does, so a paused one can't swallow a password reset

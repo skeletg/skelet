@@ -3261,6 +3261,7 @@ type ComplexityRoot struct {
 		ExperimentsOverview          func(childComplexity int, channelID string, sinceDays *int32) int
 		ExportCustomerData           func(childComplexity int, customerID string) int
 		Flow                         func(childComplexity int, id string) int
+		FlowConditionKinds           func(childComplexity int) int
 		FlowMergeTags                func(childComplexity int) int
 		FlowTriggerTypes             func(childComplexity int) int
 		Flows                        func(childComplexity int, channelID string, includeDeleted *bool) int
@@ -5007,6 +5008,7 @@ type QueryResolver interface {
 	Flow(ctx context.Context, id string) (*model.Flow, error)
 	FlowTriggerTypes(ctx context.Context) ([]string, error)
 	FlowMergeTags(ctx context.Context) ([]string, error)
+	FlowConditionKinds(ctx context.Context) ([]string, error)
 	SignupForms(ctx context.Context, channelID string) ([]*model.SignupForm, error)
 	SignupForm(ctx context.Context, id string) (*model.SignupForm, error)
 	SignupFormSubmissions(ctx context.Context, formID string, limit *int32) ([]*model.SignupFormSubmission, error)
@@ -22558,6 +22560,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Flow(childComplexity, args["id"].(string)), true
+	case "Query.flowConditionKinds":
+		if e.ComplexityRoot.Query.FlowConditionKinds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.FlowConditionKinds(childComplexity), true
 	case "Query.flowMergeTags":
 		if e.ComplexityRoot.Query.FlowMergeTags == nil {
 			break
@@ -32823,6 +32831,10 @@ extend type Query {
   flowTriggerTypes: [String!]!
   # Merge tags available to flow email nodes (same set as campaigns).
   flowMergeTags: [String!]!
+  # Split-condition kinds the composer should offer. Registered rather than
+  # fixed: the suite that owns a condition's data contributes it, so an install
+  # without that suite never offers a condition nothing can answer.
+  flowConditionKinds: [String!]!
 }
 
 extend type Mutation {
@@ -127280,6 +127292,29 @@ func (ec *executionContext) fieldContext_Query_flowMergeTags(_ context.Context, 
 	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Query_flowConditionKinds(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_flowConditionKinds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().FlowConditionKinds(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_flowConditionKinds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _Query_signupForms(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -186548,6 +186583,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_flowMergeTags(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "flowConditionKinds":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_flowConditionKinds(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
