@@ -35,6 +35,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/paymentvault"
 	"github.com/skeletg/skelet/apps/backend/internal/plugin"
 	"github.com/skeletg/skelet/apps/backend/internal/pricing"
+	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
@@ -1034,4 +1035,33 @@ func (t FlowTraitReader) CustomerTraits(ctx context.Context, customerID uuid.UUI
 		RFMRecency: src.RFMRecency, RFMFrequency: src.RFMFrequency, RFMMonetary: src.RFMMonetary,
 		Lifecycle: src.Lifecycle, EngagementScore: src.EngagementScore,
 	}, true, nil
+}
+
+// The personalization tags Synapse computes - registered with flow so an install without the suite renders them empty rather than having core reach for data it can't compute
+type SynapseMergeVars struct {
+	rec *analytics.Recorder
+	seg *segment.Service
+}
+
+func (v SynapseMergeVars) MergeVars(ctx context.Context, _ uuid.UUID, customerID uuid.UUID) map[string]string {
+	m := map[string]string{}
+	if v.rec != nil {
+		if t, ok, _ := v.rec.CustomerTraits(ctx, customerID); ok {
+			m["customer.lifecycle"] = t.Lifecycle
+			m["customer.orders"] = fmt.Sprintf("%d", t.Frequency)
+			m["customer.ltv"] = fmt.Sprintf("%.2f", float64(t.MonetaryCents)/100)
+		}
+		// Attribute affinities become {{customer.affinity.<slug>}}, e.g. "your size, 205/55R16, is back in stock"
+		if affs, _ := v.rec.CustomerTopAffinities(ctx, customerID, time.Now().AddDate(0, 0, -90)); len(affs) > 0 {
+			for slug, val := range affs {
+				m["customer.affinity."+slug] = val
+			}
+		}
+	}
+	if v.seg != nil {
+		if slugs, err := v.seg.SlugsForCustomer(ctx, customerID); err == nil {
+			m["customer.segments"] = strings.Join(slugs, ", ")
+		}
+	}
+	return m
 }
