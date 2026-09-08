@@ -13,11 +13,11 @@ import (
 // SIGNALS_ENABLED=false has to leave the store sellable and its transactional mail flowing, so the gate is per file and anything still reachable with the suite off is written down below with why
 
 // Resolver file -> the suite it belongs to, every resolver in it gated
+// Prism is absent on purpose: it moved to the Signals API, which is gated as a whole by its own token audience
 var signalsGatedFiles = map[string]string{
 	"analytics.resolvers.go":      "the event spine",
 	"campaign.resolvers.go":       "Pulse broadcasts",
 	"deliverability.resolvers.go": "Pulse sending reputation",
-	"experiment.resolvers.go":     "Prism",
 	"lens.resolvers.go":           "Lens",
 	"synapse.resolvers.go":        "Synapse",
 }
@@ -31,7 +31,6 @@ var signalsExemptFiles = map[string]string{
 var signalsExemptResolvers = map[string]string{
 	"CampaignMergeTags":     "the merge-tag vocabulary is a static list the emails hub needs, gated on emails.view since no campaign row is read",
 	"RenderCampaignPreview": "renders operator-supplied blocks to HTML for the block library, gated on emails.view since no campaign row is read",
-	"ExperimentSegments":    "a plain segment picker over core's own segments, reached from CMS block visibility",
 }
 
 func TestEverySignalsSuiteResolverIsGated(t *testing.T) {
