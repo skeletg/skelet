@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
@@ -104,8 +105,14 @@ func newAdminResetStore(b authpkg.TokenBackend) AdminResetStore { // own namespa
 	return AdminResetStore{authpkg.NewPasswordResetStoreFor(b, "admin")}
 }
 
+// How long a minted access token stays valid - a revocation entry has to outlive one, or a token issued just before the revocation would survive it
+const AccessTokenTTL = 15 * time.Minute
+
 func newAdminRefreshStore(vk *redis.Client, q *db.Queries) AdminRefreshStore {
-	return AdminRefreshStore{authpkg.NewRefreshStore(authpkg.NewRefreshBackend(vk, q, "admin"), q, "admin")}
+	store := authpkg.NewRefreshStore(authpkg.NewRefreshBackend(vk, q, "admin"), q, "admin")
+	// The primary Valkey, never the evictable cache one - an evicted entry would silently un-revoke a session
+	store.SetRevocations(cache.NewRevocations(vk, AccessTokenTTL+time.Minute))
+	return AdminRefreshStore{store}
 }
 
 func newCustomerRefreshStore(vk *redis.Client, q *db.Queries) CustomerRefreshStore {

@@ -32,10 +32,25 @@ type RefreshStore struct {
 	queries *db.Queries
 	prefix  string
 	bus     *events.Bus
+	// Optional - publishes killed session ids to services that cannot see admin_sessions
+	revocations Revocations
 }
 
 func NewRefreshStore(backend RefreshBackend, queries *db.Queries, prefix string) *RefreshStore { // queries syncs admin_sessions rows - pass nil for non-admin stores
 	return &RefreshStore{backend: backend, queries: queries, prefix: prefix}
+}
+
+// Optional - without it a killed session still stops working here, just not at a service authorizing from a token
+func (s *RefreshStore) SetRevocations(r Revocations) { s.revocations = r }
+
+// Publishes the sessions a delete just removed, so a service holding one of their tokens stops honouring it
+func (s *RefreshStore) revoked(ctx context.Context, ids []uuid.UUID) {
+	if s.revocations == nil {
+		return
+	}
+	for _, id := range ids {
+		s.revocations.Revoke(ctx, id)
+	}
 }
 
 func (s *RefreshStore) SetEventBus(b *events.Bus) { s.bus = b } // optional and nil-safe - tests skip it and publishing no-ops
@@ -125,9 +140,11 @@ func (s *RefreshStore) ValidateAndRevoke(ctx context.Context, token string) (uui
 		return uuid.Nil, fmt.Errorf("consume refresh token: %w", err)
 	}
 	if s.prefix == "admin" && s.queries != nil {
-		if err := s.queries.DeleteAdminSession(ctx, hash); err != nil {
+		killed, err := s.queries.DeleteAdminSession(ctx, hash)
+		if err != nil {
 			return uuid.Nil, fmt.Errorf("delete admin session: %w", err)
 		}
+		s.revoked(ctx, killed)
 	}
 	s.publish(ctx, &RefreshRevoked{Subject: s.subject(), SubjectID: id, Reason: "rotation"})
 	return id, nil
@@ -179,9 +196,11 @@ func (s *RefreshStore) Revoke(ctx context.Context, token string) error {
 		return err
 	}
 	if s.prefix == "admin" && s.queries != nil {
-		if err := s.queries.DeleteAdminSession(ctx, hash); err != nil {
+		killed, err := s.queries.DeleteAdminSession(ctx, hash)
+		if err != nil {
 			return fmt.Errorf("delete admin session: %w", err)
 		}
+		s.revoked(ctx, killed)
 	}
 	if ownerID != uuid.Nil { // single-token logout, from the admin and customer Logout mutations - an already-expired token isn't a real logout, so it emits nothing
 		s.publish(ctx, &RefreshRevoked{Subject: s.subject(), SubjectID: ownerID, Reason: "logout"})
@@ -195,9 +214,11 @@ func (s *RefreshStore) RevokeAll(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	if s.prefix == "admin" && s.queries != nil {
-		if err := s.queries.DeleteAdminSessionsByAdminID(ctx, id); err != nil {
+		killed, err := s.queries.DeleteAdminSessionsByAdminID(ctx, id)
+		if err != nil {
 			return fmt.Errorf("delete admin sessions: %w", err)
 		}
+		s.revoked(ctx, killed)
 	}
 	s.publish(ctx, &RefreshRevoked{Subject: s.subject(), SubjectID: id, Reason: "revoke_all"}) // every session for the owner is gone - logout-all, password reset or account deletion - so one aggregate revoke rather than one per token
 	return nil
@@ -208,12 +229,14 @@ func (s *RefreshStore) RevokeExcept(ctx context.Context, id uuid.UUID, currentHa
 		return err
 	}
 	if s.prefix == "admin" && s.queries != nil {
-		if err := s.queries.DeleteAdminSessionsExcept(ctx, db.DeleteAdminSessionsExceptParams{
+		killed, err := s.queries.DeleteAdminSessionsExcept(ctx, db.DeleteAdminSessionsExceptParams{
 			AdminID:   id,
 			TokenHash: currentHash,
-		}); err != nil {
+		})
+		if err != nil {
 			return fmt.Errorf("delete other admin sessions: %w", err)
 		}
+		s.revoked(ctx, killed)
 	}
 	s.publish(ctx, &RefreshRevoked{Subject: s.subject(), SubjectID: id, Reason: "logout_other_devices"})
 	return nil

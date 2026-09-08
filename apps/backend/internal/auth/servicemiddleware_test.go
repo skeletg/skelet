@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -104,5 +105,64 @@ func TestServiceTokenAuthorizesOnlyWhatItCarries(t *testing.T) {
 				t.Errorf("guard on %s returned %v, want allowed=%v", tc.slug, *got, tc.wantOK)
 			}
 		})
+	}
+}
+
+// A service token is self-describing, so nothing in it changes when core kills the session - the shared revocation
+// list is the only thing standing between a logged-out operator and the rest of their token's life
+type fakeRevocations struct {
+	killed map[uuid.UUID]bool
+	fail   bool
+}
+
+func (f *fakeRevocations) Revoke(_ context.Context, id uuid.UUID) { f.killed[id] = true }
+
+func (f *fakeRevocations) Revoked(_ context.Context, id uuid.UUID) bool {
+	if f.fail {
+		return false // an unreachable list fails open, same stance as AdminSessionGuard
+	}
+	return f.killed[id]
+}
+
+func TestServiceSessionGuardDropsARevokedSession(t *testing.T) {
+	sessionID := uuid.New()
+	claims := ServiceClaims{AdminID: uuid.New(), SessionID: sessionID, Grants: []Grant{globalGrant("experiments.view")}}
+	token, err := GenerateServiceToken(claims, "signals", svcSecret, time.Minute)
+	if err != nil {
+		t.Fatalf("GenerateServiceToken: %v", err)
+	}
+
+	for name, tc := range map[string]struct {
+		list    *fakeRevocations
+		allowed bool
+	}{
+		"a live session":                 {&fakeRevocations{killed: map[uuid.UUID]bool{}}, true},
+		"a session core killed":          {&fakeRevocations{killed: map[uuid.UUID]bool{sessionID: true}}, false},
+		"another admin's killed session": {&fakeRevocations{killed: map[uuid.UUID]bool{uuid.New(): true}}, true},
+		"an unreachable list":            {&fakeRevocations{killed: map[uuid.UUID]bool{sessionID: true}, fail: true}, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h, got := guardedHandler("experiments.view")
+			chain := ServiceMiddleware("signals", svcSecret)(ServiceSessionGuard(tc.list)(h))
+			serviceRequest(t, chain, token)
+			if tc.allowed != (*got == nil) {
+				t.Errorf("guard returned %v, want allowed=%v", *got, tc.allowed)
+			}
+		})
+	}
+}
+
+// A token minted with no session row behind it (dev-impersonate, and any path that skips one) has nothing to revoke
+func TestServiceSessionGuardPassesASessionlessToken(t *testing.T) {
+	claims := ServiceClaims{AdminID: uuid.New(), Grants: []Grant{globalGrant("experiments.view")}}
+	token, err := GenerateServiceToken(claims, "signals", svcSecret, time.Minute)
+	if err != nil {
+		t.Fatalf("GenerateServiceToken: %v", err)
+	}
+	h, got := guardedHandler("experiments.view")
+	chain := ServiceMiddleware("signals", svcSecret)(ServiceSessionGuard(&fakeRevocations{killed: map[uuid.UUID]bool{}})(h))
+	serviceRequest(t, chain, token)
+	if *got != nil {
+		t.Errorf("a token with no session id was refused: %v", *got)
 	}
 }
