@@ -111,7 +111,7 @@ func (r *Recorder) RecordSent(ctx context.Context, s sendlog.Send) error {
 	return err
 }
 
-// Repeat opens within the same minute from the same client collapse on the dedupe key, and the send's human-open projection only bumps on a genuinely new non-machine open
+// Repeat opens within the same minute from the same client collapse on the dedupe key - the send log's own first-open stamp is core's, written by the caller
 func (r *Recorder) RecordOpen(ctx context.Context, s sendlog.Send, h Hit) (bool, error) {
 	if r.disabled {
 		return false, nil
@@ -121,9 +121,6 @@ func (r *Recorder) RecordOpen(ctx context.Context, s sendlog.Send, h Hit) (bool,
 	ok, err := r.record(ctx, EventEmailOpened, s, at, hitProps(h, nil), key)
 	if err != nil || !ok {
 		return false, err
-	}
-	if !h.Machine {
-		_ = r.q.MarkSendOpened(ctx, s.ID)
 	}
 	return true, nil
 }
@@ -137,9 +134,6 @@ func (r *Recorder) RecordClick(ctx context.Context, s sendlog.Send, url string, 
 	ok, err := r.record(ctx, EventEmailClicked, s, at, hitProps(h, map[string]any{"url": url, "link_index": linkIndex}), key)
 	if err != nil || !ok {
 		return false, err
-	}
-	if !h.Machine {
-		_ = r.q.MarkSendClicked(ctx, s.ID)
 	}
 	return true, nil
 }
