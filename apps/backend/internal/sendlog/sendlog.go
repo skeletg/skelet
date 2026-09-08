@@ -46,6 +46,9 @@ type Send struct {
 	CampaignID  *uuid.UUID
 	RecipientID *uuid.UUID
 	SentAt      time.Time
+	// First-seen engagement, so a repeat pixel load can skip the write rather than re-stamping a COALESCE
+	FirstOpenAt  *time.Time
+	FirstClickAt *time.Time
 }
 
 type Store struct {
@@ -102,7 +105,7 @@ func (s *Store) Get(ctx context.Context, id uuid.UUID) (Send, bool, error) {
 	return Send{
 		ID: row.ID, ChannelID: row.ChannelID, Source: row.Source, Email: row.Email,
 		CustomerID: pu(row.CustomerID), CampaignID: pu(row.CampaignID), RecipientID: pu(row.RecipientID),
-		SentAt: row.SentAt,
+		SentAt: row.SentAt, FirstOpenAt: nt(row.FirstOpenAt), FirstClickAt: nt(row.FirstClickAt),
 	}, true, nil
 }
 
@@ -123,6 +126,13 @@ func (s *Store) MarkClicked(ctx context.Context, id uuid.UUID) error {
 // EnsurePartitions pre-creates the upcoming month partitions - sends land in the DEFAULT partition once the pre-created months run out
 func (s *Store) EnsurePartitions(ctx context.Context) error {
 	return s.q.EnsureEmailSendPartitions(ctx)
+}
+
+func nt(n sql.NullTime) *time.Time {
+	if !n.Valid {
+		return nil
+	}
+	return &n.Time
 }
 
 func nu(p *uuid.UUID) uuid.NullUUID {
