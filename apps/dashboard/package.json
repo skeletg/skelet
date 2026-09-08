@@ -14,7 +14,7 @@
     "typecheck:all": "tsc -b",
     "lint": "eslint .",
     "preview": "vite preview",
-    "codegen": "graphql-codegen --config codegen.ts",
+    "codegen": "graphql-codegen --config codegen.ts && graphql-codegen --config codegen.signals.ts",
     "i18n:extract": "lingui extract-template",
     "codegen:watch": "graphql-codegen --config codegen.ts --watch",
     "test": "vitest run",
