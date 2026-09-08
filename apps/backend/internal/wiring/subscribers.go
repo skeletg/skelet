@@ -103,11 +103,11 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	review.RegisterSubscribers(bus, d.Review, d.AI.Enabled())
 	webform.RegisterSubmitEmails(bus, d.Email)
 	registerChannelSeed(bus, d.EmailTemplate, d.Flow)
-	activity.RegisterConversionAttribution(bus, d.Recorder)
 
 	if !d.Signals {
 		return // the Recorder no-ops anyway - skipping the subscribe also skips their per-event order lookups
 	}
+	activity.RegisterConversionAttribution(bus, d.Recorder)
 	activity.NewTracker(d.Recorder, d.Order).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
 	d.BackInStock.Register(bus)                             // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
 }
