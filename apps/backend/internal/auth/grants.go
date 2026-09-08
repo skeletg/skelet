@@ -145,6 +145,32 @@ func (c *GrantChecker) ListPermittedChannelIDs(_ context.Context, adminID uuid.U
 	return out, nil
 }
 
+const grantCheckerKey contextKey = "grant_checker"
+
+// WithGrantChecker carries the caller's checker on the request, for a service that authorizes from a token rather than a database
+func WithGrantChecker(ctx context.Context, c *GrantChecker) context.Context {
+	return context.WithValue(ctx, grantCheckerKey, c)
+}
+
+// GrantCheckerFrom returns the request's checker, or one that denies everything when the request carried no grants
+func GrantCheckerFrom(ctx context.Context) ScopeAwareChecker {
+	if c, ok := ctx.Value(grantCheckerKey).(*GrantChecker); ok && c != nil {
+		return c
+	}
+	return denyAll{}
+}
+
+// Never reached through the guards, which refuse an unauthenticated request first - it exists so a wiring mistake denies instead of panicking
+type denyAll struct{}
+
+func (denyAll) HasPermission(context.Context, uuid.UUID, string) (bool, error) { return false, nil }
+func (denyAll) HasGlobalPermission(context.Context, uuid.UUID, string) (bool, error) {
+	return false, nil
+}
+func (denyAll) HasChannelPermission(context.Context, uuid.UUID, string, uuid.UUID, *string) (bool, error) {
+	return false, nil
+}
+
 func (c *GrantChecker) subject(adminID uuid.UUID) error {
 	if adminID != c.adminID {
 		return ErrGrantSubjectMismatch

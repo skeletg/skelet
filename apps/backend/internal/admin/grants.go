@@ -29,3 +29,12 @@ func (s *Service) grantsFor(ctx context.Context, adminID uuid.UUID) (*auth.Grant
 	}
 	return v.(*auth.GrantSet), nil
 }
+
+// Grants returns every scope an admin holds, for minting a service token that carries them
+func (s *Service) Grants(ctx context.Context, adminID uuid.UUID) ([]auth.Grant, error) {
+	set, err := s.grantsFor(ctx, adminID)
+	if err != nil {
+		return nil, err
+	}
+	return set.Grants(), nil
+}

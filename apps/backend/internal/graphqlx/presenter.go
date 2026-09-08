@@ -86,7 +86,7 @@ func Presenter(s Surface, opts ...Option) graphql.ErrorPresenterFunc {
 		logMessage := err.Error()
 
 		switch s {
-		case SurfaceAdmin:
+		case SurfaceAdmin, SurfaceSignals:
 			if op != "" {
 				gqlErr.Extensions["op"] = op
 			}

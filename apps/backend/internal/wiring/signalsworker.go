@@ -2,12 +2,14 @@ package wiring
 
 import (
 	"database/sql"
+	"errors"
 
 	"go.uber.org/fx"
 
 	"github.com/skeletg/skelet/apps/backend/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	"github.com/skeletg/skelet/apps/backend/internal/destination"
+	"github.com/skeletg/skelet/apps/backend/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/internal/secrets"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
@@ -22,14 +24,19 @@ var SignalsCore = fx.Module("signalscore",
 		newLensService,
 		newAllowPrivateTargets,
 		newDestinationService,
-		newSecretsCipher, // this process is env-checked for CONFIG_ENCRYPTION_KEY, so it has to be able to read a secret path
+		newExperimentService, // Prism's admin API is served here, not by cmd/server
+		newSecretsCipher,     // this process is env-checked for CONFIG_ENCRYPTION_KEY, so it has to be able to read a secret path
 	),
 )
 
-func LoadSignalsConfig() (Config, error) { // skips the JWT rules (a worker signs nothing) and sizes the primary for what a Signals worker actually does with it - read config
+func LoadSignalsConfig() (Config, error) { // sizes the primary for what this process does with it - read config
 	c, err := loadBase()
 	if err != nil {
 		return Config{}, err
+	}
+	// It signs nothing, but it verifies: the Signals API authenticates service tokens core minted with this secret
+	if c.JWTSecret == "" {
+		return Config{}, errors.New("JWT_SECRET is not set - cmd/signals verifies the service tokens core mints with it")
 	}
 	c.MaxConns = EnvInt("SIGNALS_PRIMARY_MAX_CONNS", 4)
 	return c, nil
@@ -47,6 +54,7 @@ type SignalsDeps struct { // not wiring.Infra on purpose - that one carries a Va
 	Stack              *signalsboot.Stack
 	Lens               *lens.Service
 	Destination        *destination.Service
+	Experiment         *experiment.Service
 }
 
 var SignalsWiring = fx.Module("signalswiring", fx.Invoke(wireSignalsWorker)) // the signals worker's cross-domain wiring - it reads on its own pool, and takes the lenient blob store because a worker should not die for want of a bucket
