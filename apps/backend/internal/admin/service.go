@@ -348,20 +348,13 @@ func humanTTL(d time.Duration) string { // reset-token lifetime for the email bo
 }
 
 // Every resource registers a `<resource>.view` / `<resource>.manage` pair where manage is a strict superset, so a foo.view check also passes on foo.manage - manage checks return as-is, view does NOT imply manage
-func effectiveSlugs(slug string) []string { // lives here so every check inherits the rule instead of each call site duplicating the OR
-	if before, ok := strings.CutSuffix(slug, ".view"); ok {
-		return []string{slug, before + ".manage"}
-	}
-	return []string{slug}
-}
-
 // Implements auth.PermissionChecker off the admin's role assignments - superuser bypass happens in the auth guard before this is reached
 func (s *Service) HasPermission(ctx context.Context, adminID uuid.UUID, slug string) (bool, error) {
 	snap, err := s.grantsFor(ctx, adminID)
 	if err != nil {
 		return false, err
 	}
-	if slices.ContainsFunc(effectiveSlugs(slug), snap.hasAny) {
+	if slices.ContainsFunc(auth.EffectiveSlugs(slug), snap.HasAny) {
 		return true, nil
 	}
 	return false, nil
@@ -372,7 +365,7 @@ func (s *Service) HasGlobalPermission(ctx context.Context, adminID uuid.UUID, sl
 	if err != nil {
 		return false, err
 	}
-	if slices.ContainsFunc(effectiveSlugs(slug), snap.hasGlobal) {
+	if slices.ContainsFunc(auth.EffectiveSlugs(slug), snap.HasGlobal) {
 		return true, nil
 	}
 	return false, nil
@@ -384,8 +377,8 @@ func (s *Service) HasChannelPermission(ctx context.Context, adminID uuid.UUID, s
 	if err != nil {
 		return false, err
 	}
-	for _, candidate := range effectiveSlugs(slug) {
-		if snap.hasStore(candidate, channelID, locale) {
+	for _, candidate := range auth.EffectiveSlugs(slug) {
+		if snap.HasStore(candidate, channelID, locale) {
 			return true, nil
 		}
 	}
@@ -398,14 +391,14 @@ func (s *Service) ListPermittedChannelIDs(ctx context.Context, adminID uuid.UUID
 	if err != nil {
 		return nil, err
 	}
-	candidates := effectiveSlugs(slug)
+	candidates := auth.EffectiveSlugs(slug)
 	if len(candidates) == 1 {
-		return snap.permittedChannelIDs(candidates[0]), nil
+		return snap.PermittedChannelIDs(candidates[0]), nil
 	}
 	seen := make(map[uuid.UUID]struct{})
 	var merged []uuid.UUID
 	for _, candidate := range candidates {
-		for _, id := range snap.permittedChannelIDs(candidate) {
+		for _, id := range snap.PermittedChannelIDs(candidate) {
 			if _, ok := seen[id]; ok {
 				continue
 			}

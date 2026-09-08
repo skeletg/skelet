@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 var ErrRoleInUse = errors.New("role has members; reassign them before deleting")
@@ -38,12 +40,8 @@ type Permission struct {
 	Name string
 }
 
-// One (slug, channel?, locale?) scope an admin holds through their roles, the raw row behind the Has* and ListPermitted* checks - nil ChannelID or Locale means "any", and these load in bulk once per request to back the grant snapshot in grants.go
-type PermissionGrant struct {
-	Slug      string
-	ChannelID *uuid.UUID
-	Locale    *string
-}
+// One (slug, channel?, locale?) scope an admin holds through their roles, aliased to the shared model in auth so a token-carried grant set answers the same checks
+type PermissionGrant = auth.Grant
 
 type PermissionGroup struct {
 	ID          uuid.UUID
