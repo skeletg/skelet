@@ -16,7 +16,9 @@ import {
 import { getEffectiveLocale } from '@/lib/locale-store'
 import { getEffectiveChannelId } from '@/lib/channel-store'
 import { devMonitorLink } from '@/lib/dev-monitor'
-import { ADMIN_GRAPHQL_ENDPOINT } from '@/lib/api-endpoint'
+import { ADMIN_GRAPHQL_ENDPOINT, SIGNALS_GRAPHQL_ENDPOINT } from '@/lib/api-endpoint'
+import { SIGNALS_OPERATIONS } from '@/graphql/signals-operations'
+import { getSignalsToken } from '@/shared/auth/signals-token'
 
 const ENDPOINT = ADMIN_GRAPHQL_ENDPOINT
 
@@ -179,13 +181,31 @@ const wsLink = new GraphQLWsLink(
   }),
 )
 
+// ---------- Signals API ----------
+// A second origin with its own credential, and SIGNALS_OPERATIONS is generated from the *.signals.graphql documents so routing can't drift from what codegen validated
+const signalsAuthLink = new SetContextLink(async (prevContext) => {
+  const token = await getSignalsToken()
+  const headers = { ...(prevContext.headers ?? {}) }
+  // Drop the admin bearer rather than leaving it, since sending a core credential to another service is worth not doing by accident
+  delete (headers as Record<string, unknown>).authorization
+  return { headers: { ...headers, ...(token ? { authorization: `Bearer ${token}` } : {}) } }
+})
+
+const signalsLink = signalsAuthLink.concat(new HttpLink({ uri: SIGNALS_GRAPHQL_ENDPOINT }))
+
+const httpTransportLink = ApolloLink.split(
+  ({ operationName }) => SIGNALS_OPERATIONS.has(operationName ?? ''),
+  signalsLink,
+  terminalLink,
+)
+
 const transportLink = ApolloLink.split(
   ({ query }) => {
     const def = getMainDefinition(query)
     return def.kind === 'OperationDefinition' && def.operation === 'subscription'
   },
   wsLink,
-  terminalLink,
+  httpTransportLink,
 )
 
 export const apolloClient = new ApolloClient({

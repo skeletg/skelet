@@ -15,7 +15,7 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { cn } from '@/lib/utils'
-import { ExperimentsOverviewDocument } from './Prism.gql'
+import { ExperimentsOverviewDocument } from './Prism.signals.gql'
 
 const nfmt = (n: number) => n.toLocaleString()
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`
