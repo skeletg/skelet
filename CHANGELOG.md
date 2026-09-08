@@ -48,6 +48,14 @@ The release process, and which version number means what, is in
   never opened. The stamp is now written on the core path alongside the spine event rather than
   inside it, and a repeat pixel load skips the write instead of re-running it.
 
+- **A few core screens broke when Signals was switched off.** The CMS page detail rendered an
+  "A/B test (Prism)" section that could only error, and the email library, block library and CMS
+  block-visibility picker each called a resolver that lived in a Signals file but reads no Signals
+  data - the merge-tag vocabulary, the block HTML preview and the segment picker. The Prism
+  section is now hidden with the suite off, and those three resolvers answer either way. The merge
+  tags and the block preview now check `emails.view` rather than `campaigns.view`, matching the
+  screens that actually need them.
+
 ### Added
 
 - **Resend an order email from the dashboard.** `resendOrderEmail` sends an order's receipt,
