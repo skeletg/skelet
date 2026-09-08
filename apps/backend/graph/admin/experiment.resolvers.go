@@ -163,9 +163,6 @@ func (r *queryResolver) ExperimentGoalEvents(ctx context.Context, channelID stri
 }
 
 func (r *queryResolver) ExperimentSegments(ctx context.Context) ([]*model.SegmentOption, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "experiments.view"); err != nil {
 		return nil, err
 	}

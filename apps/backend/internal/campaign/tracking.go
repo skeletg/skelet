@@ -35,6 +35,10 @@ func (s *Service) RecordOpen(ctx context.Context, token string, h analytics.Hit)
 	if h.Machine {
 		return nil
 	}
+	// Core's own record of the send, stamped whether or not Signals is running - the spine event above is the analytics half
+	if send.FirstOpenAt == nil {
+		_ = s.sends.MarkOpened(ctx, send.ID)
+	}
 	if send.RecipientID != nil {
 		if first, err := s.repo.RecordOpen(ctx, *send.RecipientID); err == nil && first && send.CampaignID != nil {
 			_ = s.repo.BumpOpened(ctx, *send.CampaignID)
@@ -58,6 +62,9 @@ func (s *Service) RecordClick(ctx context.Context, token string, h analytics.Hit
 		h.Machine, h.Device, h.Client = enr.Machine, enr.Device, enr.Client
 		_, _ = s.recorder.RecordClick(ctx, send, p.U, p.L, h)
 		if !h.Machine {
+			if send.FirstClickAt == nil {
+				_ = s.sends.MarkClicked(ctx, send.ID)
+			}
 			if send.RecipientID != nil {
 				if first, err := s.repo.RecordClick(ctx, *send.RecipientID); err == nil && first && send.CampaignID != nil {
 					_ = s.repo.BumpClicked(ctx, *send.CampaignID)

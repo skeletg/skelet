@@ -27,6 +27,13 @@ var signalsExemptFiles = map[string]string{
 	"flow.resolvers.go": "flows deliver transactional mail, and the engine already parks the marketing ones itself",
 }
 
+// Resolver -> why it stays reachable though the rest of its file is gated, for the ones a core surface calls
+var signalsExemptResolvers = map[string]string{
+	"CampaignMergeTags":     "the merge-tag vocabulary is a static list the emails hub needs, gated on emails.view since no campaign row is read",
+	"RenderCampaignPreview": "renders operator-supplied blocks to HTML for the block library, gated on emails.view since no campaign row is read",
+	"ExperimentSegments":    "a plain segment picker over core's own segments, reached from CMS block visibility",
+}
+
 func TestEverySignalsSuiteResolverIsGated(t *testing.T) {
 	byFile := parseResolversByFile(t)
 	for file, suite := range signalsGatedFiles {
@@ -36,9 +43,10 @@ func TestEverySignalsSuiteResolverIsGated(t *testing.T) {
 			continue
 		}
 		for name, gated := range fns {
-			if !gated {
-				t.Errorf("%s in %s (%s) answers callers with SIGNALS_ENABLED=false - add requireSignals, or move the file to signalsExemptFiles with a reason", name, file, suite)
+			if _, exempt := signalsExemptResolvers[name]; exempt || gated {
+				continue
 			}
+			t.Errorf("%s in %s (%s) answers callers with SIGNALS_ENABLED=false - add requireSignals, or list it in signalsExemptResolvers with a reason", name, file, suite)
 		}
 	}
 }
@@ -95,6 +103,29 @@ func parseResolversByFile(t *testing.T) map[string]map[string]bool {
 		}
 	}
 	return out
+}
+
+// An exemption that quietly grew a gate back is a core surface breaking with the suite off, which is what the list exists to stop
+func TestSignalsExemptResolversStayUngated(t *testing.T) {
+	byFile := parseResolversByFile(t)
+	seen := map[string]bool{}
+	for _, fns := range byFile {
+		for name, gated := range fns {
+			why, exempt := signalsExemptResolvers[name]
+			if !exempt {
+				continue
+			}
+			seen[name] = true
+			if gated {
+				t.Errorf("%s calls requireSignals, but it is exempt because %s", name, why)
+			}
+		}
+	}
+	for name := range signalsExemptResolvers {
+		if !seen[name] {
+			t.Errorf("%s is listed exempt but no longer exists - rename it here or drop the entry", name)
+		}
+	}
 }
 
 func callsRequireSignals(body *ast.BlockStmt) bool {
