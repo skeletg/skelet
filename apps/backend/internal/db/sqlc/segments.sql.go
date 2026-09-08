@@ -469,29 +469,37 @@ func (q *Queries) SegmentMemberEmails(ctx context.Context, segmentID uuid.UUID) 
 }
 
 const segmentSlugsForCustomer = `-- name: SegmentSlugsForCustomer :many
-SELECT s.slug
+SELECT s.slug, s.rules, s.refresh_sql
 FROM customer_segments s
 JOIN customer_segment_memberships m ON m.segment_id = s.id
 WHERE m.customer_id = $1 AND s.is_active = TRUE
 ORDER BY s.slug
 `
 
+type SegmentSlugsForCustomerRow struct {
+	Slug       string                `json:"slug"`
+	Rules      pqtype.NullRawMessage `json:"rules"`
+	RefreshSql string                `json:"refresh_sql"`
+}
+
 // Hot path for the promotion engine: returns every active segment
 // slug a customer belongs to - filters out inactive segments so a
 // temporarily-disabled segment doesn't keep firing promotions
-func (q *Queries) SegmentSlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error) {
+// rules + refresh_sql ride along so the caller can drop the segments
+// Signals maintains when the suite is switched off
+func (q *Queries) SegmentSlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentSlugsForCustomerRow, error) {
 	rows, err := q.db.QueryContext(ctx, segmentSlugsForCustomer, customerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []string{}
+	items := []SegmentSlugsForCustomerRow{}
 	for rows.Next() {
-		var slug string
-		if err := rows.Scan(&slug); err != nil {
+		var i SegmentSlugsForCustomerRow
+		if err := rows.Scan(&i.Slug, &i.Rules, &i.RefreshSql); err != nil {
 			return nil, err
 		}
-		items = append(items, slug)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

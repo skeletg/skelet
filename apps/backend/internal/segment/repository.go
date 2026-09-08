@@ -36,7 +36,7 @@ type Repository interface {
 	MemberIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error)
 	ListMembers(ctx context.Context, segmentID uuid.UUID, limit, offset int32, channelIDs []uuid.UUID) ([]Member, error)
 
-	SlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error)
+	MembershipsForCustomer(ctx context.Context, customerID uuid.UUID) ([]Membership, error)
 	SegmentsForCustomer(ctx context.Context, customerID uuid.UUID) ([]MemberSegment, error)
 
 	// WithTx returns a Repository scoped to the given transaction
@@ -215,8 +215,16 @@ func (r *postgresRepository) CountMembersByIDs(ctx context.Context, ids []uuid.U
 	return out, nil
 }
 
-func (r *postgresRepository) SlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error) {
-	return r.queries.SegmentSlugsForCustomer(ctx, customerID)
+func (r *postgresRepository) MembershipsForCustomer(ctx context.Context, customerID uuid.UUID) ([]Membership, error) {
+	rows, err := r.queries.SegmentSlugsForCustomer(ctx, customerID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Membership, len(rows))
+	for i, row := range rows {
+		out[i] = Membership{Slug: row.Slug, Rules: row.Rules.RawMessage, RefreshSQL: row.RefreshSql}
+	}
+	return out, nil
 }
 
 func (r *postgresRepository) SegmentsForCustomer(ctx context.Context, customerID uuid.UUID) ([]MemberSegment, error) {
