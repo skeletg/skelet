@@ -194,6 +194,14 @@ registerNavNode({
           permission: 'emails.view',
           feature: '!signals',
         },
+        // Same fallback for flows - the engine keeps delivering transactional mail with Signals off, so the flows carrying receipts and account email have to stay openable
+        {
+          title: 'Flows',
+          path: '/flows',
+          element: lazyPage(() => import('@/features/flows/FlowsList'), 'FlowsList'),
+          permission: 'flows.view',
+          feature: '!signals',
+        },
       ],
     },
   ],
@@ -527,10 +535,9 @@ const detailLeaves = [
   // The unified Emails hub carries three tabs (?tab=emails|templates|blocks)
   // Registered as a Marketing nav leaf (feature '!signals') instead of a
   // detail route: normally reached via the Pulse hub, but with Signals off
-  // the sidebar entry keeps transactional email templates editable
+  // the sidebar entries keep transactional email templates and their flows editable
   { title: 'Email blocks', path: '/emails/blocks', element: <Navigate to="/emails?tab=blocks" replace /> },
   { title: 'Campaigns', path: '/campaigns', element: lazyPage(() => import('@/features/campaigns/CampaignsList'), 'CampaignsList'), permission: 'campaigns.view' },
-  { title: 'Flows', path: '/flows', element: lazyPage(() => import('@/features/flows/FlowsList'), 'FlowsList'), permission: 'flows.view' },
   { title: 'Signup forms', path: '/forms', element: lazyPage(() => import('@/features/forms/FormsList'), 'FormsList'), permission: 'forms.view' },
   { title: 'New form', path: '/forms/new', element: lazyPage(() => import('@/features/forms/FormBuilder'), 'FormBuilder'), permission: 'forms.manage' },
   { title: 'Edit form', path: '/forms/:id', element: lazyPage(() => import('@/features/forms/FormBuilder'), 'FormBuilder'), permission: 'forms.view' },
