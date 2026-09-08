@@ -22,9 +22,14 @@ type Service struct {
 	dbc *sql.DB
 	// When wired, unions external CDP audiences into SlugsForCustomer - see remote.go
 	remoteSegments RemoteSegmentSource
+	// SIGNALS_ENABLED=false - see signals.go for which segments stop counting
+	signalsOff bool
 }
 
 func (s *Service) SetDB(dbc *sql.DB) { s.dbc = dbc }
+
+// SetSignalsEnabled mirrors SIGNALS_ENABLED - off drops the segments Signals maintains out of membership reads and skips them on refresh
+func (s *Service) SetSignalsEnabled(v bool) { s.signalsOff = !v }
 
 func (s *Service) SetEventBus(bus *events.Bus) { s.bus = bus }
 
@@ -175,6 +180,10 @@ func (s *Service) RefreshDynamic(ctx context.Context, id uuid.UUID) (int, error)
 	}
 	if rules == nil {
 		return 0, fmt.Errorf("segment %q has no rules - it is a static segment", seg.Slug)
+	}
+	// Recomputing from customer_traits with the suite off would just re-materialise the same frozen answer under a fresh timestamp
+	if s.signalsOff && rules.NeedsSignals() {
+		return 0, nil
 	}
 	query, args := rules.Compile()
 	rows, err := s.dbc.QueryContext(ctx, query, args...)

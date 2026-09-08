@@ -2139,7 +2139,9 @@ type Querier interface {
 	// Hot path for the promotion engine: returns every active segment
 	// slug a customer belongs to - filters out inactive segments so a
 	// temporarily-disabled segment doesn't keep firing promotions
-	SegmentSlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error)
+	// rules + refresh_sql ride along so the caller can drop the segments
+	// Signals maintains when the suite is switched off
+	SegmentSlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentSlugsForCustomerRow, error)
 	// Active segments a customer belongs to, with id + name (for the Synapse
 	// profile "audiences" panel - chips that deep-link to each segment page)
 	SegmentsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentsForCustomerRow, error)

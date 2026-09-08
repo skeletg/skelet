@@ -243,6 +243,7 @@ type marketingDeps struct {
 
 func wireMarketing(d marketingDeps) { // transactional mail is delivered as a Pulse flow where one is active, receipts and account emails included
 	d.Flow.SetEnabled(bool(d.Signals))
+	d.Segment.SetSignalsEnabled(bool(d.Signals)) // trait and Synapse-defined segments stop counting, the commerce rule kinds carry on
 	d.Flow.SetSuppression(d.Suppression)
 	// Synapse answers these, so they are registered here rather than declared by core - without the suite they are simply absent
 	d.Flow.RegisterCondition(flow.NewSegmentCondition(d.Segment))

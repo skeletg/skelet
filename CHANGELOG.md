@@ -31,6 +31,16 @@ The release process, and which version number means what, is in
   sidebar - the same fallback the Emails hub already uses. Marketing flows are still parked by the
   engine rather than hidden from the list.
 
+- **Promotions and CMS blocks kept matching on segments nothing was recomputing.** Under
+  `SIGNALS_ENABLED=false` the segment refresh ran as part of a Signals-only job, so it did not run
+  at all: every rules-based segment froze at whatever membership it last had, and both the
+  `core.customer_in_segment` promotion condition and segment-gated CMS blocks went on matching
+  against that snapshot. A VIP discount could keep applying to customers who no longer qualified.
+  Segments whose rules read Synapse traits (`trait`, `lifecycle`), and Synapse-defined behavioral
+  segments, now count as empty while the suite is off. The rule kinds that are plain commerce
+  facts - order count, total spend, recency, consent and customer group - moved to their own job
+  and keep refreshing, so segments that never needed Signals are unaffected either way.
+
 ### Added
 
 - **Resend an order email from the dashboard.** `resendOrderEmail` sends an order's receipt,
