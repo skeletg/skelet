@@ -326,6 +326,15 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 		func(ctx context.Context) error {
 			return d.Destination.ForwardAll(ctx)
 		})
+	// Registered whatever SIGNALS_ENABLED says - order-count, spend, recency, consent and group rules are plain commerce facts, and freezing them would strand promotions on a stale audience
+	jobScheduler.Register("segment-refresh", "@every 6h", "Re-materialize dynamic customer-segment memberships from their rules (segments needing Synapse traits are skipped while Signals is off).",
+		func(ctx context.Context) error {
+			segs, members, err := d.Segment.RefreshAllDynamic(ctx)
+			if err != nil {
+				log.Printf("[segments] dynamic refresh: %d segments, %d members, errors: %v", segs, members, err)
+			}
+			return nil // one bad segment is logged above, and failing the job would only retry the whole sweep
+		})
 	signalsJob("synapse-segment-refresh", "@every 6h", "Re-materialize Synapse behavioral/trait segment memberships; auto-create attribute-affinity segments for opted-in attributes; enroll new members into segment_entered flows.",
 		func(ctx context.Context) error {
 			now := time.Now()
@@ -354,9 +363,6 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 						cfg("pulse/synapse/affinity_segment_max_values", 20),
 						cfg("pulse/synapse/affinity_segment_window_days", 90), now)
 				}
-			}
-			if segs, members, derr := d.Segment.RefreshAllDynamic(ctx); derr != nil {
-				log.Printf("[segments] dynamic refresh: %d segments, %d members, errors: %v", segs, members, derr)
 			}
 			_, err := graphadmin.RefreshDefinedSegments(ctx, d.Recorder, d.Segment, now, func(ch, cust uuid.UUID, slug string) {
 				d.Flow.OnSegmentEntered(ctx, ch, cust, slug)

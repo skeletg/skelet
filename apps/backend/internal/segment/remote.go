@@ -23,9 +23,17 @@ func (s *Service) SetRemoteSegments(src RemoteSegmentSource) { s.remoteSegments 
 
 // The customer's segment slugs, native UNIONED with any from a remote CDP provider - remote failures fall back to native-only
 func (s *Service) SlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]string, error) {
-	native, err := s.repo.SlugsForCustomer(ctx, customerID)
+	rows, err := s.repo.MembershipsForCustomer(ctx, customerID)
 	if err != nil {
 		return nil, err
+	}
+	native := make([]string, 0, len(rows))
+	for _, m := range rows {
+		// With the suite off these memberships are a frozen snapshot nothing recomputes, so they stop counting rather than gating promotions and CMS blocks on stale data
+		if s.signalsOff && SignalsMaintained(m.Rules, m.RefreshSQL) {
+			continue
+		}
+		native = append(native, m.Slug)
 	}
 	if s.remoteSegments == nil {
 		return native, nil

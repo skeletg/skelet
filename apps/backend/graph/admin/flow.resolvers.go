@@ -11,9 +11,6 @@ import (
 )
 
 func (r *mutationResolver) CreateFlow(ctx context.Context, input model.SaveFlowInput) (*model.Flow, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "flows.manage"); err != nil {
 		return nil, err
 	}
@@ -29,9 +26,6 @@ func (r *mutationResolver) CreateFlow(ctx context.Context, input model.SaveFlowI
 }
 
 func (r *mutationResolver) UpdateFlow(ctx context.Context, id string, input model.SaveFlowInput) (*model.Flow, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "flows.manage"); err != nil {
 		return nil, err
 	}
@@ -51,9 +45,6 @@ func (r *mutationResolver) UpdateFlow(ctx context.Context, id string, input mode
 }
 
 func (r *mutationResolver) DeleteFlow(ctx context.Context, id string) (bool, error) {
-	if err := r.requireSignals(); err != nil {
-		return false, err
-	}
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "flows.manage"); err != nil {
 		return false, err
 	}
@@ -68,9 +59,6 @@ func (r *mutationResolver) DeleteFlow(ctx context.Context, id string) (bool, err
 }
 
 func (r *mutationResolver) RestoreFlow(ctx context.Context, id string) (bool, error) {
-	if err := r.requireSignals(); err != nil {
-		return false, err
-	}
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "flows.manage"); err != nil {
 		return false, err
 	}
@@ -85,9 +73,6 @@ func (r *mutationResolver) RestoreFlow(ctx context.Context, id string) (bool, er
 }
 
 func (r *mutationResolver) SetFlowStatus(ctx context.Context, id string, status string) (*model.Flow, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "flows.manage"); err != nil {
 		return nil, err
 	}
@@ -103,9 +88,6 @@ func (r *mutationResolver) SetFlowStatus(ctx context.Context, id string, status 
 }
 
 func (r *queryResolver) Flows(ctx context.Context, channelID string, includeDeleted *bool) ([]*model.Flow, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "flows.view"); err != nil {
 		return nil, err
 	}
@@ -125,9 +107,6 @@ func (r *queryResolver) Flows(ctx context.Context, channelID string, includeDele
 }
 
 func (r *queryResolver) Flow(ctx context.Context, id string) (*model.Flow, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "flows.view"); err != nil {
 		return nil, err
 	}
@@ -143,9 +122,6 @@ func (r *queryResolver) Flow(ctx context.Context, id string) (*model.Flow, error
 }
 
 func (r *queryResolver) FlowTriggerTypes(ctx context.Context) ([]string, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "flows.view"); err != nil {
 		return nil, err
 	}
@@ -153,9 +129,6 @@ func (r *queryResolver) FlowTriggerTypes(ctx context.Context) ([]string, error) 
 }
 
 func (r *queryResolver) FlowMergeTags(ctx context.Context) ([]string, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "flows.view"); err != nil {
 		return nil, err
 	}
@@ -165,9 +138,6 @@ func (r *queryResolver) FlowMergeTags(ctx context.Context) ([]string, error) {
 }
 
 func (r *queryResolver) FlowConditionKinds(ctx context.Context) ([]string, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "flows.view"); err != nil {
 		return nil, err
 	}

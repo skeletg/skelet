@@ -97,7 +97,8 @@ SELECT customer_id FROM customer_segment_memberships WHERE segment_id = sqlc.arg
 -- Hot path for the promotion engine: returns every active segment
 -- slug a customer belongs to - filters out inactive segments so a
 -- temporarily-disabled segment doesn't keep firing promotions
-SELECT s.slug
+-- rules + refresh_sql ride along so the caller can drop the segments Signals maintains when the suite is off
+SELECT s.slug, s.rules, s.refresh_sql
 FROM customer_segments s
 JOIN customer_segment_memberships m ON m.segment_id = s.id
 WHERE m.customer_id = $1 AND s.is_active = TRUE
