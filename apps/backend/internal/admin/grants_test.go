@@ -40,149 +40,6 @@ func onChannelLocale(slug string, ch uuid.UUID, loc string) PermissionGrant {
 	return PermissionGrant{Slug: slug, ChannelID: &ch, Locale: &loc}
 }
 
-func TestGrantSnapshot_HasAnyAndHasGlobal(t *testing.T) {
-	eu := uuid.New()
-	snap := newGrantSnapshot([]PermissionGrant{onChannel("orders.view", eu), global("catalog.view")})
-
-	if !snap.hasAny("orders.view") {
-		t.Error("a channel-scoped grant should satisfy hasAny")
-	}
-	if !snap.hasAny("catalog.view") {
-		t.Error("a global grant should satisfy hasAny")
-	}
-	if snap.hasAny("orders.refund") {
-		t.Error("ungranted slug reported as held")
-	}
-
-	if snap.hasGlobal("orders.view") {
-		t.Error("a channel-scoped grant must not count as global")
-	}
-	if !snap.hasGlobal("catalog.view") {
-		t.Error("a (NULL, NULL) grant is global")
-	}
-}
-
-// A locale-only grant is not global - it is scoped on the locale axis
-func TestGrantSnapshot_LocaleOnlyGrantIsNotGlobal(t *testing.T) {
-	snap := newGrantSnapshot([]PermissionGrant{onLocale("cms.manage", "de")})
-	if snap.hasGlobal("cms.manage") {
-		t.Error("a locale-scoped grant must not count as global")
-	}
-	if !snap.hasAny("cms.manage") {
-		t.Error("a locale-scoped grant is still held at some scope")
-	}
-}
-
-func TestGrantSnapshot_HasStore(t *testing.T) {
-	eu, us := uuid.New(), uuid.New()
-	de, fr := "de", "fr"
-
-	t.Run("global grant matches every channel and locale", func(t *testing.T) {
-		snap := newGrantSnapshot([]PermissionGrant{global("catalog.manage")})
-		if !snap.hasStore("catalog.manage", eu, nil) || !snap.hasStore("catalog.manage", us, &fr) {
-			t.Error("a global grant should match anything")
-		}
-	})
-
-	t.Run("channel grant is pinned to its channel", func(t *testing.T) {
-		snap := newGrantSnapshot([]PermissionGrant{onChannel("catalog.manage", eu)})
-		if !snap.hasStore("catalog.manage", eu, &de) {
-			t.Error("channel grant with a NULL locale should match any locale on that channel")
-		}
-		if snap.hasStore("catalog.manage", us, nil) {
-			t.Error("channel grant leaked to another channel")
-		}
-	})
-
-	t.Run("locale-only grant spans channels", func(t *testing.T) {
-		snap := newGrantSnapshot([]PermissionGrant{onLocale("cms.manage", "de")})
-		if !snap.hasStore("cms.manage", eu, &de) || !snap.hasStore("cms.manage", us, &de) {
-			t.Error("a translator grant should work on every channel carrying that locale")
-		}
-		if snap.hasStore("cms.manage", eu, &fr) {
-			t.Error("de grant leaked to fr")
-		}
-	})
-
-	t.Run("tightest grant needs both axes to match", func(t *testing.T) {
-		snap := newGrantSnapshot([]PermissionGrant{onChannelLocale("cms.manage", eu, "de")})
-		if !snap.hasStore("cms.manage", eu, &de) {
-			t.Error("exact match denied")
-		}
-		if snap.hasStore("cms.manage", us, &de) {
-			t.Error("leaked to another channel")
-		}
-		if snap.hasStore("cms.manage", eu, &fr) {
-			t.Error("leaked to another locale")
-		}
-	})
-
-	// A check with no locale means "not locale-specific", and a locale-scoped grant satisfies it -
-	// this is the documented widening, pinned so it can't change by accident
-	t.Run("nil requested locale matches a locale-scoped grant", func(t *testing.T) {
-		snap := newGrantSnapshot([]PermissionGrant{onChannelLocale("cms.manage", eu, "de")})
-		if !snap.hasStore("cms.manage", eu, nil) {
-			t.Error("a nil requested locale should match any granted locale on that channel")
-		}
-	})
-
-	t.Run("stacked roles take the broadest grant", func(t *testing.T) {
-		snap := newGrantSnapshot([]PermissionGrant{onChannel("orders.view", eu), global("orders.view")})
-		if !snap.hasStore("orders.view", us, &fr) {
-			t.Error("the global grant from a second role should win")
-		}
-	})
-}
-
-func TestGrantSnapshot_PermittedChannelIDs(t *testing.T) {
-	eu, us := uuid.New(), uuid.New()
-	snap := newGrantSnapshot([]PermissionGrant{
-		onChannel("orders.view", eu),
-		onChannelLocale("orders.view", eu, "de"), // same channel twice
-		onChannel("orders.view", us),
-		global("orders.view"), // NULL channel is not an id
-	})
-
-	ids := snap.permittedChannelIDs("orders.view")
-	if len(ids) != 2 {
-		t.Fatalf("permittedChannelIDs = %v, want 2 distinct ids", ids)
-	}
-	got := map[uuid.UUID]bool{ids[0]: true, ids[1]: true}
-	if !got[eu] || !got[us] {
-		t.Errorf("permittedChannelIDs = %v, want %s and %s", ids, eu, us)
-	}
-	if snap.permittedChannelIDs("orders.refund") != nil {
-		t.Error("an ungranted slug should yield no channels")
-	}
-}
-
-// manage is a strict superset of view, and the implication runs one way only
-func TestEffectiveSlugs(t *testing.T) {
-	tests := []struct {
-		slug string
-		want []string
-	}{
-		{"orders.view", []string{"orders.view", "orders.manage"}},
-		{"catalog.manage", []string{"catalog.manage"}},
-		{"orders.refund", []string{"orders.refund"}},
-		{"config.manage_defaults", []string{"config.manage_defaults"}},
-		{"developer.playground", []string{"developer.playground"}},
-	}
-	for _, tt := range tests {
-		got := effectiveSlugs(tt.slug)
-		if len(got) != len(tt.want) {
-			t.Errorf("effectiveSlugs(%q) = %v, want %v", tt.slug, got, tt.want)
-			continue
-		}
-		for i := range got {
-			if got[i] != tt.want[i] {
-				t.Errorf("effectiveSlugs(%q) = %v, want %v", tt.slug, got, tt.want)
-				break
-			}
-		}
-	}
-}
-
 func TestService_ManageImpliesView(t *testing.T) {
 	eu := uuid.New()
 	svc := NewService(&stubRepo{grants: []PermissionGrant{onChannel("orders.manage", eu)}})
@@ -289,5 +146,62 @@ func TestService_GrantLoadErrorDeniesRatherThanGrants(t *testing.T) {
 	}
 	if ids, err := svc.ListPermittedChannelIDs(ctx, adminID, "orders.view"); ids != nil || !errors.Is(err, boom) {
 		t.Errorf("ListPermittedChannelIDs = (%v, %v), want (nil, the repo error)", ids, err)
+	}
+}
+
+// Catches the two paths drifting apart, which would be a permission an admin holds on one service and not the other - the shared predicates are covered in auth
+func TestTokenBackedCheckerAgreesWithTheDatabaseOne(t *testing.T) {
+	eu, us := uuid.New(), uuid.New()
+	de, fr := "de", "fr"
+	grants := []PermissionGrant{
+		onChannel("orders.view", eu),
+		onChannelLocale("cms.manage", eu, "de"),
+		onLocale("emails.manage", "fr"),
+		global("catalog.manage"),
+		onChannel("lens.view", us),
+	}
+	adminID := uuid.New()
+	fromDB := NewService(&stubRepo{grants: grants})
+	fromToken := auth.NewGrantChecker(adminID, auth.NewGrantSet(grants))
+	ctx := context.Background()
+
+	slugs := []string{"orders.view", "orders.manage", "cms.manage", "cms.view", "emails.manage", "emails.view", "catalog.view", "catalog.manage", "lens.view", "orders.refund"}
+	channels := []uuid.UUID{eu, us, uuid.New()}
+	locales := []*string{nil, &de, &fr}
+
+	for _, slug := range slugs {
+		wantAny, err := fromDB.HasPermission(ctx, adminID, slug)
+		if err != nil {
+			t.Fatalf("HasPermission: %v", err)
+		}
+		gotAny, err := fromToken.HasPermission(ctx, adminID, slug)
+		if err != nil {
+			t.Fatalf("token HasPermission: %v", err)
+		}
+		if gotAny != wantAny {
+			t.Errorf("HasPermission(%q): token %v, database %v", slug, gotAny, wantAny)
+		}
+
+		wantGlobal, _ := fromDB.HasGlobalPermission(ctx, adminID, slug)
+		gotGlobal, _ := fromToken.HasGlobalPermission(ctx, adminID, slug)
+		if gotGlobal != wantGlobal {
+			t.Errorf("HasGlobalPermission(%q): token %v, database %v", slug, gotGlobal, wantGlobal)
+		}
+
+		wantIDs, _ := fromDB.ListPermittedChannelIDs(ctx, adminID, slug)
+		gotIDs, _ := fromToken.ListPermittedChannelIDs(ctx, adminID, slug)
+		if len(gotIDs) != len(wantIDs) {
+			t.Errorf("ListPermittedChannelIDs(%q): token %v, database %v", slug, gotIDs, wantIDs)
+		}
+
+		for _, ch := range channels {
+			for _, loc := range locales {
+				wantStore, _ := fromDB.HasChannelPermission(ctx, adminID, slug, ch, loc)
+				gotStore, _ := fromToken.HasChannelPermission(ctx, adminID, slug, ch, loc)
+				if gotStore != wantStore {
+					t.Errorf("HasChannelPermission(%q, %s, %v): token %v, database %v", slug, ch, loc, gotStore, wantStore)
+				}
+			}
+		}
 	}
 }
