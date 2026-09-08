@@ -40,26 +40,65 @@ func (q *Queries) CreateAdminSession(ctx context.Context, arg CreateAdminSession
 	return id, err
 }
 
-const deleteAdminSession = `-- name: DeleteAdminSession :exec
-DELETE FROM admin_sessions WHERE token_hash = $1
+const deleteAdminSession = `-- name: DeleteAdminSession :many
+
+DELETE FROM admin_sessions WHERE token_hash = $1 RETURNING id
 `
 
-func (q *Queries) DeleteAdminSession(ctx context.Context, tokenHash string) error {
-	_, err := q.db.ExecContext(ctx, deleteAdminSession, tokenHash)
-	return err
+// The three delete paths return the ids they removed, so a killed session can be published to services that
+// authorize from a token instead of this table and cannot see the row disappear
+func (q *Queries) DeleteAdminSession(ctx context.Context, tokenHash string) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, deleteAdminSession, tokenHash)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-const deleteAdminSessionsByAdminID = `-- name: DeleteAdminSessionsByAdminID :exec
-DELETE FROM admin_sessions WHERE admin_id = $1
+const deleteAdminSessionsByAdminID = `-- name: DeleteAdminSessionsByAdminID :many
+DELETE FROM admin_sessions WHERE admin_id = $1 RETURNING id
 `
 
-func (q *Queries) DeleteAdminSessionsByAdminID(ctx context.Context, adminID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteAdminSessionsByAdminID, adminID)
-	return err
+func (q *Queries) DeleteAdminSessionsByAdminID(ctx context.Context, adminID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, deleteAdminSessionsByAdminID, adminID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-const deleteAdminSessionsExcept = `-- name: DeleteAdminSessionsExcept :exec
-DELETE FROM admin_sessions WHERE admin_id = $1 AND token_hash <> $2
+const deleteAdminSessionsExcept = `-- name: DeleteAdminSessionsExcept :many
+DELETE FROM admin_sessions WHERE admin_id = $1 AND token_hash <> $2 RETURNING id
 `
 
 type DeleteAdminSessionsExceptParams struct {
@@ -67,9 +106,27 @@ type DeleteAdminSessionsExceptParams struct {
 	TokenHash string    `json:"token_hash"`
 }
 
-func (q *Queries) DeleteAdminSessionsExcept(ctx context.Context, arg DeleteAdminSessionsExceptParams) error {
-	_, err := q.db.ExecContext(ctx, deleteAdminSessionsExcept, arg.AdminID, arg.TokenHash)
-	return err
+func (q *Queries) DeleteAdminSessionsExcept(ctx context.Context, arg DeleteAdminSessionsExceptParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, deleteAdminSessionsExcept, arg.AdminID, arg.TokenHash)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAdminSessionsByAdminID = `-- name: ListAdminSessionsByAdminID :many

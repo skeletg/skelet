@@ -5,14 +5,17 @@ ON CONFLICT (token_hash) DO UPDATE
     SET last_active_at = NOW()
 RETURNING id;
 
--- name: DeleteAdminSession :exec
-DELETE FROM admin_sessions WHERE token_hash = $1;
+-- The three delete paths return the ids they removed, so a killed session can be published to services that
+-- authorize from a token instead of this table and cannot see the row disappear
 
--- name: DeleteAdminSessionsByAdminID :exec
-DELETE FROM admin_sessions WHERE admin_id = $1;
+-- name: DeleteAdminSession :many
+DELETE FROM admin_sessions WHERE token_hash = $1 RETURNING id;
 
--- name: DeleteAdminSessionsExcept :exec
-DELETE FROM admin_sessions WHERE admin_id = $1 AND token_hash <> $2;
+-- name: DeleteAdminSessionsByAdminID :many
+DELETE FROM admin_sessions WHERE admin_id = $1 RETURNING id;
+
+-- name: DeleteAdminSessionsExcept :many
+DELETE FROM admin_sessions WHERE admin_id = $1 AND token_hash <> $2 RETURNING id;
 
 -- name: ListAdminSessionsByAdminID :many
 SELECT * FROM admin_sessions WHERE admin_id = $1 ORDER BY last_active_at DESC;

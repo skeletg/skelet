@@ -11,7 +11,7 @@ type Cached = { token: string; expiresAt: number }
 let cached: Cached | null = null
 let inflight: Promise<string | null> | null = null
 
-// Any change to the admin session invalidates what was minted from it - a logout must not leave a usable analytics token behind
+// A refresh rotates the session id the token names and a logout kills it, so any auth change invalidates what was minted from it
 subscribeAuth(() => {
   cached = null
   inflight = null

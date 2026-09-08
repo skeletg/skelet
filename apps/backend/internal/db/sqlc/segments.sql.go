@@ -485,8 +485,7 @@ type SegmentSlugsForCustomerRow struct {
 // Hot path for the promotion engine: returns every active segment
 // slug a customer belongs to - filters out inactive segments so a
 // temporarily-disabled segment doesn't keep firing promotions
-// rules + refresh_sql ride along so the caller can drop the segments
-// Signals maintains when the suite is switched off
+// rules + refresh_sql ride along so the caller can drop the segments Signals maintains when the suite is off
 func (q *Queries) SegmentSlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentSlugsForCustomerRow, error) {
 	rows, err := q.db.QueryContext(ctx, segmentSlugsForCustomer, customerID)
 	if err != nil {

@@ -3,6 +3,7 @@ package wiring
 import (
 	"database/sql"
 	"errors"
+	"github.com/redis/go-redis/v9"
 
 	"go.uber.org/fx"
 
@@ -25,6 +26,7 @@ var SignalsCore = fx.Module("signalscore",
 		newAllowPrivateTargets,
 		newDestinationService,
 		newExperimentService, // Prism's admin API is served here, not by cmd/server
+		newValkey,            // optional - without it a killed session keeps working here until its token expires
 		newSecretsCipher,     // this process is env-checked for CONFIG_ENCRYPTION_KEY, so it has to be able to read a secret path
 	),
 )
@@ -42,7 +44,7 @@ func LoadSignalsConfig() (Config, error) { // sizes the primary for what this pr
 	return c, nil
 }
 
-type SignalsDeps struct { // not wiring.Infra on purpose - that one carries a Valkey client, which a cache-less entrypoint has no provider for
+type SignalsDeps struct { // not wiring.Infra on purpose - this process needs a narrower set than a full server does
 	fx.In
 
 	Config             Config
@@ -55,6 +57,7 @@ type SignalsDeps struct { // not wiring.Infra on purpose - that one carries a Va
 	Lens               *lens.Service
 	Destination        *destination.Service
 	Experiment         *experiment.Service
+	Valkey             *redis.Client `optional:"true"`
 }
 
 var SignalsWiring = fx.Module("signalswiring", fx.Invoke(wireSignalsWorker)) // the signals worker's cross-domain wiring - it reads on its own pool, and takes the lenient blob store because a worker should not die for want of a bucket

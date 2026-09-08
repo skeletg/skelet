@@ -23,6 +23,8 @@ type SignalsAPI struct {
 	JWTSecret  string
 	Dev        bool
 	Telemetry  observability.Telemetry
+	// Optional - nil means a session killed in core keeps working here until its token expires
+	Revocations auth.Revocations
 }
 
 // SignalsGraphQLHandler builds the Signals API handler, already wrapped in its own authentication
@@ -43,5 +45,7 @@ func SignalsGraphQLHandler(a SignalsAPI) http.Handler {
 	srv.SetRecoverFunc(graphqlx.RecoverFunc(graphqlx.SurfaceSignals, opts...))
 	srv.SetErrorPresenter(graphqlx.Presenter(graphqlx.SurfaceSignals, append(opts, graphqlx.WithDevDetails(a.Dev))...))
 
-	return auth.ServiceMiddleware(signalsapi.Audience, a.JWTSecret)(srv)
+	// Guard after middleware, which is the order AdminSessionGuard runs in for the same reason - it reads the injected claims
+	guarded := auth.ServiceSessionGuard(a.Revocations)(srv)
+	return auth.ServiceMiddleware(signalsapi.Audience, a.JWTSecret)(guarded)
 }

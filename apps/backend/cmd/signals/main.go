@@ -20,6 +20,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/cache"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	"github.com/skeletg/skelet/apps/backend/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/internal/envcheck"
@@ -128,6 +129,8 @@ func run() error {
 		JWTSecret:  d.Config.JWTSecret,
 		Dev:        d.Config.IsDev(),
 		Telemetry:  telemetry,
+		// Core publishes here when it kills a session, so one revoked there stops working here too
+		Revocations: cache.NewRevocations(d.Valkey, wiring.AccessTokenTTL+time.Minute),
 	}))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := primaryConn.PingContext(r.Context()); err != nil { // every datastore this process prunes/forwards against - commerce alone read healthy while the actual work errored forever
