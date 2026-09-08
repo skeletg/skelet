@@ -198,10 +198,7 @@ func (r *queryResolver) CampaignVariantStats(ctx context.Context, id string) ([]
 }
 
 func (r *queryResolver) CampaignMergeTags(ctx context.Context) ([]string, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "campaigns.view"); err != nil {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "emails.view"); err != nil {
 		return nil, err
 	}
 	return campaign.CampaignMergeTags(), nil
@@ -230,10 +227,7 @@ func (r *queryResolver) CampaignAudienceEstimate(ctx context.Context, channelID 
 }
 
 func (r *queryResolver) RenderCampaignPreview(ctx context.Context, channelID string, subject string, blocks interface{}, styles interface{}) (*model.EmailPreview, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "campaigns.view"); err != nil {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "emails.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)

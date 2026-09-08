@@ -32,6 +32,7 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { useFeatures } from '@/shared/features/useFeatures'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { SaveRegistryContext, useSaveRegistry } from '@/shared/saving/saveRegistry'
 import {
@@ -69,6 +70,7 @@ export function CmsPageDetail() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { has } = usePermissions()
+  const { enabled: featureEnabled } = useFeatures()
   const canManage = has('cms.manage')
   const canApprove = has('cms.approve')
   const { effectiveLocale, globalDefaultLocale, selectedChannel } = useConfigScope()
@@ -587,18 +589,21 @@ export function CmsPageDetail() {
           />
         </DetailPageSection>
 
-        <DetailPageSection
-          title="A/B test (Prism)"
-          description="Bind a Prism experiment to serve alternative page layouts as an A/B test. Visitors are assigned server-side; the control is this page's main content."
-        >
-          <CmsPageExperimentSection
-            page={p}
-            locale={editingLocale}
-            channelId={selectedChannel?.id ?? null}
-            canManage={canManage && canEditTranslations}
-            refetchVariables={variables}
-          />
-        </DetailPageSection>
+        {/* Prism is the Signals suite, with no transactional exception - with it off the resolvers refuse, so the section would only render an error */}
+        {featureEnabled('signals') && (
+          <DetailPageSection
+            title="A/B test (Prism)"
+            description="Bind a Prism experiment to serve alternative page layouts as an A/B test. Visitors are assigned server-side; the control is this page's main content."
+          >
+            <CmsPageExperimentSection
+              page={p}
+              locale={editingLocale}
+              channelId={selectedChannel?.id ?? null}
+              canManage={canManage && canEditTranslations}
+              refetchVariables={variables}
+            />
+          </DetailPageSection>
+        )}
 
         <DetailPageSection
           title="History & scheduling"
