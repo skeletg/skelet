@@ -15,7 +15,7 @@ import (
 
 // SyncAudience posts the segment's hashed membership and returns how many identifiers were sent
 func (s *Service) SyncAudience(ctx context.Context, segmentID, destinationID uuid.UUID) (int, error) {
-	seg, err := s.commerce.GetCustomerSegment(ctx, segmentID)
+	seg, err := s.queries.GetCustomerSegment(ctx, segmentID)
 	if err != nil {
 		return 0, fmt.Errorf("audience sync: segment: %w", err)
 	}
@@ -23,9 +23,9 @@ func (s *Service) SyncAudience(ctx context.Context, segmentID, destinationID uui
 	if err != nil {
 		return 0, fmt.Errorf("audience sync: destination: %w", err)
 	}
-	emails, err := s.commerce.SegmentMemberEmails(ctx, segmentID)
+	emails, err := s.memberEmails(ctx, segmentID)
 	if err != nil {
-		return 0, fmt.Errorf("audience sync: members: %w", err)
+		return 0, err
 	}
 	body, hashes := BuildAudiencePayload(seg.Name, emails)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, dest.TargetURL, bytes.NewReader(body))
@@ -47,10 +47,26 @@ func (s *Service) SyncAudience(ctx context.Context, segmentID, destinationID uui
 
 // ExportAudience returns the membership as a hashed-email CSV for manual uploads
 func (s *Service) ExportAudience(ctx context.Context, segmentID uuid.UUID) (string, int, error) {
-	emails, err := s.commerce.SegmentMemberEmails(ctx, segmentID)
+	emails, err := s.memberEmails(ctx, segmentID)
 	if err != nil {
 		return "", 0, fmt.Errorf("audience export: members: %w", err)
 	}
 	_, hashes := BuildAudiencePayload("", emails)
 	return AudienceCSV(hashes), len(hashes), nil
+}
+
+// Membership is the signals database and addresses are commerce, so the export reads both and joins here
+func (s *Service) memberEmails(ctx context.Context, segmentID uuid.UUID) ([]string, error) {
+	ids, err := s.queries.SegmentMemberIDsOrdered(ctx, segmentID)
+	if err != nil {
+		return nil, fmt.Errorf("audience sync: members: %w", err)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	emails, err := s.commerce.CustomerEmailsByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("audience sync: addresses: %w", err)
+	}
+	return emails, nil
 }

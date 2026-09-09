@@ -33,7 +33,6 @@ type Querier interface {
 	// Zone countries
 	AddCountryToZone(ctx context.Context, arg AddCountryToZoneParams) error
 	AddCreditMemoLine(ctx context.Context, arg AddCreditMemoLineParams) (CreditMemoLine, error)
-	AddCustomerToSegment(ctx context.Context, arg AddCustomerToSegmentParams) error
 	AddIntegrationPermission(ctx context.Context, arg AddIntegrationPermissionParams) error
 	AddOrderReturnLine(ctx context.Context, arg AddOrderReturnLineParams) (OrderReturnLine, error)
 	// ==================== Product Children ====================
@@ -152,9 +151,6 @@ type Querier interface {
 	// active special exactly as the storefront card does, so price sort and the range
 	// filter agree with the price on screen
 	BrowseProductsFallback(ctx context.Context, arg BrowseProductsFallbackParams) ([]BrowseProductsFallbackRow, error)
-	// Used by the admin "assign N customers" path and by the future
-	// refresh-job that re-runs a segment's refresh_sql
-	BulkAddCustomersToSegment(ctx context.Context, arg BulkAddCustomersToSegmentParams) error
 	// Used by the batch-code generator - codes are passed as parallel
 	// arrays so a 10k-code batch fits in one round-trip - ON CONFLICT
 	// skips dupes - the generator regenerates collisions and retries
@@ -172,6 +168,7 @@ type Querier interface {
 	CancelEmailCampaign(ctx context.Context, id uuid.UUID) (int64, error)
 	CancelStaleSeoCrawls(ctx context.Context, silentForMinutes int32) error
 	CascadeAttributeValuesIndexable(ctx context.Context, arg CascadeAttributeValuesIndexableParams) error
+	// Synapse's commerce-side reads - the order half of the segment panels, whose membership and traits halves live in the signals database and are joined in the caller
 	// Every customer id in a channel - the universe a behavioral segment draws from
 	// Used to evaluate negated / OR'd nodes in a segment definition tree (NOT X =
 	// universe minus X)
@@ -242,7 +239,6 @@ type Querier interface {
 	ClearPaymentMethodCountries(ctx context.Context, paymentMethodID uuid.UUID) error
 	ClearProductMediaRole(ctx context.Context, arg ClearProductMediaRoleParams) error
 	ClearReviewMerchantReply(ctx context.Context, id uuid.UUID) (Review, error)
-	ClearSegmentMembership(ctx context.Context, segmentID uuid.UUID) error
 	ClearShippingCarrierCountries(ctx context.Context, carrierID uuid.UUID) error
 	ClearZoneCountries(ctx context.Context, zoneID uuid.UUID) error
 	ConfirmCategoryCover(ctx context.Context, arg ConfirmCategoryCoverParams) (CatalogCategory, error)
@@ -270,7 +266,6 @@ type Querier interface {
 	// "N references; resolve first" delete error
 	CountCurrencyReferences(ctx context.Context, upper interface{}) (int64, error)
 	CountCustomerGroupMembers(ctx context.Context, customerGroupID uuid.UUID) (int64, error)
-	CountCustomerSegments(ctx context.Context) (int32, error)
 	CountDataJobErrors(ctx context.Context, jobID uuid.UUID) (int32, error)
 	CountDataJobs(ctx context.Context, arg CountDataJobsParams) (int32, error)
 	CountEmailsInGroup(ctx context.Context, groupID uuid.NullUUID) (int64, error)
@@ -324,10 +319,6 @@ type Querier interface {
 	CountRoleMembers(ctx context.Context, roleID uuid.UUID) (int64, error)
 	CountRuleUsageByCustomer(ctx context.Context, arg CountRuleUsageByCustomerParams) (int32, error)
 	CountSearchMediaAssets(ctx context.Context, arg CountSearchMediaAssetsParams) (int64, error)
-	CountSegmentMembers(ctx context.Context, segmentID uuid.UUID) (int32, error)
-	// Batched member counts for a set of segments (one row per segment that has
-	// ≥1 member) - backs the segment-list resolver so it isn't an N+1
-	CountSegmentMembersByIDs(ctx context.Context, segmentIds []uuid.UUID) ([]CountSegmentMembersByIDsRow, error)
 	CountSignupSubmissions(ctx context.Context, formID uuid.UUID) (int64, error)
 	CountSubscriptionInvoices(ctx context.Context, subscriptionID uuid.UUID) (int64, error)
 	CountSuppressions(ctx context.Context, reason string) (int64, error)
@@ -388,13 +379,6 @@ type Querier interface {
 	CreateCustomerAdmin(ctx context.Context, arg CreateCustomerAdminParams) (Customer, error)
 	// --- customer_groups ---
 	CreateCustomerGroup(ctx context.Context, arg CreateCustomerGroupParams) (CustomerGroup, error)
-	// Customer segments and their membership table - segments are an admin
-	// bucket of customers; membership is materialised explicitly - the
-	// promotion engine reads them via Service.SegmentSlugsForCustomer and
-	// merges into the customer's group list, so the existing
-	// core.customer_group_in condition handles segment-gated rules with no
-	// engine changes
-	CreateCustomerSegment(ctx context.Context, arg CreateCustomerSegmentParams) (CustomerSegment, error)
 	CreateDataJob(ctx context.Context, arg CreateDataJobParams) (DataJob, error)
 	// Download grants (per-buyer access, created at order placement)
 	CreateDownloadGrant(ctx context.Context, arg CreateDownloadGrantParams) (DownloadGrant, error)
@@ -501,10 +485,9 @@ type Querier interface {
 	// time, so a non-null value = a real human open/click). MAX columns are left uncast
 	// so sqlc types them nullable (a customer may have zero sends).
 	CustomerEmailEngagement(ctx context.Context, customerID uuid.NullUUID) (CustomerEmailEngagementRow, error)
-	// The roster the Signals database needs to compute traits: every customer in a channel, with the
-	// lifecycle override resolved here where the segments live rather than shipped as two syncs
-	// The override is the SHORTEST-window active segment the customer belongs to, the same rule the
-	// recompute applied inline when both sides shared a database
+	// Addresses for a known set of ids, skipping any that no longer exist - the commerce half of the audience export, whose membership comes from the signals database
+	CustomerEmailsByIDs(ctx context.Context, customerIds []uuid.UUID) ([]string, error)
+	// The roster the Signals database needs to produce a trait row per customer - identity only, since the lifecycle override is resolved there now that segments live alongside it
 	CustomerRosterForSync(ctx context.Context, arg CustomerRosterForSyncParams) ([]CustomerRosterForSyncRow, error)
 	DeleteAddress(ctx context.Context, id uuid.UUID) error
 	DeleteAdminPreference(ctx context.Context, arg DeleteAdminPreferenceParams) error
@@ -590,7 +573,6 @@ type Querier interface {
 	DeleteCustomerConsents(ctx context.Context, customerID uuid.UUID) error
 	DeleteCustomerGroup(ctx context.Context, id uuid.UUID) error
 	DeleteCustomerPaymentMethod(ctx context.Context, arg DeleteCustomerPaymentMethodParams) error
-	DeleteCustomerSegment(ctx context.Context, id uuid.UUID) error
 	DeleteCustomerWishlist(ctx context.Context, customerID uuid.UUID) error
 	DeleteDataJobsBefore(ctx context.Context, before time.Time) (int64, error)
 	DeleteDeliveredOutboxBefore(ctx context.Context, dollar_1 time.Time) (int64, error)
@@ -814,8 +796,6 @@ type Querier interface {
 	GetCustomerGroupByID(ctx context.Context, id uuid.UUID) (CustomerGroup, error)
 	GetCustomerGroupBySlug(ctx context.Context, slug string) (CustomerGroup, error)
 	GetCustomerPaymentMethod(ctx context.Context, arg GetCustomerPaymentMethodParams) (CustomerPaymentMethod, error)
-	GetCustomerSegment(ctx context.Context, id uuid.UUID) (CustomerSegment, error)
-	GetCustomerSegmentBySlug(ctx context.Context, slug string) (CustomerSegment, error)
 	// GetCustomersByIDs is the batched form of GetCustomerByID - powers
 	// the storefront DataLoader so a page that surfaces N reviews with
 	// different authors fires one query instead of N
@@ -1393,7 +1373,6 @@ type Querier interface {
 	ListCustomerConsentsByCustomerIDs(ctx context.Context, arg ListCustomerConsentsByCustomerIDsParams) ([]CustomerConsent, error)
 	ListCustomerGroupsWithMemberCount(ctx context.Context) ([]ListCustomerGroupsWithMemberCountRow, error)
 	ListCustomerPaymentMethods(ctx context.Context, customerID uuid.UUID) ([]CustomerPaymentMethod, error)
-	ListCustomerSegments(ctx context.Context, arg ListCustomerSegmentsParams) ([]CustomerSegment, error)
 	ListCustomers(ctx context.Context) ([]Customer, error)
 	// Server-side page for the admin list - ListCustomers returns the WHOLE table,
 	// which the dashboard then paged and searched in the browser - fine at seed
@@ -1413,7 +1392,6 @@ type Querier interface {
 	ListDueScheduledCMSPages(ctx context.Context) ([]CmsPage, error)
 	// The scheduler's hot path: active subscriptions whose next charge is due
 	ListDueSubscriptions(ctx context.Context, arg ListDueSubscriptionsParams) ([]Subscription, error)
-	ListDynamicSegments(ctx context.Context) ([]CustomerSegment, error)
 	ListEmailBlocks(ctx context.Context, channelID uuid.UUID) ([]EmailBlock, error)
 	ListEmailCampaigns(ctx context.Context, arg ListEmailCampaignsParams) ([]EmailCampaign, error)
 	// --- email groups (admin taxonomy) ---
@@ -1719,11 +1697,6 @@ type Querier interface {
 	ListSearchPins(ctx context.Context, arg ListSearchPinsParams) ([]SearchPin, error)
 	ListSearchRedirects(ctx context.Context, channelID uuid.UUID) ([]SearchRedirect, error)
 	ListSearchSynonyms(ctx context.Context, channelID uuid.NullUUID) ([]SearchSynonym, error)
-	// Newest-first member page for the admin segment detail
-	// Segments are global but their members are not - the channel filter has to
-	// live here rather than in the resolver, or paging would return short pages
-	// with holes wherever a foreign-channel member was dropped after LIMIT
-	ListSegmentMembers(ctx context.Context, arg ListSegmentMembersParams) ([]ListSegmentMembersRow, error)
 	// Campaigns mid-send (incl. ones resuming after a crash/timeout)
 	ListSendingCampaigns(ctx context.Context) ([]EmailCampaign, error)
 	ListSeoCrawls(ctx context.Context, arg ListSeoCrawlsParams) ([]SeoCrawl, error)
@@ -1917,9 +1890,6 @@ type Querier interface {
 	// the lease - safe to read-modify-write the counters in Go: the claim leases
 	// the row to one replica, so there's no competing writer during the run
 	RecordScheduledJobResult(ctx context.Context, arg RecordScheduledJobResultParams) error
-	// Upsert today's member-count snapshot for a segment (call right after
-	// re-materialising membership) so the per-segment growth chart accrues history
-	RecordSegmentSnapshot(ctx context.Context, segmentID uuid.UUID) error
 	// Idempotent per (form, email)
 	RecordSignupSubmission(ctx context.Context, arg RecordSignupSubmissionParams) error
 	// Accumulate a soft bounce; suppress once the tally reaches the threshold - the
@@ -1950,7 +1920,6 @@ type Querier interface {
 	RemoveCodeFromCartByCode(ctx context.Context, arg RemoveCodeFromCartByCodeParams) error
 	RemoveCodeFromCartByRule(ctx context.Context, arg RemoveCodeFromCartByRuleParams) error
 	RemoveCountryFromZone(ctx context.Context, arg RemoveCountryFromZoneParams) error
-	RemoveCustomerFromSegment(ctx context.Context, arg RemoveCustomerFromSegmentParams) error
 	RemoveProductChild(ctx context.Context, arg RemoveProductChildParams) (int64, error)
 	RemoveProductFromCategory(ctx context.Context, arg RemoveProductFromCategoryParams) (int64, error)
 	RemoveProductFromCollection(ctx context.Context, arg RemoveProductFromCollectionParams) (int64, error)
@@ -2068,34 +2037,11 @@ type Querier interface {
 	// locale ranked NULL - which scans into the generated float32 as an error and failed
 	// the entire query. COALESCE lands those last, where an unranked match belongs
 	SearchProductsFallback(ctx context.Context, arg SearchProductsFallbackParams) ([]SearchProductsFallbackRow, error)
-	// Daily member-count series for a segment over the last `days` days (from the
-	// snapshot table) - accrues forward from when the segment first materialised
-	SegmentGrowth(ctx context.Context, arg SegmentGrowthParams) ([]SegmentGrowthRow, error)
-	// Every customer id in a segment (used to resolve a campaign audience)
-	SegmentMemberCustomerIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error)
-	// SegmentMemberEmails feeds audience sync/export: the member emails of
-	// one segment (join skips deleted customers)
-	SegmentMemberEmails(ctx context.Context, segmentID uuid.UUID) ([]string, error)
-	// The customer ids in a segment - the commerce half of the app-side
-	// SegmentTopAffinities read (the affinity spine scan runs in the signals db,
-	// passed these ids). analytics_events moved out of this db, so the join can't
-	SegmentMemberIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error)
 	// The commerce half of a segment's member panel - traits are read separately from the signals
 	// database and joined in the caller, since the two no longer share one
 	SegmentMemberOrderStats(ctx context.Context, customerIds []uuid.UUID) ([]SegmentMemberOrderStatsRow, error)
-	// Synapse's commerce-side reads - the membership and order halves of the segment panels, whose traits half lives in signals/query/traits.sql and is joined in the caller
-	// Commerce rollup over a segment's members: distinct non-cancelled orders + total
-	// spend (cents) - AOV is derived in the resolver - currency is treated as the
-	// channel's single currency (mixed-currency segments sum naively)
-	SegmentMemberStats(ctx context.Context, segmentID uuid.UUID) (SegmentMemberStatsRow, error)
-	// Hot path for the promotion engine: returns every active segment
-	// slug a customer belongs to - filters out inactive segments so a
-	// temporarily-disabled segment doesn't keep firing promotions
-	// rules + refresh_sql ride along so the caller can drop the segments Signals maintains when the suite is off
-	SegmentSlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentSlugsForCustomerRow, error)
-	// Active segments a customer belongs to, with id + name (for the Synapse
-	// profile "audiences" panel - chips that deep-link to each segment page)
-	SegmentsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentsForCustomerRow, error)
+	// Distinct non-cancelled orders and total spend for a known set of customers - the commerce half of a segment's rollup, since membership moved and the join cannot span both
+	SegmentOrderRollup(ctx context.Context, customerIds []uuid.UUID) (SegmentOrderRollupRow, error)
 	// Every fetched page with the on-page fields an audit needs - bounded by the crawl's page budget, so the caller
 	// can group and flag in one pass instead of paging
 	SeoCrawlAudit(ctx context.Context, crawlID uuid.UUID) ([]SeoCrawlAuditRow, error)
@@ -2202,11 +2148,6 @@ type Querier interface {
 	SetReviewStatus(ctx context.Context, arg SetReviewStatusParams) (Review, error)
 	// "Run now": pull the next run forward (the engine picks it up on its next tick)
 	SetScheduledJobNextRun(ctx context.Context, arg SetScheduledJobNextRunParams) error
-	// Set (or clear, by passing NULLs) a segment's lifecycle-cadence override - kept
-	// separate from UpdateCustomerSegment so the Synapse segment-refresh sync (which
-	// rewrites name/refresh_sql on auto-segments) never disturbs an operator's override
-	SetSegmentLifecycleWindows(ctx context.Context, arg SetSegmentLifecycleWindowsParams) (CustomerSegment, error)
-	SetSegmentRules(ctx context.Context, arg SetSegmentRulesParams) (CustomerSegment, error)
 	SetShippingCarrierCountryMode(ctx context.Context, arg SetShippingCarrierCountryModeParams) (ShippingCarrier, error)
 	SetShippingCarrierEnabled(ctx context.Context, arg SetShippingCarrierEnabledParams) (ShippingCarrier, error)
 	SetShippingCarrierSortOrder(ctx context.Context, arg SetShippingCarrierSortOrderParams) (ShippingCarrier, error)
@@ -2322,7 +2263,6 @@ type Querier interface {
 	UpdateCustomerAdmin(ctx context.Context, arg UpdateCustomerAdminParams) (Customer, error)
 	UpdateCustomerGroup(ctx context.Context, arg UpdateCustomerGroupParams) (CustomerGroup, error)
 	UpdateCustomerPassword(ctx context.Context, arg UpdateCustomerPasswordParams) error
-	UpdateCustomerSegment(ctx context.Context, arg UpdateCustomerSegmentParams) (CustomerSegment, error)
 	// Only drafts are editable
 	UpdateEmailCampaign(ctx context.Context, arg UpdateEmailCampaignParams) (int64, error)
 	UpdateEmailTemplate(ctx context.Context, arg UpdateEmailTemplateParams) (int64, error)

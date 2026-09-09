@@ -24,9 +24,6 @@ type Membership struct {
 
 type Member struct {
 	ID        uuid.UUID
-	Email     string
-	FirstName string
-	LastName  string
 	ChannelID uuid.UUID
 	JoinedAt  time.Time
 }

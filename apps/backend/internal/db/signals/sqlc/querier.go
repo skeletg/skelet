@@ -22,6 +22,7 @@ type Querier interface {
 	// Customers with any spine event in [from, to) - the incremental engagement
 	// refresh unions the aged-out and fresh slices to find who needs recomputing.
 	ActiveSpineCustomerIDs(ctx context.Context, arg ActiveSpineCustomerIDsParams) ([]uuid.UUID, error)
+	AddCustomerToSegment(ctx context.Context, arg AddCustomerToSegmentParams) error
 	// Optimistic: only advances past the cursor this sweep read, so concurrent
 	// sweeps (cmd/server + cmd/signals both forwarding) can't move it backwards -
 	// the losing sweep sees 0 rows and concedes
@@ -63,6 +64,9 @@ type Querier interface {
 	// identities live on the spine engine, which this Postgres table can't join);
 	// paging bounds the fetch and each resolve batch on an arbitrarily busy window.
 	BrowseSeenSincePage(ctx context.Context, arg BrowseSeenSincePageParams) ([]BrowseSeen, error)
+	// Used by the admin "assign N customers" path and by the future
+	// refresh-job that re-runs a segment's refresh_sql
+	BulkAddCustomersToSegment(ctx context.Context, arg BulkAddCustomersToSegmentParams) error
 	// Spine half of trait compute (the `act` CTE), split out of the commerce RecomputeChannelTraits - feeds the
 	// commerce-side customer_engagement_30d projection the recompute reads
 	// Per-customer last-window spine event count for a channel, capped at 100 (any
@@ -83,6 +87,19 @@ type Querier interface {
 	ClearChannelEngagement(ctx context.Context, channelID uuid.UUID) error
 	// The empty-refresh case: a channel whose spine holds no surviving orders
 	ClearChannelOrderAgg(ctx context.Context, channelID uuid.UUID) error
+	ClearSegmentMembership(ctx context.Context, segmentID uuid.UUID) error
+	CountCustomerSegments(ctx context.Context) (int32, error)
+	CountSegmentMembers(ctx context.Context, segmentID uuid.UUID) (int32, error)
+	// Batched member counts for a set of segments (one row per segment that has
+	// ≥1 member) - backs the segment-list resolver so it isn't an N+1
+	CountSegmentMembersByIDs(ctx context.Context, segmentIds []uuid.UUID) ([]CountSegmentMembersByIDsRow, error)
+	// Customer segments and their membership table - segments are an admin
+	// bucket of customers; membership is materialised explicitly - the
+	// promotion engine reads them via Service.SegmentSlugsForCustomer and
+	// merges into the customer's group list, so the existing
+	// core.customer_group_in condition handles segment-gated rules with no
+	// engine changes
+	CreateCustomerSegment(ctx context.Context, arg CreateCustomerSegmentParams) (CustomerSegment, error)
 	// Event destinations and the spine read feeding their forwarding sweep - both live here, so the sweep pages the spine and advances a cursor without crossing a database
 	CreateEventDestination(ctx context.Context, arg CreateEventDestinationParams) (EventDestination, error)
 	CustomerConversions(ctx context.Context, arg CustomerConversionsParams) ([]CustomerConversionsRow, error)
@@ -114,6 +131,7 @@ type Querier interface {
 	// call, since the mapping table lives here rather than in commerce, so it is not
 	// atomic with the commerce scrub.
 	DeleteCustomerAnalyticsIdentities(ctx context.Context, customerIds []uuid.UUID) (int64, error)
+	DeleteCustomerSegment(ctx context.Context, id uuid.UUID) error
 	DeleteEventDestination(ctx context.Context, id uuid.UUID) error
 	// Only after the batched spine delete landed - a failed sweep retries these.
 	DeleteIdentityErasures(ctx context.Context, customerIds []uuid.UUID) error
@@ -164,6 +182,8 @@ type Querier interface {
 	// streaming their rows into the walker is pure waste (a funnel starting at
 	// page_view still degenerates to everyone, but typical funnels start narrower).
 	FunnelEvents(ctx context.Context, arg FunnelEventsParams) ([]FunnelEventsRow, error)
+	GetCustomerSegment(ctx context.Context, id uuid.UUID) (CustomerSegment, error)
+	GetCustomerSegmentBySlug(ctx context.Context, slug string) (CustomerSegment, error)
 	GetCustomerTrait(ctx context.Context, customerID uuid.UUID) (CustomerTrait, error)
 	GetEngagementWatermark(ctx context.Context, channelID uuid.UUID) (time.Time, error)
 	GetEventDestination(ctx context.Context, id uuid.UUID) (EventDestination, error)
@@ -316,7 +336,9 @@ type Querier interface {
 	// are identity-stripped (dedupe keys can embed anon/customer ids, e.g.
 	// identify's).
 	ListAnalyticsEventsForArchive(ctx context.Context, arg ListAnalyticsEventsForArchiveParams) ([]ListAnalyticsEventsForArchiveRow, error)
+	ListCustomerSegments(ctx context.Context, arg ListCustomerSegmentsParams) ([]CustomerSegment, error)
 	ListCustomerTraitsByChannel(ctx context.Context, channelID uuid.UUID) ([]CustomerTrait, error)
+	ListDynamicSegments(ctx context.Context) ([]CustomerSegment, error)
 	ListEventDestinationsByChannel(ctx context.Context, channelID uuid.UUID) ([]EventDestination, error)
 	// ListEventsForForwarding pages the spine in ingest order after the destination's (created_at, id) cursor - NULL cursor
 	// starts from the destination's creation moment - a new destination forwards new events, not the whole history
@@ -324,6 +346,10 @@ type Querier interface {
 	// commit AFTER the sweep read past its created_at, and once the cursor moves it
 	// would never be forwarded. Nothing lands that late, so no event is skipped.
 	ListEventsForForwarding(ctx context.Context, arg ListEventsForForwardingParams) ([]ListEventsForForwardingRow, error)
+	// Newest-first member page for the admin segment detail
+	// Segments are global but their members are not - the channel filter has to live here rather than in the resolver, or paging would return short pages with holes wherever a foreign-channel member was dropped after LIMIT
+	// The channel comes off the synced roster now, since customers are core's
+	ListSegmentMembers(ctx context.Context, arg ListSegmentMembersParams) ([]ListSegmentMembersRow, error)
 	MarkBrowseNotified(ctx context.Context, arg MarkBrowseNotifiedParams) error
 	// The archive sweep's day finder: the oldest aged event (optionally source-
 	// scoped, '' = any) tells it which received_at day to export next, so it never
@@ -368,6 +394,8 @@ type Querier interface {
 	PruneCustomerRoster(ctx context.Context, before time.Time) (int64, error)
 	PruneLensDaily(ctx context.Context, before time.Time) (int64, error)
 	PruneLensVisitors(ctx context.Context, before time.Time) (int64, error)
+	// Memberships for customers no longer on the roster - the foreign key to customers could not cross databases, so this replaces its cascade the way PruneOrphanedTraits does for scores
+	PruneOrphanedMemberships(ctx context.Context) (int64, error)
 	// Traits for customers no longer on the roster - the recompute only upserts, so without this a
 	// deleted customer keeps their scores and stays in every trait-based segment
 	PruneOrphanedTraits(ctx context.Context) (int64, error)
@@ -408,6 +436,10 @@ type Querier interface {
 	// nullable columns (mirroring the single insert's narg mapping); duplicate keys
 	// inside one batch collapse the same way concurrent inserts do.
 	RecordAnalyticsEventsBatch(ctx context.Context, arg RecordAnalyticsEventsBatchParams) (int64, error)
+	// Upsert today's member-count snapshot for a segment (call right after
+	// re-materialising membership) so the per-segment growth chart accrues history
+	RecordSegmentSnapshot(ctx context.Context, segmentID uuid.UUID) error
+	RemoveCustomerFromSegment(ctx context.Context, arg RemoveCustomerFromSegmentParams) error
 	// Atomically swap a channel's projection to the given per-customer counts
 	// (paired arrays: customer_ids[i] has engagements[i]) - one statement, so a
 	// crash can't leave the projection half-cleared before RecomputeChannelTraits
@@ -443,8 +475,33 @@ type Querier interface {
 	// least min_count times since the cutoff - one building block of a behavioral
 	// segment. Anonymous-only people are excluded (segments hold customer ids).
 	SegmentEventActors(ctx context.Context, arg SegmentEventActorsParams) ([]uuid.UUID, error)
+	// Daily member-count series for a segment over the last `days` days (from the
+	// snapshot table) - accrues forward from when the segment first materialised
+	SegmentGrowth(ctx context.Context, arg SegmentGrowthParams) ([]SegmentGrowthRow, error)
+	// Every customer id in a segment (used to resolve a campaign audience)
+	SegmentMemberCustomerIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error)
+	// The customer ids in a segment - the commerce half of the app-side
+	// SegmentTopAffinities read (the affinity spine scan runs in the signals db,
+	// passed these ids). analytics_events moved out of this db, so the join can't
+	SegmentMemberIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error)
+	// SegmentMemberEmails used to join customers for the audience export - that table is core's now, so this
+	// returns the ids and the caller resolves the addresses on the other side
+	SegmentMemberIDsOrdered(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error)
+	// Hot path for the promotion engine: returns every active segment
+	// slug a customer belongs to - filters out inactive segments so a
+	// temporarily-disabled segment doesn't keep firing promotions
+	// rules + refresh_sql ride along so the caller can drop the segments Signals maintains when the suite is off
+	SegmentSlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentSlugsForCustomerRow, error)
+	// Active segments a customer belongs to, with id + name (for the Synapse
+	// profile "audiences" panel - chips that deep-link to each segment page)
+	SegmentsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentsForCustomerRow, error)
 	SetEngagementWatermark(ctx context.Context, arg SetEngagementWatermarkParams) error
 	SetEventDestinationError(ctx context.Context, arg SetEventDestinationErrorParams) error
+	// Set (or clear, by passing NULLs) a segment's lifecycle-cadence override - kept
+	// separate from UpdateCustomerSegment so the Synapse segment-refresh sync (which
+	// rewrites name/refresh_sql on auto-segments) never disturbs an operator's override
+	SetSegmentLifecycleWindows(ctx context.Context, arg SetSegmentLifecycleWindowsParams) (CustomerSegment, error)
+	SetSegmentRules(ctx context.Context, arg SetSegmentRulesParams) (CustomerSegment, error)
 	// Health panel: is ingest flowing, and is retention actually running? newest
 	// answers the first, oldest the second (it should sit near the retention
 	// window - drifting past it means the prune isn't happening).
@@ -480,6 +537,7 @@ type Querier interface {
 	SynapseTotals(ctx context.Context, arg SynapseTotalsParams) (SynapseTotalsRow, error)
 	TopClickedLinks(ctx context.Context, arg TopClickedLinksParams) ([]TopClickedLinksRow, error)
 	TraitsForCustomers(ctx context.Context, customerIds []uuid.UUID) ([]TraitsForCustomersRow, error)
+	UpdateCustomerSegment(ctx context.Context, arg UpdateCustomerSegmentParams) (CustomerSegment, error)
 	// The secret is write-only (never returned by the API), so an edit
 	// can't round-trip the current value - blank means keep the stored one
 	UpdateEventDestination(ctx context.Context, arg UpdateEventDestinationParams) (EventDestination, error)
@@ -492,7 +550,6 @@ type Querier interface {
 	// channel-wide pruning - deletions come from DeleteChannelEngagementFor
 	UpsertChannelEngagementFor(ctx context.Context, arg UpsertChannelEngagementForParams) error
 	// Lands a page of the synced roster - paired arrays, one statement per page
-	// 0 is the sentinel for no override, since a paired int array cannot carry NULL, and it has to land as NULL or the recompute's COALESCE onto the channel default never fires
 	UpsertCustomerRoster(ctx context.Context, arg UpsertCustomerRosterParams) error
 	// Identity stitching + per-customer profile reads (moved from the commerce db
 	// package at cutover 4b). analytics_identities lives in the signals db alongside

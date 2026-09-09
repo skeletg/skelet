@@ -89,6 +89,15 @@ The release process, and which version number means what, is in
 
 ### Added
 
+- **Segments belong to Signals.** Audiences are a Signals capability, so `customer_segments`, its
+  memberships and the daily snapshots live in the signals database. Core offers segment-gated
+  promotions and segment-gated CMS blocks only while Signals is running: with it off, or if the
+  signals database is unreachable, `SlugsForCustomer` returns nothing and both simply stop
+  offering the feature rather than acting on a frozen membership. Signup forms that assign a
+  submitter to a segment no-op the same way. The membership foreign key to `customers` could not
+  cross databases, so the roster sync prunes a deleted customer's memberships alongside their
+  traits, replacing that cascade.
+
 - **Event destinations moved to Signals, table and all.** The webhook, GA4 and Meta CAPI receivers
   are configured through the Signals API now, and `event_destinations` sits in the signals database
   beside the spine it forwards from - so the forwarding sweep pages events and advances its cursor

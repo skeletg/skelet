@@ -226,6 +226,34 @@ func (q *Queries) CreateCustomerGroup(ctx context.Context, arg CreateCustomerGro
 	return i, err
 }
 
+const customerEmailsByIDs = `-- name: CustomerEmailsByIDs :many
+SELECT email FROM customers WHERE id = ANY($1::uuid[]) ORDER BY email
+`
+
+// Addresses for a known set of ids, skipping any that no longer exist - the commerce half of the audience export, whose membership comes from the signals database
+func (q *Queries) CustomerEmailsByIDs(ctx context.Context, customerIds []uuid.UUID) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, customerEmailsByIDs, pq.Array(customerIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var email string
+		if err := rows.Scan(&email); err != nil {
+			return nil, err
+		}
+		items = append(items, email)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteAddress = `-- name: DeleteAddress :exec
 DELETE FROM addresses WHERE id = $1
 `
