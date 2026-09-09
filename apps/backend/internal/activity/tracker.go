@@ -134,7 +134,7 @@ func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 	}
 	t.emitID(ctx, analytics.SourceCommerce, "order_placed", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:order_placed:"+ev.OrderID.String(),
-		map[string]any{"order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency})
+		map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency})
 	// gift-card-as-tender is applied during placement, surface it separately
 	if o, err := t.orders.GetByID(ctx, ev.OrderID); err == nil && o.GiftCardAmount > 0 {
 		t.emitID(ctx, analytics.SourceCommerce, "giftcard_redeemed", ev.ChannelID, ev.CustomerID, ev.AnonID,
@@ -155,7 +155,7 @@ func (t *Tracker) onOrderStatusChanged(ctx context.Context, e events.Event) erro
 	}
 	t.emit(ctx, analytics.SourceCommerce, "order_"+ev.ToStatus, ch, cust,
 		"act:order_status:"+ev.ToStatus+":"+ev.OrderID.String(),
-		map[string]any{"order_number": number, "from": ev.FromStatus, "status": ev.ToStatus})
+		map[string]any{"order_id": ev.OrderID.String(), "order_number": number, "from": ev.FromStatus, "status": ev.ToStatus})
 	return nil
 }
 

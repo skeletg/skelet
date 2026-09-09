@@ -90,6 +90,9 @@ type SpineStore interface {
 	ActiveCustomerIDs(ctx context.Context, channelID uuid.UUID, from, to time.Time) ([]uuid.UUID, error)
 	IngestedCustomerIDs(ctx context.Context, channelID uuid.UUID, from, to time.Time) ([]uuid.UUID, error)
 	ChannelEngagementCountsFor(ctx context.Context, channelID uuid.UUID, since time.Time, customerIDs []uuid.UUID) ([]CustomerEngagement, error)
+
+	// Lifetime order aggregates per customer, netted against cancellations - the RFM inputs, so trait compute reads the spine rather than joining the orders table
+	ChannelOrderAggregates(ctx context.Context, channelID uuid.UUID) ([]CustomerOrders, error)
 }
 
 // Lens raw-event read results - the shapes the Lens service folds into its own view models
@@ -155,6 +158,15 @@ type EngagementCandidate struct {
 type CustomerEngagement struct {
 	CustomerID uuid.UUID
 	Count      int32
+}
+
+// A customer's lifetime order history as the spine knows it, for the RFM projection - cancelled orders are already excluded
+type CustomerOrders struct {
+	CustomerID    uuid.UUID
+	OrderCount    int32
+	MonetaryCents int64
+	FirstOrderAt  time.Time
+	LastOrderAt   time.Time
 }
 
 // One event to append in engine-neutral form - the driver owns how it's stored, a jsonb row on Postgres or columns on ClickHouse
@@ -421,6 +433,24 @@ func (s *pgSpine) RecentEngagementEvents(ctx context.Context, customerID uuid.UU
 			continue
 		}
 		out = append(out, EngagementCandidate{EventName: c.EventName, OccurredAt: c.OccurredAt, SendID: c.SendID.UUID})
+	}
+	return out, nil
+}
+
+func (s *pgSpine) ChannelOrderAggregates(ctx context.Context, channelID uuid.UUID) ([]CustomerOrders, error) {
+	rows, err := s.read().ChannelOrderAggregates(ctx, uuid.NullUUID{UUID: channelID, Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]CustomerOrders, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, CustomerOrders{
+			CustomerID:    r.CustomerID,
+			OrderCount:    r.OrderCount,
+			MonetaryCents: r.MonetaryCents,
+			FirstOrderAt:  r.FirstOrderAt,
+			LastOrderAt:   r.LastOrderAt,
+		})
 	}
 	return out, nil
 }

@@ -145,6 +145,67 @@ func (q *Queries) ChannelEngagementCountsFor(ctx context.Context, arg ChannelEng
 	return items, nil
 }
 
+const channelOrderAggregates = `-- name: ChannelOrderAggregates :many
+SELECT p.customer_id::uuid                                  AS customer_id,
+       COUNT(*)::int                                        AS order_count,
+       COALESCE(SUM((p.properties->>'total_cents')::bigint), 0)::bigint AS monetary_cents,
+       MIN(p.occurred_at)::timestamptz                      AS first_order_at,
+       MAX(p.occurred_at)::timestamptz                      AS last_order_at
+FROM analytics_events p
+WHERE p.channel_id = $1
+  AND p.event_name = 'order_placed'
+  AND p.customer_id IS NOT NULL
+  AND p.properties ? 'order_id'
+  AND NOT EXISTS (
+      SELECT 1 FROM analytics_events c
+      WHERE c.channel_id = p.channel_id
+        AND c.event_name = 'order_cancelled'
+        AND c.properties->>'order_id' = p.properties->>'order_id'
+  )
+GROUP BY p.customer_id
+`
+
+type ChannelOrderAggregatesRow struct {
+	CustomerID    uuid.UUID `json:"customer_id"`
+	OrderCount    int32     `json:"order_count"`
+	MonetaryCents int64     `json:"monetary_cents"`
+	FirstOrderAt  time.Time `json:"first_order_at"`
+	LastOrderAt   time.Time `json:"last_order_at"`
+}
+
+// Lifetime order history per customer, from the spine rather than the orders table - the RFM inputs
+// An order that was later cancelled is excluded entirely, which is what the commerce query's
+// status filter did at read time and an append-only log has to do by netting instead
+// Guest orders carry no customer_id and are skipped, matching the commerce join
+func (q *Queries) ChannelOrderAggregates(ctx context.Context, channelID uuid.NullUUID) ([]ChannelOrderAggregatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, channelOrderAggregates, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChannelOrderAggregatesRow{}
+	for rows.Next() {
+		var i ChannelOrderAggregatesRow
+		if err := rows.Scan(
+			&i.CustomerID,
+			&i.OrderCount,
+			&i.MonetaryCents,
+			&i.FirstOrderAt,
+			&i.LastOrderAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const ingestedSpineCustomerIDs = `-- name: IngestedSpineCustomerIDs :many
 SELECT DISTINCT customer_id::uuid AS customer_id
 FROM analytics_events
