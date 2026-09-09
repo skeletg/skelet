@@ -56,6 +56,23 @@ The release process, and which version number means what, is in
   tags and the block preview now check `emails.view` rather than `campaigns.view`, matching the
   screens that actually need them.
 
+### Changed
+
+- **Trait compute reads the event spine instead of joining the orders table.** RFM's inputs -
+  recency, frequency and monetary - came from `customers LEFT JOIN orders` inside
+  `RecomputeChannelTraits`, which is the join that kept the Signals trait job inside the commerce
+  database, on the table that grows fastest. The spine already carries `order_placed` with the
+  customer, channel, total and timestamp, so those aggregates are now read there and landed in
+  `customer_order_agg`, the same projection shape the 30-day engagement count already used.
+  Cancellations are netted out on the spine side rather than filtered at read time, since an
+  append-only log cannot retract a row.
+
+  **This has a one-time upgrade step.** The migration seeds the projection from your existing
+  orders, so scores are correct the moment it lands. But the spine only goes back to when tracking
+  started, so run `skelet signals backfill-orders` once to replay the rest; until you do, trait
+  compute leaves the seeded rows alone rather than swapping in a truncated history. The backfill
+  is idempotent and re-runnable, and it uses the same dedupe keys the live tracker does.
+
 ### Added
 
 - **Prism is served by its own API.** The Signals process (`cmd/signals`) now serves a GraphQL

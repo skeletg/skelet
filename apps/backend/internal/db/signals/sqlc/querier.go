@@ -67,6 +67,11 @@ type Querier interface {
 	// ChannelEngagementCounts scoped to a bounded id set - the incremental refresh
 	// recomputes only the changed customers.
 	ChannelEngagementCountsFor(ctx context.Context, arg ChannelEngagementCountsForParams) ([]ChannelEngagementCountsForRow, error)
+	// Lifetime order history per customer, from the spine rather than the orders table - the RFM inputs
+	// An order that was later cancelled is excluded entirely, which is what the commerce query's
+	// status filter did at read time and an append-only log has to do by netting instead
+	// Guest orders carry no customer_id and are skipped, matching the commerce join
+	ChannelOrderAggregates(ctx context.Context, channelID uuid.NullUUID) ([]ChannelOrderAggregatesRow, error)
 	CustomerConversions(ctx context.Context, arg CustomerConversionsParams) ([]CustomerConversionsRow, error)
 	// Spine half of the app-side conversion-attribution lookback (recorder's
 	// RecordConversion): every marketing open/click the customer logged since the

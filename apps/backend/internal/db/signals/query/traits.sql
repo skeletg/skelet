@@ -41,3 +41,26 @@ WHERE channel_id = sqlc.arg(channel_id)
   AND customer_id = ANY(sqlc.arg(customer_ids)::uuid[])
   AND occurred_at >= sqlc.arg(since)
 GROUP BY customer_id;
+
+-- name: ChannelOrderAggregates :many
+-- Lifetime order history per customer, from the spine rather than the orders table - the RFM inputs
+-- An order that was later cancelled is excluded entirely, which is what the commerce query's
+-- status filter did at read time and an append-only log has to do by netting instead
+-- Guest orders carry no customer_id and are skipped, matching the commerce join
+SELECT p.customer_id::uuid                                  AS customer_id,
+       COUNT(*)::int                                        AS order_count,
+       COALESCE(SUM((p.properties->>'total_cents')::bigint), 0)::bigint AS monetary_cents,
+       MIN(p.occurred_at)::timestamptz                      AS first_order_at,
+       MAX(p.occurred_at)::timestamptz                      AS last_order_at
+FROM analytics_events p
+WHERE p.channel_id = sqlc.arg(channel_id)
+  AND p.event_name = 'order_placed'
+  AND p.customer_id IS NOT NULL
+  AND p.properties ? 'order_id'
+  AND NOT EXISTS (
+      SELECT 1 FROM analytics_events c
+      WHERE c.channel_id = p.channel_id
+        AND c.event_name = 'order_cancelled'
+        AND c.properties->>'order_id' = p.properties->>'order_id'
+  )
+GROUP BY p.customer_id;
