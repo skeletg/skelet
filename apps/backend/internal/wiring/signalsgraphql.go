@@ -11,8 +11,10 @@ import (
 
 	graphsignals "github.com/skeletg/skelet/apps/backend/graph/signals"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/internal/graphqlx"
+	"github.com/skeletg/skelet/apps/backend/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/internal/observability"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsapi"
 )
@@ -20,6 +22,8 @@ import (
 // SignalsAPI is what the Signals GraphQL surface needs - suite services only, since this process has no commerce services to offer
 type SignalsAPI struct {
 	Experiment *experiment.Service
+	Lens       *lens.Service
+	Roster     *signalsdb.Queries
 	JWTSecret  string
 	Dev        bool
 	Telemetry  observability.Telemetry
@@ -30,7 +34,7 @@ type SignalsAPI struct {
 // SignalsGraphQLHandler builds the Signals API handler, already wrapped in its own authentication
 func SignalsGraphQLHandler(a SignalsAPI) http.Handler {
 	srv := handler.New(graphsignals.NewExecutableSchema(graphsignals.Config{
-		Resolvers: &graphsignals.Resolver{ExperimentSvc: a.Experiment},
+		Resolvers: &graphsignals.Resolver{ExperimentSvc: a.Experiment, LensSvc: a.Lens, Roster: a.Roster},
 	}))
 	srv.AddTransport(transport.Options{})
 	srv.AddTransport(transport.GET{})

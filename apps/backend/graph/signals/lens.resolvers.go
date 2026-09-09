@@ -1,19 +1,16 @@
-package admin
+package signals
 
 import (
 	"context"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/signals/model"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 func (r *queryResolver) LensOverview(ctx context.Context, channelID string, sinceDays *int32) (*model.LensOverview, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "lens.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)
@@ -59,10 +56,7 @@ func (r *queryResolver) LensOverview(ctx context.Context, channelID string, sinc
 }
 
 func (r *queryResolver) BotTraffic(ctx context.Context, channelID string, sinceDays *int32, bot *string) (*model.BotTraffic, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "lens.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)
@@ -105,10 +99,7 @@ func (r *queryResolver) BotTraffic(ctx context.Context, channelID string, sinceD
 }
 
 func (r *queryResolver) LensPages(ctx context.Context, channelID string) ([]*model.LensPage, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "lens.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)
@@ -127,10 +118,7 @@ func (r *queryResolver) LensPages(ctx context.Context, channelID string) ([]*mod
 }
 
 func (r *queryResolver) LensStates(ctx context.Context, channelID string, pageKey string, viewport string) ([]string, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "lens.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)
@@ -145,10 +133,7 @@ func (r *queryResolver) LensStates(ctx context.Context, channelID string, pageKe
 }
 
 func (r *queryResolver) LensPageStats(ctx context.Context, channelID string, pageKey string) (*model.LensPageStats, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "lens.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)
@@ -176,10 +161,7 @@ func (r *queryResolver) LensPageStats(ctx context.Context, channelID string, pag
 }
 
 func (r *queryResolver) LensHeatmap(ctx context.Context, channelID string, pageKey string, viewport string, state *string) (*model.LensHeatmap, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "lens.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)
@@ -216,17 +198,14 @@ func (r *queryResolver) LensHeatmap(ctx context.Context, channelID string, pageK
 }
 
 func (r *queryResolver) LensSessions(ctx context.Context, channelID string, limit *int32) ([]*model.LensSession, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "lens.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)
 	if err != nil {
 		return nil, errInvalidID("channelId", err)
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "lens.view", cid, nil); err != nil {
+	if err := auth.RequireChannelPermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view", cid, nil); err != nil {
 		return nil, err
 	}
 	rows, err := r.LensSvc.SessionsForChannel(ctx, cid, sessionLimit(limit))
@@ -237,21 +216,18 @@ func (r *queryResolver) LensSessions(ctx context.Context, channelID string, limi
 }
 
 func (r *queryResolver) LensCustomerSessions(ctx context.Context, customerID string, limit *int32) ([]*model.LensSession, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "lens.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(customerID)
 	if err != nil {
 		return nil, errInvalidID("customerId", err)
 	}
-	c, err := r.CustomerSvc.GetByID(ctx, cid)
+	channelID, err := r.customerChannel(ctx, cid)
 	if err != nil {
-		return nil, errNotFound("customer")
+		return nil, err
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "lens.view", c.ChannelID, nil); err != nil {
+	if err := auth.RequireChannelPermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view", channelID, nil); err != nil {
 		return nil, err
 	}
 	rows, err := r.LensSvc.SessionsForCustomer(ctx, cid, sessionLimit(limit))
@@ -262,10 +238,7 @@ func (r *queryResolver) LensCustomerSessions(ctx context.Context, customerID str
 }
 
 func (r *queryResolver) LensVisitorSessions(ctx context.Context, anonID string, limit *int32) ([]*model.LensSession, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "lens.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view"); err != nil {
 		return nil, err
 	}
 	rows, err := r.LensSvc.SessionsForAnon(ctx, anonID, sessionLimit(limit))
@@ -276,10 +249,7 @@ func (r *queryResolver) LensVisitorSessions(ctx context.Context, anonID string, 
 }
 
 func (r *queryResolver) LensSessionEvents(ctx context.Context, id string) (string, error) {
-	if err := r.requireSignals(); err != nil {
-		return "", err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "lens.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view"); err != nil {
 		return "", err
 	}
 	sid, err := uuid.Parse(id)
@@ -290,7 +260,7 @@ func (r *queryResolver) LensSessionEvents(ctx context.Context, id string) (strin
 	if err != nil {
 		return "", errNotFound("session")
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "lens.view", info.ChannelID, nil); err != nil {
+	if err := auth.RequireChannelPermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view", info.ChannelID, nil); err != nil {
 		return "", err
 	}
 	b, err := r.LensSvc.SessionEvents(ctx, sid)
@@ -301,9 +271,6 @@ func (r *queryResolver) LensSessionEvents(ctx context.Context, id string) (strin
 }
 
 func (r *queryResolver) LensFrustration(ctx context.Context, channelID string, sinceDays *int32) (*model.LensFrustration, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	cid, err := lensViewScope(ctx, r, channelID)
 	if err != nil {
 		return nil, err
@@ -324,9 +291,6 @@ func (r *queryResolver) LensFrustration(ctx context.Context, channelID string, s
 }
 
 func (r *queryResolver) LensErrors(ctx context.Context, channelID string, sinceDays *int32, limit *int32) ([]*model.LensErrorStat, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	cid, err := lensViewScope(ctx, r, channelID)
 	if err != nil {
 		return nil, err
@@ -347,9 +311,6 @@ func (r *queryResolver) LensErrors(ctx context.Context, channelID string, sinceD
 }
 
 func (r *queryResolver) LensPerformance(ctx context.Context, channelID string, sinceDays *int32) ([]*model.LensPageVitals, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	cid, err := lensViewScope(ctx, r, channelID)
 	if err != nil {
 		return nil, err
@@ -368,9 +329,6 @@ func (r *queryResolver) LensPerformance(ctx context.Context, channelID string, s
 }
 
 func (r *queryResolver) LensVitalsSummary(ctx context.Context, channelID string, sinceDays *int32) ([]*model.LensVital, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	cid, err := lensViewScope(ctx, r, channelID)
 	if err != nil {
 		return nil, err
@@ -387,9 +345,6 @@ func (r *queryResolver) LensVitalsSummary(ctx context.Context, channelID string,
 }
 
 func (r *queryResolver) LensSearchAnalytics(ctx context.Context, channelID string, sinceDays *int32) (*model.LensSearchAnalytics, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	cid, err := lensViewScope(ctx, r, channelID)
 	if err != nil {
 		return nil, err
@@ -419,10 +374,7 @@ func (r *queryResolver) LensSearchAnalytics(ctx context.Context, channelID strin
 }
 
 func (r *queryResolver) LensSessionSignals(ctx context.Context, id string) (*model.LensSessionSignals, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "lens.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view"); err != nil {
 		return nil, err
 	}
 	sid, err := uuid.Parse(id)
@@ -433,7 +385,7 @@ func (r *queryResolver) LensSessionSignals(ctx context.Context, id string) (*mod
 	if err != nil {
 		return nil, errNotFound("session")
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "lens.view", info.ChannelID, nil); err != nil {
+	if err := auth.RequireChannelPermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view", info.ChannelID, nil); err != nil {
 		return nil, err
 	}
 	sig, err := r.LensSvc.SessionSignals(ctx, info.ChannelID, id, info.StartedAt, info.EndedAt)

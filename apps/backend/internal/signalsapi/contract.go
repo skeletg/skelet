@@ -11,4 +11,5 @@ const Audience = "signals"
 var Slugs = []string{
 	"experiments.view",
 	"experiments.manage",
+	"lens.view",
 }

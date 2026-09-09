@@ -13,7 +13,7 @@ import {
 } from '@/components/layout/detail-page'
 import { DataTable } from '@/components/data-table'
 import { useConfigScope } from '@/lib/config-scope'
-import { BotTrafficDocument } from './Lens.gql'
+import { BotTrafficDocument } from './Lens.signals.gql'
 
 const nfmt = (n: number) => n.toLocaleString()
 const fmtShort = (v: string) => {

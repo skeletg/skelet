@@ -37,6 +37,36 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	BotAgent struct {
+		Category func(childComplexity int) int
+		Hits     func(childComplexity int) int
+		LastSeen func(childComplexity int) int
+		Name     func(childComplexity int) int
+		Pages    func(childComplexity int) int
+	}
+
+	BotDayPoint struct {
+		BotHits    func(childComplexity int) int
+		Day        func(childComplexity int) int
+		HumanViews func(childComplexity int) int
+	}
+
+	BotPage struct {
+		Bots    func(childComplexity int) int
+		Hits    func(childComplexity int) int
+		PageKey func(childComplexity int) int
+	}
+
+	BotTraffic struct {
+		BotCount   func(childComplexity int) int
+		BotHits    func(childComplexity int) int
+		Bots       func(childComplexity int) int
+		Daily      func(childComplexity int) int
+		HumanViews func(childComplexity int) int
+		PageCount  func(childComplexity int) int
+		TopPages   func(childComplexity int) int
+	}
+
 	Experiment struct {
 		ChannelID   func(childComplexity int) int
 		Coverage    func(childComplexity int) int
@@ -110,6 +140,165 @@ type ComplexityRoot struct {
 		TotalExposed func(childComplexity int) int
 	}
 
+	LensCell struct {
+		Count func(childComplexity int) int
+		X     func(childComplexity int) int
+		Y     func(childComplexity int) int
+	}
+
+	LensElementClick struct {
+		Count    func(childComplexity int) int
+		Selector func(childComplexity int) int
+		Text     func(childComplexity int) int
+	}
+
+	LensErrorStat struct {
+		Count    func(childComplexity int) int
+		LastSeen func(childComplexity int) int
+		Message  func(childComplexity int) int
+		Pages    func(childComplexity int) int
+	}
+
+	LensFrustration struct {
+		DeadPages    func(childComplexity int) int
+		RageElements func(childComplexity int) int
+		RagePages    func(childComplexity int) int
+	}
+
+	LensHeatmap struct {
+		Click        func(childComplexity int) int
+		Elements     func(childComplexity int) int
+		Height       func(childComplexity int) int
+		Move         func(childComplexity int) int
+		PageKey      func(childComplexity int) int
+		Scroll       func(childComplexity int) int
+		SnapshotJSON func(childComplexity int) int
+		State        func(childComplexity int) int
+		Viewport     func(childComplexity int) int
+		Width        func(childComplexity int) int
+	}
+
+	LensLabelCount struct {
+		Label func(childComplexity int) int
+		Views func(childComplexity int) int
+	}
+
+	LensOverview struct {
+		Daily        func(childComplexity int) int
+		Devices      func(childComplexity int) int
+		Interactions func(childComplexity int) int
+		Referrers    func(childComplexity int) int
+		TopPages     func(childComplexity int) int
+		Views        func(childComplexity int) int
+		Visitors     func(childComplexity int) int
+	}
+
+	LensPage struct {
+		PageKey func(childComplexity int) int
+		Views   func(childComplexity int) int
+	}
+
+	LensPageStat struct {
+		AvgScroll func(childComplexity int) int
+		Clicks    func(childComplexity int) int
+		PageKey   func(childComplexity int) int
+		Views     func(childComplexity int) int
+		Visitors  func(childComplexity int) int
+	}
+
+	LensPageStats struct {
+		AvgScroll func(childComplexity int) int
+		Clicks    func(childComplexity int) int
+		Clients   func(childComplexity int) int
+		Devices   func(childComplexity int) int
+		Referrers func(childComplexity int) int
+		Timeline  func(childComplexity int) int
+		Views     func(childComplexity int) int
+		Visitors  func(childComplexity int) int
+	}
+
+	LensPageVitals struct {
+		Cls     func(childComplexity int) int
+		Inp     func(childComplexity int) int
+		Lcp     func(childComplexity int) int
+		PageKey func(childComplexity int) int
+		Samples func(childComplexity int) int
+		Ttfb    func(childComplexity int) int
+	}
+
+	LensRageElement struct {
+		Count    func(childComplexity int) int
+		Selector func(childComplexity int) int
+		Text     func(childComplexity int) int
+	}
+
+	LensSearchAnalytics struct {
+		Daily              func(childComplexity int) int
+		DistinctTerms      func(childComplexity int) int
+		Top                func(childComplexity int) int
+		TotalSearches      func(childComplexity int) int
+		ZeroResult         func(childComplexity int) int
+		ZeroResultSearches func(childComplexity int) int
+	}
+
+	LensSearchDay struct {
+		Date        func(childComplexity int) int
+		Searches    func(childComplexity int) int
+		ZeroResults func(childComplexity int) int
+	}
+
+	LensSearchTerm struct {
+		Count func(childComplexity int) int
+		Term  func(childComplexity int) int
+	}
+
+	LensSession struct {
+		AnonID     func(childComplexity int) int
+		CustomerID func(childComplexity int) int
+		DurationMs func(childComplexity int) int
+		EndedAt    func(childComplexity int) int
+		EntryPage  func(childComplexity int) int
+		ErrorCount func(childComplexity int) int
+		EventCount func(childComplexity int) int
+		ExitPage   func(childComplexity int) int
+		ID         func(childComplexity int) int
+		RageCount  func(childComplexity int) int
+		StartedAt  func(childComplexity int) int
+		UserAgent  func(childComplexity int) int
+		Viewport   func(childComplexity int) int
+	}
+
+	LensSessionError struct {
+		At      func(childComplexity int) int
+		Message func(childComplexity int) int
+	}
+
+	LensSessionSignals struct {
+		Errors func(childComplexity int) int
+		Vitals func(childComplexity int) int
+	}
+
+	LensSessionVital struct {
+		Metric func(childComplexity int) int
+		Value  func(childComplexity int) int
+	}
+
+	LensSignalPage struct {
+		Count   func(childComplexity int) int
+		PageKey func(childComplexity int) int
+	}
+
+	LensTimePoint struct {
+		Date  func(childComplexity int) int
+		Views func(childComplexity int) int
+	}
+
+	LensVital struct {
+		Metric  func(childComplexity int) int
+		P75     func(childComplexity int) int
+		Samples func(childComplexity int) int
+	}
+
 	Mutation struct {
 		CreateExperiment func(childComplexity int, input model.SaveExperimentInput) int
 		DeleteExperiment func(childComplexity int, id string) int
@@ -117,11 +306,27 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
+		BotTraffic           func(childComplexity int, channelID string, sinceDays *int32, bot *string) int
 		Experiment           func(childComplexity int, id string) int
 		ExperimentGoalEvents func(childComplexity int, channelID string) int
 		ExperimentResults    func(childComplexity int, id string, sinceDays *int32) int
 		Experiments          func(childComplexity int, channelID string) int
 		ExperimentsOverview  func(childComplexity int, channelID string, sinceDays *int32) int
+		LensCustomerSessions func(childComplexity int, customerID string, limit *int32) int
+		LensErrors           func(childComplexity int, channelID string, sinceDays *int32, limit *int32) int
+		LensFrustration      func(childComplexity int, channelID string, sinceDays *int32) int
+		LensHeatmap          func(childComplexity int, channelID string, pageKey string, viewport string, state *string) int
+		LensOverview         func(childComplexity int, channelID string, sinceDays *int32) int
+		LensPageStats        func(childComplexity int, channelID string, pageKey string) int
+		LensPages            func(childComplexity int, channelID string) int
+		LensPerformance      func(childComplexity int, channelID string, sinceDays *int32) int
+		LensSearchAnalytics  func(childComplexity int, channelID string, sinceDays *int32) int
+		LensSessionEvents    func(childComplexity int, id string) int
+		LensSessionSignals   func(childComplexity int, id string) int
+		LensSessions         func(childComplexity int, channelID string, limit *int32) int
+		LensStates           func(childComplexity int, channelID string, pageKey string, viewport string) int
+		LensVisitorSessions  func(childComplexity int, anonID string, limit *int32) int
+		LensVitalsSummary    func(childComplexity int, channelID string, sinceDays *int32) int
 	}
 }
 
@@ -140,6 +345,22 @@ type QueryResolver interface {
 	ExperimentResults(ctx context.Context, id string, sinceDays *int32) (*model.ExperimentResults, error)
 	ExperimentsOverview(ctx context.Context, channelID string, sinceDays *int32) (*model.ExperimentsOverview, error)
 	ExperimentGoalEvents(ctx context.Context, channelID string) ([]string, error)
+	LensOverview(ctx context.Context, channelID string, sinceDays *int32) (*model.LensOverview, error)
+	BotTraffic(ctx context.Context, channelID string, sinceDays *int32, bot *string) (*model.BotTraffic, error)
+	LensPages(ctx context.Context, channelID string) ([]*model.LensPage, error)
+	LensStates(ctx context.Context, channelID string, pageKey string, viewport string) ([]string, error)
+	LensPageStats(ctx context.Context, channelID string, pageKey string) (*model.LensPageStats, error)
+	LensHeatmap(ctx context.Context, channelID string, pageKey string, viewport string, state *string) (*model.LensHeatmap, error)
+	LensSessions(ctx context.Context, channelID string, limit *int32) ([]*model.LensSession, error)
+	LensCustomerSessions(ctx context.Context, customerID string, limit *int32) ([]*model.LensSession, error)
+	LensVisitorSessions(ctx context.Context, anonID string, limit *int32) ([]*model.LensSession, error)
+	LensSessionEvents(ctx context.Context, id string) (string, error)
+	LensFrustration(ctx context.Context, channelID string, sinceDays *int32) (*model.LensFrustration, error)
+	LensErrors(ctx context.Context, channelID string, sinceDays *int32, limit *int32) ([]*model.LensErrorStat, error)
+	LensPerformance(ctx context.Context, channelID string, sinceDays *int32) ([]*model.LensPageVitals, error)
+	LensVitalsSummary(ctx context.Context, channelID string, sinceDays *int32) ([]*model.LensVital, error)
+	LensSearchAnalytics(ctx context.Context, channelID string, sinceDays *int32) (*model.LensSearchAnalytics, error)
+	LensSessionSignals(ctx context.Context, id string) (*model.LensSessionSignals, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -159,6 +380,118 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	ec := newExecutionContext(nil, e, nil)
 	_ = ec
 	switch typeName + "." + field {
+
+	case "BotAgent.category":
+		if e.ComplexityRoot.BotAgent.Category == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotAgent.Category(childComplexity), true
+	case "BotAgent.hits":
+		if e.ComplexityRoot.BotAgent.Hits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotAgent.Hits(childComplexity), true
+	case "BotAgent.lastSeen":
+		if e.ComplexityRoot.BotAgent.LastSeen == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotAgent.LastSeen(childComplexity), true
+	case "BotAgent.name":
+		if e.ComplexityRoot.BotAgent.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotAgent.Name(childComplexity), true
+	case "BotAgent.pages":
+		if e.ComplexityRoot.BotAgent.Pages == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotAgent.Pages(childComplexity), true
+
+	case "BotDayPoint.botHits":
+		if e.ComplexityRoot.BotDayPoint.BotHits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotDayPoint.BotHits(childComplexity), true
+	case "BotDayPoint.day":
+		if e.ComplexityRoot.BotDayPoint.Day == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotDayPoint.Day(childComplexity), true
+	case "BotDayPoint.humanViews":
+		if e.ComplexityRoot.BotDayPoint.HumanViews == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotDayPoint.HumanViews(childComplexity), true
+
+	case "BotPage.bots":
+		if e.ComplexityRoot.BotPage.Bots == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotPage.Bots(childComplexity), true
+	case "BotPage.hits":
+		if e.ComplexityRoot.BotPage.Hits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotPage.Hits(childComplexity), true
+	case "BotPage.pageKey":
+		if e.ComplexityRoot.BotPage.PageKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotPage.PageKey(childComplexity), true
+
+	case "BotTraffic.botCount":
+		if e.ComplexityRoot.BotTraffic.BotCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotTraffic.BotCount(childComplexity), true
+	case "BotTraffic.botHits":
+		if e.ComplexityRoot.BotTraffic.BotHits == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotTraffic.BotHits(childComplexity), true
+	case "BotTraffic.bots":
+		if e.ComplexityRoot.BotTraffic.Bots == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotTraffic.Bots(childComplexity), true
+	case "BotTraffic.daily":
+		if e.ComplexityRoot.BotTraffic.Daily == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotTraffic.Daily(childComplexity), true
+	case "BotTraffic.humanViews":
+		if e.ComplexityRoot.BotTraffic.HumanViews == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotTraffic.HumanViews(childComplexity), true
+	case "BotTraffic.pageCount":
+		if e.ComplexityRoot.BotTraffic.PageCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotTraffic.PageCount(childComplexity), true
+	case "BotTraffic.topPages":
+		if e.ComplexityRoot.BotTraffic.TopPages == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BotTraffic.TopPages(childComplexity), true
 
 	case "Experiment.channelId":
 		if e.ComplexityRoot.Experiment.ChannelID == nil {
@@ -496,6 +829,586 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ExperimentsOverview.TotalExposed(childComplexity), true
 
+	case "LensCell.count":
+		if e.ComplexityRoot.LensCell.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensCell.Count(childComplexity), true
+	case "LensCell.x":
+		if e.ComplexityRoot.LensCell.X == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensCell.X(childComplexity), true
+	case "LensCell.y":
+		if e.ComplexityRoot.LensCell.Y == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensCell.Y(childComplexity), true
+
+	case "LensElementClick.count":
+		if e.ComplexityRoot.LensElementClick.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensElementClick.Count(childComplexity), true
+	case "LensElementClick.selector":
+		if e.ComplexityRoot.LensElementClick.Selector == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensElementClick.Selector(childComplexity), true
+	case "LensElementClick.text":
+		if e.ComplexityRoot.LensElementClick.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensElementClick.Text(childComplexity), true
+
+	case "LensErrorStat.count":
+		if e.ComplexityRoot.LensErrorStat.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensErrorStat.Count(childComplexity), true
+	case "LensErrorStat.lastSeen":
+		if e.ComplexityRoot.LensErrorStat.LastSeen == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensErrorStat.LastSeen(childComplexity), true
+	case "LensErrorStat.message":
+		if e.ComplexityRoot.LensErrorStat.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensErrorStat.Message(childComplexity), true
+	case "LensErrorStat.pages":
+		if e.ComplexityRoot.LensErrorStat.Pages == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensErrorStat.Pages(childComplexity), true
+
+	case "LensFrustration.deadPages":
+		if e.ComplexityRoot.LensFrustration.DeadPages == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensFrustration.DeadPages(childComplexity), true
+	case "LensFrustration.rageElements":
+		if e.ComplexityRoot.LensFrustration.RageElements == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensFrustration.RageElements(childComplexity), true
+	case "LensFrustration.ragePages":
+		if e.ComplexityRoot.LensFrustration.RagePages == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensFrustration.RagePages(childComplexity), true
+
+	case "LensHeatmap.click":
+		if e.ComplexityRoot.LensHeatmap.Click == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensHeatmap.Click(childComplexity), true
+	case "LensHeatmap.elements":
+		if e.ComplexityRoot.LensHeatmap.Elements == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensHeatmap.Elements(childComplexity), true
+	case "LensHeatmap.height":
+		if e.ComplexityRoot.LensHeatmap.Height == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensHeatmap.Height(childComplexity), true
+	case "LensHeatmap.move":
+		if e.ComplexityRoot.LensHeatmap.Move == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensHeatmap.Move(childComplexity), true
+	case "LensHeatmap.pageKey":
+		if e.ComplexityRoot.LensHeatmap.PageKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensHeatmap.PageKey(childComplexity), true
+	case "LensHeatmap.scroll":
+		if e.ComplexityRoot.LensHeatmap.Scroll == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensHeatmap.Scroll(childComplexity), true
+	case "LensHeatmap.snapshotJson":
+		if e.ComplexityRoot.LensHeatmap.SnapshotJSON == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensHeatmap.SnapshotJSON(childComplexity), true
+	case "LensHeatmap.state":
+		if e.ComplexityRoot.LensHeatmap.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensHeatmap.State(childComplexity), true
+	case "LensHeatmap.viewport":
+		if e.ComplexityRoot.LensHeatmap.Viewport == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensHeatmap.Viewport(childComplexity), true
+	case "LensHeatmap.width":
+		if e.ComplexityRoot.LensHeatmap.Width == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensHeatmap.Width(childComplexity), true
+
+	case "LensLabelCount.label":
+		if e.ComplexityRoot.LensLabelCount.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensLabelCount.Label(childComplexity), true
+	case "LensLabelCount.views":
+		if e.ComplexityRoot.LensLabelCount.Views == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensLabelCount.Views(childComplexity), true
+
+	case "LensOverview.daily":
+		if e.ComplexityRoot.LensOverview.Daily == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensOverview.Daily(childComplexity), true
+	case "LensOverview.devices":
+		if e.ComplexityRoot.LensOverview.Devices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensOverview.Devices(childComplexity), true
+	case "LensOverview.interactions":
+		if e.ComplexityRoot.LensOverview.Interactions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensOverview.Interactions(childComplexity), true
+	case "LensOverview.referrers":
+		if e.ComplexityRoot.LensOverview.Referrers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensOverview.Referrers(childComplexity), true
+	case "LensOverview.topPages":
+		if e.ComplexityRoot.LensOverview.TopPages == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensOverview.TopPages(childComplexity), true
+	case "LensOverview.views":
+		if e.ComplexityRoot.LensOverview.Views == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensOverview.Views(childComplexity), true
+	case "LensOverview.visitors":
+		if e.ComplexityRoot.LensOverview.Visitors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensOverview.Visitors(childComplexity), true
+
+	case "LensPage.pageKey":
+		if e.ComplexityRoot.LensPage.PageKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPage.PageKey(childComplexity), true
+	case "LensPage.views":
+		if e.ComplexityRoot.LensPage.Views == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPage.Views(childComplexity), true
+
+	case "LensPageStat.avgScroll":
+		if e.ComplexityRoot.LensPageStat.AvgScroll == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStat.AvgScroll(childComplexity), true
+	case "LensPageStat.clicks":
+		if e.ComplexityRoot.LensPageStat.Clicks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStat.Clicks(childComplexity), true
+	case "LensPageStat.pageKey":
+		if e.ComplexityRoot.LensPageStat.PageKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStat.PageKey(childComplexity), true
+	case "LensPageStat.views":
+		if e.ComplexityRoot.LensPageStat.Views == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStat.Views(childComplexity), true
+	case "LensPageStat.visitors":
+		if e.ComplexityRoot.LensPageStat.Visitors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStat.Visitors(childComplexity), true
+
+	case "LensPageStats.avgScroll":
+		if e.ComplexityRoot.LensPageStats.AvgScroll == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStats.AvgScroll(childComplexity), true
+	case "LensPageStats.clicks":
+		if e.ComplexityRoot.LensPageStats.Clicks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStats.Clicks(childComplexity), true
+	case "LensPageStats.clients":
+		if e.ComplexityRoot.LensPageStats.Clients == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStats.Clients(childComplexity), true
+	case "LensPageStats.devices":
+		if e.ComplexityRoot.LensPageStats.Devices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStats.Devices(childComplexity), true
+	case "LensPageStats.referrers":
+		if e.ComplexityRoot.LensPageStats.Referrers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStats.Referrers(childComplexity), true
+	case "LensPageStats.timeline":
+		if e.ComplexityRoot.LensPageStats.Timeline == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStats.Timeline(childComplexity), true
+	case "LensPageStats.views":
+		if e.ComplexityRoot.LensPageStats.Views == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStats.Views(childComplexity), true
+	case "LensPageStats.visitors":
+		if e.ComplexityRoot.LensPageStats.Visitors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageStats.Visitors(childComplexity), true
+
+	case "LensPageVitals.cls":
+		if e.ComplexityRoot.LensPageVitals.Cls == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageVitals.Cls(childComplexity), true
+	case "LensPageVitals.inp":
+		if e.ComplexityRoot.LensPageVitals.Inp == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageVitals.Inp(childComplexity), true
+	case "LensPageVitals.lcp":
+		if e.ComplexityRoot.LensPageVitals.Lcp == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageVitals.Lcp(childComplexity), true
+	case "LensPageVitals.pageKey":
+		if e.ComplexityRoot.LensPageVitals.PageKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageVitals.PageKey(childComplexity), true
+	case "LensPageVitals.samples":
+		if e.ComplexityRoot.LensPageVitals.Samples == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageVitals.Samples(childComplexity), true
+	case "LensPageVitals.ttfb":
+		if e.ComplexityRoot.LensPageVitals.Ttfb == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensPageVitals.Ttfb(childComplexity), true
+
+	case "LensRageElement.count":
+		if e.ComplexityRoot.LensRageElement.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensRageElement.Count(childComplexity), true
+	case "LensRageElement.selector":
+		if e.ComplexityRoot.LensRageElement.Selector == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensRageElement.Selector(childComplexity), true
+	case "LensRageElement.text":
+		if e.ComplexityRoot.LensRageElement.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensRageElement.Text(childComplexity), true
+
+	case "LensSearchAnalytics.daily":
+		if e.ComplexityRoot.LensSearchAnalytics.Daily == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSearchAnalytics.Daily(childComplexity), true
+	case "LensSearchAnalytics.distinctTerms":
+		if e.ComplexityRoot.LensSearchAnalytics.DistinctTerms == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSearchAnalytics.DistinctTerms(childComplexity), true
+	case "LensSearchAnalytics.top":
+		if e.ComplexityRoot.LensSearchAnalytics.Top == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSearchAnalytics.Top(childComplexity), true
+	case "LensSearchAnalytics.totalSearches":
+		if e.ComplexityRoot.LensSearchAnalytics.TotalSearches == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSearchAnalytics.TotalSearches(childComplexity), true
+	case "LensSearchAnalytics.zeroResult":
+		if e.ComplexityRoot.LensSearchAnalytics.ZeroResult == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSearchAnalytics.ZeroResult(childComplexity), true
+	case "LensSearchAnalytics.zeroResultSearches":
+		if e.ComplexityRoot.LensSearchAnalytics.ZeroResultSearches == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSearchAnalytics.ZeroResultSearches(childComplexity), true
+
+	case "LensSearchDay.date":
+		if e.ComplexityRoot.LensSearchDay.Date == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSearchDay.Date(childComplexity), true
+	case "LensSearchDay.searches":
+		if e.ComplexityRoot.LensSearchDay.Searches == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSearchDay.Searches(childComplexity), true
+	case "LensSearchDay.zeroResults":
+		if e.ComplexityRoot.LensSearchDay.ZeroResults == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSearchDay.ZeroResults(childComplexity), true
+
+	case "LensSearchTerm.count":
+		if e.ComplexityRoot.LensSearchTerm.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSearchTerm.Count(childComplexity), true
+	case "LensSearchTerm.term":
+		if e.ComplexityRoot.LensSearchTerm.Term == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSearchTerm.Term(childComplexity), true
+
+	case "LensSession.anonId":
+		if e.ComplexityRoot.LensSession.AnonID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.AnonID(childComplexity), true
+	case "LensSession.customerId":
+		if e.ComplexityRoot.LensSession.CustomerID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.CustomerID(childComplexity), true
+	case "LensSession.durationMs":
+		if e.ComplexityRoot.LensSession.DurationMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.DurationMs(childComplexity), true
+	case "LensSession.endedAt":
+		if e.ComplexityRoot.LensSession.EndedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.EndedAt(childComplexity), true
+	case "LensSession.entryPage":
+		if e.ComplexityRoot.LensSession.EntryPage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.EntryPage(childComplexity), true
+	case "LensSession.errorCount":
+		if e.ComplexityRoot.LensSession.ErrorCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.ErrorCount(childComplexity), true
+	case "LensSession.eventCount":
+		if e.ComplexityRoot.LensSession.EventCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.EventCount(childComplexity), true
+	case "LensSession.exitPage":
+		if e.ComplexityRoot.LensSession.ExitPage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.ExitPage(childComplexity), true
+	case "LensSession.id":
+		if e.ComplexityRoot.LensSession.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.ID(childComplexity), true
+	case "LensSession.rageCount":
+		if e.ComplexityRoot.LensSession.RageCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.RageCount(childComplexity), true
+	case "LensSession.startedAt":
+		if e.ComplexityRoot.LensSession.StartedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.StartedAt(childComplexity), true
+	case "LensSession.userAgent":
+		if e.ComplexityRoot.LensSession.UserAgent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.UserAgent(childComplexity), true
+	case "LensSession.viewport":
+		if e.ComplexityRoot.LensSession.Viewport == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSession.Viewport(childComplexity), true
+
+	case "LensSessionError.at":
+		if e.ComplexityRoot.LensSessionError.At == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSessionError.At(childComplexity), true
+	case "LensSessionError.message":
+		if e.ComplexityRoot.LensSessionError.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSessionError.Message(childComplexity), true
+
+	case "LensSessionSignals.errors":
+		if e.ComplexityRoot.LensSessionSignals.Errors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSessionSignals.Errors(childComplexity), true
+	case "LensSessionSignals.vitals":
+		if e.ComplexityRoot.LensSessionSignals.Vitals == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSessionSignals.Vitals(childComplexity), true
+
+	case "LensSessionVital.metric":
+		if e.ComplexityRoot.LensSessionVital.Metric == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSessionVital.Metric(childComplexity), true
+	case "LensSessionVital.value":
+		if e.ComplexityRoot.LensSessionVital.Value == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSessionVital.Value(childComplexity), true
+
+	case "LensSignalPage.count":
+		if e.ComplexityRoot.LensSignalPage.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSignalPage.Count(childComplexity), true
+	case "LensSignalPage.pageKey":
+		if e.ComplexityRoot.LensSignalPage.PageKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensSignalPage.PageKey(childComplexity), true
+
+	case "LensTimePoint.date":
+		if e.ComplexityRoot.LensTimePoint.Date == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensTimePoint.Date(childComplexity), true
+	case "LensTimePoint.views":
+		if e.ComplexityRoot.LensTimePoint.Views == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensTimePoint.Views(childComplexity), true
+
+	case "LensVital.metric":
+		if e.ComplexityRoot.LensVital.Metric == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensVital.Metric(childComplexity), true
+	case "LensVital.p75":
+		if e.ComplexityRoot.LensVital.P75 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensVital.P75(childComplexity), true
+	case "LensVital.samples":
+		if e.ComplexityRoot.LensVital.Samples == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LensVital.Samples(childComplexity), true
+
 	case "Mutation.createExperiment":
 		if e.ComplexityRoot.Mutation.CreateExperiment == nil {
 			break
@@ -530,6 +1443,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Mutation.UpdateExperiment(childComplexity, args["id"].(string), args["input"].(model.SaveExperimentInput)), true
 
+	case "Query.botTraffic":
+		if e.ComplexityRoot.Query.BotTraffic == nil {
+			break
+		}
+
+		args, err := ec.field_Query_botTraffic_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.BotTraffic(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32), args["bot"].(*string)), true
 	case "Query.experiment":
 		if e.ComplexityRoot.Query.Experiment == nil {
 			break
@@ -585,6 +1509,172 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ExperimentsOverview(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32)), true
+
+	case "Query.lensCustomerSessions":
+		if e.ComplexityRoot.Query.LensCustomerSessions == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensCustomerSessions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensCustomerSessions(childComplexity, args["customerId"].(string), args["limit"].(*int32)), true
+	case "Query.lensErrors":
+		if e.ComplexityRoot.Query.LensErrors == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensErrors_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensErrors(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32), args["limit"].(*int32)), true
+	case "Query.lensFrustration":
+		if e.ComplexityRoot.Query.LensFrustration == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensFrustration_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensFrustration(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32)), true
+	case "Query.lensHeatmap":
+		if e.ComplexityRoot.Query.LensHeatmap == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensHeatmap_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensHeatmap(childComplexity, args["channelId"].(string), args["pageKey"].(string), args["viewport"].(string), args["state"].(*string)), true
+	case "Query.lensOverview":
+		if e.ComplexityRoot.Query.LensOverview == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensOverview_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensOverview(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32)), true
+	case "Query.lensPageStats":
+		if e.ComplexityRoot.Query.LensPageStats == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensPageStats_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensPageStats(childComplexity, args["channelId"].(string), args["pageKey"].(string)), true
+	case "Query.lensPages":
+		if e.ComplexityRoot.Query.LensPages == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensPages_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensPages(childComplexity, args["channelId"].(string)), true
+	case "Query.lensPerformance":
+		if e.ComplexityRoot.Query.LensPerformance == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensPerformance_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensPerformance(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32)), true
+	case "Query.lensSearchAnalytics":
+		if e.ComplexityRoot.Query.LensSearchAnalytics == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensSearchAnalytics_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensSearchAnalytics(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32)), true
+	case "Query.lensSessionEvents":
+		if e.ComplexityRoot.Query.LensSessionEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensSessionEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensSessionEvents(childComplexity, args["id"].(string)), true
+	case "Query.lensSessionSignals":
+		if e.ComplexityRoot.Query.LensSessionSignals == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensSessionSignals_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensSessionSignals(childComplexity, args["id"].(string)), true
+	case "Query.lensSessions":
+		if e.ComplexityRoot.Query.LensSessions == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensSessions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensSessions(childComplexity, args["channelId"].(string), args["limit"].(*int32)), true
+	case "Query.lensStates":
+		if e.ComplexityRoot.Query.LensStates == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensStates_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensStates(childComplexity, args["channelId"].(string), args["pageKey"].(string), args["viewport"].(string)), true
+	case "Query.lensVisitorSessions":
+		if e.ComplexityRoot.Query.LensVisitorSessions == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensVisitorSessions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensVisitorSessions(childComplexity, args["anonId"].(string), args["limit"].(*int32)), true
+	case "Query.lensVitalsSummary":
+		if e.ComplexityRoot.Query.LensVitalsSummary == nil {
+			break
+		}
+
+		args, err := ec.field_Query_lensVitalsSummary_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.LensVitalsSummary(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32)), true
 
 	}
 	return 0, false
@@ -671,9 +1761,7 @@ func newExecutionContext(
 }
 
 var sources = []*ast.Source{
-	{Name: "../schema/signals/experiment.graphqls", Input: `# Prism: frontend A/B experiments (GrowthBook-inspired). The storefront SDK
-# assigns visitors and tracks exposures/goals through Lens; these resolvers are
-# admin CRUD + results. Gated on experiments.view / experiments.manage.
+	{Name: "../schema/signals/experiment.graphqls", Input: `# Prism: frontend A/B experiments, where the storefront SDK assigns visitors and tracks exposures through Lens and these resolvers are admin CRUD plus results, gated on experiments.view / experiments.manage
 
 type Experiment {
   id:         ID!
@@ -799,11 +1887,237 @@ extend type Mutation {
   deleteExperiment(id: ID!): Boolean!
 }
 `, BuiltIn: false},
-	{Name: "../schema/signals/schema.graphqls", Input: `# The Signals admin API, served by cmd/signals at POST /api/signals/graphql.
-# Separate from the core admin surface because the suites read the event spine
-# and their own database, which cmd/server does not own. Callers authenticate
-# with a service token minted by core (audience "signals") that carries the
-# admin's grants, so authorization here answers from the token alone.
+	{Name: "../schema/signals/lens.graphqls", Input: `# Lens - web behaviour analytics read API (Pulse's sibling). Channel-scoped,
+# gated on lens.view. The page-view/traffic rollup reads off the analytics
+# event spine (source='web'); per-page heatmap detail is added in Stage B.
+
+type LensOverview {
+  views:        Int!   # total page views in the window
+  visitors:     Int!   # distinct anon visitors
+  daily:        [LensTimePoint!]!    # daily page views over the window (traffic trend)
+  topPages:     [LensPageStat!]!
+  devices:      [LensLabelCount!]!
+  referrers:    [LensLabelCount!]!
+  interactions: [LensLabelCount!]!   # named UI interactions (sidebar/modal/custom), by count
+}
+
+type LensPageStat {
+  pageKey:   String!
+  views:     Int!
+  visitors:  Int!
+  clicks:    Int!     # cumulative (all-time grid total)
+  avgScroll: Int!     # 0..100, cumulative
+}
+
+type LensLabelCount {
+  label: String!
+  views: Int!
+}
+
+# A trafficked page (the heatmap viewer's page picker - same source as Top Pages).
+type LensPage {
+  pageKey: String!
+  views:   Int!
+}
+
+# One density-grid bucket. x/y are cell indices (× the server cell size for px);
+# for scroll, x is 0 and y is the depth percentage (0..100).
+type LensCell {
+  x:     Int!
+  y:     Int!
+  count: Int!
+}
+
+type LensElementClick {
+  selector: String!
+  text:     String!
+  count:    Int!
+}
+
+type LensTimePoint {
+  date:  String!  # YYYY-MM-DD
+  views: Int!
+}
+
+# Rich per-page analytics for the heatmap detail view.
+type LensPageStats {
+  views:     Int!
+  visitors:  Int!
+  clicks:    Int!   # cumulative
+  avgScroll: Int!   # 0..100, cumulative
+  timeline:  [LensTimePoint!]!     # daily views, last 30 days
+  referrers: [LensLabelCount!]!
+  clients:   [LensLabelCount!]!    # browser / client family
+  devices:   [LensLabelCount!]!
+}
+
+# Everything needed to render one page+viewport heatmap: the snapshot backdrop
+# (serialized DOM JSON for client-side rebuild), its pixel dimensions, the
+# click/move/scroll density grids, and the clicked-element ranking.
+type LensHeatmap {
+  pageKey:      String!
+  viewport:     String!
+  state:        String!
+  width:        Int!
+  height:       Int!
+  snapshotJson: String!
+  click:        [LensCell!]!
+  move:         [LensCell!]!
+  scroll:       [LensCell!]!
+  elements:     [LensElementClick!]!
+}
+
+# Bot / crawler analytics. Bot hits are server-observed crawler requests
+# (captured by the storefront middleware, even for non-JS bots); human views are
+# tracked page views with JS-rendering bots excluded.
+type BotTraffic {
+  botHits:    Int!            # total crawler page requests in the window
+  humanViews: Int!            # human page views (bots excluded)
+  botCount:   Int!            # distinct bot agents seen
+  pageCount:  Int!            # distinct pages crawled by bots
+  bots:       [BotAgent!]!    # per-agent breakdown (Google/Bing/GPTBot/Gemini/…)
+  topPages:   [BotPage!]!     # most-crawled pages (filtered to ` + "`" + `bot` + "`" + ` when given)
+  daily:      [BotDayPoint!]! # daily bot-vs-human series
+}
+
+type BotAgent {
+  name:     String!   # canonical agent name, e.g. "GPTBot (OpenAI)"
+  category: String!   # ai | search | social | seo | monitoring | scraper | other
+  hits:     Int!
+  pages:    Int!      # distinct pages this agent crawled
+  lastSeen: Time!
+}
+
+type BotPage {
+  pageKey: String!
+  hits:    Int!
+  bots:    Int!       # distinct bots that hit this page
+}
+
+type BotDayPoint {
+  day:        String! # YYYY-MM-DD
+  botHits:    Int!
+  humanViews: Int!
+}
+
+extend type Query {
+  # Web traffic rollup for a channel over the last ` + "`" + `sinceDays` + "`" + ` days (default 30).
+  lensOverview(channelId: ID!, sinceDays: Int): LensOverview!
+  # Bot / crawler analytics for a channel (default 30 days). ` + "`" + `bot` + "`" + ` optionally
+  # filters the crawled-pages list to one agent name.
+  botTraffic(channelId: ID!, sinceDays: Int, bot: String): BotTraffic!
+  # Pages that have a captured snapshot, plus their available viewport buckets.
+  lensPages(channelId: ID!): [LensPage!]!
+  # Captured UI states for a page+viewport ('default' first) - the state switcher.
+  lensStates(channelId: ID!, pageKey: String!, viewport: String!): [String!]!
+  # Rich per-page analytics (totals, timeline, referrers/clients/devices) for
+  # the heatmap detail view.
+  lensPageStats(channelId: ID!, pageKey: String!): LensPageStats!
+  # Heatmap detail for a page + viewport + UI state (default 'default'). Null
+  # when that state has no snapshot captured.
+  lensHeatmap(channelId: ID!, pageKey: String!, viewport: String!, state: String): LensHeatmap
+  # Recent session recordings for a channel (the Recordings browser).
+  lensSessions(channelId: ID!, limit: Int): [LensSession!]!
+  # A customer's recordings - resolved by customer id + any identified anon ids.
+  # Surfaced on the Synapse customer profile.
+  lensCustomerSessions(customerId: ID!, limit: Int): [LensSession!]!
+  # An anonymous visitor's recordings - surfaced on the Synapse visitor profile.
+  lensVisitorSessions(anonId: String!, limit: Int): [LensSession!]!
+  # The full rrweb event stream for one recording, as a JSON-array string the
+  # dashboard hands straight to the rrweb player. Heavy; fetched only when a
+  # recording is opened. Gated lens.view + the session's channel scope.
+  lensSessionEvents(id: ID!): String!
+  # Frustration signals (rage/dead clicks) over the last ` + "`" + `sinceDays` + "`" + ` days (default 30).
+  lensFrustration(channelId: ID!, sinceDays: Int): LensFrustration!
+  # JS errors grouped by message (default 30 days).
+  lensErrors(channelId: ID!, sinceDays: Int, limit: Int): [LensErrorStat!]!
+  # p75 web vitals per page (default 30 days).
+  lensPerformance(channelId: ID!, sinceDays: Int): [LensPageVitals!]!
+  # Site-wide p75 per web-vital metric (the Lens-home Core Web Vitals gauges).
+  lensVitalsSummary(channelId: ID!, sinceDays: Int): [LensVital!]!
+  # On-site search analytics - top terms, zero-result searches, daily trend.
+  lensSearchAnalytics(channelId: ID!, sinceDays: Int): LensSearchAnalytics!
+  # JS errors + web vitals captured during ONE recording (shown on the replay page).
+  lensSessionSignals(id: ID!): LensSessionSignals!
+}
+
+type LensSessionError { message: String! at: Time! }
+type LensSessionVital { metric: String! value: Float! }
+type LensSessionSignals {
+  errors: [LensSessionError!]!
+  vitals: [LensSessionVital!]!
+}
+
+# A recorded browser session (rrweb). Metadata for the recordings list + profile
+# panels; the event stream is fetched separately (lensSessionEvents) as it's large.
+type LensSession {
+  id:         ID!
+  anonId:     String!
+  customerId: ID          # set once the visitor was identified
+  startedAt:  Time!
+  endedAt:    Time!
+  durationMs: Int!
+  eventCount: Int!
+  entryPage:  String!
+  exitPage:   String!
+  viewport:   String!
+  userAgent:  String!
+  rageCount:  Int!        # rage clicks captured during this recording (frustration badge/filter)
+  errorCount: Int!        # JS errors captured during this recording
+}
+
+# --- UX signals: frustration / errors / web vitals ---
+
+type LensSignalPage { pageKey: String! count: Int! }
+type LensRageElement { selector: String! text: String! count: Int! }
+type LensFrustration {
+  ragePages:    [LensSignalPage!]!   # top pages by rage clicks
+  deadPages:    [LensSignalPage!]!   # top pages by dead clicks (clicks that did nothing)
+  rageElements: [LensRageElement!]!  # most rage-clicked elements
+}
+type LensErrorStat {
+  message:  String!
+  count:    Int!
+  pages:    Int!     # distinct pages the error fired on
+  lastSeen: Time!
+}
+# Site-wide p75 for one Core Web Vital metric (LCP/CLS/INP/TTFB).
+type LensVital {
+  metric:  String!
+  p75:     Float!
+  samples: Int!
+}
+
+# --- On-site search analytics ---
+type LensSearchTerm {
+  term:  String!
+  count: Int!
+}
+type LensSearchDay {
+  date:        String!  # YYYY-MM-DD
+  searches:    Int!
+  zeroResults: Int!
+}
+type LensSearchAnalytics {
+  totalSearches:      Int!
+  distinctTerms:      Int!
+  zeroResultSearches: Int!
+  top:                [LensSearchTerm!]!   # most-searched terms
+  zeroResult:         [LensSearchTerm!]!   # searches that returned nothing (merchandising gaps)
+  daily:              [LensSearchDay!]!    # daily search + zero-result volume
+}
+
+# p75 web vitals per page (nullable when a page has no sample for that metric).
+type LensPageVitals {
+  pageKey: String!
+  lcp:     Float
+  cls:     Float
+  inp:     Float
+  ttfb:    Float
+  samples: Int!
+}
+`, BuiltIn: false},
+	{Name: "../schema/signals/schema.graphqls", Input: `# The Signals admin API, served by cmd/signals - callers authenticate with a service token core minted for audience "signals", carrying the admin's grants so authorization answers from the token alone
 
 scalar Time
 scalar Int64
@@ -817,6 +2131,66 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // childFields_* functions provide shared child field context lookups.
 // Each function is generated once per unique object type, deduplicating the
 // switch statements that were previously inlined in every fieldContext_* function.
+
+func (ec *executionContext) childFields_BotAgent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "name":
+		return ec.fieldContext_BotAgent_name(ctx, field)
+	case "category":
+		return ec.fieldContext_BotAgent_category(ctx, field)
+	case "hits":
+		return ec.fieldContext_BotAgent_hits(ctx, field)
+	case "pages":
+		return ec.fieldContext_BotAgent_pages(ctx, field)
+	case "lastSeen":
+		return ec.fieldContext_BotAgent_lastSeen(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BotAgent", field.Name)
+}
+
+func (ec *executionContext) childFields_BotDayPoint(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "day":
+		return ec.fieldContext_BotDayPoint_day(ctx, field)
+	case "botHits":
+		return ec.fieldContext_BotDayPoint_botHits(ctx, field)
+	case "humanViews":
+		return ec.fieldContext_BotDayPoint_humanViews(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BotDayPoint", field.Name)
+}
+
+func (ec *executionContext) childFields_BotPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pageKey":
+		return ec.fieldContext_BotPage_pageKey(ctx, field)
+	case "hits":
+		return ec.fieldContext_BotPage_hits(ctx, field)
+	case "bots":
+		return ec.fieldContext_BotPage_bots(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BotPage", field.Name)
+}
+
+func (ec *executionContext) childFields_BotTraffic(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "botHits":
+		return ec.fieldContext_BotTraffic_botHits(ctx, field)
+	case "humanViews":
+		return ec.fieldContext_BotTraffic_humanViews(ctx, field)
+	case "botCount":
+		return ec.fieldContext_BotTraffic_botCount(ctx, field)
+	case "pageCount":
+		return ec.fieldContext_BotTraffic_pageCount(ctx, field)
+	case "bots":
+		return ec.fieldContext_BotTraffic_bots(ctx, field)
+	case "topPages":
+		return ec.fieldContext_BotTraffic_topPages(ctx, field)
+	case "daily":
+		return ec.fieldContext_BotTraffic_daily(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BotTraffic", field.Name)
+}
 
 func (ec *executionContext) childFields_Experiment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
@@ -962,6 +2336,324 @@ func (ec *executionContext) childFields_ExperimentsOverview(ctx context.Context,
 		return ec.fieldContext_ExperimentsOverview_experiments(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ExperimentsOverview", field.Name)
+}
+
+func (ec *executionContext) childFields_LensCell(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "x":
+		return ec.fieldContext_LensCell_x(ctx, field)
+	case "y":
+		return ec.fieldContext_LensCell_y(ctx, field)
+	case "count":
+		return ec.fieldContext_LensCell_count(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensCell", field.Name)
+}
+
+func (ec *executionContext) childFields_LensElementClick(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "selector":
+		return ec.fieldContext_LensElementClick_selector(ctx, field)
+	case "text":
+		return ec.fieldContext_LensElementClick_text(ctx, field)
+	case "count":
+		return ec.fieldContext_LensElementClick_count(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensElementClick", field.Name)
+}
+
+func (ec *executionContext) childFields_LensErrorStat(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "message":
+		return ec.fieldContext_LensErrorStat_message(ctx, field)
+	case "count":
+		return ec.fieldContext_LensErrorStat_count(ctx, field)
+	case "pages":
+		return ec.fieldContext_LensErrorStat_pages(ctx, field)
+	case "lastSeen":
+		return ec.fieldContext_LensErrorStat_lastSeen(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensErrorStat", field.Name)
+}
+
+func (ec *executionContext) childFields_LensFrustration(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "ragePages":
+		return ec.fieldContext_LensFrustration_ragePages(ctx, field)
+	case "deadPages":
+		return ec.fieldContext_LensFrustration_deadPages(ctx, field)
+	case "rageElements":
+		return ec.fieldContext_LensFrustration_rageElements(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensFrustration", field.Name)
+}
+
+func (ec *executionContext) childFields_LensHeatmap(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pageKey":
+		return ec.fieldContext_LensHeatmap_pageKey(ctx, field)
+	case "viewport":
+		return ec.fieldContext_LensHeatmap_viewport(ctx, field)
+	case "state":
+		return ec.fieldContext_LensHeatmap_state(ctx, field)
+	case "width":
+		return ec.fieldContext_LensHeatmap_width(ctx, field)
+	case "height":
+		return ec.fieldContext_LensHeatmap_height(ctx, field)
+	case "snapshotJson":
+		return ec.fieldContext_LensHeatmap_snapshotJson(ctx, field)
+	case "click":
+		return ec.fieldContext_LensHeatmap_click(ctx, field)
+	case "move":
+		return ec.fieldContext_LensHeatmap_move(ctx, field)
+	case "scroll":
+		return ec.fieldContext_LensHeatmap_scroll(ctx, field)
+	case "elements":
+		return ec.fieldContext_LensHeatmap_elements(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensHeatmap", field.Name)
+}
+
+func (ec *executionContext) childFields_LensLabelCount(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "label":
+		return ec.fieldContext_LensLabelCount_label(ctx, field)
+	case "views":
+		return ec.fieldContext_LensLabelCount_views(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensLabelCount", field.Name)
+}
+
+func (ec *executionContext) childFields_LensOverview(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "views":
+		return ec.fieldContext_LensOverview_views(ctx, field)
+	case "visitors":
+		return ec.fieldContext_LensOverview_visitors(ctx, field)
+	case "daily":
+		return ec.fieldContext_LensOverview_daily(ctx, field)
+	case "topPages":
+		return ec.fieldContext_LensOverview_topPages(ctx, field)
+	case "devices":
+		return ec.fieldContext_LensOverview_devices(ctx, field)
+	case "referrers":
+		return ec.fieldContext_LensOverview_referrers(ctx, field)
+	case "interactions":
+		return ec.fieldContext_LensOverview_interactions(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensOverview", field.Name)
+}
+
+func (ec *executionContext) childFields_LensPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pageKey":
+		return ec.fieldContext_LensPage_pageKey(ctx, field)
+	case "views":
+		return ec.fieldContext_LensPage_views(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensPage", field.Name)
+}
+
+func (ec *executionContext) childFields_LensPageStat(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pageKey":
+		return ec.fieldContext_LensPageStat_pageKey(ctx, field)
+	case "views":
+		return ec.fieldContext_LensPageStat_views(ctx, field)
+	case "visitors":
+		return ec.fieldContext_LensPageStat_visitors(ctx, field)
+	case "clicks":
+		return ec.fieldContext_LensPageStat_clicks(ctx, field)
+	case "avgScroll":
+		return ec.fieldContext_LensPageStat_avgScroll(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensPageStat", field.Name)
+}
+
+func (ec *executionContext) childFields_LensPageStats(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "views":
+		return ec.fieldContext_LensPageStats_views(ctx, field)
+	case "visitors":
+		return ec.fieldContext_LensPageStats_visitors(ctx, field)
+	case "clicks":
+		return ec.fieldContext_LensPageStats_clicks(ctx, field)
+	case "avgScroll":
+		return ec.fieldContext_LensPageStats_avgScroll(ctx, field)
+	case "timeline":
+		return ec.fieldContext_LensPageStats_timeline(ctx, field)
+	case "referrers":
+		return ec.fieldContext_LensPageStats_referrers(ctx, field)
+	case "clients":
+		return ec.fieldContext_LensPageStats_clients(ctx, field)
+	case "devices":
+		return ec.fieldContext_LensPageStats_devices(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensPageStats", field.Name)
+}
+
+func (ec *executionContext) childFields_LensPageVitals(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pageKey":
+		return ec.fieldContext_LensPageVitals_pageKey(ctx, field)
+	case "lcp":
+		return ec.fieldContext_LensPageVitals_lcp(ctx, field)
+	case "cls":
+		return ec.fieldContext_LensPageVitals_cls(ctx, field)
+	case "inp":
+		return ec.fieldContext_LensPageVitals_inp(ctx, field)
+	case "ttfb":
+		return ec.fieldContext_LensPageVitals_ttfb(ctx, field)
+	case "samples":
+		return ec.fieldContext_LensPageVitals_samples(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensPageVitals", field.Name)
+}
+
+func (ec *executionContext) childFields_LensRageElement(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "selector":
+		return ec.fieldContext_LensRageElement_selector(ctx, field)
+	case "text":
+		return ec.fieldContext_LensRageElement_text(ctx, field)
+	case "count":
+		return ec.fieldContext_LensRageElement_count(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensRageElement", field.Name)
+}
+
+func (ec *executionContext) childFields_LensSearchAnalytics(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "totalSearches":
+		return ec.fieldContext_LensSearchAnalytics_totalSearches(ctx, field)
+	case "distinctTerms":
+		return ec.fieldContext_LensSearchAnalytics_distinctTerms(ctx, field)
+	case "zeroResultSearches":
+		return ec.fieldContext_LensSearchAnalytics_zeroResultSearches(ctx, field)
+	case "top":
+		return ec.fieldContext_LensSearchAnalytics_top(ctx, field)
+	case "zeroResult":
+		return ec.fieldContext_LensSearchAnalytics_zeroResult(ctx, field)
+	case "daily":
+		return ec.fieldContext_LensSearchAnalytics_daily(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensSearchAnalytics", field.Name)
+}
+
+func (ec *executionContext) childFields_LensSearchDay(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "date":
+		return ec.fieldContext_LensSearchDay_date(ctx, field)
+	case "searches":
+		return ec.fieldContext_LensSearchDay_searches(ctx, field)
+	case "zeroResults":
+		return ec.fieldContext_LensSearchDay_zeroResults(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensSearchDay", field.Name)
+}
+
+func (ec *executionContext) childFields_LensSearchTerm(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "term":
+		return ec.fieldContext_LensSearchTerm_term(ctx, field)
+	case "count":
+		return ec.fieldContext_LensSearchTerm_count(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensSearchTerm", field.Name)
+}
+
+func (ec *executionContext) childFields_LensSession(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_LensSession_id(ctx, field)
+	case "anonId":
+		return ec.fieldContext_LensSession_anonId(ctx, field)
+	case "customerId":
+		return ec.fieldContext_LensSession_customerId(ctx, field)
+	case "startedAt":
+		return ec.fieldContext_LensSession_startedAt(ctx, field)
+	case "endedAt":
+		return ec.fieldContext_LensSession_endedAt(ctx, field)
+	case "durationMs":
+		return ec.fieldContext_LensSession_durationMs(ctx, field)
+	case "eventCount":
+		return ec.fieldContext_LensSession_eventCount(ctx, field)
+	case "entryPage":
+		return ec.fieldContext_LensSession_entryPage(ctx, field)
+	case "exitPage":
+		return ec.fieldContext_LensSession_exitPage(ctx, field)
+	case "viewport":
+		return ec.fieldContext_LensSession_viewport(ctx, field)
+	case "userAgent":
+		return ec.fieldContext_LensSession_userAgent(ctx, field)
+	case "rageCount":
+		return ec.fieldContext_LensSession_rageCount(ctx, field)
+	case "errorCount":
+		return ec.fieldContext_LensSession_errorCount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensSession", field.Name)
+}
+
+func (ec *executionContext) childFields_LensSessionError(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "message":
+		return ec.fieldContext_LensSessionError_message(ctx, field)
+	case "at":
+		return ec.fieldContext_LensSessionError_at(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensSessionError", field.Name)
+}
+
+func (ec *executionContext) childFields_LensSessionSignals(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "errors":
+		return ec.fieldContext_LensSessionSignals_errors(ctx, field)
+	case "vitals":
+		return ec.fieldContext_LensSessionSignals_vitals(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensSessionSignals", field.Name)
+}
+
+func (ec *executionContext) childFields_LensSessionVital(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "metric":
+		return ec.fieldContext_LensSessionVital_metric(ctx, field)
+	case "value":
+		return ec.fieldContext_LensSessionVital_value(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensSessionVital", field.Name)
+}
+
+func (ec *executionContext) childFields_LensSignalPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pageKey":
+		return ec.fieldContext_LensSignalPage_pageKey(ctx, field)
+	case "count":
+		return ec.fieldContext_LensSignalPage_count(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensSignalPage", field.Name)
+}
+
+func (ec *executionContext) childFields_LensTimePoint(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "date":
+		return ec.fieldContext_LensTimePoint_date(ctx, field)
+	case "views":
+		return ec.fieldContext_LensTimePoint_views(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensTimePoint", field.Name)
+}
+
+func (ec *executionContext) childFields_LensVital(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "metric":
+		return ec.fieldContext_LensVital_metric(ctx, field)
+	case "p75":
+		return ec.fieldContext_LensVital_p75(ctx, field)
+	case "samples":
+		return ec.fieldContext_LensVital_samples(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LensVital", field.Name)
 }
 
 func (ec *executionContext) childFields___Directive(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -1144,6 +2836,36 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_botTraffic_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sinceDays",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sinceDays"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "bot",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["bot"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_experimentGoalEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1230,6 +2952,344 @@ func (ec *executionContext) field_Query_experiments_args(ctx context.Context, ra
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_lensCustomerSessions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "customerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["customerId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensErrors_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sinceDays",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sinceDays"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensFrustration_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sinceDays",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sinceDays"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensHeatmap_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "pageKey",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["pageKey"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "viewport",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["viewport"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "state",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["state"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensOverview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sinceDays",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sinceDays"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensPageStats_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "pageKey",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["pageKey"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensPages_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensPerformance_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sinceDays",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sinceDays"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensSearchAnalytics_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sinceDays",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sinceDays"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensSessionEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensSessionSignals_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensSessions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensStates_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "pageKey",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["pageKey"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "viewport",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["viewport"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensVisitorSessions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "anonId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["anonId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_lensVitalsSummary_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sinceDays",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sinceDays"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field___Directive_args_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1289,6 +3349,447 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ***************************** args.gotpl *****************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _BotAgent_name(ctx context.Context, field graphql.CollectedField, obj *model.BotAgent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotAgent_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotAgent_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotAgent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BotAgent_category(ctx context.Context, field graphql.CollectedField, obj *model.BotAgent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotAgent_category(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Category, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotAgent_category(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotAgent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BotAgent_hits(ctx context.Context, field graphql.CollectedField, obj *model.BotAgent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotAgent_hits(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Hits, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotAgent_hits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotAgent", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BotAgent_pages(ctx context.Context, field graphql.CollectedField, obj *model.BotAgent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotAgent_pages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Pages, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotAgent_pages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotAgent", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BotAgent_lastSeen(ctx context.Context, field graphql.CollectedField, obj *model.BotAgent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotAgent_lastSeen(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastSeen, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotAgent_lastSeen(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotAgent", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _BotDayPoint_day(ctx context.Context, field graphql.CollectedField, obj *model.BotDayPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotDayPoint_day(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Day, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotDayPoint_day(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotDayPoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BotDayPoint_botHits(ctx context.Context, field graphql.CollectedField, obj *model.BotDayPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotDayPoint_botHits(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BotHits, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotDayPoint_botHits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotDayPoint", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BotDayPoint_humanViews(ctx context.Context, field graphql.CollectedField, obj *model.BotDayPoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotDayPoint_humanViews(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HumanViews, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotDayPoint_humanViews(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotDayPoint", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BotPage_pageKey(ctx context.Context, field graphql.CollectedField, obj *model.BotPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotPage_pageKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotPage_pageKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotPage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BotPage_hits(ctx context.Context, field graphql.CollectedField, obj *model.BotPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotPage_hits(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Hits, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotPage_hits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotPage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BotPage_bots(ctx context.Context, field graphql.CollectedField, obj *model.BotPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotPage_bots(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Bots, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotPage_bots(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotPage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BotTraffic_botHits(ctx context.Context, field graphql.CollectedField, obj *model.BotTraffic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotTraffic_botHits(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BotHits, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotTraffic_botHits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotTraffic", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BotTraffic_humanViews(ctx context.Context, field graphql.CollectedField, obj *model.BotTraffic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotTraffic_humanViews(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HumanViews, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotTraffic_humanViews(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotTraffic", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BotTraffic_botCount(ctx context.Context, field graphql.CollectedField, obj *model.BotTraffic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotTraffic_botCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BotCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotTraffic_botCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotTraffic", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BotTraffic_pageCount(ctx context.Context, field graphql.CollectedField, obj *model.BotTraffic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotTraffic_pageCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotTraffic_pageCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BotTraffic", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BotTraffic_bots(ctx context.Context, field graphql.CollectedField, obj *model.BotTraffic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotTraffic_bots(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Bots, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.BotAgent) graphql.Marshaler {
+			return ec.marshalNBotAgent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotAgentᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotTraffic_bots(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BotTraffic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BotAgent(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BotTraffic_topPages(ctx context.Context, field graphql.CollectedField, obj *model.BotTraffic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotTraffic_topPages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TopPages, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.BotPage) graphql.Marshaler {
+			return ec.marshalNBotPage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotPageᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotTraffic_topPages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BotTraffic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BotPage(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BotTraffic_daily(ctx context.Context, field graphql.CollectedField, obj *model.BotTraffic) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BotTraffic_daily(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Daily, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.BotDayPoint) graphql.Marshaler {
+			return ec.marshalNBotDayPoint2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotDayPointᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BotTraffic_daily(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BotTraffic",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BotDayPoint(ctx, field)
+		},
+	}
+	return fc, nil
+}
 
 func (ec *executionContext) _Experiment_id(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
@@ -2582,6 +5083,2334 @@ func (ec *executionContext) fieldContext_ExperimentsOverview_experiments(_ conte
 	return fc, nil
 }
 
+func (ec *executionContext) _LensCell_x(ctx context.Context, field graphql.CollectedField, obj *model.LensCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensCell_x(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.X, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensCell_x(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensCell", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensCell_y(ctx context.Context, field graphql.CollectedField, obj *model.LensCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensCell_y(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Y, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensCell_y(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensCell", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensCell_count(ctx context.Context, field graphql.CollectedField, obj *model.LensCell) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensCell_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensCell_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensCell", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensElementClick_selector(ctx context.Context, field graphql.CollectedField, obj *model.LensElementClick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensElementClick_selector(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Selector, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensElementClick_selector(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensElementClick", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensElementClick_text(ctx context.Context, field graphql.CollectedField, obj *model.LensElementClick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensElementClick_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensElementClick_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensElementClick", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensElementClick_count(ctx context.Context, field graphql.CollectedField, obj *model.LensElementClick) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensElementClick_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensElementClick_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensElementClick", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensErrorStat_message(ctx context.Context, field graphql.CollectedField, obj *model.LensErrorStat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensErrorStat_message(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensErrorStat_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensErrorStat", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensErrorStat_count(ctx context.Context, field graphql.CollectedField, obj *model.LensErrorStat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensErrorStat_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensErrorStat_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensErrorStat", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensErrorStat_pages(ctx context.Context, field graphql.CollectedField, obj *model.LensErrorStat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensErrorStat_pages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Pages, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensErrorStat_pages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensErrorStat", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensErrorStat_lastSeen(ctx context.Context, field graphql.CollectedField, obj *model.LensErrorStat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensErrorStat_lastSeen(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastSeen, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensErrorStat_lastSeen(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensErrorStat", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _LensFrustration_ragePages(ctx context.Context, field graphql.CollectedField, obj *model.LensFrustration) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensFrustration_ragePages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RagePages, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensSignalPage) graphql.Marshaler {
+			return ec.marshalNLensSignalPage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSignalPageᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensFrustration_ragePages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensFrustration",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensSignalPage(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensFrustration_deadPages(ctx context.Context, field graphql.CollectedField, obj *model.LensFrustration) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensFrustration_deadPages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeadPages, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensSignalPage) graphql.Marshaler {
+			return ec.marshalNLensSignalPage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSignalPageᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensFrustration_deadPages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensFrustration",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensSignalPage(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensFrustration_rageElements(ctx context.Context, field graphql.CollectedField, obj *model.LensFrustration) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensFrustration_rageElements(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RageElements, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensRageElement) graphql.Marshaler {
+			return ec.marshalNLensRageElement2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensRageElementᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensFrustration_rageElements(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensFrustration",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensRageElement(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensHeatmap_pageKey(ctx context.Context, field graphql.CollectedField, obj *model.LensHeatmap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensHeatmap_pageKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensHeatmap_pageKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensHeatmap", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensHeatmap_viewport(ctx context.Context, field graphql.CollectedField, obj *model.LensHeatmap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensHeatmap_viewport(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Viewport, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensHeatmap_viewport(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensHeatmap", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensHeatmap_state(ctx context.Context, field graphql.CollectedField, obj *model.LensHeatmap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensHeatmap_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensHeatmap_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensHeatmap", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensHeatmap_width(ctx context.Context, field graphql.CollectedField, obj *model.LensHeatmap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensHeatmap_width(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Width, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensHeatmap_width(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensHeatmap", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensHeatmap_height(ctx context.Context, field graphql.CollectedField, obj *model.LensHeatmap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensHeatmap_height(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Height, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensHeatmap_height(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensHeatmap", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensHeatmap_snapshotJson(ctx context.Context, field graphql.CollectedField, obj *model.LensHeatmap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensHeatmap_snapshotJson(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SnapshotJSON, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensHeatmap_snapshotJson(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensHeatmap", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensHeatmap_click(ctx context.Context, field graphql.CollectedField, obj *model.LensHeatmap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensHeatmap_click(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Click, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensCell) graphql.Marshaler {
+			return ec.marshalNLensCell2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensCellᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensHeatmap_click(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensHeatmap",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensCell(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensHeatmap_move(ctx context.Context, field graphql.CollectedField, obj *model.LensHeatmap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensHeatmap_move(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Move, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensCell) graphql.Marshaler {
+			return ec.marshalNLensCell2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensCellᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensHeatmap_move(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensHeatmap",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensCell(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensHeatmap_scroll(ctx context.Context, field graphql.CollectedField, obj *model.LensHeatmap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensHeatmap_scroll(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scroll, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensCell) graphql.Marshaler {
+			return ec.marshalNLensCell2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensCellᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensHeatmap_scroll(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensHeatmap",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensCell(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensHeatmap_elements(ctx context.Context, field graphql.CollectedField, obj *model.LensHeatmap) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensHeatmap_elements(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Elements, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensElementClick) graphql.Marshaler {
+			return ec.marshalNLensElementClick2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensElementClickᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensHeatmap_elements(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensHeatmap",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensElementClick(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensLabelCount_label(ctx context.Context, field graphql.CollectedField, obj *model.LensLabelCount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensLabelCount_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensLabelCount_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensLabelCount", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensLabelCount_views(ctx context.Context, field graphql.CollectedField, obj *model.LensLabelCount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensLabelCount_views(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Views, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensLabelCount_views(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensLabelCount", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensOverview_views(ctx context.Context, field graphql.CollectedField, obj *model.LensOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensOverview_views(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Views, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensOverview_views(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensOverview", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensOverview_visitors(ctx context.Context, field graphql.CollectedField, obj *model.LensOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensOverview_visitors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Visitors, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensOverview_visitors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensOverview", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensOverview_daily(ctx context.Context, field graphql.CollectedField, obj *model.LensOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensOverview_daily(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Daily, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensTimePoint) graphql.Marshaler {
+			return ec.marshalNLensTimePoint2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensTimePointᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensOverview_daily(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensTimePoint(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensOverview_topPages(ctx context.Context, field graphql.CollectedField, obj *model.LensOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensOverview_topPages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TopPages, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensPageStat) graphql.Marshaler {
+			return ec.marshalNLensPageStat2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageStatᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensOverview_topPages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensPageStat(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensOverview_devices(ctx context.Context, field graphql.CollectedField, obj *model.LensOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensOverview_devices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Devices, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensLabelCount) graphql.Marshaler {
+			return ec.marshalNLensLabelCount2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensLabelCountᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensOverview_devices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensLabelCount(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensOverview_referrers(ctx context.Context, field graphql.CollectedField, obj *model.LensOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensOverview_referrers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Referrers, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensLabelCount) graphql.Marshaler {
+			return ec.marshalNLensLabelCount2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensLabelCountᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensOverview_referrers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensLabelCount(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensOverview_interactions(ctx context.Context, field graphql.CollectedField, obj *model.LensOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensOverview_interactions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Interactions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensLabelCount) graphql.Marshaler {
+			return ec.marshalNLensLabelCount2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensLabelCountᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensOverview_interactions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensLabelCount(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensPage_pageKey(ctx context.Context, field graphql.CollectedField, obj *model.LensPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPage_pageKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPage_pageKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensPage_views(ctx context.Context, field graphql.CollectedField, obj *model.LensPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPage_views(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Views, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPage_views(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageStat_pageKey(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStat_pageKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStat_pageKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageStat", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageStat_views(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStat_views(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Views, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStat_views(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageStat", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageStat_visitors(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStat_visitors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Visitors, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStat_visitors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageStat", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageStat_clicks(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStat_clicks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Clicks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStat_clicks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageStat", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageStat_avgScroll(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStat_avgScroll(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AvgScroll, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStat_avgScroll(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageStat", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageStats_views(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStats_views(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Views, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStats_views(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageStats", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageStats_visitors(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStats_visitors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Visitors, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStats_visitors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageStats", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageStats_clicks(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStats_clicks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Clicks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStats_clicks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageStats", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageStats_avgScroll(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStats_avgScroll(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AvgScroll, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStats_avgScroll(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageStats", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageStats_timeline(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStats_timeline(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Timeline, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensTimePoint) graphql.Marshaler {
+			return ec.marshalNLensTimePoint2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensTimePointᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStats_timeline(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensPageStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensTimePoint(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensPageStats_referrers(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStats_referrers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Referrers, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensLabelCount) graphql.Marshaler {
+			return ec.marshalNLensLabelCount2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensLabelCountᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStats_referrers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensPageStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensLabelCount(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensPageStats_clients(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStats_clients(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Clients, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensLabelCount) graphql.Marshaler {
+			return ec.marshalNLensLabelCount2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensLabelCountᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStats_clients(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensPageStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensLabelCount(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensPageStats_devices(ctx context.Context, field graphql.CollectedField, obj *model.LensPageStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageStats_devices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Devices, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensLabelCount) graphql.Marshaler {
+			return ec.marshalNLensLabelCount2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensLabelCountᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageStats_devices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensPageStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensLabelCount(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensPageVitals_pageKey(ctx context.Context, field graphql.CollectedField, obj *model.LensPageVitals) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageVitals_pageKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageVitals_pageKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageVitals", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageVitals_lcp(ctx context.Context, field graphql.CollectedField, obj *model.LensPageVitals) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageVitals_lcp(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Lcp, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageVitals_lcp(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageVitals", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageVitals_cls(ctx context.Context, field graphql.CollectedField, obj *model.LensPageVitals) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageVitals_cls(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cls, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageVitals_cls(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageVitals", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageVitals_inp(ctx context.Context, field graphql.CollectedField, obj *model.LensPageVitals) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageVitals_inp(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Inp, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageVitals_inp(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageVitals", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageVitals_ttfb(ctx context.Context, field graphql.CollectedField, obj *model.LensPageVitals) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageVitals_ttfb(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Ttfb, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageVitals_ttfb(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageVitals", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _LensPageVitals_samples(ctx context.Context, field graphql.CollectedField, obj *model.LensPageVitals) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensPageVitals_samples(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Samples, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensPageVitals_samples(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensPageVitals", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensRageElement_selector(ctx context.Context, field graphql.CollectedField, obj *model.LensRageElement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensRageElement_selector(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Selector, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensRageElement_selector(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensRageElement", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensRageElement_text(ctx context.Context, field graphql.CollectedField, obj *model.LensRageElement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensRageElement_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensRageElement_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensRageElement", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensRageElement_count(ctx context.Context, field graphql.CollectedField, obj *model.LensRageElement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensRageElement_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensRageElement_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensRageElement", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensSearchAnalytics_totalSearches(ctx context.Context, field graphql.CollectedField, obj *model.LensSearchAnalytics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSearchAnalytics_totalSearches(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalSearches, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSearchAnalytics_totalSearches(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSearchAnalytics", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensSearchAnalytics_distinctTerms(ctx context.Context, field graphql.CollectedField, obj *model.LensSearchAnalytics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSearchAnalytics_distinctTerms(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DistinctTerms, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSearchAnalytics_distinctTerms(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSearchAnalytics", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensSearchAnalytics_zeroResultSearches(ctx context.Context, field graphql.CollectedField, obj *model.LensSearchAnalytics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSearchAnalytics_zeroResultSearches(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ZeroResultSearches, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSearchAnalytics_zeroResultSearches(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSearchAnalytics", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensSearchAnalytics_top(ctx context.Context, field graphql.CollectedField, obj *model.LensSearchAnalytics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSearchAnalytics_top(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Top, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensSearchTerm) graphql.Marshaler {
+			return ec.marshalNLensSearchTerm2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSearchTermᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSearchAnalytics_top(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensSearchAnalytics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensSearchTerm(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensSearchAnalytics_zeroResult(ctx context.Context, field graphql.CollectedField, obj *model.LensSearchAnalytics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSearchAnalytics_zeroResult(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ZeroResult, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensSearchTerm) graphql.Marshaler {
+			return ec.marshalNLensSearchTerm2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSearchTermᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSearchAnalytics_zeroResult(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensSearchAnalytics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensSearchTerm(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensSearchAnalytics_daily(ctx context.Context, field graphql.CollectedField, obj *model.LensSearchAnalytics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSearchAnalytics_daily(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Daily, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensSearchDay) graphql.Marshaler {
+			return ec.marshalNLensSearchDay2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSearchDayᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSearchAnalytics_daily(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensSearchAnalytics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensSearchDay(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensSearchDay_date(ctx context.Context, field graphql.CollectedField, obj *model.LensSearchDay) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSearchDay_date(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Date, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSearchDay_date(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSearchDay", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensSearchDay_searches(ctx context.Context, field graphql.CollectedField, obj *model.LensSearchDay) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSearchDay_searches(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Searches, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSearchDay_searches(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSearchDay", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensSearchDay_zeroResults(ctx context.Context, field graphql.CollectedField, obj *model.LensSearchDay) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSearchDay_zeroResults(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ZeroResults, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSearchDay_zeroResults(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSearchDay", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensSearchTerm_term(ctx context.Context, field graphql.CollectedField, obj *model.LensSearchTerm) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSearchTerm_term(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Term, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSearchTerm_term(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSearchTerm", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensSearchTerm_count(ctx context.Context, field graphql.CollectedField, obj *model.LensSearchTerm) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSearchTerm_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSearchTerm_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSearchTerm", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_id(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_anonId(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_anonId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AnonID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_anonId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_customerId(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_customerId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CustomerID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_customerId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_startedAt(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_startedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_endedAt(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_endedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_endedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_durationMs(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_durationMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DurationMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_durationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_eventCount(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_eventCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EventCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_eventCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_entryPage(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_entryPage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EntryPage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_entryPage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_exitPage(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_exitPage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExitPage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_exitPage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_viewport(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_viewport(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Viewport, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_viewport(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_userAgent(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_userAgent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserAgent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_userAgent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_rageCount(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_rageCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RageCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_rageCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensSession_errorCount(ctx context.Context, field graphql.CollectedField, obj *model.LensSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSession_errorCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ErrorCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSession_errorCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSession", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensSessionError_message(ctx context.Context, field graphql.CollectedField, obj *model.LensSessionError) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSessionError_message(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSessionError_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSessionError", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensSessionError_at(ctx context.Context, field graphql.CollectedField, obj *model.LensSessionError) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSessionError_at(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.At, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSessionError_at(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSessionError", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _LensSessionSignals_errors(ctx context.Context, field graphql.CollectedField, obj *model.LensSessionSignals) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSessionSignals_errors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensSessionError) graphql.Marshaler {
+			return ec.marshalNLensSessionError2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionErrorᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSessionSignals_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensSessionSignals",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensSessionError(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensSessionSignals_vitals(ctx context.Context, field graphql.CollectedField, obj *model.LensSessionSignals) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSessionSignals_vitals(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Vitals, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensSessionVital) graphql.Marshaler {
+			return ec.marshalNLensSessionVital2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionVitalᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSessionSignals_vitals(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LensSessionSignals",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensSessionVital(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LensSessionVital_metric(ctx context.Context, field graphql.CollectedField, obj *model.LensSessionVital) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSessionVital_metric(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Metric, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSessionVital_metric(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSessionVital", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensSessionVital_value(ctx context.Context, field graphql.CollectedField, obj *model.LensSessionVital) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSessionVital_value(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSessionVital_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSessionVital", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _LensSignalPage_pageKey(ctx context.Context, field graphql.CollectedField, obj *model.LensSignalPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSignalPage_pageKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSignalPage_pageKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSignalPage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensSignalPage_count(ctx context.Context, field graphql.CollectedField, obj *model.LensSignalPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensSignalPage_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensSignalPage_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensSignalPage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensTimePoint_date(ctx context.Context, field graphql.CollectedField, obj *model.LensTimePoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensTimePoint_date(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Date, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensTimePoint_date(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensTimePoint", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensTimePoint_views(ctx context.Context, field graphql.CollectedField, obj *model.LensTimePoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensTimePoint_views(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Views, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensTimePoint_views(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensTimePoint", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LensVital_metric(ctx context.Context, field graphql.CollectedField, obj *model.LensVital) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensVital_metric(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Metric, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensVital_metric(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensVital", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LensVital_p75(ctx context.Context, field graphql.CollectedField, obj *model.LensVital) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensVital_p75(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.P75, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensVital_p75(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensVital", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _LensVital_samples(ctx context.Context, field graphql.CollectedField, obj *model.LensVital) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LensVital_samples(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Samples, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LensVital_samples(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LensVital", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Mutation_createExperiment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2928,6 +7757,710 @@ func (ec *executionContext) fieldContext_Query_experimentGoalEvents(ctx context.
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_experimentGoalEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensOverview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensOverview(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensOverview(ctx, fc.Args["channelId"].(string), fc.Args["sinceDays"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LensOverview) graphql.Marshaler {
+			return ec.marshalNLensOverview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensOverview(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensOverview(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensOverview(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensOverview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_botTraffic(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_botTraffic(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().BotTraffic(ctx, fc.Args["channelId"].(string), fc.Args["sinceDays"].(*int32), fc.Args["bot"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BotTraffic) graphql.Marshaler {
+			return ec.marshalNBotTraffic2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotTraffic(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_botTraffic(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BotTraffic(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_botTraffic_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensPages(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensPages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensPages(ctx, fc.Args["channelId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensPage) graphql.Marshaler {
+			return ec.marshalNLensPage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensPages(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensPages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensStates(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensStates(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensStates(ctx, fc.Args["channelId"].(string), fc.Args["pageKey"].(string), fc.Args["viewport"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensStates(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensStates_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensPageStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensPageStats(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensPageStats(ctx, fc.Args["channelId"].(string), fc.Args["pageKey"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LensPageStats) graphql.Marshaler {
+			return ec.marshalNLensPageStats2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageStats(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensPageStats(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensPageStats(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensPageStats_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensHeatmap(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensHeatmap(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensHeatmap(ctx, fc.Args["channelId"].(string), fc.Args["pageKey"].(string), fc.Args["viewport"].(string), fc.Args["state"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LensHeatmap) graphql.Marshaler {
+			return ec.marshalOLensHeatmap2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensHeatmap(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensHeatmap(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensHeatmap(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensHeatmap_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensSessions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensSessions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensSessions(ctx, fc.Args["channelId"].(string), fc.Args["limit"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensSession) graphql.Marshaler {
+			return ec.marshalNLensSession2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensSessions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensSession(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensSessions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensCustomerSessions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensCustomerSessions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensCustomerSessions(ctx, fc.Args["customerId"].(string), fc.Args["limit"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensSession) graphql.Marshaler {
+			return ec.marshalNLensSession2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensCustomerSessions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensSession(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensCustomerSessions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensVisitorSessions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensVisitorSessions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensVisitorSessions(ctx, fc.Args["anonId"].(string), fc.Args["limit"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensSession) graphql.Marshaler {
+			return ec.marshalNLensSession2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensVisitorSessions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensSession(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensVisitorSessions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensSessionEvents(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensSessionEvents(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensSessionEvents(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensSessionEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensSessionEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensFrustration(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensFrustration(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensFrustration(ctx, fc.Args["channelId"].(string), fc.Args["sinceDays"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LensFrustration) graphql.Marshaler {
+			return ec.marshalNLensFrustration2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensFrustration(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensFrustration(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensFrustration(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensFrustration_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensErrors(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensErrors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensErrors(ctx, fc.Args["channelId"].(string), fc.Args["sinceDays"].(*int32), fc.Args["limit"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensErrorStat) graphql.Marshaler {
+			return ec.marshalNLensErrorStat2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensErrorStatᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensErrors(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensErrorStat(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensErrors_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensPerformance(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensPerformance(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensPerformance(ctx, fc.Args["channelId"].(string), fc.Args["sinceDays"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensPageVitals) graphql.Marshaler {
+			return ec.marshalNLensPageVitals2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageVitalsᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensPerformance(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensPageVitals(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensPerformance_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensVitalsSummary(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensVitalsSummary(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensVitalsSummary(ctx, fc.Args["channelId"].(string), fc.Args["sinceDays"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LensVital) graphql.Marshaler {
+			return ec.marshalNLensVital2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensVitalᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensVitalsSummary(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensVital(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensVitalsSummary_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensSearchAnalytics(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensSearchAnalytics(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensSearchAnalytics(ctx, fc.Args["channelId"].(string), fc.Args["sinceDays"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LensSearchAnalytics) graphql.Marshaler {
+			return ec.marshalNLensSearchAnalytics2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSearchAnalytics(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensSearchAnalytics(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensSearchAnalytics(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensSearchAnalytics_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_lensSessionSignals(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_lensSessionSignals(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().LensSessionSignals(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LensSessionSignals) graphql.Marshaler {
+			return ec.marshalNLensSessionSignals2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionSignals(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_lensSessionSignals(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LensSessionSignals(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_lensSessionSignals_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -4207,6 +9740,228 @@ func (ec *executionContext) unmarshalInputSaveExperimentInput(ctx context.Contex
 
 // region    **************************** object.gotpl ****************************
 
+var botAgentImplementors = []string{"BotAgent"}
+
+func (ec *executionContext) _BotAgent(ctx context.Context, sel ast.SelectionSet, obj *model.BotAgent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, botAgentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BotAgent")
+		case "name":
+			out.Values[i] = ec._BotAgent_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "category":
+			out.Values[i] = ec._BotAgent_category(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hits":
+			out.Values[i] = ec._BotAgent_hits(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pages":
+			out.Values[i] = ec._BotAgent_pages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastSeen":
+			out.Values[i] = ec._BotAgent_lastSeen(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var botDayPointImplementors = []string{"BotDayPoint"}
+
+func (ec *executionContext) _BotDayPoint(ctx context.Context, sel ast.SelectionSet, obj *model.BotDayPoint) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, botDayPointImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BotDayPoint")
+		case "day":
+			out.Values[i] = ec._BotDayPoint_day(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "botHits":
+			out.Values[i] = ec._BotDayPoint_botHits(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "humanViews":
+			out.Values[i] = ec._BotDayPoint_humanViews(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var botPageImplementors = []string{"BotPage"}
+
+func (ec *executionContext) _BotPage(ctx context.Context, sel ast.SelectionSet, obj *model.BotPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, botPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BotPage")
+		case "pageKey":
+			out.Values[i] = ec._BotPage_pageKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hits":
+			out.Values[i] = ec._BotPage_hits(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "bots":
+			out.Values[i] = ec._BotPage_bots(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var botTrafficImplementors = []string{"BotTraffic"}
+
+func (ec *executionContext) _BotTraffic(ctx context.Context, sel ast.SelectionSet, obj *model.BotTraffic) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, botTrafficImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BotTraffic")
+		case "botHits":
+			out.Values[i] = ec._BotTraffic_botHits(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "humanViews":
+			out.Values[i] = ec._BotTraffic_humanViews(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "botCount":
+			out.Values[i] = ec._BotTraffic_botCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageCount":
+			out.Values[i] = ec._BotTraffic_pageCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "bots":
+			out.Values[i] = ec._BotTraffic_bots(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "topPages":
+			out.Values[i] = ec._BotTraffic_topPages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "daily":
+			out.Values[i] = ec._BotTraffic_daily(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var experimentImplementors = []string{"Experiment"}
 
 func (ec *executionContext) _Experiment(ctx context.Context, sel ast.SelectionSet, obj *model.Experiment) graphql.Marshaler {
@@ -4680,6 +10435,1197 @@ func (ec *executionContext) _ExperimentsOverview(ctx context.Context, sel ast.Se
 	return out
 }
 
+var lensCellImplementors = []string{"LensCell"}
+
+func (ec *executionContext) _LensCell(ctx context.Context, sel ast.SelectionSet, obj *model.LensCell) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensCellImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensCell")
+		case "x":
+			out.Values[i] = ec._LensCell_x(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "y":
+			out.Values[i] = ec._LensCell_y(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._LensCell_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensElementClickImplementors = []string{"LensElementClick"}
+
+func (ec *executionContext) _LensElementClick(ctx context.Context, sel ast.SelectionSet, obj *model.LensElementClick) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensElementClickImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensElementClick")
+		case "selector":
+			out.Values[i] = ec._LensElementClick_selector(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "text":
+			out.Values[i] = ec._LensElementClick_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._LensElementClick_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensErrorStatImplementors = []string{"LensErrorStat"}
+
+func (ec *executionContext) _LensErrorStat(ctx context.Context, sel ast.SelectionSet, obj *model.LensErrorStat) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensErrorStatImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensErrorStat")
+		case "message":
+			out.Values[i] = ec._LensErrorStat_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._LensErrorStat_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pages":
+			out.Values[i] = ec._LensErrorStat_pages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastSeen":
+			out.Values[i] = ec._LensErrorStat_lastSeen(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensFrustrationImplementors = []string{"LensFrustration"}
+
+func (ec *executionContext) _LensFrustration(ctx context.Context, sel ast.SelectionSet, obj *model.LensFrustration) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensFrustrationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensFrustration")
+		case "ragePages":
+			out.Values[i] = ec._LensFrustration_ragePages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deadPages":
+			out.Values[i] = ec._LensFrustration_deadPages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rageElements":
+			out.Values[i] = ec._LensFrustration_rageElements(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensHeatmapImplementors = []string{"LensHeatmap"}
+
+func (ec *executionContext) _LensHeatmap(ctx context.Context, sel ast.SelectionSet, obj *model.LensHeatmap) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensHeatmapImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensHeatmap")
+		case "pageKey":
+			out.Values[i] = ec._LensHeatmap_pageKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "viewport":
+			out.Values[i] = ec._LensHeatmap_viewport(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "state":
+			out.Values[i] = ec._LensHeatmap_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "width":
+			out.Values[i] = ec._LensHeatmap_width(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "height":
+			out.Values[i] = ec._LensHeatmap_height(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "snapshotJson":
+			out.Values[i] = ec._LensHeatmap_snapshotJson(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "click":
+			out.Values[i] = ec._LensHeatmap_click(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "move":
+			out.Values[i] = ec._LensHeatmap_move(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scroll":
+			out.Values[i] = ec._LensHeatmap_scroll(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "elements":
+			out.Values[i] = ec._LensHeatmap_elements(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensLabelCountImplementors = []string{"LensLabelCount"}
+
+func (ec *executionContext) _LensLabelCount(ctx context.Context, sel ast.SelectionSet, obj *model.LensLabelCount) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensLabelCountImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensLabelCount")
+		case "label":
+			out.Values[i] = ec._LensLabelCount_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "views":
+			out.Values[i] = ec._LensLabelCount_views(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensOverviewImplementors = []string{"LensOverview"}
+
+func (ec *executionContext) _LensOverview(ctx context.Context, sel ast.SelectionSet, obj *model.LensOverview) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensOverviewImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensOverview")
+		case "views":
+			out.Values[i] = ec._LensOverview_views(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "visitors":
+			out.Values[i] = ec._LensOverview_visitors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "daily":
+			out.Values[i] = ec._LensOverview_daily(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "topPages":
+			out.Values[i] = ec._LensOverview_topPages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "devices":
+			out.Values[i] = ec._LensOverview_devices(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "referrers":
+			out.Values[i] = ec._LensOverview_referrers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "interactions":
+			out.Values[i] = ec._LensOverview_interactions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensPageImplementors = []string{"LensPage"}
+
+func (ec *executionContext) _LensPage(ctx context.Context, sel ast.SelectionSet, obj *model.LensPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensPage")
+		case "pageKey":
+			out.Values[i] = ec._LensPage_pageKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "views":
+			out.Values[i] = ec._LensPage_views(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensPageStatImplementors = []string{"LensPageStat"}
+
+func (ec *executionContext) _LensPageStat(ctx context.Context, sel ast.SelectionSet, obj *model.LensPageStat) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensPageStatImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensPageStat")
+		case "pageKey":
+			out.Values[i] = ec._LensPageStat_pageKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "views":
+			out.Values[i] = ec._LensPageStat_views(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "visitors":
+			out.Values[i] = ec._LensPageStat_visitors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clicks":
+			out.Values[i] = ec._LensPageStat_clicks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "avgScroll":
+			out.Values[i] = ec._LensPageStat_avgScroll(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensPageStatsImplementors = []string{"LensPageStats"}
+
+func (ec *executionContext) _LensPageStats(ctx context.Context, sel ast.SelectionSet, obj *model.LensPageStats) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensPageStatsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensPageStats")
+		case "views":
+			out.Values[i] = ec._LensPageStats_views(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "visitors":
+			out.Values[i] = ec._LensPageStats_visitors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clicks":
+			out.Values[i] = ec._LensPageStats_clicks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "avgScroll":
+			out.Values[i] = ec._LensPageStats_avgScroll(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "timeline":
+			out.Values[i] = ec._LensPageStats_timeline(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "referrers":
+			out.Values[i] = ec._LensPageStats_referrers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clients":
+			out.Values[i] = ec._LensPageStats_clients(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "devices":
+			out.Values[i] = ec._LensPageStats_devices(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensPageVitalsImplementors = []string{"LensPageVitals"}
+
+func (ec *executionContext) _LensPageVitals(ctx context.Context, sel ast.SelectionSet, obj *model.LensPageVitals) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensPageVitalsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensPageVitals")
+		case "pageKey":
+			out.Values[i] = ec._LensPageVitals_pageKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lcp":
+			out.Values[i] = ec._LensPageVitals_lcp(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "cls":
+			out.Values[i] = ec._LensPageVitals_cls(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "inp":
+			out.Values[i] = ec._LensPageVitals_inp(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "ttfb":
+			out.Values[i] = ec._LensPageVitals_ttfb(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "samples":
+			out.Values[i] = ec._LensPageVitals_samples(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensRageElementImplementors = []string{"LensRageElement"}
+
+func (ec *executionContext) _LensRageElement(ctx context.Context, sel ast.SelectionSet, obj *model.LensRageElement) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensRageElementImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensRageElement")
+		case "selector":
+			out.Values[i] = ec._LensRageElement_selector(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "text":
+			out.Values[i] = ec._LensRageElement_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._LensRageElement_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensSearchAnalyticsImplementors = []string{"LensSearchAnalytics"}
+
+func (ec *executionContext) _LensSearchAnalytics(ctx context.Context, sel ast.SelectionSet, obj *model.LensSearchAnalytics) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensSearchAnalyticsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensSearchAnalytics")
+		case "totalSearches":
+			out.Values[i] = ec._LensSearchAnalytics_totalSearches(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "distinctTerms":
+			out.Values[i] = ec._LensSearchAnalytics_distinctTerms(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "zeroResultSearches":
+			out.Values[i] = ec._LensSearchAnalytics_zeroResultSearches(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "top":
+			out.Values[i] = ec._LensSearchAnalytics_top(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "zeroResult":
+			out.Values[i] = ec._LensSearchAnalytics_zeroResult(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "daily":
+			out.Values[i] = ec._LensSearchAnalytics_daily(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensSearchDayImplementors = []string{"LensSearchDay"}
+
+func (ec *executionContext) _LensSearchDay(ctx context.Context, sel ast.SelectionSet, obj *model.LensSearchDay) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensSearchDayImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensSearchDay")
+		case "date":
+			out.Values[i] = ec._LensSearchDay_date(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "searches":
+			out.Values[i] = ec._LensSearchDay_searches(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "zeroResults":
+			out.Values[i] = ec._LensSearchDay_zeroResults(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensSearchTermImplementors = []string{"LensSearchTerm"}
+
+func (ec *executionContext) _LensSearchTerm(ctx context.Context, sel ast.SelectionSet, obj *model.LensSearchTerm) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensSearchTermImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensSearchTerm")
+		case "term":
+			out.Values[i] = ec._LensSearchTerm_term(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._LensSearchTerm_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensSessionImplementors = []string{"LensSession"}
+
+func (ec *executionContext) _LensSession(ctx context.Context, sel ast.SelectionSet, obj *model.LensSession) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensSessionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensSession")
+		case "id":
+			out.Values[i] = ec._LensSession_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "anonId":
+			out.Values[i] = ec._LensSession_anonId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "customerId":
+			out.Values[i] = ec._LensSession_customerId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "startedAt":
+			out.Values[i] = ec._LensSession_startedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endedAt":
+			out.Values[i] = ec._LensSession_endedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "durationMs":
+			out.Values[i] = ec._LensSession_durationMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventCount":
+			out.Values[i] = ec._LensSession_eventCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "entryPage":
+			out.Values[i] = ec._LensSession_entryPage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "exitPage":
+			out.Values[i] = ec._LensSession_exitPage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "viewport":
+			out.Values[i] = ec._LensSession_viewport(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userAgent":
+			out.Values[i] = ec._LensSession_userAgent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rageCount":
+			out.Values[i] = ec._LensSession_rageCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errorCount":
+			out.Values[i] = ec._LensSession_errorCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensSessionErrorImplementors = []string{"LensSessionError"}
+
+func (ec *executionContext) _LensSessionError(ctx context.Context, sel ast.SelectionSet, obj *model.LensSessionError) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensSessionErrorImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensSessionError")
+		case "message":
+			out.Values[i] = ec._LensSessionError_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "at":
+			out.Values[i] = ec._LensSessionError_at(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensSessionSignalsImplementors = []string{"LensSessionSignals"}
+
+func (ec *executionContext) _LensSessionSignals(ctx context.Context, sel ast.SelectionSet, obj *model.LensSessionSignals) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensSessionSignalsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensSessionSignals")
+		case "errors":
+			out.Values[i] = ec._LensSessionSignals_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "vitals":
+			out.Values[i] = ec._LensSessionSignals_vitals(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensSessionVitalImplementors = []string{"LensSessionVital"}
+
+func (ec *executionContext) _LensSessionVital(ctx context.Context, sel ast.SelectionSet, obj *model.LensSessionVital) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensSessionVitalImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensSessionVital")
+		case "metric":
+			out.Values[i] = ec._LensSessionVital_metric(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "value":
+			out.Values[i] = ec._LensSessionVital_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensSignalPageImplementors = []string{"LensSignalPage"}
+
+func (ec *executionContext) _LensSignalPage(ctx context.Context, sel ast.SelectionSet, obj *model.LensSignalPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensSignalPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensSignalPage")
+		case "pageKey":
+			out.Values[i] = ec._LensSignalPage_pageKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._LensSignalPage_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensTimePointImplementors = []string{"LensTimePoint"}
+
+func (ec *executionContext) _LensTimePoint(ctx context.Context, sel ast.SelectionSet, obj *model.LensTimePoint) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensTimePointImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensTimePoint")
+		case "date":
+			out.Values[i] = ec._LensTimePoint_date(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "views":
+			out.Values[i] = ec._LensTimePoint_views(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var lensVitalImplementors = []string{"LensVital"}
+
+func (ec *executionContext) _LensVital(ctx context.Context, sel ast.SelectionSet, obj *model.LensVital) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, lensVitalImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LensVital")
+		case "metric":
+			out.Values[i] = ec._LensVital_metric(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "p75":
+			out.Values[i] = ec._LensVital_p75(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "samples":
+			out.Values[i] = ec._LensVital_samples(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -4860,6 +11806,358 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_experimentGoalEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensOverview":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensOverview(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "botTraffic":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_botTraffic(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensPages":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensPages(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensStates":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensStates(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensPageStats":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensPageStats(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensHeatmap":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensHeatmap(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensSessions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensSessions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensCustomerSessions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensCustomerSessions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensVisitorSessions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensVisitorSessions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensSessionEvents":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensSessionEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensFrustration":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensFrustration(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensErrors":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensErrors(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensPerformance":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensPerformance(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensVitalsSummary":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensVitalsSummary(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensSearchAnalytics":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensSearchAnalytics(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "lensSessionSignals":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_lensSessionSignals(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -5315,6 +12613,98 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) marshalNBotAgent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotAgentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BotAgent) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNBotAgent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotAgent(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNBotAgent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotAgent(ctx context.Context, sel ast.SelectionSet, v *model.BotAgent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BotAgent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNBotDayPoint2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotDayPointᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BotDayPoint) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNBotDayPoint2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotDayPoint(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNBotDayPoint2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotDayPoint(ctx context.Context, sel ast.SelectionSet, v *model.BotDayPoint) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BotDayPoint(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNBotPage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotPageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.BotPage) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNBotPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotPage(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNBotPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotPage(ctx context.Context, sel ast.SelectionSet, v *model.BotPage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BotPage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNBotTraffic2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotTraffic(ctx context.Context, sel ast.SelectionSet, v model.BotTraffic) graphql.Marshaler {
+	return ec._BotTraffic(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNBotTraffic2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐBotTraffic(ctx context.Context, sel ast.SelectionSet, v *model.BotTraffic) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BotTraffic(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNExperiment2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐExperiment(ctx context.Context, sel ast.SelectionSet, v model.Experiment) graphql.Marshaler {
 	return ec._Experiment(ctx, sel, &v)
 }
@@ -5532,6 +12922,492 @@ func (ec *executionContext) marshalNInt642int(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNLensCell2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensCellᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensCell) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensCell2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensCell(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensCell2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensCell(ctx context.Context, sel ast.SelectionSet, v *model.LensCell) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensCell(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensElementClick2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensElementClickᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensElementClick) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensElementClick2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensElementClick(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensElementClick2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensElementClick(ctx context.Context, sel ast.SelectionSet, v *model.LensElementClick) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensElementClick(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensErrorStat2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensErrorStatᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensErrorStat) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensErrorStat2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensErrorStat(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensErrorStat2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensErrorStat(ctx context.Context, sel ast.SelectionSet, v *model.LensErrorStat) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensErrorStat(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensFrustration2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensFrustration(ctx context.Context, sel ast.SelectionSet, v model.LensFrustration) graphql.Marshaler {
+	return ec._LensFrustration(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNLensFrustration2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensFrustration(ctx context.Context, sel ast.SelectionSet, v *model.LensFrustration) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensFrustration(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensLabelCount2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensLabelCountᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensLabelCount) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensLabelCount2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensLabelCount(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensLabelCount2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensLabelCount(ctx context.Context, sel ast.SelectionSet, v *model.LensLabelCount) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensLabelCount(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensOverview2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensOverview(ctx context.Context, sel ast.SelectionSet, v model.LensOverview) graphql.Marshaler {
+	return ec._LensOverview(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNLensOverview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensOverview(ctx context.Context, sel ast.SelectionSet, v *model.LensOverview) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensOverview(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensPage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensPage) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPage(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPage(ctx context.Context, sel ast.SelectionSet, v *model.LensPage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensPage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensPageStat2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageStatᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensPageStat) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensPageStat2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageStat(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensPageStat2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageStat(ctx context.Context, sel ast.SelectionSet, v *model.LensPageStat) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensPageStat(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensPageStats2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageStats(ctx context.Context, sel ast.SelectionSet, v model.LensPageStats) graphql.Marshaler {
+	return ec._LensPageStats(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNLensPageStats2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageStats(ctx context.Context, sel ast.SelectionSet, v *model.LensPageStats) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensPageStats(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensPageVitals2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageVitalsᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensPageVitals) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensPageVitals2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageVitals(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensPageVitals2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensPageVitals(ctx context.Context, sel ast.SelectionSet, v *model.LensPageVitals) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensPageVitals(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensRageElement2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensRageElementᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensRageElement) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensRageElement2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensRageElement(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensRageElement2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensRageElement(ctx context.Context, sel ast.SelectionSet, v *model.LensRageElement) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensRageElement(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensSearchAnalytics2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSearchAnalytics(ctx context.Context, sel ast.SelectionSet, v model.LensSearchAnalytics) graphql.Marshaler {
+	return ec._LensSearchAnalytics(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNLensSearchAnalytics2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSearchAnalytics(ctx context.Context, sel ast.SelectionSet, v *model.LensSearchAnalytics) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensSearchAnalytics(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensSearchDay2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSearchDayᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensSearchDay) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensSearchDay2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSearchDay(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensSearchDay2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSearchDay(ctx context.Context, sel ast.SelectionSet, v *model.LensSearchDay) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensSearchDay(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensSearchTerm2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSearchTermᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensSearchTerm) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensSearchTerm2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSearchTerm(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensSearchTerm2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSearchTerm(ctx context.Context, sel ast.SelectionSet, v *model.LensSearchTerm) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensSearchTerm(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensSession2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensSession) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensSession2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSession(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensSession2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSession(ctx context.Context, sel ast.SelectionSet, v *model.LensSession) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensSession(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensSessionError2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionErrorᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensSessionError) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensSessionError2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionError(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensSessionError2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionError(ctx context.Context, sel ast.SelectionSet, v *model.LensSessionError) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensSessionError(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensSessionSignals2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionSignals(ctx context.Context, sel ast.SelectionSet, v model.LensSessionSignals) graphql.Marshaler {
+	return ec._LensSessionSignals(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNLensSessionSignals2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionSignals(ctx context.Context, sel ast.SelectionSet, v *model.LensSessionSignals) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensSessionSignals(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensSessionVital2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionVitalᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensSessionVital) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensSessionVital2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionVital(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensSessionVital2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSessionVital(ctx context.Context, sel ast.SelectionSet, v *model.LensSessionVital) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensSessionVital(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensSignalPage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSignalPageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensSignalPage) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensSignalPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSignalPage(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensSignalPage2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensSignalPage(ctx context.Context, sel ast.SelectionSet, v *model.LensSignalPage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensSignalPage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensTimePoint2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensTimePointᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensTimePoint) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensTimePoint2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensTimePoint(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensTimePoint2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensTimePoint(ctx context.Context, sel ast.SelectionSet, v *model.LensTimePoint) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensTimePoint(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLensVital2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensVitalᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LensVital) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLensVital2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensVital(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLensVital2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensVital(ctx context.Context, sel ast.SelectionSet, v *model.LensVital) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LensVital(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNSaveExperimentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐSaveExperimentInput(ctx context.Context, v any) (model.SaveExperimentInput, error) {
@@ -5777,6 +13653,41 @@ func (ec *executionContext) marshalOExperiment2ᚖgithubᚗcomᚋskeletgᚋskele
 	return ec._Experiment(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalFloatContext(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOFloat2ᚖfloat64(ctx context.Context, sel ast.SelectionSet, v *float64) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	res := graphql.MarshalFloatContext(*v)
+	return graphql.WrapContextMarshaler(ctx, res)
+}
+
+func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalID(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalID(*v)
+	return res
+}
+
 func (ec *executionContext) unmarshalOInt2ᚖint32(ctx context.Context, v any) (*int32, error) {
 	if v == nil {
 		return nil, nil
@@ -5793,6 +13704,13 @@ func (ec *executionContext) marshalOInt2ᚖint32(ctx context.Context, sel ast.Se
 	_ = ctx
 	res := graphql.MarshalInt32(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOLensHeatmap2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐLensHeatmap(ctx context.Context, sel ast.SelectionSet, v *model.LensHeatmap) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._LensHeatmap(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v any) (*string, error) {

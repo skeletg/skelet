@@ -13,12 +13,11 @@ import (
 // SIGNALS_ENABLED=false has to leave the store sellable and its transactional mail flowing, so the gate is per file and anything still reachable with the suite off is written down below with why
 
 // Resolver file -> the suite it belongs to, every resolver in it gated
-// Prism is absent on purpose: it moved to the Signals API, which is gated as a whole by its own token audience
+// Prism and Lens are absent on purpose - they moved to the Signals API, which is gated as a whole by its own token audience
 var signalsGatedFiles = map[string]string{
 	"analytics.resolvers.go":      "the event spine",
 	"campaign.resolvers.go":       "Pulse broadcasts",
 	"deliverability.resolvers.go": "Pulse sending reputation",
-	"lens.resolvers.go":           "Lens",
 	"synapse.resolvers.go":        "Synapse",
 }
 

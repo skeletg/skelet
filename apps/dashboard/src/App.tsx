@@ -20,6 +20,7 @@ import { ResetPassword } from '@/shared/auth/ResetPassword'
 // registry, and both must finish before the layout's TabPanels renders the leaf table
 import '@/nav/routes'
 import '@/plugins/loader'
+import { SignalsBanner } from '@/shared/signals/SignalsBanner'
 
 // Everything the router hosts - the unsaved-changes navigation guard has to live INSIDE the data
 // router to see navigations at all, and page titles need a location to resolve against
@@ -31,6 +32,7 @@ function RootLayout() {
       {/* The notification toast is a custom render matching the bell dropdown's row
           design - theme comes from the themed wrapper plus app CSS variables */}
       <Toaster position="bottom-right" closeButton />
+      <SignalsBanner />
     </PageTitleProvider>
   )
 }
