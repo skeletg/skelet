@@ -943,6 +943,40 @@ func (s *Store) RecentEngagementEvents(ctx context.Context, customerID uuid.UUID
 	return out, rows.Err()
 }
 
+// Lifetime order aggregates per customer, netting out orders later cancelled - properties are JSON here, so the order id comes out with JSONExtractString rather than a jsonb operator
+func (s *Store) ChannelOrderAggregates(ctx context.Context, channelID uuid.UUID) ([]analytics.CustomerOrders, error) {
+	rows, err := s.conn.Query(ctx, `
+		SELECT customer_id,
+		       toInt32(count()) AS order_count,
+		       toInt64(sum(toInt64OrZero(JSONExtractString(properties, 'total_cents')))) AS monetary_cents,
+		       min(occurred_at) AS first_order_at,
+		       max(occurred_at) AS last_order_at
+		FROM analytics_events FINAL
+		WHERE channel_id = ?
+		  AND event_name = 'order_placed'
+		  AND customer_id != toUUID('00000000-0000-0000-0000-000000000000')
+		  AND JSONHas(properties, 'order_id')
+		  AND JSONExtractString(properties, 'order_id') NOT IN (
+		      SELECT JSONExtractString(properties, 'order_id')
+		      FROM analytics_events FINAL
+		      WHERE channel_id = ? AND event_name = 'order_cancelled' AND JSONHas(properties, 'order_id')
+		  )
+		GROUP BY customer_id`, channelID, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []analytics.CustomerOrders
+	for rows.Next() {
+		var c analytics.CustomerOrders
+		if err := rows.Scan(&c.CustomerID, &c.OrderCount, &c.MonetaryCents, &c.FirstOrderAt, &c.LastOrderAt); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) ChannelEngagementCounts(ctx context.Context, channelID uuid.UUID, since time.Time) ([]analytics.CustomerEngagement, error) {
 	rows, err := s.conn.Query(ctx, `
 		SELECT customer_id, toInt32(least(count(), 100)) AS engagement

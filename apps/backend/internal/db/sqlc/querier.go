@@ -239,6 +239,8 @@ type Querier interface {
 	// Wipe a channel's engagement projection - the empty-refresh case (no active
 	// customers in the window)
 	ClearChannelEngagement(ctx context.Context, channelID uuid.UUID) error
+	// The empty-refresh case: a channel whose spine holds no surviving orders
+	ClearChannelOrderAgg(ctx context.Context, channelID uuid.UUID) error
 	ClearCollectionCover(ctx context.Context, id uuid.UUID) (Collection, error)
 	ClearDeadWebhookQueueItems(ctx context.Context, webhookID uuid.UUID) (int64, error)
 	ClearDefaultCustomerGroup(ctx context.Context) error
@@ -917,6 +919,7 @@ type Querier interface {
 	// vote (+1/-1) on each of the given reviews - empty rows for reviews
 	// the customer hasn't voted on - used to highlight the active button
 	GetMyReviewVotesByCustomer(ctx context.Context, arg GetMyReviewVotesByCustomerParams) ([]GetMyReviewVotesByCustomerRow, error)
+	GetOrderAggWatermark(ctx context.Context, channelID uuid.UUID) (time.Time, error)
 	GetOrderByID(ctx context.Context, id uuid.UUID) (Order, error)
 	GetOrderFulfillment(ctx context.Context, id uuid.UUID) (OrderFulfillment, error)
 	GetOrderPaymentTransactionByIdempotencyKey(ctx context.Context, idempotencyKey sql.NullString) (OrderPaymentTransaction, error)
@@ -1839,6 +1842,10 @@ type Querier interface {
 	MerchantFeedProducts(ctx context.Context, arg MerchantFeedProductsParams) ([]MerchantFeedProductsRow, error)
 	MoveAttributeToGroup(ctx context.Context, arg MoveAttributeToGroupParams) error
 	OrderEmailExists(ctx context.Context, arg OrderEmailExistsParams) (bool, error)
+	// Historical orders as the spine would have recorded them, for the one-time backfill that gives
+	// trait compute the history predating tracking - guests are skipped, since RFM is per customer,
+	// and drafts never reached a customer so they were never placed
+	OrdersForSpineBackfill(ctx context.Context, arg OrdersForSpineBackfillParams) ([]OrdersForSpineBackfillRow, error)
 	// Distinct channels with waiting requests for a product (the restock handler
 	// checks per-channel salability before notifying)
 	PendingBackInStockChannels(ctx context.Context, productID uuid.UUID) ([]uuid.UUID, error)
@@ -2012,6 +2019,10 @@ type Querier interface {
 	// reads it - the delete and the upsert touch disjoint rows (NOT IN set vs in
 	// set), which single-statement row rules require
 	ReplaceChannelEngagement(ctx context.Context, arg ReplaceChannelEngagementParams) error
+	// Atomically swap a channel's order projection to the given per-customer aggregates (paired arrays),
+	// one statement for the same reason the engagement swap is one: a crash must not leave it half-cleared
+	// before RecomputeChannelTraits reads it and zeroes everyone's RFM
+	ReplaceChannelOrderAgg(ctx context.Context, arg ReplaceChannelOrderAggParams) error
 	RescheduleWebhookQueueItem(ctx context.Context, arg RescheduleWebhookQueueItemParams) error
 	ResolveCMSPageComment(ctx context.Context, arg ResolveCMSPageCommentParams) (CmsPageComment, error)
 	// Entity resolution runs after the fetch so the crawler stays a pure HTTP job - the join is on the same
@@ -2215,6 +2226,7 @@ type Querier interface {
 	// $0 shipping options via the builtin "pickup" carrier
 	SetLocationPickup(ctx context.Context, arg SetLocationPickupParams) (InventoryLocation, error)
 	SetMediaFocalPoint(ctx context.Context, arg SetMediaFocalPointParams) (MediaAsset, error)
+	SetOrderAggWatermark(ctx context.Context, arg SetOrderAggWatermarkParams) error
 	// Records the cents covered by gift cards + the resulting payment status,
 	// inside the placement tx - the order total is unchanged (gift cards are a
 	// tender, not a discount); amount owed to the provider is total - this

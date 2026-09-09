@@ -66,8 +66,11 @@ func (lc LifecycleWindows) normalized() LifecycleWindows {
 // RFM scores are quintile ranks among the channel's ordering customers (5 best, 0 never-ordered), lifecycle derives from recency and order count against LifecycleWindows, engagement is last-30d commerce + account + email spine activity capped at 100
 func (r *Recorder) ComputeTraits(ctx context.Context, channelID uuid.UUID, now time.Time, lc LifecycleWindows) (int, error) { // driven by the trait-compute scheduled job, never the request path
 	lc = lc.normalized()
-	// Engagement gets refreshed first because the recompute reads customer_engagement_30d in commerce rather than joining analytics_events, which moved to the signals db
+	// Both projections are refreshed first, because the recompute reads them in commerce rather than reaching into the signals db - engagement for the 30-day event count, order aggregates for the RFM inputs
 	if err := r.refreshEngagement(ctx, channelID, now); err != nil {
+		return 0, err
+	}
+	if err := r.refreshOrderAggregates(ctx, channelID, now); err != nil {
 		return 0, err
 	}
 	n, err := r.q.RecomputeChannelTraits(ctx, db.RecomputeChannelTraitsParams{
@@ -220,4 +223,47 @@ func (r *Recorder) TraitActors(ctx context.Context, channelID uuid.UUID, rule Tr
 		out = append(out, t.CustomerID)
 	}
 	return out, nil
+}
+
+// The RFM inputs, read off the spine and landed in commerce so the recompute can join them locally
+// Always a full swap: a cancellation retroactively removes an order the projection already counted, so there is no slice of "what changed" the way engagement has one
+func (r *Recorder) refreshOrderAggregates(ctx context.Context, channelID uuid.UUID, now time.Time) error {
+	// The projection is seeded from the orders table by its migration, and the spine only goes back to when tracking
+	// started - swapping before `skelet signals backfill-orders` has replayed the rest would truncate every customer's
+	// history at that cutover and reset their scores, so the seeded rows stand until the backfill arms this
+	if _, err := r.q.GetOrderAggWatermark(ctx, channelID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("order aggregate watermark: %w", err)
+	}
+	aggs, err := r.spine.ChannelOrderAggregates(ctx, channelID)
+	if err != nil {
+		return fmt.Errorf("order aggregates: %w", err)
+	}
+	if len(aggs) == 0 {
+		if err := r.q.ClearChannelOrderAgg(ctx, channelID); err != nil {
+			return fmt.Errorf("clear order aggregates: %w", err)
+		}
+		return r.q.SetOrderAggWatermark(ctx, db.SetOrderAggWatermarkParams{ChannelID: channelID, RanAt: now})
+	}
+	ids := make([]uuid.UUID, 0, len(aggs))
+	counts := make([]int32, 0, len(aggs))
+	cents := make([]int64, 0, len(aggs))
+	firsts := make([]time.Time, 0, len(aggs))
+	lasts := make([]time.Time, 0, len(aggs))
+	for _, a := range aggs {
+		ids = append(ids, a.CustomerID)
+		counts = append(counts, a.OrderCount)
+		cents = append(cents, a.MonetaryCents)
+		firsts = append(firsts, a.FirstOrderAt)
+		lasts = append(lasts, a.LastOrderAt)
+	}
+	if err := r.q.ReplaceChannelOrderAgg(ctx, db.ReplaceChannelOrderAggParams{
+		ChannelID: channelID, CustomerIds: ids, OrderCounts: counts,
+		MonetaryCents: cents, FirstOrderAts: firsts, LastOrderAts: lasts,
+	}); err != nil {
+		return fmt.Errorf("replace order aggregates: %w", err)
+	}
+	return r.q.SetOrderAggWatermark(ctx, db.SetOrderAggWatermarkParams{ChannelID: channelID, RanAt: now})
 }

@@ -15,17 +15,18 @@
 --   * engagement = last-30d spine events, ≤100
 -- as_of is the run clock (recency + the 30-day engagement window derive from it)
 WITH agg AS (
+    -- Reverse-read projection, refreshed from the signals spine by the trait-compute job right before this
+    -- recompute - the join this replaced (customers LEFT JOIN orders) is what kept the job inside commerce,
+    -- and a cancelled order is already netted out on the spine side rather than filtered here
+    -- Still driven by customers, so a never-ordered customer keeps a row and lands as a prospect
     SELECT c.id                                     AS customer_id,
-           COUNT(o.id)::int                         AS order_count,
-           COALESCE(SUM(o.total_amount), 0)::bigint AS monetary_cents,
-           MAX(o.created_at)                        AS last_order_at,
-           MIN(o.created_at)                        AS first_order_at
+           COALESCE(a.order_count, 0)::int          AS order_count,
+           COALESCE(a.monetary_cents, 0)::bigint    AS monetary_cents,
+           a.last_order_at                          AS last_order_at,
+           a.first_order_at                         AS first_order_at
     FROM customers c
-    LEFT JOIN orders o
-        ON o.customer_id = c.id
-       AND o.status NOT IN ('cancelled', 'draft')
+    LEFT JOIN customer_order_agg a ON a.customer_id = c.id
     WHERE c.channel_id = sqlc.arg(channel_id)::uuid
-    GROUP BY c.id
 ),
 act AS (
     -- Reverse-read projection, refreshed from the signals spine by the trait-compute job right before this recompute
@@ -210,3 +211,33 @@ SELECT * FROM customer_traits WHERE customer_id = sqlc.arg(customer_id);
 
 -- name: ListCustomerTraitsByChannel :many
 SELECT * FROM customer_traits WHERE channel_id = sqlc.arg(channel_id);
+
+-- name: ReplaceChannelOrderAgg :exec
+-- Atomically swap a channel's order projection to the given per-customer aggregates (paired arrays),
+-- one statement for the same reason the engagement swap is one: a crash must not leave it half-cleared
+-- before RecomputeChannelTraits reads it and zeroes everyone's RFM
+WITH pruned AS (
+    DELETE FROM customer_order_agg
+    WHERE channel_id = sqlc.arg(channel_id)::uuid
+      AND NOT (customer_id = ANY(sqlc.arg(customer_ids)::uuid[]))
+)
+INSERT INTO customer_order_agg (customer_id, channel_id, order_count, monetary_cents, first_order_at, last_order_at)
+SELECT unnest(sqlc.arg(customer_ids)::uuid[]), sqlc.arg(channel_id)::uuid,
+       unnest(sqlc.arg(order_counts)::int[]), unnest(sqlc.arg(monetary_cents)::bigint[]),
+       unnest(sqlc.arg(first_order_ats)::timestamptz[]), unnest(sqlc.arg(last_order_ats)::timestamptz[])
+ON CONFLICT (customer_id) DO UPDATE
+    SET channel_id = EXCLUDED.channel_id, order_count = EXCLUDED.order_count,
+        monetary_cents = EXCLUDED.monetary_cents, first_order_at = EXCLUDED.first_order_at,
+        last_order_at = EXCLUDED.last_order_at, computed_at = now();
+
+-- name: ClearChannelOrderAgg :exec
+-- The empty-refresh case: a channel whose spine holds no surviving orders
+DELETE FROM customer_order_agg WHERE channel_id = sqlc.arg(channel_id);
+
+-- name: SetOrderAggWatermark :exec
+INSERT INTO customer_order_agg_refresh (channel_id, ran_at)
+VALUES (sqlc.arg(channel_id), sqlc.arg(ran_at))
+ON CONFLICT (channel_id) DO UPDATE SET ran_at = EXCLUDED.ran_at;
+
+-- name: GetOrderAggWatermark :one
+SELECT ran_at FROM customer_order_agg_refresh WHERE channel_id = sqlc.arg(channel_id);
