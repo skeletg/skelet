@@ -6,6 +6,36 @@ import (
 	"time"
 )
 
+type BotAgent struct {
+	Name     string    `json:"name"`
+	Category string    `json:"category"`
+	Hits     int32     `json:"hits"`
+	Pages    int32     `json:"pages"`
+	LastSeen time.Time `json:"lastSeen"`
+}
+
+type BotDayPoint struct {
+	Day        string `json:"day"`
+	BotHits    int32  `json:"botHits"`
+	HumanViews int32  `json:"humanViews"`
+}
+
+type BotPage struct {
+	PageKey string `json:"pageKey"`
+	Hits    int32  `json:"hits"`
+	Bots    int32  `json:"bots"`
+}
+
+type BotTraffic struct {
+	BotHits    int32          `json:"botHits"`
+	HumanViews int32          `json:"humanViews"`
+	BotCount   int32          `json:"botCount"`
+	PageCount  int32          `json:"pageCount"`
+	Bots       []*BotAgent    `json:"bots"`
+	TopPages   []*BotPage     `json:"topPages"`
+	Daily      []*BotDayPoint `json:"daily"`
+}
+
 type Experiment struct {
 	ID          string                 `json:"id"`
 	ChannelID   string                 `json:"channelId"`
@@ -84,6 +114,165 @@ type ExperimentsOverview struct {
 	TotalExposed int32                `json:"totalExposed"`
 	Decided      int32                `json:"decided"`
 	Experiments  []*ExperimentSummary `json:"experiments"`
+}
+
+type LensCell struct {
+	X     int32 `json:"x"`
+	Y     int32 `json:"y"`
+	Count int32 `json:"count"`
+}
+
+type LensElementClick struct {
+	Selector string `json:"selector"`
+	Text     string `json:"text"`
+	Count    int32  `json:"count"`
+}
+
+type LensErrorStat struct {
+	Message  string    `json:"message"`
+	Count    int32     `json:"count"`
+	Pages    int32     `json:"pages"`
+	LastSeen time.Time `json:"lastSeen"`
+}
+
+type LensFrustration struct {
+	RagePages    []*LensSignalPage  `json:"ragePages"`
+	DeadPages    []*LensSignalPage  `json:"deadPages"`
+	RageElements []*LensRageElement `json:"rageElements"`
+}
+
+type LensHeatmap struct {
+	PageKey      string              `json:"pageKey"`
+	Viewport     string              `json:"viewport"`
+	State        string              `json:"state"`
+	Width        int32               `json:"width"`
+	Height       int32               `json:"height"`
+	SnapshotJSON string              `json:"snapshotJson"`
+	Click        []*LensCell         `json:"click"`
+	Move         []*LensCell         `json:"move"`
+	Scroll       []*LensCell         `json:"scroll"`
+	Elements     []*LensElementClick `json:"elements"`
+}
+
+type LensLabelCount struct {
+	Label string `json:"label"`
+	Views int32  `json:"views"`
+}
+
+type LensOverview struct {
+	Views        int32             `json:"views"`
+	Visitors     int32             `json:"visitors"`
+	Daily        []*LensTimePoint  `json:"daily"`
+	TopPages     []*LensPageStat   `json:"topPages"`
+	Devices      []*LensLabelCount `json:"devices"`
+	Referrers    []*LensLabelCount `json:"referrers"`
+	Interactions []*LensLabelCount `json:"interactions"`
+}
+
+type LensPage struct {
+	PageKey string `json:"pageKey"`
+	Views   int32  `json:"views"`
+}
+
+type LensPageStat struct {
+	PageKey   string `json:"pageKey"`
+	Views     int32  `json:"views"`
+	Visitors  int32  `json:"visitors"`
+	Clicks    int32  `json:"clicks"`
+	AvgScroll int32  `json:"avgScroll"`
+}
+
+type LensPageStats struct {
+	Views     int32             `json:"views"`
+	Visitors  int32             `json:"visitors"`
+	Clicks    int32             `json:"clicks"`
+	AvgScroll int32             `json:"avgScroll"`
+	Timeline  []*LensTimePoint  `json:"timeline"`
+	Referrers []*LensLabelCount `json:"referrers"`
+	Clients   []*LensLabelCount `json:"clients"`
+	Devices   []*LensLabelCount `json:"devices"`
+}
+
+type LensPageVitals struct {
+	PageKey string   `json:"pageKey"`
+	Lcp     *float64 `json:"lcp,omitempty"`
+	Cls     *float64 `json:"cls,omitempty"`
+	Inp     *float64 `json:"inp,omitempty"`
+	Ttfb    *float64 `json:"ttfb,omitempty"`
+	Samples int32    `json:"samples"`
+}
+
+type LensRageElement struct {
+	Selector string `json:"selector"`
+	Text     string `json:"text"`
+	Count    int32  `json:"count"`
+}
+
+type LensSearchAnalytics struct {
+	TotalSearches      int32             `json:"totalSearches"`
+	DistinctTerms      int32             `json:"distinctTerms"`
+	ZeroResultSearches int32             `json:"zeroResultSearches"`
+	Top                []*LensSearchTerm `json:"top"`
+	ZeroResult         []*LensSearchTerm `json:"zeroResult"`
+	Daily              []*LensSearchDay  `json:"daily"`
+}
+
+type LensSearchDay struct {
+	Date        string `json:"date"`
+	Searches    int32  `json:"searches"`
+	ZeroResults int32  `json:"zeroResults"`
+}
+
+type LensSearchTerm struct {
+	Term  string `json:"term"`
+	Count int32  `json:"count"`
+}
+
+type LensSession struct {
+	ID         string    `json:"id"`
+	AnonID     string    `json:"anonId"`
+	CustomerID *string   `json:"customerId,omitempty"`
+	StartedAt  time.Time `json:"startedAt"`
+	EndedAt    time.Time `json:"endedAt"`
+	DurationMs int32     `json:"durationMs"`
+	EventCount int32     `json:"eventCount"`
+	EntryPage  string    `json:"entryPage"`
+	ExitPage   string    `json:"exitPage"`
+	Viewport   string    `json:"viewport"`
+	UserAgent  string    `json:"userAgent"`
+	RageCount  int32     `json:"rageCount"`
+	ErrorCount int32     `json:"errorCount"`
+}
+
+type LensSessionError struct {
+	Message string    `json:"message"`
+	At      time.Time `json:"at"`
+}
+
+type LensSessionSignals struct {
+	Errors []*LensSessionError `json:"errors"`
+	Vitals []*LensSessionVital `json:"vitals"`
+}
+
+type LensSessionVital struct {
+	Metric string  `json:"metric"`
+	Value  float64 `json:"value"`
+}
+
+type LensSignalPage struct {
+	PageKey string `json:"pageKey"`
+	Count   int32  `json:"count"`
+}
+
+type LensTimePoint struct {
+	Date  string `json:"date"`
+	Views int32  `json:"views"`
+}
+
+type LensVital struct {
+	Metric  string  `json:"metric"`
+	P75     float64 `json:"p75"`
+	Samples int32   `json:"samples"`
 }
 
 type Mutation struct {

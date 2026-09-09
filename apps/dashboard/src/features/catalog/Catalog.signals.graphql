@@ -1,0 +1,9 @@
+# Storefront traffic for one product page, served by the Signals API - Lens keys pages by URL path, so the product's own url is the key
+query ProductTraffic($channelId: ID!, $pageKey: String!) {
+  lensPageStats(channelId: $channelId, pageKey: $pageKey) {
+    views
+    visitors
+    clicks
+    avgScroll
+  }
+}

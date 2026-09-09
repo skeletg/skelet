@@ -13,7 +13,7 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
-import { type LensErrorsQuery, LensErrorsDocument } from './Lens.gql'
+import { type LensErrorsQuery, LensErrorsDocument } from './Lens.signals.gql'
 
 type Row = LensErrorsQuery['lensErrors'][number]
 

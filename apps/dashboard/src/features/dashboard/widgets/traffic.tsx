@@ -10,7 +10,7 @@ import {
 } from 'recharts'
 import { ChartTooltipContent } from '@/components/ui/chart'
 import { useConfigScope } from '@/lib/config-scope'
-import { LensOverviewDocument } from '@/features/lens/Lens.gql'
+import { LensOverviewDocument } from '@/features/lens/Lens.signals.gql'
 import { NeedsChannel, Tile, WidgetSection } from './primitives'
 
 const ACCENT = '#6366f1'

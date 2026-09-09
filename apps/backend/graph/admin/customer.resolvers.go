@@ -428,6 +428,39 @@ func (r *queryResolver) Customers(ctx context.Context, channelID *string) ([]*mo
 	return result, nil
 }
 
+func (r *queryResolver) CustomersByIds(ctx context.Context, ids []string) ([]*model.Customer, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.view"); err != nil {
+		return nil, err
+	}
+	perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "customers.view")
+	if err != nil {
+		return nil, err
+	}
+	want := make([]uuid.UUID, 0, len(ids))
+	for _, raw := range ids {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return nil, errInvalidID("ids", err)
+		}
+		want = append(want, id)
+	}
+	byID, err := r.CustomerSvc.GetByIDs(ctx, want)
+	if err != nil {
+		return nil, err
+	}
+	found := make([]customer.Customer, 0, len(byID))
+	for _, c := range byID {
+		found = append(found, c)
+	}
+	// Same channel filter the list resolver applies - an id the caller cannot see resolves to nothing rather than an error
+	visible := auth.FilterByChannel(found, perm, func(c customer.Customer) uuid.UUID { return c.ChannelID })
+	out := make([]*model.Customer, 0, len(visible))
+	for _, c := range visible {
+		out = append(out, toCustomerModel(c))
+	}
+	return out, nil
+}
+
 func (r *queryResolver) CustomersPaged(ctx context.Context, channelID *string, search *string, groupSlug *string, isActive *bool, limit *int32, offset *int32) (*model.CustomerPage, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.view"); err != nil {
 		return nil, err

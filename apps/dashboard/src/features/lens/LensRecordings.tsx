@@ -13,7 +13,8 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
-import { type LensSessionsQuery, LensSessionsDocument } from './Lens.gql'
+import { type LensSessionsQuery, LensSessionsDocument } from './Lens.signals.gql'
+import { LensCustomerNamesDocument } from './CustomerNames.gql'
 
 type Row = LensSessionsQuery['lensSessions'][number]
 
@@ -36,7 +37,25 @@ export function LensRecordings() {
     skip: !effectiveChannelId,
     fetchPolicy: 'cache-and-network',
   })
-  const sessions = data?.lensSessions ?? []
+  const sessions = useMemo(() => data?.lensSessions ?? [], [data])
+
+  // The Signals API returns customer ids and no names, so the labels come from core in one batched follow-up
+  const customerIds = useMemo(
+    () => [...new Set(sessions.flatMap((s) => (s.customerId ? [s.customerId] : [])))],
+    [sessions],
+  )
+  const { data: nameData } = useQuery(LensCustomerNamesDocument, {
+    variables: { ids: customerIds },
+    skip: customerIds.length === 0,
+    fetchPolicy: 'cache-first',
+  })
+  const nameById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const c of nameData?.customersByIds ?? []) {
+      m.set(c.id, [c.firstName, c.lastName].filter(Boolean).join(' ').trim() || c.email)
+    }
+    return m
+  }, [nameData])
 
   const columns = useMemo<ColumnDef<Row>[]>(
     () => [
@@ -53,7 +72,7 @@ export function LensRecordings() {
           const cust = !!s.customerId
           // Tie through to the visitor's Synapse profile (customer or anon)
           const to = cust ? `/synapse/customers/${s.customerId}` : `/synapse/visitors/${s.anonId}`
-          const label = cust ? s.customerName || s.customerEmail || s.customerId!.slice(0, 8) : `${s.anonId.slice(0, 8)}…`
+          const label = cust ? nameById.get(s.customerId!) || s.customerId!.slice(0, 8) : `${s.anonId.slice(0, 8)}…`
           return (
             <div className="flex min-w-0 items-center gap-2">
               <Badge variant={cust ? 'default' : 'secondary'} className="shrink-0 text-[10px]">
@@ -150,7 +169,7 @@ export function LensRecordings() {
         ),
       },
     ],
-    [],
+    [nameById],
   )
 
   return (

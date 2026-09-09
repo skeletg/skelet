@@ -22,6 +22,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/applog"
 	"github.com/skeletg/skelet/apps/backend/internal/cache"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/internal/envcheck"
 	"github.com/skeletg/skelet/apps/backend/internal/httpx"
@@ -126,6 +127,8 @@ func run() error {
 	// The suite's own admin API - the dashboard reaches it directly, authenticating with a service token core minted
 	mux.Handle(signalsapi.Path, wiring.SignalsGraphQLHandler(wiring.SignalsAPI{
 		Experiment: d.Experiment,
+		Lens:       lensSvc,
+		Roster:     signalsdb.New(sigConn),
 		JWTSecret:  d.Config.JWTSecret,
 		Dev:        d.Config.IsDev(),
 		Telemetry:  telemetry,

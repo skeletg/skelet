@@ -15,7 +15,7 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
-import { type LensOverviewQuery, LensFrustrationDocument, LensOverviewDocument, LensVitalsSummaryDocument } from './Lens.gql'
+import { type LensOverviewQuery, LensFrustrationDocument, LensOverviewDocument, LensVitalsSummaryDocument } from './Lens.signals.gql'
 import { VITAL_ORDER, isVitalMetric } from './vitals'
 import { VitalGauge } from './VitalGauge'
 
