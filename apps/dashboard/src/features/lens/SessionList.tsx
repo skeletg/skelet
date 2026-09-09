@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import { DetailPageSection } from '@/components/layout/detail-page'
-import { LensCustomerSessionsDocument, LensVisitorSessionsDocument } from './Lens.gql'
+import { LensCustomerSessionsDocument, LensVisitorSessionsDocument } from './Lens.signals.gql'
 
 // One row's worth of a recording, as returned by the LensSession* queries
 export type SessionRow = {

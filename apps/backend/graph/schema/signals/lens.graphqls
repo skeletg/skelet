@@ -165,8 +165,6 @@ type LensSession {
   id:         ID!
   anonId:     String!
   customerId: ID          # set once the visitor was identified
-  customerName:  String   # resolved display name (logged-in sessions; null for anon)
-  customerEmail: String   # resolved email (logged-in sessions)
   startedAt:  Time!
   endedAt:    Time!
   durationMs: Int!

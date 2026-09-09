@@ -1,15 +1,14 @@
-package admin
+package signals
 
 // Lives here rather than lens.resolvers.go - gqlgen evicts non-resolver funcs from generated resolver files
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/signals/model"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
 	"github.com/skeletg/skelet/apps/backend/internal/lens"
 )
@@ -24,14 +23,14 @@ func lensSince(sinceDays *int32) time.Time { // default window is 30 days
 
 // Both gates matter - lens.view globally and again on the channel
 func lensViewScope(ctx context.Context, r *queryResolver, channelID string) (uuid.UUID, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "lens.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view"); err != nil {
 		return uuid.Nil, err
 	}
 	cid, err := uuid.Parse(channelID)
 	if err != nil {
 		return uuid.Nil, errInvalidID("channelId", err)
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "lens.view", cid, nil); err != nil {
+	if err := auth.RequireChannelPermission(ctx, auth.GrantCheckerFrom(ctx), "lens.view", cid, nil); err != nil {
 		return uuid.Nil, err
 	}
 	return cid, nil
@@ -56,15 +55,8 @@ func sessionLimit(limit *int32) int32 { // default 50, hard max 200
 	return n
 }
 
-func (r *queryResolver) sessionModels(ctx context.Context, rows []lens.SessionMeta) []*model.LensSession {
-	ids := make([]uuid.UUID, 0, len(rows))
-	for _, s := range rows {
-		if s.CustomerID != nil {
-			ids = append(ids, *s.CustomerID)
-		}
-	}
-	custs, _ := r.CustomerSvc.GetByIDs(ctx, ids) // batched so the recordings table shows a customer instead of a bare id
-
+// Returns the customer id and nothing more about them - this service has no customers table, and copying names into it for a table label is not a trade worth making
+func (r *queryResolver) sessionModels(_ context.Context, rows []lens.SessionMeta) []*model.LensSession {
 	out := make([]*model.LensSession, 0, len(rows))
 	for _, s := range rows {
 		m := &model.LensSession{
@@ -84,15 +76,6 @@ func (r *queryResolver) sessionModels(ctx context.Context, rows []lens.SessionMe
 		if s.CustomerID != nil {
 			cid := s.CustomerID.String()
 			m.CustomerID = &cid
-			if c, ok := custs[*s.CustomerID]; ok {
-				if name := strings.TrimSpace(c.FirstName + " " + c.LastName); name != "" {
-					m.CustomerName = &name
-				}
-				if c.Email != "" {
-					email := c.Email
-					m.CustomerEmail = &email
-				}
-			}
 		}
 		out = append(out, m)
 	}
