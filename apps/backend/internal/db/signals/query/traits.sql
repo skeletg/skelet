@@ -337,3 +337,7 @@ ORDER BY x.dimension, x.score;
 SELECT customer_id, lifecycle_stage, recency_days, engagement_score
 FROM customer_traits
 WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]);
+
+-- name: ChannelForCustomer :one
+-- The channel a customer belongs to, for a channel-scoped permission check in a service with no customers table
+SELECT channel_id FROM customer_roster WHERE customer_id = sqlc.arg(customer_id);

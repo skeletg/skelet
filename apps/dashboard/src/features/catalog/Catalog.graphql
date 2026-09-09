@@ -1854,13 +1854,3 @@ query ProductSidebarStats($id: ID!, $sku: String!, $days: Int, $channelId: ID) {
   }
 }
 
-# Storefront traffic for one product page - Lens keys pages by URL path, so the product's own
-# url is the key - Separate query so it can be skipped entirely when Signals is off
-query ProductTraffic($channelId: ID!, $pageKey: String!) {
-  lensPageStats(channelId: $channelId, pageKey: $pageKey) {
-    views
-    visitors
-    clicks
-    avgScroll
-  }
-}

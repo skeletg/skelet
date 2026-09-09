@@ -67,6 +67,8 @@ type Querier interface {
 	// ChannelEngagementCounts scoped to a bounded id set - the incremental refresh
 	// recomputes only the changed customers.
 	ChannelEngagementCountsFor(ctx context.Context, arg ChannelEngagementCountsForParams) ([]ChannelEngagementCountsForRow, error)
+	// The channel a customer belongs to, for a channel-scoped permission check in a service with no customers table
+	ChannelForCustomer(ctx context.Context, customerID uuid.UUID) (uuid.UUID, error)
 	// Lifetime order history per customer, from the spine rather than the orders table - the RFM inputs
 	// An order that was later cancelled is excluded entirely, which is what the commerce query's
 	// status filter did at read time and an append-only log has to do by netting instead

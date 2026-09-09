@@ -14,3 +14,11 @@ func errInvalidID(field string, err error) error {
 		Cause:   err,
 	}
 }
+
+func errNotFound(entity string) error {
+	return apperr.New("NOT_FOUND", apperr.ClassNotFound, entity+" not found")
+}
+
+func errNotConfigured(subsystem string) error {
+	return apperr.New("NOT_CONFIGURED", apperr.ClassUnavailable, subsystem+" is not configured")
+}

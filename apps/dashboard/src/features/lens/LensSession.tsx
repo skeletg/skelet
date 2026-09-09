@@ -8,7 +8,7 @@ import {
   DetailPageLayout,
   DetailPageSection,
 } from '@/components/layout/detail-page'
-import { LensSessionEventsDocument, LensSessionSignalsDocument } from './Lens.gql'
+import { LensSessionEventsDocument, LensSessionSignalsDocument } from './Lens.signals.gql'
 
 type RREvent = {
   type?: number

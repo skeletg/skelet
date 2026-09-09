@@ -89,6 +89,14 @@ The release process, and which version number means what, is in
 
 ### Added
 
+- **Lens is served by the Signals API too.** The whole session-replay, heatmap, web-vitals and
+  on-site-search surface moves onto `/api/signals/graphql` alongside Prism, which is where its data
+  already lived. Two things needed answers rather than a move: the channel-scoped permission check
+  on a customer's recordings now reads the synced roster instead of the customers table, and the
+  recordings list returns customer ids without names. The dashboard labels those rows by asking
+  core for the ids in one batched follow-up, so customer names and email addresses stay in the
+  commerce database rather than being copied into the analytics one for a table label.
+
 - **Prism is served by its own API.** The Signals process (`cmd/signals`) now serves a GraphQL
   surface at `/api/signals/graphql`, and the A/B testing screens talk to it directly rather than
   to the core admin API. Callers authenticate with a short-lived token core mints for that

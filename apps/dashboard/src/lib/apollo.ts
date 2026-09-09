@@ -19,6 +19,7 @@ import { devMonitorLink } from '@/lib/dev-monitor'
 import { ADMIN_GRAPHQL_ENDPOINT, SIGNALS_GRAPHQL_ENDPOINT } from '@/lib/api-endpoint'
 import { SIGNALS_OPERATIONS } from '@/graphql/signals-operations'
 import { getSignalsToken } from '@/shared/auth/signals-token'
+import { setSignalsDown } from '@/shared/signals/health'
 
 const ENDPOINT = ADMIN_GRAPHQL_ENDPOINT
 
@@ -126,8 +127,15 @@ function isUnauthError(error: unknown): boolean {
   return maybeHttp.statusCode === 401 || maybeHttp.status === 401
 }
 
+// The service answering with errors is still the service answering - only a failure to reach it counts as down
+function isGraphQLResponse(error: unknown): boolean {
+  return error instanceof CombinedGraphQLErrors
+}
+
 const errorLink = new ErrorLink(({ error, operation, forward }) => {
   const opName = operation.operationName
+  // A transport failure on a Signals operation means the service is unreachable, which its screens have to say rather than render as empty
+  if (SIGNALS_OPERATIONS.has(opName ?? '') && !isGraphQLResponse(error)) setSignalsDown(true)
   if (opName === 'AdminLogin' || opName === 'RefreshToken') return
   if (!isUnauthError(error)) return
 
@@ -191,7 +199,25 @@ const signalsAuthLink = new SetContextLink(async (prevContext) => {
   return { headers: { ...headers, ...(token ? { authorization: `Bearer ${token}` } : {}) } }
 })
 
-const signalsLink = signalsAuthLink.concat(new HttpLink({ uri: SIGNALS_GRAPHQL_ENDPOINT }))
+// Reaching the service at all is the fact the banner reports - a GraphQL error is the service answering, so only a transport failure counts
+const signalsHealthLink = new ApolloLink(
+  (operation, forward) =>
+    new Observable<import('@apollo/client').ApolloLink.Result>((observer) => {
+      const sub = forward(operation).subscribe({
+        next: (result) => {
+          setSignalsDown(false)
+          observer.next(result)
+        },
+        error: (err) => observer.error(err),
+        complete: () => observer.complete(),
+      })
+      return () => sub.unsubscribe()
+    }),
+)
+
+const signalsLink = signalsAuthLink
+  .concat(signalsHealthLink)
+  .concat(new HttpLink({ uri: SIGNALS_GRAPHQL_ENDPOINT }))
 
 const httpTransportLink = ApolloLink.split(
   ({ operationName }) => SIGNALS_OPERATIONS.has(operationName ?? ''),

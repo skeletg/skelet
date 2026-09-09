@@ -145,6 +145,18 @@ func (q *Queries) ChannelEngagementCountsFor(ctx context.Context, arg ChannelEng
 	return items, nil
 }
 
+const channelForCustomer = `-- name: ChannelForCustomer :one
+SELECT channel_id FROM customer_roster WHERE customer_id = $1
+`
+
+// The channel a customer belongs to, for a channel-scoped permission check in a service with no customers table
+func (q *Queries) ChannelForCustomer(ctx context.Context, customerID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, channelForCustomer, customerID)
+	var channel_id uuid.UUID
+	err := row.Scan(&channel_id)
+	return channel_id, err
+}
+
 const channelOrderAggregates = `-- name: ChannelOrderAggregates :many
 SELECT p.customer_id::uuid                                  AS customer_id,
        COUNT(*)::int                                        AS order_count,
