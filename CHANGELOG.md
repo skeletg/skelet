@@ -56,6 +56,16 @@ The release process, and which version number means what, is in
   tags and the block preview now check `emails.view` rather than `campaigns.view`, matching the
   screens that actually need them.
 
+### Fixed
+
+- **You could not build a segment for lapsed customers, and one for dormant ones matched nobody.**
+  The trait recompute writes five lifecycle stages - prospect, new, active, at_risk and lapsed -
+  but the segment rule validator accepted `dormant` instead of `lapsed`. So a rule targeting
+  lapsed buyers, which is the win-back audience most stores want first, was rejected at save time,
+  while a rule targeting `dormant` saved cleanly and then matched nobody, because no customer is
+  ever given that stage. The validator now accepts exactly what the recompute writes, and a test
+  pins the two lists together so they cannot drift apart again.
+
 ### Changed
 
 - **Trait compute reads the event spine instead of joining the orders table.** RFM's inputs -

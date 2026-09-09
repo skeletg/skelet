@@ -41,8 +41,9 @@ var numericOps = map[string]string{
 	"eq": "=", "neq": "<>", "gt": ">", "gte": ">=", "lt": "<", "lte": "<=",
 }
 
+// Exactly the stages the trait recompute writes - "dormant" was accepted here and never produced, so a segment on it matched nobody, while "lapsed" was produced and could not be selected
 var lifecycleStages = map[string]bool{
-	"prospect": true, "new": true, "active": true, "at_risk": true, "dormant": true,
+	"prospect": true, "new": true, "active": true, "at_risk": true, "lapsed": true,
 }
 
 // Decodes and validates the JSONB payload - unknown keys are rejected, so a typo'd condition fails at save time rather than silently at refresh time
