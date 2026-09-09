@@ -58,6 +58,18 @@ The release process, and which version number means what, is in
 
 ### Added
 
+- **Prism is served by its own API.** The Signals process (`cmd/signals`) now serves a GraphQL
+  surface at `/api/signals/graphql`, and the A/B testing screens talk to it directly rather than
+  to the core admin API. Callers authenticate with a short-lived token core mints for that
+  audience, carrying only the permissions that surface checks, so the Signals service authorizes
+  every request without reaching into the commerce database. Killing a session in core still
+  takes effect there: revoked session ids are published to Valkey and checked per request, and an
+  unreachable Valkey fails open like the existing admin guard.
+
+  **This is a deployment change.** `cmd/signals` must be running for the Prism screens to work
+  (`docker compose --profile signals up`), and it now requires `JWT_SECRET` to verify the tokens
+  core mints - without it every request is refused. Everything else in Signals is unaffected.
+
 - **Resend an order email from the dashboard.** `resendOrderEmail` sends an order's receipt,
   shipment notice, cancellation or refund again, which is the recovery path for mail a paused
   flow swallowed or a customer never received - previously there was none, and the automatic

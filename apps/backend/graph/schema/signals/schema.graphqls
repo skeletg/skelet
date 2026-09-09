@@ -1,0 +1,7 @@
+# The Signals admin API, served by cmd/signals - callers authenticate with a service token core minted for audience "signals", carrying the admin's grants so authorization answers from the token alone
+
+scalar Time
+scalar Int64
+
+type Query
+type Mutation

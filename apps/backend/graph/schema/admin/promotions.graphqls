@@ -156,6 +156,12 @@ type CustomerSegmentList {
   totalCount: Int!
 }
 
+# A segment reduced to what a picker needs - named for Prism, which asked first, and kept so because CMS block visibility calls it too
+type SegmentOption {
+  slug: String!
+  name: String!
+}
+
 input CreateCustomerSegmentInput {
   slug:        String!
   name:        String!
@@ -326,6 +332,8 @@ extend type Query {
   # Customer segments.
   customerSegments(limit: Int = 25, offset: Int = 0): CustomerSegmentList!
   customerSegment(id: ID!): CustomerSegment
+  # Active segments for a targeting picker - stays in core with the segments themselves, since CMS block visibility uses it too
+  experimentSegments: [SegmentOption!]!
 }
 
 extend type Mutation {

@@ -1,7 +1,7 @@
 import { useQuery } from '@apollo/client/react'
 import { Link } from 'react-router-dom'
 import { useConfigScope } from '@/lib/config-scope'
-import { ExperimentsOverviewDocument } from '@/features/prism/Prism.gql'
+import { ExperimentsOverviewDocument } from '@/features/prism/Prism.signals.gql'
 import { Empty, NeedsChannel, Tile, WidgetSection } from './primitives'
 
 const DAYS = 30

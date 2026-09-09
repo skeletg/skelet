@@ -793,6 +793,26 @@ func (r *queryResolver) CustomerSegment(ctx context.Context, id string) (*model.
 	return segmentToModel(s, count), nil
 }
 
+func (r *queryResolver) ExperimentSegments(ctx context.Context) ([]*model.SegmentOption, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "experiments.view"); err != nil {
+		return nil, err
+	}
+	if r.SegmentSvc == nil {
+		return []*model.SegmentOption{}, nil
+	}
+	segs, _, err := r.SegmentSvc.List(ctx, 200, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.SegmentOption, 0, len(segs))
+	for _, s := range segs {
+		if s.IsActive {
+			out = append(out, &model.SegmentOption{Slug: s.Slug, Name: s.Name})
+		}
+	}
+	return out, nil
+}
+
 func (r *queryResolver) SimulatePromotion(ctx context.Context, input model.PromotionSimulationInput) (*model.PromotionSimulationResult, error) {
 	if r.PromotionSvc == nil {
 		return nil, errNotConfigured("promotions")

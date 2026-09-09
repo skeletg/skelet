@@ -278,6 +278,8 @@ services:
       # Bind the source, keep node_modules/.vite in volumes so the image's
       # musl install isn't shadowed by whatever the host built
       - ./apps/dashboard:/var/www/dashboard
+      # The Signals GraphQL schema, read-only - codegen.signals.ts validates against these files, and ../backend/... resolves the same here as on the host
+      - ./apps/backend/graph/schema/signals:/var/www/backend/graph/schema/signals:ro
       - dashboard-node-modules:/var/www/dashboard/node_modules
       - dashboard-vite-cache:/var/www/dashboard/node_modules/.vite
     environment:
@@ -285,6 +287,8 @@ services:
       # Vite's /api proxy target - non-VITE_ prefix on purpose, VITE_ vars get
       # inlined into the browser bundle
       - API_PROXY=http://app:8080
+      # Only resolves with `--profile signals` up; without it the Prism screens fail to reach their API, which is the honest signal
+      - SIGNALS_PROXY=http://signals:8090
       # codegen.ts reads this - in-network so bin/dash run codegen just works
       - GRAPHQL_CODEGEN_URL=${GRAPHQL_CODEGEN_URL:-http://app:8080/api/admin/graphql}
       # Set both to /api/admin/<ADMIN_API_SLUG>/graphql when the backend slug is on, or the SPA 404s

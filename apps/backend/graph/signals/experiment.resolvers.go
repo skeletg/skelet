@@ -1,19 +1,16 @@
-package admin
+package signals
 
 import (
 	"context"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/signals/model"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 func (r *mutationResolver) CreateExperiment(ctx context.Context, input model.SaveExperimentInput) (*model.Experiment, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "experiments.manage"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "experiments.manage"); err != nil {
 		return nil, err
 	}
 	in, err := experimentInput(input)
@@ -28,10 +25,7 @@ func (r *mutationResolver) CreateExperiment(ctx context.Context, input model.Sav
 }
 
 func (r *mutationResolver) UpdateExperiment(ctx context.Context, id string, input model.SaveExperimentInput) (*model.Experiment, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "experiments.manage"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "experiments.manage"); err != nil {
 		return nil, err
 	}
 	eid, err := uuid.Parse(id)
@@ -50,10 +44,7 @@ func (r *mutationResolver) UpdateExperiment(ctx context.Context, id string, inpu
 }
 
 func (r *mutationResolver) DeleteExperiment(ctx context.Context, id string) (bool, error) {
-	if err := r.requireSignals(); err != nil {
-		return false, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "experiments.manage"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "experiments.manage"); err != nil {
 		return false, err
 	}
 	eid, err := uuid.Parse(id)
@@ -64,10 +55,7 @@ func (r *mutationResolver) DeleteExperiment(ctx context.Context, id string) (boo
 }
 
 func (r *queryResolver) Experiments(ctx context.Context, channelID string) ([]*model.Experiment, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "experiments.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "experiments.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)
@@ -86,10 +74,7 @@ func (r *queryResolver) Experiments(ctx context.Context, channelID string) ([]*m
 }
 
 func (r *queryResolver) Experiment(ctx context.Context, id string) (*model.Experiment, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "experiments.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "experiments.view"); err != nil {
 		return nil, err
 	}
 	eid, err := uuid.Parse(id)
@@ -104,10 +89,7 @@ func (r *queryResolver) Experiment(ctx context.Context, id string) (*model.Exper
 }
 
 func (r *queryResolver) ExperimentResults(ctx context.Context, id string, sinceDays *int32) (*model.ExperimentResults, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "experiments.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "experiments.view"); err != nil {
 		return nil, err
 	}
 	eid, err := uuid.Parse(id)
@@ -126,10 +108,7 @@ func (r *queryResolver) ExperimentResults(ctx context.Context, id string, sinceD
 }
 
 func (r *queryResolver) ExperimentsOverview(ctx context.Context, channelID string, sinceDays *int32) (*model.ExperimentsOverview, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "experiments.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "experiments.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)
@@ -148,10 +127,7 @@ func (r *queryResolver) ExperimentsOverview(ctx context.Context, channelID strin
 }
 
 func (r *queryResolver) ExperimentGoalEvents(ctx context.Context, channelID string) ([]string, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "experiments.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "experiments.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)
@@ -160,24 +136,4 @@ func (r *queryResolver) ExperimentGoalEvents(ctx context.Context, channelID stri
 	}
 	// 90-day lookback so events that fired a while ago are still suggestable.
 	return r.ExperimentSvc.GoalEvents(ctx, cid, time.Now().AddDate(0, 0, -90))
-}
-
-func (r *queryResolver) ExperimentSegments(ctx context.Context) ([]*model.SegmentOption, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "experiments.view"); err != nil {
-		return nil, err
-	}
-	if r.SegmentSvc == nil {
-		return []*model.SegmentOption{}, nil
-	}
-	segs, _, err := r.SegmentSvc.List(ctx, 200, 0)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*model.SegmentOption, 0, len(segs))
-	for _, s := range segs {
-		if s.IsActive {
-			out = append(out, &model.SegmentOption{Slug: s.Slug, Name: s.Name})
-		}
-	}
-	return out, nil
 }
