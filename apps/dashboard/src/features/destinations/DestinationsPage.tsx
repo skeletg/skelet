@@ -55,7 +55,7 @@ import {
   DeleteEventDestinationDocument,
   EventDestinationsDocument,
   SyncAudienceDocument,
-} from './Destinations.gql'
+} from './Destinations.signals.gql'
 
 type DestinationRow = ExistingDestination & {
   lastError: string

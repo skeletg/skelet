@@ -59,10 +59,6 @@ type Querier interface {
 	// a reservation at a not-yet-stocked location (backorder) still carries its
 	// reserved amount. $3 (delta) = -reservation.quantity_delta
 	AdjustInventoryLevelReserved(ctx context.Context, arg AdjustInventoryLevelReservedParams) error
-	// Optimistic: only advances past the cursor this sweep read, so concurrent
-	// sweeps (cmd/server + cmd/signals both forwarding) can't move it backwards -
-	// the losing sweep sees 0 rows and concedes
-	AdvanceEventDestinationCursor(ctx context.Context, arg AdvanceEventDestinationCursorParams) (int64, error)
 	AdvanceSubscriptionPeriod(ctx context.Context, arg AdvanceSubscriptionPeriodParams) (Subscription, error)
 	// AggregateOverallRating returns count + overall mean + 5-bucket
 	// distribution for the PDP summary card
@@ -404,8 +400,6 @@ type Querier interface {
 	CreateDownloadGrant(ctx context.Context, arg CreateDownloadGrantParams) (DownloadGrant, error)
 	CreateEmailCampaign(ctx context.Context, arg CreateEmailCampaignParams) (EmailCampaign, error)
 	CreateEmailGroup(ctx context.Context, arg CreateEmailGroupParams) (EmailGroup, error)
-	// Event destinations (spine forwarding + audience sync targets)
-	CreateEventDestination(ctx context.Context, arg CreateEventDestinationParams) (EventDestination, error)
 	CreateExperiment(ctx context.Context, arg CreateExperimentParams) (Experiment, error)
 	CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, error)
 	CreateFlowRun(ctx context.Context, arg CreateFlowRunParams) (FlowRun, error)
@@ -605,7 +599,6 @@ type Querier interface {
 	// email_library.group_id ON DELETE SET NULL keeps the emails, just untagged
 	DeleteEmailGroup(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteEmailTemplate(ctx context.Context, arg DeleteEmailTemplateParams) error
-	DeleteEventDestination(ctx context.Context, id uuid.UUID) error
 	DeleteExperiment(ctx context.Context, id uuid.UUID) error
 	DeleteFinishedRebuildTasksBefore(ctx context.Context, dollar_1 time.Time) (int64, error)
 	DeleteGroupedMember(ctx context.Context, id uuid.UUID) error
@@ -849,7 +842,6 @@ type Querier interface {
 	// Fetch one template by key + scope - pass channel_id NULL for the global row,
 	// a uuid for a channel override - IS NOT DISTINCT FROM matches NULL to NULL
 	GetEmailTemplate(ctx context.Context, arg GetEmailTemplateParams) (EmailTemplate, error)
-	GetEventDestination(ctx context.Context, id uuid.UUID) (EventDestination, error)
 	GetExperiment(ctx context.Context, id uuid.UUID) (Experiment, error)
 	GetFlow(ctx context.Context, id uuid.UUID) (Flow, error)
 	GetFlowRun(ctx context.Context, id uuid.UUID) (FlowRun, error)
@@ -1179,7 +1171,6 @@ type Querier interface {
 	ListActionsByRules(ctx context.Context, ruleIds []uuid.UUID) ([]PromotionAction, error)
 	ListActiveCountries(ctx context.Context) ([]Country, error)
 	ListActiveCurrencies(ctx context.Context) ([]Currency, error)
-	ListActiveEventDestinations(ctx context.Context) ([]EventDestination, error)
 	// Enrollment path - an archived flow must never enroll anyone again, so the
 	// archive filter belongs here and not only in the read APIs
 	ListActiveFlowsByTrigger(ctx context.Context, arg ListActiveFlowsByTriggerParams) ([]Flow, error)
@@ -1436,7 +1427,6 @@ type Querier interface {
 	ListEmailTemplates(ctx context.Context) ([]EmailTemplate, error)
 	ListEnabledPaymentMethodsByChannel(ctx context.Context, channelID uuid.UUID) ([]PaymentMethod, error)
 	ListEnabledShippingCarriersByChannel(ctx context.Context, channelID uuid.UUID) ([]ShippingCarrier, error)
-	ListEventDestinationsByChannel(ctx context.Context, channelID uuid.UUID) ([]EventDestination, error)
 	ListExperiments(ctx context.Context, channelID uuid.UUID) ([]Experiment, error)
 	// Standing-condition source for the inbox scan: enabled jobs whose last run errored
 	ListFailingScheduledJobs(ctx context.Context) ([]ListFailingScheduledJobsRow, error)
@@ -2162,7 +2152,6 @@ type Querier interface {
 	SetCustomerVatID(ctx context.Context, arg SetCustomerVatIDParams) (Customer, error)
 	SetDefaultBillingAddress(ctx context.Context, arg SetDefaultBillingAddressParams) (Customer, error)
 	SetDefaultShippingAddress(ctx context.Context, arg SetDefaultShippingAddressParams) (Customer, error)
-	SetEventDestinationError(ctx context.Context, arg SetEventDestinationErrorParams) error
 	SetFlowStatus(ctx context.Context, arg SetFlowStatusParams) (int64, error)
 	SetIntegrationActive(ctx context.Context, arg SetIntegrationActiveParams) (Integration, error)
 	// Flat-mode write: overwrites quantity + audit fields for one product
@@ -2337,9 +2326,6 @@ type Querier interface {
 	// Only drafts are editable
 	UpdateEmailCampaign(ctx context.Context, arg UpdateEmailCampaignParams) (int64, error)
 	UpdateEmailTemplate(ctx context.Context, arg UpdateEmailTemplateParams) (int64, error)
-	// The secret is write-only (never returned by the API), so an edit
-	// can't round-trip the current value - blank means keep the stored one
-	UpdateEventDestination(ctx context.Context, arg UpdateEventDestinationParams) (EventDestination, error)
 	UpdateExperiment(ctx context.Context, arg UpdateExperimentParams) (int64, error)
 	UpdateFlow(ctx context.Context, arg UpdateFlowParams) (int64, error)
 	UpdateFlowRun(ctx context.Context, arg UpdateFlowRunParams) error

@@ -89,6 +89,13 @@ The release process, and which version number means what, is in
 
 ### Added
 
+- **Event destinations moved to Signals, table and all.** The webhook, GA4 and Meta CAPI receivers
+  are configured through the Signals API now, and `event_destinations` sits in the signals database
+  beside the spine it forwards from - so the forwarding sweep pages events and advances its cursor
+  without crossing a database. The audience export still reads segments from commerce, since those
+  stay core's, and the channel foreign key does not survive the move: a destination whose channel
+  was deleted is inert, and the sweep skips it.
+
 - **Lens is served by the Signals API too.** The whole session-replay, heatmap, web-vitals and
   on-site-search surface moves onto `/api/signals/graphql` alongside Prism, which is where its data
   already lived. Two things needed answers rather than a move: the channel-scoped permission check

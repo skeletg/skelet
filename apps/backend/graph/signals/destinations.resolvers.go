@@ -1,18 +1,15 @@
-package admin
+package signals
 
 import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/signals/model"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 func (r *mutationResolver) CreateEventDestination(ctx context.Context, input model.EventDestinationInput) (*model.EventDestination, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "settings.manage"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "settings.manage"); err != nil {
 		return nil, err
 	}
 	in, err := destinationInputFromModel(input, nil)
@@ -27,10 +24,7 @@ func (r *mutationResolver) CreateEventDestination(ctx context.Context, input mod
 }
 
 func (r *mutationResolver) UpdateEventDestination(ctx context.Context, id string, input model.EventDestinationInput) (*model.EventDestination, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "settings.manage"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "settings.manage"); err != nil {
 		return nil, err
 	}
 	destID, err := uuid.Parse(id)
@@ -49,10 +43,7 @@ func (r *mutationResolver) UpdateEventDestination(ctx context.Context, id string
 }
 
 func (r *mutationResolver) DeleteEventDestination(ctx context.Context, id string) (bool, error) {
-	if err := r.requireSignals(); err != nil {
-		return false, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "settings.manage"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "settings.manage"); err != nil {
 		return false, err
 	}
 	destID, err := uuid.Parse(id)
@@ -66,10 +57,7 @@ func (r *mutationResolver) DeleteEventDestination(ctx context.Context, id string
 }
 
 func (r *mutationResolver) SyncAudience(ctx context.Context, segmentID string, destinationID string) (int32, error) {
-	if err := r.requireSignals(); err != nil {
-		return 0, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "settings.manage"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "settings.manage"); err != nil {
 		return 0, err
 	}
 	segID, err := uuid.Parse(segmentID)
@@ -88,10 +76,7 @@ func (r *mutationResolver) SyncAudience(ctx context.Context, segmentID string, d
 }
 
 func (r *queryResolver) EventDestinations(ctx context.Context, channelID string) ([]*model.EventDestination, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "settings.manage"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "settings.manage"); err != nil {
 		return nil, err
 	}
 	chID, err := uuid.Parse(channelID)

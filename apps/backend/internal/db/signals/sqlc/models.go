@@ -129,6 +129,24 @@ type EmailSendsDefault struct {
 	FirstClickAt sql.NullTime  `json:"first_click_at"`
 }
 
+type EventDestination struct {
+	ID              uuid.UUID     `json:"id"`
+	ChannelID       uuid.UUID     `json:"channel_id"`
+	Name            string        `json:"name"`
+	Kind            string        `json:"kind"`
+	TargetUrl       string        `json:"target_url"`
+	Secret          string        `json:"secret"`
+	EventSources    []string      `json:"event_sources"`
+	EventNames      []string      `json:"event_names"`
+	IsActive        bool          `json:"is_active"`
+	CursorCreatedAt sql.NullTime  `json:"cursor_created_at"`
+	CursorEventID   uuid.NullUUID `json:"cursor_event_id"`
+	LastError       string        `json:"last_error"`
+	LastForwardedAt sql.NullTime  `json:"last_forwarded_at"`
+	CreatedAt       time.Time     `json:"created_at"`
+	UpdatedAt       time.Time     `json:"updated_at"`
+}
+
 type GdprIdentityErasure struct {
 	CustomerID  uuid.UUID `json:"customer_id"`
 	RequestedAt time.Time `json:"requested_at"`

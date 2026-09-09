@@ -2152,30 +2152,6 @@ CREATE TABLE public.email_templates (
 
 
 --
--- Name: event_destinations; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.event_destinations (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    channel_id uuid NOT NULL,
-    name text NOT NULL,
-    kind text DEFAULT 'webhook'::text NOT NULL,
-    target_url text NOT NULL,
-    secret text DEFAULT ''::text NOT NULL,
-    event_sources text[] DEFAULT '{}'::text[] NOT NULL,
-    event_names text[] DEFAULT '{}'::text[] NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    cursor_created_at timestamp with time zone,
-    cursor_event_id uuid,
-    last_error text DEFAULT ''::text NOT NULL,
-    last_forwarded_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT event_destinations_kind_check CHECK ((kind = ANY (ARRAY['webhook'::text, 'ga4_mp'::text, 'meta_capi'::text])))
-);
-
-
---
 -- Name: event_outbox; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5167,14 +5143,6 @@ ALTER TABLE ONLY public.email_templates
 
 
 --
--- Name: event_destinations event_destinations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.event_destinations
-    ADD CONSTRAINT event_destinations_pkey PRIMARY KEY (id);
-
-
---
 -- Name: event_outbox event_outbox_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7066,13 +7034,6 @@ CREATE INDEX idx_download_grants_order ON public.download_grants USING btree (or
 --
 
 CREATE INDEX idx_email_library_revisions_email ON public.email_library_revisions USING btree (email_id, created_at DESC);
-
-
---
--- Name: idx_event_destinations_channel; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_event_destinations_channel ON public.event_destinations USING btree (channel_id, is_active);
 
 
 --
@@ -9373,14 +9334,6 @@ ALTER TABLE ONLY public.email_library_revisions
 
 ALTER TABLE ONLY public.email_templates
     ADD CONSTRAINT email_templates_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
-
-
---
--- Name: event_destinations event_destinations_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.event_destinations
-    ADD CONSTRAINT event_destinations_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
 
 
 --

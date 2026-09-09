@@ -45,6 +45,33 @@ export type BotTraffic = {
   topPages: Array<BotPage>;
 };
 
+export type EventDestination = {
+  __typename?: 'EventDestination';
+  channelId: Scalars['ID']['output'];
+  createdAt: Scalars['Time']['output'];
+  eventNames: Array<Scalars['String']['output']>;
+  eventSources: Array<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  isActive: Scalars['Boolean']['output'];
+  kind: Scalars['String']['output'];
+  lastError: Scalars['String']['output'];
+  lastForwardedAt?: Maybe<Scalars['Time']['output']>;
+  name: Scalars['String']['output'];
+  targetUrl: Scalars['String']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
+export type EventDestinationInput = {
+  channelId: Scalars['ID']['input'];
+  eventNames?: InputMaybe<Array<Scalars['String']['input']>>;
+  eventSources?: InputMaybe<Array<Scalars['String']['input']>>;
+  isActive?: InputMaybe<Scalars['Boolean']['input']>;
+  kind: Scalars['String']['input'];
+  name: Scalars['String']['input'];
+  secret?: InputMaybe<Scalars['String']['input']>;
+  targetUrl: Scalars['String']['input'];
+};
+
 export type Experiment = {
   __typename?: 'Experiment';
   channelId: Scalars['ID']['output'];
@@ -314,9 +341,18 @@ export type LensVital = {
 
 export type Mutation = {
   __typename?: 'Mutation';
+  createEventDestination: EventDestination;
   createExperiment: Experiment;
+  deleteEventDestination: Scalars['Boolean']['output'];
   deleteExperiment: Scalars['Boolean']['output'];
+  syncAudience: Scalars['Int']['output'];
+  updateEventDestination: EventDestination;
   updateExperiment: Experiment;
+};
+
+
+export type MutationCreateEventDestinationArgs = {
+  input: EventDestinationInput;
 };
 
 
@@ -325,8 +361,25 @@ export type MutationCreateExperimentArgs = {
 };
 
 
+export type MutationDeleteEventDestinationArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationDeleteExperimentArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationSyncAudienceArgs = {
+  destinationId: Scalars['ID']['input'];
+  segmentId: Scalars['ID']['input'];
+};
+
+
+export type MutationUpdateEventDestinationArgs = {
+  id: Scalars['ID']['input'];
+  input: EventDestinationInput;
 };
 
 
@@ -338,6 +391,7 @@ export type MutationUpdateExperimentArgs = {
 export type Query = {
   __typename?: 'Query';
   botTraffic: BotTraffic;
+  eventDestinations: Array<EventDestination>;
   experiment?: Maybe<Experiment>;
   experimentGoalEvents: Array<Scalars['String']['output']>;
   experimentResults: ExperimentResults;
@@ -365,6 +419,11 @@ export type QueryBotTrafficArgs = {
   bot?: InputMaybe<Scalars['String']['input']>;
   channelId: Scalars['ID']['input'];
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryEventDestinationsArgs = {
+  channelId: Scalars['ID']['input'];
 };
 
 

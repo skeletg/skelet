@@ -2,8 +2,11 @@
 // Operation names served by the Signals API rather than the core admin API
 export const SIGNALS_OPERATIONS: ReadonlySet<string> = new Set([
   'BotTraffic',
+  'CreateEventDestination',
   'CreateExperiment',
+  'DeleteEventDestination',
   'DeleteExperiment',
+  'EventDestinations',
   'Experiment',
   'ExperimentGoalEvents',
   'ExperimentResults',
@@ -25,5 +28,7 @@ export const SIGNALS_OPERATIONS: ReadonlySet<string> = new Set([
   'LensVisitorSessions',
   'LensVitalsSummary',
   'ProductTraffic',
+  'SyncAudience',
+  'UpdateEventDestination',
   'UpdateExperiment',
 ])

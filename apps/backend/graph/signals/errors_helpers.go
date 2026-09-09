@@ -22,3 +22,10 @@ func errNotFound(entity string) error {
 func errNotConfigured(subsystem string) error {
 	return apperr.New("NOT_CONFIGURED", apperr.ClassUnavailable, subsystem+" is not configured")
 }
+
+func boolDeref(b *bool, def bool) bool {
+	if b == nil {
+		return def
+	}
+	return *b
+}
