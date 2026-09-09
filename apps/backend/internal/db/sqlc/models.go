@@ -1217,18 +1217,6 @@ type CustomerConsent struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
-type CustomerEngagement30d struct {
-	CustomerID uuid.UUID `json:"customer_id"`
-	ChannelID  uuid.UUID `json:"channel_id"`
-	Engagement int32     `json:"engagement"`
-	ComputedAt time.Time `json:"computed_at"`
-}
-
-type CustomerEngagementRefresh struct {
-	ChannelID uuid.UUID `json:"channel_id"`
-	RanAt     time.Time `json:"ran_at"`
-}
-
 type CustomerGroup struct {
 	ID          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`
@@ -1236,21 +1224,6 @@ type CustomerGroup struct {
 	Description string    `json:"description"`
 	IsDefault   bool      `json:"is_default"`
 	CreatedAt   time.Time `json:"created_at"`
-}
-
-type CustomerOrderAgg struct {
-	CustomerID    uuid.UUID    `json:"customer_id"`
-	ChannelID     uuid.UUID    `json:"channel_id"`
-	OrderCount    int32        `json:"order_count"`
-	MonetaryCents int64        `json:"monetary_cents"`
-	FirstOrderAt  sql.NullTime `json:"first_order_at"`
-	LastOrderAt   sql.NullTime `json:"last_order_at"`
-	ComputedAt    time.Time    `json:"computed_at"`
-}
-
-type CustomerOrderAggRefresh struct {
-	ChannelID uuid.UUID `json:"channel_id"`
-	RanAt     time.Time `json:"ran_at"`
 }
 
 type CustomerPaymentMethod struct {
@@ -1284,23 +1257,6 @@ type CustomerSegmentMembership struct {
 	CustomerID uuid.UUID `json:"customer_id"`
 	SegmentID  uuid.UUID `json:"segment_id"`
 	AddedAt    time.Time `json:"added_at"`
-}
-
-type CustomerTrait struct {
-	CustomerID        uuid.UUID `json:"customer_id"`
-	ChannelID         uuid.UUID `json:"channel_id"`
-	RecencyDays       int32     `json:"recency_days"`
-	Frequency         int32     `json:"frequency"`
-	MonetaryCents     int64     `json:"monetary_cents"`
-	RfmR              int16     `json:"rfm_r"`
-	RfmF              int16     `json:"rfm_f"`
-	RfmM              int16     `json:"rfm_m"`
-	LifecycleStage    string    `json:"lifecycle_stage"`
-	EngagementScore   int32     `json:"engagement_score"`
-	ComputedAt        time.Time `json:"computed_at"`
-	ChurnRisk         int16     `json:"churn_risk"`
-	PredictedClvCents int64     `json:"predicted_clv_cents"`
-	NextOrderDays     int32     `json:"next_order_days"`
 }
 
 type DataJob struct {

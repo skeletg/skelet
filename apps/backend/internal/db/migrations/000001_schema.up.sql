@@ -1807,28 +1807,6 @@ CREATE TABLE public.customer_consents (
 
 
 --
--- Name: customer_engagement_30d; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.customer_engagement_30d (
-    customer_id uuid NOT NULL,
-    channel_id uuid NOT NULL,
-    engagement integer NOT NULL,
-    computed_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: customer_engagement_refresh; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.customer_engagement_refresh (
-    channel_id uuid NOT NULL,
-    ran_at timestamp with time zone NOT NULL
-);
-
-
---
 -- Name: customer_groups; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1887,28 +1865,6 @@ CREATE TABLE public.customer_segments (
     lifecycle_active_days integer,
     lifecycle_at_risk_days integer,
     rules jsonb
-);
-
-
---
--- Name: customer_traits; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.customer_traits (
-    customer_id uuid NOT NULL,
-    channel_id uuid NOT NULL,
-    recency_days integer DEFAULT '-1'::integer NOT NULL,
-    frequency integer DEFAULT 0 NOT NULL,
-    monetary_cents bigint DEFAULT 0 NOT NULL,
-    rfm_r smallint DEFAULT 0 NOT NULL,
-    rfm_f smallint DEFAULT 0 NOT NULL,
-    rfm_m smallint DEFAULT 0 NOT NULL,
-    lifecycle_stage text DEFAULT 'prospect'::text NOT NULL,
-    engagement_score integer DEFAULT 0 NOT NULL,
-    computed_at timestamp with time zone DEFAULT now() NOT NULL,
-    churn_risk smallint DEFAULT 0 NOT NULL,
-    predicted_clv_cents bigint DEFAULT 0 NOT NULL,
-    next_order_days integer DEFAULT '-1'::integer NOT NULL
 );
 
 
@@ -5027,22 +4983,6 @@ ALTER TABLE ONLY public.customer_consents
 
 
 --
--- Name: customer_engagement_30d customer_engagement_30d_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_engagement_30d
-    ADD CONSTRAINT customer_engagement_30d_pkey PRIMARY KEY (customer_id);
-
-
---
--- Name: customer_engagement_refresh customer_engagement_refresh_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_engagement_refresh
-    ADD CONSTRAINT customer_engagement_refresh_pkey PRIMARY KEY (channel_id);
-
-
---
 -- Name: customer_groups customer_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5096,14 +5036,6 @@ ALTER TABLE ONLY public.customer_segments
 
 ALTER TABLE ONLY public.customer_segments
     ADD CONSTRAINT customer_segments_slug_key UNIQUE (slug);
-
-
---
--- Name: customer_traits customer_traits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_traits
-    ADD CONSTRAINT customer_traits_pkey PRIMARY KEY (customer_id);
 
 
 --
@@ -6374,13 +6306,6 @@ CREATE UNIQUE INDEX config_values_scope_path_uidx ON public.config_values USING 
 
 
 --
--- Name: customer_engagement_30d_channel; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX customer_engagement_30d_channel ON public.customer_engagement_30d USING btree (channel_id);
-
-
---
 -- Name: customer_payment_methods_customer_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7092,20 +7017,6 @@ CREATE INDEX idx_customer_segment_memberships_segment ON public.customer_segment
 --
 
 CREATE INDEX idx_customer_segments_active ON public.customer_segments USING btree (is_active);
-
-
---
--- Name: idx_customer_traits_channel; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_customer_traits_channel ON public.customer_traits USING btree (channel_id);
-
-
---
--- Name: idx_customer_traits_lifecycle; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_customer_traits_lifecycle ON public.customer_traits USING btree (channel_id, lifecycle_stage);
 
 
 --
@@ -9342,14 +9253,6 @@ ALTER TABLE ONLY public.customer_segment_memberships
 
 ALTER TABLE ONLY public.customer_segment_memberships
     ADD CONSTRAINT customer_segment_memberships_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.customer_segments(id) ON DELETE CASCADE;
-
-
---
--- Name: customer_traits customer_traits_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_traits
-    ADD CONSTRAINT customer_traits_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE CASCADE;
 
 
 --
