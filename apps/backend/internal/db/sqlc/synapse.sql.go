@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const channelCustomerIDs = `-- name: ChannelCustomerIDs :many
@@ -84,44 +85,6 @@ func (q *Queries) SegmentGrowth(ctx context.Context, arg SegmentGrowthParams) ([
 	return items, nil
 }
 
-const segmentLifecycleMix = `-- name: SegmentLifecycleMix :many
-SELECT COALESCE(t.lifecycle_stage, '')::text AS stage, COUNT(*)::int AS count
-FROM customer_segment_memberships m
-LEFT JOIN customer_traits t ON t.customer_id = m.customer_id
-WHERE m.segment_id = $1
-GROUP BY COALESCE(t.lifecycle_stage, '')
-ORDER BY count DESC
-`
-
-type SegmentLifecycleMixRow struct {
-	Stage string `json:"stage"`
-	Count int32  `json:"count"`
-}
-
-// Members of a segment grouped by lifecycle stage (” = traits not computed yet)
-func (q *Queries) SegmentLifecycleMix(ctx context.Context, segmentID uuid.UUID) ([]SegmentLifecycleMixRow, error) {
-	rows, err := q.db.QueryContext(ctx, segmentLifecycleMix, segmentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []SegmentLifecycleMixRow{}
-	for rows.Next() {
-		var i SegmentLifecycleMixRow
-		if err := rows.Scan(&i.Stage, &i.Count); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const segmentMemberIDs = `-- name: SegmentMemberIDs :many
 SELECT customer_id FROM customer_segment_memberships WHERE segment_id = $1
 `
@@ -152,82 +115,37 @@ func (q *Queries) SegmentMemberIDs(ctx context.Context, segmentID uuid.UUID) ([]
 	return items, nil
 }
 
-const segmentMemberStats = `-- name: SegmentMemberStats :one
-
-SELECT
-    COUNT(DISTINCT o.id)::bigint                AS orders,
-    COALESCE(SUM(o.total_amount), 0)::bigint    AS revenue_cents
-FROM customer_segment_memberships m
-JOIN orders o ON o.customer_id = m.customer_id AND o.status NOT IN ('cancelled', 'draft')
-WHERE m.segment_id = $1
+const segmentMemberOrderStats = `-- name: SegmentMemberOrderStats :many
+SELECT o.customer_id::uuid AS customer_id,
+       COUNT(o.id)::int AS orders,
+       COALESCE(SUM(o.total_amount), 0)::bigint AS spend_cents,
+       MAX(o.created_at)::timestamptz AS last_order_at
+FROM orders o
+WHERE o.customer_id = ANY($1::uuid[])
+  AND o.status NOT IN ('cancelled', 'draft')
+GROUP BY o.customer_id
 `
 
-type SegmentMemberStatsRow struct {
-	Orders       int64 `json:"orders"`
-	RevenueCents int64 `json:"revenue_cents"`
+type SegmentMemberOrderStatsRow struct {
+	CustomerID  uuid.UUID `json:"customer_id"`
+	Orders      int32     `json:"orders"`
+	SpendCents  int64     `json:"spend_cents"`
+	LastOrderAt time.Time `json:"last_order_at"`
 }
 
-// Synapse commerce-side reads: the segment composition + membership queries that join commerce tables (customer_segment_memberships /
-// customer_traits / orders / customers) - the spine aggregates moved to the signals db package (signals/query/synapse.sql)
-// Commerce rollup over a segment's members: distinct non-cancelled orders + total
-// spend (cents) - AOV is derived in the resolver - currency is treated as the
-// channel's single currency (mixed-currency segments sum naively)
-func (q *Queries) SegmentMemberStats(ctx context.Context, segmentID uuid.UUID) (SegmentMemberStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, segmentMemberStats, segmentID)
-	var i SegmentMemberStatsRow
-	err := row.Scan(&i.Orders, &i.RevenueCents)
-	return i, err
-}
-
-const segmentMembers = `-- name: SegmentMembers :many
-SELECT
-    m.customer_id                                  AS customer_id,
-    COALESCE(t.lifecycle_stage, '')                AS lifecycle,
-    COALESCE(t.recency_days, -1)::int              AS recency_days,
-    COALESCE(t.engagement_score, 0)::int           AS engagement_score,
-    COUNT(o.id)::int                               AS orders,
-    COALESCE(SUM(o.total_amount), 0)::bigint       AS spend_cents,
-    MAX(o.created_at)                              AS last_order_at
-FROM customer_segment_memberships m
-LEFT JOIN customer_traits t ON t.customer_id = m.customer_id
-LEFT JOIN orders o ON o.customer_id = m.customer_id AND o.status NOT IN ('cancelled', 'draft')
-WHERE m.segment_id = $1
-GROUP BY m.customer_id, t.lifecycle_stage, t.recency_days, t.engagement_score
-ORDER BY spend_cents DESC, m.customer_id
-LIMIT $2
-`
-
-type SegmentMembersParams struct {
-	SegmentID uuid.UUID `json:"segment_id"`
-	Lim       int32     `json:"lim"`
-}
-
-type SegmentMembersRow struct {
-	CustomerID      uuid.UUID   `json:"customer_id"`
-	Lifecycle       string      `json:"lifecycle"`
-	RecencyDays     int32       `json:"recency_days"`
-	EngagementScore int32       `json:"engagement_score"`
-	Orders          int32       `json:"orders"`
-	SpendCents      int64       `json:"spend_cents"`
-	LastOrderAt     interface{} `json:"last_order_at"`
-}
-
-// A segment's members with their traits + commerce (spend / orders / last order),
-// richest-spender first - capped by `lim`; names/emails resolved in the resolver
-func (q *Queries) SegmentMembers(ctx context.Context, arg SegmentMembersParams) ([]SegmentMembersRow, error) {
-	rows, err := q.db.QueryContext(ctx, segmentMembers, arg.SegmentID, arg.Lim)
+// The commerce half of a segment's member panel - traits are read separately from the signals
+// database and joined in the caller, since the two no longer share one
+func (q *Queries) SegmentMemberOrderStats(ctx context.Context, customerIds []uuid.UUID) ([]SegmentMemberOrderStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, segmentMemberOrderStats, pq.Array(customerIds))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []SegmentMembersRow{}
+	items := []SegmentMemberOrderStatsRow{}
 	for rows.Next() {
-		var i SegmentMembersRow
+		var i SegmentMemberOrderStatsRow
 		if err := rows.Scan(
 			&i.CustomerID,
-			&i.Lifecycle,
-			&i.RecencyDays,
-			&i.EngagementScore,
 			&i.Orders,
 			&i.SpendCents,
 			&i.LastOrderAt,
@@ -245,52 +163,28 @@ func (q *Queries) SegmentMembers(ctx context.Context, arg SegmentMembersParams) 
 	return items, nil
 }
 
-const segmentRfmDistribution = `-- name: SegmentRfmDistribution :many
-SELECT x.dimension::text AS dimension, x.score::int AS score, COUNT(*)::int AS count
-FROM (
-    SELECT 'recency'::text AS dimension, t.rfm_r AS score
-    FROM customer_segment_memberships m JOIN customer_traits t ON t.customer_id = m.customer_id
-    WHERE m.segment_id = $1
-    UNION ALL
-    SELECT 'frequency'::text, t.rfm_f
-    FROM customer_segment_memberships m JOIN customer_traits t ON t.customer_id = m.customer_id
-    WHERE m.segment_id = $1
-    UNION ALL
-    SELECT 'monetary'::text, t.rfm_m
-    FROM customer_segment_memberships m JOIN customer_traits t ON t.customer_id = m.customer_id
-    WHERE m.segment_id = $1
-) x
-GROUP BY x.dimension, x.score
-ORDER BY x.dimension, x.score
+const segmentMemberStats = `-- name: SegmentMemberStats :one
+
+SELECT
+    COUNT(DISTINCT o.id)::bigint                AS orders,
+    COALESCE(SUM(o.total_amount), 0)::bigint    AS revenue_cents
+FROM customer_segment_memberships m
+JOIN orders o ON o.customer_id = m.customer_id AND o.status NOT IN ('cancelled', 'draft')
+WHERE m.segment_id = $1
 `
 
-type SegmentRfmDistributionRow struct {
-	Dimension string `json:"dimension"`
-	Score     int32  `json:"score"`
-	Count     int32  `json:"count"`
+type SegmentMemberStatsRow struct {
+	Orders       int64 `json:"orders"`
+	RevenueCents int64 `json:"revenue_cents"`
 }
 
-// Distribution of members across each RFM dimension's 1–5 score (0 = never
-// ordered), unpivoted to (dimension, score, count) - members without traits drop out
-func (q *Queries) SegmentRfmDistribution(ctx context.Context, segmentID uuid.UUID) ([]SegmentRfmDistributionRow, error) {
-	rows, err := q.db.QueryContext(ctx, segmentRfmDistribution, segmentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []SegmentRfmDistributionRow{}
-	for rows.Next() {
-		var i SegmentRfmDistributionRow
-		if err := rows.Scan(&i.Dimension, &i.Score, &i.Count); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+// Synapse's commerce-side reads - the membership and order halves of the segment panels, whose traits half lives in signals/query/traits.sql and is joined in the caller
+// Commerce rollup over a segment's members: distinct non-cancelled orders + total
+// spend (cents) - AOV is derived in the resolver - currency is treated as the
+// channel's single currency (mixed-currency segments sum naively)
+func (q *Queries) SegmentMemberStats(ctx context.Context, segmentID uuid.UUID) (SegmentMemberStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, segmentMemberStats, segmentID)
+	var i SegmentMemberStatsRow
+	err := row.Scan(&i.Orders, &i.RevenueCents)
+	return i, err
 }

@@ -236,11 +236,6 @@ type Querier interface {
 	ClearCMSPageRelationshipsForAttribute(ctx context.Context, arg ClearCMSPageRelationshipsForAttributeParams) error
 	ClearCartAppliedCodes(ctx context.Context, cartID uuid.UUID) error
 	ClearCategoryCover(ctx context.Context, id uuid.UUID) (CatalogCategory, error)
-	// Wipe a channel's engagement projection - the empty-refresh case (no active
-	// customers in the window)
-	ClearChannelEngagement(ctx context.Context, channelID uuid.UUID) error
-	// The empty-refresh case: a channel whose spine holds no surviving orders
-	ClearChannelOrderAgg(ctx context.Context, channelID uuid.UUID) error
 	ClearCollectionCover(ctx context.Context, id uuid.UUID) (Collection, error)
 	ClearDeadWebhookQueueItems(ctx context.Context, webhookID uuid.UUID) (int64, error)
 	ClearDefaultCustomerGroup(ctx context.Context) error
@@ -512,6 +507,11 @@ type Querier interface {
 	// time, so a non-null value = a real human open/click). MAX columns are left uncast
 	// so sqlc types them nullable (a customer may have zero sends).
 	CustomerEmailEngagement(ctx context.Context, customerID uuid.NullUUID) (CustomerEmailEngagementRow, error)
+	// The roster the Signals database needs to compute traits: every customer in a channel, with the
+	// lifecycle override resolved here where the segments live rather than shipped as two syncs
+	// The override is the SHORTEST-window active segment the customer belongs to, the same rule the
+	// recompute applied inline when both sides shared a database
+	CustomerRosterForSync(ctx context.Context, arg CustomerRosterForSyncParams) ([]CustomerRosterForSyncRow, error)
 	DeleteAddress(ctx context.Context, id uuid.UUID) error
 	DeleteAdminPreference(ctx context.Context, arg DeleteAdminPreferenceParams) error
 	DeleteAdminRole(ctx context.Context, id uuid.UUID) error
@@ -576,8 +576,6 @@ type Querier interface {
 	DeleteCategoryContent(ctx context.Context, arg DeleteCategoryContentParams) (int64, error)
 	DeleteCategoryFacetOverrides(ctx context.Context, categoryID uuid.UUID) error
 	DeleteChannel(ctx context.Context, id uuid.UUID) error
-	// Customers whose 30-day window emptied since the last run
-	DeleteChannelEngagementFor(ctx context.Context, customerIds []uuid.UUID) error
 	DeleteChannelLocales(ctx context.Context, channelID uuid.UUID) error
 	DeleteChannelLocations(ctx context.Context, channelID uuid.UUID) error
 	DeleteChatConversation(ctx context.Context, arg DeleteChatConversationParams) error
@@ -825,7 +823,6 @@ type Querier interface {
 	GetCustomerPaymentMethod(ctx context.Context, arg GetCustomerPaymentMethodParams) (CustomerPaymentMethod, error)
 	GetCustomerSegment(ctx context.Context, id uuid.UUID) (CustomerSegment, error)
 	GetCustomerSegmentBySlug(ctx context.Context, slug string) (CustomerSegment, error)
-	GetCustomerTrait(ctx context.Context, customerID uuid.UUID) (CustomerTrait, error)
 	// GetCustomersByIDs is the batched form of GetCustomerByID - powers
 	// the storefront DataLoader so a page that surfaces N reviews with
 	// different authors fires one query instead of N
@@ -852,7 +849,6 @@ type Querier interface {
 	// Fetch one template by key + scope - pass channel_id NULL for the global row,
 	// a uuid for a channel override - IS NOT DISTINCT FROM matches NULL to NULL
 	GetEmailTemplate(ctx context.Context, arg GetEmailTemplateParams) (EmailTemplate, error)
-	GetEngagementWatermark(ctx context.Context, channelID uuid.UUID) (time.Time, error)
 	GetEventDestination(ctx context.Context, id uuid.UUID) (EventDestination, error)
 	GetExperiment(ctx context.Context, id uuid.UUID) (Experiment, error)
 	GetFlow(ctx context.Context, id uuid.UUID) (Flow, error)
@@ -919,7 +915,6 @@ type Querier interface {
 	// vote (+1/-1) on each of the given reviews - empty rows for reviews
 	// the customer hasn't voted on - used to highlight the active button
 	GetMyReviewVotesByCustomer(ctx context.Context, arg GetMyReviewVotesByCustomerParams) ([]GetMyReviewVotesByCustomerRow, error)
-	GetOrderAggWatermark(ctx context.Context, channelID uuid.UUID) (time.Time, error)
 	GetOrderByID(ctx context.Context, id uuid.UUID) (Order, error)
 	GetOrderFulfillment(ctx context.Context, id uuid.UUID) (OrderFulfillment, error)
 	GetOrderPaymentTransactionByIdempotencyKey(ctx context.Context, idempotencyKey sql.NullString) (OrderPaymentTransaction, error)
@@ -1408,7 +1403,6 @@ type Querier interface {
 	ListCustomerGroupsWithMemberCount(ctx context.Context) ([]ListCustomerGroupsWithMemberCountRow, error)
 	ListCustomerPaymentMethods(ctx context.Context, customerID uuid.UUID) ([]CustomerPaymentMethod, error)
 	ListCustomerSegments(ctx context.Context, arg ListCustomerSegmentsParams) ([]CustomerSegment, error)
-	ListCustomerTraitsByChannel(ctx context.Context, channelID uuid.UUID) ([]CustomerTrait, error)
 	ListCustomers(ctx context.Context) ([]Customer, error)
 	// Server-side page for the admin list - ListCustomers returns the WHOLE table,
 	// which the dashboard then paged and searched in the browser - fine at seed
@@ -1842,10 +1836,6 @@ type Querier interface {
 	MerchantFeedProducts(ctx context.Context, arg MerchantFeedProductsParams) ([]MerchantFeedProductsRow, error)
 	MoveAttributeToGroup(ctx context.Context, arg MoveAttributeToGroupParams) error
 	OrderEmailExists(ctx context.Context, arg OrderEmailExistsParams) (bool, error)
-	// Historical orders as the spine would have recorded them, for the one-time backfill that gives
-	// trait compute the history predating tracking - guests are skipped, since RFM is per customer,
-	// and drafts never reached a customer so they were never placed
-	OrdersForSpineBackfill(ctx context.Context, arg OrdersForSpineBackfillParams) ([]OrdersForSpineBackfillRow, error)
 	// Distinct channels with waiting requests for a product (the restock handler
 	// checks per-channel salability before notifying)
 	PendingBackInStockChannels(ctx context.Context, productID uuid.UUID) ([]uuid.UUID, error)
@@ -1920,31 +1910,6 @@ type Querier interface {
 	// in inventory_levels.quantity via the adjust upsert), NOT holds - counting
 	// them here wiped real holds and manufactured phantom ones
 	RecomputeAllLevelReserved(ctx context.Context) error
-	// Recompute every customer's RFM / lifecycle / engagement traits for a channel
-	// in ONE set-based statement - no per-customer round-trips - so the trait-compute
-	// job scales to a large customer base - reproduces the former in-Go logic exactly:
-	//   * RFM are 1..5 quintile RANKS among the channel's *purchasers* (5 = best),
-	//     0 for never-ordered - bucket = floor((rank-1) * 5 / purchasers) + 1 over the
-	//     value sorted ascending; recency is reversed (fewer days = better) - the
-	//     customer_id tiebreaker makes ties deterministic (the Go sort was not)
-	//   * recency_days = whole days since the last non-cancelled/draft order (-1 = never)
-	//   * lifecycle from recency + order count, using the channel's configured windows
-	//     (new_days / active_days / at_risk_days) so it matches the catalog's repurchase
-	//     cadence (a tire shop's "active" is far longer than a consumables store's),
-	//     NARROWED per customer by the shortest-window override segment they belong to
-	//     (seg_override) - e.g. an "All-terrain" affinity segment with a faster cadence
-	//   * engagement = last-30d spine events, ≤100
-	// as_of is the run clock (recency + the 30-day engagement window derive from it)
-	// Skip no-op writes: only rewrite a row when a DECISION-relevant column actually
-	// changed - this is what stops the long-tail of dormant customers (no orders /
-	// activity) from churning a new tuple + WAL every run - their scores/lifecycle
-	// are stable, so they're left untouched - deliberately excludes recency_days
-	// (drifts ~½ day each run with no real signal) and computed_at from the gate, so
-	// a row's computed_at means "last time its traits materially changed" (use the
-	// trait-compute job's last_run_at for "when we last recomputed") - lifecycle
-	// threshold crossings (30/90/180d) and quintile shifts DO flip a gated column, so
-	// genuine transitions are still captured
-	RecomputeChannelTraits(ctx context.Context, arg RecomputeChannelTraitsParams) (int64, error)
 	// Stamps this login and returns BOTH the previous value (so the caller can tell a first login from
 	// a later one) and the new one (so the login payload can carry an accurate "last seen" without a
 	// re-fetch) - a CTE rather than two statements, since a read-then-write would let two concurrent
@@ -2013,16 +1978,6 @@ type Querier interface {
 	// the array keep their existing priority - drag-and-drop only reorders
 	// the visible page
 	ReorderPromotionRules(ctx context.Context, orderedIds []uuid.UUID) error
-	// Atomically swap a channel's projection to the given per-customer counts
-	// (paired arrays: customer_ids[i] has engagements[i]) - one statement, so a
-	// crash can't leave the projection half-cleared before RecomputeChannelTraits
-	// reads it - the delete and the upsert touch disjoint rows (NOT IN set vs in
-	// set), which single-statement row rules require
-	ReplaceChannelEngagement(ctx context.Context, arg ReplaceChannelEngagementParams) error
-	// Atomically swap a channel's order projection to the given per-customer aggregates (paired arrays),
-	// one statement for the same reason the engagement swap is one: a crash must not leave it half-cleared
-	// before RecomputeChannelTraits reads it and zeroes everyone's RFM
-	ReplaceChannelOrderAgg(ctx context.Context, arg ReplaceChannelOrderAggParams) error
 	RescheduleWebhookQueueItem(ctx context.Context, arg RescheduleWebhookQueueItemParams) error
 	ResolveCMSPageComment(ctx context.Context, arg ResolveCMSPageCommentParams) (CmsPageComment, error)
 	// Entity resolution runs after the fetch so the crawler stays a pure HTTP job - the join is on the same
@@ -2126,8 +2081,6 @@ type Querier interface {
 	// Daily member-count series for a segment over the last `days` days (from the
 	// snapshot table) - accrues forward from when the segment first materialised
 	SegmentGrowth(ctx context.Context, arg SegmentGrowthParams) ([]SegmentGrowthRow, error)
-	// Members of a segment grouped by lifecycle stage ('' = traits not computed yet)
-	SegmentLifecycleMix(ctx context.Context, segmentID uuid.UUID) ([]SegmentLifecycleMixRow, error)
 	// Every customer id in a segment (used to resolve a campaign audience)
 	SegmentMemberCustomerIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error)
 	// SegmentMemberEmails feeds audience sync/export: the member emails of
@@ -2137,18 +2090,14 @@ type Querier interface {
 	// SegmentTopAffinities read (the affinity spine scan runs in the signals db,
 	// passed these ids). analytics_events moved out of this db, so the join can't
 	SegmentMemberIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error)
-	// Synapse commerce-side reads: the segment composition + membership queries that join commerce tables (customer_segment_memberships /
-	// customer_traits / orders / customers) - the spine aggregates moved to the signals db package (signals/query/synapse.sql)
+	// The commerce half of a segment's member panel - traits are read separately from the signals
+	// database and joined in the caller, since the two no longer share one
+	SegmentMemberOrderStats(ctx context.Context, customerIds []uuid.UUID) ([]SegmentMemberOrderStatsRow, error)
+	// Synapse's commerce-side reads - the membership and order halves of the segment panels, whose traits half lives in signals/query/traits.sql and is joined in the caller
 	// Commerce rollup over a segment's members: distinct non-cancelled orders + total
 	// spend (cents) - AOV is derived in the resolver - currency is treated as the
 	// channel's single currency (mixed-currency segments sum naively)
 	SegmentMemberStats(ctx context.Context, segmentID uuid.UUID) (SegmentMemberStatsRow, error)
-	// A segment's members with their traits + commerce (spend / orders / last order),
-	// richest-spender first - capped by `lim`; names/emails resolved in the resolver
-	SegmentMembers(ctx context.Context, arg SegmentMembersParams) ([]SegmentMembersRow, error)
-	// Distribution of members across each RFM dimension's 1–5 score (0 = never
-	// ordered), unpivoted to (dimension, score, count) - members without traits drop out
-	SegmentRfmDistribution(ctx context.Context, segmentID uuid.UUID) ([]SegmentRfmDistributionRow, error)
 	// Hot path for the promotion engine: returns every active segment
 	// slug a customer belongs to - filters out inactive segments so a
 	// temporarily-disabled segment doesn't keep firing promotions
@@ -2213,7 +2162,6 @@ type Querier interface {
 	SetCustomerVatID(ctx context.Context, arg SetCustomerVatIDParams) (Customer, error)
 	SetDefaultBillingAddress(ctx context.Context, arg SetDefaultBillingAddressParams) (Customer, error)
 	SetDefaultShippingAddress(ctx context.Context, arg SetDefaultShippingAddressParams) (Customer, error)
-	SetEngagementWatermark(ctx context.Context, arg SetEngagementWatermarkParams) error
 	SetEventDestinationError(ctx context.Context, arg SetEventDestinationErrorParams) error
 	SetFlowStatus(ctx context.Context, arg SetFlowStatusParams) (int64, error)
 	SetIntegrationActive(ctx context.Context, arg SetIntegrationActiveParams) (Integration, error)
@@ -2226,7 +2174,6 @@ type Querier interface {
 	// $0 shipping options via the builtin "pickup" carrier
 	SetLocationPickup(ctx context.Context, arg SetLocationPickupParams) (InventoryLocation, error)
 	SetMediaFocalPoint(ctx context.Context, arg SetMediaFocalPointParams) (MediaAsset, error)
-	SetOrderAggWatermark(ctx context.Context, arg SetOrderAggWatermarkParams) error
 	// Records the cents covered by gift cards + the resulting payment status,
 	// inside the placement tx - the order total is unchanged (gift cards are a
 	// tender, not a discount); amount owed to the provider is total - this
@@ -2506,9 +2453,6 @@ type Querier interface {
 	UpsertCatalogCategoryChannelListing(ctx context.Context, arg UpsertCatalogCategoryChannelListingParams) (CatalogCategoryChannelListing, error)
 	// ==================== Category Content ====================
 	UpsertCategoryContent(ctx context.Context, arg UpsertCategoryContentParams) (CatalogCategoryContent, error)
-	// Incremental-refresh upsert: only the changed customers (paired arrays), no
-	// channel-wide pruning - deletions come from DeleteChannelEngagementFor
-	UpsertChannelEngagementFor(ctx context.Context, arg UpsertChannelEngagementForParams) error
 	// ==================== Collection Content ====================
 	UpsertCollectionContent(ctx context.Context, arg UpsertCollectionContentParams) (CollectionContent, error)
 	UpsertConfigValue(ctx context.Context, arg UpsertConfigValueParams) (ConfigValue, error)

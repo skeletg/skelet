@@ -9,7 +9,6 @@ import (
 	_ "github.com/lib/pq"
 
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
-	commercedb "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
@@ -123,53 +122,5 @@ func TestOrderAggregatesStayWithinTheirChannel(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].MonetaryCents != 1000 {
 		t.Fatalf("got %+v, want only this channel's 1000", got)
-	}
-}
-
-// Stands in for the spine during the guard test - a swap would wipe the seeded rows, so the point is that it never runs
-type emptySpine struct{ SpineStore }
-
-func (emptySpine) ChannelOrderAggregates(context.Context, uuid.UUID) ([]CustomerOrders, error) {
-	return nil, nil
-}
-
-// The upgrade hazard - the projection is seeded from the orders table, and a swap before the backfill would truncate every customer's history at the tracking cutover
-func TestTheProjectionIsNotSwappedUntilTheBackfillArmsIt(t *testing.T) {
-	conn := testdb.Require(t)
-	ctx := context.Background()
-	q := commercedb.New(conn)
-	channelID, customerID := uuid.New(), uuid.New()
-	t.Cleanup(func() {
-		_, _ = conn.Exec(`DELETE FROM customer_order_agg WHERE channel_id = $1`, channelID)
-		_, _ = conn.Exec(`DELETE FROM customer_order_agg_refresh WHERE channel_id = $1`, channelID)
-	})
-
-	// A seeded row, as the migration leaves one for an install that has been trading for years
-	if _, err := conn.Exec(`INSERT INTO customer_order_agg (customer_id, channel_id, order_count, monetary_cents)
-		VALUES ($1, $2, 12, 480000)`, customerID, channelID); err != nil {
-		t.Fatalf("seed projection: %v", err)
-	}
-
-	rec := &Recorder{q: q, spine: emptySpine{}}
-	if err := rec.refreshOrderAggregates(ctx, channelID, time.Now()); err != nil {
-		t.Fatalf("refreshOrderAggregates: %v", err)
-	}
-	var count int
-	if err := conn.QueryRow(`SELECT order_count FROM customer_order_agg WHERE customer_id = $1`, customerID).Scan(&count); err != nil {
-		t.Fatalf("the seeded row was deleted before the backfill ran: %v", err)
-	}
-	if count != 12 {
-		t.Fatalf("order_count = %d, want the seeded 12 - an unarmed channel was swapped from an empty spine", count)
-	}
-
-	// Once the backfill arms the channel, the refresh takes over
-	if err := q.SetOrderAggWatermark(ctx, commercedb.SetOrderAggWatermarkParams{ChannelID: channelID, RanAt: time.Now()}); err != nil {
-		t.Fatalf("arm: %v", err)
-	}
-	if err := rec.refreshOrderAggregates(ctx, channelID, time.Now()); err != nil {
-		t.Fatalf("refreshOrderAggregates after arming: %v", err)
-	}
-	if err := conn.QueryRow(`SELECT order_count FROM customer_order_agg WHERE customer_id = $1`, customerID).Scan(&count); err == nil {
-		t.Error("the row survived an armed refresh against an empty spine, so the swap never happened")
 	}
 }

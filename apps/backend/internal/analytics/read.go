@@ -729,17 +729,50 @@ func (r *Recorder) SegmentMembers(ctx context.Context, segmentID uuid.UUID, limi
 	if limit <= 0 {
 		limit = 200
 	}
-	rows, err := r.read().SegmentMembers(ctx, db.SegmentMembersParams{SegmentID: segmentID, Lim: int32(limit)})
+	ids, err := r.read().SegmentMemberCustomerIDs(ctx, segmentID)
+	if err != nil || len(ids) == 0 {
+		return nil, err
+	}
+	// Membership and orders are commerce, traits are the signals database - so the join that used to be one query is done here
+	stats, err := r.read().SegmentMemberOrderStats(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]SegmentMemberRow, 0, len(rows))
-	for _, m := range rows {
-		last, _ := m.LastOrderAt.(time.Time) // nil (no orders) → zero time
-		out = append(out, SegmentMemberRow{
-			CustomerID: m.CustomerID, Lifecycle: m.Lifecycle, RecencyDays: int(m.RecencyDays),
-			EngagementScore: int(m.EngagementScore), Orders: int(m.Orders), SpendCents: m.SpendCents, LastOrderAt: last,
-		})
+	traits, err := r.qs.TraitsForCustomers(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byTraits := make(map[uuid.UUID]signalsdb.TraitsForCustomersRow, len(traits))
+	for _, t := range traits {
+		byTraits[t.CustomerID] = t
+	}
+	out := make([]SegmentMemberRow, 0, len(ids))
+	for _, id := range ids {
+		row := SegmentMemberRow{CustomerID: id, RecencyDays: -1}
+		if t, ok := byTraits[id]; ok {
+			row.Lifecycle, row.RecencyDays, row.EngagementScore = t.LifecycleStage, int(t.RecencyDays), int(t.EngagementScore)
+		}
+		out = append(out, row)
+	}
+	byID := make(map[uuid.UUID]int, len(out))
+	for i, m := range out {
+		byID[m.CustomerID] = i
+	}
+	for _, st := range stats {
+		if i, ok := byID[st.CustomerID]; ok {
+			out[i].Orders, out[i].SpendCents = int(st.Orders), st.SpendCents
+			out[i].LastOrderAt = st.LastOrderAt
+		}
+	}
+	// The ordering the single query used to do, now that both halves are in hand
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].SpendCents != out[j].SpendCents {
+			return out[i].SpendCents > out[j].SpendCents
+		}
+		return out[i].CustomerID.String() < out[j].CustomerID.String()
+	})
+	if len(out) > limit {
+		out = out[:limit]
 	}
 	return out, nil
 }
@@ -761,7 +794,11 @@ type SegmentAffinityCount struct {
 }
 
 func (r *Recorder) SegmentLifecycleMix(ctx context.Context, segmentID uuid.UUID) ([]SegmentStageCount, error) {
-	rows, err := r.read().SegmentLifecycleMix(ctx, segmentID)
+	ids, err := r.read().SegmentMemberCustomerIDs(ctx, segmentID)
+	if err != nil || len(ids) == 0 {
+		return nil, err
+	}
+	rows, err := r.qs.LifecycleMixForCustomers(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -773,7 +810,11 @@ func (r *Recorder) SegmentLifecycleMix(ctx context.Context, segmentID uuid.UUID)
 }
 
 func (r *Recorder) SegmentRfmDistribution(ctx context.Context, segmentID uuid.UUID) ([]SegmentRfmBucket, error) {
-	rows, err := r.read().SegmentRfmDistribution(ctx, segmentID)
+	ids, err := r.read().SegmentMemberCustomerIDs(ctx, segmentID)
+	if err != nil || len(ids) == 0 {
+		return nil, err
+	}
+	rows, err := r.qs.RfmDistributionForCustomers(ctx, ids)
 	if err != nil {
 		return nil, err
 	}

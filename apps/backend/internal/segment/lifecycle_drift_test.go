@@ -9,7 +9,8 @@ import (
 // A stage the recompute writes but rules reject is an audience nobody can target, and one rules accept but it never
 // writes is a segment that silently matches nobody - both failed silently until someone wondered why a list was empty
 func TestLifecycleStagesMatchWhatTheRecomputeWrites(t *testing.T) {
-	const query = "../db/query/traits.sql"
+	// Follows the recompute, which moved to the signals database with customer_traits
+	const query = "../db/signals/query/traits.sql"
 	sql, err := os.ReadFile(query)
 	if err != nil {
 		t.Fatalf("read %s: %v", query, err)

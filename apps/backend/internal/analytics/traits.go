@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 )
 
 type CustomerTraits struct { // the persisted per-customer summary Synapse computes and the rest of Signals reads, for profiles and trait-driven segments
@@ -70,10 +70,10 @@ func (r *Recorder) ComputeTraits(ctx context.Context, channelID uuid.UUID, now t
 	if err := r.refreshEngagement(ctx, channelID, now); err != nil {
 		return 0, err
 	}
-	if err := r.refreshOrderAggregates(ctx, channelID, now); err != nil {
+	if err := r.refreshOrderAggregates(ctx, channelID); err != nil {
 		return 0, err
 	}
-	n, err := r.q.RecomputeChannelTraits(ctx, db.RecomputeChannelTraitsParams{
+	n, err := r.qs.RecomputeChannelTraits(ctx, signalsdb.RecomputeChannelTraitsParams{
 		ChannelID:  channelID,
 		NewDays:    int32(lc.NewDays),
 		ActiveDays: int32(lc.ActiveDays),
@@ -91,7 +91,7 @@ const (
 // Incremental by default - only customers whose events entered or left the window since the last run get recomputed, with the first run and a weekly self-heal doing the full swap and the fresh slice starting 1h early to absorb late arrivals
 func (r *Recorder) refreshEngagement(ctx context.Context, channelID uuid.UUID, now time.Time) error {
 	since := now.Add(-engagementWindow)
-	last, werr := r.q.GetEngagementWatermark(ctx, channelID)
+	last, werr := r.qs.GetEngagementWatermark(ctx, channelID)
 	if werr != nil && !errors.Is(werr, sql.ErrNoRows) {
 		return fmt.Errorf("engagement watermark: %w", werr)
 	}
@@ -99,7 +99,7 @@ func (r *Recorder) refreshEngagement(ctx context.Context, channelID uuid.UUID, n
 		if err := r.refreshEngagementFull(ctx, channelID, since); err != nil {
 			return err
 		}
-		return r.q.SetEngagementWatermark(ctx, db.SetEngagementWatermarkParams{ChannelID: channelID, RanAt: now})
+		return r.qs.SetEngagementWatermark(ctx, signalsdb.SetEngagementWatermarkParams{ChannelID: channelID, RanAt: now})
 	}
 	aged, err := r.spine.ActiveCustomerIDs(ctx, channelID, last.Add(-engagementWindow), since)
 	if err != nil {
@@ -132,7 +132,7 @@ func (r *Recorder) refreshEngagement(ctx context.Context, channelID uuid.UUID, n
 			present[c.CustomerID] = true
 		}
 		if len(ids) > 0 {
-			if err := r.q.UpsertChannelEngagementFor(ctx, db.UpsertChannelEngagementForParams{
+			if err := r.qs.UpsertChannelEngagementFor(ctx, signalsdb.UpsertChannelEngagementForParams{
 				CustomerIds: ids, ChannelID: channelID, Engagements: vals,
 			}); err != nil {
 				return fmt.Errorf("upsert engagement: %w", err)
@@ -145,12 +145,12 @@ func (r *Recorder) refreshEngagement(ctx context.Context, channelID uuid.UUID, n
 			}
 		}
 		if len(gone) > 0 {
-			if err := r.q.DeleteChannelEngagementFor(ctx, gone); err != nil {
+			if err := r.qs.DeleteChannelEngagementFor(ctx, gone); err != nil {
 				return fmt.Errorf("delete engagement: %w", err)
 			}
 		}
 	}
-	return r.q.SetEngagementWatermark(ctx, db.SetEngagementWatermarkParams{ChannelID: channelID, RanAt: now}) // only after every chunk landed - a partial run redoes its slices next time and recomputes to the same values
+	return r.qs.SetEngagementWatermark(ctx, signalsdb.SetEngagementWatermarkParams{ChannelID: channelID, RanAt: now}) // only after every chunk landed - a partial run redoes its slices next time and recomputes to the same values
 }
 
 // The full atomic swap - one statement, so a crash can't leave the projection half-cleared for the recompute that reads it next
@@ -160,7 +160,7 @@ func (r *Recorder) refreshEngagementFull(ctx context.Context, channelID uuid.UUI
 		return fmt.Errorf("engagement counts: %w", err)
 	}
 	if len(counts) == 0 {
-		if err := r.q.ClearChannelEngagement(ctx, channelID); err != nil {
+		if err := r.qs.ClearChannelEngagement(ctx, channelID); err != nil {
 			return fmt.Errorf("clear engagement: %w", err)
 		}
 		return nil
@@ -171,7 +171,7 @@ func (r *Recorder) refreshEngagementFull(ctx context.Context, channelID uuid.UUI
 		ids = append(ids, c.CustomerID)
 		vals = append(vals, c.Count)
 	}
-	if err := r.q.ReplaceChannelEngagement(ctx, db.ReplaceChannelEngagementParams{
+	if err := r.qs.ReplaceChannelEngagement(ctx, signalsdb.ReplaceChannelEngagementParams{
 		CustomerIds: ids, ChannelID: channelID, Engagements: vals,
 	}); err != nil {
 		return fmt.Errorf("replace engagement: %w", err)
@@ -180,7 +180,7 @@ func (r *Recorder) refreshEngagementFull(ctx context.Context, channelID uuid.UUI
 }
 
 func (r *Recorder) CustomerTraits(ctx context.Context, customerID uuid.UUID) (CustomerTraits, bool, error) { // ok=false when they haven't been computed yet, e.g. a brand-new customer before the next run
-	t, err := r.read().GetCustomerTrait(ctx, customerID)
+	t, err := r.qs.GetCustomerTrait(ctx, customerID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return CustomerTraits{}, false, nil
 	}
@@ -201,7 +201,7 @@ func (r *Recorder) TraitActors(ctx context.Context, channelID uuid.UUID, rule Tr
 	if rule.empty() {
 		return nil, nil
 	}
-	rows, err := r.read().ListCustomerTraitsByChannel(ctx, channelID)
+	rows, err := r.qs.ListCustomerTraitsByChannel(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
@@ -227,25 +227,13 @@ func (r *Recorder) TraitActors(ctx context.Context, channelID uuid.UUID, rule Tr
 
 // The RFM inputs, read off the spine and landed in commerce so the recompute can join them locally
 // Always a full swap: a cancellation retroactively removes an order the projection already counted, so there is no slice of "what changed" the way engagement has one
-func (r *Recorder) refreshOrderAggregates(ctx context.Context, channelID uuid.UUID, now time.Time) error {
-	// The projection is seeded from the orders table by its migration, and the spine only goes back to when tracking
-	// started - swapping before `skelet signals backfill-orders` has replayed the rest would truncate every customer's
-	// history at that cutover and reset their scores, so the seeded rows stand until the backfill arms this
-	if _, err := r.q.GetOrderAggWatermark(ctx, channelID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		return fmt.Errorf("order aggregate watermark: %w", err)
-	}
+func (r *Recorder) refreshOrderAggregates(ctx context.Context, channelID uuid.UUID) error {
 	aggs, err := r.spine.ChannelOrderAggregates(ctx, channelID)
 	if err != nil {
 		return fmt.Errorf("order aggregates: %w", err)
 	}
 	if len(aggs) == 0 {
-		if err := r.q.ClearChannelOrderAgg(ctx, channelID); err != nil {
-			return fmt.Errorf("clear order aggregates: %w", err)
-		}
-		return r.q.SetOrderAggWatermark(ctx, db.SetOrderAggWatermarkParams{ChannelID: channelID, RanAt: now})
+		return r.qs.ClearChannelOrderAgg(ctx, channelID)
 	}
 	ids := make([]uuid.UUID, 0, len(aggs))
 	counts := make([]int32, 0, len(aggs))
@@ -259,11 +247,11 @@ func (r *Recorder) refreshOrderAggregates(ctx context.Context, channelID uuid.UU
 		firsts = append(firsts, a.FirstOrderAt)
 		lasts = append(lasts, a.LastOrderAt)
 	}
-	if err := r.q.ReplaceChannelOrderAgg(ctx, db.ReplaceChannelOrderAggParams{
+	if err := r.qs.ReplaceChannelOrderAgg(ctx, signalsdb.ReplaceChannelOrderAggParams{
 		ChannelID: channelID, CustomerIds: ids, OrderCounts: counts,
 		MonetaryCents: cents, FirstOrderAts: firsts, LastOrderAts: lasts,
 	}); err != nil {
 		return fmt.Errorf("replace order aggregates: %w", err)
 	}
-	return r.q.SetOrderAggWatermark(ctx, db.SetOrderAggWatermarkParams{ChannelID: channelID, RanAt: now})
+	return nil
 }

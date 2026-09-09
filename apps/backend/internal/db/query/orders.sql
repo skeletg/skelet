@@ -243,15 +243,3 @@ SELECT * FROM order_tax_lines WHERE order_id = $1 ORDER BY amount_cents DESC, na
 -- name: DeleteOrderTaxLines :exec
 -- A pre-fulfillment edit recomputes tax from scratch, so the old breakdown goes
 DELETE FROM order_tax_lines WHERE order_id = $1;
-
--- name: OrdersForSpineBackfill :many
--- Historical orders as the spine would have recorded them, for the one-time backfill that gives
--- trait compute the history predating tracking - guests are skipped, since RFM is per customer,
--- and drafts never reached a customer so they were never placed
-SELECT id, customer_id, channel_id, total_amount, created_at, status
-FROM orders
-WHERE customer_id IS NOT NULL
-  AND status <> 'draft'
-  AND created_at < sqlc.arg(before)
-ORDER BY created_at, id
-LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
