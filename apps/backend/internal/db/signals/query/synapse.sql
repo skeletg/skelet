@@ -363,3 +363,18 @@ WHERE customer_id = sqlc.arg(customer_id)
   AND send_id IS NOT NULL
   AND occurred_at >= sqlc.arg(since)
 ORDER BY (event_name = 'email_clicked') DESC, occurred_at DESC;
+
+-- name: SegmentGrowth :many
+-- Daily member-count series for a segment over the last `days` days (from the
+-- snapshot table) - accrues forward from when the segment first materialised
+SELECT day::timestamptz AS day, member_count
+FROM segment_membership_daily
+WHERE segment_id = sqlc.arg(segment_id) AND day >= CURRENT_DATE - sqlc.arg(days)::int
+ORDER BY day;
+
+-- name: SegmentMemberIDs :many
+-- The customer ids in a segment - the commerce half of the app-side
+-- SegmentTopAffinities read (the affinity spine scan runs in the signals db,
+-- passed these ids). analytics_events moved out of this db, so the join can't
+SELECT customer_id FROM customer_segment_memberships WHERE segment_id = sqlc.arg(segment_id);
+

@@ -419,6 +419,21 @@ func (q *Queries) PruneCustomerRoster(ctx context.Context, before time.Time) (in
 	return result.RowsAffected()
 }
 
+const pruneOrphanedMemberships = `-- name: PruneOrphanedMemberships :execrows
+DELETE FROM customer_segment_memberships m WHERE NOT EXISTS (
+    SELECT 1 FROM customer_roster r WHERE r.customer_id = m.customer_id
+)
+`
+
+// Memberships for customers no longer on the roster - the foreign key to customers could not cross databases, so this replaces its cascade the way PruneOrphanedTraits does for scores
+func (q *Queries) PruneOrphanedMemberships(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneOrphanedMemberships)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const pruneOrphanedTraits = `-- name: PruneOrphanedTraits :execrows
 DELETE FROM customer_traits t WHERE NOT EXISTS (
     SELECT 1 FROM customer_roster r WHERE r.customer_id = t.customer_id
@@ -445,10 +460,17 @@ WITH agg AS (
            COALESCE(a.monetary_cents, 0)::bigint    AS monetary_cents,
            a.last_order_at                          AS last_order_at,
            a.first_order_at                         AS first_order_at,
-           c.lifecycle_new_days                     AS new_days,
-           c.lifecycle_active_days                  AS active_days,
-           c.lifecycle_at_risk_days                 AS at_risk_days
+           o.new_days, o.active_days, o.at_risk_days
     FROM customer_roster c
+    LEFT JOIN LATERAL (
+        -- The shortest-window override segment the customer belongs to, most aggressive cadence winning
+        SELECT s.lifecycle_new_days AS new_days, s.lifecycle_active_days AS active_days, s.lifecycle_at_risk_days AS at_risk_days
+        FROM customer_segment_memberships m
+        JOIN customer_segments s ON s.id = m.segment_id
+        WHERE m.customer_id = c.customer_id AND s.is_active AND s.lifecycle_at_risk_days IS NOT NULL
+        ORDER BY s.lifecycle_at_risk_days ASC, s.id
+        LIMIT 1
+    ) o ON TRUE
     LEFT JOIN customer_order_agg a ON a.customer_id = c.customer_id
     WHERE c.channel_id = $1::uuid
 ),
@@ -801,37 +823,20 @@ func (q *Queries) UpsertChannelEngagementFor(ctx context.Context, arg UpsertChan
 }
 
 const upsertCustomerRoster = `-- name: UpsertCustomerRoster :exec
-INSERT INTO customer_roster (customer_id, channel_id, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, synced_at)
-SELECT unnest($1::uuid[]), unnest($2::uuid[]),
-       NULLIF(unnest($3::int[]), 0), NULLIF(unnest($4::int[]), 0), NULLIF(unnest($5::int[]), 0),
-       $6
+INSERT INTO customer_roster (customer_id, channel_id, synced_at)
+SELECT unnest($1::uuid[]), unnest($2::uuid[]), $3
 ON CONFLICT (customer_id) DO UPDATE
-    SET channel_id = EXCLUDED.channel_id,
-        lifecycle_new_days = EXCLUDED.lifecycle_new_days,
-        lifecycle_active_days = EXCLUDED.lifecycle_active_days,
-        lifecycle_at_risk_days = EXCLUDED.lifecycle_at_risk_days,
-        synced_at = EXCLUDED.synced_at
+    SET channel_id = EXCLUDED.channel_id, synced_at = EXCLUDED.synced_at
 `
 
 type UpsertCustomerRosterParams struct {
 	CustomerIds []uuid.UUID `json:"customer_ids"`
 	ChannelIds  []uuid.UUID `json:"channel_ids"`
-	NewDays     []int32     `json:"new_days"`
-	ActiveDays  []int32     `json:"active_days"`
-	AtRiskDays  []int32     `json:"at_risk_days"`
 	SyncedAt    time.Time   `json:"synced_at"`
 }
 
 // Lands a page of the synced roster - paired arrays, one statement per page
-// 0 is the sentinel for no override, since a paired int array cannot carry NULL, and it has to land as NULL or the recompute's COALESCE onto the channel default never fires
 func (q *Queries) UpsertCustomerRoster(ctx context.Context, arg UpsertCustomerRosterParams) error {
-	_, err := q.db.ExecContext(ctx, upsertCustomerRoster,
-		pq.Array(arg.CustomerIds),
-		pq.Array(arg.ChannelIds),
-		pq.Array(arg.NewDays),
-		pq.Array(arg.ActiveDays),
-		pq.Array(arg.AtRiskDays),
-		arg.SyncedAt,
-	)
+	_, err := q.db.ExecContext(ctx, upsertCustomerRoster, pq.Array(arg.CustomerIds), pq.Array(arg.ChannelIds), arg.SyncedAt)
 	return err
 }

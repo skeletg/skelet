@@ -183,8 +183,8 @@ func (s *Service) RefreshDynamic(ctx context.Context, id uuid.UUID) (int, error)
 	if rules == nil {
 		return 0, fmt.Errorf("segment %q has no rules - it is a static segment", seg.Slug)
 	}
-	// Recomputing from customer_traits with the suite off would just re-materialise the same frozen answer under a fresh timestamp
-	if s.signalsOff && rules.NeedsSignals() {
+	// Audiences only exist while the suite runs, so with it off there is nothing to recompute
+	if s.signalsOff {
 		return 0, nil
 	}
 	resolved, err := s.resolveSignalsConditions(ctx, rules)

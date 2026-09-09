@@ -122,6 +122,9 @@ func (c *RuleCondition) validate() error {
 	return nil
 }
 
+// Condition kinds backed by customer_traits - the compiled query runs against commerce, so these cannot be a subquery
+var synapseRuleKinds = map[string]bool{"trait": true, "lifecycle": true}
+
 // SignalsConditions returns the conditions that read customer_traits, keyed by their index in the rule set
 // Those live in the signals database now, so they cannot be a subquery here and are resolved to an id set first
 func (r *Rules) SignalsConditions() map[int]RuleCondition {

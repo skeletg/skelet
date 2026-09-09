@@ -1238,27 +1238,6 @@ type CustomerPaymentMethod struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
-type CustomerSegment struct {
-	ID                  uuid.UUID             `json:"id"`
-	Slug                string                `json:"slug"`
-	Name                string                `json:"name"`
-	Description         string                `json:"description"`
-	RefreshSql          string                `json:"refresh_sql"`
-	IsActive            bool                  `json:"is_active"`
-	CreatedAt           time.Time             `json:"created_at"`
-	UpdatedAt           time.Time             `json:"updated_at"`
-	LifecycleNewDays    sql.NullInt32         `json:"lifecycle_new_days"`
-	LifecycleActiveDays sql.NullInt32         `json:"lifecycle_active_days"`
-	LifecycleAtRiskDays sql.NullInt32         `json:"lifecycle_at_risk_days"`
-	Rules               pqtype.NullRawMessage `json:"rules"`
-}
-
-type CustomerSegmentMembership struct {
-	CustomerID uuid.UUID `json:"customer_id"`
-	SegmentID  uuid.UUID `json:"segment_id"`
-	AddedAt    time.Time `json:"added_at"`
-}
-
 type DataJob struct {
 	ID              uuid.UUID       `json:"id"`
 	Direction       string          `json:"direction"`
@@ -2413,12 +2392,6 @@ type SearchSynonym struct {
 	ChannelID uuid.NullUUID `json:"channel_id"`
 	Terms     string        `json:"terms"`
 	CreatedAt time.Time     `json:"created_at"`
-}
-
-type SegmentMembershipDaily struct {
-	SegmentID   uuid.UUID `json:"segment_id"`
-	Day         time.Time `json:"day"`
-	MemberCount int32     `json:"member_count"`
 }
 
 type SeoCrawl struct {

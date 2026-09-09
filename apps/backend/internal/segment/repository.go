@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 
-	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 )
 
 var ErrSegmentNotFound = errors.New("segment: not found")
@@ -187,7 +187,7 @@ func (r *postgresRepository) ListMembers(ctx context.Context, segmentID uuid.UUI
 	}
 	out := make([]Member, len(rows))
 	for i, m := range rows {
-		out[i] = Member{ID: m.ID, Email: m.Email, FirstName: m.FirstName, LastName: m.LastName, ChannelID: m.ChannelID, JoinedAt: m.AddedAt}
+		out[i] = Member{ID: m.CustomerID, ChannelID: m.ChannelID, JoinedAt: m.AddedAt}
 	}
 	return out, nil
 }

@@ -1838,37 +1838,6 @@ CREATE TABLE public.customer_payment_methods (
 
 
 --
--- Name: customer_segment_memberships; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.customer_segment_memberships (
-    customer_id uuid NOT NULL,
-    segment_id uuid NOT NULL,
-    added_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: customer_segments; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.customer_segments (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    slug text NOT NULL,
-    name text NOT NULL,
-    description text DEFAULT ''::text NOT NULL,
-    refresh_sql text DEFAULT ''::text NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    lifecycle_new_days integer,
-    lifecycle_active_days integer,
-    lifecycle_at_risk_days integer,
-    rules jsonb
-);
-
-
---
 -- Name: customers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3372,17 +3341,6 @@ CREATE TABLE public.search_synonyms (
     channel_id uuid,
     terms text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: segment_membership_daily; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.segment_membership_daily (
-    segment_id uuid NOT NULL,
-    day date NOT NULL,
-    member_count integer NOT NULL
 );
 
 
@@ -4991,30 +4949,6 @@ ALTER TABLE ONLY public.customer_payment_methods
 
 
 --
--- Name: customer_segment_memberships customer_segment_memberships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_segment_memberships
-    ADD CONSTRAINT customer_segment_memberships_pkey PRIMARY KEY (customer_id, segment_id);
-
-
---
--- Name: customer_segments customer_segments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_segments
-    ADD CONSTRAINT customer_segments_pkey PRIMARY KEY (id);
-
-
---
--- Name: customer_segments customer_segments_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_segments
-    ADD CONSTRAINT customer_segments_slug_key UNIQUE (slug);
-
-
---
 -- Name: customers customers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5900,14 +5834,6 @@ ALTER TABLE ONLY public.search_redirects
 
 ALTER TABLE ONLY public.search_synonyms
     ADD CONSTRAINT search_synonyms_pkey PRIMARY KEY (id);
-
-
---
--- Name: segment_membership_daily segment_membership_daily_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.segment_membership_daily
-    ADD CONSTRAINT segment_membership_daily_pkey PRIMARY KEY (segment_id, day);
 
 
 --
@@ -6971,20 +6897,6 @@ CREATE INDEX idx_customer_consents_kind_opted_in ON public.customer_consents USI
 --
 
 CREATE UNIQUE INDEX idx_customer_groups_default ON public.customer_groups USING btree (is_default) WHERE (is_default = true);
-
-
---
--- Name: idx_customer_segment_memberships_segment; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_customer_segment_memberships_segment ON public.customer_segment_memberships USING btree (segment_id);
-
-
---
--- Name: idx_customer_segments_active; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_customer_segments_active ON public.customer_segments USING btree (is_active);
 
 
 --
@@ -9201,22 +9113,6 @@ ALTER TABLE ONLY public.customer_payment_methods
 
 
 --
--- Name: customer_segment_memberships customer_segment_memberships_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_segment_memberships
-    ADD CONSTRAINT customer_segment_memberships_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE CASCADE;
-
-
---
--- Name: customer_segment_memberships customer_segment_memberships_segment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_segment_memberships
-    ADD CONSTRAINT customer_segment_memberships_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.customer_segments(id) ON DELETE CASCADE;
-
-
---
 -- Name: customers customers_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10198,14 +10094,6 @@ ALTER TABLE ONLY public.search_redirects
 
 ALTER TABLE ONLY public.search_synonyms
     ADD CONSTRAINT search_synonyms_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
-
-
---
--- Name: segment_membership_daily segment_membership_daily_segment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.segment_membership_daily
-    ADD CONSTRAINT segment_membership_daily_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.customer_segments(id) ON DELETE CASCADE;
 
 
 --

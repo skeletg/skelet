@@ -14,9 +14,11 @@ import (
 )
 
 const channelCustomerIDs = `-- name: ChannelCustomerIDs :many
+
 SELECT id FROM customers WHERE channel_id = $1
 `
 
+// Synapse's commerce-side reads - the order half of the segment panels, whose membership and traits halves live in the signals database and are joined in the caller
 // Every customer id in a channel - the universe a behavioral segment draws from
 // Used to evaluate negated / OR'd nodes in a segment definition tree (NOT X =
 // universe minus X)
@@ -33,78 +35,6 @@ func (q *Queries) ChannelCustomerIDs(ctx context.Context, channelID uuid.UUID) (
 			return nil, err
 		}
 		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const segmentGrowth = `-- name: SegmentGrowth :many
-SELECT day::timestamptz AS day, member_count
-FROM segment_membership_daily
-WHERE segment_id = $1 AND day >= CURRENT_DATE - $2::int
-ORDER BY day
-`
-
-type SegmentGrowthParams struct {
-	SegmentID uuid.UUID `json:"segment_id"`
-	Days      int32     `json:"days"`
-}
-
-type SegmentGrowthRow struct {
-	Day         time.Time `json:"day"`
-	MemberCount int32     `json:"member_count"`
-}
-
-// Daily member-count series for a segment over the last `days` days (from the
-// snapshot table) - accrues forward from when the segment first materialised
-func (q *Queries) SegmentGrowth(ctx context.Context, arg SegmentGrowthParams) ([]SegmentGrowthRow, error) {
-	rows, err := q.db.QueryContext(ctx, segmentGrowth, arg.SegmentID, arg.Days)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []SegmentGrowthRow{}
-	for rows.Next() {
-		var i SegmentGrowthRow
-		if err := rows.Scan(&i.Day, &i.MemberCount); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const segmentMemberIDs = `-- name: SegmentMemberIDs :many
-SELECT customer_id FROM customer_segment_memberships WHERE segment_id = $1
-`
-
-// The customer ids in a segment - the commerce half of the app-side
-// SegmentTopAffinities read (the affinity spine scan runs in the signals db,
-// passed these ids). analytics_events moved out of this db, so the join can't
-func (q *Queries) SegmentMemberIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, segmentMemberIDs, segmentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []uuid.UUID{}
-	for rows.Next() {
-		var customer_id uuid.UUID
-		if err := rows.Scan(&customer_id); err != nil {
-			return nil, err
-		}
-		items = append(items, customer_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -163,28 +93,24 @@ func (q *Queries) SegmentMemberOrderStats(ctx context.Context, customerIds []uui
 	return items, nil
 }
 
-const segmentMemberStats = `-- name: SegmentMemberStats :one
-
+const segmentOrderRollup = `-- name: SegmentOrderRollup :one
 SELECT
-    COUNT(DISTINCT o.id)::bigint                AS orders,
-    COALESCE(SUM(o.total_amount), 0)::bigint    AS revenue_cents
-FROM customer_segment_memberships m
-JOIN orders o ON o.customer_id = m.customer_id AND o.status NOT IN ('cancelled', 'draft')
-WHERE m.segment_id = $1
+    COUNT(DISTINCT o.id)::bigint             AS orders,
+    COALESCE(SUM(o.total_amount), 0)::bigint AS revenue_cents
+FROM orders o
+WHERE o.customer_id = ANY($1::uuid[])
+  AND o.status NOT IN ('cancelled', 'draft')
 `
 
-type SegmentMemberStatsRow struct {
+type SegmentOrderRollupRow struct {
 	Orders       int64 `json:"orders"`
 	RevenueCents int64 `json:"revenue_cents"`
 }
 
-// Synapse's commerce-side reads - the membership and order halves of the segment panels, whose traits half lives in signals/query/traits.sql and is joined in the caller
-// Commerce rollup over a segment's members: distinct non-cancelled orders + total
-// spend (cents) - AOV is derived in the resolver - currency is treated as the
-// channel's single currency (mixed-currency segments sum naively)
-func (q *Queries) SegmentMemberStats(ctx context.Context, segmentID uuid.UUID) (SegmentMemberStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, segmentMemberStats, segmentID)
-	var i SegmentMemberStatsRow
+// Distinct non-cancelled orders and total spend for a known set of customers - the commerce half of a segment's rollup, since membership moved and the join cannot span both
+func (q *Queries) SegmentOrderRollup(ctx context.Context, customerIds []uuid.UUID) (SegmentOrderRollupRow, error) {
+	row := q.db.QueryRowContext(ctx, segmentOrderRollup, pq.Array(customerIds))
+	var i SegmentOrderRollupRow
 	err := row.Scan(&i.Orders, &i.RevenueCents)
 	return i, err
 }

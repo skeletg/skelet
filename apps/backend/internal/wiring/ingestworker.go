@@ -32,6 +32,7 @@ var IngestPools = fx.Module("ingestpools",
 		newQueries,
 		newSignalsQueries,
 		newTxManager,
+		newSignalsTxManager,
 	),
 )
 
