@@ -22,6 +22,10 @@ type Querier interface {
 	// Customers with any spine event in [from, to) - the incremental engagement
 	// refresh unions the aged-out and fresh slices to find who needs recomputing.
 	ActiveSpineCustomerIDs(ctx context.Context, arg ActiveSpineCustomerIDsParams) ([]uuid.UUID, error)
+	// Optimistic: only advances past the cursor this sweep read, so concurrent
+	// sweeps (cmd/server + cmd/signals both forwarding) can't move it backwards -
+	// the losing sweep sees 0 rows and concedes
+	AdvanceEventDestinationCursor(ctx context.Context, arg AdvanceEventDestinationCursorParams) (int64, error)
 	// Customers (resolved directly or via a stitched anon) with >=1 event carrying
 	// the affinity prop (attr:<slug>) = value since the cutoff. Powers affinity
 	// segments (e.g. "tire size = 205/55R16").
@@ -79,6 +83,8 @@ type Querier interface {
 	ClearChannelEngagement(ctx context.Context, channelID uuid.UUID) error
 	// The empty-refresh case: a channel whose spine holds no surviving orders
 	ClearChannelOrderAgg(ctx context.Context, channelID uuid.UUID) error
+	// Event destinations and the spine read feeding their forwarding sweep - both live here, so the sweep pages the spine and advances a cursor without crossing a database
+	CreateEventDestination(ctx context.Context, arg CreateEventDestinationParams) (EventDestination, error)
 	CustomerConversions(ctx context.Context, arg CustomerConversionsParams) ([]CustomerConversionsRow, error)
 	// Spine half of the app-side conversion-attribution lookback (recorder's
 	// RecordConversion): every marketing open/click the customer logged since the
@@ -108,6 +114,7 @@ type Querier interface {
 	// call, since the mapping table lives here rather than in commerce, so it is not
 	// atomic with the commerce scrub.
 	DeleteCustomerAnalyticsIdentities(ctx context.Context, customerIds []uuid.UUID) (int64, error)
+	DeleteEventDestination(ctx context.Context, id uuid.UUID) error
 	// Only after the batched spine delete landed - a failed sweep retries these.
 	DeleteIdentityErasures(ctx context.Context, customerIds []uuid.UUID) error
 	// Channel-scoped open/click/conversion counts since a cutoff. Opens/clicks are
@@ -159,6 +166,7 @@ type Querier interface {
 	FunnelEvents(ctx context.Context, arg FunnelEventsParams) ([]FunnelEventsRow, error)
 	GetCustomerTrait(ctx context.Context, customerID uuid.UUID) (CustomerTrait, error)
 	GetEngagementWatermark(ctx context.Context, channelID uuid.UUID) (time.Time, error)
+	GetEventDestination(ctx context.Context, id uuid.UUID) (EventDestination, error)
 	// Customers with events RECEIVED in [from, to) - the incremental refresh's fresh
 	// slice keys on arrival time, so a queue-backlog drain or an outbox redelivery
 	// whose occurred_at predates the window still gets its customer recomputed.
@@ -301,6 +309,7 @@ type Querier interface {
 	LensVitalsOverall(ctx context.Context, arg LensVitalsOverallParams) ([]LensVitalsOverallRow, error)
 	LensZeroResultSearches(ctx context.Context, arg LensZeroResultSearchesParams) ([]LensZeroResultSearchesRow, error)
 	LifecycleMixForCustomers(ctx context.Context, customerIds []uuid.UUID) ([]LifecycleMixForCustomersRow, error)
+	ListActiveEventDestinations(ctx context.Context) ([]EventDestination, error)
 	// One keyset page of a day slice for the archive export. Ordered on
 	// (received_at, id) so the received_at index feeds an incremental sort;
 	// customer_id / anon_id / dedupe_key are deliberately not selected - archives
@@ -308,8 +317,9 @@ type Querier interface {
 	// identify's).
 	ListAnalyticsEventsForArchive(ctx context.Context, arg ListAnalyticsEventsForArchiveParams) ([]ListAnalyticsEventsForArchiveRow, error)
 	ListCustomerTraitsByChannel(ctx context.Context, channelID uuid.UUID) ([]CustomerTrait, error)
-	// Spine read for the event-forwarding sweep (destination.Service). The destination rows + cursor live in commerce
-	// (event_destinations); only this page-the-spine read moved here
+	ListEventDestinationsByChannel(ctx context.Context, channelID uuid.UUID) ([]EventDestination, error)
+	// ListEventsForForwarding pages the spine in ingest order after the destination's (created_at, id) cursor - NULL cursor
+	// starts from the destination's creation moment - a new destination forwards new events, not the whole history
 	// The 5s watermark keeps the page behind any still-committing insert: a row can
 	// commit AFTER the sweep read past its created_at, and once the cursor moves it
 	// would never be forwarded. Nothing lands that late, so no event is skipped.
@@ -434,6 +444,7 @@ type Querier interface {
 	// segment. Anonymous-only people are excluded (segments hold customer ids).
 	SegmentEventActors(ctx context.Context, arg SegmentEventActorsParams) ([]uuid.UUID, error)
 	SetEngagementWatermark(ctx context.Context, arg SetEngagementWatermarkParams) error
+	SetEventDestinationError(ctx context.Context, arg SetEventDestinationErrorParams) error
 	// Health panel: is ingest flowing, and is retention actually running? newest
 	// answers the first, oldest the second (it should sit near the retention
 	// window - drifting past it means the prune isn't happening).
@@ -469,6 +480,9 @@ type Querier interface {
 	SynapseTotals(ctx context.Context, arg SynapseTotalsParams) (SynapseTotalsRow, error)
 	TopClickedLinks(ctx context.Context, arg TopClickedLinksParams) ([]TopClickedLinksRow, error)
 	TraitsForCustomers(ctx context.Context, customerIds []uuid.UUID) ([]TraitsForCustomersRow, error)
+	// The secret is write-only (never returned by the API), so an edit
+	// can't round-trip the current value - blank means keep the stored one
+	UpdateEventDestination(ctx context.Context, arg UpdateEventDestinationParams) (EventDestination, error)
 	// Self-contained browse_seen queries (the anon-keyed browse rollup, fed at ingest) + the signals half of the browse-abandonment scan. The
 	// commerce half (exclude active-cart / since-browse-order) runs app-side against carts/orders
 	// Records the latest product browse for an anonymous visitor. On conflict the

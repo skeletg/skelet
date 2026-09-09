@@ -2459,33 +2459,6 @@ export type EmailWarning = {
   severity: Scalars['String']['output'];
 };
 
-export type EventDestination = {
-  __typename?: 'EventDestination';
-  channelId: Scalars['ID']['output'];
-  createdAt: Scalars['Time']['output'];
-  eventNames: Array<Scalars['String']['output']>;
-  eventSources: Array<Scalars['String']['output']>;
-  id: Scalars['ID']['output'];
-  isActive: Scalars['Boolean']['output'];
-  kind: Scalars['String']['output'];
-  lastError: Scalars['String']['output'];
-  lastForwardedAt?: Maybe<Scalars['Time']['output']>;
-  name: Scalars['String']['output'];
-  targetUrl: Scalars['String']['output'];
-  updatedAt: Scalars['Time']['output'];
-};
-
-export type EventDestinationInput = {
-  channelId: Scalars['ID']['input'];
-  eventNames?: InputMaybe<Array<Scalars['String']['input']>>;
-  eventSources?: InputMaybe<Array<Scalars['String']['input']>>;
-  isActive?: InputMaybe<Scalars['Boolean']['input']>;
-  kind: Scalars['String']['input'];
-  name: Scalars['String']['input'];
-  secret?: InputMaybe<Scalars['String']['input']>;
-  targetUrl: Scalars['String']['input'];
-};
-
 export type FacetOverride = {
   __typename?: 'FacetOverride';
   attributeId: Scalars['ID']['output'];
@@ -3121,7 +3094,6 @@ export type Mutation = {
   createDraftOrder: Order;
   createEmailCampaign: EmailCampaign;
   createEmailGroup: EmailGroup;
-  createEventDestination: EventDestination;
   createFlow: Flow;
   createFulfillment: Order;
   createIntegration: CreateIntegrationPayload;
@@ -3188,7 +3160,6 @@ export type Mutation = {
   deleteEmailBlock: Scalars['Boolean']['output'];
   deleteEmailCampaign: Scalars['Boolean']['output'];
   deleteEmailGroup: Scalars['Boolean']['output'];
-  deleteEventDestination: Scalars['Boolean']['output'];
   deleteFlow: Scalars['Boolean']['output'];
   deleteIntegration: Scalars['Boolean']['output'];
   deleteInventoryLocation: Scalars['Boolean']['output'];
@@ -3393,7 +3364,6 @@ export type Mutation = {
   synapseRefreshSegment: SynapseSegment;
   synapseSaveSegment: SynapseSegment;
   synapseSetSegmentLifecycleWindows: SynapseSegment;
-  syncAudience: Scalars['Int']['output'];
   syncCanonicalUrlRewrite: UrlRewrite;
   syncProductInventory: InventoryItem;
   syncProductInventoryBatch: SyncProductInventoryBatchResult;
@@ -3431,7 +3401,6 @@ export type Mutation = {
   updateCustomerGroup: CustomerGroup;
   updateCustomerSegment: CustomerSegment;
   updateEmailCampaign: EmailCampaign;
-  updateEventDestination: EventDestination;
   updateFlow: Flow;
   updateGroupedMember: Product;
   updateIntegration: Integration;
@@ -4015,11 +3984,6 @@ export type MutationCreateEmailGroupArgs = {
 };
 
 
-export type MutationCreateEventDestinationArgs = {
-  input: EventDestinationInput;
-};
-
-
 export type MutationCreateFlowArgs = {
   input: SaveFlowInput;
 };
@@ -4359,11 +4323,6 @@ export type MutationDeleteEmailCampaignArgs = {
 
 
 export type MutationDeleteEmailGroupArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
-export type MutationDeleteEventDestinationArgs = {
   id: Scalars['ID']['input'];
 };
 
@@ -5530,12 +5489,6 @@ export type MutationSynapseSetSegmentLifecycleWindowsArgs = {
 };
 
 
-export type MutationSyncAudienceArgs = {
-  destinationId: Scalars['ID']['input'];
-  segmentId: Scalars['ID']['input'];
-};
-
-
 export type MutationSyncCanonicalUrlRewriteArgs = {
   input: SyncCanonicalUrlRewriteInput;
 };
@@ -5733,12 +5686,6 @@ export type MutationUpdateCustomerSegmentArgs = {
 export type MutationUpdateEmailCampaignArgs = {
   id: Scalars['ID']['input'];
   input: SaveCampaignInput;
-};
-
-
-export type MutationUpdateEventDestinationArgs = {
-  id: Scalars['ID']['input'];
-  input: EventDestinationInput;
 };
 
 
@@ -6887,7 +6834,6 @@ export type Query = {
   emailPreflight: Array<EmailWarning>;
   emailRevisions: Array<EmailRevision>;
   emailSuppressions: EmailSuppressionPage;
-  eventDestinations: Array<EventDestination>;
   experimentSegments: Array<SegmentOption>;
   exportCustomerData: Scalars['String']['output'];
   flow?: Maybe<Flow>;
@@ -7369,11 +7315,6 @@ export type QueryEmailSuppressionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   reason?: InputMaybe<Scalars['String']['input']>;
-};
-
-
-export type QueryEventDestinationsArgs = {
-  channelId: Scalars['ID']['input'];
 };
 
 
