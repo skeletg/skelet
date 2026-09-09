@@ -52,7 +52,7 @@ type audienceExporter struct {
 }
 
 func (e *audienceExporter) Columns(ctx context.Context) ([]dataio.Field, error) {
-	emails, err := e.svc.commerce.SegmentMemberEmails(ctx, e.segmentID)
+	emails, err := e.svc.memberEmails(ctx, e.segmentID)
 	if err != nil {
 		return nil, fmt.Errorf("audience export: members: %w", err)
 	}

@@ -794,6 +794,78 @@ func (q *Queries) SegmentEventActors(ctx context.Context, arg SegmentEventActors
 	return items, nil
 }
 
+const segmentGrowth = `-- name: SegmentGrowth :many
+SELECT day::timestamptz AS day, member_count
+FROM segment_membership_daily
+WHERE segment_id = $1 AND day >= CURRENT_DATE - $2::int
+ORDER BY day
+`
+
+type SegmentGrowthParams struct {
+	SegmentID uuid.UUID `json:"segment_id"`
+	Days      int32     `json:"days"`
+}
+
+type SegmentGrowthRow struct {
+	Day         time.Time `json:"day"`
+	MemberCount int32     `json:"member_count"`
+}
+
+// Daily member-count series for a segment over the last `days` days (from the
+// snapshot table) - accrues forward from when the segment first materialised
+func (q *Queries) SegmentGrowth(ctx context.Context, arg SegmentGrowthParams) ([]SegmentGrowthRow, error) {
+	rows, err := q.db.QueryContext(ctx, segmentGrowth, arg.SegmentID, arg.Days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SegmentGrowthRow{}
+	for rows.Next() {
+		var i SegmentGrowthRow
+		if err := rows.Scan(&i.Day, &i.MemberCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const segmentMemberIDs = `-- name: SegmentMemberIDs :many
+SELECT customer_id FROM customer_segment_memberships WHERE segment_id = $1
+`
+
+// The customer ids in a segment - the commerce half of the app-side
+// SegmentTopAffinities read (the affinity spine scan runs in the signals db,
+// passed these ids). analytics_events moved out of this db, so the join can't
+func (q *Queries) SegmentMemberIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, segmentMemberIDs, segmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var customer_id uuid.UUID
+		if err := rows.Scan(&customer_id); err != nil {
+			return nil, err
+		}
+		items = append(items, customer_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const synapseActiveCustomers = `-- name: SynapseActiveCustomers :many
 SELECT
     COALESCE(e.customer_id, i.customer_id)::uuid AS customer_id,

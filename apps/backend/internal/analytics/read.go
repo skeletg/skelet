@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
-	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 type Engagement struct { // the channel-scoped marketing-email engagement summary on the Pulse dashboard
@@ -707,8 +706,13 @@ func (r *Recorder) ChannelCustomerIDs(ctx context.Context, channelID uuid.UUID) 
 	return r.read().ChannelCustomerIDs(ctx, channelID)
 }
 
-func (r *Recorder) SegmentMemberStats(ctx context.Context, segmentID uuid.UUID) (orders int64, revenueCents int64, err error) { // distinct non-cancelled orders and total spend in cents - powers the detail page's revenue and AOV
-	row, err := r.read().SegmentMemberStats(ctx, segmentID)
+// Distinct non-cancelled orders and total spend in cents for the detail page - membership is the signals database and orders are commerce, so what was one join is two reads
+func (r *Recorder) SegmentMemberStats(ctx context.Context, segmentID uuid.UUID) (orders int64, revenueCents int64, err error) {
+	ids, err := r.qs.SegmentMemberCustomerIDs(ctx, segmentID)
+	if err != nil || len(ids) == 0 {
+		return 0, 0, err
+	}
+	row, err := r.read().SegmentOrderRollup(ctx, ids)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -729,7 +733,7 @@ func (r *Recorder) SegmentMembers(ctx context.Context, segmentID uuid.UUID, limi
 	if limit <= 0 {
 		limit = 200
 	}
-	ids, err := r.read().SegmentMemberCustomerIDs(ctx, segmentID)
+	ids, err := r.qs.SegmentMemberCustomerIDs(ctx, segmentID)
 	if err != nil || len(ids) == 0 {
 		return nil, err
 	}
@@ -794,7 +798,7 @@ type SegmentAffinityCount struct {
 }
 
 func (r *Recorder) SegmentLifecycleMix(ctx context.Context, segmentID uuid.UUID) ([]SegmentStageCount, error) {
-	ids, err := r.read().SegmentMemberCustomerIDs(ctx, segmentID)
+	ids, err := r.qs.SegmentMemberCustomerIDs(ctx, segmentID)
 	if err != nil || len(ids) == 0 {
 		return nil, err
 	}
@@ -810,7 +814,7 @@ func (r *Recorder) SegmentLifecycleMix(ctx context.Context, segmentID uuid.UUID)
 }
 
 func (r *Recorder) SegmentRfmDistribution(ctx context.Context, segmentID uuid.UUID) ([]SegmentRfmBucket, error) {
-	ids, err := r.read().SegmentMemberCustomerIDs(ctx, segmentID)
+	ids, err := r.qs.SegmentMemberCustomerIDs(ctx, segmentID)
 	if err != nil || len(ids) == 0 {
 		return nil, err
 	}
@@ -830,7 +834,7 @@ func (r *Recorder) SegmentTopAffinities(ctx context.Context, segmentID, channelI
 		limit = 12
 	}
 	// The spine moved to the signals db, so the membership join is now app-side - commerce answers who's in the segment, and those member ids feed the signals scan for their affinity props
-	memberIDs, err := r.read().SegmentMemberIDs(ctx, segmentID) // commerce: who's in the segment
+	memberIDs, err := r.qs.SegmentMemberIDs(ctx, segmentID) // commerce: who's in the segment
 	if err != nil {
 		return nil, err
 	}
@@ -849,7 +853,7 @@ func (r *Recorder) SegmentGrowth(ctx context.Context, segmentID uuid.UUID, days 
 	if days <= 0 {
 		days = 90
 	}
-	rows, err := r.read().SegmentGrowth(ctx, db.SegmentGrowthParams{SegmentID: segmentID, Days: int32(days)})
+	rows, err := r.qs.SegmentGrowth(ctx, signalsdb.SegmentGrowthParams{SegmentID: segmentID, Days: int32(days)})
 	if err != nil {
 		return nil, err
 	}

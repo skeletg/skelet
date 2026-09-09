@@ -123,24 +123,19 @@ SELECT * FROM customer_segments
 WHERE rules IS NOT NULL AND is_active = TRUE
 ORDER BY created_at;
 
--- SegmentMemberEmails feeds audience sync/export: the member emails of
--- one segment (join skips deleted customers)
--- name: SegmentMemberEmails :many
-SELECT c.email
-FROM customer_segment_memberships m
-JOIN customers c ON c.id = m.customer_id
-WHERE m.segment_id = $1
-ORDER BY c.email;
+-- SegmentMemberEmails used to join customers for the audience export - that table is core's now, so this
+-- returns the ids and the caller resolves the addresses on the other side
+-- name: SegmentMemberIDsOrdered :many
+SELECT customer_id FROM customer_segment_memberships WHERE segment_id = $1 ORDER BY customer_id;
 
 -- Newest-first member page for the admin segment detail
 -- name: ListSegmentMembers :many
--- Segments are global but their members are not - the channel filter has to
--- live here rather than in the resolver, or paging would return short pages
--- with holes wherever a foreign-channel member was dropped after LIMIT
-SELECT c.id, c.email, c.first_name, c.last_name, c.channel_id, m.added_at
+-- Segments are global but their members are not - the channel filter has to live here rather than in the resolver, or paging would return short pages with holes wherever a foreign-channel member was dropped after LIMIT
+-- The channel comes off the synced roster now, since customers are core's
+SELECT m.customer_id, r.channel_id, m.added_at
 FROM customer_segment_memberships m
-JOIN customers c ON c.id = m.customer_id
+JOIN customer_roster r ON r.customer_id = m.customer_id
 WHERE m.segment_id = $1
-  AND (sqlc.arg(all_channels)::boolean OR c.channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
-ORDER BY m.added_at DESC, c.email
+  AND (sqlc.arg(all_channels)::boolean OR r.channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
+ORDER BY m.added_at DESC, m.customer_id
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);

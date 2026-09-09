@@ -178,3 +178,7 @@ LIMIT  sqlc.arg(lim) OFFSET sqlc.arg(off);
 -- guard runs on every authenticated storefront request and doesn't need the
 -- full row GetCustomerByID returns
 SELECT is_active FROM customers WHERE id = $1;
+
+-- name: CustomerEmailsByIDs :many
+-- Addresses for a known set of ids, skipping any that no longer exist - the commerce half of the audience export, whose membership comes from the signals database
+SELECT email FROM customers WHERE id = ANY(sqlc.arg(customer_ids)::uuid[]) ORDER BY email;

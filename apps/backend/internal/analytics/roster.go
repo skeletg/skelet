@@ -2,7 +2,6 @@ package analytics
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -15,7 +14,7 @@ import (
 // The customer roster, copied into the signals database so trait compute produces a row per customer without joining across - a bulk sync rather than a spine projection, since a roster is current state and deriving it from events loses a customer on any gap
 const rosterPage = 5000
 
-// SyncRoster copies every customer and their resolved lifecycle override then drops the ones that went away, and runs before the recompute since a customer missing here gets no trait row
+// SyncRoster copies every customer across then drops the ones that went away, and runs before the recompute since a customer missing here gets no trait row
 func (r *Recorder) SyncRoster(ctx context.Context) error {
 	if r.qs == nil {
 		return nil // no signals database wired, so nothing computes traits there either
@@ -32,17 +31,11 @@ func (r *Recorder) SyncRoster(ctx context.Context) error {
 		}
 		ids := make([]uuid.UUID, len(rows))
 		channels := make([]uuid.UUID, len(rows))
-		newDays := make([]int32, len(rows))
-		activeDays := make([]int32, len(rows))
-		atRiskDays := make([]int32, len(rows))
 		for i, c := range rows {
 			ids[i], channels[i] = c.CustomerID, c.ChannelID
-			// 0 stands in for absent, matching the recompute's COALESCE onto the channel default
-			newDays[i], activeDays[i], atRiskDays[i] = nullInt(c.NewDays), nullInt(c.ActiveDays), nullInt(c.AtRiskDays)
 		}
 		if err := r.qs.UpsertCustomerRoster(ctx, signalsdb.UpsertCustomerRosterParams{
-			CustomerIds: ids, ChannelIds: channels,
-			NewDays: newDays, ActiveDays: activeDays, AtRiskDays: atRiskDays, SyncedAt: startedAt,
+			CustomerIds: ids, ChannelIds: channels, SyncedAt: startedAt,
 		}); err != nil {
 			return fmt.Errorf("upsert roster: %w", err)
 		}
@@ -55,17 +48,13 @@ func (r *Recorder) SyncRoster(ctx context.Context) error {
 		return fmt.Errorf("prune roster: %w", err)
 	}
 	if gone > 0 {
-		// Their traits go with them - the FK cascade that used to do this cannot cross databases
+		// Their traits and memberships go with them - the FK cascades that used to do this cannot cross databases
 		if _, err := r.qs.PruneOrphanedTraits(ctx); err != nil {
 			return fmt.Errorf("prune orphaned traits: %w", err)
 		}
+		if _, err := r.qs.PruneOrphanedMemberships(ctx); err != nil {
+			return fmt.Errorf("prune orphaned memberships: %w", err)
+		}
 	}
 	return nil
-}
-
-func nullInt(n sql.NullInt32) int32 {
-	if !n.Valid {
-		return 0
-	}
-	return n.Int32
 }

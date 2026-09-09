@@ -81,9 +81,18 @@ func TestADeletedCustomerLosesTheirTraits(t *testing.T) {
 	if err := e.rec.SyncRoster(e.ctx); err != nil {
 		t.Fatalf("SyncRoster: %v", err)
 	}
+	var segID uuid.UUID
+	if err := e.sigConn.QueryRow(`INSERT INTO customer_segments (slug, name) VALUES ($1,$2) RETURNING id`,
+		"roster-"+uuid.NewString()[:8], "Roster Test").Scan(&segID); err != nil {
+		t.Fatalf("seed segment: %v", err)
+	}
+	t.Cleanup(func() { _, _ = e.sigConn.Exec(`DELETE FROM customer_segments WHERE id = $1`, segID) })
 	for _, id := range []uuid.UUID{doomed, survivor} {
 		if _, err := e.sigConn.Exec(`INSERT INTO customer_traits (customer_id, channel_id) VALUES ($1, $2)`, id, e.channel); err != nil {
 			t.Fatalf("seed traits: %v", err)
+		}
+		if _, err := e.sigConn.Exec(`INSERT INTO customer_segment_memberships (customer_id, segment_id) VALUES ($1, $2)`, id, segID); err != nil {
+			t.Fatalf("seed membership: %v", err)
 		}
 	}
 
@@ -99,6 +108,15 @@ func TestADeletedCustomerLosesTheirTraits(t *testing.T) {
 	}
 	if !e.onRoster(t, survivor) {
 		t.Error("the prune took a customer who is still there")
+	}
+
+	// Memberships lost the same cascade traits did, so a deleted customer must leave their audiences too
+	var memberships int
+	if err := e.sigConn.QueryRow(`SELECT count(*) FROM customer_segment_memberships WHERE customer_id = $1`, doomed).Scan(&memberships); err != nil {
+		t.Fatalf("count memberships: %v", err)
+	}
+	if memberships != 0 {
+		t.Error("a deleted customer is still a member of segments, so they stay in every audience")
 	}
 	for id, wantTraits := range map[uuid.UUID]bool{doomed: false, survivor: true} {
 		var n int
