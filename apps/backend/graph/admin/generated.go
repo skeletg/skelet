@@ -1457,21 +1457,6 @@ type ComplexityRoot struct {
 		Severity func(childComplexity int) int
 	}
 
-	EventDestination struct {
-		ChannelID       func(childComplexity int) int
-		CreatedAt       func(childComplexity int) int
-		EventNames      func(childComplexity int) int
-		EventSources    func(childComplexity int) int
-		ID              func(childComplexity int) int
-		IsActive        func(childComplexity int) int
-		Kind            func(childComplexity int) int
-		LastError       func(childComplexity int) int
-		LastForwardedAt func(childComplexity int) int
-		Name            func(childComplexity int) int
-		TargetURL       func(childComplexity int) int
-		UpdatedAt       func(childComplexity int) int
-	}
-
 	FacetOverride struct {
 		AttributeID   func(childComplexity int) int
 		AttributeSlug func(childComplexity int) int
@@ -1967,7 +1952,6 @@ type ComplexityRoot struct {
 		CreateDraftOrder                  func(childComplexity int, input model.CreateDraftOrderInput) int
 		CreateEmailCampaign               func(childComplexity int, input model.SaveCampaignInput) int
 		CreateEmailGroup                  func(childComplexity int, name string) int
-		CreateEventDestination            func(childComplexity int, input model.EventDestinationInput) int
 		CreateFlow                        func(childComplexity int, input model.SaveFlowInput) int
 		CreateFulfillment                 func(childComplexity int, input model.CreateFulfillmentInput) int
 		CreateIntegration                 func(childComplexity int, input model.CreateIntegrationInput) int
@@ -2034,7 +2018,6 @@ type ComplexityRoot struct {
 		DeleteEmailBlock                  func(childComplexity int, channelID string, slug string) int
 		DeleteEmailCampaign               func(childComplexity int, id string) int
 		DeleteEmailGroup                  func(childComplexity int, id string) int
-		DeleteEventDestination            func(childComplexity int, id string) int
 		DeleteFlow                        func(childComplexity int, id string) int
 		DeleteIntegration                 func(childComplexity int, id string) int
 		DeleteInventoryLocation           func(childComplexity int, id string) int
@@ -2238,7 +2221,6 @@ type ComplexityRoot struct {
 		SynapseRefreshSegment             func(childComplexity int, segmentID string) int
 		SynapseSaveSegment                func(childComplexity int, channelID string, name string, segmentID *string, root *model.SegmentNodeInput, conditions []*model.SegmentConditionInput, trait *model.SegmentTraitInput, affinity *model.SegmentAffinityInput) int
 		SynapseSetSegmentLifecycleWindows func(childComplexity int, segmentID string, windows *model.SegmentLifecycleWindowsInput) int
-		SyncAudience                      func(childComplexity int, segmentID string, destinationID string) int
 		SyncCanonicalURLRewrite           func(childComplexity int, input model.SyncCanonicalURLRewriteInput) int
 		SyncProductInventory              func(childComplexity int, input model.SyncProductInventoryInput) int
 		SyncProductInventoryBatch         func(childComplexity int, items []*model.SyncProductInventoryInput) int
@@ -2276,7 +2258,6 @@ type ComplexityRoot struct {
 		UpdateCustomerGroup               func(childComplexity int, id string, input model.UpdateCustomerGroupInput) int
 		UpdateCustomerSegment             func(childComplexity int, input model.UpdateCustomerSegmentInput) int
 		UpdateEmailCampaign               func(childComplexity int, id string, input model.SaveCampaignInput) int
-		UpdateEventDestination            func(childComplexity int, id string, input model.EventDestinationInput) int
 		UpdateFlow                        func(childComplexity int, id string, input model.SaveFlowInput) int
 		UpdateGroupedMember               func(childComplexity int, input model.UpdateGroupedMemberInput) int
 		UpdateIntegration                 func(childComplexity int, input model.UpdateIntegrationInput) int
@@ -2985,7 +2966,6 @@ type ComplexityRoot struct {
 		EmailPreflight               func(childComplexity int, id string) int
 		EmailRevisions               func(childComplexity int, id string) int
 		EmailSuppressions            func(childComplexity int, reason *string, limit *int32, offset *int32) int
-		EventDestinations            func(childComplexity int, channelID string) int
 		ExperimentSegments           func(childComplexity int) int
 		ExportCustomerData           func(childComplexity int, customerID string) int
 		Flow                         func(childComplexity int, id string) int
@@ -4390,10 +4370,6 @@ type MutationResolver interface {
 	CancelDataJob(ctx context.Context, id string) (*model.DataJob, error)
 	SuppressEmail(ctx context.Context, email string, note *string) (bool, error)
 	UnsuppressEmail(ctx context.Context, email string) (bool, error)
-	CreateEventDestination(ctx context.Context, input model.EventDestinationInput) (*model.EventDestination, error)
-	UpdateEventDestination(ctx context.Context, id string, input model.EventDestinationInput) (*model.EventDestination, error)
-	DeleteEventDestination(ctx context.Context, id string) (bool, error)
-	SyncAudience(ctx context.Context, segmentID string, destinationID string) (int32, error)
 	SaveEmailBlock(ctx context.Context, input model.SaveEmailBlockInput) (*model.EmailBlockSnippet, error)
 	DeleteEmailBlock(ctx context.Context, channelID string, slug string) (bool, error)
 	SaveLibraryEmail(ctx context.Context, input model.SaveLibraryEmailInput) (*model.LibraryEmail, error)
@@ -4705,7 +4681,6 @@ type QueryResolver interface {
 	DataJob(ctx context.Context, id string) (*model.DataJob, error)
 	DataJobErrors(ctx context.Context, id string, limit *int32, offset *int32) (*model.DataJobErrorList, error)
 	EmailSuppressions(ctx context.Context, reason *string, limit *int32, offset *int32) (*model.EmailSuppressionPage, error)
-	EventDestinations(ctx context.Context, channelID string) ([]*model.EventDestination, error)
 	EmailBlocks(ctx context.Context, channelID string) ([]*model.EmailBlockSnippet, error)
 	LibraryEmails(ctx context.Context, channelID string, groupSlug *string) ([]*model.LibraryEmail, error)
 	LibraryEmail(ctx context.Context, id string) (*model.LibraryEmail, error)
@@ -10892,79 +10867,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.EmailWarning.Severity(childComplexity), true
 
-	case "EventDestination.channelId":
-		if e.ComplexityRoot.EventDestination.ChannelID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EventDestination.ChannelID(childComplexity), true
-	case "EventDestination.createdAt":
-		if e.ComplexityRoot.EventDestination.CreatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EventDestination.CreatedAt(childComplexity), true
-	case "EventDestination.eventNames":
-		if e.ComplexityRoot.EventDestination.EventNames == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EventDestination.EventNames(childComplexity), true
-	case "EventDestination.eventSources":
-		if e.ComplexityRoot.EventDestination.EventSources == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EventDestination.EventSources(childComplexity), true
-	case "EventDestination.id":
-		if e.ComplexityRoot.EventDestination.ID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EventDestination.ID(childComplexity), true
-	case "EventDestination.isActive":
-		if e.ComplexityRoot.EventDestination.IsActive == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EventDestination.IsActive(childComplexity), true
-	case "EventDestination.kind":
-		if e.ComplexityRoot.EventDestination.Kind == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EventDestination.Kind(childComplexity), true
-	case "EventDestination.lastError":
-		if e.ComplexityRoot.EventDestination.LastError == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EventDestination.LastError(childComplexity), true
-	case "EventDestination.lastForwardedAt":
-		if e.ComplexityRoot.EventDestination.LastForwardedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EventDestination.LastForwardedAt(childComplexity), true
-	case "EventDestination.name":
-		if e.ComplexityRoot.EventDestination.Name == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EventDestination.Name(childComplexity), true
-	case "EventDestination.targetUrl":
-		if e.ComplexityRoot.EventDestination.TargetURL == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EventDestination.TargetURL(childComplexity), true
-	case "EventDestination.updatedAt":
-		if e.ComplexityRoot.EventDestination.UpdatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.EventDestination.UpdatedAt(childComplexity), true
-
 	case "FacetOverride.attributeId":
 		if e.ComplexityRoot.FacetOverride.AttributeID == nil {
 			break
@@ -13736,17 +13638,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateEmailGroup(childComplexity, args["name"].(string)), true
-	case "Mutation.createEventDestination":
-		if e.ComplexityRoot.Mutation.CreateEventDestination == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_createEventDestination_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.CreateEventDestination(childComplexity, args["input"].(model.EventDestinationInput)), true
 	case "Mutation.createFlow":
 		if e.ComplexityRoot.Mutation.CreateFlow == nil {
 			break
@@ -14473,17 +14364,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteEmailGroup(childComplexity, args["id"].(string)), true
-	case "Mutation.deleteEventDestination":
-		if e.ComplexityRoot.Mutation.DeleteEventDestination == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_deleteEventDestination_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.DeleteEventDestination(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteFlow":
 		if e.ComplexityRoot.Mutation.DeleteFlow == nil {
 			break
@@ -16712,17 +16592,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SynapseSetSegmentLifecycleWindows(childComplexity, args["segmentId"].(string), args["windows"].(*model.SegmentLifecycleWindowsInput)), true
-	case "Mutation.syncAudience":
-		if e.ComplexityRoot.Mutation.SyncAudience == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_syncAudience_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.SyncAudience(childComplexity, args["segmentId"].(string), args["destinationId"].(string)), true
 	case "Mutation.syncCanonicalUrlRewrite":
 		if e.ComplexityRoot.Mutation.SyncCanonicalURLRewrite == nil {
 			break
@@ -17130,17 +16999,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateEmailCampaign(childComplexity, args["id"].(string), args["input"].(model.SaveCampaignInput)), true
-	case "Mutation.updateEventDestination":
-		if e.ComplexityRoot.Mutation.UpdateEventDestination == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_updateEventDestination_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.UpdateEventDestination(childComplexity, args["id"].(string), args["input"].(model.EventDestinationInput)), true
 	case "Mutation.updateFlow":
 		if e.ComplexityRoot.Mutation.UpdateFlow == nil {
 			break
@@ -21090,17 +20948,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.EmailSuppressions(childComplexity, args["reason"].(*string), args["limit"].(*int32), args["offset"].(*int32)), true
-	case "Query.eventDestinations":
-		if e.ComplexityRoot.Query.EventDestinations == nil {
-			break
-		}
-
-		args, err := ec.field_Query_eventDestinations_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Query.EventDestinations(childComplexity, args["channelId"].(string)), true
 	case "Query.experimentSegments":
 		if e.ComplexityRoot.Query.ExperimentSegments == nil {
 			break
@@ -26326,7 +26173,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputEditLineQtyInput,
 		ec.unmarshalInputEditOrderAddressInput,
 		ec.unmarshalInputEditOrderInput,
-		ec.unmarshalInputEventDestinationInput,
 		ec.unmarshalInputFacetOverrideInput,
 		ec.unmarshalInputFulfillmentLineInput,
 		ec.unmarshalInputGenerateConfigurableChildInput,
@@ -30860,60 +30706,6 @@ extend type Mutation {
   suppressEmail(email: String!, note: String): Boolean!
   # Remove an address from the suppression list (recovered / added in error).
   unsuppressEmail(email: String!): Boolean!
-}
-`, BuiltIn: false},
-	{Name: "../schema/admin/destinations.graphqls", Input: `# Event destinations: forward analytics-spine events to external
-# systems, and sync segment audiences as hashed identifiers. Forwarding
-# runs on a 1-minute scheduled sweep with a durable per-destination
-# cursor (at-least-once, ingest order); lastError surfaces delivery
-# problems until a sweep succeeds again.
-type EventDestination {
-  id:        ID!
-  channelId: ID!
-  name:      String!
-  # webhook (generic signed JSON batch) | ga4_mp (Google Analytics 4
-  # Measurement Protocol) | meta_capi (Meta Conversions API).
-  kind:      String!
-  targetUrl: String!
-  # Filters: empty = all. Sources match the spine's source column
-  # (campaign/flow/transactional/web/system); names match event names.
-  eventSources: [String!]!
-  eventNames:   [String!]!
-  isActive:  Boolean!
-  lastError: String!
-  lastForwardedAt: Time
-  createdAt: Time!
-  updatedAt: Time!
-}
-
-input EventDestinationInput {
-  channelId: ID!
-  name:      String!
-  kind:      String!
-  targetUrl: String!
-  # webhook kind: HMAC signing key (signature over "<ts>.<body>" in
-  # X-Destination-Signature + X-Destination-Timestamp). Other kinds
-  # carry credentials in targetUrl query params per their conventions.
-  secret:       String
-  eventSources: [String!]
-  eventNames:   [String!]
-  isActive:     Boolean
-}
-
-extend type Query {
-  eventDestinations(channelId: ID!): [EventDestination!]!
-  # Segment membership as a hashed-email CSV (header email_sha256) -
-  # the format Meta/Google Customer Match accept for manual uploads.
-  # Raw emails never leave the store.
-}
-
-extend type Mutation {
-  createEventDestination(input: EventDestinationInput!): EventDestination!
-  updateEventDestination(id: ID!, input: EventDestinationInput!): EventDestination!
-  deleteEventDestination(id: ID!): Boolean!
-  # Push a segment's membership to a destination as SHA-256-hashed
-  # emails. Returns the number of identifiers sent.
-  syncAudience(segmentId: ID!, destinationId: ID!): Int!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/email.graphqls", Input: `# Reusable email blocks - the shared component palette behind the /emails hub's
@@ -38060,36 +37852,6 @@ func (ec *executionContext) childFields_EmailWarning(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type EmailWarning", field.Name)
 }
 
-func (ec *executionContext) childFields_EventDestination(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "id":
-		return ec.fieldContext_EventDestination_id(ctx, field)
-	case "channelId":
-		return ec.fieldContext_EventDestination_channelId(ctx, field)
-	case "name":
-		return ec.fieldContext_EventDestination_name(ctx, field)
-	case "kind":
-		return ec.fieldContext_EventDestination_kind(ctx, field)
-	case "targetUrl":
-		return ec.fieldContext_EventDestination_targetUrl(ctx, field)
-	case "eventSources":
-		return ec.fieldContext_EventDestination_eventSources(ctx, field)
-	case "eventNames":
-		return ec.fieldContext_EventDestination_eventNames(ctx, field)
-	case "isActive":
-		return ec.fieldContext_EventDestination_isActive(ctx, field)
-	case "lastError":
-		return ec.fieldContext_EventDestination_lastError(ctx, field)
-	case "lastForwardedAt":
-		return ec.fieldContext_EventDestination_lastForwardedAt(ctx, field)
-	case "createdAt":
-		return ec.fieldContext_EventDestination_createdAt(ctx, field)
-	case "updatedAt":
-		return ec.fieldContext_EventDestination_updatedAt(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type EventDestination", field.Name)
-}
-
 func (ec *executionContext) childFields_FacetOverride(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "attributeId":
@@ -43816,20 +43578,6 @@ func (ec *executionContext) field_Mutation_createEmailGroup_args(ctx context.Con
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_createEventDestination_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (model.EventDestinationInput, error) {
-			return ec.unmarshalNEventDestinationInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestinationInput(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_createFlow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -44845,20 +44593,6 @@ func (ec *executionContext) field_Mutation_deleteEmailCampaign_args(ctx context.
 }
 
 func (ec *executionContext) field_Mutation_deleteEmailGroup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_deleteEventDestination_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -48916,28 +48650,6 @@ func (ec *executionContext) field_Mutation_synapseSetSegmentLifecycleWindows_arg
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_syncAudience_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "segmentId",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["segmentId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "destinationId",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["destinationId"] = arg1
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_syncCanonicalUrlRewrite_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -49568,28 +49280,6 @@ func (ec *executionContext) field_Mutation_updateEmailCampaign_args(ctx context.
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.SaveCampaignInput, error) {
 			return ec.unmarshalNSaveCampaignInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSaveCampaignInput(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_updateEventDestination_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (model.EventDestinationInput, error) {
-			return ec.unmarshalNEventDestinationInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestinationInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -51927,20 +51617,6 @@ func (ec *executionContext) field_Query_emailSuppressions_args(ctx context.Conte
 		return nil, err
 	}
 	args["offset"] = arg2
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_eventDestinations_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["channelId"] = arg0
 	return args, nil
 }
 
@@ -78243,282 +77919,6 @@ func (ec *executionContext) fieldContext_EmailWarning_message(_ context.Context,
 	return graphql.NewScalarFieldContext("EmailWarning", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _EventDestination_id(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EventDestination_id(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EventDestination_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _EventDestination_channelId(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EventDestination_channelId(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ChannelID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EventDestination_channelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _EventDestination_name(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EventDestination_name(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EventDestination_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _EventDestination_kind(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EventDestination_kind(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Kind, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EventDestination_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _EventDestination_targetUrl(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EventDestination_targetUrl(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.TargetURL, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EventDestination_targetUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _EventDestination_eventSources(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EventDestination_eventSources(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.EventSources, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
-			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EventDestination_eventSources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _EventDestination_eventNames(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EventDestination_eventNames(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.EventNames, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
-			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EventDestination_eventNames(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _EventDestination_isActive(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EventDestination_isActive(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.IsActive, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EventDestination_isActive(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
-func (ec *executionContext) _EventDestination_lastError(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EventDestination_lastError(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.LastError, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EventDestination_lastError(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _EventDestination_lastForwardedAt(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EventDestination_lastForwardedAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.LastForwardedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
-			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_EventDestination_lastForwardedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _EventDestination_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EventDestination_createdAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EventDestination_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _EventDestination_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_EventDestination_updatedAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.UpdatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_EventDestination_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
 func (ec *executionContext) _FacetOverride_attributeId(ctx context.Context, field graphql.CollectedField, obj *model.FacetOverride) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -97093,182 +96493,6 @@ func (ec *executionContext) fieldContext_Mutation_unsuppressEmail(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_unsuppressEmail_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_createEventDestination(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_createEventDestination(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateEventDestination(ctx, fc.Args["input"].(model.EventDestinationInput))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.EventDestination) graphql.Marshaler {
-			return ec.marshalNEventDestination2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestination(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_createEventDestination(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_EventDestination(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_createEventDestination_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_updateEventDestination(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_updateEventDestination(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateEventDestination(ctx, fc.Args["id"].(string), fc.Args["input"].(model.EventDestinationInput))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.EventDestination) graphql.Marshaler {
-			return ec.marshalNEventDestination2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestination(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_updateEventDestination(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_EventDestination(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_updateEventDestination_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_deleteEventDestination(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_deleteEventDestination(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().DeleteEventDestination(ctx, fc.Args["id"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_deleteEventDestination(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_deleteEventDestination_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_syncAudience(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_syncAudience(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().SyncAudience(ctx, fc.Args["segmentId"].(string), fc.Args["destinationId"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_syncAudience(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_syncAudience_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -119344,50 +118568,6 @@ func (ec *executionContext) fieldContext_Query_emailSuppressions(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_emailSuppressions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_eventDestinations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_eventDestinations(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().EventDestinations(ctx, fc.Args["channelId"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.EventDestination) graphql.Marshaler {
-			return ec.marshalNEventDestination2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestinationᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_eventDestinations(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_EventDestination(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_eventDestinations_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -146012,85 +145192,6 @@ func (ec *executionContext) unmarshalInputEditOrderInput(ctx context.Context, ob
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputEventDestinationInput(ctx context.Context, obj any) (model.EventDestinationInput, error) {
-	var it model.EventDestinationInput
-	if obj == nil {
-		return it, nil
-	}
-
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"channelId", "name", "kind", "targetUrl", "secret", "eventSources", "eventNames", "isActive"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "channelId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelId"))
-			data, err := ec.unmarshalNID2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ChannelID = data
-		case "name":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Name = data
-		case "kind":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Kind = data
-		case "targetUrl":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetUrl"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.TargetURL = data
-		case "secret":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("secret"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Secret = data
-		case "eventSources":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("eventSources"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.EventSources = data
-		case "eventNames":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("eventNames"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.EventNames = data
-		case "isActive":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isActive"))
-			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.IsActive = data
-		}
-	}
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputFacetOverrideInput(ctx context.Context, obj any) (model.FacetOverrideInput, error) {
 	var it model.FacetOverrideInput
 	if obj == nil {
@@ -163689,99 +162790,6 @@ func (ec *executionContext) _EmailWarning(ctx context.Context, sel ast.Selection
 	return out
 }
 
-var eventDestinationImplementors = []string{"EventDestination"}
-
-func (ec *executionContext) _EventDestination(ctx context.Context, sel ast.SelectionSet, obj *model.EventDestination) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, eventDestinationImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("EventDestination")
-		case "id":
-			out.Values[i] = ec._EventDestination_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "channelId":
-			out.Values[i] = ec._EventDestination_channelId(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "name":
-			out.Values[i] = ec._EventDestination_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "kind":
-			out.Values[i] = ec._EventDestination_kind(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "targetUrl":
-			out.Values[i] = ec._EventDestination_targetUrl(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "eventSources":
-			out.Values[i] = ec._EventDestination_eventSources(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "eventNames":
-			out.Values[i] = ec._EventDestination_eventNames(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "isActive":
-			out.Values[i] = ec._EventDestination_isActive(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "lastError":
-			out.Values[i] = ec._EventDestination_lastError(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "lastForwardedAt":
-			out.Values[i] = ec._EventDestination_lastForwardedAt(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
-		case "createdAt":
-			out.Values[i] = ec._EventDestination_createdAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "updatedAt":
-			out.Values[i] = ec._EventDestination_updatedAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
 var facetOverrideImplementors = []string{"FacetOverride"}
 
 func (ec *executionContext) _FacetOverride(ctx context.Context, sel ast.SelectionSet, obj *model.FacetOverride) graphql.Marshaler {
@@ -168411,34 +167419,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "unsuppressEmail":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_unsuppressEmail(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "createEventDestination":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_createEventDestination(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "updateEventDestination":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_updateEventDestination(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "deleteEventDestination":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_deleteEventDestination(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "syncAudience":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_syncAudience(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -176144,28 +175124,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_emailSuppressions(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "eventDestinations":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_eventDestinations(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -189845,41 +188803,6 @@ func (ec *executionContext) marshalNEmailWarning2ᚖgithubᚗcomᚋskeletgᚋske
 		return graphql.Null
 	}
 	return ec._EmailWarning(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNEventDestination2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestination(ctx context.Context, sel ast.SelectionSet, v model.EventDestination) graphql.Marshaler {
-	return ec._EventDestination(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNEventDestination2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestinationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EventDestination) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNEventDestination2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestination(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNEventDestination2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestination(ctx context.Context, sel ast.SelectionSet, v *model.EventDestination) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._EventDestination(ctx, sel, v)
-}
-
-func (ec *executionContext) unmarshalNEventDestinationInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestinationInput(ctx context.Context, v any) (model.EventDestinationInput, error) {
-	res, err := ec.unmarshalInputEventDestinationInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNFacetOverride2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐFacetOverrideᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FacetOverride) graphql.Marshaler {

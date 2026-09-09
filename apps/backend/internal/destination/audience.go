@@ -15,7 +15,7 @@ import (
 
 // SyncAudience posts the segment's hashed membership and returns how many identifiers were sent
 func (s *Service) SyncAudience(ctx context.Context, segmentID, destinationID uuid.UUID) (int, error) {
-	seg, err := s.queries.GetCustomerSegment(ctx, segmentID)
+	seg, err := s.commerce.GetCustomerSegment(ctx, segmentID)
 	if err != nil {
 		return 0, fmt.Errorf("audience sync: segment: %w", err)
 	}
@@ -23,7 +23,7 @@ func (s *Service) SyncAudience(ctx context.Context, segmentID, destinationID uui
 	if err != nil {
 		return 0, fmt.Errorf("audience sync: destination: %w", err)
 	}
-	emails, err := s.queries.SegmentMemberEmails(ctx, segmentID)
+	emails, err := s.commerce.SegmentMemberEmails(ctx, segmentID)
 	if err != nil {
 		return 0, fmt.Errorf("audience sync: members: %w", err)
 	}
@@ -47,7 +47,7 @@ func (s *Service) SyncAudience(ctx context.Context, segmentID, destinationID uui
 
 // ExportAudience returns the membership as a hashed-email CSV for manual uploads
 func (s *Service) ExportAudience(ctx context.Context, segmentID uuid.UUID) (string, int, error) {
-	emails, err := s.queries.SegmentMemberEmails(ctx, segmentID)
+	emails, err := s.commerce.SegmentMemberEmails(ctx, segmentID)
 	if err != nil {
 		return "", 0, fmt.Errorf("audience export: members: %w", err)
 	}
