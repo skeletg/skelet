@@ -24,6 +24,16 @@ func (q *Queries) ClearChannelEngagement(ctx context.Context, channelID uuid.UUI
 	return err
 }
 
+const clearChannelOrderAgg = `-- name: ClearChannelOrderAgg :exec
+DELETE FROM customer_order_agg WHERE channel_id = $1
+`
+
+// The empty-refresh case: a channel whose spine holds no surviving orders
+func (q *Queries) ClearChannelOrderAgg(ctx context.Context, channelID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, clearChannelOrderAgg, channelID)
+	return err
+}
+
 const deleteChannelEngagementFor = `-- name: DeleteChannelEngagementFor :exec
 DELETE FROM customer_engagement_30d WHERE customer_id = ANY($1::uuid[])
 `
@@ -66,6 +76,17 @@ SELECT ran_at FROM customer_engagement_refresh WHERE channel_id = $1
 
 func (q *Queries) GetEngagementWatermark(ctx context.Context, channelID uuid.UUID) (time.Time, error) {
 	row := q.db.QueryRowContext(ctx, getEngagementWatermark, channelID)
+	var ran_at time.Time
+	err := row.Scan(&ran_at)
+	return ran_at, err
+}
+
+const getOrderAggWatermark = `-- name: GetOrderAggWatermark :one
+SELECT ran_at FROM customer_order_agg_refresh WHERE channel_id = $1
+`
+
+func (q *Queries) GetOrderAggWatermark(ctx context.Context, channelID uuid.UUID) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, getOrderAggWatermark, channelID)
 	var ran_at time.Time
 	err := row.Scan(&ran_at)
 	return ran_at, err
@@ -115,17 +136,18 @@ func (q *Queries) ListCustomerTraitsByChannel(ctx context.Context, channelID uui
 
 const recomputeChannelTraits = `-- name: RecomputeChannelTraits :execrows
 WITH agg AS (
+    -- Reverse-read projection, refreshed from the signals spine by the trait-compute job right before this
+    -- recompute - the join this replaced (customers LEFT JOIN orders) is what kept the job inside commerce,
+    -- and a cancelled order is already netted out on the spine side rather than filtered here
+    -- Still driven by customers, so a never-ordered customer keeps a row and lands as a prospect
     SELECT c.id                                     AS customer_id,
-           COUNT(o.id)::int                         AS order_count,
-           COALESCE(SUM(o.total_amount), 0)::bigint AS monetary_cents,
-           MAX(o.created_at)                        AS last_order_at,
-           MIN(o.created_at)                        AS first_order_at
+           COALESCE(a.order_count, 0)::int          AS order_count,
+           COALESCE(a.monetary_cents, 0)::bigint    AS monetary_cents,
+           a.last_order_at                          AS last_order_at,
+           a.first_order_at                         AS first_order_at
     FROM customers c
-    LEFT JOIN orders o
-        ON o.customer_id = c.id
-       AND o.status NOT IN ('cancelled', 'draft')
+    LEFT JOIN customer_order_agg a ON a.customer_id = c.id
     WHERE c.channel_id = $1::uuid
-    GROUP BY c.id
 ),
 act AS (
     -- Reverse-read projection, refreshed from the signals spine by the trait-compute job right before this recompute
@@ -331,6 +353,46 @@ func (q *Queries) ReplaceChannelEngagement(ctx context.Context, arg ReplaceChann
 	return err
 }
 
+const replaceChannelOrderAgg = `-- name: ReplaceChannelOrderAgg :exec
+WITH pruned AS (
+    DELETE FROM customer_order_agg
+    WHERE channel_id = $2::uuid
+      AND NOT (customer_id = ANY($1::uuid[]))
+)
+INSERT INTO customer_order_agg (customer_id, channel_id, order_count, monetary_cents, first_order_at, last_order_at)
+SELECT unnest($1::uuid[]), $2::uuid,
+       unnest($3::int[]), unnest($4::bigint[]),
+       unnest($5::timestamptz[]), unnest($6::timestamptz[])
+ON CONFLICT (customer_id) DO UPDATE
+    SET channel_id = EXCLUDED.channel_id, order_count = EXCLUDED.order_count,
+        monetary_cents = EXCLUDED.monetary_cents, first_order_at = EXCLUDED.first_order_at,
+        last_order_at = EXCLUDED.last_order_at, computed_at = now()
+`
+
+type ReplaceChannelOrderAggParams struct {
+	CustomerIds   []uuid.UUID `json:"customer_ids"`
+	ChannelID     uuid.UUID   `json:"channel_id"`
+	OrderCounts   []int32     `json:"order_counts"`
+	MonetaryCents []int64     `json:"monetary_cents"`
+	FirstOrderAts []time.Time `json:"first_order_ats"`
+	LastOrderAts  []time.Time `json:"last_order_ats"`
+}
+
+// Atomically swap a channel's order projection to the given per-customer aggregates (paired arrays),
+// one statement for the same reason the engagement swap is one: a crash must not leave it half-cleared
+// before RecomputeChannelTraits reads it and zeroes everyone's RFM
+func (q *Queries) ReplaceChannelOrderAgg(ctx context.Context, arg ReplaceChannelOrderAggParams) error {
+	_, err := q.db.ExecContext(ctx, replaceChannelOrderAgg,
+		pq.Array(arg.CustomerIds),
+		arg.ChannelID,
+		pq.Array(arg.OrderCounts),
+		pq.Array(arg.MonetaryCents),
+		pq.Array(arg.FirstOrderAts),
+		pq.Array(arg.LastOrderAts),
+	)
+	return err
+}
+
 const setEngagementWatermark = `-- name: SetEngagementWatermark :exec
 INSERT INTO customer_engagement_refresh (channel_id, ran_at)
 VALUES ($1, $2)
@@ -344,6 +406,22 @@ type SetEngagementWatermarkParams struct {
 
 func (q *Queries) SetEngagementWatermark(ctx context.Context, arg SetEngagementWatermarkParams) error {
 	_, err := q.db.ExecContext(ctx, setEngagementWatermark, arg.ChannelID, arg.RanAt)
+	return err
+}
+
+const setOrderAggWatermark = `-- name: SetOrderAggWatermark :exec
+INSERT INTO customer_order_agg_refresh (channel_id, ran_at)
+VALUES ($1, $2)
+ON CONFLICT (channel_id) DO UPDATE SET ran_at = EXCLUDED.ran_at
+`
+
+type SetOrderAggWatermarkParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	RanAt     time.Time `json:"ran_at"`
+}
+
+func (q *Queries) SetOrderAggWatermark(ctx context.Context, arg SetOrderAggWatermarkParams) error {
+	_, err := q.db.ExecContext(ctx, setOrderAggWatermark, arg.ChannelID, arg.RanAt)
 	return err
 }
 

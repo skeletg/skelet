@@ -1238,6 +1238,21 @@ type CustomerGroup struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type CustomerOrderAgg struct {
+	CustomerID    uuid.UUID    `json:"customer_id"`
+	ChannelID     uuid.UUID    `json:"channel_id"`
+	OrderCount    int32        `json:"order_count"`
+	MonetaryCents int64        `json:"monetary_cents"`
+	FirstOrderAt  sql.NullTime `json:"first_order_at"`
+	LastOrderAt   sql.NullTime `json:"last_order_at"`
+	ComputedAt    time.Time    `json:"computed_at"`
+}
+
+type CustomerOrderAggRefresh struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	RanAt     time.Time `json:"ran_at"`
+}
+
 type CustomerPaymentMethod struct {
 	ID           uuid.UUID `json:"id"`
 	CustomerID   uuid.UUID `json:"customer_id"`
