@@ -62,6 +62,54 @@ type BrowseSeen struct {
 	ProductImage string    `json:"product_image"`
 }
 
+type CustomerEngagement30d struct {
+	CustomerID uuid.UUID `json:"customer_id"`
+	ChannelID  uuid.UUID `json:"channel_id"`
+	Engagement int32     `json:"engagement"`
+	ComputedAt time.Time `json:"computed_at"`
+}
+
+type CustomerEngagementRefresh struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	RanAt     time.Time `json:"ran_at"`
+}
+
+type CustomerOrderAgg struct {
+	CustomerID    uuid.UUID    `json:"customer_id"`
+	ChannelID     uuid.UUID    `json:"channel_id"`
+	OrderCount    int32        `json:"order_count"`
+	MonetaryCents int64        `json:"monetary_cents"`
+	FirstOrderAt  sql.NullTime `json:"first_order_at"`
+	LastOrderAt   sql.NullTime `json:"last_order_at"`
+	ComputedAt    time.Time    `json:"computed_at"`
+}
+
+type CustomerRoster struct {
+	CustomerID          uuid.UUID     `json:"customer_id"`
+	ChannelID           uuid.UUID     `json:"channel_id"`
+	LifecycleNewDays    sql.NullInt32 `json:"lifecycle_new_days"`
+	LifecycleActiveDays sql.NullInt32 `json:"lifecycle_active_days"`
+	LifecycleAtRiskDays sql.NullInt32 `json:"lifecycle_at_risk_days"`
+	SyncedAt            time.Time     `json:"synced_at"`
+}
+
+type CustomerTrait struct {
+	CustomerID        uuid.UUID `json:"customer_id"`
+	ChannelID         uuid.UUID `json:"channel_id"`
+	RecencyDays       int32     `json:"recency_days"`
+	Frequency         int32     `json:"frequency"`
+	MonetaryCents     int64     `json:"monetary_cents"`
+	RfmR              int16     `json:"rfm_r"`
+	RfmF              int16     `json:"rfm_f"`
+	RfmM              int16     `json:"rfm_m"`
+	LifecycleStage    string    `json:"lifecycle_stage"`
+	EngagementScore   int32     `json:"engagement_score"`
+	ComputedAt        time.Time `json:"computed_at"`
+	ChurnRisk         int16     `json:"churn_risk"`
+	PredictedClvCents int64     `json:"predicted_clv_cents"`
+	NextOrderDays     int32     `json:"next_order_days"`
+}
+
 type EmailSendsDefault struct {
 	ID           uuid.UUID     `json:"id"`
 	ChannelID    uuid.UUID     `json:"channel_id"`

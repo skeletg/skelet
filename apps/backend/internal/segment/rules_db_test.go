@@ -35,10 +35,16 @@ func mustRules(t *testing.T, raw string) *Rules {
 	return r
 }
 
-// Runs the compiled query and returns the customer ids it selects
+// Runs the compiled query and returns the customer ids it selects - trait conditions resolve against the signals
+// database first, since customer_traits moved there, which is exactly what Service.RefreshDynamic does
 func run(t *testing.T, conn *sql.DB, r *Rules) []uuid.UUID {
 	t.Helper()
-	query, args := r.Compile()
+	svc := &Service{sigDB: signalsTestDB(t)}
+	resolved, err := svc.resolveSignalsConditions(context.Background(), r)
+	if err != nil {
+		t.Fatalf("resolve trait conditions: %v", err)
+	}
+	query, args := r.Compile(resolved)
 	rows, err := conn.QueryContext(context.Background(), query, args...)
 	if err != nil {
 		t.Fatalf("Postgres rejected the compiled query: %v\n%s\nargs: %v", err, query, args)
@@ -78,9 +84,17 @@ func seedCustomer(t *testing.T, conn *sql.DB) (customerID, channelID, groupID uu
 	return customerID, channelID, groupID
 }
 
-func seedTraits(t *testing.T, conn *sql.DB, customerID, channelID uuid.UUID, stage string, monetary int64, rfmM int) {
+// Traits live in the signals database now, so they seed there while the customer stays in commerce
+func signalsTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	if _, err := conn.Exec(
+	return testdb.RequireSignals(t)
+}
+
+func seedTraits(t *testing.T, _ *sql.DB, customerID, channelID uuid.UUID, stage string, monetary int64, rfmM int) {
+	t.Helper()
+	sig := signalsTestDB(t)
+	t.Cleanup(func() { _, _ = sig.Exec(`DELETE FROM customer_traits WHERE customer_id = $1`, customerID) })
+	if _, err := sig.Exec(
 		`INSERT INTO customer_traits (customer_id, channel_id, lifecycle_stage, monetary_cents, rfm_m, frequency)
 		 VALUES ($1, $2, $3, $4, $5, 3)`,
 		customerID, channelID, stage, monetary, rfmM); err != nil {
@@ -127,7 +141,7 @@ func TestEveryConditionKindAndOperatorExecutes(t *testing.T) {
 			{"kind":"trait","field":"monetary_cents","op":"lt","value":1},
 			{"kind":"trait","field":"engagement_score","op":"lte","value":1}]}`,
 		"lifecycle eq":          `{"conditions":[{"kind":"lifecycle","op":"eq","stage":"active"}]}`,
-		"lifecycle neq":         `{"conditions":[{"kind":"lifecycle","op":"neq","stage":"dormant"}]}`,
+		"lifecycle neq":         `{"conditions":[{"kind":"lifecycle","op":"neq","stage":"lapsed"}]}`,
 		"order count, all time": `{"conditions":[{"kind":"order_count","op":"gte","value":1}]}`,
 		"order count, windowed": `{"conditions":[{"kind":"order_count","op":"lte","value":5,"days":90}]}`,
 		"spend, all time":       `{"conditions":[{"kind":"total_spent_cents","op":"eq","value":0}]}`,
@@ -181,7 +195,7 @@ func TestTraitAndGroupRulesSelectTheMatchingCustomer(t *testing.T) {
 	matching, channelID, groupID := seedCustomer(t, conn)
 	other, otherChannel, _ := seedCustomer(t, conn)
 	seedTraits(t, conn, matching, channelID, "active", 50000, 5)
-	seedTraits(t, conn, other, otherChannel, "dormant", 100, 1)
+	seedTraits(t, conn, other, otherChannel, "lapsed", 100, 1)
 
 	var groupSlug string
 	if err := conn.QueryRow(`SELECT slug FROM customer_groups WHERE id = $1`, groupID).Scan(&groupSlug); err != nil {
@@ -208,12 +222,12 @@ func TestTraitAndGroupRulesSelectTheMatchingCustomer(t *testing.T) {
 		"both, joined by and": {
 			`{"conditions":[
 				{"kind":"trait","field":"rfm_m","op":"gte","value":5},
-				{"kind":"lifecycle","op":"eq","stage":"dormant"}]}`, false, false,
+				{"kind":"lifecycle","op":"eq","stage":"lapsed"}]}`, false, false,
 		},
 		"either, joined by or": {
 			`{"logic":"or","conditions":[
 				{"kind":"trait","field":"rfm_m","op":"gte","value":5},
-				{"kind":"lifecycle","op":"eq","stage":"dormant"}]}`, true, true,
+				{"kind":"lifecycle","op":"eq","stage":"lapsed"}]}`, true, true,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -1104,64 +1104,6 @@ func (q *Queries) LockOrderForPayment(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const ordersForSpineBackfill = `-- name: OrdersForSpineBackfill :many
-SELECT id, customer_id, channel_id, total_amount, created_at, status
-FROM orders
-WHERE customer_id IS NOT NULL
-  AND status <> 'draft'
-  AND created_at < $1
-ORDER BY created_at, id
-LIMIT $3 OFFSET $2
-`
-
-type OrdersForSpineBackfillParams struct {
-	Before time.Time `json:"before"`
-	Off    int32     `json:"off"`
-	Lim    int32     `json:"lim"`
-}
-
-type OrdersForSpineBackfillRow struct {
-	ID          uuid.UUID     `json:"id"`
-	CustomerID  uuid.NullUUID `json:"customer_id"`
-	ChannelID   uuid.UUID     `json:"channel_id"`
-	TotalAmount int64         `json:"total_amount"`
-	CreatedAt   time.Time     `json:"created_at"`
-	Status      string        `json:"status"`
-}
-
-// Historical orders as the spine would have recorded them, for the one-time backfill that gives
-// trait compute the history predating tracking - guests are skipped, since RFM is per customer,
-// and drafts never reached a customer so they were never placed
-func (q *Queries) OrdersForSpineBackfill(ctx context.Context, arg OrdersForSpineBackfillParams) ([]OrdersForSpineBackfillRow, error) {
-	rows, err := q.db.QueryContext(ctx, ordersForSpineBackfill, arg.Before, arg.Off, arg.Lim)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []OrdersForSpineBackfillRow{}
-	for rows.Next() {
-		var i OrdersForSpineBackfillRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.CustomerID,
-			&i.ChannelID,
-			&i.TotalAmount,
-			&i.CreatedAt,
-			&i.Status,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const releaseOrderToHeldFrom = `-- name: ReleaseOrderToHeldFrom :one
 UPDATE orders
 SET    status = COALESCE(NULLIF(held_from_status, ''), 'confirmed'),

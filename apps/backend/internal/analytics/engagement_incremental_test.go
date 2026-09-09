@@ -26,8 +26,8 @@ func TestIncrementalEngagementMatchesFull(t *testing.T) {
 
 	cleanup := func() {
 		_, _ = sconn.Exec(`DELETE FROM analytics_events WHERE channel_id = $1`, ch)
-		_, _ = cconn.Exec(`DELETE FROM customer_engagement_30d WHERE channel_id = $1`, ch)
-		_, _ = cconn.Exec(`DELETE FROM customer_engagement_refresh WHERE channel_id = $1`, ch)
+		_, _ = sconn.Exec(`DELETE FROM customer_engagement_30d WHERE channel_id = $1`, ch)
+		_, _ = sconn.Exec(`DELETE FROM customer_engagement_refresh WHERE channel_id = $1`, ch)
 	}
 	cleanup()
 	defer cleanup()
@@ -51,7 +51,7 @@ func TestIncrementalEngagementMatchesFull(t *testing.T) {
 	}
 
 	got := map[uuid.UUID]int32{}
-	rows, err := cconn.Query(`SELECT customer_id, engagement FROM customer_engagement_30d WHERE channel_id = $1`, ch)
+	rows, err := sconn.Query(`SELECT customer_id, engagement FROM customer_engagement_30d WHERE channel_id = $1`, ch)
 	if err != nil {
 		t.Fatal(err)
 	}

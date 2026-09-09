@@ -296,9 +296,10 @@ func wirePluginRuntime(conn *sql.DB, ord *order.Service, cust *customer.Service,
 	pluginhost.SetCartReader(c)
 }
 
-func wireSegments(seg *segment.Service, bus *events.Bus, conn *sql.DB, promo *promotion.Service) {
+func wireSegments(seg *segment.Service, bus *events.Bus, conn *sql.DB, sig SignalsPool, promo *promotion.Service) {
 	seg.SetEventBus(bus)
 	seg.SetDB(conn)
+	seg.SetSignalsDB(sig.DB)       // trait and lifecycle conditions resolve there, since customer_traits moved with the rest of the cluster
 	promo.SetCustomerSegments(seg) // core.customer_in_segment can't match without this - EvaluateCart resolves the slugs itself so the storefront cart and order placement can't disagree
 }
 

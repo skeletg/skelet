@@ -68,6 +68,16 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- **The Synapse trait cluster lives in the signals database.** `customer_traits` and the two
+  projections that feed it sit next to the spine rather than in commerce, and the recompute runs
+  there against a synced customer roster instead of joining `customers`. Core reads none of it.
+  Three things follow from the split: the segment rule compiler resolves `trait` and `lifecycle`
+  conditions against the signals database and injects the matching ids, rather than building one
+  query with a subquery it cannot reach; the three Synapse segment panels resolve membership in
+  commerce and traits next door, joining in the caller; and because a foreign key cannot cross
+  databases, the roster sync prunes a deleted customer's traits where `ON DELETE CASCADE` would
+  have.
+
 - **Trait compute reads the event spine instead of joining the orders table.** RFM's inputs -
   recency, frequency and monetary - came from `customers LEFT JOIN orders` inside
   `RecomputeChannelTraits`, which is the join that kept the Signals trait job inside the commerce
@@ -76,12 +86,6 @@ The release process, and which version number means what, is in
   `customer_order_agg`, the same projection shape the 30-day engagement count already used.
   Cancellations are netted out on the spine side rather than filtered at read time, since an
   append-only log cannot retract a row.
-
-  **This has a one-time upgrade step.** The migration seeds the projection from your existing
-  orders, so scores are correct the moment it lands. But the spine only goes back to when tracking
-  started, so run `skelet signals backfill-orders` once to replay the rest; until you do, trait
-  compute leaves the seeded rows alone rather than swapping in a truncated history. The backfill
-  is idempotent and re-runnable, and it uses the same dedupe keys the live tracker does.
 
 ### Added
 
@@ -93,9 +97,9 @@ The release process, and which version number means what, is in
   takes effect there: revoked session ids are published to Valkey and checked per request, and an
   unreachable Valkey fails open like the existing admin guard.
 
-  **This is a deployment change.** `cmd/signals` must be running for the Prism screens to work
-  (`docker compose --profile signals up`), and it now requires `JWT_SECRET` to verify the tokens
-  core mints - without it every request is refused. Everything else in Signals is unaffected.
+  `cmd/signals` has to be running for the Prism screens to work (`docker compose --profile signals
+  up`), and it needs `JWT_SECRET` to verify the tokens core mints - without it every request is
+  refused.
 
 - **Resend an order email from the dashboard.** `resendOrderEmail` sends an order's receipt,
   shipment notice, cancellation or refund again, which is the recovery path for mail a paused

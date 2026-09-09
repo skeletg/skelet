@@ -24,6 +24,8 @@ type Service struct {
 	remoteSegments RemoteSegmentSource
 	// SIGNALS_ENABLED=false - see signals.go for which segments stop counting
 	signalsOff bool
+	// Resolves trait conditions, which moved to the signals database with customer_traits
+	sigDB *sql.DB
 }
 
 func (s *Service) SetDB(dbc *sql.DB) { s.dbc = dbc }
@@ -185,7 +187,11 @@ func (s *Service) RefreshDynamic(ctx context.Context, id uuid.UUID) (int, error)
 	if s.signalsOff && rules.NeedsSignals() {
 		return 0, nil
 	}
-	query, args := rules.Compile()
+	resolved, err := s.resolveSignalsConditions(ctx, rules)
+	if err != nil {
+		return 0, err
+	}
+	query, args := rules.Compile(resolved)
 	rows, err := s.dbc.QueryContext(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("run segment rules: %w", err)
