@@ -19,7 +19,7 @@ func (h *harness) gqlPost(t *testing.T, ts *httptest.Server, channelID, query st
 	if err != nil {
 		t.Fatalf("marshal query: %v", err)
 	}
-	req, err := http.NewRequest(http.MethodPost, ts.URL+"/api/front/graphql", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, ts.URL+frontAPIPath(t), bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}
