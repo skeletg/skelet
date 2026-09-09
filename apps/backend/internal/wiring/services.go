@@ -102,8 +102,9 @@ func newPromotionService(q *db.Queries) *promotion.Service {
 	return promotion.NewService(promotion.NewRepository(q))
 }
 
-func newSegmentService(q *db.Queries, txMgr *tx.Manager) *segment.Service {
-	return segment.NewService(segment.NewRepository(q), txMgr)
+// Segments are a Signals capability, so they live in its database - core offers segment-gated promotions and CMS blocks only when Signals is running
+func newSegmentService(sq SignalsQueries, txMgr SignalsTx) *segment.Service {
+	return segment.NewService(segment.NewRepository(sq.Queries), txMgr.Manager)
 }
 
 func newSalesService(q *db.Queries) *sales.Service { return sales.NewService(sales.NewRepository(q)) }

@@ -3,7 +3,7 @@
 //   sqlc v1.31.1
 // source: segments.sql
 
-package db
+package signalsdb
 
 import (
 	"context"
@@ -312,12 +312,12 @@ func (q *Queries) ListDynamicSegments(ctx context.Context) ([]CustomerSegment, e
 }
 
 const listSegmentMembers = `-- name: ListSegmentMembers :many
-SELECT c.id, c.email, c.first_name, c.last_name, c.channel_id, m.added_at
+SELECT m.customer_id, r.channel_id, m.added_at
 FROM customer_segment_memberships m
-JOIN customers c ON c.id = m.customer_id
+JOIN customer_roster r ON r.customer_id = m.customer_id
 WHERE m.segment_id = $1
-  AND ($2::boolean OR c.channel_id = ANY($3::uuid[]))
-ORDER BY m.added_at DESC, c.email
+  AND ($2::boolean OR r.channel_id = ANY($3::uuid[]))
+ORDER BY m.added_at DESC, m.customer_id
 LIMIT $5 OFFSET $4
 `
 
@@ -330,18 +330,14 @@ type ListSegmentMembersParams struct {
 }
 
 type ListSegmentMembersRow struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	FirstName string    `json:"first_name"`
-	LastName  string    `json:"last_name"`
-	ChannelID uuid.UUID `json:"channel_id"`
-	AddedAt   time.Time `json:"added_at"`
+	CustomerID uuid.UUID `json:"customer_id"`
+	ChannelID  uuid.UUID `json:"channel_id"`
+	AddedAt    time.Time `json:"added_at"`
 }
 
 // Newest-first member page for the admin segment detail
-// Segments are global but their members are not - the channel filter has to
-// live here rather than in the resolver, or paging would return short pages
-// with holes wherever a foreign-channel member was dropped after LIMIT
+// Segments are global but their members are not - the channel filter has to live here rather than in the resolver, or paging would return short pages with holes wherever a foreign-channel member was dropped after LIMIT
+// The channel comes off the synced roster now, since customers are core's
 func (q *Queries) ListSegmentMembers(ctx context.Context, arg ListSegmentMembersParams) ([]ListSegmentMembersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listSegmentMembers,
 		arg.SegmentID,
@@ -357,14 +353,7 @@ func (q *Queries) ListSegmentMembers(ctx context.Context, arg ListSegmentMembers
 	items := []ListSegmentMembersRow{}
 	for rows.Next() {
 		var i ListSegmentMembersRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.FirstName,
-			&i.LastName,
-			&i.ChannelID,
-			&i.AddedAt,
-		); err != nil {
+		if err := rows.Scan(&i.CustomerID, &i.ChannelID, &i.AddedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -435,29 +424,25 @@ func (q *Queries) SegmentMemberCustomerIDs(ctx context.Context, segmentID uuid.U
 	return items, nil
 }
 
-const segmentMemberEmails = `-- name: SegmentMemberEmails :many
-SELECT c.email
-FROM customer_segment_memberships m
-JOIN customers c ON c.id = m.customer_id
-WHERE m.segment_id = $1
-ORDER BY c.email
+const segmentMemberIDsOrdered = `-- name: SegmentMemberIDsOrdered :many
+SELECT customer_id FROM customer_segment_memberships WHERE segment_id = $1 ORDER BY customer_id
 `
 
-// SegmentMemberEmails feeds audience sync/export: the member emails of
-// one segment (join skips deleted customers)
-func (q *Queries) SegmentMemberEmails(ctx context.Context, segmentID uuid.UUID) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, segmentMemberEmails, segmentID)
+// SegmentMemberEmails used to join customers for the audience export - that table is core's now, so this
+// returns the ids and the caller resolves the addresses on the other side
+func (q *Queries) SegmentMemberIDsOrdered(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, segmentMemberIDsOrdered, segmentID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []string{}
+	items := []uuid.UUID{}
 	for rows.Next() {
-		var email string
-		if err := rows.Scan(&email); err != nil {
+		var customer_id uuid.UUID
+		if err := rows.Scan(&customer_id); err != nil {
 			return nil, err
 		}
-		items = append(items, email)
+		items = append(items, customer_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

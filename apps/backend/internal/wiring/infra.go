@@ -43,6 +43,7 @@ var Pools = fx.Module("pools",
 		newSignalsQueries,
 		newSignalsReadQueries,
 		newTxManager,
+		newSignalsTxManager,
 	),
 )
 
@@ -138,6 +139,12 @@ func newValkeyCache(lc fx.Lifecycle, cfg Config, primary *redis.Client) (CacheRe
 }
 
 func newQueries(conn *sql.DB) *db.Queries { return db.New(conn) }
+
+// Its own type so the graph cannot hand a segment write the commerce connection - the tables it swaps live next door
+type SignalsTx struct{ *tx.Manager }
+
+func newSignalsTxManager(p SignalsPool) SignalsTx { return SignalsTx{tx.New(p.DB)} }
+
 func newTxManager(conn *sql.DB) *tx.Manager {
 	return tx.New(conn)
 }

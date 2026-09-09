@@ -48,15 +48,22 @@ func (r *customerSegmentResolver) Members(ctx context.Context, obj *model.Custom
 	if err != nil {
 		return nil, err
 	}
+	// Membership is the signals database and names are commerce, so the row is filled from both
+	ids := make([]uuid.UUID, len(rows))
+	for i, m := range rows {
+		ids[i] = m.ID
+	}
+	byID, err := r.CustomerSvc.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]*model.CustomerSegmentMember, len(rows))
 	for i, m := range rows {
-		out[i] = &model.CustomerSegmentMember{
-			ID:        m.ID.String(),
-			Email:     m.Email,
-			FirstName: m.FirstName,
-			LastName:  m.LastName,
-			JoinedAt:  m.JoinedAt,
+		row := &model.CustomerSegmentMember{ID: m.ID.String(), JoinedAt: m.JoinedAt}
+		if c, ok := byID[m.ID]; ok {
+			row.Email, row.FirstName, row.LastName = c.Email, c.FirstName, c.LastName
 		}
+		out[i] = row
 	}
 	return out, nil
 }
