@@ -12,4 +12,5 @@ var Slugs = []string{
 	"experiments.view",
 	"experiments.manage",
 	"lens.view",
+	"settings.manage", // the event-destination screens
 }

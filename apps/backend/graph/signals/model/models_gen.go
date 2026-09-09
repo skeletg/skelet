@@ -36,6 +36,32 @@ type BotTraffic struct {
 	Daily      []*BotDayPoint `json:"daily"`
 }
 
+type EventDestination struct {
+	ID              string     `json:"id"`
+	ChannelID       string     `json:"channelId"`
+	Name            string     `json:"name"`
+	Kind            string     `json:"kind"`
+	TargetURL       string     `json:"targetUrl"`
+	EventSources    []string   `json:"eventSources"`
+	EventNames      []string   `json:"eventNames"`
+	IsActive        bool       `json:"isActive"`
+	LastError       string     `json:"lastError"`
+	LastForwardedAt *time.Time `json:"lastForwardedAt,omitempty"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
+}
+
+type EventDestinationInput struct {
+	ChannelID    string   `json:"channelId"`
+	Name         string   `json:"name"`
+	Kind         string   `json:"kind"`
+	TargetURL    string   `json:"targetUrl"`
+	Secret       *string  `json:"secret,omitempty"`
+	EventSources []string `json:"eventSources,omitempty"`
+	EventNames   []string `json:"eventNames,omitempty"`
+	IsActive     *bool    `json:"isActive,omitempty"`
+}
+
 type Experiment struct {
 	ID          string                 `json:"id"`
 	ChannelID   string                 `json:"channelId"`

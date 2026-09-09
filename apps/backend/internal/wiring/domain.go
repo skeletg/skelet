@@ -273,8 +273,9 @@ func newFlowService( // marketing automation flows - event-triggered, scheduler-
 	)
 }
 
-func newDestinationService(q *db.Queries, rec *analytics.Recorder, allow AllowPrivateTargets) *destination.Service {
-	return destination.NewService(q, rec, bool(allow))
+// Two handles: the destination rows and the spine are the signals database, the audience export reads segments from commerce
+func newDestinationService(sq SignalsQueries, q *db.Queries, rec *analytics.Recorder, allow AllowPrivateTargets) *destination.Service {
+	return destination.NewService(sq.Queries, q, rec, bool(allow))
 }
 
 // On restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail

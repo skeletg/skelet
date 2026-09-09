@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/webhook"
 )
@@ -72,18 +73,21 @@ type SpineReader interface {
 }
 
 type Service struct {
-	queries *db.Queries // commerce: destination rows + forwarding cursor
-	spine   SpineReader // whichever engine holds the spine
-	client  *http.Client
+	queries *signalsdb.Queries // signals: destination rows + forwarding cursor
+	// commerce: the audience export reads segments, which stay core's
+	commerce *db.Queries
+	spine    SpineReader // whichever engine holds the spine
+	client   *http.Client
 
 	// AllowPrivateTargets is a dev-only SSRF-guard bypass so localhost receivers work
 	AllowPrivateTargets bool
 }
 
-func NewService(queries *db.Queries, spine SpineReader, allowPrivate bool) *Service {
+func NewService(queries *signalsdb.Queries, commerce *db.Queries, spine SpineReader, allowPrivate bool) *Service {
 	return &Service{
-		queries: queries,
-		spine:   spine,
+		queries:  queries,
+		commerce: commerce,
+		spine:    spine,
 		client: &http.Client{
 			Timeout:   15 * time.Second,
 			Transport: webhook.SafeTransport(allowPrivate),
@@ -123,7 +127,7 @@ func (s *Service) Create(ctx context.Context, in UpsertInput) (Destination, erro
 	if err := s.validate(in); err != nil {
 		return Destination{}, err
 	}
-	row, err := s.queries.CreateEventDestination(ctx, db.CreateEventDestinationParams{
+	row, err := s.queries.CreateEventDestination(ctx, signalsdb.CreateEventDestinationParams{
 		ChannelID:    in.ChannelID,
 		Name:         in.Name,
 		Kind:         in.Kind,
@@ -146,7 +150,7 @@ func (s *Service) Update(ctx context.Context, in UpsertInput) (Destination, erro
 	if err := s.validate(in); err != nil {
 		return Destination{}, err
 	}
-	row, err := s.queries.UpdateEventDestination(ctx, db.UpdateEventDestinationParams{
+	row, err := s.queries.UpdateEventDestination(ctx, signalsdb.UpdateEventDestinationParams{
 		ID:           *in.ID,
 		Name:         in.Name,
 		Kind:         in.Kind,
@@ -211,7 +215,7 @@ func (s *Service) ForwardAll(ctx context.Context) error {
 	for _, row := range rows {
 		if err := s.forwardOne(ctx, row); err != nil {
 			log.Printf("[destination] %s (%s): %v", row.Name, row.ID, err)
-			_ = s.queries.SetEventDestinationError(ctx, db.SetEventDestinationErrorParams{
+			_ = s.queries.SetEventDestinationError(ctx, signalsdb.SetEventDestinationErrorParams{
 				ID: row.ID, LastError: truncate(err.Error(), 500),
 			})
 		}
@@ -219,7 +223,7 @@ func (s *Service) ForwardAll(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) forwardOne(ctx context.Context, row db.EventDestination) error {
+func (s *Service) forwardOne(ctx context.Context, row signalsdb.EventDestination) error {
 	// NULL cursor = start at creation, forwarding the future not the historical spine
 	cursorAt, cursorID := row.CreatedAt, uuid.Nil
 	prevAt, prevID := row.CursorCreatedAt, row.CursorEventID
@@ -252,7 +256,7 @@ func (s *Service) forwardOne(ctx context.Context, row db.EventDestination) error
 		}
 		last := rows[len(rows)-1]
 		cursorAt, cursorID = last.CreatedAt, last.ID
-		n, err := s.queries.AdvanceEventDestinationCursor(ctx, db.AdvanceEventDestinationCursorParams{
+		n, err := s.queries.AdvanceEventDestinationCursor(ctx, signalsdb.AdvanceEventDestinationCursorParams{
 			ID:              row.ID,
 			CursorCreatedAt: sql.NullTime{Time: cursorAt, Valid: true},
 			CursorEventID:   uuid.NullUUID{UUID: cursorID, Valid: true},
@@ -322,7 +326,7 @@ func (s *Service) deliver(ctx context.Context, d Destination, batch []Event) err
 
 // ---------- helpers ----------
 
-func toDestination(row db.EventDestination) Destination {
+func toDestination(row signalsdb.EventDestination) Destination {
 	d := Destination{
 		ID:           row.ID,
 		ChannelID:    row.ChannelID,

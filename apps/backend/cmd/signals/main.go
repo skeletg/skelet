@@ -126,12 +126,13 @@ func run() error {
 	wiring.RegisterPprof(mux)
 	// The suite's own admin API - the dashboard reaches it directly, authenticating with a service token core minted
 	mux.Handle(signalsapi.Path, wiring.SignalsGraphQLHandler(wiring.SignalsAPI{
-		Experiment: d.Experiment,
-		Lens:       lensSvc,
-		Roster:     signalsdb.New(sigConn),
-		JWTSecret:  d.Config.JWTSecret,
-		Dev:        d.Config.IsDev(),
-		Telemetry:  telemetry,
+		Experiment:  d.Experiment,
+		Lens:        lensSvc,
+		Destination: destSvc,
+		Roster:      signalsdb.New(sigConn),
+		JWTSecret:   d.Config.JWTSecret,
+		Dev:         d.Config.IsDev(),
+		Telemetry:   telemetry,
 		// Core publishes here when it kills a session, so one revoked there stops working here too
 		Revocations: cache.NewRevocations(d.Valkey, wiring.AccessTokenTTL+time.Minute),
 	}))
