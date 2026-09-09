@@ -28,15 +28,8 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
-import {
-  CreateExperimentDocument,
-  DeleteExperimentDocument,
-  ExperimentDocument,
-  ExperimentGoalEventsDocument,
-  ExperimentResultsDocument,
-  PrismSegmentsDocument,
-  UpdateExperimentDocument,
-} from './Prism.gql'
+import { PrismSegmentsDocument } from './Prism.gql'
+import { CreateExperimentDocument, DeleteExperimentDocument, ExperimentDocument, ExperimentGoalEventsDocument, ExperimentResultsDocument, UpdateExperimentDocument } from './Prism.signals.gql'
 import { PluginSections } from '@/plugins/detail-sections'
 
 type Variation = { key: string; name: string; weight: number; value: string }

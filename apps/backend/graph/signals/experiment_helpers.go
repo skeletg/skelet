@@ -1,9 +1,9 @@
-package admin
+package signals
 
 import (
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/signals/model"
 	"github.com/skeletg/skelet/apps/backend/internal/experiment"
 )
 

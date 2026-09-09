@@ -1,6 +1,4 @@
-# Frontend A/B experiments (GrowthBook-inspired). The storefront SDK assigns
-# visitors and tracks exposures/goals through Lens; these resolvers are admin
-# CRUD + results. Gated on experiments.view / experiments.manage.
+# Prism: frontend A/B experiments, where the storefront SDK assigns visitors and tracks exposures through Lens and these resolvers are admin CRUD plus results, gated on experiments.view / experiments.manage
 
 type Experiment {
   id:         ID!
@@ -90,12 +88,6 @@ type ExperimentsOverview {
   experiments:  [ExperimentSummary!]!   # running, most-exposed first
 }
 
-# A targetable customer segment for the experiment segment-targeting picker.
-type SegmentOption {
-  slug: String!
-  name: String!
-}
-
 input ExperimentVariationInput {
   key:    String!
   name:   String!
@@ -124,8 +116,6 @@ extend type Query {
   # Custom-event names the storefront has fired for this channel (goal-event
   # suggestions for the editor), most-frequent first.
   experimentGoalEvents(channelId: ID!): [String!]!
-  # Active customer segments, for the experiment segment-targeting picker.
-  experimentSegments: [SegmentOption!]!
 }
 
 extend type Mutation {

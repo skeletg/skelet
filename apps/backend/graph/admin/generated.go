@@ -1502,79 +1502,6 @@ type ComplexityRoot struct {
 		UpdatedAt       func(childComplexity int) int
 	}
 
-	Experiment struct {
-		ChannelID   func(childComplexity int) int
-		Coverage    func(childComplexity int) int
-		CreatedAt   func(childComplexity int) int
-		GoalEvent   func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Key         func(childComplexity int) int
-		Name        func(childComplexity int) int
-		SegmentSlug func(childComplexity int) int
-		Status      func(childComplexity int) int
-		UpdatedAt   func(childComplexity int) int
-		Variations  func(childComplexity int) int
-	}
-
-	ExperimentResults struct {
-		SampleRatioMismatch func(childComplexity int) int
-		SequentialWinner    func(childComplexity int) int
-		TotalExposed        func(childComplexity int) int
-		TotalRevenue        func(childComplexity int) int
-		Variations          func(childComplexity int) int
-		Winner              func(childComplexity int) int
-	}
-
-	ExperimentSummary struct {
-		Conversions         func(childComplexity int) int
-		Coverage            func(childComplexity int) int
-		ID                  func(childComplexity int) int
-		Key                 func(childComplexity int) int
-		Leader              func(childComplexity int) int
-		LeaderChanceToWin   func(childComplexity int) int
-		LeaderIsControl     func(childComplexity int) int
-		LeaderRate          func(childComplexity int) int
-		LeaderUplift        func(childComplexity int) int
-		Name                func(childComplexity int) int
-		SampleRatioMismatch func(childComplexity int) int
-		TotalExposed        func(childComplexity int) int
-		Variations          func(childComplexity int) int
-		Winner              func(childComplexity int) int
-	}
-
-	ExperimentVariation struct {
-		Key    func(childComplexity int) int
-		Name   func(childComplexity int) int
-		Value  func(childComplexity int) int
-		Weight func(childComplexity int) int
-	}
-
-	ExperimentVariationResult struct {
-		AlwaysValidP          func(childComplexity int) int
-		ChanceToWin           func(childComplexity int) int
-		CiHigh                func(childComplexity int) int
-		CiLow                 func(childComplexity int) int
-		Converted             func(childComplexity int) int
-		Exposed               func(childComplexity int) int
-		IsControl             func(childComplexity int) int
-		Name                  func(childComplexity int) int
-		Rate                  func(childComplexity int) int
-		RevenueCents          func(childComplexity int) int
-		SequentialSignificant func(childComplexity int) int
-		Significant           func(childComplexity int) int
-		Uplift                func(childComplexity int) int
-		Variation             func(childComplexity int) int
-	}
-
-	ExperimentsOverview struct {
-		Decided      func(childComplexity int) int
-		Draft        func(childComplexity int) int
-		Experiments  func(childComplexity int) int
-		Running      func(childComplexity int) int
-		Stopped      func(childComplexity int) int
-		TotalExposed func(childComplexity int) int
-	}
-
 	FacetOverride struct {
 		AttributeID   func(childComplexity int) int
 		AttributeSlug func(childComplexity int) int
@@ -2232,7 +2159,6 @@ type ComplexityRoot struct {
 		CreateEmailCampaign               func(childComplexity int, input model.SaveCampaignInput) int
 		CreateEmailGroup                  func(childComplexity int, name string) int
 		CreateEventDestination            func(childComplexity int, input model.EventDestinationInput) int
-		CreateExperiment                  func(childComplexity int, input model.SaveExperimentInput) int
 		CreateFlow                        func(childComplexity int, input model.SaveFlowInput) int
 		CreateFulfillment                 func(childComplexity int, input model.CreateFulfillmentInput) int
 		CreateIntegration                 func(childComplexity int, input model.CreateIntegrationInput) int
@@ -2300,7 +2226,6 @@ type ComplexityRoot struct {
 		DeleteEmailCampaign               func(childComplexity int, id string) int
 		DeleteEmailGroup                  func(childComplexity int, id string) int
 		DeleteEventDestination            func(childComplexity int, id string) int
-		DeleteExperiment                  func(childComplexity int, id string) int
 		DeleteFlow                        func(childComplexity int, id string) int
 		DeleteIntegration                 func(childComplexity int, id string) int
 		DeleteInventoryLocation           func(childComplexity int, id string) int
@@ -2543,7 +2468,6 @@ type ComplexityRoot struct {
 		UpdateCustomerSegment             func(childComplexity int, input model.UpdateCustomerSegmentInput) int
 		UpdateEmailCampaign               func(childComplexity int, id string, input model.SaveCampaignInput) int
 		UpdateEventDestination            func(childComplexity int, id string, input model.EventDestinationInput) int
-		UpdateExperiment                  func(childComplexity int, id string, input model.SaveExperimentInput) int
 		UpdateFlow                        func(childComplexity int, id string, input model.SaveFlowInput) int
 		UpdateGroupedMember               func(childComplexity int, input model.UpdateGroupedMemberInput) int
 		UpdateIntegration                 func(childComplexity int, input model.UpdateIntegrationInput) int
@@ -3253,12 +3177,7 @@ type ComplexityRoot struct {
 		EmailRevisions               func(childComplexity int, id string) int
 		EmailSuppressions            func(childComplexity int, reason *string, limit *int32, offset *int32) int
 		EventDestinations            func(childComplexity int, channelID string) int
-		Experiment                   func(childComplexity int, id string) int
-		ExperimentGoalEvents         func(childComplexity int, channelID string) int
-		ExperimentResults            func(childComplexity int, id string, sinceDays *int32) int
 		ExperimentSegments           func(childComplexity int) int
-		Experiments                  func(childComplexity int, channelID string) int
-		ExperimentsOverview          func(childComplexity int, channelID string, sinceDays *int32) int
 		ExportCustomerData           func(childComplexity int, customerID string) int
 		Flow                         func(childComplexity int, id string) int
 		FlowConditionKinds           func(childComplexity int) int
@@ -3362,6 +3281,7 @@ type ComplexityRoot struct {
 		ShippingZone                 func(childComplexity int, id string) int
 		ShippingZones                func(childComplexity int, channelID string) int
 		SignalsInsights              func(childComplexity int, channelID string, sinceDays *int32) int
+		SignalsToken                 func(childComplexity int) int
 		SignupForm                   func(childComplexity int, id string) int
 		SignupFormSubmissions        func(childComplexity int, formID string, limit *int32) int
 		SignupForms                  func(childComplexity int, channelID string) int
@@ -3819,6 +3739,11 @@ type ComplexityRoot struct {
 	ServerFeatures struct {
 		Ai      func(childComplexity int) int
 		Signals func(childComplexity int) int
+	}
+
+	ServiceToken struct {
+		ExpiresAt func(childComplexity int) int
+		Token     func(childComplexity int) int
 	}
 
 	ShippingBox struct {
@@ -4686,9 +4611,6 @@ type MutationResolver interface {
 	RestoreEmailRevision(ctx context.Context, revisionID string) (*model.LibraryEmail, error)
 	SuggestEmailSubjects(ctx context.Context, context string, count *int32) ([]string, error)
 	RewriteEmailText(ctx context.Context, text string, instruction *string) (string, error)
-	CreateExperiment(ctx context.Context, input model.SaveExperimentInput) (*model.Experiment, error)
-	UpdateExperiment(ctx context.Context, id string, input model.SaveExperimentInput) (*model.Experiment, error)
-	DeleteExperiment(ctx context.Context, id string) (bool, error)
 	CreateFlow(ctx context.Context, input model.SaveFlowInput) (*model.Flow, error)
 	UpdateFlow(ctx context.Context, id string, input model.SaveFlowInput) (*model.Flow, error)
 	DeleteFlow(ctx context.Context, id string) (bool, error)
@@ -4997,12 +4919,6 @@ type QueryResolver interface {
 	EmailPreflight(ctx context.Context, id string) ([]*model.EmailWarning, error)
 	EmailRevisions(ctx context.Context, id string) ([]*model.EmailRevision, error)
 	RenderLibraryPreview(ctx context.Context, channelID string, customerID *string, subject string, preheader *string, blocks interface{}, styles interface{}) (*model.EmailPreview, error)
-	Experiments(ctx context.Context, channelID string) ([]*model.Experiment, error)
-	Experiment(ctx context.Context, id string) (*model.Experiment, error)
-	ExperimentResults(ctx context.Context, id string, sinceDays *int32) (*model.ExperimentResults, error)
-	ExperimentsOverview(ctx context.Context, channelID string, sinceDays *int32) (*model.ExperimentsOverview, error)
-	ExperimentGoalEvents(ctx context.Context, channelID string) ([]string, error)
-	ExperimentSegments(ctx context.Context) ([]*model.SegmentOption, error)
 	ServerFeatures(ctx context.Context) (*model.ServerFeatures, error)
 	Flows(ctx context.Context, channelID string, includeDeleted *bool) ([]*model.Flow, error)
 	Flow(ctx context.Context, id string) (*model.Flow, error)
@@ -5070,6 +4986,7 @@ type QueryResolver interface {
 	PromotionAnalyticsDaily(ctx context.Context, start *time.Time, end *time.Time, ruleID *string) ([]*model.PromotionAnalyticsDailyPoint, error)
 	CustomerSegments(ctx context.Context, limit *int32, offset *int32) (*model.CustomerSegmentList, error)
 	CustomerSegment(ctx context.Context, id string) (*model.CustomerSegment, error)
+	ExperimentSegments(ctx context.Context) ([]*model.SegmentOption, error)
 	SimulatePromotion(ctx context.Context, input model.PromotionSimulationInput) (*model.PromotionSimulationResult, error)
 	ProductQuestions(ctx context.Context, status *string, limit *int32, offset *int32) ([]*model.AdminProductQuestion, error)
 	RemoteProviders(ctx context.Context, kind *model.RemoteProviderKind) ([]*model.RemoteProvider, error)
@@ -5095,6 +5012,7 @@ type QueryResolver interface {
 	ShippingZone(ctx context.Context, id string) (*model.ShippingZone, error)
 	ShippingCarriers(ctx context.Context, channelID string) ([]*model.ShippingCarrierAdmin, error)
 	ShippingBoxes(ctx context.Context, channelID string) ([]*model.ShippingBox, error)
+	SignalsToken(ctx context.Context) (*model.ServiceToken, error)
 	Subscriptions(ctx context.Context, status *model.SubscriptionStatus, limit *int32, offset *int32) ([]*model.CustomerSubscription, error)
 	Subscription(ctx context.Context, id string) (*model.CustomerSubscription, error)
 	SynapseSegment(ctx context.Context, id string) (*model.SynapseSegmentDetail, error)
@@ -11380,342 +11298,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.EventDestination.UpdatedAt(childComplexity), true
 
-	case "Experiment.channelId":
-		if e.ComplexityRoot.Experiment.ChannelID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Experiment.ChannelID(childComplexity), true
-	case "Experiment.coverage":
-		if e.ComplexityRoot.Experiment.Coverage == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Experiment.Coverage(childComplexity), true
-	case "Experiment.createdAt":
-		if e.ComplexityRoot.Experiment.CreatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Experiment.CreatedAt(childComplexity), true
-	case "Experiment.goalEvent":
-		if e.ComplexityRoot.Experiment.GoalEvent == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Experiment.GoalEvent(childComplexity), true
-	case "Experiment.id":
-		if e.ComplexityRoot.Experiment.ID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Experiment.ID(childComplexity), true
-	case "Experiment.key":
-		if e.ComplexityRoot.Experiment.Key == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Experiment.Key(childComplexity), true
-	case "Experiment.name":
-		if e.ComplexityRoot.Experiment.Name == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Experiment.Name(childComplexity), true
-	case "Experiment.segmentSlug":
-		if e.ComplexityRoot.Experiment.SegmentSlug == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Experiment.SegmentSlug(childComplexity), true
-	case "Experiment.status":
-		if e.ComplexityRoot.Experiment.Status == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Experiment.Status(childComplexity), true
-	case "Experiment.updatedAt":
-		if e.ComplexityRoot.Experiment.UpdatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Experiment.UpdatedAt(childComplexity), true
-	case "Experiment.variations":
-		if e.ComplexityRoot.Experiment.Variations == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Experiment.Variations(childComplexity), true
-
-	case "ExperimentResults.sampleRatioMismatch":
-		if e.ComplexityRoot.ExperimentResults.SampleRatioMismatch == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentResults.SampleRatioMismatch(childComplexity), true
-	case "ExperimentResults.sequentialWinner":
-		if e.ComplexityRoot.ExperimentResults.SequentialWinner == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentResults.SequentialWinner(childComplexity), true
-	case "ExperimentResults.totalExposed":
-		if e.ComplexityRoot.ExperimentResults.TotalExposed == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentResults.TotalExposed(childComplexity), true
-	case "ExperimentResults.totalRevenue":
-		if e.ComplexityRoot.ExperimentResults.TotalRevenue == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentResults.TotalRevenue(childComplexity), true
-	case "ExperimentResults.variations":
-		if e.ComplexityRoot.ExperimentResults.Variations == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentResults.Variations(childComplexity), true
-	case "ExperimentResults.winner":
-		if e.ComplexityRoot.ExperimentResults.Winner == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentResults.Winner(childComplexity), true
-
-	case "ExperimentSummary.conversions":
-		if e.ComplexityRoot.ExperimentSummary.Conversions == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.Conversions(childComplexity), true
-	case "ExperimentSummary.coverage":
-		if e.ComplexityRoot.ExperimentSummary.Coverage == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.Coverage(childComplexity), true
-	case "ExperimentSummary.id":
-		if e.ComplexityRoot.ExperimentSummary.ID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.ID(childComplexity), true
-	case "ExperimentSummary.key":
-		if e.ComplexityRoot.ExperimentSummary.Key == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.Key(childComplexity), true
-	case "ExperimentSummary.leader":
-		if e.ComplexityRoot.ExperimentSummary.Leader == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.Leader(childComplexity), true
-	case "ExperimentSummary.leaderChanceToWin":
-		if e.ComplexityRoot.ExperimentSummary.LeaderChanceToWin == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.LeaderChanceToWin(childComplexity), true
-	case "ExperimentSummary.leaderIsControl":
-		if e.ComplexityRoot.ExperimentSummary.LeaderIsControl == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.LeaderIsControl(childComplexity), true
-	case "ExperimentSummary.leaderRate":
-		if e.ComplexityRoot.ExperimentSummary.LeaderRate == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.LeaderRate(childComplexity), true
-	case "ExperimentSummary.leaderUplift":
-		if e.ComplexityRoot.ExperimentSummary.LeaderUplift == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.LeaderUplift(childComplexity), true
-	case "ExperimentSummary.name":
-		if e.ComplexityRoot.ExperimentSummary.Name == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.Name(childComplexity), true
-	case "ExperimentSummary.sampleRatioMismatch":
-		if e.ComplexityRoot.ExperimentSummary.SampleRatioMismatch == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.SampleRatioMismatch(childComplexity), true
-	case "ExperimentSummary.totalExposed":
-		if e.ComplexityRoot.ExperimentSummary.TotalExposed == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.TotalExposed(childComplexity), true
-	case "ExperimentSummary.variations":
-		if e.ComplexityRoot.ExperimentSummary.Variations == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.Variations(childComplexity), true
-	case "ExperimentSummary.winner":
-		if e.ComplexityRoot.ExperimentSummary.Winner == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentSummary.Winner(childComplexity), true
-
-	case "ExperimentVariation.key":
-		if e.ComplexityRoot.ExperimentVariation.Key == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariation.Key(childComplexity), true
-	case "ExperimentVariation.name":
-		if e.ComplexityRoot.ExperimentVariation.Name == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariation.Name(childComplexity), true
-	case "ExperimentVariation.value":
-		if e.ComplexityRoot.ExperimentVariation.Value == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariation.Value(childComplexity), true
-	case "ExperimentVariation.weight":
-		if e.ComplexityRoot.ExperimentVariation.Weight == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariation.Weight(childComplexity), true
-
-	case "ExperimentVariationResult.alwaysValidP":
-		if e.ComplexityRoot.ExperimentVariationResult.AlwaysValidP == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.AlwaysValidP(childComplexity), true
-	case "ExperimentVariationResult.chanceToWin":
-		if e.ComplexityRoot.ExperimentVariationResult.ChanceToWin == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.ChanceToWin(childComplexity), true
-	case "ExperimentVariationResult.ciHigh":
-		if e.ComplexityRoot.ExperimentVariationResult.CiHigh == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.CiHigh(childComplexity), true
-	case "ExperimentVariationResult.ciLow":
-		if e.ComplexityRoot.ExperimentVariationResult.CiLow == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.CiLow(childComplexity), true
-	case "ExperimentVariationResult.converted":
-		if e.ComplexityRoot.ExperimentVariationResult.Converted == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.Converted(childComplexity), true
-	case "ExperimentVariationResult.exposed":
-		if e.ComplexityRoot.ExperimentVariationResult.Exposed == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.Exposed(childComplexity), true
-	case "ExperimentVariationResult.isControl":
-		if e.ComplexityRoot.ExperimentVariationResult.IsControl == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.IsControl(childComplexity), true
-	case "ExperimentVariationResult.name":
-		if e.ComplexityRoot.ExperimentVariationResult.Name == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.Name(childComplexity), true
-	case "ExperimentVariationResult.rate":
-		if e.ComplexityRoot.ExperimentVariationResult.Rate == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.Rate(childComplexity), true
-	case "ExperimentVariationResult.revenueCents":
-		if e.ComplexityRoot.ExperimentVariationResult.RevenueCents == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.RevenueCents(childComplexity), true
-	case "ExperimentVariationResult.sequentialSignificant":
-		if e.ComplexityRoot.ExperimentVariationResult.SequentialSignificant == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.SequentialSignificant(childComplexity), true
-	case "ExperimentVariationResult.significant":
-		if e.ComplexityRoot.ExperimentVariationResult.Significant == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.Significant(childComplexity), true
-	case "ExperimentVariationResult.uplift":
-		if e.ComplexityRoot.ExperimentVariationResult.Uplift == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.Uplift(childComplexity), true
-	case "ExperimentVariationResult.variation":
-		if e.ComplexityRoot.ExperimentVariationResult.Variation == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentVariationResult.Variation(childComplexity), true
-
-	case "ExperimentsOverview.decided":
-		if e.ComplexityRoot.ExperimentsOverview.Decided == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentsOverview.Decided(childComplexity), true
-	case "ExperimentsOverview.draft":
-		if e.ComplexityRoot.ExperimentsOverview.Draft == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentsOverview.Draft(childComplexity), true
-	case "ExperimentsOverview.experiments":
-		if e.ComplexityRoot.ExperimentsOverview.Experiments == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentsOverview.Experiments(childComplexity), true
-	case "ExperimentsOverview.running":
-		if e.ComplexityRoot.ExperimentsOverview.Running == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentsOverview.Running(childComplexity), true
-	case "ExperimentsOverview.stopped":
-		if e.ComplexityRoot.ExperimentsOverview.Stopped == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentsOverview.Stopped(childComplexity), true
-	case "ExperimentsOverview.totalExposed":
-		if e.ComplexityRoot.ExperimentsOverview.TotalExposed == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ExperimentsOverview.TotalExposed(childComplexity), true
-
 	case "FacetOverride.attributeId":
 		if e.ComplexityRoot.FacetOverride.AttributeID == nil {
 			break
@@ -15090,17 +14672,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateEventDestination(childComplexity, args["input"].(model.EventDestinationInput)), true
-	case "Mutation.createExperiment":
-		if e.ComplexityRoot.Mutation.CreateExperiment == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_createExperiment_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.CreateExperiment(childComplexity, args["input"].(model.SaveExperimentInput)), true
 	case "Mutation.createFlow":
 		if e.ComplexityRoot.Mutation.CreateFlow == nil {
 			break
@@ -15838,17 +15409,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteEventDestination(childComplexity, args["id"].(string)), true
-	case "Mutation.deleteExperiment":
-		if e.ComplexityRoot.Mutation.DeleteExperiment == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_deleteExperiment_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.DeleteExperiment(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteFlow":
 		if e.ComplexityRoot.Mutation.DeleteFlow == nil {
 			break
@@ -18506,17 +18066,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateEventDestination(childComplexity, args["id"].(string), args["input"].(model.EventDestinationInput)), true
-	case "Mutation.updateExperiment":
-		if e.ComplexityRoot.Mutation.UpdateExperiment == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_updateExperiment_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.UpdateExperiment(childComplexity, args["id"].(string), args["input"].(model.SaveExperimentInput)), true
 	case "Mutation.updateFlow":
 		if e.ComplexityRoot.Mutation.UpdateFlow == nil {
 			break
@@ -22477,67 +22026,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.EventDestinations(childComplexity, args["channelId"].(string)), true
-	case "Query.experiment":
-		if e.ComplexityRoot.Query.Experiment == nil {
-			break
-		}
-
-		args, err := ec.field_Query_experiment_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Query.Experiment(childComplexity, args["id"].(string)), true
-	case "Query.experimentGoalEvents":
-		if e.ComplexityRoot.Query.ExperimentGoalEvents == nil {
-			break
-		}
-
-		args, err := ec.field_Query_experimentGoalEvents_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Query.ExperimentGoalEvents(childComplexity, args["channelId"].(string)), true
-	case "Query.experimentResults":
-		if e.ComplexityRoot.Query.ExperimentResults == nil {
-			break
-		}
-
-		args, err := ec.field_Query_experimentResults_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Query.ExperimentResults(childComplexity, args["id"].(string), args["sinceDays"].(*int32)), true
 	case "Query.experimentSegments":
 		if e.ComplexityRoot.Query.ExperimentSegments == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Query.ExperimentSegments(childComplexity), true
-	case "Query.experiments":
-		if e.ComplexityRoot.Query.Experiments == nil {
-			break
-		}
-
-		args, err := ec.field_Query_experiments_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Query.Experiments(childComplexity, args["channelId"].(string)), true
-	case "Query.experimentsOverview":
-		if e.ComplexityRoot.Query.ExperimentsOverview == nil {
-			break
-		}
-
-		args, err := ec.field_Query_experimentsOverview_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Query.ExperimentsOverview(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32)), true
 	case "Query.exportCustomerData":
 		if e.ComplexityRoot.Query.ExportCustomerData == nil {
 			break
@@ -23577,6 +23071,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.SignalsInsights(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32)), true
+	case "Query.signalsToken":
+		if e.ComplexityRoot.Query.SignalsToken == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.SignalsToken(childComplexity), true
 	case "Query.signupForm":
 		if e.ComplexityRoot.Query.SignupForm == nil {
 			break
@@ -25600,6 +25100,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ServerFeatures.Signals(childComplexity), true
+
+	case "ServiceToken.expiresAt":
+		if e.ComplexityRoot.ServiceToken.ExpiresAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ServiceToken.ExpiresAt(childComplexity), true
+	case "ServiceToken.token":
+		if e.ComplexityRoot.ServiceToken.Token == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ServiceToken.Token(childComplexity), true
 
 	case "ShippingBox.boxWeightGrams":
 		if e.ComplexityRoot.ShippingBox.BoxWeightGrams == nil {
@@ -27904,7 +27417,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputEditOrderAddressInput,
 		ec.unmarshalInputEditOrderInput,
 		ec.unmarshalInputEventDestinationInput,
-		ec.unmarshalInputExperimentVariationInput,
 		ec.unmarshalInputFacetOverrideInput,
 		ec.unmarshalInputFulfillmentLineInput,
 		ec.unmarshalInputGenerateConfigurableChildInput,
@@ -27932,7 +27444,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputRolePermissionScopeInput,
 		ec.unmarshalInputSaveCampaignInput,
 		ec.unmarshalInputSaveEmailBlockInput,
-		ec.unmarshalInputSaveExperimentInput,
 		ec.unmarshalInputSaveFlowInput,
 		ec.unmarshalInputSaveLibraryEmailInput,
 		ec.unmarshalInputSaveSignupFormInput,
@@ -32642,142 +32153,6 @@ extend type Mutation {
   rewriteEmailText(text: String!, instruction: String): String!
 }
 `, BuiltIn: false},
-	{Name: "../schema/admin/experiment.graphqls", Input: `# Frontend A/B experiments (GrowthBook-inspired). The storefront SDK assigns
-# visitors and tracks exposures/goals through Lens; these resolvers are admin
-# CRUD + results. Gated on experiments.view / experiments.manage.
-
-type Experiment {
-  id:         ID!
-  channelId:  ID!
-  key:        String!
-  name:       String!
-  status:     String!   # draft | running | stopped
-  coverage:   Int!      # % of visitors entered
-  goalEvent:  String!   # conversion event name (a window.lens.track name)
-  segmentSlug: String!  # optional targeting: only customers in this segment (""=all)
-  variations: [ExperimentVariation!]!
-  createdAt:  Time!
-  updatedAt:  Time!
-}
-
-type ExperimentVariation {
-  key:    String!
-  name:   String!
-  weight: Int!
-  value:  String!   # payload the storefront renders for this arm
-}
-
-# One variation's analysed results. rate/ciLow/ciHigh are 0..1 fractions;
-# uplift is relative vs the control (0 for the control); chanceToWin is the
-# one-sided P(variation beats control), 0..1 (0 for the control).
-type ExperimentVariationResult {
-  variation:   String!
-  name:        String!
-  exposed:     Int!
-  converted:   Int!
-  revenueCents: Int64!   # revenue from matched goal events (commerce goals); 0 otherwise
-  rate:        Float!
-  ciLow:       Float!
-  ciHigh:      Float!
-  uplift:      Float!
-  chanceToWin: Float!
-  isControl:   Boolean!
-  # Fixed-horizon 95% significance (valid when the sample size was
-  # pre-registered).
-  significant: Boolean!
-  # mSPRT always-valid p-value: stays correct under continuous peeking;
-  # 1.0 until there's evidence. sequentialSignificant = p < 0.05 AND the
-  # variation beats the control - this is the number to act on while
-  # the experiment is still running.
-  alwaysValidP:          Float!
-  sequentialSignificant: Boolean!
-}
-
-# An experiment's full analysis: per-variation stats plus a significance-gated
-# winner ("" until a challenger clears 97.5% chance-to-win) and a sample-ratio-
-# mismatch flag (observed split ≠ configured weights → don't trust the numbers).
-type ExperimentResults {
-  variations:          [ExperimentVariationResult!]!
-  winner:              String!
-  # Peeking-safe winner (mSPRT p < 0.05); "" until one exists.
-  sequentialWinner:    String!
-  sampleRatioMismatch: Boolean!
-  totalExposed:        Int!
-  totalRevenue:        Int64!   # cents across all arms from matched commerce goals
-}
-
-# One running experiment's headline result for the Prism overview hub.
-type ExperimentSummary {
-  id:                  ID!
-  key:                 String!
-  name:                String!
-  variations:          Int!
-  coverage:            Int!
-  totalExposed:        Int!
-  conversions:         Int!       # total conversions across all arms
-  leader:              String!    # leading variation name ("" until there's data)
-  leaderRate:          Float!     # the leader's conversion rate (0..1)
-  leaderUplift:        Float!     # the leader's relative uplift vs control (0 if control)
-  leaderChanceToWin:   Float!     # 0 when the leader is the control / no data
-  leaderIsControl:     Boolean!
-  winner:              String!    # significance-gated winner name ("" if none)
-  sampleRatioMismatch: Boolean!
-}
-
-# Channel-wide A/B snapshot for the /prism hub.
-type ExperimentsOverview {
-  running:      Int!
-  draft:        Int!
-  stopped:      Int!
-  totalExposed: Int!                    # across running experiments, in the window
-  decided:      Int!                    # running experiments with a significant winner
-  experiments:  [ExperimentSummary!]!   # running, most-exposed first
-}
-
-# A targetable customer segment for the experiment segment-targeting picker.
-type SegmentOption {
-  slug: String!
-  name: String!
-}
-
-input ExperimentVariationInput {
-  key:    String!
-  name:   String!
-  weight: Int!
-  value:  String!
-}
-
-input SaveExperimentInput {
-  channelId:   ID!     # ignored on update
-  key:         String!
-  name:        String!
-  status:      String!
-  coverage:    Int!
-  goalEvent:   String!
-  segmentSlug: String  # optional segment targeting (""/null = all visitors)
-  variations:  [ExperimentVariationInput!]!
-}
-
-extend type Query {
-  experiments(channelId: ID!): [Experiment!]!
-  experiment(id: ID!): Experiment
-  # Analysed results over the last ` + "`" + `sinceDays` + "`" + ` days (default 30).
-  experimentResults(id: ID!, sinceDays: Int): ExperimentResults!
-  # Channel-wide A/B snapshot for the Prism hub (default last 30 days).
-  experimentsOverview(channelId: ID!, sinceDays: Int): ExperimentsOverview!
-  # Custom-event names the storefront has fired for this channel (goal-event
-  # suggestions for the editor), most-frequent first.
-  experimentGoalEvents(channelId: ID!): [String!]!
-  # Active customer segments, for the experiment segment-targeting picker.
-  experimentSegments: [SegmentOption!]!
-}
-
-extend type Mutation {
-  createExperiment(input: SaveExperimentInput!): Experiment!
-  updateExperiment(id: ID!, input: SaveExperimentInput!): Experiment!
-  deleteExperiment(id: ID!): Boolean!
-}
-`, BuiltIn: false},
 	{Name: "../schema/admin/features.graphqls", Input: `# Server-wide feature switches (env-driven, not admin-configurable) so
 # the dashboard can hide UI for subsystems the deployment turned off.
 type ServerFeatures {
@@ -35026,6 +34401,13 @@ type CustomerSegmentList {
   totalCount: Int!
 }
 
+# A segment reduced to what a picker needs. Named for Prism, which asked for it
+# first, and kept under that name because CMS block visibility calls it too.
+type SegmentOption {
+  slug: String!
+  name: String!
+}
+
 input CreateCustomerSegmentInput {
   slug:        String!
   name:        String!
@@ -35196,6 +34578,9 @@ extend type Query {
   # Customer segments.
   customerSegments(limit: Int = 25, offset: Int = 0): CustomerSegmentList!
   customerSegment(id: ID!): CustomerSegment
+  # Active segments for a targeting picker - stays in core with the segments themselves,
+  # since Prism moved to the Signals API and CMS block visibility uses this too.
+  experimentSegments: [SegmentOption!]!
 }
 
 extend type Mutation {
@@ -36164,6 +35549,21 @@ extend type Mutation {
   setShippingCarrierEnabled(channelId: ID!, carrierSlug: String!, enabled: Boolean!): ShippingCarrierAdmin!
   # mode is "all" or "specific"; countries is the allow-list (ignored when "all").
   setShippingCarrierCountries(channelId: ID!, carrierSlug: String!, mode: String!, countries: [String!]!): ShippingCarrierAdmin!
+}
+`, BuiltIn: false},
+	{Name: "../schema/admin/signals_token.graphqls", Input: `# Access to the Signals API, which runs as its own service (cmd/signals) and does
+# not share this one's database. The dashboard exchanges its admin session for a
+# short-lived token carrying only the permissions that surface checks.
+
+type ServiceToken {
+  token:     String!
+  expiresAt: Time!
+}
+
+extend type Query {
+  # A token for the Signals API. Needs no permission of its own: it carries the
+  # caller's existing grants and grants nothing they do not already hold.
+  signalsToken: ServiceToken!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/subscriptions.graphqls", Input: `# Subscription management (admin). A subscription is one customer's recurring
@@ -40075,152 +39475,6 @@ func (ec *executionContext) childFields_EventDestination(ctx context.Context, fi
 	return nil, fmt.Errorf("no field named %q was found under type EventDestination", field.Name)
 }
 
-func (ec *executionContext) childFields_Experiment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "id":
-		return ec.fieldContext_Experiment_id(ctx, field)
-	case "channelId":
-		return ec.fieldContext_Experiment_channelId(ctx, field)
-	case "key":
-		return ec.fieldContext_Experiment_key(ctx, field)
-	case "name":
-		return ec.fieldContext_Experiment_name(ctx, field)
-	case "status":
-		return ec.fieldContext_Experiment_status(ctx, field)
-	case "coverage":
-		return ec.fieldContext_Experiment_coverage(ctx, field)
-	case "goalEvent":
-		return ec.fieldContext_Experiment_goalEvent(ctx, field)
-	case "segmentSlug":
-		return ec.fieldContext_Experiment_segmentSlug(ctx, field)
-	case "variations":
-		return ec.fieldContext_Experiment_variations(ctx, field)
-	case "createdAt":
-		return ec.fieldContext_Experiment_createdAt(ctx, field)
-	case "updatedAt":
-		return ec.fieldContext_Experiment_updatedAt(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type Experiment", field.Name)
-}
-
-func (ec *executionContext) childFields_ExperimentResults(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "variations":
-		return ec.fieldContext_ExperimentResults_variations(ctx, field)
-	case "winner":
-		return ec.fieldContext_ExperimentResults_winner(ctx, field)
-	case "sequentialWinner":
-		return ec.fieldContext_ExperimentResults_sequentialWinner(ctx, field)
-	case "sampleRatioMismatch":
-		return ec.fieldContext_ExperimentResults_sampleRatioMismatch(ctx, field)
-	case "totalExposed":
-		return ec.fieldContext_ExperimentResults_totalExposed(ctx, field)
-	case "totalRevenue":
-		return ec.fieldContext_ExperimentResults_totalRevenue(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type ExperimentResults", field.Name)
-}
-
-func (ec *executionContext) childFields_ExperimentSummary(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "id":
-		return ec.fieldContext_ExperimentSummary_id(ctx, field)
-	case "key":
-		return ec.fieldContext_ExperimentSummary_key(ctx, field)
-	case "name":
-		return ec.fieldContext_ExperimentSummary_name(ctx, field)
-	case "variations":
-		return ec.fieldContext_ExperimentSummary_variations(ctx, field)
-	case "coverage":
-		return ec.fieldContext_ExperimentSummary_coverage(ctx, field)
-	case "totalExposed":
-		return ec.fieldContext_ExperimentSummary_totalExposed(ctx, field)
-	case "conversions":
-		return ec.fieldContext_ExperimentSummary_conversions(ctx, field)
-	case "leader":
-		return ec.fieldContext_ExperimentSummary_leader(ctx, field)
-	case "leaderRate":
-		return ec.fieldContext_ExperimentSummary_leaderRate(ctx, field)
-	case "leaderUplift":
-		return ec.fieldContext_ExperimentSummary_leaderUplift(ctx, field)
-	case "leaderChanceToWin":
-		return ec.fieldContext_ExperimentSummary_leaderChanceToWin(ctx, field)
-	case "leaderIsControl":
-		return ec.fieldContext_ExperimentSummary_leaderIsControl(ctx, field)
-	case "winner":
-		return ec.fieldContext_ExperimentSummary_winner(ctx, field)
-	case "sampleRatioMismatch":
-		return ec.fieldContext_ExperimentSummary_sampleRatioMismatch(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type ExperimentSummary", field.Name)
-}
-
-func (ec *executionContext) childFields_ExperimentVariation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "key":
-		return ec.fieldContext_ExperimentVariation_key(ctx, field)
-	case "name":
-		return ec.fieldContext_ExperimentVariation_name(ctx, field)
-	case "weight":
-		return ec.fieldContext_ExperimentVariation_weight(ctx, field)
-	case "value":
-		return ec.fieldContext_ExperimentVariation_value(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type ExperimentVariation", field.Name)
-}
-
-func (ec *executionContext) childFields_ExperimentVariationResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "variation":
-		return ec.fieldContext_ExperimentVariationResult_variation(ctx, field)
-	case "name":
-		return ec.fieldContext_ExperimentVariationResult_name(ctx, field)
-	case "exposed":
-		return ec.fieldContext_ExperimentVariationResult_exposed(ctx, field)
-	case "converted":
-		return ec.fieldContext_ExperimentVariationResult_converted(ctx, field)
-	case "revenueCents":
-		return ec.fieldContext_ExperimentVariationResult_revenueCents(ctx, field)
-	case "rate":
-		return ec.fieldContext_ExperimentVariationResult_rate(ctx, field)
-	case "ciLow":
-		return ec.fieldContext_ExperimentVariationResult_ciLow(ctx, field)
-	case "ciHigh":
-		return ec.fieldContext_ExperimentVariationResult_ciHigh(ctx, field)
-	case "uplift":
-		return ec.fieldContext_ExperimentVariationResult_uplift(ctx, field)
-	case "chanceToWin":
-		return ec.fieldContext_ExperimentVariationResult_chanceToWin(ctx, field)
-	case "isControl":
-		return ec.fieldContext_ExperimentVariationResult_isControl(ctx, field)
-	case "significant":
-		return ec.fieldContext_ExperimentVariationResult_significant(ctx, field)
-	case "alwaysValidP":
-		return ec.fieldContext_ExperimentVariationResult_alwaysValidP(ctx, field)
-	case "sequentialSignificant":
-		return ec.fieldContext_ExperimentVariationResult_sequentialSignificant(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type ExperimentVariationResult", field.Name)
-}
-
-func (ec *executionContext) childFields_ExperimentsOverview(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "running":
-		return ec.fieldContext_ExperimentsOverview_running(ctx, field)
-	case "draft":
-		return ec.fieldContext_ExperimentsOverview_draft(ctx, field)
-	case "stopped":
-		return ec.fieldContext_ExperimentsOverview_stopped(ctx, field)
-	case "totalExposed":
-		return ec.fieldContext_ExperimentsOverview_totalExposed(ctx, field)
-	case "decided":
-		return ec.fieldContext_ExperimentsOverview_decided(ctx, field)
-	case "experiments":
-		return ec.fieldContext_ExperimentsOverview_experiments(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type ExperimentsOverview", field.Name)
-}
-
 func (ec *executionContext) childFields_FacetOverride(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "attributeId":
@@ -43291,6 +42545,16 @@ func (ec *executionContext) childFields_ServerFeatures(ctx context.Context, fiel
 	return nil, fmt.Errorf("no field named %q was found under type ServerFeatures", field.Name)
 }
 
+func (ec *executionContext) childFields_ServiceToken(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "token":
+		return ec.fieldContext_ServiceToken_token(ctx, field)
+	case "expiresAt":
+		return ec.fieldContext_ServiceToken_expiresAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ServiceToken", field.Name)
+}
+
 func (ec *executionContext) childFields_ShippingBox(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -46273,20 +45537,6 @@ func (ec *executionContext) field_Mutation_createEventDestination_args(ctx conte
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_createExperiment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (model.SaveExperimentInput, error) {
-			return ec.unmarshalNSaveExperimentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSaveExperimentInput(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_createFlow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -47316,20 +46566,6 @@ func (ec *executionContext) field_Mutation_deleteEmailGroup_args(ctx context.Con
 }
 
 func (ec *executionContext) field_Mutation_deleteEventDestination_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_deleteExperiment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -52069,28 +51305,6 @@ func (ec *executionContext) field_Mutation_updateEventDestination_args(ctx conte
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_updateExperiment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (model.SaveExperimentInput, error) {
-			return ec.unmarshalNSaveExperimentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSaveExperimentInput(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg1
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_updateFlow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -54440,92 +53654,6 @@ func (ec *executionContext) field_Query_emailSuppressions_args(ctx context.Conte
 }
 
 func (ec *executionContext) field_Query_eventDestinations_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["channelId"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_experimentGoalEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["channelId"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_experimentResults_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sinceDays",
-		func(ctx context.Context, v any) (*int32, error) {
-			return ec.unmarshalOInt2ᚖint32(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["sinceDays"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_experiment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_experimentsOverview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["channelId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sinceDays",
-		func(ctx context.Context, v any) (*int32, error) {
-			return ec.unmarshalOInt2ᚖint32(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["sinceDays"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_experiments_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
@@ -81893,1298 +81021,6 @@ func (ec *executionContext) fieldContext_EventDestination_updatedAt(_ context.Co
 	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
-func (ec *executionContext) _Experiment_id(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Experiment_id(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Experiment_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _Experiment_channelId(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Experiment_channelId(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ChannelID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Experiment_channelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _Experiment_key(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Experiment_key(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Key, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Experiment_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _Experiment_name(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Experiment_name(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Experiment_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _Experiment_status(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Experiment_status(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Status, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Experiment_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _Experiment_coverage(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Experiment_coverage(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Coverage, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Experiment_coverage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _Experiment_goalEvent(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Experiment_goalEvent(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.GoalEvent, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Experiment_goalEvent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _Experiment_segmentSlug(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Experiment_segmentSlug(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.SegmentSlug, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Experiment_segmentSlug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _Experiment_variations(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Experiment_variations(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Variations, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.ExperimentVariation) graphql.Marshaler {
-			return ec.marshalNExperimentVariation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Experiment_variations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Experiment",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_ExperimentVariation(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Experiment_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Experiment_createdAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Experiment_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _Experiment_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Experiment_updatedAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.UpdatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Experiment_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type Time does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentResults_variations(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentResults) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentResults_variations(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Variations, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.ExperimentVariationResult) graphql.Marshaler {
-			return ec.marshalNExperimentVariationResult2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationResultᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentResults_variations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ExperimentResults",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_ExperimentVariationResult(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ExperimentResults_winner(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentResults) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentResults_winner(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Winner, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentResults_winner(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentResults", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentResults_sequentialWinner(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentResults) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentResults_sequentialWinner(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.SequentialWinner, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentResults_sequentialWinner(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentResults", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentResults_sampleRatioMismatch(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentResults) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentResults_sampleRatioMismatch(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.SampleRatioMismatch, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentResults_sampleRatioMismatch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentResults", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentResults_totalExposed(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentResults) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentResults_totalExposed(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.TotalExposed, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentResults_totalExposed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentResults", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentResults_totalRevenue(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentResults) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentResults_totalRevenue(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.TotalRevenue, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
-			return ec.marshalNInt642int(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentResults_totalRevenue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentResults", field, false, false, errors.New("field of type Int64 does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_id(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_id(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type ID does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_key(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_key(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Key, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_name(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_name(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_variations(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_variations(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Variations, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_variations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_coverage(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_coverage(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Coverage, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_coverage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_totalExposed(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_totalExposed(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.TotalExposed, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_totalExposed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_conversions(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_conversions(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Conversions, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_conversions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_leader(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_leader(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Leader, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_leader(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_leaderRate(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_leaderRate(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.LeaderRate, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_leaderRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Float does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_leaderUplift(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_leaderUplift(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.LeaderUplift, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_leaderUplift(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Float does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_leaderChanceToWin(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_leaderChanceToWin(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.LeaderChanceToWin, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_leaderChanceToWin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Float does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_leaderIsControl(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_leaderIsControl(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.LeaderIsControl, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_leaderIsControl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_winner(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_winner(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Winner, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_winner(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentSummary_sampleRatioMismatch(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentSummary_sampleRatioMismatch(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.SampleRatioMismatch, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentSummary_sampleRatioMismatch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariation_key(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariation) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariation_key(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Key, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariation_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariation", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariation_name(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariation) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariation_name(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariation_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariation", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariation_weight(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariation) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariation_weight(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Weight, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariation_weight(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariation", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariation_value(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariation) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariation_value(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Value, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariation_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariation", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_variation(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_variation(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Variation, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_variation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_name(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_name(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_exposed(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_exposed(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Exposed, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_exposed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_converted(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_converted(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Converted, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_converted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_revenueCents(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_revenueCents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.RevenueCents, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
-			return ec.marshalNInt642int(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_revenueCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Int64 does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_rate(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_rate(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Rate, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_rate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Float does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_ciLow(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_ciLow(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CiLow, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_ciLow(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Float does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_ciHigh(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_ciHigh(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CiHigh, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_ciHigh(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Float does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_uplift(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_uplift(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Uplift, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_uplift(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Float does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_chanceToWin(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_chanceToWin(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ChanceToWin, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_chanceToWin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Float does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_isControl(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_isControl(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.IsControl, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_isControl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_significant(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_significant(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Significant, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_significant(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_alwaysValidP(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_alwaysValidP(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.AlwaysValidP, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_alwaysValidP(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Float does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentVariationResult_sequentialSignificant(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentVariationResult_sequentialSignificant(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.SequentialSignificant, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentVariationResult_sequentialSignificant(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentsOverview_running(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentsOverview) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentsOverview_running(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Running, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentsOverview_running(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentsOverview", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentsOverview_draft(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentsOverview) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentsOverview_draft(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Draft, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentsOverview_draft(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentsOverview", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentsOverview_stopped(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentsOverview) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentsOverview_stopped(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Stopped, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentsOverview_stopped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentsOverview", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentsOverview_totalExposed(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentsOverview) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentsOverview_totalExposed(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.TotalExposed, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentsOverview_totalExposed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentsOverview", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentsOverview_decided(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentsOverview) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentsOverview_decided(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Decided, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
-			return ec.marshalNInt2int32(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentsOverview_decided(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ExperimentsOverview", field, false, false, errors.New("field of type Int does not have child fields"))
-}
-
-func (ec *executionContext) _ExperimentsOverview_experiments(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentsOverview) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ExperimentsOverview_experiments(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Experiments, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.ExperimentSummary) graphql.Marshaler {
-			return ec.marshalNExperimentSummary2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentSummaryᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ExperimentsOverview_experiments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ExperimentsOverview",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_ExperimentSummary(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _FacetOverride_attributeId(ctx context.Context, field graphql.CollectedField, obj *model.FacetOverride) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -104793,138 +102629,6 @@ func (ec *executionContext) fieldContext_Mutation_rewriteEmailText(ctx context.C
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_rewriteEmailText_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_createExperiment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_createExperiment(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateExperiment(ctx, fc.Args["input"].(model.SaveExperimentInput))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.Experiment) graphql.Marshaler {
-			return ec.marshalNExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_createExperiment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Experiment(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_createExperiment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_updateExperiment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_updateExperiment(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateExperiment(ctx, fc.Args["id"].(string), fc.Args["input"].(model.SaveExperimentInput))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.Experiment) graphql.Marshaler {
-			return ec.marshalNExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_updateExperiment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Experiment(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_updateExperiment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_deleteExperiment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_deleteExperiment(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().DeleteExperiment(ctx, fc.Args["id"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
-			return ec.marshalNBoolean2bool(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_deleteExperiment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_deleteExperiment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -126874,258 +124578,6 @@ func (ec *executionContext) fieldContext_Query_renderLibraryPreview(ctx context.
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_experiments(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_experiments(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Experiments(ctx, fc.Args["channelId"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.Experiment) graphql.Marshaler {
-			return ec.marshalNExperiment2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_experiments(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Experiment(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_experiments_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_experiment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_experiment(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Experiment(ctx, fc.Args["id"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.Experiment) graphql.Marshaler {
-			return ec.marshalOExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_Query_experiment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Experiment(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_experiment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_experimentResults(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_experimentResults(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().ExperimentResults(ctx, fc.Args["id"].(string), fc.Args["sinceDays"].(*int32))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.ExperimentResults) graphql.Marshaler {
-			return ec.marshalNExperimentResults2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentResults(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_experimentResults(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_ExperimentResults(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_experimentResults_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_experimentsOverview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_experimentsOverview(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().ExperimentsOverview(ctx, fc.Args["channelId"].(string), fc.Args["sinceDays"].(*int32))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.ExperimentsOverview) graphql.Marshaler {
-			return ec.marshalNExperimentsOverview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentsOverview(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_experimentsOverview(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_ExperimentsOverview(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_experimentsOverview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_experimentGoalEvents(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_experimentGoalEvents(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().ExperimentGoalEvents(ctx, fc.Args["channelId"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
-			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_experimentGoalEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_experimentGoalEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_experimentSegments(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_experimentSegments(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().ExperimentSegments(ctx)
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*model.SegmentOption) graphql.Marshaler {
-			return ec.marshalNSegmentOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSegmentOptionᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_experimentSegments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SegmentOption(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Query_serverFeatures(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -129885,6 +127337,38 @@ func (ec *executionContext) fieldContext_Query_customerSegment(ctx context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_experimentSegments(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_experimentSegments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().ExperimentSegments(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.SegmentOption) graphql.Marshaler {
+			return ec.marshalNSegmentOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSegmentOptionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_experimentSegments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SegmentOption(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_simulatePromotion(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -130933,6 +128417,38 @@ func (ec *executionContext) fieldContext_Query_shippingBoxes(ctx context.Context
 	if fc.Args, err = ec.field_Query_shippingBoxes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_signalsToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_signalsToken(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().SignalsToken(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ServiceToken) graphql.Marshaler {
+			return ec.marshalNServiceToken2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐServiceToken(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_signalsToken(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ServiceToken(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -138811,6 +136327,52 @@ func (ec *executionContext) _ServerFeatures_ai(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_ServerFeatures_ai(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ServerFeatures", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ServiceToken_token(ctx context.Context, field graphql.CollectedField, obj *model.ServiceToken) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ServiceToken_token(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Token, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ServiceToken_token(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ServiceToken", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ServiceToken_expiresAt(ctx context.Context, field graphql.CollectedField, obj *model.ServiceToken) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ServiceToken_expiresAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ServiceToken_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ServiceToken", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _ShippingBox_id(ctx context.Context, field graphql.CollectedField, obj *model.ShippingBox) (ret graphql.Marshaler) {
@@ -154065,57 +151627,6 @@ func (ec *executionContext) unmarshalInputEventDestinationInput(ctx context.Cont
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputExperimentVariationInput(ctx context.Context, obj any) (model.ExperimentVariationInput, error) {
-	var it model.ExperimentVariationInput
-	if obj == nil {
-		return it, nil
-	}
-
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"key", "name", "weight", "value"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "key":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Key = data
-		case "name":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Name = data
-		case "weight":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("weight"))
-			data, err := ec.unmarshalNInt2int32(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Weight = data
-		case "value":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Value = data
-		}
-	}
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputFacetOverrideInput(ctx context.Context, obj any) (model.FacetOverrideInput, error) {
 	var it model.FacetOverrideInput
 	if obj == nil {
@@ -155632,85 +153143,6 @@ func (ec *executionContext) unmarshalInputSaveEmailBlockInput(ctx context.Contex
 				return it, err
 			}
 			it.Scripted = data
-		}
-	}
-	return it, nil
-}
-
-func (ec *executionContext) unmarshalInputSaveExperimentInput(ctx context.Context, obj any) (model.SaveExperimentInput, error) {
-	var it model.SaveExperimentInput
-	if obj == nil {
-		return it, nil
-	}
-
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"channelId", "key", "name", "status", "coverage", "goalEvent", "segmentSlug", "variations"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "channelId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelId"))
-			data, err := ec.unmarshalNID2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ChannelID = data
-		case "key":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Key = data
-		case "name":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Name = data
-		case "status":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Status = data
-		case "coverage":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("coverage"))
-			data, err := ec.unmarshalNInt2int32(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Coverage = data
-		case "goalEvent":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("goalEvent"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.GoalEvent = data
-		case "segmentSlug":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("segmentSlug"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.SegmentSlug = data
-		case "variations":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("variations"))
-			data, err := ec.unmarshalNExperimentVariationInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationInputᚄ(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Variations = data
 		}
 	}
 	return it, nil
@@ -172108,479 +169540,6 @@ func (ec *executionContext) _EventDestination(ctx context.Context, sel ast.Selec
 	return out
 }
 
-var experimentImplementors = []string{"Experiment"}
-
-func (ec *executionContext) _Experiment(ctx context.Context, sel ast.SelectionSet, obj *model.Experiment) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, experimentImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("Experiment")
-		case "id":
-			out.Values[i] = ec._Experiment_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "channelId":
-			out.Values[i] = ec._Experiment_channelId(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "key":
-			out.Values[i] = ec._Experiment_key(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "name":
-			out.Values[i] = ec._Experiment_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "status":
-			out.Values[i] = ec._Experiment_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "coverage":
-			out.Values[i] = ec._Experiment_coverage(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "goalEvent":
-			out.Values[i] = ec._Experiment_goalEvent(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "segmentSlug":
-			out.Values[i] = ec._Experiment_segmentSlug(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "variations":
-			out.Values[i] = ec._Experiment_variations(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "createdAt":
-			out.Values[i] = ec._Experiment_createdAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "updatedAt":
-			out.Values[i] = ec._Experiment_updatedAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var experimentResultsImplementors = []string{"ExperimentResults"}
-
-func (ec *executionContext) _ExperimentResults(ctx context.Context, sel ast.SelectionSet, obj *model.ExperimentResults) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, experimentResultsImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("ExperimentResults")
-		case "variations":
-			out.Values[i] = ec._ExperimentResults_variations(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "winner":
-			out.Values[i] = ec._ExperimentResults_winner(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "sequentialWinner":
-			out.Values[i] = ec._ExperimentResults_sequentialWinner(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "sampleRatioMismatch":
-			out.Values[i] = ec._ExperimentResults_sampleRatioMismatch(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "totalExposed":
-			out.Values[i] = ec._ExperimentResults_totalExposed(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "totalRevenue":
-			out.Values[i] = ec._ExperimentResults_totalRevenue(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var experimentSummaryImplementors = []string{"ExperimentSummary"}
-
-func (ec *executionContext) _ExperimentSummary(ctx context.Context, sel ast.SelectionSet, obj *model.ExperimentSummary) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, experimentSummaryImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("ExperimentSummary")
-		case "id":
-			out.Values[i] = ec._ExperimentSummary_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "key":
-			out.Values[i] = ec._ExperimentSummary_key(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "name":
-			out.Values[i] = ec._ExperimentSummary_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "variations":
-			out.Values[i] = ec._ExperimentSummary_variations(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "coverage":
-			out.Values[i] = ec._ExperimentSummary_coverage(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "totalExposed":
-			out.Values[i] = ec._ExperimentSummary_totalExposed(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "conversions":
-			out.Values[i] = ec._ExperimentSummary_conversions(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "leader":
-			out.Values[i] = ec._ExperimentSummary_leader(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "leaderRate":
-			out.Values[i] = ec._ExperimentSummary_leaderRate(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "leaderUplift":
-			out.Values[i] = ec._ExperimentSummary_leaderUplift(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "leaderChanceToWin":
-			out.Values[i] = ec._ExperimentSummary_leaderChanceToWin(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "leaderIsControl":
-			out.Values[i] = ec._ExperimentSummary_leaderIsControl(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "winner":
-			out.Values[i] = ec._ExperimentSummary_winner(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "sampleRatioMismatch":
-			out.Values[i] = ec._ExperimentSummary_sampleRatioMismatch(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var experimentVariationImplementors = []string{"ExperimentVariation"}
-
-func (ec *executionContext) _ExperimentVariation(ctx context.Context, sel ast.SelectionSet, obj *model.ExperimentVariation) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, experimentVariationImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("ExperimentVariation")
-		case "key":
-			out.Values[i] = ec._ExperimentVariation_key(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "name":
-			out.Values[i] = ec._ExperimentVariation_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "weight":
-			out.Values[i] = ec._ExperimentVariation_weight(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "value":
-			out.Values[i] = ec._ExperimentVariation_value(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var experimentVariationResultImplementors = []string{"ExperimentVariationResult"}
-
-func (ec *executionContext) _ExperimentVariationResult(ctx context.Context, sel ast.SelectionSet, obj *model.ExperimentVariationResult) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, experimentVariationResultImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("ExperimentVariationResult")
-		case "variation":
-			out.Values[i] = ec._ExperimentVariationResult_variation(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "name":
-			out.Values[i] = ec._ExperimentVariationResult_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "exposed":
-			out.Values[i] = ec._ExperimentVariationResult_exposed(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "converted":
-			out.Values[i] = ec._ExperimentVariationResult_converted(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "revenueCents":
-			out.Values[i] = ec._ExperimentVariationResult_revenueCents(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "rate":
-			out.Values[i] = ec._ExperimentVariationResult_rate(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "ciLow":
-			out.Values[i] = ec._ExperimentVariationResult_ciLow(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "ciHigh":
-			out.Values[i] = ec._ExperimentVariationResult_ciHigh(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "uplift":
-			out.Values[i] = ec._ExperimentVariationResult_uplift(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "chanceToWin":
-			out.Values[i] = ec._ExperimentVariationResult_chanceToWin(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "isControl":
-			out.Values[i] = ec._ExperimentVariationResult_isControl(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "significant":
-			out.Values[i] = ec._ExperimentVariationResult_significant(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "alwaysValidP":
-			out.Values[i] = ec._ExperimentVariationResult_alwaysValidP(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "sequentialSignificant":
-			out.Values[i] = ec._ExperimentVariationResult_sequentialSignificant(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
-var experimentsOverviewImplementors = []string{"ExperimentsOverview"}
-
-func (ec *executionContext) _ExperimentsOverview(ctx context.Context, sel ast.SelectionSet, obj *model.ExperimentsOverview) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, experimentsOverviewImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferredFieldSet := graphql.NewFieldSet(nil)
-	deferLabelToView := make(map[string]*graphql.FieldSetView)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("ExperimentsOverview")
-		case "running":
-			out.Values[i] = ec._ExperimentsOverview_running(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "draft":
-			out.Values[i] = ec._ExperimentsOverview_draft(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "stopped":
-			out.Values[i] = ec._ExperimentsOverview_stopped(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "totalExposed":
-			out.Values[i] = ec._ExperimentsOverview_totalExposed(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "decided":
-			out.Values[i] = ec._ExperimentsOverview_decided(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "experiments":
-			out.Values[i] = ec._ExperimentsOverview_experiments(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
-
-	ec.ProcessDeferredGroup(graphql.DeferredGroup{
-		Defers:   deferLabelToView,
-		Path:     graphql.GetPath(ctx),
-		FieldSet: deferredFieldSet,
-		Context:  ctx,
-	})
-
-	return out
-}
-
 var facetOverrideImplementors = []string{"FacetOverride"}
 
 func (ec *executionContext) _FacetOverride(ctx context.Context, sel ast.SelectionSet, obj *model.FacetOverride) graphql.Marshaler {
@@ -178516,27 +175475,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "rewriteEmailText":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_rewriteEmailText(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "createExperiment":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_createExperiment(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "updateExperiment":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_updateExperiment(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "deleteExperiment":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_deleteExperiment(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -186353,138 +183291,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "experiments":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_experiments(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "experiment":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_experiment(ctx, field)
-				if res == graphql.RequiredNull {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "experimentResults":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_experimentResults(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "experimentsOverview":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_experimentsOverview(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "experimentGoalEvents":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_experimentGoalEvents(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "experimentSegments":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_experimentSegments(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "serverFeatures":
 			field := field
 
@@ -187959,6 +184765,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "experimentSegments":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_experimentSegments(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "simulatePromotion":
 			field := field
 
@@ -188497,6 +185325,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_shippingBoxes(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "signalsToken":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_signalsToken(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -192299,6 +189149,49 @@ func (ec *executionContext) _ServerFeatures(ctx context.Context, sel ast.Selecti
 			}
 		case "ai":
 			out.Values[i] = ec._ServerFeatures_ai(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var serviceTokenImplementors = []string{"ServiceToken"}
+
+func (ec *executionContext) _ServiceToken(ctx context.Context, sel ast.SelectionSet, obj *model.ServiceToken) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, serviceTokenImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ServiceToken")
+		case "token":
+			out.Values[i] = ec._ServiceToken_token(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._ServiceToken_expiresAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -200370,161 +197263,6 @@ func (ec *executionContext) unmarshalNEventDestinationInput2githubᚗcomᚋskele
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNExperiment2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx context.Context, sel ast.SelectionSet, v model.Experiment) graphql.Marshaler {
-	return ec._Experiment(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNExperiment2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Experiment) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx context.Context, sel ast.SelectionSet, v *model.Experiment) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._Experiment(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNExperimentResults2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentResults(ctx context.Context, sel ast.SelectionSet, v model.ExperimentResults) graphql.Marshaler {
-	return ec._ExperimentResults(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNExperimentResults2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentResults(ctx context.Context, sel ast.SelectionSet, v *model.ExperimentResults) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._ExperimentResults(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNExperimentSummary2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ExperimentSummary) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNExperimentSummary2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentSummary(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNExperimentSummary2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentSummary(ctx context.Context, sel ast.SelectionSet, v *model.ExperimentSummary) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._ExperimentSummary(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNExperimentVariation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ExperimentVariation) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNExperimentVariation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariation(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNExperimentVariation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariation(ctx context.Context, sel ast.SelectionSet, v *model.ExperimentVariation) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._ExperimentVariation(ctx, sel, v)
-}
-
-func (ec *executionContext) unmarshalNExperimentVariationInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationInputᚄ(ctx context.Context, v any) ([]*model.ExperimentVariationInput, error) {
-	vSlice := graphql.CoerceList(v)
-	var err error
-	res := make([]*model.ExperimentVariationInput, len(vSlice))
-	for i := range vSlice {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNExperimentVariationInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationInput(ctx, vSlice[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	return res, nil
-}
-
-func (ec *executionContext) unmarshalNExperimentVariationInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationInput(ctx context.Context, v any) (*model.ExperimentVariationInput, error) {
-	res, err := ec.unmarshalInputExperimentVariationInput(ctx, v)
-	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNExperimentVariationResult2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationResultᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ExperimentVariationResult) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNExperimentVariationResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationResult(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNExperimentVariationResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationResult(ctx context.Context, sel ast.SelectionSet, v *model.ExperimentVariationResult) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._ExperimentVariationResult(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNExperimentsOverview2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentsOverview(ctx context.Context, sel ast.SelectionSet, v model.ExperimentsOverview) graphql.Marshaler {
-	return ec._ExperimentsOverview(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNExperimentsOverview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentsOverview(ctx context.Context, sel ast.SelectionSet, v *model.ExperimentsOverview) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._ExperimentsOverview(ctx, sel, v)
-}
-
 func (ec *executionContext) marshalNFacetOverride2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐFacetOverrideᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FacetOverride) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -204575,11 +201313,6 @@ func (ec *executionContext) unmarshalNSaveEmailBlockInput2githubᚗcomᚋskeletg
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNSaveExperimentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSaveExperimentInput(ctx context.Context, v any) (model.SaveExperimentInput, error) {
-	res, err := ec.unmarshalInputSaveExperimentInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
 func (ec *executionContext) unmarshalNSaveFlowInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSaveFlowInput(ctx context.Context, v any) (model.SaveFlowInput, error) {
 	res, err := ec.unmarshalInputSaveFlowInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -205068,6 +201801,20 @@ func (ec *executionContext) marshalNServerFeatures2ᚖgithubᚗcomᚋskeletgᚋs
 		return graphql.Null
 	}
 	return ec._ServerFeatures(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNServiceToken2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐServiceToken(ctx context.Context, sel ast.SelectionSet, v model.ServiceToken) graphql.Marshaler {
+	return ec._ServiceToken(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNServiceToken2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐServiceToken(ctx context.Context, sel ast.SelectionSet, v *model.ServiceToken) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ServiceToken(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNSetBlogPostChannelListingInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSetBlogPostChannelListingInput(ctx context.Context, v any) (model.SetBlogPostChannelListingInput, error) {
@@ -207668,13 +204415,6 @@ func (ec *executionContext) marshalOEmailCampaign2ᚖgithubᚗcomᚋskeletgᚋsk
 		return graphql.Null
 	}
 	return ec._EmailCampaign(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalOExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx context.Context, sel ast.SelectionSet, v *model.Experiment) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return ec._Experiment(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {

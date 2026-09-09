@@ -513,9 +513,11 @@ type Querier interface {
 	DeleteAddress(ctx context.Context, id uuid.UUID) error
 	DeleteAdminPreference(ctx context.Context, arg DeleteAdminPreferenceParams) error
 	DeleteAdminRole(ctx context.Context, id uuid.UUID) error
-	DeleteAdminSession(ctx context.Context, tokenHash string) error
-	DeleteAdminSessionsByAdminID(ctx context.Context, adminID uuid.UUID) error
-	DeleteAdminSessionsExcept(ctx context.Context, arg DeleteAdminSessionsExceptParams) error
+	// The three delete paths return the ids they removed, so a killed session can be published to services that
+	// authorize from a token instead of this table and cannot see the row disappear
+	DeleteAdminSession(ctx context.Context, tokenHash string) ([]uuid.UUID, error)
+	DeleteAdminSessionsByAdminID(ctx context.Context, adminID uuid.UUID) ([]uuid.UUID, error)
+	DeleteAdminSessionsExcept(ctx context.Context, arg DeleteAdminSessionsExceptParams) ([]uuid.UUID, error)
 	DeleteAdminUser(ctx context.Context, id uuid.UUID) error
 	DeleteAdminUserRoles(ctx context.Context, adminUserID uuid.UUID) error
 	DeleteAllMenuChannelAssignments(ctx context.Context, menuID uuid.UUID) error
@@ -2139,8 +2141,7 @@ type Querier interface {
 	// Hot path for the promotion engine: returns every active segment
 	// slug a customer belongs to - filters out inactive segments so a
 	// temporarily-disabled segment doesn't keep firing promotions
-	// rules + refresh_sql ride along so the caller can drop the segments
-	// Signals maintains when the suite is switched off
+	// rules + refresh_sql ride along so the caller can drop the segments Signals maintains when the suite is off
 	SegmentSlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentSlugsForCustomerRow, error)
 	// Active segments a customer belongs to, with id + name (for the Synapse
 	// profile "audiences" panel - chips that deep-link to each segment page)
