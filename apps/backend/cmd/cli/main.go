@@ -32,7 +32,6 @@ func main() {
 	rootCmd.AddCommand(commands.DevResetCmd)
 	rootCmd.AddCommand(commands.MediaOrphansCmd)
 	rootCmd.AddCommand(commands.MediaMigrateCmd)
-	rootCmd.AddCommand(commands.SignalsCmd)
 	rootCmd.AddCommand(commands.DbCmd)
 	rootCmd.AddCommand(commands.DataPatchCmd)
 	rootCmd.AddCommand(commands.SearchCmd)

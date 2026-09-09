@@ -72,6 +72,11 @@ type Querier interface {
 	// status filter did at read time and an append-only log has to do by netting instead
 	// Guest orders carry no customer_id and are skipped, matching the commerce join
 	ChannelOrderAggregates(ctx context.Context, channelID uuid.NullUUID) ([]ChannelOrderAggregatesRow, error)
+	// Wipe a channel's engagement projection - the empty-refresh case (no active
+	// customers in the window)
+	ClearChannelEngagement(ctx context.Context, channelID uuid.UUID) error
+	// The empty-refresh case: a channel whose spine holds no surviving orders
+	ClearChannelOrderAgg(ctx context.Context, channelID uuid.UUID) error
 	CustomerConversions(ctx context.Context, arg CustomerConversionsParams) ([]CustomerConversionsRow, error)
 	// Spine half of the app-side conversion-attribution lookback (recorder's
 	// RecordConversion): every marketing open/click the customer logged since the
@@ -95,6 +100,8 @@ type Querier interface {
 	// Bulk anon -> customer resolution for batch scans (browse abandonment) - kept
 	// engine-side so the ClickHouse driver answers from its own identities.
 	CustomersForAnonIDs(ctx context.Context, anonIds []string) ([]CustomersForAnonIDsRow, error)
+	// Customers whose 30-day window emptied since the last run
+	DeleteChannelEngagementFor(ctx context.Context, customerIds []uuid.UUID) error
 	// GDPR erasure: drop the customers' anon-id mappings. A separate signals-handle
 	// call, since the mapping table lives here rather than in commerce, so it is not
 	// atomic with the commerce scrub.
@@ -148,6 +155,8 @@ type Querier interface {
 	// streaming their rows into the walker is pure waste (a funnel starting at
 	// page_view still degenerates to everyone, but typical funnels start narrower).
 	FunnelEvents(ctx context.Context, arg FunnelEventsParams) ([]FunnelEventsRow, error)
+	GetCustomerTrait(ctx context.Context, customerID uuid.UUID) (CustomerTrait, error)
+	GetEngagementWatermark(ctx context.Context, channelID uuid.UUID) (time.Time, error)
 	// Customers with events RECEIVED in [from, to) - the incremental refresh's fresh
 	// slice keys on arrival time, so a queue-backlog drain or an outbox redelivery
 	// whose occurred_at predates the window still gets its customer recomputed.
@@ -289,12 +298,14 @@ type Querier interface {
 	// Core Web Vitals summary.
 	LensVitalsOverall(ctx context.Context, arg LensVitalsOverallParams) ([]LensVitalsOverallRow, error)
 	LensZeroResultSearches(ctx context.Context, arg LensZeroResultSearchesParams) ([]LensZeroResultSearchesRow, error)
+	LifecycleMixForCustomers(ctx context.Context, customerIds []uuid.UUID) ([]LifecycleMixForCustomersRow, error)
 	// One keyset page of a day slice for the archive export. Ordered on
 	// (received_at, id) so the received_at index feeds an incremental sort;
 	// customer_id / anon_id / dedupe_key are deliberately not selected - archives
 	// are identity-stripped (dedupe keys can embed anon/customer ids, e.g.
 	// identify's).
 	ListAnalyticsEventsForArchive(ctx context.Context, arg ListAnalyticsEventsForArchiveParams) ([]ListAnalyticsEventsForArchiveRow, error)
+	ListCustomerTraitsByChannel(ctx context.Context, channelID uuid.UUID) ([]CustomerTrait, error)
 	// Spine read for the event-forwarding sweep (destination.Service). The destination rows + cursor live in commerce
 	// (event_destinations); only this page-the-spine read moved here
 	// The 5s watermark keeps the page behind any still-committing insert: a row can
@@ -340,10 +351,41 @@ type Querier interface {
 	PruneAnalyticsIdentities(ctx context.Context, before time.Time) (int64, error)
 	PruneBrowseNotified(ctx context.Context, before time.Time) (int64, error)
 	PruneBrowseSeen(ctx context.Context, before time.Time) (int64, error)
+	// Customers gone from commerce since this sync started - customer_traits had an ON DELETE CASCADE
+	// to customers that cannot cross databases, so this is what replaces it
+	PruneCustomerRoster(ctx context.Context, before time.Time) (int64, error)
 	PruneLensDaily(ctx context.Context, before time.Time) (int64, error)
 	PruneLensVisitors(ctx context.Context, before time.Time) (int64, error)
+	// Traits for customers no longer on the roster - the recompute only upserts, so without this a
+	// deleted customer keeps their scores and stays in every trait-based segment
+	PruneOrphanedTraits(ctx context.Context) (int64, error)
 	PruneTrafficRollup(ctx context.Context, before time.Time) (int64, error)
 	QueuedIdentityErasures(ctx context.Context, lim int32) ([]uuid.UUID, error)
+	// Recompute every customer's RFM / lifecycle / engagement traits for a channel
+	// in ONE set-based statement - no per-customer round-trips - so the trait-compute
+	// job scales to a large customer base - reproduces the former in-Go logic exactly:
+	//   * RFM are 1..5 quintile RANKS among the channel's *purchasers* (5 = best),
+	//     0 for never-ordered - bucket = floor((rank-1) * 5 / purchasers) + 1 over the
+	//     value sorted ascending; recency is reversed (fewer days = better) - the
+	//     customer_id tiebreaker makes ties deterministic (the Go sort was not)
+	//   * recency_days = whole days since the last non-cancelled/draft order (-1 = never)
+	//   * lifecycle from recency + order count, using the channel's configured windows
+	//     (new_days / active_days / at_risk_days) so it matches the catalog's repurchase
+	//     cadence (a tire shop's "active" is far longer than a consumables store's),
+	//     NARROWED per customer by the shortest-window override segment they belong to
+	//     (seg_override) - e.g. an "All-terrain" affinity segment with a faster cadence
+	//   * engagement = last-30d spine events, ≤100
+	// as_of is the run clock (recency + the 30-day engagement window derive from it)
+	// Skip no-op writes: only rewrite a row when a DECISION-relevant column actually
+	// changed - this is what stops the long-tail of dormant customers (no orders /
+	// activity) from churning a new tuple + WAL every run - their scores/lifecycle
+	// are stable, so they're left untouched - deliberately excludes recency_days
+	// (drifts ~½ day each run with no real signal) and computed_at from the gate, so
+	// a row's computed_at means "last time its traits materially changed" (use the
+	// trait-compute job's last_run_at for "when we last recomputed") - lifecycle
+	// threshold crossings (30/90/180d) and quintile shifts DO flip a gated column, so
+	// genuine transitions are still captured
+	RecomputeChannelTraits(ctx context.Context, arg RecomputeChannelTraitsParams) (int64, error)
 	// Spine queries that touch ONLY analytics_events (the moving table). Queries that join commerce tables (email_sends attribution,
 	// MostRecentEmailEngagement) stay in the commerce db package - they become app-side/cross-db reads at cutover
 	// Append-only; ON CONFLICT makes the dedupe_key the idempotency authority
@@ -354,6 +396,16 @@ type Querier interface {
 	// nullable columns (mirroring the single insert's narg mapping); duplicate keys
 	// inside one batch collapse the same way concurrent inserts do.
 	RecordAnalyticsEventsBatch(ctx context.Context, arg RecordAnalyticsEventsBatchParams) (int64, error)
+	// Atomically swap a channel's projection to the given per-customer counts
+	// (paired arrays: customer_ids[i] has engagements[i]) - one statement, so a
+	// crash can't leave the projection half-cleared before RecomputeChannelTraits
+	// reads it - the delete and the upsert touch disjoint rows (NOT IN set vs in
+	// set), which single-statement row rules require
+	ReplaceChannelEngagement(ctx context.Context, arg ReplaceChannelEngagementParams) error
+	// Atomically swap a channel's order projection to the given per-customer aggregates (paired arrays),
+	// one statement for the same reason the engagement swap is one: a crash must not leave it half-cleared
+	// before RecomputeChannelTraits reads it and zeroes everyone's RFM
+	ReplaceChannelOrderAgg(ctx context.Context, arg ReplaceChannelOrderAggParams) error
 	// The commerce-friendly engagement metric: of the distinct people active in the
 	// PREVIOUS window [prev_start, cur_start), how many were also active in the
 	// CURRENT window [cur_start, cur_end) - i.e. came back. Returns prev-active,
@@ -361,6 +413,7 @@ type Querier interface {
 	// new-vs-returning split. Active = any tracked event (optional event filter),
 	// resolved across anon + identity. Window length is the store's return cadence.
 	ReturnWindowStats(ctx context.Context, arg ReturnWindowStatsParams) (ReturnWindowStatsRow, error)
+	RfmDistributionForCustomers(ctx context.Context, customerIds []uuid.UUID) ([]RfmDistributionForCustomersRow, error)
 	// Spine half of the app-side SegmentTopAffinities read: top attr:<slug> = value
 	// among a segment's members (their customer ids passed in - the commerce half,
 	// customer_segment_memberships, lives in the commerce db). Distinct-member counts,
@@ -378,6 +431,7 @@ type Querier interface {
 	// least min_count times since the cutoff - one building block of a behavioral
 	// segment. Anonymous-only people are excluded (segments hold customer ids).
 	SegmentEventActors(ctx context.Context, arg SegmentEventActorsParams) ([]uuid.UUID, error)
+	SetEngagementWatermark(ctx context.Context, arg SetEngagementWatermarkParams) error
 	// Health panel: is ingest flowing, and is retention actually running? newest
 	// answers the first, oldest the second (it should sit near the retention
 	// window - drifting past it means the prune isn't happening).
@@ -412,11 +466,18 @@ type Querier interface {
 	// already excludes bots from its rollups, and the two products must agree.
 	SynapseTotals(ctx context.Context, arg SynapseTotalsParams) (SynapseTotalsRow, error)
 	TopClickedLinks(ctx context.Context, arg TopClickedLinksParams) ([]TopClickedLinksRow, error)
+	TraitsForCustomers(ctx context.Context, customerIds []uuid.UUID) ([]TraitsForCustomersRow, error)
 	// Self-contained browse_seen queries (the anon-keyed browse rollup, fed at ingest) + the signals half of the browse-abandonment scan. The
 	// commerce half (exclude active-cart / since-browse-order) runs app-side against carts/orders
 	// Records the latest product browse for an anonymous visitor. On conflict the
 	// newer browse wins (timestamp + its product context).
 	UpsertBrowseSeen(ctx context.Context, arg UpsertBrowseSeenParams) error
+	// Incremental-refresh upsert: only the changed customers (paired arrays), no
+	// channel-wide pruning - deletions come from DeleteChannelEngagementFor
+	UpsertChannelEngagementFor(ctx context.Context, arg UpsertChannelEngagementForParams) error
+	// Lands a page of the synced roster - paired arrays, one statement per page
+	// 0 is the sentinel for no override, since a paired int array cannot carry NULL, and it has to land as NULL or the recompute's COALESCE onto the channel default never fires
+	UpsertCustomerRoster(ctx context.Context, arg UpsertCustomerRosterParams) error
 	// Identity stitching + per-customer profile reads (moved from the commerce db
 	// package at cutover 4b). analytics_identities lives in the signals db alongside
 	// the spine. The profile reads take the customer's pre-resolved anon ids as a

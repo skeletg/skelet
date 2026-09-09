@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // The dynamic-segment rule engine - marketers author a structured condition tree and the server compiles it to ONE parameterized SQL query over customers
@@ -41,8 +44,9 @@ var numericOps = map[string]string{
 	"eq": "=", "neq": "<>", "gt": ">", "gte": ">=", "lt": "<", "lte": "<=",
 }
 
+// Exactly the stages the trait recompute writes - "dormant" was accepted here and never produced, so a segment on it matched nobody, while "lapsed" was produced and could not be selected
 var lifecycleStages = map[string]bool{
-	"prospect": true, "new": true, "active": true, "at_risk": true, "dormant": true,
+	"prospect": true, "new": true, "active": true, "at_risk": true, "lapsed": true,
 }
 
 // Decodes and validates the JSONB payload - unknown keys are rejected, so a typo'd condition fails at save time rather than silently at refresh time
@@ -118,8 +122,21 @@ func (c *RuleCondition) validate() error {
 	return nil
 }
 
+// SignalsConditions returns the conditions that read customer_traits, keyed by their index in the rule set
+// Those live in the signals database now, so they cannot be a subquery here and are resolved to an id set first
+func (r *Rules) SignalsConditions() map[int]RuleCondition {
+	out := map[int]RuleCondition{}
+	for i, c := range r.Conditions {
+		if synapseRuleKinds[c.Kind] {
+			out[i] = c
+		}
+	}
+	return out
+}
+
 // Turns validated rules into a customer-id query - all values are bind args, and the SQL text is assembled ONLY from the allowlisted fragments above, so operator input never reaches the SQL string
-func (r *Rules) Compile() (string, []any) {
+// resolved carries the customer ids for each trait condition, by index - an empty set matches nobody, which is what an unreachable signals database should mean
+func (r *Rules) Compile(resolved map[int][]uuid.UUID) (string, []any) {
 	joiner := " AND "
 	if r.Logic == "or" {
 		joiner = " OR "
@@ -132,20 +149,16 @@ func (r *Rules) Compile() (string, []any) {
 		args = append(args, v)
 		return fmt.Sprintf("$%d", len(args))
 	}
-	for _, c := range r.Conditions {
+	for i, c := range r.Conditions {
 		switch c.Kind {
-		case "trait":
-			preds = append(preds, fmt.Sprintf(
-				"EXISTS (SELECT 1 FROM customer_traits t WHERE t.customer_id = c.id AND t.%s %s %s)",
-				traitFields[c.Field], numericOps[c.Op], arg(c.Value)))
-		case "lifecycle":
-			op := "="
-			if c.Op == "neq" {
-				op = "<>"
+		case "trait", "lifecycle":
+			// Already resolved against the signals database - the ids come in as one bind arg rather than a join
+			ids := resolved[i]
+			if len(ids) == 0 {
+				preds = append(preds, "FALSE")
+				continue
 			}
-			preds = append(preds, fmt.Sprintf(
-				"EXISTS (SELECT 1 FROM customer_traits t WHERE t.customer_id = c.id AND t.lifecycle_stage %s %s)",
-				op, arg(c.Stage)))
+			preds = append(preds, "c.id = ANY("+arg(pq.Array(ids))+")")
 		case "order_count":
 			window := ""
 			if c.Days > 0 {
