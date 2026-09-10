@@ -13,7 +13,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
 	"github.com/skeletg/skelet/apps/backend/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/internal/ptr"
-	"github.com/skeletg/skelet/apps/backend/internal/segment"
 )
 
 // Codes are NOT hydrated here - the PromotionRule.codes field resolver loads them lazily so list pages cost one SELECT count instead of N+1 code fetches
@@ -378,26 +377,6 @@ func (r *promotionRuleResolver) loadPromotionMedia(ctx context.Context, mediaID 
 		return nil, nil
 	}
 	return toMediaAssetModel(asset), nil
-}
-
-func segmentToModel(s segment.Segment, memberCount int32) *model.CustomerSegment { // the caller fetches memberCount so a list doesn't COUNT(*) per row
-	m := &model.CustomerSegment{
-		ID:          s.ID.String(),
-		Slug:        s.Slug,
-		Name:        s.Name,
-		Description: s.Description,
-		IsActive:    s.IsActive,
-		MemberCount: memberCount,
-		CreatedAt:   s.CreatedAt,
-		UpdatedAt:   s.UpdatedAt,
-	}
-	if len(s.Rules) > 0 {
-		var out any
-		if err := json.Unmarshal(s.Rules, &out); err == nil {
-			m.Rules = out
-		}
-	}
-	return m
 }
 
 // Blank lines and `#`-prefixed ones are skipped so admins can annotate their CSV uploads

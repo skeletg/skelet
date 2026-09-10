@@ -129,6 +129,7 @@ func run() error {
 		Experiment:  d.Experiment,
 		Lens:        lensSvc,
 		Destination: destSvc,
+		Segment:     d.Segment,
 		Roster:      signalsdb.New(sigConn),
 		JWTSecret:   d.Config.JWTSecret,
 		Dev:         d.Config.IsDev(),

@@ -45,14 +45,8 @@ import {
   type FlowCondition,
   type FlowNodeData,
 } from './flowTypes'
-import {
-  CreateFlowDocument,
-  FlowDocument,
-  FlowSegmentsDocument,
-  FlowTriggerTypesDocument,
-  SetFlowStatusDocument,
-  UpdateFlowDocument,
-} from './Flows.gql'
+import { CreateFlowDocument, FlowDocument, FlowTriggerTypesDocument, SetFlowStatusDocument, UpdateFlowDocument } from './Flows.gql'
+import { FlowSegmentsDocument } from './Flows.signals.gql'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',

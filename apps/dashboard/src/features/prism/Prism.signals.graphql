@@ -98,3 +98,10 @@ mutation UpdateExperiment($id: ID!, $input: SaveExperimentInput!) {
 mutation DeleteExperiment($id: ID!) {
   deleteExperiment(id: $id)
 }
+
+query PrismSegments {
+  experimentSegments {
+    slug
+    name
+  }
+}

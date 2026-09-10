@@ -2,6 +2,7 @@
 
 scalar Time
 scalar Int64
+scalar JSON
 
 type Query
 type Mutation

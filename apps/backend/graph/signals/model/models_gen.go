@@ -36,6 +36,36 @@ type BotTraffic struct {
 	Daily      []*BotDayPoint `json:"daily"`
 }
 
+type CreateCustomerSegmentInput struct {
+	Slug        string  `json:"slug"`
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	IsActive    *bool   `json:"isActive,omitempty"`
+}
+
+type CustomerSegment struct {
+	ID          string                   `json:"id"`
+	Slug        string                   `json:"slug"`
+	Name        string                   `json:"name"`
+	Description string                   `json:"description"`
+	IsActive    bool                     `json:"isActive"`
+	MemberCount int32                    `json:"memberCount"`
+	Members     []*CustomerSegmentMember `json:"members"`
+	Rules       any                      `json:"rules,omitempty"`
+	CreatedAt   time.Time                `json:"createdAt"`
+	UpdatedAt   time.Time                `json:"updatedAt"`
+}
+
+type CustomerSegmentList struct {
+	Items      []*CustomerSegment `json:"items"`
+	TotalCount int32              `json:"totalCount"`
+}
+
+type CustomerSegmentMember struct {
+	ID       string    `json:"id"`
+	JoinedAt time.Time `json:"joinedAt"`
+}
+
 type EventDestination struct {
 	ID              string     `json:"id"`
 	ChannelID       string     `json:"channelId"`
@@ -316,4 +346,17 @@ type SaveExperimentInput struct {
 	GoalEvent   string                      `json:"goalEvent"`
 	SegmentSlug *string                     `json:"segmentSlug,omitempty"`
 	Variations  []*ExperimentVariationInput `json:"variations"`
+}
+
+type SegmentOption struct {
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
+type UpdateCustomerSegmentInput struct {
+	ID          string  `json:"id"`
+	Slug        *string `json:"slug,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	IsActive    *bool   `json:"isActive,omitempty"`
 }

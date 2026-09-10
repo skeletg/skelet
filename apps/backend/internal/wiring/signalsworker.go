@@ -13,6 +13,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/internal/secrets"
+	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
 )
 
@@ -26,6 +27,7 @@ var SignalsCore = fx.Module("signalscore",
 		newAllowPrivateTargets,
 		newDestinationService,
 		newExperimentService, // Prism's admin API is served here, not by cmd/server
+		newSegmentService,    // segments are a Signals capability, administered from this API
 		newValkey,            // optional - without it a killed session keeps working here until its token expires
 		newSecretsCipher,     // this process is env-checked for CONFIG_ENCRYPTION_KEY, so it has to be able to read a secret path
 	),
@@ -57,6 +59,7 @@ type SignalsDeps struct { // not wiring.Infra on purpose - this process needs a 
 	Lens               *lens.Service
 	Destination        *destination.Service
 	Experiment         *experiment.Service
+	Segment            *segment.Service
 	Valkey             *redis.Client `optional:"true"`
 }
 
