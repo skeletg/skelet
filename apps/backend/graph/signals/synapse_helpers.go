@@ -1,4 +1,4 @@
-package admin
+package signals
 
 import (
 	"context"
@@ -7,25 +7,22 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/signals/model"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
-	"github.com/skeletg/skelet/apps/backend/internal/customer"
-	"github.com/skeletg/skelet/apps/backend/internal/order"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
-	"github.com/skeletg/skelet/apps/backend/internal/subscription"
 )
 
 // Needs the permission globally AND on the channel (mirrors lensViewScope) - RequirePermission alone ignores channel grants, letting a channel-A admin read channel B analytics by passing B id
 func synapseScope(ctx context.Context, r *Resolver, perm, channelID string) (uuid.UUID, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, perm); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), perm); err != nil {
 		return uuid.Nil, err
 	}
 	cid, err := uuid.Parse(channelID)
 	if err != nil {
 		return uuid.Nil, errInvalidID("channelId", err)
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, perm, cid, nil); err != nil {
+	if err := auth.RequireChannelPermission(ctx, auth.GrantCheckerFrom(ctx), perm, cid, nil); err != nil {
 		return uuid.Nil, err
 	}
 	return cid, nil
@@ -33,7 +30,7 @@ func synapseScope(ctx context.Context, r *Resolver, perm, channelID string) (uui
 
 // Gates on the channel in the segment's stored definition - shared by the detail query and the per-segment mutations so a segment id can never reach another channel's members
 func synapseSegmentScope(ctx context.Context, r *Resolver, segmentID, perm string) (segment.Segment, segmentDef, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, perm); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), perm); err != nil {
 		return segment.Segment{}, segmentDef{}, err
 	}
 	sid, err := uuid.Parse(segmentID)
@@ -52,7 +49,7 @@ func synapseSegmentScope(ctx context.Context, r *Resolver, segmentID, perm strin
 	if err != nil {
 		return segment.Segment{}, segmentDef{}, fmt.Errorf("segment has no valid channel")
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, perm, cid, nil); err != nil {
+	if err := auth.RequireChannelPermission(ctx, auth.GrantCheckerFrom(ctx), perm, cid, nil); err != nil {
 		return segment.Segment{}, segmentDef{}, err
 	}
 	return seg, def, nil
@@ -249,20 +246,17 @@ func traitFromInput(in *model.SegmentTraitInput) *segTrait {
 	return t
 }
 
-// The tracked flag lives on the catalog - analytics only aggregates the values
 func synapseAffinityAttrs(ctx context.Context, r *Resolver) []analytics.AffinityAttr {
-	if r.CatalogSvc == nil {
+	if r.Commerce == nil {
 		return nil
 	}
-	attrs, err := r.CatalogSvc.ListAttributes(ctx)
+	attrs, err := r.Commerce.ListSynapseTrackedAttributes(ctx)
 	if err != nil {
 		return nil
 	}
-	out := make([]analytics.AffinityAttr, 0)
+	out := make([]analytics.AffinityAttr, 0, len(attrs))
 	for _, a := range attrs {
-		if a.SynapseTrack {
-			out = append(out, analytics.AffinityAttr{Slug: a.Slug, Name: a.Name})
-		}
+		out = append(out, analytics.AffinityAttr{Slug: a.Slug, Name: a.Name})
 	}
 	return out
 }
@@ -293,64 +287,7 @@ func customerTraitsModel(t analytics.CustomerTraits) *model.CustomerTraits {
 	}
 }
 
-const marketingConsentKind = "marketing_email" // slug registered in internal/consent/defaults.go
-
 // Composed from existing services rather than new SQL - lifetime spend is per-currency and excludes cancelled/draft
-func buildCustomerCommerce(ctx context.Context, r *Resolver, cid uuid.UUID, cust customer.Customer) (*model.CustomerCommerce, error) {
-	out := &model.CustomerCommerce{Spend: []*model.AttributedRevenue{}, MemberSince: cust.CreatedAt}
-	if cust.Group != nil {
-		out.Group = cust.Group.Name
-	}
-
-	orders, err := r.OrderSvc.ListOrdersByCustomer(ctx, cid)
-	if err != nil {
-		return nil, err
-	}
-	type acc struct {
-		cents int64
-		n     int32
-	}
-	byCur := map[string]*acc{}
-	for _, o := range orders {
-		if o.Status == order.OrderStatusCancelled || o.Status == order.OrderStatusDraft {
-			continue
-		}
-		out.Orders++
-		a := byCur[o.CurrencyCode]
-		if a == nil {
-			a = &acc{}
-			byCur[o.CurrencyCode] = a
-		}
-		a.cents += o.TotalAmount
-		a.n++
-		t := o.CreatedAt
-		if out.FirstOrderAt == nil || t.Before(*out.FirstOrderAt) {
-			ft := t
-			out.FirstOrderAt = &ft
-		}
-		if out.LastOrderAt == nil || t.After(*out.LastOrderAt) {
-			lt := t
-			out.LastOrderAt = &lt
-		}
-		if rets, e := r.OrderSvc.ListReturns(ctx, o.ID); e == nil {
-			out.Returns += int32(len(rets))
-		}
-	}
-	for cur, a := range byCur {
-		out.Spend = append(out.Spend, &model.AttributedRevenue{Currency: cur, Cents: int(a.cents), Orders: a.n})
-	}
-
-	if subs, e := r.SubscriptionSvc.ListForCustomer(ctx, cid); e == nil {
-		for _, s := range subs {
-			if s.Status == subscription.StatusActive {
-				out.ActiveSubscriptions++
-			}
-		}
-	}
-	out.MarketingOptedIn, _ = r.ConsentSvc.IsOptedIn(ctx, cid, marketingConsentKind)
-	return out, nil
-}
-
 // Shared by customerProfile and visitorProfile - the anonymous side reuses the same aggregates+timeline shape
 func profileToModel(p analytics.Profile) *model.CustomerProfile {
 	out := &model.CustomerProfile{

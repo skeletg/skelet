@@ -1,4 +1,4 @@
-package admin
+package signals
 
 import (
 	"context"
@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
-	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/graph/signals/model"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
 )
@@ -17,9 +16,6 @@ import (
 // The definition (channel + conditions) rides as JSON in the segment's reserved refresh_sql column - what comes out is a normal customer segment, targetable by campaigns + flows
 // The update path only accepts behavioral segments in the same channel, so a segment id can't hijack a hand-managed audience or another channel's
 func (r *mutationResolver) SynapseSaveSegment(ctx context.Context, channelID string, name string, segmentID *string, root *model.SegmentNodeInput, conditions []*model.SegmentConditionInput, trait *model.SegmentTraitInput, affinity *model.SegmentAffinityInput) (*model.SynapseSegment, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	if _, err := synapseScope(ctx, r.Resolver, "customers.manage", channelID); err != nil {
 		return nil, err
 	}
@@ -73,9 +69,6 @@ func (r *mutationResolver) SynapseSaveSegment(ctx context.Context, channelID str
 }
 
 func (r *mutationResolver) SynapseRefreshSegment(ctx context.Context, segmentID string) (*model.SynapseSegment, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	seg, def, err := synapseSegmentScope(ctx, r.Resolver, segmentID, "customers.manage") // .manage not .view - a refresh rewrites campaign/flow targeting
 	if err != nil {
 		return nil, err
@@ -92,9 +85,6 @@ func (r *mutationResolver) SynapseRefreshSegment(ctx context.Context, segmentID 
 
 // nil windows clears the override - members otherwise get these in place of the channel default, shortest wins across segments
 func (r *mutationResolver) SynapseSetSegmentLifecycleWindows(ctx context.Context, segmentID string, windows *model.SegmentLifecycleWindowsInput) (*model.SynapseSegment, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	seg, _, err := synapseSegmentScope(ctx, r.Resolver, segmentID, "customers.manage")
 	if err != nil {
 		return nil, err
@@ -116,12 +106,33 @@ func (r *mutationResolver) SynapseSetSegmentLifecycleWindows(ctx context.Context
 	return synapseSegmentModel(seg, int(count)), nil
 }
 
+func (r *queryResolver) CustomerProfile(ctx context.Context, customerID string, sinceDays *int32) (*model.CustomerProfile, error) {
+	cid, err := r.scopedCustomer(ctx, customerID)
+	if err != nil {
+		return nil, err
+	}
+	days := synapseDays(sinceDays, 90, 365)
+	since := time.Now().AddDate(0, 0, -int(days))
+	p, err := r.AnalyticsSvc.CustomerProfile(ctx, cid, since)
+	if err != nil {
+		return nil, err
+	}
+	m := profileToModel(p)
+	if t, ok, terr := r.AnalyticsSvc.CustomerTraits(ctx, cid); terr == nil && ok { // RFM / lifecycle / engagement, present only once a trait-compute run has covered this customer
+		m.Traits = customerTraitsModel(t)
+	}
+	if arms, aerr := r.AnalyticsSvc.CustomerExperiments(ctx, cid, since); aerr == nil { // Prism arms reach a customer only through identity stitching
+		m.Experiments = experimentArmsModel(arms)
+	}
+	if affs, aerr := r.AnalyticsSvc.CustomerAffinities(ctx, cid, since, synapseAffinityAttrs(ctx, r.Resolver)); aerr == nil {
+		m.Affinities = affinityModels(affs)
+	}
+	return m, nil
+}
+
 // Member names are resolved here because the analytics package can't import customer
 // Gated on the channel in the stored definition, not globally - the member list carries names/emails/spend, so a bare global check would let any admin enumerate segment ids across channels
 func (r *queryResolver) SynapseSegment(ctx context.Context, id string) (*model.SynapseSegmentDetail, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	seg, def, err := synapseSegmentScope(ctx, r.Resolver, id, "customers.view")
 	if err != nil {
 		return nil, err
@@ -138,28 +149,15 @@ func (r *queryResolver) SynapseSegment(ctx context.Context, id string) (*model.S
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]uuid.UUID, 0, len(memRows))
-	for _, m := range memRows {
-		ids = append(ids, m.CustomerID)
-	}
-	names, _ := r.CustomerSvc.GetByIDs(ctx, ids)
 	members := make([]*model.SegmentMember, 0, len(memRows))
 	for _, m := range memRows {
-		name, email := "(unknown)", ""
-		if c, ok := names[m.CustomerID]; ok {
-			name = strings.TrimSpace(c.FirstName + " " + c.LastName)
-			email = c.Email
-			if name == "" {
-				name = c.Email
-			}
-		}
 		var last *time.Time
 		if !m.LastOrderAt.IsZero() {
 			t := m.LastOrderAt
 			last = &t
 		}
 		members = append(members, &model.SegmentMember{
-			CustomerID: m.CustomerID.String(), Name: name, Email: email, Lifecycle: m.Lifecycle,
+			CustomerID: m.CustomerID.String(), Lifecycle: m.Lifecycle,
 			RecencyDays: int32(m.RecencyDays), Orders: int32(m.Orders), SpendCents: int(m.SpendCents), LastOrderAt: last,
 		})
 	}
@@ -224,9 +222,6 @@ func (r *queryResolver) SynapseSegment(ctx context.Context, id string) (*model.S
 
 // Active-customer names are resolved here - the analytics package is a leaf and can't import customer
 func (r *queryResolver) SynapseOverview(ctx context.Context, channelID string, sinceDays *int32) (*model.SynapseOverview, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	cid, err := synapseScope(ctx, r.Resolver, "customers.view", channelID)
 	if err != nil {
 		return nil, err
@@ -236,12 +231,6 @@ func (r *queryResolver) SynapseOverview(ctx context.Context, channelID string, s
 	if err != nil {
 		return nil, err
 	}
-
-	ids := make([]uuid.UUID, 0, len(ov.ActiveCustomers))
-	for _, c := range ov.ActiveCustomers {
-		ids = append(ids, c.CustomerID)
-	}
-	names, _ := r.CustomerSvc.GetByIDs(ctx, ids)
 
 	out := &model.SynapseOverview{
 		TotalEvents:         int32(ov.TotalEvents),
@@ -261,16 +250,9 @@ func (r *queryResolver) SynapseOverview(ctx context.Context, channelID string, s
 		out.TopEvents = append(out.TopEvents, &model.CustomerEventCount{Name: e.Name, Count: int32(e.Count)})
 	}
 	for _, c := range ov.ActiveCustomers {
-		name, email := "(unknown)", ""
-		if cust, ok := names[c.CustomerID]; ok {
-			name = cust.FirstName + " " + cust.LastName
-			email = cust.Email
-		}
 		seen := c.LastSeen
 		out.ActiveCustomers = append(out.ActiveCustomers, &model.SynapseActiveCustomer{
 			CustomerID: c.CustomerID.String(),
-			Name:       name,
-			Email:      email,
 			Events:     int32(c.Events),
 			LastSeen:   &seen,
 		})
@@ -289,9 +271,6 @@ func (r *queryResolver) SynapseOverview(ctx context.Context, channelID string, s
 
 // Values observed over the last 90d, so the segment builder's affinity picker offers real attributes/values rather than free text
 func (r *queryResolver) SynapseTrackedAttributes(ctx context.Context, channelID string) ([]*model.SynapseTrackedAttribute, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	cid, err := synapseScope(ctx, r.Resolver, "customers.view", channelID)
 	if err != nil {
 		return nil, err
@@ -312,9 +291,6 @@ func (r *queryResolver) SynapseTrackedAttributes(ctx context.Context, channelID 
 }
 
 func (r *queryResolver) SynapseSegments(ctx context.Context, channelID string) ([]*model.SynapseSegment, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	if _, err := synapseScope(ctx, r.Resolver, "customers.view", channelID); err != nil {
 		return nil, err
 	}
@@ -339,9 +315,6 @@ func (r *queryResolver) SynapseSegments(ctx context.Context, channelID string) (
 }
 
 func (r *queryResolver) SynapseSegmentPreview(ctx context.Context, channelID string, root *model.SegmentNodeInput, conditions []*model.SegmentConditionInput, trait *model.SegmentTraitInput, affinity *model.SegmentAffinityInput) (int32, error) {
-	if err := r.requireSignals(); err != nil {
-		return 0, err
-	}
 	if _, err := synapseScope(ctx, r.Resolver, "customers.view", channelID); err != nil {
 		return 0, err
 	}
@@ -354,9 +327,6 @@ func (r *queryResolver) SynapseSegmentPreview(ctx context.Context, channelID str
 }
 
 func (r *queryResolver) SynapseFunnel(ctx context.Context, channelID string, steps []string, sinceDays *int32) (*model.SynapseFunnel, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	cid, err := synapseScope(ctx, r.Resolver, "customers.view", channelID)
 	if err != nil {
 		return nil, err
@@ -380,9 +350,6 @@ func (r *queryResolver) SynapseFunnel(ctx context.Context, channelID string, ste
 }
 
 func (r *queryResolver) SynapseFlow(ctx context.Context, channelID string, event string, sinceDays *int32, depth *int32) (*model.SynapseFlow, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	cid, err := synapseScope(ctx, r.Resolver, "customers.view", channelID)
 	if err != nil {
 		return nil, err
@@ -420,9 +387,6 @@ func (r *queryResolver) SynapseFlow(ctx context.Context, channelID string, event
 }
 
 func (r *queryResolver) SynapseStickiness(ctx context.Context, channelID string, event *string, sinceDays *int32, windowDays *int32) (*model.SynapseStickiness, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	cid, err := synapseScope(ctx, r.Resolver, "customers.view", channelID)
 	if err != nil {
 		return nil, err
@@ -456,9 +420,6 @@ func (r *queryResolver) SynapseStickiness(ctx context.Context, channelID string,
 }
 
 func (r *queryResolver) SynapseInsights(ctx context.Context, channelID string, event *string, breakdown *string, measure *string, unit *string, sinceDays *int32) (*model.SynapseInsights, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	cid, err := synapseScope(ctx, r.Resolver, "customers.view", channelID)
 	if err != nil {
 		return nil, err
@@ -494,9 +455,6 @@ func (r *queryResolver) SynapseInsights(ctx context.Context, channelID string, e
 }
 
 func (r *queryResolver) SynapseRetention(ctx context.Context, channelID string, startEvent string, returnEvent string, sinceDays *int32, periods *int32, unit *string) (*model.SynapseRetention, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	cid, err := synapseScope(ctx, r.Resolver, "customers.view", channelID)
 	if err != nil {
 		return nil, err
@@ -541,9 +499,6 @@ func (r *queryResolver) SynapseRetention(ctx context.Context, channelID string, 
 
 // Gated on the channel the operator reached the visitor from, not globally - the profile carries IPs/pages, so a bare global check would expose any visitor to any channel-scoped admin
 func (r *queryResolver) VisitorProfile(ctx context.Context, channelID string, anonID string, sinceDays *int32) (*model.CustomerProfile, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
 	if _, err := synapseScope(ctx, r.Resolver, "customers.view", channelID); err != nil {
 		return nil, err
 	}
@@ -561,101 +516,18 @@ func (r *queryResolver) VisitorProfile(ctx context.Context, channelID string, an
 	return m, nil
 }
 
-func (r *queryResolver) CustomerCommerce(ctx context.Context, customerID string) (*model.CustomerCommerce, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.view"); err != nil {
-		return nil, err
-	}
-	cid, err := uuid.Parse(customerID)
+func (r *queryResolver) CustomerAudiences(ctx context.Context, customerID string) ([]*model.SignalSegment, error) {
+	cid, err := r.scopedCustomer(ctx, customerID)
 	if err != nil {
-		return nil, errInvalidID("customerId", err)
-	}
-	cust, err := r.CustomerSvc.GetByID(ctx, cid)
-	if err != nil {
-		return nil, errNotFound("customer")
-	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.view", cust.ChannelID, nil); err != nil {
 		return nil, err
 	}
-	return buildCustomerCommerce(ctx, r.Resolver, cid, cust)
-}
-
-func (r *queryResolver) CustomerSignals(ctx context.Context, customerID string) (*model.CustomerSignals, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.view"); err != nil {
-		return nil, err
-	}
-	cid, err := uuid.Parse(customerID)
-	if err != nil {
-		return nil, errInvalidID("customerId", err)
-	}
-	cust, err := r.CustomerSvc.GetByID(ctx, cid)
-	if err != nil {
-		return nil, errNotFound("customer")
-	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.view", cust.ChannelID, nil); err != nil {
-		return nil, err
-	}
-
-	out := &model.CustomerSignals{
-		Segments: []*model.SignalSegment{},
-		Consents: []*model.SignalConsent{},
-		Email:    &model.SignalEmail{},
-		Flows:    []*model.SignalFlowRun{},
-	}
-
 	segs, err := r.SegmentSvc.SegmentsForCustomer(ctx, cid)
 	if err != nil {
-		return nil, fmt.Errorf("segments: %w", err)
+		return nil, err
 	}
+	out := make([]*model.SignalSegment, 0, len(segs))
 	for _, s := range segs {
-		out.Segments = append(out.Segments, &model.SignalSegment{ID: s.ID.String(), Name: s.Name, Slug: s.Slug})
+		out = append(out, &model.SignalSegment{ID: s.ID.String(), Name: s.Name, Slug: s.Slug})
 	}
-
-	cons, err := r.ConsentSvc.ListForCustomer(ctx, cid) // one row per registered consent definition, opted-in or not
-	if err != nil {
-		return nil, fmt.Errorf("consents: %w", err)
-	}
-	for _, c := range cons {
-		out.Consents = append(out.Consents, &model.SignalConsent{
-			Kind:    c.Definition.Slug,
-			Name:    c.Definition.Name,
-			Channel: string(c.Definition.Channel),
-			Purpose: string(c.Definition.Purpose),
-			OptedIn: c.OptedIn,
-		})
-	}
-
-	eng, err := r.AnalyticsSvc.CustomerEmailEngagement(ctx, cid)
-	if err != nil {
-		return nil, fmt.Errorf("email engagement: %w", err)
-	}
-	out.Email = &model.SignalEmail{
-		Sent:       int32(eng.Sent),
-		Opened:     int32(eng.Opened),
-		Clicked:    int32(eng.Clicked),
-		LastSentAt: eng.LastSentAt,
-		LastOpenAt: eng.LastOpenAt,
-	}
-
-	runs, err := r.FlowSvc.RunsForCustomer(ctx, cid)
-	if err != nil {
-		return nil, fmt.Errorf("flow runs: %w", err)
-	}
-	for _, run := range runs {
-		out.Flows = append(out.Flows, &model.SignalFlowRun{
-			FlowID:     run.FlowID.String(),
-			FlowName:   run.FlowName,
-			Trigger:    run.Trigger,
-			Status:     run.Status,
-			EnrolledAt: run.CreatedAt,
-			UpdatedAt:  run.UpdatedAt,
-		})
-	}
-
 	return out, nil
 }
