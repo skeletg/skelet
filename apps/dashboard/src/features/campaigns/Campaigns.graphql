@@ -76,16 +76,6 @@ query CampaignGroups {
   }
 }
 
-query CampaignSegments {
-  customerSegments {
-    items {
-      id
-      name
-      memberCount
-    }
-  }
-}
-
 mutation CreateEmailCampaign($input: SaveCampaignInput!) {
   createEmailCampaign(input: $input) {
     ...EmailCampaignFields

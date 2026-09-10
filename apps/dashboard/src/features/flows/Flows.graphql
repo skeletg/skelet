@@ -35,15 +35,6 @@ query FlowMergeTags {
   flowMergeTags
 }
 
-query FlowSegments {
-  customerSegments {
-    items {
-      id
-      name
-    }
-  }
-}
-
 mutation CreateFlow($input: SaveFlowInput!) {
   createFlow(input: $input) {
     ...FlowFields

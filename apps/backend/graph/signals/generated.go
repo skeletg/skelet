@@ -67,6 +67,29 @@ type ComplexityRoot struct {
 		TopPages   func(childComplexity int) int
 	}
 
+	CustomerSegment struct {
+		CreatedAt   func(childComplexity int) int
+		Description func(childComplexity int) int
+		ID          func(childComplexity int) int
+		IsActive    func(childComplexity int) int
+		MemberCount func(childComplexity int) int
+		Members     func(childComplexity int, limit *int32, offset *int32) int
+		Name        func(childComplexity int) int
+		Rules       func(childComplexity int) int
+		Slug        func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+	}
+
+	CustomerSegmentList struct {
+		Items      func(childComplexity int) int
+		TotalCount func(childComplexity int) int
+	}
+
+	CustomerSegmentMember struct {
+		ID       func(childComplexity int) int
+		JoinedAt func(childComplexity int) int
+	}
+
 	EventDestination struct {
 		ChannelID       func(childComplexity int) int
 		CreatedAt       func(childComplexity int) int
@@ -315,21 +338,32 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		CreateEventDestination func(childComplexity int, input model.EventDestinationInput) int
-		CreateExperiment       func(childComplexity int, input model.SaveExperimentInput) int
-		DeleteEventDestination func(childComplexity int, id string) int
-		DeleteExperiment       func(childComplexity int, id string) int
-		SyncAudience           func(childComplexity int, segmentID string, destinationID string) int
-		UpdateEventDestination func(childComplexity int, id string, input model.EventDestinationInput) int
-		UpdateExperiment       func(childComplexity int, id string, input model.SaveExperimentInput) int
+		AssignCustomersToSegment  func(childComplexity int, segmentID string, customerIds []string) int
+		ClearSegmentMembership    func(childComplexity int, segmentID string) int
+		CreateCustomerSegment     func(childComplexity int, input model.CreateCustomerSegmentInput) int
+		CreateEventDestination    func(childComplexity int, input model.EventDestinationInput) int
+		CreateExperiment          func(childComplexity int, input model.SaveExperimentInput) int
+		DeleteCustomerSegment     func(childComplexity int, id string) int
+		DeleteEventDestination    func(childComplexity int, id string) int
+		DeleteExperiment          func(childComplexity int, id string) int
+		RefreshSegment            func(childComplexity int, segmentID string) int
+		RemoveCustomerFromSegment func(childComplexity int, segmentID string, customerID string) int
+		SetSegmentRules           func(childComplexity int, segmentID string, rules interface{}) int
+		SyncAudience              func(childComplexity int, segmentID string, destinationID string) int
+		UpdateCustomerSegment     func(childComplexity int, input model.UpdateCustomerSegmentInput) int
+		UpdateEventDestination    func(childComplexity int, id string, input model.EventDestinationInput) int
+		UpdateExperiment          func(childComplexity int, id string, input model.SaveExperimentInput) int
 	}
 
 	Query struct {
 		BotTraffic           func(childComplexity int, channelID string, sinceDays *int32, bot *string) int
+		CustomerSegment      func(childComplexity int, id string) int
+		CustomerSegments     func(childComplexity int, limit *int32, offset *int32) int
 		EventDestinations    func(childComplexity int, channelID string) int
 		Experiment           func(childComplexity int, id string) int
 		ExperimentGoalEvents func(childComplexity int, channelID string) int
 		ExperimentResults    func(childComplexity int, id string, sinceDays *int32) int
+		ExperimentSegments   func(childComplexity int) int
 		Experiments          func(childComplexity int, channelID string) int
 		ExperimentsOverview  func(childComplexity int, channelID string, sinceDays *int32) int
 		LensCustomerSessions func(childComplexity int, customerID string, limit *int32) int
@@ -348,6 +382,11 @@ type ComplexityRoot struct {
 		LensVisitorSessions  func(childComplexity int, anonID string, limit *int32) int
 		LensVitalsSummary    func(childComplexity int, channelID string, sinceDays *int32) int
 	}
+
+	SegmentOption struct {
+		Name func(childComplexity int) int
+		Slug func(childComplexity int) int
+	}
 }
 
 // endregion ***************************** api!.gotpl *****************************
@@ -362,6 +401,14 @@ type MutationResolver interface {
 	CreateExperiment(ctx context.Context, input model.SaveExperimentInput) (*model.Experiment, error)
 	UpdateExperiment(ctx context.Context, id string, input model.SaveExperimentInput) (*model.Experiment, error)
 	DeleteExperiment(ctx context.Context, id string) (bool, error)
+	CreateCustomerSegment(ctx context.Context, input model.CreateCustomerSegmentInput) (*model.CustomerSegment, error)
+	UpdateCustomerSegment(ctx context.Context, input model.UpdateCustomerSegmentInput) (*model.CustomerSegment, error)
+	DeleteCustomerSegment(ctx context.Context, id string) (bool, error)
+	AssignCustomersToSegment(ctx context.Context, segmentID string, customerIds []string) (bool, error)
+	RemoveCustomerFromSegment(ctx context.Context, segmentID string, customerID string) (bool, error)
+	ClearSegmentMembership(ctx context.Context, segmentID string) (bool, error)
+	SetSegmentRules(ctx context.Context, segmentID string, rules interface{}) (*model.CustomerSegment, error)
+	RefreshSegment(ctx context.Context, segmentID string) (int32, error)
 }
 type QueryResolver interface {
 	EventDestinations(ctx context.Context, channelID string) ([]*model.EventDestination, error)
@@ -386,6 +433,9 @@ type QueryResolver interface {
 	LensVitalsSummary(ctx context.Context, channelID string, sinceDays *int32) ([]*model.LensVital, error)
 	LensSearchAnalytics(ctx context.Context, channelID string, sinceDays *int32) (*model.LensSearchAnalytics, error)
 	LensSessionSignals(ctx context.Context, id string) (*model.LensSessionSignals, error)
+	CustomerSegments(ctx context.Context, limit *int32, offset *int32) (*model.CustomerSegmentList, error)
+	CustomerSegment(ctx context.Context, id string) (*model.CustomerSegment, error)
+	ExperimentSegments(ctx context.Context) ([]*model.SegmentOption, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -517,6 +567,98 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BotTraffic.TopPages(childComplexity), true
+
+	case "CustomerSegment.createdAt":
+		if e.ComplexityRoot.CustomerSegment.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.CreatedAt(childComplexity), true
+	case "CustomerSegment.description":
+		if e.ComplexityRoot.CustomerSegment.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.Description(childComplexity), true
+	case "CustomerSegment.id":
+		if e.ComplexityRoot.CustomerSegment.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.ID(childComplexity), true
+	case "CustomerSegment.isActive":
+		if e.ComplexityRoot.CustomerSegment.IsActive == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.IsActive(childComplexity), true
+	case "CustomerSegment.memberCount":
+		if e.ComplexityRoot.CustomerSegment.MemberCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.MemberCount(childComplexity), true
+	case "CustomerSegment.members":
+		if e.ComplexityRoot.CustomerSegment.Members == nil {
+			break
+		}
+
+		args, err := ec.field_CustomerSegment_members_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.CustomerSegment.Members(childComplexity, args["limit"].(*int32), args["offset"].(*int32)), true
+	case "CustomerSegment.name":
+		if e.ComplexityRoot.CustomerSegment.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.Name(childComplexity), true
+	case "CustomerSegment.rules":
+		if e.ComplexityRoot.CustomerSegment.Rules == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.Rules(childComplexity), true
+	case "CustomerSegment.slug":
+		if e.ComplexityRoot.CustomerSegment.Slug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.Slug(childComplexity), true
+	case "CustomerSegment.updatedAt":
+		if e.ComplexityRoot.CustomerSegment.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.UpdatedAt(childComplexity), true
+
+	case "CustomerSegmentList.items":
+		if e.ComplexityRoot.CustomerSegmentList.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegmentList.Items(childComplexity), true
+	case "CustomerSegmentList.totalCount":
+		if e.ComplexityRoot.CustomerSegmentList.TotalCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegmentList.TotalCount(childComplexity), true
+
+	case "CustomerSegmentMember.id":
+		if e.ComplexityRoot.CustomerSegmentMember.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegmentMember.ID(childComplexity), true
+	case "CustomerSegmentMember.joinedAt":
+		if e.ComplexityRoot.CustomerSegmentMember.JoinedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegmentMember.JoinedAt(childComplexity), true
 
 	case "EventDestination.channelId":
 		if e.ComplexityRoot.EventDestination.ChannelID == nil {
@@ -1507,6 +1649,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.LensVital.Samples(childComplexity), true
 
+	case "Mutation.assignCustomersToSegment":
+		if e.ComplexityRoot.Mutation.AssignCustomersToSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_assignCustomersToSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AssignCustomersToSegment(childComplexity, args["segmentId"].(string), args["customerIds"].([]string)), true
+	case "Mutation.clearSegmentMembership":
+		if e.ComplexityRoot.Mutation.ClearSegmentMembership == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_clearSegmentMembership_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ClearSegmentMembership(childComplexity, args["segmentId"].(string)), true
+	case "Mutation.createCustomerSegment":
+		if e.ComplexityRoot.Mutation.CreateCustomerSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createCustomerSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateCustomerSegment(childComplexity, args["input"].(model.CreateCustomerSegmentInput)), true
 	case "Mutation.createEventDestination":
 		if e.ComplexityRoot.Mutation.CreateEventDestination == nil {
 			break
@@ -1529,6 +1704,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateExperiment(childComplexity, args["input"].(model.SaveExperimentInput)), true
+	case "Mutation.deleteCustomerSegment":
+		if e.ComplexityRoot.Mutation.DeleteCustomerSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteCustomerSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteCustomerSegment(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteEventDestination":
 		if e.ComplexityRoot.Mutation.DeleteEventDestination == nil {
 			break
@@ -1551,6 +1737,39 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteExperiment(childComplexity, args["id"].(string)), true
+	case "Mutation.refreshSegment":
+		if e.ComplexityRoot.Mutation.RefreshSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_refreshSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RefreshSegment(childComplexity, args["segmentId"].(string)), true
+	case "Mutation.removeCustomerFromSegment":
+		if e.ComplexityRoot.Mutation.RemoveCustomerFromSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeCustomerFromSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RemoveCustomerFromSegment(childComplexity, args["segmentId"].(string), args["customerId"].(string)), true
+	case "Mutation.setSegmentRules":
+		if e.ComplexityRoot.Mutation.SetSegmentRules == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setSegmentRules_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetSegmentRules(childComplexity, args["segmentId"].(string), args["rules"].(interface{})), true
 	case "Mutation.syncAudience":
 		if e.ComplexityRoot.Mutation.SyncAudience == nil {
 			break
@@ -1562,6 +1781,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SyncAudience(childComplexity, args["segmentId"].(string), args["destinationId"].(string)), true
+	case "Mutation.updateCustomerSegment":
+		if e.ComplexityRoot.Mutation.UpdateCustomerSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateCustomerSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateCustomerSegment(childComplexity, args["input"].(model.UpdateCustomerSegmentInput)), true
 	case "Mutation.updateEventDestination":
 		if e.ComplexityRoot.Mutation.UpdateEventDestination == nil {
 			break
@@ -1596,6 +1826,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.BotTraffic(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32), args["bot"].(*string)), true
+	case "Query.customerSegment":
+		if e.ComplexityRoot.Query.CustomerSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Query_customerSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.CustomerSegment(childComplexity, args["id"].(string)), true
+	case "Query.customerSegments":
+		if e.ComplexityRoot.Query.CustomerSegments == nil {
+			break
+		}
+
+		args, err := ec.field_Query_customerSegments_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.CustomerSegments(childComplexity, args["limit"].(*int32), args["offset"].(*int32)), true
 	case "Query.eventDestinations":
 		if e.ComplexityRoot.Query.EventDestinations == nil {
 			break
@@ -1640,6 +1892,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ExperimentResults(childComplexity, args["id"].(string), args["sinceDays"].(*int32)), true
+	case "Query.experimentSegments":
+		if e.ComplexityRoot.Query.ExperimentSegments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.ExperimentSegments(childComplexity), true
 	case "Query.experiments":
 		if e.ComplexityRoot.Query.Experiments == nil {
 			break
@@ -1829,6 +2087,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.LensVitalsSummary(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32)), true
 
+	case "SegmentOption.name":
+		if e.ComplexityRoot.SegmentOption.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentOption.Name(childComplexity), true
+	case "SegmentOption.slug":
+		if e.ComplexityRoot.SegmentOption.Slug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentOption.Slug(childComplexity), true
+
 	}
 	return 0, false
 }
@@ -1837,9 +2108,11 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputCreateCustomerSegmentInput,
 		ec.unmarshalInputEventDestinationInput,
 		ec.unmarshalInputExperimentVariationInput,
 		ec.unmarshalInputSaveExperimentInput,
+		ec.unmarshalInputUpdateCustomerSegmentInput,
 	)
 	first := true
 
@@ -2329,9 +2602,88 @@ type LensPageVitals {
 
 scalar Time
 scalar Int64
+scalar JSON
 
 type Query
 type Mutation
+`, BuiltIn: false},
+	{Name: "../schema/signals/segments.graphqls", Input: `# Customer segments, served by the Signals API - audiences are a Signals capability, so core gates promotions and CMS blocks on them only while this service runs
+
+# Customer segments - audiences, which core offers to promotions and CMS blocks only while Signals runs
+# A member row carries the customer id alone, since this service has no customers table to name them from
+# One row of a segment's membership page
+type CustomerSegmentMember {
+  id:       ID!
+  joinedAt: Time!
+}
+
+type CustomerSegment {
+  id:           ID!
+  slug:         String!
+  name:         String!
+  description:  String!
+  isActive:     Boolean!
+  memberCount:  Int!
+  # Newest-first member page - covers manual and dynamic membership alike
+  members(limit: Int = 50, offset: Int = 0): [CustomerSegmentMember!]!
+  # Dynamic-segment condition tree (null = static/manual membership):
+  # { logic: "and"|"or", conditions: [{kind: trait|lifecycle|order_count|
+  # total_spent_cents|last_order_days|consent|group, ...}] }. Compiled to
+  # parameterized SQL server-side - operators never write SQL.
+  rules:        JSON
+  createdAt:    Time!
+  updatedAt:    Time!
+}
+
+type CustomerSegmentList {
+  items:      [CustomerSegment!]!
+  totalCount: Int!
+}
+
+# A segment reduced to what a picker needs - named for Prism, which asked first, and kept so because CMS block visibility calls it too
+type SegmentOption {
+  slug: String!
+  name: String!
+}
+
+input CreateCustomerSegmentInput {
+  slug:        String!
+  name:        String!
+  description: String
+  isActive:    Boolean
+}
+
+input UpdateCustomerSegmentInput {
+  id:          ID!
+  slug:        String
+  name:        String
+  description: String
+  isActive:    Boolean
+}
+
+extend type Query {
+  # Customer segments.
+  customerSegments(limit: Int = 25, offset: Int = 0): CustomerSegmentList!
+  customerSegment(id: ID!): CustomerSegment
+  # Active segments for a targeting picker, which CMS block visibility also calls
+  experimentSegments: [SegmentOption!]!
+}
+
+extend type Mutation {
+  # Customer segments + bulk membership.
+  createCustomerSegment(input: CreateCustomerSegmentInput!): CustomerSegment!
+  updateCustomerSegment(input: UpdateCustomerSegmentInput!): CustomerSegment!
+  deleteCustomerSegment(id: ID!): Boolean!
+  assignCustomersToSegment(segmentId: ID!, customerIds: [ID!]!): Boolean!
+  removeCustomerFromSegment(segmentId: ID!, customerId: ID!): Boolean!
+  clearSegmentMembership(segmentId: ID!): Boolean!
+  # Set (or clear, with null) a segment's dynamic rules; validation
+  # rejects unknown kinds/fields/ops at save time.
+  setSegmentRules(segmentId: ID!, rules: JSON): CustomerSegment!
+  # Recompute a dynamic segment's membership now (also swept by the
+  # 6-hourly synapse-segment-refresh job). Returns the member count.
+  refreshSegment(segmentId: ID!): Int!
+}
 `, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
@@ -2398,6 +2750,52 @@ func (ec *executionContext) childFields_BotTraffic(ctx context.Context, field gr
 		return ec.fieldContext_BotTraffic_daily(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type BotTraffic", field.Name)
+}
+
+func (ec *executionContext) childFields_CustomerSegment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_CustomerSegment_id(ctx, field)
+	case "slug":
+		return ec.fieldContext_CustomerSegment_slug(ctx, field)
+	case "name":
+		return ec.fieldContext_CustomerSegment_name(ctx, field)
+	case "description":
+		return ec.fieldContext_CustomerSegment_description(ctx, field)
+	case "isActive":
+		return ec.fieldContext_CustomerSegment_isActive(ctx, field)
+	case "memberCount":
+		return ec.fieldContext_CustomerSegment_memberCount(ctx, field)
+	case "members":
+		return ec.fieldContext_CustomerSegment_members(ctx, field)
+	case "rules":
+		return ec.fieldContext_CustomerSegment_rules(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_CustomerSegment_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_CustomerSegment_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CustomerSegment", field.Name)
+}
+
+func (ec *executionContext) childFields_CustomerSegmentList(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "items":
+		return ec.fieldContext_CustomerSegmentList_items(ctx, field)
+	case "totalCount":
+		return ec.fieldContext_CustomerSegmentList_totalCount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CustomerSegmentList", field.Name)
+}
+
+func (ec *executionContext) childFields_CustomerSegmentMember(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_CustomerSegmentMember_id(ctx, field)
+	case "joinedAt":
+		return ec.fieldContext_CustomerSegmentMember_joinedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CustomerSegmentMember", field.Name)
 }
 
 func (ec *executionContext) childFields_EventDestination(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -2894,6 +3292,16 @@ func (ec *executionContext) childFields_LensVital(ctx context.Context, field gra
 	return nil, fmt.Errorf("no field named %q was found under type LensVital", field.Name)
 }
 
+func (ec *executionContext) childFields_SegmentOption(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "slug":
+		return ec.fieldContext_SegmentOption_slug(ctx, field)
+	case "name":
+		return ec.fieldContext_SegmentOption_name(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SegmentOption", field.Name)
+}
+
 func (ec *executionContext) childFields___Directive(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "name":
@@ -3010,6 +3418,78 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_CustomerSegment_members_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_assignCustomersToSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "segmentId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["segmentId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "customerIds",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["customerIds"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_clearSegmentMembership_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "segmentId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["segmentId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createCustomerSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.CreateCustomerSegmentInput, error) {
+			return ec.unmarshalNCreateCustomerSegmentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCreateCustomerSegmentInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createEventDestination_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -3035,6 +3515,20 @@ func (ec *executionContext) field_Mutation_createExperiment_args(ctx context.Con
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteCustomerSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -3066,6 +3560,64 @@ func (ec *executionContext) field_Mutation_deleteExperiment_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_refreshSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "segmentId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["segmentId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_removeCustomerFromSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "segmentId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["segmentId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "customerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["customerId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setSegmentRules_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "segmentId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["segmentId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "rules",
+		func(ctx context.Context, v any) (any, error) {
+			return ec.unmarshalOJSON2interface(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["rules"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_syncAudience_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -3085,6 +3637,20 @@ func (ec *executionContext) field_Mutation_syncAudience_args(ctx context.Context
 		return nil, err
 	}
 	args["destinationId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateCustomerSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.UpdateCustomerSegmentInput, error) {
+			return ec.unmarshalNUpdateCustomerSegmentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐUpdateCustomerSegmentInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -3173,6 +3739,42 @@ func (ec *executionContext) field_Query_botTraffic_args(ctx context.Context, raw
 		return nil, err
 	}
 	args["bot"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_customerSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_customerSegments_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
 	return args, nil
 }
 
@@ -4113,6 +4715,357 @@ func (ec *executionContext) fieldContext_BotTraffic_daily(_ context.Context, fie
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _CustomerSegment_id(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_slug(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_slug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_slug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_name(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_description(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_isActive(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_isActive(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsActive, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_isActive(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_memberCount(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_memberCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MemberCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_memberCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_members(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_members(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Members, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.CustomerSegmentMember) graphql.Marshaler {
+			return ec.marshalNCustomerSegmentMember2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegmentMemberᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_members(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CustomerSegment",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegmentMember(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_CustomerSegment_members_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CustomerSegment_rules(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_rules(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rules, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
+			return ec.marshalOJSON2interface(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_rules(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegmentList_items(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegmentList) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegmentList_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.CustomerSegment) graphql.Marshaler {
+			return ec.marshalNCustomerSegment2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegmentᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegmentList_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CustomerSegmentList",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegment(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CustomerSegmentList_totalCount(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegmentList) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegmentList_totalCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegmentList_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegmentList", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegmentMember_id(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegmentMember) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegmentMember_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegmentMember_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegmentMember", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegmentMember_joinedAt(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegmentMember) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegmentMember_joinedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.JoinedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegmentMember_joinedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegmentMember", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _EventDestination_id(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
@@ -8319,6 +9272,364 @@ func (ec *executionContext) fieldContext_Mutation_deleteExperiment(ctx context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createCustomerSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createCustomerSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateCustomerSegment(ctx, fc.Args["input"].(model.CreateCustomerSegmentInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {
+			return ec.marshalNCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegment(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createCustomerSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createCustomerSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateCustomerSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateCustomerSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateCustomerSegment(ctx, fc.Args["input"].(model.UpdateCustomerSegmentInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {
+			return ec.marshalNCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegment(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateCustomerSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateCustomerSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteCustomerSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteCustomerSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteCustomerSegment(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteCustomerSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteCustomerSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_assignCustomersToSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_assignCustomersToSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AssignCustomersToSegment(ctx, fc.Args["segmentId"].(string), fc.Args["customerIds"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_assignCustomersToSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_assignCustomersToSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeCustomerFromSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_removeCustomerFromSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RemoveCustomerFromSegment(ctx, fc.Args["segmentId"].(string), fc.Args["customerId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_removeCustomerFromSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeCustomerFromSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_clearSegmentMembership(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_clearSegmentMembership(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ClearSegmentMembership(ctx, fc.Args["segmentId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_clearSegmentMembership(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_clearSegmentMembership_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setSegmentRules(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setSegmentRules(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetSegmentRules(ctx, fc.Args["segmentId"].(string),
+				func() any {
+					if fc.Args["rules"] == nil {
+						return nil
+					}
+					return fc.Args["rules"].(any)
+				}())
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {
+			return ec.marshalNCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegment(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setSegmentRules(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setSegmentRules_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_refreshSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_refreshSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RefreshSegment(ctx, fc.Args["segmentId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_refreshSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_refreshSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_eventDestinations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -9287,6 +10598,126 @@ func (ec *executionContext) fieldContext_Query_lensSessionSignals(ctx context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_customerSegments(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_customerSegments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().CustomerSegments(ctx, fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerSegmentList) graphql.Marshaler {
+			return ec.marshalNCustomerSegmentList2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegmentList(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_customerSegments(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegmentList(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_customerSegments_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_customerSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_customerSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().CustomerSegment(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {
+			return ec.marshalOCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegment(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_customerSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_customerSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_experimentSegments(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_experimentSegments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().ExperimentSegments(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.SegmentOption) graphql.Marshaler {
+			return ec.marshalNSegmentOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐSegmentOptionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_experimentSegments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SegmentOption(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -9361,6 +10792,52 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _SegmentOption_slug(ctx context.Context, field graphql.CollectedField, obj *model.SegmentOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentOption_slug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentOption_slug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentOption", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SegmentOption_name(ctx context.Context, field graphql.CollectedField, obj *model.SegmentOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentOption_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentOption_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentOption", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql.CollectedField, obj *introspection.Directive) (ret graphql.Marshaler) {
@@ -10422,6 +11899,57 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputCreateCustomerSegmentInput(ctx context.Context, obj any) (model.CreateCustomerSegmentInput, error) {
+	var it model.CreateCustomerSegmentInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"slug", "name", "description", "isActive"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "slug":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("slug"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Slug = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "isActive":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isActive"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsActive = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputEventDestinationInput(ctx context.Context, obj any) (model.EventDestinationInput, error) {
 	var it model.EventDestinationInput
 	if obj == nil {
@@ -10626,6 +12154,64 @@ func (ec *executionContext) unmarshalInputSaveExperimentInput(ctx context.Contex
 				return it, err
 			}
 			it.Variations = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateCustomerSegmentInput(ctx context.Context, obj any) (model.UpdateCustomerSegmentInput, error) {
+	var it model.UpdateCustomerSegmentInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "slug", "name", "description", "isActive"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "slug":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("slug"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Slug = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "isActive":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isActive"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsActive = data
 		}
 	}
 	return it, nil
@@ -10837,6 +12423,175 @@ func (ec *executionContext) _BotTraffic(ctx context.Context, sel ast.SelectionSe
 			}
 		case "daily":
 			out.Values[i] = ec._BotTraffic_daily(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var customerSegmentImplementors = []string{"CustomerSegment"}
+
+func (ec *executionContext) _CustomerSegment(ctx context.Context, sel ast.SelectionSet, obj *model.CustomerSegment) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, customerSegmentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CustomerSegment")
+		case "id":
+			out.Values[i] = ec._CustomerSegment_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "slug":
+			out.Values[i] = ec._CustomerSegment_slug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._CustomerSegment_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._CustomerSegment_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isActive":
+			out.Values[i] = ec._CustomerSegment_isActive(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "memberCount":
+			out.Values[i] = ec._CustomerSegment_memberCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "members":
+			out.Values[i] = ec._CustomerSegment_members(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rules":
+			out.Values[i] = ec._CustomerSegment_rules(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._CustomerSegment_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._CustomerSegment_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var customerSegmentListImplementors = []string{"CustomerSegmentList"}
+
+func (ec *executionContext) _CustomerSegmentList(ctx context.Context, sel ast.SelectionSet, obj *model.CustomerSegmentList) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, customerSegmentListImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CustomerSegmentList")
+		case "items":
+			out.Values[i] = ec._CustomerSegmentList_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalCount":
+			out.Values[i] = ec._CustomerSegmentList_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var customerSegmentMemberImplementors = []string{"CustomerSegmentMember"}
+
+func (ec *executionContext) _CustomerSegmentMember(ctx context.Context, sel ast.SelectionSet, obj *model.CustomerSegmentMember) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, customerSegmentMemberImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CustomerSegmentMember")
+		case "id":
+			out.Values[i] = ec._CustomerSegmentMember_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "joinedAt":
+			out.Values[i] = ec._CustomerSegmentMember_joinedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -12687,6 +14442,62 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createCustomerSegment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createCustomerSegment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateCustomerSegment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateCustomerSegment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteCustomerSegment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteCustomerSegment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "assignCustomersToSegment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_assignCustomersToSegment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeCustomerFromSegment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeCustomerFromSegment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clearSegmentMembership":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_clearSegmentMembership(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setSegmentRules":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setSegmentRules(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "refreshSegment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_refreshSegment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -13212,6 +15023,72 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "customerSegments":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_customerSegments(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "customerSegment":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_customerSegment(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "experimentSegments":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_experimentSegments(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -13225,6 +15102,49 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			})
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var segmentOptionImplementors = []string{"SegmentOption"}
+
+func (ec *executionContext) _SegmentOption(ctx context.Context, sel ast.SelectionSet, obj *model.SegmentOption) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, segmentOptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SegmentOption")
+		case "slug":
+			out.Values[i] = ec._SegmentOption_slug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._SegmentOption_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -13747,6 +15667,81 @@ func (ec *executionContext) marshalNBotTraffic2ᚖgithubᚗcomᚋskeletgᚋskele
 	return ec._BotTraffic(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNCreateCustomerSegmentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCreateCustomerSegmentInput(ctx context.Context, v any) (model.CreateCustomerSegmentInput, error) {
+	res, err := ec.unmarshalInputCreateCustomerSegmentInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCustomerSegment2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegment(ctx context.Context, sel ast.SelectionSet, v model.CustomerSegment) graphql.Marshaler {
+	return ec._CustomerSegment(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCustomerSegment2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegmentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CustomerSegment) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegment(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegment(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CustomerSegment(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCustomerSegmentList2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegmentList(ctx context.Context, sel ast.SelectionSet, v model.CustomerSegmentList) graphql.Marshaler {
+	return ec._CustomerSegmentList(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCustomerSegmentList2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegmentList(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSegmentList) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CustomerSegmentList(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCustomerSegmentMember2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegmentMemberᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CustomerSegmentMember) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCustomerSegmentMember2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegmentMember(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCustomerSegmentMember2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegmentMember(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSegmentMember) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CustomerSegmentMember(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNEventDestination2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐEventDestination(ctx context.Context, sel ast.SelectionSet, v model.EventDestination) graphql.Marshaler {
 	return ec._EventDestination(ctx, sel, &v)
 }
@@ -13967,6 +15962,35 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNID2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNID2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNID2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNID2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalNInt2int32(ctx context.Context, v any) (int32, error) {
@@ -14492,6 +16516,32 @@ func (ec *executionContext) unmarshalNSaveExperimentInput2githubᚗcomᚋskeletg
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNSegmentOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐSegmentOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SegmentOption) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSegmentOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐSegmentOption(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSegmentOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐSegmentOption(ctx context.Context, sel ast.SelectionSet, v *model.SegmentOption) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SegmentOption(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -14551,6 +16601,11 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNUpdateCustomerSegmentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐUpdateCustomerSegmentInput(ctx context.Context, v any) (model.UpdateCustomerSegmentInput, error) {
+	res, err := ec.unmarshalInputUpdateCustomerSegmentInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
@@ -14723,6 +16778,13 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
+func (ec *executionContext) marshalOCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐCustomerSegment(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CustomerSegment(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalOExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋsignalsᚋmodelᚐExperiment(ctx context.Context, sel ast.SelectionSet, v *model.Experiment) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -14780,6 +16842,24 @@ func (ec *executionContext) marshalOInt2ᚖint32(ctx context.Context, sel ast.Se
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalInt32(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOJSON2interface(ctx context.Context, v any) (any, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalAny(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOJSON2interface(ctx context.Context, sel ast.SelectionSet, v any) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalAny(v)
 	return res
 }
 
