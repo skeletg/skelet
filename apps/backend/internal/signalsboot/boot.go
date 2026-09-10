@@ -104,6 +104,10 @@ func (s *Stack) Close() {
 // Lifecycle windows are per-channel so staging matches the catalog's repurchase cadence (tire shop >> consumables), falling back to the registered defaults
 func TraitComputeJob(rec *analytics.Recorder, channels *channel.Service, cfgSvc *config.Service) func(context.Context) error {
 	return func(ctx context.Context) error {
+		// One sync for every channel, ahead of the per-channel recompute the roster drives - a customer missing from it gets no trait row
+		if err := rec.SyncRoster(ctx); err != nil {
+			return err
+		}
 		chs, err := channels.List(ctx)
 		if err != nil {
 			return err

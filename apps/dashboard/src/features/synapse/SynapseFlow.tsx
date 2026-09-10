@@ -12,7 +12,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
-import { type SynapseFlowQuery, SynapseFlowDocument, SynapseOverviewDocument } from './Synapse.gql'
+import { type SynapseFlowQuery, SynapseFlowDocument, SynapseOverviewDocument } from './Synapse.signals.gql'
 
 type FlowNode = { id: string; parentId: string; event: string; depth: number; count: number }
 const nfmt = (n: number) => n.toLocaleString()

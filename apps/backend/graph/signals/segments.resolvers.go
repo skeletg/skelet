@@ -12,6 +12,53 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
 )
 
+func (r *customerSegmentResolver) Members(ctx context.Context, obj *model.CustomerSegment, limit *int32, offset *int32) ([]*model.CustomerSegmentMember, error) {
+	if r.SegmentSvc == nil {
+		return []*model.CustomerSegmentMember{}, nil
+	}
+	checker := auth.GrantCheckerFrom(ctx)
+	if err := auth.RequirePermission(ctx, checker, "promotions.view"); err != nil {
+		return nil, err
+	}
+	// Members are customers, so reading them needs the customers permission too
+	if err := auth.RequirePermission(ctx, checker, "customers.view"); err != nil {
+		return nil, err
+	}
+	perm, err := auth.LoadPermittedChannels(ctx, checker, "customers.view")
+	if err != nil {
+		return nil, err
+	}
+	var channels []uuid.UUID
+	if !perm.Bypass() {
+		channels = perm.IDs()
+		if len(channels) == 0 {
+			return []*model.CustomerSegmentMember{}, nil
+		}
+	}
+	sid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, errInvalidID("segment id", err)
+	}
+	lim := int32(50)
+	if limit != nil && *limit >= 1 && *limit <= 200 {
+		lim = *limit
+	}
+	var off int32
+	if offset != nil && *offset > 0 {
+		off = *offset
+	}
+	rows, err := r.SegmentSvc.ListMembers(ctx, sid, lim, off, channels)
+	if err != nil {
+		return nil, err
+	}
+	// Ids and join dates only - the dashboard labels them from core
+	out := make([]*model.CustomerSegmentMember, len(rows))
+	for i, m := range rows {
+		out[i] = &model.CustomerSegmentMember{ID: m.ID.String(), JoinedAt: m.JoinedAt}
+	}
+	return out, nil
+}
+
 func (r *mutationResolver) CreateCustomerSegment(ctx context.Context, input model.CreateCustomerSegmentInput) (*model.CustomerSegment, error) {
 	if r.SegmentSvc == nil {
 		return nil, errNotConfigured("segments")
@@ -263,84 +310,6 @@ func (r *queryResolver) ExperimentSegments(ctx context.Context) ([]*model.Segmen
 	return out, nil
 }
 
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-/*
-	func (r *Resolver) CustomerSegment() CustomerSegmentResolver { return &customerSegmentResolver{r} }
-func (r *customerSegmentResolver) Members(ctx context.Context, obj *model.CustomerSegment, limit *int32, offset *int32) ([]*model.CustomerSegmentMember, error) {
-	if r.SegmentSvc == nil {
-		return []*model.CustomerSegmentMember{}, nil
-	}
-	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "promotions.view"); err != nil {
-		return nil, err
-	}
-	// Members are customer PII, so reading them needs the customers permission too - segments themselves are global, and gating only on promotions.view let a marketing admin harvest every customer's email by writing a match-everything rule
-	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "customers.view"); err != nil {
-		return nil, err
-	}
-	perm, err := auth.LoadPermittedChannels(ctx, auth.GrantCheckerFrom(ctx), "customers.view")
-	if err != nil {
-		return nil, err
-	}
-	var channels []uuid.UUID
-	if !perm.Bypass() {
-		channels = perm.IDs()
-		if len(channels) == 0 {
-			return []*model.CustomerSegmentMember{}, nil
-		}
-	}
-	sid, err := uuid.Parse(obj.ID)
-	if err != nil {
-		return nil, errInvalidID("segment id", err)
-	}
-	lim := intDeref(limit, 50)
-	if lim < 1 || lim > 200 {
-		lim = 50
-	}
-	rows, err := r.SegmentSvc.ListMembers(ctx, sid, lim, intDeref(offset, 0), channels)
-	if err != nil {
-		return nil, err
-	}
-	// Membership is the signals database and names are commerce, so the row is filled from both
-	ids := make([]uuid.UUID, len(rows))
-	for i, m := range rows {
-		ids[i] = m.ID
-	}
-	byID, err := r.CustomerSvc.GetByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*model.CustomerSegmentMember, len(rows))
-	for i, m := range rows {
-		row := &model.CustomerSegmentMember{ID: m.ID.String(), JoinedAt: m.JoinedAt}
-		if c, ok := byID[m.ID]; ok {
-			row.Email, row.FirstName, row.LastName = c.Email, c.FirstName, c.LastName
-		}
-		out[i] = row
-	}
-	return out, nil
-}
-func segmentToModel(s segment.Segment, memberCount int32) *model.CustomerSegment { // the caller fetches memberCount so a list doesn't COUNT(*) per row
-	m := &model.CustomerSegment{
-		ID:          s.ID.String(),
-		Slug:        s.Slug,
-		Name:        s.Name,
-		Description: s.Description,
-		IsActive:    s.IsActive,
-		MemberCount: memberCount,
-		CreatedAt:   s.CreatedAt,
-		UpdatedAt:   s.UpdatedAt,
-	}
-	if len(s.Rules) > 0 {
-		var out any
-		if err := json.Unmarshal(s.Rules, &out); err == nil {
-			m.Rules = out
-		}
-	}
-	return m
-}
-*/
+func (r *Resolver) CustomerSegment() CustomerSegmentResolver { return &customerSegmentResolver{r} }
+
+type customerSegmentResolver struct{ *Resolver }

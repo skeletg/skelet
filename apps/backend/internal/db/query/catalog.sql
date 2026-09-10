@@ -379,3 +379,7 @@ FROM catalog_product_children pc
 JOIN catalog_products p ON p.id = pc.child_id
 WHERE pc.parent_id = ANY(sqlc.arg(parent_ids)::uuid[])
 ORDER BY pc.parent_id, pc.sort_order, p.url;
+
+-- name: ListSynapseTrackedAttributes :many
+-- Attributes flagged for affinity tracking - Signals wants the slug and label alone, so this stays a narrow read rather than the whole catalog service
+SELECT slug, name, auto_segment FROM catalog_attributes WHERE synapse_track = true ORDER BY slug;

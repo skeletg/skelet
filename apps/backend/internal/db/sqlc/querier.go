@@ -1721,6 +1721,8 @@ type Querier interface {
 	ListSubscriptionsByOrder(ctx context.Context, orderID uuid.NullUUID) ([]Subscription, error)
 	// Dashboard list, newest first, optional reason filter ('' = all) - active only
 	ListSuppressions(ctx context.Context, arg ListSuppressionsParams) ([]ListSuppressionsRow, error)
+	// Attributes flagged for affinity tracking - Signals wants the slug and label alone, so this stays a narrow read rather than the whole catalog service
+	ListSynapseTrackedAttributes(ctx context.Context) ([]ListSynapseTrackedAttributesRow, error)
 	ListTagsByBlogPostIDs(ctx context.Context, postIds []uuid.UUID) ([]ListTagsByBlogPostIDsRow, error)
 	ListTaxRuleConditions(ctx context.Context, ruleID uuid.UUID) ([]TaxRuleCondition, error)
 	ListTaxRuleConditionsByRules(ctx context.Context, ruleIds []uuid.UUID) ([]TaxRuleCondition, error)

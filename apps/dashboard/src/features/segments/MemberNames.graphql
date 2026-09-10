@@ -1,9 +1,0 @@
-# Names for the customer ids a segment's membership carries - the Signals API returns ids only, since it has no customers table
-query SegmentMemberNames($ids: [ID!]!) {
-  customersByIds(ids: $ids) {
-    id
-    firstName
-    lastName
-    email
-  }
-}

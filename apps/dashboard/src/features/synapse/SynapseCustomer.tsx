@@ -9,12 +9,8 @@ import {
 } from '@/components/layout/detail-page'
 import { ActivityProfile } from './ActivityProfile'
 import { CustomerRecordingsSection } from '@/features/lens/SessionList'
-import {
-  CustomerCommerceDocument,
-  CustomerProfileDocument,
-  CustomerSignalsDocument,
-  SynapseCustomerHeaderDocument,
-} from './Synapse.gql'
+import { CustomerCommerceDocument, CustomerSignalsDocument, SynapseCustomerHeaderDocument } from './Synapse.gql'
+import { CustomerAudiencesDocument, CustomerProfileDocument } from './Synapse.signals.gql'
 
 function fmtMoney(cents: number, currency: string): string {
   return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
@@ -146,16 +142,20 @@ function CommerceTile({ label, value, sub }: { label: string; value: string; sub
   )
 }
 
-// SignalsSections renders the cross-Signals 360° data for a customer - Audiences
-// (Synapse segments) + Marketing (Pulse consent, email engagement, automation
-// flows) - Customer-only; reads the customerSignals query - (Lens page-views +
-// Prism experiment arms already live on the behavioural profile below.)
+// SignalsSections renders the cross-Signals 360° data for a customer - Audiences (Synapse segments) + Marketing (Pulse consent, email engagement, automation flows), customer-only
+// Two queries because the halves sit on two surfaces - the audiences are the Signals API's, the marketing rollup is core's
 function SignalsSections({ customerId }: { customerId: string }) {
   const { data, loading, error } = useQuery(CustomerSignalsDocument, {
     variables: { customerId },
     skip: !customerId,
     fetchPolicy: 'cache-and-network',
   })
+  const { data: audData } = useQuery(CustomerAudiencesDocument, {
+    variables: { customerId },
+    skip: !customerId,
+    fetchPolicy: 'cache-and-network',
+  })
+  const audiences = audData?.customerAudiences ?? []
   const s = data?.customerSignals
   if (error) {
     return (
@@ -181,11 +181,11 @@ function SignalsSections({ customerId }: { customerId: string }) {
         title="Audiences"
         description="Segments this customer is a member of - the audiences targetable by campaigns, flows, promotions and experiments."
       >
-        {s.segments.length === 0 ? (
+        {audiences.length === 0 ? (
           <p className="text-sm text-muted-foreground">Not a member of any segment yet.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {s.segments.map((seg) => (
+            {audiences.map((seg) => (
               <Link
                 key={seg.id}
                 to={`/synapse/segments/${seg.id}`}

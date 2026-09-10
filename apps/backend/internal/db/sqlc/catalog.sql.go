@@ -1431,6 +1431,40 @@ func (q *Queries) ListProductTypes(ctx context.Context) ([]ProductType, error) {
 	return items, nil
 }
 
+const listSynapseTrackedAttributes = `-- name: ListSynapseTrackedAttributes :many
+SELECT slug, name, auto_segment FROM catalog_attributes WHERE synapse_track = true ORDER BY slug
+`
+
+type ListSynapseTrackedAttributesRow struct {
+	Slug        string `json:"slug"`
+	Name        string `json:"name"`
+	AutoSegment bool   `json:"auto_segment"`
+}
+
+// Attributes flagged for affinity tracking - Signals wants the slug and label alone, so this stays a narrow read rather than the whole catalog service
+func (q *Queries) ListSynapseTrackedAttributes(ctx context.Context) ([]ListSynapseTrackedAttributesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSynapseTrackedAttributes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSynapseTrackedAttributesRow{}
+	for rows.Next() {
+		var i ListSynapseTrackedAttributesRow
+		if err := rows.Scan(&i.Slug, &i.Name, &i.AutoSegment); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const moveAttributeToGroup = `-- name: MoveAttributeToGroup :exec
 UPDATE catalog_product_type_attributes
 SET group_id = $3
