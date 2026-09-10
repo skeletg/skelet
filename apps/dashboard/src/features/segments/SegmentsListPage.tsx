@@ -41,11 +41,7 @@ import {
   DetailPageLayout,
   DetailPageSection,
 } from '@/components/layout/detail-page'
-import {
-  CreateSegmentDocument,
-  DeleteSegmentDocument,
-  SegmentsPageDocument,
-} from './Segments.gql'
+import { CreateSegmentDocument, DeleteSegmentDocument, SegmentsPageDocument } from './Segments.signals.gql'
 import { summarizeRules, type Rules } from './rules'
 
 type SegmentRow = {

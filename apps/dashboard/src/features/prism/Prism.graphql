@@ -1,7 +1,0 @@
-# The segment-targeting picker, which stayed on the core admin API with the segments themselves - the rest of Prism is in Prism.signals.graphql
-query PrismSegments {
-  experimentSegments {
-    slug
-    name
-  }
-}

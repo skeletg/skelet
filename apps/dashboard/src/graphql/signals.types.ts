@@ -8,6 +8,7 @@ export type Scalars = {
   Int: { input: number; output: number; }
   Float: { input: number; output: number; }
   Int64: { input: number; output: number; }
+  JSON: { input: unknown; output: unknown; }
   Time: { input: string; output: string; }
 };
 
@@ -43,6 +44,45 @@ export type BotTraffic = {
   humanViews: Scalars['Int']['output'];
   pageCount: Scalars['Int']['output'];
   topPages: Array<BotPage>;
+};
+
+export type CreateCustomerSegmentInput = {
+  description?: InputMaybe<Scalars['String']['input']>;
+  isActive?: InputMaybe<Scalars['Boolean']['input']>;
+  name: Scalars['String']['input'];
+  slug: Scalars['String']['input'];
+};
+
+export type CustomerSegment = {
+  __typename?: 'CustomerSegment';
+  createdAt: Scalars['Time']['output'];
+  description: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  isActive: Scalars['Boolean']['output'];
+  memberCount: Scalars['Int']['output'];
+  members: Array<CustomerSegmentMember>;
+  name: Scalars['String']['output'];
+  rules?: Maybe<Scalars['JSON']['output']>;
+  slug: Scalars['String']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
+
+export type CustomerSegmentMembersArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type CustomerSegmentList = {
+  __typename?: 'CustomerSegmentList';
+  items: Array<CustomerSegment>;
+  totalCount: Scalars['Int']['output'];
+};
+
+export type CustomerSegmentMember = {
+  __typename?: 'CustomerSegmentMember';
+  id: Scalars['ID']['output'];
+  joinedAt: Scalars['Time']['output'];
 };
 
 export type EventDestination = {
@@ -341,13 +381,37 @@ export type LensVital = {
 
 export type Mutation = {
   __typename?: 'Mutation';
+  assignCustomersToSegment: Scalars['Boolean']['output'];
+  clearSegmentMembership: Scalars['Boolean']['output'];
+  createCustomerSegment: CustomerSegment;
   createEventDestination: EventDestination;
   createExperiment: Experiment;
+  deleteCustomerSegment: Scalars['Boolean']['output'];
   deleteEventDestination: Scalars['Boolean']['output'];
   deleteExperiment: Scalars['Boolean']['output'];
+  refreshSegment: Scalars['Int']['output'];
+  removeCustomerFromSegment: Scalars['Boolean']['output'];
+  setSegmentRules: CustomerSegment;
   syncAudience: Scalars['Int']['output'];
+  updateCustomerSegment: CustomerSegment;
   updateEventDestination: EventDestination;
   updateExperiment: Experiment;
+};
+
+
+export type MutationAssignCustomersToSegmentArgs = {
+  customerIds: Array<Scalars['ID']['input']>;
+  segmentId: Scalars['ID']['input'];
+};
+
+
+export type MutationClearSegmentMembershipArgs = {
+  segmentId: Scalars['ID']['input'];
+};
+
+
+export type MutationCreateCustomerSegmentArgs = {
+  input: CreateCustomerSegmentInput;
 };
 
 
@@ -361,6 +425,11 @@ export type MutationCreateExperimentArgs = {
 };
 
 
+export type MutationDeleteCustomerSegmentArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationDeleteEventDestinationArgs = {
   id: Scalars['ID']['input'];
 };
@@ -371,9 +440,31 @@ export type MutationDeleteExperimentArgs = {
 };
 
 
+export type MutationRefreshSegmentArgs = {
+  segmentId: Scalars['ID']['input'];
+};
+
+
+export type MutationRemoveCustomerFromSegmentArgs = {
+  customerId: Scalars['ID']['input'];
+  segmentId: Scalars['ID']['input'];
+};
+
+
+export type MutationSetSegmentRulesArgs = {
+  rules?: InputMaybe<Scalars['JSON']['input']>;
+  segmentId: Scalars['ID']['input'];
+};
+
+
 export type MutationSyncAudienceArgs = {
   destinationId: Scalars['ID']['input'];
   segmentId: Scalars['ID']['input'];
+};
+
+
+export type MutationUpdateCustomerSegmentArgs = {
+  input: UpdateCustomerSegmentInput;
 };
 
 
@@ -391,10 +482,13 @@ export type MutationUpdateExperimentArgs = {
 export type Query = {
   __typename?: 'Query';
   botTraffic: BotTraffic;
+  customerSegment?: Maybe<CustomerSegment>;
+  customerSegments: CustomerSegmentList;
   eventDestinations: Array<EventDestination>;
   experiment?: Maybe<Experiment>;
   experimentGoalEvents: Array<Scalars['String']['output']>;
   experimentResults: ExperimentResults;
+  experimentSegments: Array<SegmentOption>;
   experiments: Array<Experiment>;
   experimentsOverview: ExperimentsOverview;
   lensCustomerSessions: Array<LensSession>;
@@ -419,6 +513,17 @@ export type QueryBotTrafficArgs = {
   bot?: InputMaybe<Scalars['String']['input']>;
   channelId: Scalars['ID']['input'];
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryCustomerSegmentArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryCustomerSegmentsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -553,4 +658,18 @@ export type SaveExperimentInput = {
   segmentSlug?: InputMaybe<Scalars['String']['input']>;
   status: Scalars['String']['input'];
   variations: Array<ExperimentVariationInput>;
+};
+
+export type SegmentOption = {
+  __typename?: 'SegmentOption';
+  name: Scalars['String']['output'];
+  slug: Scalars['String']['output'];
+};
+
+export type UpdateCustomerSegmentInput = {
+  description?: InputMaybe<Scalars['String']['input']>;
+  id: Scalars['ID']['input'];
+  isActive?: InputMaybe<Scalars['Boolean']['input']>;
+  name?: InputMaybe<Scalars['String']['input']>;
+  slug?: InputMaybe<Scalars['String']['input']>;
 };

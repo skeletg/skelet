@@ -41,19 +41,8 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { useConfigScope, useUnsavedChangesGuard } from '@/lib/config-scope'
 import type { EmailBlock, EmailStyles } from '@/features/email/blocks'
 import { LibraryEmailsDocument, LibraryEmailDocument } from '@/features/emails/Emails.gql'
-import {
-  CampaignAudienceEstimateDocument,
-  CampaignGroupsDocument,
-  CampaignSegmentsDocument,
-  CampaignVariantStatsDocument,
-  CancelEmailCampaignDocument,
-  CreateEmailCampaignDocument,
-  EmailCampaignDocument,
-  RenderCampaignPreviewDocument,
-  ScheduleEmailCampaignDocument,
-  SendCampaignTestDocument,
-  UpdateEmailCampaignDocument,
-} from './Campaigns.gql'
+import { CampaignAudienceEstimateDocument, CampaignGroupsDocument, CampaignVariantStatsDocument, CancelEmailCampaignDocument, CreateEmailCampaignDocument, EmailCampaignDocument, RenderCampaignPreviewDocument, ScheduleEmailCampaignDocument, SendCampaignTestDocument, UpdateEmailCampaignDocument } from './Campaigns.gql'
+import { CampaignSegmentsDocument } from './Campaigns.signals.gql'
 import { PluginSections } from '@/plugins/detail-sections'
 
 type Draft = {

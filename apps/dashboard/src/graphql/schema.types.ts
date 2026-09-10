@@ -1642,13 +1642,6 @@ export type CreateCustomerGroupInput = {
   slug: Scalars['String']['input'];
 };
 
-export type CreateCustomerSegmentInput = {
-  description?: InputMaybe<Scalars['String']['input']>;
-  isActive?: InputMaybe<Scalars['Boolean']['input']>;
-  name: Scalars['String']['input'];
-  slug: Scalars['String']['input'];
-};
-
 export type CreateDraftOrderInput = {
   billingAddress: AddressInput;
   channelId: Scalars['ID']['input'];
@@ -2127,41 +2120,6 @@ export type CustomerRegisterInput = {
   marketingOptIn?: InputMaybe<Scalars['Boolean']['input']>;
   password: Scalars['String']['input'];
   referralCode?: InputMaybe<Scalars['String']['input']>;
-};
-
-export type CustomerSegment = {
-  __typename?: 'CustomerSegment';
-  createdAt: Scalars['Time']['output'];
-  description: Scalars['String']['output'];
-  id: Scalars['ID']['output'];
-  isActive: Scalars['Boolean']['output'];
-  memberCount: Scalars['Int']['output'];
-  members: Array<CustomerSegmentMember>;
-  name: Scalars['String']['output'];
-  rules?: Maybe<Scalars['JSON']['output']>;
-  slug: Scalars['String']['output'];
-  updatedAt: Scalars['Time']['output'];
-};
-
-
-export type CustomerSegmentMembersArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-};
-
-export type CustomerSegmentList = {
-  __typename?: 'CustomerSegmentList';
-  items: Array<CustomerSegment>;
-  totalCount: Scalars['Int']['output'];
-};
-
-export type CustomerSegmentMember = {
-  __typename?: 'CustomerSegmentMember';
-  email: Scalars['String']['output'];
-  firstName: Scalars['String']['output'];
-  id: Scalars['ID']['output'];
-  joinedAt: Scalars['Time']['output'];
-  lastName: Scalars['String']['output'];
 };
 
 export type CustomerSignals = {
@@ -3039,7 +2997,6 @@ export type Mutation = {
   archiveBlogPost: BlogPost;
   assignAttribute: ProductType;
   assignCMSAttribute: CmsPageType;
-  assignCustomersToSegment: Scalars['Boolean']['output'];
   assignEmailSlot: Scalars['Boolean']['output'];
   assignReviewQuestion: Scalars['Boolean']['output'];
   bulkDeleteCMSPages: BulkCmsPageResult;
@@ -3060,7 +3017,6 @@ export type Mutation = {
   clearProductAttribute: Product;
   clearProductListing: Scalars['Boolean']['output'];
   clearProductMediaRole: Product;
-  clearSegmentMembership: Scalars['Boolean']['output'];
   clearSubscriptionTerms: Product;
   clearWebhookDeadLetters: Scalars['Int']['output'];
   clearWebhookDeliveries: Scalars['Int']['output'];
@@ -3090,7 +3046,6 @@ export type Mutation = {
   createCountry: Country;
   createCurrency: Currency;
   createCustomerGroup: CustomerGroup;
-  createCustomerSegment: CustomerSegment;
   createDraftOrder: Order;
   createEmailCampaign: EmailCampaign;
   createEmailGroup: EmailGroup;
@@ -3156,7 +3111,6 @@ export type Mutation = {
   deleteCurrency: Scalars['Boolean']['output'];
   deleteCustomer: Scalars['Boolean']['output'];
   deleteCustomerGroup: Scalars['Boolean']['output'];
-  deleteCustomerSegment: Scalars['Boolean']['output'];
   deleteEmailBlock: Scalars['Boolean']['output'];
   deleteEmailCampaign: Scalars['Boolean']['output'];
   deleteEmailGroup: Scalars['Boolean']['output'];
@@ -3242,7 +3196,6 @@ export type Mutation = {
   recheckReviewModeration: Review;
   recordOfflinePayment: Order;
   redeliverWebhookDelivery: WebhookQueueItem;
-  refreshSegment: Scalars['Int']['output'];
   refreshToken: AdminAuthPayload;
   refundPayment: Order;
   regenerateIntegrationToken: RegenerateIntegrationTokenPayload;
@@ -3251,7 +3204,6 @@ export type Mutation = {
   rejectReturn: OrderReturn;
   rejectReview: Review;
   releaseOrder: Order;
-  removeCustomerFromSegment: Scalars['Boolean']['output'];
   removeGroupedMember: Product;
   removeKitComponent: Product;
   removeProductChild: Product;
@@ -3349,7 +3301,6 @@ export type Mutation = {
   setRemoteProviderActive: RemoteProvider;
   setReviewCategories: Review;
   setReviewModerationTags: Review;
-  setSegmentRules: CustomerSegment;
   setShippingCarrierCountries: ShippingCarrierAdmin;
   setShippingCarrierEnabled: ShippingCarrierAdmin;
   setSubscriptionTerms: Product;
@@ -3399,7 +3350,6 @@ export type Mutation = {
   updateCountry: Country;
   updateCurrency: Currency;
   updateCustomerGroup: CustomerGroup;
-  updateCustomerSegment: CustomerSegment;
   updateEmailCampaign: EmailCampaign;
   updateFlow: Flow;
   updateGroupedMember: Product;
@@ -3692,12 +3642,6 @@ export type MutationAssignCmsAttributeArgs = {
 };
 
 
-export type MutationAssignCustomersToSegmentArgs = {
-  customerIds: Array<Scalars['ID']['input']>;
-  segmentId: Scalars['ID']['input'];
-};
-
-
 export type MutationAssignEmailSlotArgs = {
   emailId: Scalars['ID']['input'];
   slot: Scalars['String']['input'];
@@ -3800,11 +3744,6 @@ export type MutationClearProductListingArgs = {
 export type MutationClearProductMediaRoleArgs = {
   productId: Scalars['ID']['input'];
   role: ProductMediaRole;
-};
-
-
-export type MutationClearSegmentMembershipArgs = {
-  segmentId: Scalars['ID']['input'];
 };
 
 
@@ -3961,11 +3900,6 @@ export type MutationCreateCurrencyArgs = {
 
 export type MutationCreateCustomerGroupArgs = {
   input: CreateCustomerGroupInput;
-};
-
-
-export type MutationCreateCustomerSegmentArgs = {
-  input: CreateCustomerSegmentInput;
 };
 
 
@@ -4302,11 +4236,6 @@ export type MutationDeleteCustomerArgs = {
 
 
 export type MutationDeleteCustomerGroupArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
-export type MutationDeleteCustomerSegmentArgs = {
   id: Scalars['ID']['input'];
 };
 
@@ -4769,11 +4698,6 @@ export type MutationRedeliverWebhookDeliveryArgs = {
 };
 
 
-export type MutationRefreshSegmentArgs = {
-  segmentId: Scalars['ID']['input'];
-};
-
-
 export type MutationRefreshTokenArgs = {
   token: Scalars['String']['input'];
 };
@@ -4815,12 +4739,6 @@ export type MutationRejectReviewArgs = {
 
 export type MutationReleaseOrderArgs = {
   id: Scalars['ID']['input'];
-};
-
-
-export type MutationRemoveCustomerFromSegmentArgs = {
-  customerId: Scalars['ID']['input'];
-  segmentId: Scalars['ID']['input'];
 };
 
 
@@ -5400,12 +5318,6 @@ export type MutationSetReviewModerationTagsArgs = {
 };
 
 
-export type MutationSetSegmentRulesArgs = {
-  rules?: InputMaybe<Scalars['JSON']['input']>;
-  segmentId: Scalars['ID']['input'];
-};
-
-
 export type MutationSetShippingCarrierCountriesArgs = {
   carrierSlug: Scalars['String']['input'];
   channelId: Scalars['ID']['input'];
@@ -5675,11 +5587,6 @@ export type MutationUpdateCurrencyArgs = {
 export type MutationUpdateCustomerGroupArgs = {
   id: Scalars['ID']['input'];
   input: UpdateCustomerGroupInput;
-};
-
-
-export type MutationUpdateCustomerSegmentArgs = {
-  input: UpdateCustomerSegmentInput;
 };
 
 
@@ -6813,8 +6720,6 @@ export type Query = {
   customerGroup: CustomerGroup;
   customerGroups: Array<CustomerGroup>;
   customerProfile: CustomerProfile;
-  customerSegment?: Maybe<CustomerSegment>;
-  customerSegments: CustomerSegmentList;
   customerSignals: CustomerSignals;
   customers: Array<Customer>;
   customersByIds: Array<Customer>;
@@ -6834,7 +6739,6 @@ export type Query = {
   emailPreflight: Array<EmailWarning>;
   emailRevisions: Array<EmailRevision>;
   emailSuppressions: EmailSuppressionPage;
-  experimentSegments: Array<SegmentOption>;
   exportCustomerData: Scalars['String']['output'];
   flow?: Maybe<Flow>;
   flowConditionKinds: Array<Scalars['String']['output']>;
@@ -7220,17 +7124,6 @@ export type QueryCustomerGroupArgs = {
 export type QueryCustomerProfileArgs = {
   customerId: Scalars['ID']['input'];
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type QueryCustomerSegmentArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
-export type QueryCustomerSegmentsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -8604,12 +8497,6 @@ export type SegmentNodeKind =
   | 'GROUP'
   | 'TRAIT';
 
-export type SegmentOption = {
-  __typename?: 'SegmentOption';
-  name: Scalars['String']['output'];
-  slug: Scalars['String']['output'];
-};
-
 export type SegmentRfmBucket = {
   __typename?: 'SegmentRfmBucket';
   count: Scalars['Int']['output'];
@@ -9480,14 +9367,6 @@ export type UpdateCurrencyInput = {
 export type UpdateCustomerGroupInput = {
   description?: InputMaybe<Scalars['String']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
-};
-
-export type UpdateCustomerSegmentInput = {
-  description?: InputMaybe<Scalars['String']['input']>;
-  id: Scalars['ID']['input'];
-  isActive?: InputMaybe<Scalars['Boolean']['input']>;
-  name?: InputMaybe<Scalars['String']['input']>;
-  slug?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type UpdateGroupedMemberInput = {

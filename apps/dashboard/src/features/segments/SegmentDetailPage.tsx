@@ -39,15 +39,8 @@ import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { SaveRegistryContext, useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
 import { CustomersDocument } from '@/features/customers/Customers.gql'
-import {
-  AssignCustomersToSegmentDocument,
-  ClearSegmentMembershipDocument,
-  RefreshSegmentMembershipDocument,
-  RemoveCustomerFromSegmentDocument,
-  SegmentDetailDocument,
-  SetSegmentRulesDocument,
-  UpdateSegmentDocument,
-} from './Segments.gql'
+import { AssignCustomersToSegmentDocument, ClearSegmentMembershipDocument, RefreshSegmentMembershipDocument, RemoveCustomerFromSegmentDocument, SegmentDetailDocument, SetSegmentRulesDocument, UpdateSegmentDocument } from './Segments.signals.gql'
+import { SegmentMemberNamesDocument } from './MemberNames.gql'
 import { RulesBuilder } from './RulesBuilder'
 import { summarizeRules, type Rules } from './rules'
 import { PluginSections } from '@/plugins/detail-sections'
@@ -61,7 +54,7 @@ type Segment = {
   memberCount: number
   rules: unknown
   updatedAt: string
-  members: { id: string; email: string; firstName: string; lastName: string; joinedAt: string }[]
+  members: { id: string; joinedAt: string }[]
 }
 
 const parseRules = (raw: unknown): Rules | null => {
@@ -77,6 +70,7 @@ export function SegmentDetailPage() {
     skip: !id,
   })
   const segment = data?.customerSegment as Segment | null | undefined
+
 
   const { contextValue, dirtySections, isDirty, saveAll } = useSaveRegistry()
   const [confirmingSave, setConfirmingSave] = useState(false)
@@ -305,6 +299,20 @@ function RulesSection({ segment, refetch }: { segment: Segment; refetch: () => v
 }
 
 function MembersSection({ segment, refetch }: { segment: Segment; refetch: () => void }) {
+  // The Signals API returns member ids and no names, so the labels come from core in one batched follow-up
+  const memberIDs = useMemo(() => segment.members.map((m) => m.id), [segment])
+  const { data: nameData } = useQuery(SegmentMemberNamesDocument, {
+    variables: { ids: memberIDs },
+    skip: memberIDs.length === 0,
+    fetchPolicy: 'cache-first',
+  })
+  const nameById = useMemo(() => {
+    const m = new Map<string, { name: string; email: string }>()
+    for (const c of nameData?.customersByIds ?? []) {
+      m.set(c.id, { name: [c.firstName, c.lastName].filter(Boolean).join(' ').trim(), email: c.email })
+    }
+    return m
+  }, [nameData])
   const dynamic = parseRules(segment.rules) !== null
   const [refresh, { loading: refreshing }] = useMutation(RefreshSegmentMembershipDocument)
   const [removeMember] = useMutation(RemoveCustomerFromSegmentDocument)
@@ -385,9 +393,9 @@ function MembersSection({ segment, refetch }: { segment: Segment; refetch: () =>
             {segment.members.map((m) => (
               <li key={m.id} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <span className="min-w-0 flex-1 truncate">
-                  {m.firstName || m.lastName ? `${m.firstName} ${m.lastName}`.trim() : m.email}
-                  {(m.firstName || m.lastName) && (
-                    <span className="ml-2 text-xs text-muted-foreground">{m.email}</span>
+                  {nameById.get(m.id)?.name || nameById.get(m.id)?.email || m.id.slice(0, 8)}
+                  {nameById.get(m.id)?.name && (
+                    <span className="ml-2 text-xs text-muted-foreground">{nameById.get(m.id)?.email}</span>
                   )}
                 </span>
                 <span className="text-xs text-muted-foreground">
@@ -397,7 +405,7 @@ function MembersSection({ segment, refetch }: { segment: Segment; refetch: () =>
                   variant="ghost"
                   size="sm"
                   className="h-7 px-2 text-xs"
-                  onClick={() => void onRemove(m.id, m.email)}
+                  onClick={() => void onRemove(m.id, nameById.get(m.id)?.email ?? m.id)}
                 >
                   Remove
                 </Button>

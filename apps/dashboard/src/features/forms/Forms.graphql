@@ -42,15 +42,6 @@ query SignupFormSubmissions($formId: ID!, $limit: Int) {
   }
 }
 
-query FormSegments {
-  customerSegments {
-    items {
-      id
-      name
-    }
-  }
-}
-
 mutation CreateSignupForm($input: SaveSignupFormInput!) {
   createSignupForm(input: $input) {
     ...SignupFormFields
