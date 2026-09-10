@@ -1,19 +1,16 @@
-package admin
+package signals
 
 import (
 	"context"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/graph/signals/model"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 func (r *queryResolver) PulseEngagement(ctx context.Context, channelID string, sinceDays *int32) (*model.PulseEngagement, error) {
-	if err := r.requireSignals(); err != nil {
-		return nil, err
-	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "emails.view"); err != nil {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "emails.view"); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)

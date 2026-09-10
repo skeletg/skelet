@@ -10,8 +10,12 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 
 	graphsignals "github.com/skeletg/skelet/apps/backend/graph/signals"
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/internal/graphqlx"
@@ -27,7 +31,11 @@ type SignalsAPI struct {
 	Lens        *lens.Service
 	Destination *destination.Service
 	Segment     *segment.Service
+	Analytics   *analytics.Recorder
+	Channel     *channel.Service
+	Config      *config.Service
 	Roster      *signalsdb.Queries
+	Commerce    *db.Queries
 	JWTSecret   string
 	Dev         bool
 	Telemetry   observability.Telemetry
@@ -38,7 +46,10 @@ type SignalsAPI struct {
 // SignalsGraphQLHandler builds the Signals API handler, already wrapped in its own authentication
 func SignalsGraphQLHandler(a SignalsAPI) http.Handler {
 	srv := handler.New(graphsignals.NewExecutableSchema(graphsignals.Config{
-		Resolvers: &graphsignals.Resolver{ExperimentSvc: a.Experiment, LensSvc: a.Lens, DestinationSvc: a.Destination, SegmentSvc: a.Segment, Roster: a.Roster},
+		Resolvers: &graphsignals.Resolver{
+			ExperimentSvc: a.Experiment, LensSvc: a.Lens, DestinationSvc: a.Destination, SegmentSvc: a.Segment,
+			AnalyticsSvc: a.Analytics, ChannelSvc: a.Channel, ConfigSvc: a.Config, Commerce: a.Commerce, Roster: a.Roster,
+		},
 	}))
 	srv.AddTransport(transport.Options{})
 	srv.AddTransport(transport.GET{})

@@ -40,7 +40,7 @@ import { SaveRegistryContext, useSaveRegistry, useSaveSection } from '@/shared/s
 import { changed, fieldDiff } from '@/shared/saving/diff'
 import { CustomersDocument } from '@/features/customers/Customers.gql'
 import { AssignCustomersToSegmentDocument, ClearSegmentMembershipDocument, RefreshSegmentMembershipDocument, RemoveCustomerFromSegmentDocument, SegmentDetailDocument, SetSegmentRulesDocument, UpdateSegmentDocument } from './Segments.signals.gql'
-import { SegmentMemberNamesDocument } from './MemberNames.gql'
+import { useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { RulesBuilder } from './RulesBuilder'
 import { summarizeRules, type Rules } from './rules'
 import { PluginSections } from '@/plugins/detail-sections'
@@ -299,20 +299,8 @@ function RulesSection({ segment, refetch }: { segment: Segment; refetch: () => v
 }
 
 function MembersSection({ segment, refetch }: { segment: Segment; refetch: () => void }) {
-  // The Signals API returns member ids and no names, so the labels come from core in one batched follow-up
   const memberIDs = useMemo(() => segment.members.map((m) => m.id), [segment])
-  const { data: nameData } = useQuery(SegmentMemberNamesDocument, {
-    variables: { ids: memberIDs },
-    skip: memberIDs.length === 0,
-    fetchPolicy: 'cache-first',
-  })
-  const nameById = useMemo(() => {
-    const m = new Map<string, { name: string; email: string }>()
-    for (const c of nameData?.customersByIds ?? []) {
-      m.set(c.id, { name: [c.firstName, c.lastName].filter(Boolean).join(' ').trim(), email: c.email })
-    }
-    return m
-  }, [nameData])
+  const nameById = useCustomerNames(memberIDs)
   const dynamic = parseRules(segment.rules) !== null
   const [refresh, { loading: refreshing }] = useMutation(RefreshSegmentMembershipDocument)
   const [removeMember] = useMutation(RemoveCustomerFromSegmentDocument)

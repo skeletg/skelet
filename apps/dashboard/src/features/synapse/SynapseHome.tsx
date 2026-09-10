@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import {
@@ -20,8 +20,9 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
+import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { eventLabel } from './eventLabel'
-import { SynapseOverviewDocument, SynapseStickinessDocument } from './Synapse.gql'
+import { SynapseOverviewDocument, SynapseStickinessDocument } from './Synapse.signals.gql'
 
 const ACCENT = '#6366f1'
 const nfmt = (n: number) => n.toLocaleString()
@@ -61,6 +62,8 @@ export function SynapseHome() {
   const eventMix = (ov?.topEvents ?? []).slice(0, 10).map((e) => ({ label: eventLabel(e.name), count: e.count }))
   const audience = (ov?.identifiedCustomers ?? 0) + (ov?.anonymousVisitors ?? 0)
   const maxCust = Math.max(1, ...(ov?.activeCustomers ?? []).map((c) => c.events))
+  const activeCustomerIDs = useMemo(() => (ov?.activeCustomers ?? []).map((c) => c.customerId), [ov])
+  const nameById = useCustomerNames(activeCustomerIDs)
   const maxVis = Math.max(1, ...(ov?.activeVisitors ?? []).map((v) => v.events))
 
   return (
@@ -171,8 +174,8 @@ export function SynapseHome() {
                 rows={ov.activeCustomers.map((c) => ({
                   key: c.customerId,
                   to: `/synapse/customers/${c.customerId}`,
-                  title: c.name,
-                  sub: c.email,
+                  title: customerLabel(nameById.get(c.customerId), c.customerId),
+                  sub: nameById.get(c.customerId)?.email ?? '',
                   events: c.events,
                   lastSeen: c.lastSeen,
                   max: maxCust,

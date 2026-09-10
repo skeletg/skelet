@@ -46,3 +46,7 @@ models:
   JSON:
     model:
       - github.com/99designs/gqlgen/graphql.Any
+  CustomerSegment:
+    fields:
+      # Lazy member page - list rows only carry the count
+      members: { resolver: true }

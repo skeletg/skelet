@@ -12,6 +12,19 @@ The release process, and which version number means what, is in
 
 ### Fixed
 
+- **The customer roster was never synced, so no customer got a trait row.** `SyncRoster` copies
+  every customer into the signals database and the trait recompute is driven off that copy, but
+  nothing in either process called it - the roster stayed empty, `RecomputeChannelTraits` had no
+  rows to compute over, and every RFM score, lifecycle stage and engagement number came back
+  missing. It now runs once at the head of the trait-compute job, ahead of the per-channel
+  recompute.
+
+- **A segment's members list was always empty.** Moving segments onto the Signals API left the
+  `members` field bound to a model field nothing fills, so the segment detail page showed "No
+  members yet" under a header counting them, and `limit`/`offset` were silently ignored. The field
+  resolver is back on that surface, still gated on `customers.view` as well as `promotions.view`
+  and still narrowed to the caller's channels.
+
 - **A paused marketing flow could stop every transactional email on the server.** The flow engine
   claims the oldest 100 runnable runs per tick, and a run whose flow was paused or deleted, or a
   marketing run under `SIGNALS_ENABLED=false`, was claimed and then left exactly as it was. Those
@@ -88,6 +101,15 @@ The release process, and which version number means what, is in
   append-only log cannot retract a row.
 
 ### Added
+
+- **Synapse moved to the Signals API.** The overview, insights, funnels, flows, retention,
+  engagement, behavioural segments and both profile screens are served from
+  `/api/signals/graphql`, along with the Pulse email-engagement rollup. Rows carry customer ids and
+  no names, since that service has no customers table - the dashboard labels them from core in one
+  batched lookup, shared by every Signals screen that shows people. What stays in core is what
+  reads commerce: the profile page's Commerce and Marketing panels, since orders, subscriptions,
+  consent and flow enrollments are core's. A customer's audiences come from `customerAudiences` on
+  the Signals side, beside them.
 
 - **The segment admin API moved to Signals with them.** Creating, editing, refreshing and
   administering audiences all happens on `/api/signals/graphql` now, along with the segment pickers

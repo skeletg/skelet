@@ -15,11 +15,13 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import {
+  type SynapseSegmentQuery,
   SynapseSegmentDocument,
   SynapseSaveSegmentDocument,
   SynapseOverviewDocument,
   SynapseTrackedAttributesDocument,
-} from './Synapse.gql'
+} from './Synapse.signals.gql'
+import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { SegmentTreeBuilder } from './SegmentTreeBuilder'
 import { definitionToTree, nodeComplete, nodeToInput, summarizeNode, type SegNode, type SummaryNode } from './segment-tree'
 
@@ -36,16 +38,8 @@ const fmtDate = (v?: string | null) => {
   return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString(undefined, { dateStyle: 'medium' })
 }
 
-type Member = {
-  customerId: string
-  name: string
-  email: string
-  lifecycle: string
-  recencyDays: number
-  orders: number
-  spendCents: number
-  lastOrderAt?: string | null
-}
+// Derived from the query, so a schema change breaks the build instead of reading undefined at runtime
+type Member = NonNullable<SynapseSegmentQuery['synapseSegment']>['members'][number]
 
 const LIFECYCLE_STYLE: Record<string, string> = {
   new: 'bg-sky-500/10 text-sky-600 border-sky-500/30',
@@ -114,18 +108,21 @@ export function SynapseSegment() {
     return rows
   }, [d?.rfmDistribution])
   const affMax = Math.max(1, ...(d?.topAffinities ?? []).map((a) => a.members))
+  const memberIDs = useMemo(() => (d?.members ?? []).map((m) => m.customerId), [d])
+  const nameById = useCustomerNames(memberIDs)
 
   const columns = useMemo<ColumnDef<Member>[]>(
     () => [
       {
-        accessorKey: 'name',
+        id: 'customer',
+        accessorFn: (m) => customerLabel(nameById.get(m.customerId), m.customerId),
         header: ({ column }) => <DataTableColumnHeader column={column} title="Customer" />,
         cell: ({ row }) => (
           <div className="min-w-0">
             <Link to={`/synapse/customers/${row.original.customerId}`} className="block truncate font-medium hover:underline" title="Open behavioural profile">
-              {row.original.name}
+              {customerLabel(nameById.get(row.original.customerId), row.original.customerId)}
             </Link>
-            <div className="truncate text-xs text-muted-foreground">{row.original.email}</div>
+            <div className="truncate text-xs text-muted-foreground">{nameById.get(row.original.customerId)?.email ?? ''}</div>
           </div>
         ),
       },
@@ -157,7 +154,7 @@ export function SynapseSegment() {
         cell: ({ row }) => <span className="text-xs text-muted-foreground">{fmtDate(row.original.lastOrderAt)}</span>,
       },
     ],
-    [currency],
+    [currency, nameById],
   )
 
   return (
@@ -336,7 +333,7 @@ export function SynapseSegment() {
             >
               <DataTable
                 columns={columns}
-                data={d.members as Member[]}
+                data={d.members}
                 loading={loading}
                 getRowId={(m) => m.customerId}
                 searchPlaceholder="Search members…"

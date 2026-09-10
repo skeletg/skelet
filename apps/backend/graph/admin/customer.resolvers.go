@@ -559,43 +559,6 @@ func (r *queryResolver) CustomerGroup(ctx context.Context, id string) (*model.Cu
 	return toCustomerGroupModel(g), nil
 }
 
-// Cross-channel aggregates plus timeline, stitched across every anon id identified to this customer
-func (r *queryResolver) CustomerProfile(ctx context.Context, customerID string, sinceDays *int32) (*model.CustomerProfile, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.view"); err != nil {
-		return nil, err
-	}
-	cid, err := parseID(customerID, "customer")
-	if err != nil {
-		return nil, err
-	}
-	c, err := r.CustomerSvc.GetByID(ctx, cid)
-	if err != nil {
-		return nil, errNotFound("customer")
-	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.view", c.ChannelID, nil); err != nil {
-		return nil, err
-	}
-	days := int32(90)
-	if sinceDays != nil && *sinceDays > 0 {
-		days = *sinceDays
-	}
-	p, err := r.AnalyticsSvc.CustomerProfile(ctx, cid, time.Now().AddDate(0, 0, -int(days)))
-	if err != nil {
-		return nil, err
-	}
-	m := profileToModel(p)
-	if t, ok, terr := r.AnalyticsSvc.CustomerTraits(ctx, cid); terr == nil && ok { // RFM / lifecycle / engagement, present only once a trait-compute run has covered this customer
-		m.Traits = customerTraitsModel(t)
-	}
-	if arms, aerr := r.AnalyticsSvc.CustomerExperiments(ctx, cid, time.Now().AddDate(0, 0, -int(days))); aerr == nil { // Prism arms reach a customer only through identity stitching
-		m.Experiments = experimentArmsModel(arms)
-	}
-	if affs, aerr := r.AnalyticsSvc.CustomerAffinities(ctx, cid, time.Now().AddDate(0, 0, -int(days)), synapseAffinityAttrs(ctx, r.Resolver)); aerr == nil {
-		m.Affinities = affinityModels(affs)
-	}
-	return m, nil
-}
-
 func (r *queryResolver) ExportCustomerData(ctx context.Context, customerID string) (string, error) {
 	cid, err := parseID(customerID, "customer")
 	if err != nil {

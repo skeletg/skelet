@@ -5,6 +5,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -315,9 +316,7 @@ func toolSegmentDetail(ctx context.Context, r *Resolver, days int, a toolArgs) s
 	// behavioral segments carry it in their stored definition.
 	var segChannel uuid.UUID
 	if seg, err := r.SegmentSvc.Get(ctx, sid); err == nil {
-		if def, ok := parseSegmentDef(seg.RefreshSQL); ok {
-			segChannel, _ = uuid.Parse(def.ChannelID)
-		}
+		segChannel = segmentDefChannel(seg.RefreshSQL)
 	}
 	var b strings.Builder
 	if orders, rev, err := r.AnalyticsSvc.SegmentMemberStats(ctx, sid); err == nil {
@@ -413,7 +412,7 @@ func toolUserFlow(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Ti
 }
 
 func toolListAffinityAttrs(ctx context.Context, r *Resolver) string {
-	attrs := synapseAffinityAttrs(ctx, r)
+	attrs := affinityAttrs(ctx, r)
 	if len(attrs) == 0 {
 		return "No tracked affinity attributes."
 	}
@@ -579,4 +578,30 @@ func formatProfile(label string, p analytics.Profile) string {
 		fmt.Fprintf(&b, "Searches: %s\n", s)
 	}
 	return b.String()
+}
+
+// The Signals API owns the segment-definition grammar - the digest wants one field out of it, the channel the affinity scan has to be bounded by
+// uuid.Nil on a non-behavioral segment, which the affinity call reads as every channel
+func segmentDefChannel(refreshSQL string) uuid.UUID {
+	var def struct {
+		ChannelID string `json:"channelId"`
+	}
+	if json.Unmarshal([]byte(refreshSQL), &def) != nil {
+		return uuid.Nil
+	}
+	id, _ := uuid.Parse(def.ChannelID)
+	return id
+}
+
+// Attributes flagged for affinity tracking - the vocabulary the breakdown tool offers
+func affinityAttrs(ctx context.Context, r *Resolver) []analytics.AffinityAttr {
+	attrs, err := r.Queries.ListSynapseTrackedAttributes(ctx)
+	if err != nil {
+		return nil
+	}
+	out := make([]analytics.AffinityAttr, 0, len(attrs))
+	for _, a := range attrs {
+		out = append(out, analytics.AffinityAttr{Slug: a.Slug, Name: a.Name})
+	}
+	return out
 }

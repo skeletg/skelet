@@ -1,11 +1,8 @@
-# Synapse - the behavioural-analytics / customer-profile product hub. Channel-
-# scoped, gated on customers.view. Per-customer detail is the customerProfile
-# query (surfaced on the customer page's Activity section).
+# Synapse, served by the Signals API - customer intelligence over the event spine
+# Rows carry customer ids and no names, since this service has no customers table - the dashboard labels them from core
 
 type SynapseActiveCustomer {
   customerId: ID!
-  name:       String!
-  email:      String!
   events:     Int!
   lastSeen:   Time
 }
@@ -29,68 +26,6 @@ type SynapseOverview {
   topEvents:           [CustomerEventCount!]!   # event-type breakdown
   activeCustomers:     [SynapseActiveCustomer!]!
   activeVisitors:      [SynapseVisitor!]!        # most-active anonymous visitors
-}
-
-# Commerce/CRM summary for a customer - the operational counterpart to the
-# behavioural customerProfile, shown alongside it on the Synapse customer page.
-type CustomerCommerce {
-  orders:              Int!
-  spend:               [AttributedRevenue!]!   # lifetime spend by currency (excludes cancelled/draft)
-  firstOrderAt:        Time
-  lastOrderAt:         Time
-  returns:             Int!
-  activeSubscriptions: Int!
-  marketingOptedIn:    Boolean!
-  group:               String!
-  memberSince:         Time!
-}
-
-# Cross-Signals rollup for one customer - the data the other suites hold about
-# this person, gathered onto the Synapse profile page so it's the single 360°
-# view. Customer-only (an anonymous visitor has no identity to consent / segment
-# / enroll): segments are Synapse's targeting currency, consents + email are
-# Pulse, flows are Pulse automation. (Prism arms + Lens pages are already on the
-# behavioural profile itself.)
-type CustomerSignals {
-  segments: [SignalSegment!]!
-  consents: [SignalConsent!]!
-  email:    SignalEmail!
-  flows:    [SignalFlowRun!]!
-}
-
-# An audience the customer is a member of (deep-links to the segment page).
-type SignalSegment {
-  id:   ID!
-  name: String!
-  slug: String!
-}
-
-# A consent the customer has a recorded (or default) state for.
-type SignalConsent {
-  kind:    String!   # marketing_email | marketing_sms | transactional_email | …
-  name:    String!   # human label
-  channel: String!   # email | sms | push
-  purpose: String!   # marketing | transactional
-  optedIn: Boolean!
-}
-
-# Lifetime Pulse email engagement (from the email_sends projection, bot-filtered).
-type SignalEmail {
-  sent:       Int!
-  opened:     Int!   # distinct emails with a human open
-  clicked:    Int!   # distinct emails with a human click
-  lastSentAt: Time
-  lastOpenAt: Time
-}
-
-# One marketing-automation (flow) enrollment for the customer.
-type SignalFlowRun {
-  flowId:     ID!
-  flowName:   String!
-  trigger:    String!   # order_placed | cart_abandoned | browse_abandoned | …
-  status:     String!   # active | waiting | completed | cancelled | failed
-  enrolledAt: Time!
-  updatedAt:  Time!
 }
 
 type SynapseFunnelStep {
@@ -308,8 +243,6 @@ input SegmentLifecycleWindowsInput {
 # --- Per-segment detail page ---
 type SegmentMember {
   customerId:  ID!
-  name:        String!
-  email:       String!
   lifecycle:   String!   # '' if traits not computed yet
   recencyDays: Int!      # -1 = never ordered
   orders:      Int!
@@ -366,7 +299,16 @@ type SynapseSegmentDetail {
   topAffinities:    [SegmentAffinityCount!]!
 }
 
+# An audience the customer belongs to, for their profile page
+type SignalSegment {
+  id:   ID!
+  name: String!
+  slug: String!
+}
+
 extend type Query {
+  # A customer's behavioural profile over the spine - the timeline beside their commerce panels
+  customerProfile(customerId: ID!, sinceDays: Int): CustomerProfile!
   # Full detail for one behavioral segment (members + revenue + growth). customers.view.
   synapseSegment(id: ID!): SynapseSegmentDetail!
   # Channel-wide behavioural overview over the last `sinceDays` days (default 30).
@@ -399,11 +341,8 @@ extend type Query {
   # customerProfile), keyed by the anon visitor id. Gated customers.view on the
   # channel the operator is browsing (anon activity itself is channel-agnostic).
   visitorProfile(channelId: ID!, anonId: String!, sinceDays: Int): CustomerProfile!
-  # Commerce/CRM summary for a customer (orders, spend, subscriptions, …).
-  customerCommerce(customerId: ID!): CustomerCommerce!
-  # Cross-Signals rollup for a customer (segments, consent, email engagement,
-  # flow enrollments) - the 360° data for the Synapse profile. Gated customers.view.
-  customerSignals(customerId: ID!): CustomerSignals!
+  # The audiences a customer belongs to, shown on their profile beside the commerce panels
+  customerAudiences(customerId: ID!): [SignalSegment!]!
 }
 
 extend type Mutation {
@@ -420,4 +359,111 @@ extend type Mutation {
   # default, so e.g. faster-wearing "All-terrain" buyers are re-engaged sooner.
   # Windows must be ascending and positive. Gated customers.manage.
   synapseSetSegmentLifecycleWindows(segmentId: ID!, windows: SegmentLifecycleWindowsInput): SynapseSegment!
+}
+
+type CustomerEventCount {
+  name:  String!
+  count: Int!
+}
+
+type CustomerActivityItem {
+  eventName:   String!
+  occurredAt:  Time!
+  source:      String!   # web | campaign | flow | transactional | commerce | account
+  summary:     String!   # best-effort one-line detail (page, link, custom name, order)
+  detailsJson: String!   # the event's raw properties (JSON) - for rich timeline rows
+}
+
+# One distinct value of a context dimension + how often it appeared.
+type ProfileValue {
+  value: String!
+  count: Int!
+}
+
+type CustomerProfile {
+  firstSeen:   Time
+  lastSeen:    Time
+  totalEvents: Int!
+  pageViews:   Int!
+  conversions: Int!
+  revenue:     [AttributedRevenue!]!
+  counts:      [CustomerEventCount!]!
+  timeline:    [CustomerActivityItem!]!
+  # Context - which device / browser / referrer (came-from) / IP / OS / screen /
+  # country / acquisition source the profile was seen with, top values by frequency.
+  devices:          [ProfileValue!]!
+  browsers:         [ProfileValue!]!
+  referrers:        [ProfileValue!]!
+  ipAddresses:      [ProfileValue!]!
+  operatingSystems: [ProfileValue!]!
+  screens:          [ProfileValue!]!
+  countries:        [ProfileValue!]!
+  sources:          [ProfileValue!]!   # utm_source
+  campaigns:        [ProfileValue!]!   # utm_campaign
+  # Content + engagement.
+  topPages:         [ProfilePageView!]!     # the most-viewed pages (top slice)
+  pagesViewedTotal: Int!                    # distinct pages viewed (topPages is the top of this)
+  topProducts:      [ProfileProductView!]!  # with image / price / views
+  searches:    [ProfileValue!]!
+  sessions:    Int!                    # distinct visits (>30-min gap)
+  # Persisted Synapse traits (RFM / lifecycle / engagement). Null for anonymous
+  # visitor profiles and for customers not yet covered by a trait-compute run.
+  traits:      CustomerTraits
+  # Prism A/B experiments + the variation this customer was assigned (bridged
+  # from their anon exposures via identity stitching). Empty for visitors.
+  experiments: [CustomerExperimentArm!]!
+  # Attribute affinities (catalog → Synapse): top values of each Synapse-tracked
+  # attribute this profile filtered by / viewed (e.g. tire size → 205/55R16).
+  affinities:  [AttributeAffinity!]!
+}
+
+# A Synapse-tracked attribute + this profile's top values for it.
+type AttributeAffinity {
+  slug:   String!
+  name:   String!
+  values: [ProfileValue!]!
+}
+
+# A product the profile viewed, with the display metadata for a visual card.
+type ProfileProductView {
+  name:  String!
+  image: String!
+  price: String!   # cents (as stored on the page_view); blank if unknown
+  sku:   String!
+  views: Int!
+}
+
+# A page the profile viewed, with view count + average dwell (seconds).
+type ProfilePageView {
+  title:        String!
+  pageKey:      String!
+  views:        Int!
+  dwellSeconds: Int!
+}
+
+# A Prism experiment + the arm a customer is in (cross-Signals: Prism → Synapse).
+type CustomerExperimentArm {
+  experiment:    String!   # experiment key
+  variation:     String!
+  lastExposedAt: Time!
+}
+
+# Per-customer behavioural traits shared across Signals (see customer_traits).
+# RFM scores are channel-relative quintiles 1–5 (5 = best); 0 = never ordered.
+type CustomerTraits {
+  lifecycle:       String!   # prospect | new | active | at_risk | lapsed
+  rfmRecency:      Int!
+  rfmFrequency:    Int!
+  rfmMonetary:     Int!
+  recencyDays:     Int!      # days since last order; -1 = never
+  frequency:       Int!      # lifetime orders
+  monetaryCents:   Int64!    # lifetime spend
+  engagementScore: Int!      # 0..100
+  # Predictive layer (recomputed with traits): churn risk 0..100 against
+  # the customer's OWN purchase cadence; expected 12-month value; days
+  # until the next expected order (-1 = unknown, needs 2+ orders).
+  churnRisk:         Int!
+  predictedClvCents: Int64!
+  nextOrderDays:     Int!
+  computedAt:      Time!
 }
