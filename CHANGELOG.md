@@ -89,6 +89,13 @@ The release process, and which version number means what, is in
 
 ### Added
 
+- **The segment admin API moved to Signals with them.** Creating, editing, refreshing and
+  administering audiences all happens on `/api/signals/graphql` now, along with the segment pickers
+  the flow builder, form builder, campaign composer, promotion editor and CMS block canvas use.
+  Core keeps nothing segment-shaped. A member row carries the customer id alone, since that service
+  has no customers table - the dashboard resolves names from core in one batched follow-up, so
+  addresses stay in the commerce database rather than being copied for a list label.
+
 - **Segments belong to Signals.** Audiences are a Signals capability, so `customer_segments`, its
   memberships and the daily snapshots live in the signals database. Core offers segment-gated
   promotions and segment-gated CMS blocks only while Signals is running: with it off, or if the

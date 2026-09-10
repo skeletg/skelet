@@ -28,7 +28,7 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
-import { PrismSegmentsDocument } from './Prism.gql'
+import { PrismSegmentsDocument } from './Prism.signals.gql'
 import { CreateExperimentDocument, DeleteExperimentDocument, ExperimentDocument, ExperimentGoalEventsDocument, ExperimentResultsDocument, UpdateExperimentDocument } from './Prism.signals.gql'
 import { PluginSections } from '@/plugins/detail-sections'
 

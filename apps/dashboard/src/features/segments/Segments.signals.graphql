@@ -1,3 +1,5 @@
+# Segment operations, served by the Signals API - audiences are a Signals capability, and the .signals.graphql suffix routes them there
+
 query SegmentsPage($limit: Int, $offset: Int) {
   customerSegments(limit: $limit, offset: $offset) {
     items {
@@ -13,7 +15,6 @@ query SegmentsPage($limit: Int, $offset: Int) {
     totalCount
   }
 }
-
 query SegmentDetail($id: ID!) {
   customerSegment(id: $id) {
     id
@@ -27,48 +28,37 @@ query SegmentDetail($id: ID!) {
     updatedAt
     members(limit: 100) {
       id
-      email
-      firstName
-      lastName
       joinedAt
     }
   }
 }
-
 mutation CreateSegment($input: CreateCustomerSegmentInput!) {
   createCustomerSegment(input: $input) {
     id
   }
 }
-
 mutation UpdateSegment($input: UpdateCustomerSegmentInput!) {
   updateCustomerSegment(input: $input) {
     id
   }
 }
-
 mutation DeleteSegment($id: ID!) {
   deleteCustomerSegment(id: $id)
 }
-
 mutation SetSegmentRules($segmentId: ID!, $rules: JSON) {
   setSegmentRules(segmentId: $segmentId, rules: $rules) {
     id
   }
 }
-
 mutation RefreshSegmentMembership($segmentId: ID!) {
   refreshSegment(segmentId: $segmentId)
 }
-
 mutation AssignCustomersToSegment($segmentId: ID!, $customerIds: [ID!]!) {
   assignCustomersToSegment(segmentId: $segmentId, customerIds: $customerIds)
 }
-
 mutation RemoveCustomerFromSegment($segmentId: ID!, $customerId: ID!) {
   removeCustomerFromSegment(segmentId: $segmentId, customerId: $customerId)
 }
-
 mutation ClearSegmentMembership($segmentId: ID!) {
   clearSegmentMembership(segmentId: $segmentId)
 }

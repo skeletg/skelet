@@ -1401,13 +1401,6 @@ type CreateCustomerGroupInput struct {
 	Description *string `json:"description,omitempty"`
 }
 
-type CreateCustomerSegmentInput struct {
-	Slug        string  `json:"slug"`
-	Name        string  `json:"name"`
-	Description *string `json:"description,omitempty"`
-	IsActive    *bool   `json:"isActive,omitempty"`
-}
-
 type CreateDraftOrderInput struct {
 	ChannelID           string                 `json:"channelId"`
 	CustomerID          *string                `json:"customerId,omitempty"`
@@ -1870,32 +1863,6 @@ type CustomerRegisterInput struct {
 	LastName       string  `json:"lastName"`
 	ReferralCode   *string `json:"referralCode,omitempty"`
 	MarketingOptIn *bool   `json:"marketingOptIn,omitempty"`
-}
-
-type CustomerSegment struct {
-	ID          string                   `json:"id"`
-	Slug        string                   `json:"slug"`
-	Name        string                   `json:"name"`
-	Description string                   `json:"description"`
-	IsActive    bool                     `json:"isActive"`
-	MemberCount int32                    `json:"memberCount"`
-	Members     []*CustomerSegmentMember `json:"members"`
-	Rules       any                      `json:"rules,omitempty"`
-	CreatedAt   time.Time                `json:"createdAt"`
-	UpdatedAt   time.Time                `json:"updatedAt"`
-}
-
-type CustomerSegmentList struct {
-	Items      []*CustomerSegment `json:"items"`
-	TotalCount int32              `json:"totalCount"`
-}
-
-type CustomerSegmentMember struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	FirstName string    `json:"firstName"`
-	LastName  string    `json:"lastName"`
-	JoinedAt  time.Time `json:"joinedAt"`
 }
 
 type CustomerSignals struct {
@@ -3811,11 +3778,6 @@ type SegmentNodeInput struct {
 	Affinity *SegmentAffinityInput `json:"affinity,omitempty"`
 }
 
-type SegmentOption struct {
-	Slug string `json:"slug"`
-	Name string `json:"name"`
-}
-
 type SegmentRfmBucket struct {
 	Dimension string `json:"dimension"`
 	Score     int32  `json:"score"`
@@ -4582,14 +4544,6 @@ type UpdateCurrencyInput struct {
 type UpdateCustomerGroupInput struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
-}
-
-type UpdateCustomerSegmentInput struct {
-	ID          string  `json:"id"`
-	Slug        *string `json:"slug,omitempty"`
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-	IsActive    *bool   `json:"isActive,omitempty"`
 }
 
 type UpdateGroupedMemberInput struct {
