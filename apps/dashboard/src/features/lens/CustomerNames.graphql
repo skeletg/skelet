@@ -1,9 +1,0 @@
-# Names for the customer ids a Lens session carries - the Signals API returns ids only, since it has no customers table and a table label is not worth a second copy of PII
-query LensCustomerNames($ids: [ID!]!) {
-  customersByIds(ids: $ids) {
-    id
-    firstName
-    lastName
-    email
-  }
-}

@@ -153,7 +153,11 @@ func WithGrantChecker(ctx context.Context, c *GrantChecker) context.Context {
 }
 
 // GrantCheckerFrom returns the request's checker, or one that denies everything when the request carried no grants
-func GrantCheckerFrom(ctx context.Context) ScopeAwareChecker {
+// The return type also covers ChannelScopeProvider, so a token-authorized resolver can narrow a listing to the caller's channels
+func GrantCheckerFrom(ctx context.Context) interface {
+	ScopeAwareChecker
+	ChannelScopeProvider
+} {
 	if c, ok := ctx.Value(grantCheckerKey).(*GrantChecker); ok && c != nil {
 		return c
 	}
@@ -169,6 +173,9 @@ func (denyAll) HasGlobalPermission(context.Context, uuid.UUID, string) (bool, er
 }
 func (denyAll) HasChannelPermission(context.Context, uuid.UUID, string, uuid.UUID, *string) (bool, error) {
 	return false, nil
+}
+func (denyAll) ListPermittedChannelIDs(context.Context, uuid.UUID, string) ([]uuid.UUID, error) {
+	return nil, nil
 }
 
 func (c *GrantChecker) subject(adminID uuid.UUID) error {

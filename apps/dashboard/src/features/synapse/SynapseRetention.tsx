@@ -11,7 +11,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
-import { SynapseOverviewDocument, SynapseRetentionDocument } from './Synapse.gql'
+import { SynapseOverviewDocument, SynapseRetentionDocument } from './Synapse.signals.gql'
 
 type Unit = 'day' | 'week'
 type Bucket = { period: number; count: number; eligible: number }

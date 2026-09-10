@@ -1,0 +1,9 @@
+# Labels for customer ids a Signals screen holds - that API returns ids only, since it has no customers table and a table label is not worth a second copy of PII
+query SignalsCustomerNames($ids: [ID!]!) {
+  customersByIds(ids: $ids) {
+    id
+    firstName
+    lastName
+    email
+  }
+}

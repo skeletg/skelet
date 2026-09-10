@@ -47,10 +47,6 @@ models:
       # Lazy price-list load - a plain model field would force every
       # company mapping (incl. list rows) to fetch prices.
       prices: { resolver: true }
-  CustomerSegment:
-    fields:
-      # Lazy member page - list rows only carry the count
-      members: { resolver: true }
   Collection:
     fields:
       # Lazy membership load - mapping it eagerly means a hardcoded empty

@@ -1,6 +1,6 @@
 // The behavioral-segment engine: definition types, the boolean-tree evaluator, and the scheduled-sync entry points - GraphQL converters and authz helpers live in synapse_helpers.go
 
-package admin
+package signals
 
 import (
 	"context"

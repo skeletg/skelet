@@ -15,4 +15,6 @@ var Slugs = []string{
 	"settings.manage", // the event-destination screens
 	"promotions.view",
 	"promotions.manage", // segments are administered under promotions
+	"customers.view",    // Synapse - customer behaviour, profiles, audiences
+	"emails.view",       // the Pulse engagement rollup, which reads the spine
 }

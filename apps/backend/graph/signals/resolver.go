@@ -1,7 +1,11 @@
 package signals
 
 import (
+	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/internal/config"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/internal/lens"
@@ -14,6 +18,11 @@ type Resolver struct {
 	LensSvc        *lens.Service
 	DestinationSvc *destination.Service
 	SegmentSvc     *segment.Service
+	AnalyticsSvc   *analytics.Recorder
+	ChannelSvc     *channel.Service
+	ConfigSvc      *config.Service
+	// The one commerce read this surface makes - which attributes are flagged for affinity tracking
+	Commerce *db.Queries
 	// Reads the synced roster, which is where a channel-scoped check finds a customer's channel
 	Roster *signalsdb.Queries
 }

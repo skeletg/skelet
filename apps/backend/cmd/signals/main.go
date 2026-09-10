@@ -23,6 +23,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/cache"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/internal/envcheck"
 	"github.com/skeletg/skelet/apps/backend/internal/httpx"
@@ -130,6 +131,10 @@ func run() error {
 		Lens:        lensSvc,
 		Destination: destSvc,
 		Segment:     d.Segment,
+		Analytics:   rec,
+		Channel:     channelSvc,
+		Config:      configSvc,
+		Commerce:    db.New(primaryConn),
 		Roster:      signalsdb.New(sigConn),
 		JWTSecret:   d.Config.JWTSecret,
 		Dev:         d.Config.IsDev(),
