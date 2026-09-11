@@ -148,8 +148,8 @@ func newTrafficRollup(sq SignalsQueries) *analytics.TrafficRollup {
 	return analytics.NewTrafficRollup(sq.Queries)
 }
 
-func newExperimentService(q *db.Queries, rec *analytics.Recorder) *experiment.Service { // after the spine engine is chosen - its repo reads exposures through the Recorder
-	return experiment.NewService(experiment.NewRepository(q, rec))
+func newExperimentService(sq SignalsQueries, rec *analytics.Recorder) *experiment.Service { // after the spine engine is chosen - its repo reads exposures through the Recorder
+	return experiment.NewService(experiment.NewRepository(sq.Queries, rec))
 }
 
 func newLensService(sq SignalsQueries, rec *analytics.Recorder, cfg *config.Service) *lens.Service { // Lens writes and reads via signalsdb on the Signals pool

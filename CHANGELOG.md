@@ -93,6 +93,14 @@ The release process, and which version number means what, is in
 
 ### Changed
 
+- **Prism's experiments live in the signals database.** The `experiments` table was the last suite
+  table still in commerce, and every read of it pairs with the exposure and goal events on the
+  spine - a results query had to reach across two databases to score one experiment. Definitions
+  now sit next to those events, so it reads one. The channel foreign key does not survive the move,
+  since a key cannot cross databases; an experiment on a deleted channel is inert, because
+  assignment and listing are both channel-scoped and neither will ever name it. Nothing about the
+  admin API or the storefront SDK endpoint changes.
+
 - **The Synapse trait cluster lives in the signals database.** `customer_traits` and the two
   projections that feed it sit next to the spine rather than in commerce, and the recompute runs
   there against a synced customer roster instead of joining `customers`. Core reads none of it.
