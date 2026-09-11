@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -1415,4 +1416,27 @@ func (s *core) fillPostContent(ctx context.Context, p *Post, locale string) {
 // Matches the catalog domain's slug rules
 func validateSlug(slug string) error {
 	return contentpkg.ValidateSlug(slug, ErrInvalidSlug)
+}
+
+func (s *Service) PromoteDuePosts(ctx context.Context) (int, error) { // flips every scheduled post whose publishedAt has passed to status=`published`, returning the count
+	due, err := s.repo.ListDueScheduledPosts(ctx)
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, p := range due {
+		if _, err := s.repo.SetPostStatus(ctx, p.ID, PostStatusPublished, p.PublishedAt); err != nil {
+			log.Printf("[blog] promote post %s: %v", p.ID, err)
+			continue
+		}
+		count++
+		if s.bus != nil {
+			s.bus.Publish(ctx, &PostPublished{
+				PostID:   p.ID,
+				Slug:     p.Slug,
+				AuthorID: p.AuthorID,
+			})
+		}
+	}
+	return count, nil
 }
