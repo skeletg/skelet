@@ -66,43 +66,6 @@ func (q *Queries) GetShippingLabel(ctx context.Context, id uuid.UUID) (ShippingL
 	return i, err
 }
 
-const listShippingLabelsByFulfillment = `-- name: ListShippingLabelsByFulfillment :many
-SELECT id, fulfillment_id, carrier_slug, format, tracking_number, doc, created_at FROM shipping_labels
-WHERE fulfillment_id = $1
-ORDER BY created_at ASC
-`
-
-func (q *Queries) ListShippingLabelsByFulfillment(ctx context.Context, fulfillmentID uuid.UUID) ([]ShippingLabel, error) {
-	rows, err := q.db.QueryContext(ctx, listShippingLabelsByFulfillment, fulfillmentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ShippingLabel{}
-	for rows.Next() {
-		var i ShippingLabel
-		if err := rows.Scan(
-			&i.ID,
-			&i.FulfillmentID,
-			&i.CarrierSlug,
-			&i.Format,
-			&i.TrackingNumber,
-			&i.Doc,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listShippingLabelsByFulfillmentIDs = `-- name: ListShippingLabelsByFulfillmentIDs :many
 SELECT id, fulfillment_id, carrier_slug, format, tracking_number, doc, created_at FROM shipping_labels
 WHERE fulfillment_id = ANY($1::uuid[])

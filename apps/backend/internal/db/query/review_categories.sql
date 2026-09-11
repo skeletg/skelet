@@ -9,9 +9,6 @@ RETURNING *;
 -- name: GetReviewCategoryByID :one
 SELECT * FROM review_categories WHERE id = $1;
 
--- name: GetReviewCategoryBySlug :one
-SELECT * FROM review_categories WHERE slug = $1;
-
 -- name: ListReviewCategories :many
 SELECT * FROM review_categories ORDER BY sort_order, name;
 

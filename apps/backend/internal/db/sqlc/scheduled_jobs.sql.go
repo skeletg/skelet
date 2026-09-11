@@ -203,43 +203,6 @@ func (q *Queries) GetScheduledJob(ctx context.Context, id uuid.UUID) (ScheduledJ
 	return i, err
 }
 
-const getScheduledJobByName = `-- name: GetScheduledJobByName :one
-SELECT id, name, kind, schedule, enabled, description, payload, next_run_at, locked_until, last_run_at, last_status, last_error, last_duration_ms, created_by, updated_by, created_at, updated_at, timezone, max_attempts, retry_backoff_seconds, current_attempt, alert_after_failures, consecutive_failures, alerted, timeout_seconds FROM scheduled_jobs WHERE name = $1
-`
-
-func (q *Queries) GetScheduledJobByName(ctx context.Context, name string) (ScheduledJob, error) {
-	row := q.db.QueryRowContext(ctx, getScheduledJobByName, name)
-	var i ScheduledJob
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Kind,
-		&i.Schedule,
-		&i.Enabled,
-		&i.Description,
-		&i.Payload,
-		&i.NextRunAt,
-		&i.LockedUntil,
-		&i.LastRunAt,
-		&i.LastStatus,
-		&i.LastError,
-		&i.LastDurationMs,
-		&i.CreatedBy,
-		&i.UpdatedBy,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Timezone,
-		&i.MaxAttempts,
-		&i.RetryBackoffSeconds,
-		&i.CurrentAttempt,
-		&i.AlertAfterFailures,
-		&i.ConsecutiveFailures,
-		&i.Alerted,
-		&i.TimeoutSeconds,
-	)
-	return i, err
-}
-
 const insertScheduledJobRun = `-- name: InsertScheduledJobRun :exec
 INSERT INTO scheduled_job_runs
     (job_id, job_name, started_at, finished_at, status, error, duration_ms, attempt)

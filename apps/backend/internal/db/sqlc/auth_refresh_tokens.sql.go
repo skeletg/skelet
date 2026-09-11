@@ -165,39 +165,6 @@ func (q *Queries) GetRotatedRefreshToken(ctx context.Context, arg GetRotatedRefr
 	return i, err
 }
 
-const listRefreshTokenHashesByOwner = `-- name: ListRefreshTokenHashesByOwner :many
-SELECT token_hash FROM auth_refresh_tokens
-WHERE scope = $1 AND owner_id = $2
-`
-
-type ListRefreshTokenHashesByOwnerParams struct {
-	Scope   string    `json:"scope"`
-	OwnerID uuid.UUID `json:"owner_id"`
-}
-
-func (q *Queries) ListRefreshTokenHashesByOwner(ctx context.Context, arg ListRefreshTokenHashesByOwnerParams) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listRefreshTokenHashesByOwner, arg.Scope, arg.OwnerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var token_hash string
-		if err := rows.Scan(&token_hash); err != nil {
-			return nil, err
-		}
-		items = append(items, token_hash)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const pruneExpiredRefreshTokens = `-- name: PruneExpiredRefreshTokens :execrows
 DELETE FROM auth_refresh_tokens
 WHERE expires_at <= now()

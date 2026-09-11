@@ -5,25 +5,6 @@ SELECT * FROM email_templates
 WHERE key = sqlc.arg(key)
   AND channel_id IS NOT DISTINCT FROM sqlc.narg(channel_id);
 
--- name: ListEmailTemplates :many
-SELECT * FROM email_templates ORDER BY key, channel_id NULLS FIRST;
-
--- name: UpdateEmailTemplate :execrows
-UPDATE email_templates
-SET subject = sqlc.arg(subject), blocks = sqlc.arg(blocks), styles = sqlc.arg(styles), updated_at = NOW()
-WHERE key = sqlc.arg(key)
-  AND channel_id IS NOT DISTINCT FROM sqlc.narg(channel_id);
-
--- name: InsertEmailTemplate :one
-INSERT INTO email_templates (key, channel_id, subject, blocks, styles)
-VALUES (sqlc.arg(key), sqlc.narg(channel_id), sqlc.arg(subject), sqlc.arg(blocks), sqlc.arg(styles))
-RETURNING *;
-
--- name: DeleteEmailTemplate :exec
-DELETE FROM email_templates
-WHERE key = sqlc.arg(key)
-  AND channel_id IS NOT DISTINCT FROM sqlc.narg(channel_id);
-
 -- name: GetEmailBlock :one
 SELECT * FROM email_blocks WHERE channel_id = sqlc.arg(channel_id) AND slug = sqlc.arg(slug);
 

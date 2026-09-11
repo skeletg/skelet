@@ -19,11 +19,6 @@ SELECT * FROM shipping_carriers
 WHERE channel_id = $1
 ORDER BY sort_order, carrier_slug;
 
--- name: ListEnabledShippingCarriersByChannel :many
-SELECT * FROM shipping_carriers
-WHERE channel_id = $1 AND is_enabled = TRUE
-ORDER BY sort_order, carrier_slug;
-
 -- name: SetShippingCarrierEnabled :one
 UPDATE shipping_carriers
 SET is_enabled = $3, updated_at = NOW()

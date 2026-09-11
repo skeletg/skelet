@@ -30,9 +30,6 @@ SELECT * FROM scheduled_jobs ORDER BY name;
 -- name: GetScheduledJob :one
 SELECT * FROM scheduled_jobs WHERE id = $1;
 
--- name: GetScheduledJobByName :one
-SELECT * FROM scheduled_jobs WHERE name = $1;
-
 -- name: UpdateScheduledJobSchedule :one
 -- Admin edit of cadence / enabled / timezone / retry / alert config - these are
 -- configuration, not run state - they don't touch current_attempt /

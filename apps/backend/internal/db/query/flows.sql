@@ -72,9 +72,6 @@ SET current_node_id = sqlc.arg(current_node_id), status = sqlc.arg(status),
     resume_at = sqlc.narg(resume_at), context = sqlc.arg(context), error = sqlc.arg(error), updated_at = NOW()
 WHERE id = sqlc.arg(id);
 
--- name: GetFlowRun :one
-SELECT * FROM flow_runs WHERE id = sqlc.arg(id);
-
 -- name: ListFlowRunsByFlow :many
 SELECT * FROM flow_runs WHERE flow_id = sqlc.arg(flow_id) ORDER BY created_at DESC LIMIT sqlc.arg('lim');
 

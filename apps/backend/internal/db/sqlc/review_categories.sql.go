@@ -79,26 +79,6 @@ func (q *Queries) GetReviewCategoryByID(ctx context.Context, id uuid.UUID) (Revi
 	return i, err
 }
 
-const getReviewCategoryBySlug = `-- name: GetReviewCategoryBySlug :one
-SELECT id, slug, name, description, is_active, sort_order, created_at, updated_at FROM review_categories WHERE slug = $1
-`
-
-func (q *Queries) GetReviewCategoryBySlug(ctx context.Context, slug string) (ReviewCategory, error) {
-	row := q.db.QueryRowContext(ctx, getReviewCategoryBySlug, slug)
-	var i ReviewCategory
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.Name,
-		&i.Description,
-		&i.IsActive,
-		&i.SortOrder,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const listActiveReviewCategories = `-- name: ListActiveReviewCategories :many
 SELECT id, slug, name, description, is_active, sort_order, created_at, updated_at FROM review_categories WHERE is_active ORDER BY sort_order, name
 `
