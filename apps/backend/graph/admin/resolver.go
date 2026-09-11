@@ -11,7 +11,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/adminprefs"
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
-	"github.com/skeletg/skelet/apps/backend/internal/analytics/spinequeue"
 	"github.com/skeletg/skelet/apps/backend/internal/audit"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
 	"github.com/skeletg/skelet/apps/backend/internal/blog"
@@ -29,7 +28,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/internal/destination"
 	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
 	"github.com/skeletg/skelet/apps/backend/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/internal/flow"
@@ -70,71 +68,68 @@ import (
 )
 
 type Resolver struct {
-	AdminSvc             *admin.Service
-	IntegrationSvc       *integration.Service
-	CustomerSvc          *customer.Service
-	StoreCreditSvc       *storecredit.Service
-	LoyaltySvc           *loyalty.Service
-	QnaSvc               *qna.Service
-	SearchMerchSvc       *searchmerch.Service
-	SignalsEnabled       bool // mirrors SIGNALS_ENABLED - false rejects every Signals-suite resolver (Pulse/Lens/Synapse/Prism/spine)
-	CartSvc              *cart.Service
-	OrderSvc             *order.Service
-	OrderMailSvc         *ordermail.Service // the resend path - flows own the automatic sends, this is the operator's manual one
-	ConfigSvc            *config.Service
-	ConsentSvc           *consent.Service
-	ActionSvc            *action.Service
-	DataJobSvc           *datajob.Service // the one seam behind every bulk import and export
-	AuditSvc             *audit.Service
-	PrefsSvc             *adminprefs.Service
-	Queries              *db.Queries
-	WebhookSvc           *webhook.Service
-	RemoteProviderSvc    *remoteprovider.Service
-	DestinationSvc       *destination.Service
-	SignalsQueue         *spinequeue.Queue // nil unless SIGNALS_QUEUE_URL is set - the health panel reads stream depth and, more importantly, whether anything consumes it
-	CatalogSvc           *catalog.Service
-	BlogSvc              *blog.Service
-	CMSSvc               *cms.Service
-	AISvc                *ai.Service
-	UrlRewriteSvc        *urlrewrite.Service
-	LinkGraphSvc         *linkgraph.Service
-	SiteCrawlSvc         *sitecrawl.Service
-	ChannelSvc           *channel.Service
-	InventorySvc         *inventory.Service
-	LocaleSvc            *locale.Service
-	CurrencySvc          *currency.Service
-	CountrySvc           *country.Service
-	MediaLibrarySvc      *medialibrary.Service
-	MenuSvc              *menu.Service
-	ReviewSvc            *review.Service
-	TaxSvc               *tax.Service
-	ShippingSvc          *shipping.Service
-	PaymentSvc           *payment.Service
-	PromotionSvc         *promotion.Service
-	SegmentSvc           *segment.Service
-	GiftcardSvc          *giftcard.Service
-	SubscriptionSvc      *subscription.Service
-	SalesSvc             *sales.Service
-	EmailTmplSvc         *emailtemplate.Service
-	CampaignSvc          *campaign.Service
-	FlowSvc              *flow.Service
-	AnalyticsSvc         *analytics.Recorder
-	LensSvc              *lens.Service
-	ExperimentSvc        *experiment.Service
-	NotificationSvc      *notification.Service
-	NotificationHub      *notification.Hub // live push fan-out for the notificationAdded subscription
-	SuppressionSvc       *suppression.Service
-	FormSvc              *form.Service
-	WebFormSvc           *webform.Service
-	ChatSvc              *chat.Service
-	CacheClient          *revalidate.Client
-	CacheQueue           *revalidate.Queue
-	RefreshStore         *auth.RefreshStore // admin refresh tokens
-	CustomerRefreshStore *auth.RefreshStore // customer refresh tokens
-	BlogPreviewStore     *preview.Store     // short-lived blog preview tokens
-	CMSPreviewStore      *preview.Store     // short-lived CMS page preview tokens
-	JWTSecret            string
-	JWTTTL               time.Duration
+	AdminSvc          *admin.Service
+	IntegrationSvc    *integration.Service
+	CustomerSvc       *customer.Service
+	StoreCreditSvc    *storecredit.Service
+	LoyaltySvc        *loyalty.Service
+	QnaSvc            *qna.Service
+	SearchMerchSvc    *searchmerch.Service
+	SignalsEnabled    bool // mirrors SIGNALS_ENABLED - false rejects every Signals-suite resolver (Pulse/Lens/Synapse/Prism/spine)
+	CartSvc           *cart.Service
+	OrderSvc          *order.Service
+	OrderMailSvc      *ordermail.Service // the resend path - flows own the automatic sends, this is the operator's manual one
+	ConfigSvc         *config.Service
+	ConsentSvc        *consent.Service
+	ActionSvc         *action.Service
+	DataJobSvc        *datajob.Service // the one seam behind every bulk import and export
+	AuditSvc          *audit.Service
+	PrefsSvc          *adminprefs.Service
+	Queries           *db.Queries
+	WebhookSvc        *webhook.Service
+	RemoteProviderSvc *remoteprovider.Service
+	CatalogSvc        *catalog.Service
+	BlogSvc           *blog.Service
+	CMSSvc            *cms.Service
+	AISvc             *ai.Service
+	UrlRewriteSvc     *urlrewrite.Service
+	LinkGraphSvc      *linkgraph.Service
+	SiteCrawlSvc      *sitecrawl.Service
+	ChannelSvc        *channel.Service
+	InventorySvc      *inventory.Service
+	LocaleSvc         *locale.Service
+	CurrencySvc       *currency.Service
+	CountrySvc        *country.Service
+	MediaLibrarySvc   *medialibrary.Service
+	MenuSvc           *menu.Service
+	ReviewSvc         *review.Service
+	TaxSvc            *tax.Service
+	ShippingSvc       *shipping.Service
+	PaymentSvc        *payment.Service
+	PromotionSvc      *promotion.Service
+	SegmentSvc        *segment.Service
+	GiftcardSvc       *giftcard.Service
+	SubscriptionSvc   *subscription.Service
+	SalesSvc          *sales.Service
+	EmailTmplSvc      *emailtemplate.Service
+	CampaignSvc       *campaign.Service
+	FlowSvc           *flow.Service
+	AnalyticsSvc      *analytics.Recorder
+	LensSvc           *lens.Service
+	ExperimentSvc     *experiment.Service
+	NotificationSvc   *notification.Service
+	NotificationHub   *notification.Hub // live push fan-out for the notificationAdded subscription
+	SuppressionSvc    *suppression.Service
+	FormSvc           *form.Service
+	WebFormSvc        *webform.Service
+	ChatSvc           *chat.Service
+	CacheClient       *revalidate.Client
+	CacheQueue        *revalidate.Queue
+	RefreshStore      *auth.RefreshStore // admin refresh tokens
+	BlogPreviewStore  *preview.Store     // short-lived blog preview tokens
+	CMSPreviewStore   *preview.Store     // short-lived CMS page preview tokens
+	JWTSecret         string
+	JWTTTL            time.Duration
 
 	RateLimiter   ratelimit.Limiter   // shares the Valkey-backed counters with the storefront limiter so every pod sees the same budget - nil disables the check, which is what tests do
 	AuthLimiter   ratelimit.Limiter   // tighter limiter for the admin login surface
