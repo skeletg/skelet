@@ -1065,3 +1065,16 @@ func (v SynapseMergeVars) MergeVars(ctx context.Context, _ uuid.UUID, customerID
 	}
 	return m
 }
+
+// OrderMailSendLog is ordermail.SendLog over the order_email_log table, whose unique key on (order_id, kind, ref) does the deduplication
+type OrderMailSendLog struct {
+	q *db.Queries
+}
+
+func (a OrderMailSendLog) AlreadySent(ctx context.Context, orderID uuid.UUID, kind, ref string) (bool, error) {
+	return a.q.OrderEmailExists(ctx, db.OrderEmailExistsParams{OrderID: orderID, Kind: kind, Ref: ref})
+}
+
+func (a OrderMailSendLog) RecordSent(ctx context.Context, orderID uuid.UUID, kind, ref string) error {
+	return a.q.InsertOrderEmailLog(ctx, db.InsertOrderEmailLogParams{OrderID: orderID, Kind: kind, Ref: ref})
+}

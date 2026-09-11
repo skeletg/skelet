@@ -33,7 +33,7 @@ func (s *Service) Register(bus *events.Bus) {
 			return nil
 		}
 		if o, ch, ok := s.context(ctx, evt.OrderID); ok {
-			logSend(s.sendConfirmation(ctx, o, ch))
+			s.sendOnce(ctx, evt.OrderID, kindConfirmation, "", func() error { return s.sendConfirmation(ctx, o, ch) })
 		}
 		return nil
 	})
@@ -50,7 +50,7 @@ func (s *Service) Register(bus *events.Bus) {
 		}) {
 			return nil
 		}
-		logSend(s.sendShipment(ctx, o, ch, evt.FulfillmentID))
+		s.sendOnce(ctx, evt.OrderID, kindShipment, evt.FulfillmentID.String(), func() error { return s.sendShipment(ctx, o, ch, evt.FulfillmentID) })
 		return nil
 	})
 
@@ -68,7 +68,7 @@ func (s *Service) Register(bus *events.Bus) {
 		}) {
 			return nil
 		}
-		logSend(s.sendCancellation(ctx, o, ch))
+		s.sendOnce(ctx, evt.OrderID, kindCancellation, "", func() error { return s.sendCancellation(ctx, o, ch) })
 		return nil
 	})
 
@@ -90,9 +90,32 @@ func (s *Service) Register(bus *events.Bus) {
 		}) {
 			return nil
 		}
-		logSend(s.sendRefund(ctx, o, ch))
+		s.sendOnce(ctx, evt.OrderID, kindRefund, ref, func() error { return s.sendRefund(ctx, o, ch) })
 		return nil
 	})
+}
+
+// The outbox redelivers an event whose handler finished but whose delivery was never marked done, and a second receipt reads to a customer as a second order
+// Recorded after the send, since a row written for mail that never left would suppress the real one
+func (s *Service) sendOnce(ctx context.Context, orderID uuid.UUID, kind, ref string, send func() error) {
+	if s.sendLog == nil {
+		logSend(send())
+		return
+	}
+	sent, err := s.sendLog.AlreadySent(ctx, orderID, kind, ref)
+	if err != nil {
+		log.Printf("[ordermail] send log read: %v", err) // sends anyway - a missing receipt costs more than a duplicate
+	}
+	if sent {
+		return
+	}
+	if err := send(); err != nil {
+		logSend(err)
+		return
+	}
+	if err := s.sendLog.RecordSent(ctx, orderID, kind, ref); err != nil {
+		log.Printf("[ordermail] send log write: %v", err)
+	}
 }
 
 // An event-driven send has nobody to report to, so a failure is logged and the subscriber still succeeds
