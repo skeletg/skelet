@@ -102,6 +102,7 @@ type Querier interface {
 	CreateCustomerSegment(ctx context.Context, arg CreateCustomerSegmentParams) (CustomerSegment, error)
 	// Event destinations and the spine read feeding their forwarding sweep - both live here, so the sweep pages the spine and advances a cursor without crossing a database
 	CreateEventDestination(ctx context.Context, arg CreateEventDestinationParams) (EventDestination, error)
+	CreateExperiment(ctx context.Context, arg CreateExperimentParams) (Experiment, error)
 	CustomerConversions(ctx context.Context, arg CustomerConversionsParams) ([]CustomerConversionsRow, error)
 	// Spine half of the app-side conversion-attribution lookback (recorder's
 	// RecordConversion): every marketing open/click the customer logged since the
@@ -133,6 +134,7 @@ type Querier interface {
 	DeleteCustomerAnalyticsIdentities(ctx context.Context, customerIds []uuid.UUID) (int64, error)
 	DeleteCustomerSegment(ctx context.Context, id uuid.UUID) error
 	DeleteEventDestination(ctx context.Context, id uuid.UUID) error
+	DeleteExperiment(ctx context.Context, id uuid.UUID) error
 	// Only after the batched spine delete landed - a failed sweep retries these.
 	DeleteIdentityErasures(ctx context.Context, customerIds []uuid.UUID) error
 	// Channel-scoped open/click/conversion counts since a cutoff. Opens/clicks are
@@ -145,10 +147,9 @@ type Querier interface {
 	// Called for the current and prior windows to drive Insights' period-over-period
 	// delta. Optional event filter ('' = any). Resolved across anon + identity.
 	EventWindowMeasure(ctx context.Context, arg EventWindowMeasureParams) (EventWindowMeasureRow, error)
-	// Prism experiment spine reads (moved from the commerce experiments.sql at the
-	// physical split). Exposures + goals ride the analytics_events spine and resolve
-	// through analytics_identities - both live in the signals db, so these are
-	// self-contained here. Experiment CRUD (the experiments table) stays in commerce.
+	// Prism: the experiments table plus the spine reads that score it. Exposures and
+	// goals ride analytics_events and resolve through analytics_identities, so a
+	// results query reads the definition and its numbers from the one database.
 	// Pickable goal-event suggestions for this channel, most-frequent first: web
 	// custom-event names (props.name, excluding the internal '$experiment') PLUS
 	// commerce/account spine event names (e.g. order_placed) so experiments can
@@ -187,6 +188,7 @@ type Querier interface {
 	GetCustomerTrait(ctx context.Context, customerID uuid.UUID) (CustomerTrait, error)
 	GetEngagementWatermark(ctx context.Context, channelID uuid.UUID) (time.Time, error)
 	GetEventDestination(ctx context.Context, id uuid.UUID) (EventDestination, error)
+	GetExperiment(ctx context.Context, id uuid.UUID) (Experiment, error)
 	// Customers with events RECEIVED in [from, to) - the incremental refresh's fresh
 	// slice keys on arrival time, so a queue-backlog drain or an outbox redelivery
 	// whose occurred_at predates the window still gets its customer recomputed.
@@ -346,6 +348,8 @@ type Querier interface {
 	// commit AFTER the sweep read past its created_at, and once the cursor moves it
 	// would never be forwarded. Nothing lands that late, so no event is skipped.
 	ListEventsForForwarding(ctx context.Context, arg ListEventsForForwardingParams) ([]ListEventsForForwardingRow, error)
+	ListExperiments(ctx context.Context, channelID uuid.UUID) ([]Experiment, error)
+	ListRunningExperiments(ctx context.Context, channelID uuid.UUID) ([]Experiment, error)
 	// Newest-first member page for the admin segment detail
 	// Segments are global but their members are not - the channel filter has to live here rather than in the resolver, or paging would return short pages with holes wherever a foreign-channel member was dropped after LIMIT
 	// The channel comes off the synced roster now, since customers are core's
@@ -541,6 +545,7 @@ type Querier interface {
 	// The secret is write-only (never returned by the API), so an edit
 	// can't round-trip the current value - blank means keep the stored one
 	UpdateEventDestination(ctx context.Context, arg UpdateEventDestinationParams) (EventDestination, error)
+	UpdateExperiment(ctx context.Context, arg UpdateExperimentParams) (int64, error)
 	// Self-contained browse_seen queries (the anon-keyed browse rollup, fed at ingest) + the signals half of the browse-abandonment scan. The
 	// commerce half (exclude active-cart / since-browse-order) runs app-side against carts/orders
 	// Records the latest product browse for an anonymous visitor. On conflict the
