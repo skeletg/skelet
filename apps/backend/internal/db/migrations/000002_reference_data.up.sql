@@ -856,37 +856,7 @@ INSERT INTO public.channel_locales VALUES ('56d051bc-0131-4476-bc0b-121d80290684
 
 
 --
--- Data for Name: customer_engagement_30d; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: customer_engagement_refresh; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
 -- Data for Name: customer_payment_methods; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: customer_segments; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: customer_segment_memberships; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: customer_traits; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -961,12 +931,6 @@ INSERT INTO public.email_groups VALUES ('01a00ac9-40f0-704b-867e-5d3076819a02', 
 
 --
 -- Data for Name: email_templates; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: event_destinations; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -1398,12 +1362,6 @@ INSERT INTO public.review_moderation_tags VALUES ('f5b9ab85-0391-44bd-ae18-70bec
 
 --
 -- Data for Name: search_synonyms; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: segment_membership_daily; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
