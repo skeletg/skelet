@@ -266,6 +266,18 @@ else
     fi
 fi
 
+echo "==> the core-to-Signals proto stays backward compatible"
+# Two processes deploy separately, so an old core can meet a new Signals - a field renumbered or a
+# method dropped breaks that pair silently, and this is where it gets caught instead
+if ! git cat-file -e develop:proto/buf.yaml 2>/dev/null; then
+    pass "develop has no proto yet - nothing to compare against"
+elif buf_out=$(bin/buf breaking /var/www/proto --against "/var/www/.git#branch=develop,subdir=proto" 2>&1); then
+    pass "no breaking changes against develop"
+else
+    bad "the Signals proto breaks compatibility with develop:"
+    printf '%s\n' "$buf_out" | sed 's/^/        /'
+fi
+
 echo
 if [ "$fail" -eq 0 ]; then
     echo "==> contract-check OK"
