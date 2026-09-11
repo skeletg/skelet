@@ -29,12 +29,15 @@ func digestPermsFor(ctx context.Context, r *Resolver, cid uuid.UUID) digestPerms
 		pc, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, perm)
 		return err == nil && (pc.Bypass() || pc.Allows(cid))
 	}
+	// The four suite sections read the spine and the signals database, so with SIGNALS_ENABLED=false they are not offered at all - the model never sees the tool, rather than calling it and getting an empty answer back
+	signals := func(perm string) bool { return r.SignalsEnabled && allows(perm) }
 	return digestPerms{
 		sales:         allows("reports.view"),
-		lens:          allows("lens.view"),
-		synapse:       allows("customers.view"),
-		pulse:         allows("emails.view"),
-		prism:         allows("experiments.view"),
+		lens:          signals("lens.view"),
+		synapse:       signals("customers.view"),
+		pulse:         signals("emails.view"),
+		prism:         signals("experiments.view"),
+		customers:     allows("customers.view"),
 		catalog:       allows("catalog.view"),
 		orders:        allows("orders.view"),
 		inventory:     allows("inventory.view"),
@@ -56,6 +59,7 @@ func digestPermsFor(ctx context.Context, r *Resolver, cid uuid.UUID) digestPerms
 // catalog/orders gate the page-aware entity tools and are deliberately outside any() - the chat's entry gate stays Signals-only, these just unlock extra tools for an admin who already got in
 type digestPerms struct {
 	sales, lens, synapse, pulse, prism         bool
+	customers                                  bool // customers.view on its own - the commerce record, which outlives the suite
 	catalog, orders                            bool
 	inventory, promotions, reviews             bool
 	campaigns, flows, subscriptions, giftcards bool
@@ -63,7 +67,10 @@ type digestPerms struct {
 	currencies, locales, settings, cms         bool
 }
 
-func (p digestPerms) any() bool { return p.sales || p.lens || p.synapse || p.pulse || p.prism }
+// customers rides along so an admin who reached the chat through customers.view keeps it with the suite off, when the record tools are all that is left
+func (p digestPerms) any() bool {
+	return p.sales || p.lens || p.synapse || p.pulse || p.prism || p.customers
+}
 
 const digestMaxChars = 12000
 
