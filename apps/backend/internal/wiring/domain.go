@@ -247,12 +247,12 @@ func newCampaignService(
 }
 
 // Order-lifecycle mail - owns the subscriptions, delegates delivery to a flow when one is active
-// The flow dispatcher and send log are attached in wireMarketing, since both would cycle through this provider
+// The flow dispatcher is attached in wireMarketing, since it would cycle through this provider
 func newOrderMailService(
 	orders *order.Service, ch *channel.Service, tmpl *emailtemplate.Service,
-	sender *mailsend.Sender, cfg *config.Service,
+	sender *mailsend.Sender, cfg *config.Service, q *db.Queries,
 ) *ordermail.Service {
-	return ordermail.NewService(orders, ch, tmpl, sender, cfg)
+	return ordermail.NewService(orders, ch, tmpl, sender, cfg, OrderMailSendLog{q: q})
 }
 
 // Core owns the send log, but it comes off the stack like the Recorder does - that is where the read pool and archive sink are attached

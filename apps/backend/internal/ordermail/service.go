@@ -53,6 +53,21 @@ type ChannelReader interface {
 	GetByID(ctx context.Context, id uuid.UUID) (channel.Channel, error)
 }
 
+// Which order emails have already gone out - order id, kind and ref together identify one email exactly
+// A structural interface like the seams above, so this package stays off the database
+type SendLog interface {
+	AlreadySent(ctx context.Context, orderID uuid.UUID, kind, ref string) (bool, error)
+	RecordSent(ctx context.Context, orderID uuid.UUID, kind, ref string) error
+}
+
+// The kinds recorded against an order, one row per email sent
+const (
+	kindConfirmation = "confirmation"
+	kindShipment     = "shipment"
+	kindCancellation = "cancellation"
+	kindRefund       = "refund"
+)
+
 type Service struct {
 	flows    FlowDispatcher // optional - nil sends everything directly
 	orders   OrderReader
@@ -60,10 +75,12 @@ type Service struct {
 	render   Renderer
 	sender   *mailsend.Sender
 	config   *config.Service
+	sendLog  SendLog
 }
 
-func NewService(orders OrderReader, channels ChannelReader, render Renderer, sender *mailsend.Sender, cfg *config.Service) *Service {
-	return &Service{orders: orders, channels: channels, render: render, sender: sender, config: cfg}
+// sendLog is a constructor argument rather than a setter like the dispatcher below, since a send nothing records goes out again on every replay of its event
+func NewService(orders OrderReader, channels ChannelReader, render Renderer, sender *mailsend.Sender, cfg *config.Service, sendLog SendLog) *Service {
+	return &Service{orders: orders, channels: channels, render: render, sender: sender, config: cfg, sendLog: sendLog}
 }
 
 // Optional - without it every order email goes out directly, which is the correct behaviour for an install with no flow engine

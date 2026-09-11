@@ -12,6 +12,18 @@ The release process, and which version number means what, is in
 
 ### Fixed
 
+- **A redelivered event could send a second order receipt.** Order confirmation, shipment,
+  cancellation and refund mail go out from async event handlers, and the outbox redelivers an event
+  whose handler finished but whose delivery was never marked done - a crash in that window sent the
+  customer a second receipt, which reads as a second order. The only check in place asked whether a
+  marketing flow had taken the send, not whether the mail had already gone. Each of the four now
+  records itself in `order_email_log`, keyed the way that table's unique index already is (order,
+  kind, and a ref that carries the fulfillment id for shipments and the payment reference for
+  refunds), and a replay finds the row and sends nothing. The row is written after the send, so mail
+  that never left is not recorded and still goes on a retry; an unreadable log sends anyway, since a
+  missing receipt costs more than a duplicate. An operator's manual resend is deliberately outside
+  this - asking for it again means asking for it again.
+
 - **The customer roster was never synced, so no customer got a trait row.** `SyncRoster` copies
   every customer into the signals database and the trait recompute is driven off that copy, but
   nothing in either process called it - the roster stayed empty, `RecomputeChannelTraits` had no

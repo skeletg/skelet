@@ -92,3 +92,98 @@ func TestFlowTookIsFalseWithoutADispatcher(t *testing.T) {
 		t.Error("no dispatcher wired, but flowTook reported a flow had it")
 	}
 }
+
+// One row per (order, kind, ref), like the table's unique key
+type fakeSendLog struct {
+	rows     map[string]bool
+	readErr  error
+	writeErr error
+}
+
+func newFakeSendLog() *fakeSendLog { return &fakeSendLog{rows: map[string]bool{}} }
+
+func (f *fakeSendLog) key(orderID uuid.UUID, kind, ref string) string {
+	return orderID.String() + "|" + kind + "|" + ref
+}
+
+func (f *fakeSendLog) AlreadySent(_ context.Context, orderID uuid.UUID, kind, ref string) (bool, error) {
+	if f.readErr != nil {
+		return false, f.readErr
+	}
+	return f.rows[f.key(orderID, kind, ref)], nil
+}
+
+func (f *fakeSendLog) RecordSent(_ context.Context, orderID uuid.UUID, kind, ref string) error {
+	if f.writeErr != nil {
+		return f.writeErr
+	}
+	f.rows[f.key(orderID, kind, ref)] = true
+	return nil
+}
+
+// The outbox redelivers an event whose handler finished but whose delivery was never marked done, and
+// the customer reads a second receipt as a second order
+func TestSendOnceSuppressesAReplay(t *testing.T) {
+	log := newFakeSendLog()
+	svc := &Service{sendLog: log}
+	id := uuid.New()
+	sends := 0
+	send := func() error { sends++; return nil }
+
+	svc.sendOnce(context.Background(), id, kindConfirmation, "", send)
+	svc.sendOnce(context.Background(), id, kindConfirmation, "", send)
+	if sends != 1 {
+		t.Fatalf("a replayed event sent %d times, want 1", sends)
+	}
+}
+
+// Every shipment on an order is its own email, so the fulfillment id has to reach the key
+func TestSendOnceKeepsRefsApart(t *testing.T) {
+	svc := &Service{sendLog: newFakeSendLog()}
+	id := uuid.New()
+	sends := 0
+	send := func() error { sends++; return nil }
+
+	svc.sendOnce(context.Background(), id, kindShipment, uuid.New().String(), send)
+	svc.sendOnce(context.Background(), id, kindShipment, uuid.New().String(), send)
+	svc.sendOnce(context.Background(), id, kindCancellation, "", send)
+	if sends != 3 {
+		t.Fatalf("distinct emails sent %d times, want 3", sends)
+	}
+}
+
+// A row written for mail that never left would suppress the real one
+func TestSendOnceDoesNotRecordAFailedSend(t *testing.T) {
+	log := newFakeSendLog()
+	svc := &Service{sendLog: log}
+	id := uuid.New()
+	sends := 0
+	svc.sendOnce(context.Background(), id, kindConfirmation, "", func() error { sends++; return errors.New("smtp down") })
+	if len(log.rows) != 0 {
+		t.Fatalf("a failed send was recorded: %v", log.rows)
+	}
+	svc.sendOnce(context.Background(), id, kindConfirmation, "", func() error { sends++; return nil })
+	if sends != 2 {
+		t.Fatalf("the retry sent %d times total, want 2", sends)
+	}
+}
+
+// A missing receipt costs more than a duplicate, so an unreadable log sends
+func TestSendOnceSendsWhenTheLogIsUnreadable(t *testing.T) {
+	svc := &Service{sendLog: &fakeSendLog{rows: map[string]bool{}, readErr: errors.New("db down")}}
+	sends := 0
+	svc.sendOnce(context.Background(), uuid.New(), kindConfirmation, "", func() error { sends++; return nil })
+	if sends != 1 {
+		t.Fatalf("sent %d times with an unreadable log, want 1", sends)
+	}
+}
+
+// A service built without a log still sends, rather than dropping the mail silently
+func TestSendOnceSendsWithoutALog(t *testing.T) {
+	svc := &Service{}
+	sends := 0
+	svc.sendOnce(context.Background(), uuid.New(), kindConfirmation, "", func() error { sends++; return nil })
+	if sends != 1 {
+		t.Fatalf("sent %d times with no log, want 1", sends)
+	}
+}
