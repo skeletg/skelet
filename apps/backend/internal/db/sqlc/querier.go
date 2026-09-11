@@ -384,7 +384,6 @@ type Querier interface {
 	CreateDownloadGrant(ctx context.Context, arg CreateDownloadGrantParams) (DownloadGrant, error)
 	CreateEmailCampaign(ctx context.Context, arg CreateEmailCampaignParams) (EmailCampaign, error)
 	CreateEmailGroup(ctx context.Context, arg CreateEmailGroupParams) (EmailGroup, error)
-	CreateExperiment(ctx context.Context, arg CreateExperimentParams) (Experiment, error)
 	CreateFlow(ctx context.Context, arg CreateFlowParams) (Flow, error)
 	CreateFlowRun(ctx context.Context, arg CreateFlowRunParams) (FlowRun, error)
 	CreateGiftCard(ctx context.Context, arg CreateGiftCardParams) (GiftCard, error)
@@ -579,7 +578,6 @@ type Querier interface {
 	// Any group is deletable (incl. the seeded transactional/marketing ones);
 	// email_library.group_id ON DELETE SET NULL keeps the emails, just untagged
 	DeleteEmailGroup(ctx context.Context, id uuid.UUID) (int64, error)
-	DeleteExperiment(ctx context.Context, id uuid.UUID) error
 	DeleteFinishedRebuildTasksBefore(ctx context.Context, dollar_1 time.Time) (int64, error)
 	DeleteGroupedMember(ctx context.Context, id uuid.UUID) error
 	DeleteIntegration(ctx context.Context, id uuid.UUID) error
@@ -820,7 +818,6 @@ type Querier interface {
 	// Fetch one template by key + scope - pass channel_id NULL for the global row,
 	// a uuid for a channel override - IS NOT DISTINCT FROM matches NULL to NULL
 	GetEmailTemplate(ctx context.Context, arg GetEmailTemplateParams) (EmailTemplate, error)
-	GetExperiment(ctx context.Context, id uuid.UUID) (Experiment, error)
 	GetFlow(ctx context.Context, id uuid.UUID) (Flow, error)
 	GetGiftCardByCode(ctx context.Context, code string) (GiftCard, error)
 	// Row-locked read used inside redeem/adjust transactions so concurrent
@@ -1395,7 +1392,6 @@ type Querier interface {
 	// identity-stripped, keeping campaign/flow/order linkage for aggregate stats.
 	ListEmailSendsForArchive(ctx context.Context, arg ListEmailSendsForArchiveParams) ([]ListEmailSendsForArchiveRow, error)
 	ListEnabledPaymentMethodsByChannel(ctx context.Context, channelID uuid.UUID) ([]PaymentMethod, error)
-	ListExperiments(ctx context.Context, channelID uuid.UUID) ([]Experiment, error)
 	// Standing-condition source for the inbox scan: enabled jobs whose last run errored
 	ListFailingScheduledJobs(ctx context.Context) ([]ListFailingScheduledJobsRow, error)
 	ListFlowRunsByFlow(ctx context.Context, arg ListFlowRunsByFlowParams) ([]FlowRun, error)
@@ -1678,7 +1674,6 @@ type Querier interface {
 	ListReviewsForModeration(ctx context.Context, arg ListReviewsForModerationParams) ([]Review, error)
 	ListRootBlogCategories(ctx context.Context) ([]BlogCategory, error)
 	ListRootCategories(ctx context.Context) ([]CatalogCategory, error)
-	ListRunningExperiments(ctx context.Context, channelID uuid.UUID) ([]Experiment, error)
 	ListSavedItemsByCart(ctx context.Context, cartID uuid.UUID) ([]CartSavedItem, error)
 	ListScheduledJobRuns(ctx context.Context, arg ListScheduledJobRunsParams) ([]ScheduledJobRun, error)
 	ListScheduledJobs(ctx context.Context) ([]ScheduledJob, error)
@@ -2252,7 +2247,6 @@ type Querier interface {
 	UpdateCustomerPassword(ctx context.Context, arg UpdateCustomerPasswordParams) error
 	// Only drafts are editable
 	UpdateEmailCampaign(ctx context.Context, arg UpdateEmailCampaignParams) (int64, error)
-	UpdateExperiment(ctx context.Context, arg UpdateExperimentParams) (int64, error)
 	UpdateFlow(ctx context.Context, arg UpdateFlowParams) (int64, error)
 	UpdateFlowRun(ctx context.Context, arg UpdateFlowRunParams) error
 	UpdateGiftCardBalance(ctx context.Context, arg UpdateGiftCardBalanceParams) (GiftCard, error)

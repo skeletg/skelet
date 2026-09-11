@@ -2136,25 +2136,6 @@ CREATE TABLE public.event_outbox (
 
 
 --
--- Name: experiments; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.experiments (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    channel_id uuid NOT NULL,
-    key text NOT NULL,
-    name text NOT NULL,
-    status text DEFAULT 'draft'::text NOT NULL,
-    coverage integer DEFAULT 100 NOT NULL,
-    goal_event text DEFAULT ''::text NOT NULL,
-    variations jsonb DEFAULT '[]'::jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    segment_slug text DEFAULT ''::text NOT NULL
-);
-
-
---
 -- Name: flow_runs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5082,22 +5063,6 @@ ALTER TABLE ONLY public.email_templates
 
 ALTER TABLE ONLY public.event_outbox
     ADD CONSTRAINT event_outbox_pkey PRIMARY KEY (id);
-
-
---
--- Name: experiments experiments_channel_id_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.experiments
-    ADD CONSTRAINT experiments_channel_id_key_key UNIQUE (channel_id, key);
-
-
---
--- Name: experiments experiments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.experiments
-    ADD CONSTRAINT experiments_pkey PRIMARY KEY (id);
 
 
 --
@@ -9230,14 +9195,6 @@ ALTER TABLE ONLY public.email_library_revisions
 
 ALTER TABLE ONLY public.email_templates
     ADD CONSTRAINT email_templates_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
-
-
---
--- Name: experiments experiments_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.experiments
-    ADD CONSTRAINT experiments_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
 
 
 --
