@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
 )
 
 func TestPermittedTools(t *testing.T) {
@@ -46,7 +47,7 @@ func TestPermittedTools(t *testing.T) {
 
 	ent := map[string]bool{} // page-aware, catalog and domain tools each answer to their own perm
 	for _, tl := range permittedTools(digestPerms{
-		catalog: true, orders: true, synapse: true,
+		catalog: true, orders: true, synapse: true, customers: true,
 		inventory: true, promotions: true, reviews: true,
 		campaigns: true, flows: true, subscriptions: true, giftcards: true, channels: true,
 		urlrewrite: true, currencies: true, locales: true, settings: true, cms: true,
@@ -70,7 +71,7 @@ func TestPermittedTools(t *testing.T) {
 	}
 
 	pii := map[string]bool{}
-	for _, tl := range permittedTools(digestPerms{synapse: true}, false) {
+	for _, tl := range permittedTools(digestPerms{synapse: true, customers: true}, false) {
 		pii[tl.Name] = true
 	}
 	for _, blocked := range []string{"get_customer_profile", "get_visitor_profile", "list_active_customers", "get_customer"} {
@@ -127,7 +128,7 @@ func TestRunSignalToolGating(t *testing.T) {
 		{"10", "get_customer_profile", `{"customer_id":"nope"}`, "customer_id", digestPerms{synapse: true}},
 		{"11", "get_product", `{}`, "product_id", digestPerms{catalog: true}},
 		{"12", "get_order", `{"order_id":"nope"}`, "order_id", digestPerms{orders: true}},
-		{"13", "get_customer", `{}`, "customer_id", digestPerms{synapse: true}},
+		{"13", "get_customer", `{}`, "customer_id", digestPerms{customers: true}},
 		{"14", "get_category", `{}`, "category", digestPerms{catalog: true}},
 		{"15", "get_collection", `{"collection_id":"nope"}`, "collection_id", digestPerms{catalog: true}},
 		{"16", "get_stock", `{}`, "product_id", digestPerms{inventory: true}},
@@ -139,5 +140,65 @@ func TestRunSignalToolGating(t *testing.T) {
 		if res.IsError || !strings.Contains(res.Content, tc.want) {
 			t.Fatalf("%s with bad arg should return guidance mentioning %q, got %+v", tc.tool, tc.want, res)
 		}
+	}
+}
+
+// SIGNALS_ENABLED=false has to take the suite out of the chat entirely - the model is never offered a tool whose data does not exist, rather than calling one and reading an empty answer as a real one
+// A superuser bypasses the grant lookup before the admin service is touched, so a bare Resolver is enough here
+func TestSignalsSectionsFollowTheSwitch(t *testing.T) {
+	ctx := auth.WithAdmin(context.Background(), &auth.Claims{AdminID: uuid.New(), IsSuperuser: true})
+	cid := uuid.New()
+
+	on := digestPermsFor(ctx, &Resolver{SignalsEnabled: true}, cid)
+	if !on.lens || !on.synapse || !on.pulse || !on.prism {
+		t.Fatalf("a superuser should see every suite section with the switch on, got %+v", on)
+	}
+
+	off := digestPermsFor(ctx, &Resolver{SignalsEnabled: false}, cid)
+	if off.lens || off.synapse || off.pulse || off.prism {
+		t.Errorf("suite sections should be off with SIGNALS_ENABLED=false, got %+v", off)
+	}
+	// The commerce halves are not the suite's to take away
+	if !off.sales || !off.customers || !off.orders || !off.catalog {
+		t.Errorf("commerce sections should survive the switch, got %+v", off)
+	}
+	if !off.any() {
+		t.Error("the chat should stay reachable with the suite off - the record tools are still there")
+	}
+}
+
+// The tool menu is built from those flags, so nothing Signals-backed may reach the model with the suite off
+func TestNoSignalsToolIsOfferedWithTheSuiteOff(t *testing.T) {
+	ctx := auth.WithAdmin(context.Background(), &auth.Claims{AdminID: uuid.New(), IsSuperuser: true})
+	off := digestPermsFor(ctx, &Resolver{SignalsEnabled: false}, uuid.New())
+
+	offered := map[string]bool{}
+	for _, tl := range permittedTools(off, true) {
+		offered[tl.Name] = true
+	}
+	for _, gone := range []string{
+		// Synapse
+		"get_customer_behaviour", "get_event_trend", "get_funnel", "get_retention", "get_stickiness",
+		"get_user_flow", "list_segments", "get_segment_detail", "list_affinity_attributes",
+		"get_affinity_breakdown", "list_active_customers", "get_customer_profile", "get_visitor_profile",
+		// Lens
+		"get_web_traffic", "get_top_pages", "get_bot_traffic", "get_site_search", "get_frustration",
+		"get_traffic_trend", "get_page_performance", "get_page_stats",
+		// Prism
+		"get_experiments", "get_experiment_results",
+	} {
+		if offered[gone] {
+			t.Errorf("%q is offered with SIGNALS_ENABLED=false, but its data lives in the suite", gone)
+		}
+	}
+	// A record tool that only looks like a Signals one
+	if !offered["get_customer"] {
+		t.Error("get_customer reads the commerce record and should survive the switch")
+	}
+
+	// Called anyway, it is refused rather than run
+	res := runSignalTool(ctx, &Resolver{}, off, uuid.New(), 30, ai.ToolCall{ID: "x", Name: "get_customer_behaviour"})
+	if !res.IsError {
+		t.Errorf("a suite tool called with the switch off should be refused, got %+v", res)
 	}
 }

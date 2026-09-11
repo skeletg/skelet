@@ -12,6 +12,15 @@ The release process, and which version number means what, is in
 
 ### Fixed
 
+- **The AI chat offered Signals tools on a server with Signals switched off.** Its sections were
+  gated on permission slugs alone and never consulted `SIGNALS_ENABLED`, so with the suite off the
+  model was still handed `get_customer_behaviour`, `get_web_traffic`, `get_experiments` and the rest
+  - it called them, got empty results back, and had no way to tell "nothing happened" from "this
+  store does not collect that". The four suite sections now follow the switch, so those tools are
+  never offered and are refused if called anyway, and the opening digest stops reaching for them.
+  `get_customer` moves off the Synapse flag onto `customers.view` proper, since it reads the
+  commerce record rather than the behavioural profile and has no reason to disappear with the suite.
+
 - **A redelivered event could send a second order receipt.** Order confirmation, shipment,
   cancellation and refund mail go out from async event handlers, and the outbox redelivers an event
   whose handler finished but whose delivery was never marked done - a crash in that window sent the

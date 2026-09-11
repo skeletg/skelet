@@ -51,7 +51,7 @@ func entityLookupSignalTools() []signalTool {
 					"customer_id": map[string]any{"type": "string", "description": "Customer UUID (from the current page context)."},
 				}, "customer_id"),
 			},
-			perm: func(p digestPerms) bool { return p.synapse },
+			perm: func(p digestPerms) bool { return p.customers }, // the commerce record, so it stays with the suite off
 			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
 				return toolCustomer(ctx, r, cid, a)
 			},
