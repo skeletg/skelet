@@ -7,8 +7,6 @@ package contract
 import (
 	"embed"
 	"fmt"
-	"io/fs"
-	"strings"
 )
 
 // The wire contract's own version, sent on every invocation as X-Provider-Contract-Version and
@@ -29,27 +27,4 @@ func ExampleRequest(kind string) ([]byte, error) {
 		return nil, fmt.Errorf("no generated example for kind %q (run bin/codegen)", kind)
 	}
 	return b, nil
-}
-
-// Schema returns the generated JSON Schema for one operation - `kind` for the primary
-// operation, `kind.operation` for a secondary one such as search.browse
-func Schema(name string) ([]byte, error) {
-	b, err := files.ReadFile(name + ".schema.json")
-	if err != nil {
-		return nil, fmt.Errorf("no generated schema for %q (run bin/codegen)", name)
-	}
-	return b, nil
-}
-
-// Operations lists every generated operation name, primary and secondary
-func Operations() []string {
-	entries, err := fs.Glob(files, "*.schema.json")
-	if err != nil {
-		return nil
-	}
-	out := make([]string, 0, len(entries))
-	for _, e := range entries {
-		out = append(out, strings.TrimSuffix(e, ".schema.json"))
-	}
-	return out
 }

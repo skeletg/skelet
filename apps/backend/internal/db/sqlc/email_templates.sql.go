@@ -26,22 +26,6 @@ func (q *Queries) DeleteEmailBlock(ctx context.Context, arg DeleteEmailBlockPara
 	return err
 }
 
-const deleteEmailTemplate = `-- name: DeleteEmailTemplate :exec
-DELETE FROM email_templates
-WHERE key = $1
-  AND channel_id IS NOT DISTINCT FROM $2
-`
-
-type DeleteEmailTemplateParams struct {
-	Key       string        `json:"key"`
-	ChannelID uuid.NullUUID `json:"channel_id"`
-}
-
-func (q *Queries) DeleteEmailTemplate(ctx context.Context, arg DeleteEmailTemplateParams) error {
-	_, err := q.db.ExecContext(ctx, deleteEmailTemplate, arg.Key, arg.ChannelID)
-	return err
-}
-
 const getEmailBlock = `-- name: GetEmailBlock :one
 SELECT id, slug, name, blocks, updated_at, channel_id, icon, fields, html_template, text_template, css, scripted FROM email_blocks WHERE channel_id = $1 AND slug = $2
 `
@@ -99,41 +83,6 @@ func (q *Queries) GetEmailTemplate(ctx context.Context, arg GetEmailTemplatePara
 	return i, err
 }
 
-const insertEmailTemplate = `-- name: InsertEmailTemplate :one
-INSERT INTO email_templates (key, channel_id, subject, blocks, styles)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, key, channel_id, subject, blocks, updated_at, styles
-`
-
-type InsertEmailTemplateParams struct {
-	Key       string          `json:"key"`
-	ChannelID uuid.NullUUID   `json:"channel_id"`
-	Subject   string          `json:"subject"`
-	Blocks    json.RawMessage `json:"blocks"`
-	Styles    json.RawMessage `json:"styles"`
-}
-
-func (q *Queries) InsertEmailTemplate(ctx context.Context, arg InsertEmailTemplateParams) (EmailTemplate, error) {
-	row := q.db.QueryRowContext(ctx, insertEmailTemplate,
-		arg.Key,
-		arg.ChannelID,
-		arg.Subject,
-		arg.Blocks,
-		arg.Styles,
-	)
-	var i EmailTemplate
-	err := row.Scan(
-		&i.ID,
-		&i.Key,
-		&i.ChannelID,
-		&i.Subject,
-		&i.Blocks,
-		&i.UpdatedAt,
-		&i.Styles,
-	)
-	return i, err
-}
-
 const listEmailBlocks = `-- name: ListEmailBlocks :many
 SELECT id, slug, name, blocks, updated_at, channel_id, icon, fields, html_template, text_template, css, scripted FROM email_blocks WHERE channel_id = $1 ORDER BY name, slug
 `
@@ -172,70 +121,6 @@ func (q *Queries) ListEmailBlocks(ctx context.Context, channelID uuid.UUID) ([]E
 		return nil, err
 	}
 	return items, nil
-}
-
-const listEmailTemplates = `-- name: ListEmailTemplates :many
-SELECT id, key, channel_id, subject, blocks, updated_at, styles FROM email_templates ORDER BY key, channel_id NULLS FIRST
-`
-
-func (q *Queries) ListEmailTemplates(ctx context.Context) ([]EmailTemplate, error) {
-	rows, err := q.db.QueryContext(ctx, listEmailTemplates)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []EmailTemplate{}
-	for rows.Next() {
-		var i EmailTemplate
-		if err := rows.Scan(
-			&i.ID,
-			&i.Key,
-			&i.ChannelID,
-			&i.Subject,
-			&i.Blocks,
-			&i.UpdatedAt,
-			&i.Styles,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const updateEmailTemplate = `-- name: UpdateEmailTemplate :execrows
-UPDATE email_templates
-SET subject = $1, blocks = $2, styles = $3, updated_at = NOW()
-WHERE key = $4
-  AND channel_id IS NOT DISTINCT FROM $5
-`
-
-type UpdateEmailTemplateParams struct {
-	Subject   string          `json:"subject"`
-	Blocks    json.RawMessage `json:"blocks"`
-	Styles    json.RawMessage `json:"styles"`
-	Key       string          `json:"key"`
-	ChannelID uuid.NullUUID   `json:"channel_id"`
-}
-
-func (q *Queries) UpdateEmailTemplate(ctx context.Context, arg UpdateEmailTemplateParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateEmailTemplate,
-		arg.Subject,
-		arg.Blocks,
-		arg.Styles,
-		arg.Key,
-		arg.ChannelID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }
 
 const upsertEmailBlock = `-- name: UpsertEmailBlock :one

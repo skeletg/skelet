@@ -6,11 +6,6 @@ RETURNING *;
 -- name: GetShippingLabel :one
 SELECT * FROM shipping_labels WHERE id = $1;
 
--- name: ListShippingLabelsByFulfillment :many
-SELECT * FROM shipping_labels
-WHERE fulfillment_id = $1
-ORDER BY created_at ASC;
-
 -- name: ListShippingLabelsByFulfillmentIDs :many
 SELECT * FROM shipping_labels
 WHERE fulfillment_id = ANY($1::uuid[])

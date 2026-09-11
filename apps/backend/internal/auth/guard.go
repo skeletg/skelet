@@ -66,15 +66,6 @@ func RequireAuth(ctx context.Context) (*Claims, error) {
 	return claims, nil
 }
 
-// The RAW claims, with no store cross-check - front callers should prefer RequireCustomerForCurrentStore, which blocks store-A to store-B token replay
-func RequireCustomerAuth(ctx context.Context) (*CustomerClaims, error) {
-	claims, ok := CustomerFromContext(ctx)
-	if !ok {
-		return nil, ErrUnauthenticated
-	}
-	return claims, nil
-}
-
 // Claims only when their channel_id matches the resolved store - a store-A cookie reads as signed-out on store-B, since a mismatch is unauthenticated
 func RequireCustomerForCurrentStore(ctx context.Context) (*CustomerClaims, error) {
 	claims, ok := CustomerFromContext(ctx)

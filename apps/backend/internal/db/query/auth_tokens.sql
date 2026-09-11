@@ -19,8 +19,5 @@ WHERE token_key = $1 AND expires_at > now();
 -- name: DeleteAuthToken :exec
 DELETE FROM auth_tokens WHERE token_key = $1;
 
--- name: DeleteAuthTokensBySubject :exec
-DELETE FROM auth_tokens WHERE subject_id = $1;
-
 -- name: PruneExpiredAuthTokens :execrows
 DELETE FROM auth_tokens WHERE expires_at <= now();
