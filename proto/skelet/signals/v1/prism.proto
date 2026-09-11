@@ -1,0 +1,191 @@
+syntax = "proto3";
+
+// Prism: frontend A/B experiments. The storefront SDK assigns visitors and tracks exposures through
+// Lens; these are the admin reads and writes core serves on top of them
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service PrismService {
+  rpc ListExperiments(ListExperimentsRequest) returns (ListExperimentsResponse);
+  rpc GetExperiment(GetExperimentRequest) returns (GetExperimentResponse);
+  rpc GetExperimentResults(GetExperimentResultsRequest) returns (GetExperimentResultsResponse);
+  rpc GetExperimentsOverview(GetExperimentsOverviewRequest) returns (GetExperimentsOverviewResponse);
+  rpc ListGoalEvents(ListGoalEventsRequest) returns (ListGoalEventsResponse);
+  rpc CreateExperiment(CreateExperimentRequest) returns (CreateExperimentResponse);
+  rpc UpdateExperiment(UpdateExperimentRequest) returns (UpdateExperimentResponse);
+  rpc DeleteExperiment(DeleteExperimentRequest) returns (DeleteExperimentResponse);
+}
+
+message Experiment {
+  string id = 1;
+  string channel_id = 2;
+  string key = 3;
+  string name = 4;
+  // draft | running | stopped
+  string status = 5;
+  // Percent of visitors entered
+  int32 coverage = 6;
+  // Conversion event name, one the storefront tracks
+  string goal_event = 7;
+  // Optional targeting - only customers in this segment, empty for all
+  string segment_slug = 8;
+  repeated ExperimentVariation variations = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message ExperimentVariation {
+  string key = 1;
+  string name = 2;
+  int32 weight = 3;
+  // Payload the storefront renders for this arm
+  string value = 4;
+}
+
+// rate, ci_low and ci_high are 0..1 fractions; uplift is relative to the control and 0 for it;
+// chance_to_win is the one-sided P(variation beats control)
+message ExperimentVariationResult {
+  string variation = 1;
+  string name = 2;
+  int32 exposed = 3;
+  int32 converted = 4;
+  // From matched commerce goal events, 0 otherwise
+  int64 revenue_cents = 5;
+  double rate = 6;
+  double ci_low = 7;
+  double ci_high = 8;
+  double uplift = 9;
+  double chance_to_win = 10;
+  bool is_control = 11;
+  // Fixed-horizon 95% significance, valid when the sample size was pre-registered
+  bool significant = 12;
+  // mSPRT always-valid p-value, correct under continuous peeking and 1.0 until there is evidence
+  double always_valid_p = 13;
+  // p < 0.05 AND beating the control - the number to act on while the experiment still runs
+  bool sequential_significant = 14;
+}
+
+// One running experiment's headline result for the hub
+message ExperimentSummary {
+  string id = 1;
+  string key = 2;
+  string name = 3;
+  int32 variations = 4;
+  int32 coverage = 5;
+  int32 total_exposed = 6;
+  // Across all arms
+  int32 conversions = 7;
+  // Leading variation name, empty until there is data
+  string leader = 8;
+  double leader_rate = 9;
+  // Relative to the control, 0 when the leader is the control
+  double leader_uplift = 10;
+  double leader_chance_to_win = 11;
+  bool leader_is_control = 12;
+  // Significance-gated, empty when there is none
+  string winner = 13;
+  bool sample_ratio_mismatch = 14;
+}
+
+// What every save carries - create and update take the same body, so the two requests wrap this
+// rather than repeating it
+message ExperimentInput {
+  // Ignored on update, since an experiment does not move between channels
+  string channel_id = 1;
+  string key = 2;
+  string name = 3;
+  string status = 4;
+  int32 coverage = 5;
+  string goal_event = 6;
+  string segment_slug = 7;
+  repeated ExperimentVariation variations = 8;
+}
+
+message ListExperimentsRequest {
+  string channel_id = 1;
+}
+
+message ListExperimentsResponse {
+  repeated Experiment experiments = 1;
+}
+
+message GetExperimentRequest {
+  string id = 1;
+}
+
+// The experiment is absent rather than an error when the id matches nothing, since asking whether
+// one exists is a normal read
+message GetExperimentResponse {
+  optional Experiment experiment = 1;
+}
+
+message GetExperimentResultsRequest {
+  string id = 1;
+  // Window in days, 0 for the server default
+  int32 since_days = 2;
+}
+
+// A significance-gated winner stays empty until a challenger clears 97.5% chance-to-win, and a
+// sample-ratio mismatch means the observed split disagrees with the configured weights
+message GetExperimentResultsResponse {
+  repeated ExperimentVariationResult variations = 1;
+  string winner = 2;
+  // Peeking-safe winner (mSPRT), empty until one exists
+  string sequential_winner = 3;
+  bool sample_ratio_mismatch = 4;
+  int32 total_exposed = 5;
+  // Cents across all arms from matched commerce goals
+  int64 total_revenue = 6;
+}
+
+message GetExperimentsOverviewRequest {
+  string channel_id = 1;
+  int32 since_days = 2;
+}
+
+message GetExperimentsOverviewResponse {
+  int32 running = 1;
+  int32 draft = 2;
+  int32 stopped = 3;
+  // Across running experiments, in the window
+  int32 total_exposed = 4;
+  // Running experiments with a significant winner
+  int32 decided = 5;
+  // Running, most-exposed first
+  repeated ExperimentSummary experiments = 6;
+}
+
+message ListGoalEventsRequest {
+  string channel_id = 1;
+}
+
+// Custom-event names the storefront has fired for this channel, most-frequent first
+message ListGoalEventsResponse {
+  repeated string events = 1;
+}
+
+message CreateExperimentRequest {
+  ExperimentInput experiment = 1;
+}
+
+message CreateExperimentResponse {
+  Experiment experiment = 1;
+}
+
+message UpdateExperimentRequest {
+  string id = 1;
+  ExperimentInput experiment = 2;
+}
+
+message UpdateExperimentResponse {
+  Experiment experiment = 1;
+}
+
+message DeleteExperimentRequest {
+  string id = 1;
+}
+
+message DeleteExperimentResponse {
+  bool deleted = 1;
+}

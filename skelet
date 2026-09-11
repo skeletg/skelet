@@ -65,7 +65,7 @@ script_for() {
 subs_for() {
     case "$1" in
         db)      echo 'migrate [--signals] | export | import | shell | move-email-sends' ;;
-        gen)     echo '(all) | sqlc | gqlgen' ;;
+        gen)     echo '(all) | sqlc | gqlgen | buf' ;;
         check)   echo '(all) | pins | structure | contracts | codegen' ;;
         test)    echo '(all) | e2e' ;;
         logs)    echo '[service] | query "<where>"' ;;
@@ -192,6 +192,7 @@ case "$cmd" in
         case "${1:-}" in
             sqlc)   shift; run sqlc "$@" ;;
             gqlgen) shift; run gqlgen "$@" ;;
+            buf)    shift; run buf "$@" ;;
             *)      run codegen "$@" ;;
         esac ;;
 
