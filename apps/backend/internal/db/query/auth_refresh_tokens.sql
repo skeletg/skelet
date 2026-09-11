@@ -59,10 +59,6 @@ DELETE FROM auth_refresh_tokens WHERE scope = $1 AND owner_id = $2;
 DELETE FROM auth_refresh_tokens
 WHERE scope = $1 AND owner_id = $2 AND token_hash <> $3;
 
--- name: ListRefreshTokenHashesByOwner :many
-SELECT token_hash FROM auth_refresh_tokens
-WHERE scope = $1 AND owner_id = $2;
-
 -- name: PruneExpiredRefreshTokens :execrows
 -- Keep a rotated row until its reuse window lapses, so replaying a token that
 -- expired after rotation still trips the tripwire. $1 is the reuse-window cutoff

@@ -44,17 +44,6 @@ func AllEvents() []EventDefinition {
 	return out
 }
 
-func FindEvent(eventType string) (EventDefinition, bool) {
-	regMu.RLock()
-	defer regMu.RUnlock()
-	for _, d := range eventReg {
-		if d.Type == eventType {
-			return d, true
-		}
-	}
-	return EventDefinition{}, false
-}
-
 // Whether a subscription entry is a pattern rather than an exact type - "*" matches every event of the webhook's kind, and "<prefix>.*" every event of that kind under the prefix
 func IsWildcard(entry string) bool {
 	return entry == "*" || strings.HasSuffix(entry, ".*")

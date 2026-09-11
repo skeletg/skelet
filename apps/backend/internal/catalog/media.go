@@ -43,15 +43,6 @@ const (
 
 var AllMediaRoles = []MediaRole{MediaRoleMain, MediaRoleThumbnail, MediaRoleOGImage}
 
-func ParseMediaRole(s string) (MediaRole, bool) {
-	for _, r := range AllMediaRoles {
-		if string(r) == s {
-			return r, true
-		}
-	}
-	return "", false
-}
-
 // Picks the storage subdirectory so content-embedded images stay separate from gallery and role-oriented imagery
 type MediaUploadTarget string
 

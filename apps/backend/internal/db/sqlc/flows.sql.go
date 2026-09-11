@@ -207,29 +207,6 @@ func (q *Queries) GetFlow(ctx context.Context, id uuid.UUID) (Flow, error) {
 	return i, err
 }
 
-const getFlowRun = `-- name: GetFlowRun :one
-SELECT id, flow_id, customer_id, current_node_id, status, resume_at, context, error, created_at, updated_at, email FROM flow_runs WHERE id = $1
-`
-
-func (q *Queries) GetFlowRun(ctx context.Context, id uuid.UUID) (FlowRun, error) {
-	row := q.db.QueryRowContext(ctx, getFlowRun, id)
-	var i FlowRun
-	err := row.Scan(
-		&i.ID,
-		&i.FlowID,
-		&i.CustomerID,
-		&i.CurrentNodeID,
-		&i.Status,
-		&i.ResumeAt,
-		&i.Context,
-		&i.Error,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Email,
-	)
-	return i, err
-}
-
 const listActiveFlowsByTrigger = `-- name: ListActiveFlowsByTrigger :many
 SELECT id, channel_id, name, trigger_type, trigger_config, graph, status, created_at, updated_at, deleted_at FROM flows
 WHERE channel_id = $1 AND trigger_type = $2

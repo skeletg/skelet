@@ -1308,53 +1308,6 @@ func (q *Queries) GetPublishedCMSPageForChannel(ctx context.Context, arg GetPubl
 	return i, err
 }
 
-const listAllCMSPageContent = `-- name: ListAllCMSPageContent :many
-SELECT page_id, locale, title, body, meta_title, meta_description, meta_keywords
-FROM cms_page_content
-`
-
-type ListAllCMSPageContentRow struct {
-	PageID          uuid.UUID             `json:"page_id"`
-	Locale          string                `json:"locale"`
-	Title           string                `json:"title"`
-	Body            pqtype.NullRawMessage `json:"body"`
-	MetaTitle       sql.NullString        `json:"meta_title"`
-	MetaDescription sql.NullString        `json:"meta_description"`
-	MetaKeywords    sql.NullString        `json:"meta_keywords"`
-}
-
-// For the search-index backfill datapatch: every content row's indexable fields
-func (q *Queries) ListAllCMSPageContent(ctx context.Context) ([]ListAllCMSPageContentRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAllCMSPageContent)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListAllCMSPageContentRow{}
-	for rows.Next() {
-		var i ListAllCMSPageContentRow
-		if err := rows.Scan(
-			&i.PageID,
-			&i.Locale,
-			&i.Title,
-			&i.Body,
-			&i.MetaTitle,
-			&i.MetaDescription,
-			&i.MetaKeywords,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listAllCMSPages = `-- name: ListAllCMSPages :many
 SELECT id, page_type_id, parent_id, slug, url_path, position, is_published, seo_noindex, published_at, data, metadata, private_metadata, created_at, updated_at, scheduled_at, base_path, experiment_key, tags, workflow_state, assigned_to, submitted_by, submitted_at, approved_by, approved_at FROM cms_pages ORDER BY url_path
 `

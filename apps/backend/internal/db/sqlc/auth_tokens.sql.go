@@ -21,15 +21,6 @@ func (q *Queries) DeleteAuthToken(ctx context.Context, tokenKey string) error {
 	return err
 }
 
-const deleteAuthTokensBySubject = `-- name: DeleteAuthTokensBySubject :exec
-DELETE FROM auth_tokens WHERE subject_id = $1
-`
-
-func (q *Queries) DeleteAuthTokensBySubject(ctx context.Context, subjectID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteAuthTokensBySubject, subjectID)
-	return err
-}
-
 const getAuthToken = `-- name: GetAuthToken :one
 SELECT subject_id FROM auth_tokens
 WHERE token_key = $1 AND expires_at > now()

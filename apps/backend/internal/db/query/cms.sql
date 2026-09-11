@@ -319,11 +319,6 @@ UPDATE cms_page_content
 SET search_vector = to_tsvector('simple', sqlc.arg(doc)::text)
 WHERE page_id = $1 AND locale = $2;
 
--- name: ListAllCMSPageContent :many
--- For the search-index backfill datapatch: every content row's indexable fields
-SELECT page_id, locale, title, body, meta_title, meta_description, meta_keywords
-FROM cms_page_content;
-
 -- name: GetCMSPageContent :one
 SELECT * FROM cms_page_content WHERE page_id = $1 AND locale = $2;
 

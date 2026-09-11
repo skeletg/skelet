@@ -491,11 +491,6 @@ func checkValidityWindow(rule Rule, code Code) error {
 	return nil
 }
 
-func IsValidationError(err error) bool {
-	var ve *ValidationError
-	return errors.As(err, &ve)
-}
-
 // ---- i18n rule contents ----
 
 func (s *Service) UpsertRuleContent(ctx context.Context, ruleID uuid.UUID, locale, label, terms string) (RuleContent, error) {

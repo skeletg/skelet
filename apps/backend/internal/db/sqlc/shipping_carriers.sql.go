@@ -94,45 +94,6 @@ func (q *Queries) ListCountriesForShippingCarrier(ctx context.Context, carrierID
 	return items, nil
 }
 
-const listEnabledShippingCarriersByChannel = `-- name: ListEnabledShippingCarriersByChannel :many
-SELECT id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at FROM shipping_carriers
-WHERE channel_id = $1 AND is_enabled = TRUE
-ORDER BY sort_order, carrier_slug
-`
-
-func (q *Queries) ListEnabledShippingCarriersByChannel(ctx context.Context, channelID uuid.UUID) ([]ShippingCarrier, error) {
-	rows, err := q.db.QueryContext(ctx, listEnabledShippingCarriersByChannel, channelID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ShippingCarrier{}
-	for rows.Next() {
-		var i ShippingCarrier
-		if err := rows.Scan(
-			&i.ID,
-			&i.ChannelID,
-			&i.CarrierSlug,
-			&i.IsEnabled,
-			&i.DisplayName,
-			&i.SortOrder,
-			&i.CountryMode,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listShippingCarriersByChannel = `-- name: ListShippingCarriersByChannel :many
 SELECT id, channel_id, carrier_slug, is_enabled, display_name, sort_order, country_mode, created_at, updated_at FROM shipping_carriers
 WHERE channel_id = $1

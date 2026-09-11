@@ -516,7 +516,6 @@ type Querier interface {
 	DeleteAttributeValueChannelSlug(ctx context.Context, arg DeleteAttributeValueChannelSlugParams) error
 	DeleteAttributeValueContent(ctx context.Context, arg DeleteAttributeValueContentParams) error
 	DeleteAuthToken(ctx context.Context, tokenKey string) error
-	DeleteAuthTokensBySubject(ctx context.Context, subjectID uuid.UUID) error
 	DeleteBlogAuthor(ctx context.Context, id uuid.UUID) error
 	DeleteBlogAuthorContent(ctx context.Context, arg DeleteBlogAuthorContentParams) (int64, error)
 	DeleteBlogCategory(ctx context.Context, id uuid.UUID) error
@@ -580,7 +579,6 @@ type Querier interface {
 	// Any group is deletable (incl. the seeded transactional/marketing ones);
 	// email_library.group_id ON DELETE SET NULL keeps the emails, just untagged
 	DeleteEmailGroup(ctx context.Context, id uuid.UUID) (int64, error)
-	DeleteEmailTemplate(ctx context.Context, arg DeleteEmailTemplateParams) error
 	DeleteExperiment(ctx context.Context, id uuid.UUID) error
 	DeleteFinishedRebuildTasksBefore(ctx context.Context, dollar_1 time.Time) (int64, error)
 	DeleteGroupedMember(ctx context.Context, id uuid.UUID) error
@@ -824,7 +822,6 @@ type Querier interface {
 	GetEmailTemplate(ctx context.Context, arg GetEmailTemplateParams) (EmailTemplate, error)
 	GetExperiment(ctx context.Context, id uuid.UUID) (Experiment, error)
 	GetFlow(ctx context.Context, id uuid.UUID) (Flow, error)
-	GetFlowRun(ctx context.Context, id uuid.UUID) (FlowRun, error)
 	GetGiftCardByCode(ctx context.Context, code string) (GiftCard, error)
 	// Row-locked read used inside redeem/adjust transactions so concurrent
 	// redemptions of the same card serialize and can't overspend
@@ -971,7 +968,6 @@ type Querier interface {
 	GetReviewByCustomerAndProduct(ctx context.Context, arg GetReviewByCustomerAndProductParams) (Review, error)
 	GetReviewByID(ctx context.Context, id uuid.UUID) (Review, error)
 	GetReviewCategoryByID(ctx context.Context, id uuid.UUID) (ReviewCategory, error)
-	GetReviewCategoryBySlug(ctx context.Context, slug string) (ReviewCategory, error)
 	GetReviewModerationTagByID(ctx context.Context, id uuid.UUID) (ReviewModerationTag, error)
 	GetReviewQuestionByID(ctx context.Context, id uuid.UUID) (ReviewQuestion, error)
 	GetReviewQuestionBySlug(ctx context.Context, slug string) (ReviewQuestion, error)
@@ -1002,7 +998,6 @@ type Querier interface {
 	GetRotatedRefreshToken(ctx context.Context, arg GetRotatedRefreshTokenParams) (GetRotatedRefreshTokenRow, error)
 	GetSavedItem(ctx context.Context, id uuid.UUID) (CartSavedItem, error)
 	GetScheduledJob(ctx context.Context, id uuid.UUID) (ScheduledJob, error)
-	GetScheduledJobByName(ctx context.Context, name string) (ScheduledJob, error)
 	GetSearchRedirect(ctx context.Context, arg GetSearchRedirectParams) (SearchRedirect, error)
 	GetSeoCrawl(ctx context.Context, id uuid.UUID) (SeoCrawl, error)
 	// Single box by id - the admin delete path needs its channel to authorize
@@ -1094,7 +1089,6 @@ type Querier interface {
 	// The email send log. Append-only history of what went out, plus the human-only
 	// first-open/first-click stamps the spine-write path maintains.
 	InsertEmailSend(ctx context.Context, arg InsertEmailSendParams) (uuid.UUID, error)
-	InsertEmailTemplate(ctx context.Context, arg InsertEmailTemplateParams) (EmailTemplate, error)
 	InsertGiftCardTransaction(ctx context.Context, arg InsertGiftCardTransactionParams) (GiftCardTransaction, error)
 	// ==================== Reservations (append-only ledger) ====================
 	InsertInventoryReservation(ctx context.Context, arg InsertInventoryReservationParams) (InventoryReservation, error)
@@ -1196,8 +1190,6 @@ type Querier interface {
 	ListAdminUserGrants(ctx context.Context, adminUserID uuid.UUID) ([]ListAdminUserGrantsRow, error)
 	ListAdminUsers(ctx context.Context) ([]AdminUser, error)
 	ListAllBlogCategories(ctx context.Context) ([]BlogCategory, error)
-	// For the search-index backfill datapatch: every content row's indexable fields
-	ListAllCMSPageContent(ctx context.Context) ([]ListAllCMSPageContentRow, error)
 	ListAllCMSPages(ctx context.Context) ([]CmsPage, error)
 	ListAllCategories(ctx context.Context) ([]CatalogCategory, error)
 	// Full table dump for the CLI orphan detector
@@ -1402,9 +1394,7 @@ type Querier interface {
 	// email and recipient_id are deliberately not selected - archives are
 	// identity-stripped, keeping campaign/flow/order linkage for aggregate stats.
 	ListEmailSendsForArchive(ctx context.Context, arg ListEmailSendsForArchiveParams) ([]ListEmailSendsForArchiveRow, error)
-	ListEmailTemplates(ctx context.Context) ([]EmailTemplate, error)
 	ListEnabledPaymentMethodsByChannel(ctx context.Context, channelID uuid.UUID) ([]PaymentMethod, error)
-	ListEnabledShippingCarriersByChannel(ctx context.Context, channelID uuid.UUID) ([]ShippingCarrier, error)
 	ListExperiments(ctx context.Context, channelID uuid.UUID) ([]Experiment, error)
 	// Standing-condition source for the inbox scan: enabled jobs whose last run errored
 	ListFailingScheduledJobs(ctx context.Context) ([]ListFailingScheduledJobsRow, error)
@@ -1667,7 +1657,6 @@ type Querier interface {
 	ListPublishedRootCategoriesForChannel(ctx context.Context, channelID uuid.UUID) ([]ListPublishedRootCategoriesForChannelRow, error)
 	ListQuestionsForModeration(ctx context.Context, arg ListQuestionsForModerationParams) ([]ProductQuestion, error)
 	ListRecentRebuildTasks(ctx context.Context, limit int32) ([]CacheRebuildTask, error)
-	ListRefreshTokenHashesByOwner(ctx context.Context, arg ListRefreshTokenHashesByOwnerParams) ([]string, error)
 	ListRegionsByCountry(ctx context.Context, countryCode string) ([]Region, error)
 	ListRemoteProviders(ctx context.Context) ([]RemoteProvider, error)
 	ListReservationsForOrder(ctx context.Context, orderID uuid.NullUUID) ([]InventoryReservation, error)
@@ -1706,7 +1695,6 @@ type Querier interface {
 	ListSettledOrderIDsBefore(ctx context.Context, dollar_1 time.Time) ([]uuid.NullUUID, error)
 	ListShippingBoxesByChannel(ctx context.Context, channelID uuid.UUID) ([]ShippingBox, error)
 	ListShippingCarriersByChannel(ctx context.Context, channelID uuid.UUID) ([]ShippingCarrier, error)
-	ListShippingLabelsByFulfillment(ctx context.Context, fulfillmentID uuid.UUID) ([]ShippingLabel, error)
 	ListShippingLabelsByFulfillmentIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]ShippingLabel, error)
 	ListShippingMethodsByZone(ctx context.Context, zoneID uuid.UUID) ([]ShippingMethod, error)
 	ListShippingZonesByChannel(ctx context.Context, channelID uuid.UUID) ([]ShippingZone, error)
@@ -2256,9 +2244,6 @@ type Querier interface {
 	UpdateChatConversation(ctx context.Context, arg UpdateChatConversationParams) (uuid.UUID, error)
 	UpdateCollection(ctx context.Context, arg UpdateCollectionParams) (Collection, error)
 	UpdateCountry(ctx context.Context, arg UpdateCountryParams) (Country, error)
-	// Enrich an existing country with its alpha-3 + numeric-3 ISO codes
-	// No-op when the country code isn't present
-	UpdateCountryIsoCodes(ctx context.Context, arg UpdateCountryIsoCodesParams) error
 	UpdateCurrency(ctx context.Context, arg UpdateCurrencyParams) (Currency, error)
 	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error)
 	// Admin-side update: all fields, caller pre-merges with current values
@@ -2267,7 +2252,6 @@ type Querier interface {
 	UpdateCustomerPassword(ctx context.Context, arg UpdateCustomerPasswordParams) error
 	// Only drafts are editable
 	UpdateEmailCampaign(ctx context.Context, arg UpdateEmailCampaignParams) (int64, error)
-	UpdateEmailTemplate(ctx context.Context, arg UpdateEmailTemplateParams) (int64, error)
 	UpdateExperiment(ctx context.Context, arg UpdateExperimentParams) (int64, error)
 	UpdateFlow(ctx context.Context, arg UpdateFlowParams) (int64, error)
 	UpdateFlowRun(ctx context.Context, arg UpdateFlowRunParams) error
@@ -2424,10 +2408,6 @@ type Querier interface {
 	UpsertProductReviewSummary(ctx context.Context, arg UpsertProductReviewSummaryParams) error
 	// ===== i18n rule contents =====
 	UpsertPromotionRuleContent(ctx context.Context, arg UpsertPromotionRuleContentParams) (PromotionRuleContent, error)
-	// Skips silently when the country isn't present (an install may enable
-	// only a subset of countries) - the curated region set seeds only for
-	// countries that exist
-	UpsertRegion(ctx context.Context, arg UpsertRegionParams) error
 	// ==================== Review Answers ====================
 	UpsertReviewAnswer(ctx context.Context, arg UpsertReviewAnswerParams) error
 	UpsertReviewQuestionContent(ctx context.Context, arg UpsertReviewQuestionContentParams) (ReviewQuestionContent, error)
