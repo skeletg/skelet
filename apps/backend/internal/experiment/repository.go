@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
-	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
+	db "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 )
 
 type Repository interface {
@@ -37,7 +37,7 @@ type SpineReader interface {
 	ExperimentResults(ctx context.Context, channelID uuid.UUID, key, goalEvent string, since time.Time) ([]analytics.VariationResult, error)
 }
 
-// Exposures and goals live on whichever engine holds the spine; experiment CRUD stays in commerce
+// Definitions and the spine that scores them are both the signals database's, so a results query never crosses over
 type repo struct {
 	q     *db.Queries
 	spine SpineReader

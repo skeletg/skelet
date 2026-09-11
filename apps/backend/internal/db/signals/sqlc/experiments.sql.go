@@ -7,10 +7,65 @@ package signalsdb
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+const createExperiment = `-- name: CreateExperiment :one
+INSERT INTO experiments (channel_id, key, name, status, coverage, goal_event, variations, segment_slug)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, channel_id, key, name, status, coverage, goal_event, variations, segment_slug, created_at, updated_at
+`
+
+type CreateExperimentParams struct {
+	ChannelID   uuid.UUID       `json:"channel_id"`
+	Key         string          `json:"key"`
+	Name        string          `json:"name"`
+	Status      string          `json:"status"`
+	Coverage    int32           `json:"coverage"`
+	GoalEvent   string          `json:"goal_event"`
+	Variations  json.RawMessage `json:"variations"`
+	SegmentSlug string          `json:"segment_slug"`
+}
+
+func (q *Queries) CreateExperiment(ctx context.Context, arg CreateExperimentParams) (Experiment, error) {
+	row := q.db.QueryRowContext(ctx, createExperiment,
+		arg.ChannelID,
+		arg.Key,
+		arg.Name,
+		arg.Status,
+		arg.Coverage,
+		arg.GoalEvent,
+		arg.Variations,
+		arg.SegmentSlug,
+	)
+	var i Experiment
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.Key,
+		&i.Name,
+		&i.Status,
+		&i.Coverage,
+		&i.GoalEvent,
+		&i.Variations,
+		&i.SegmentSlug,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteExperiment = `-- name: DeleteExperiment :exec
+DELETE FROM experiments WHERE id = $1
+`
+
+func (q *Queries) DeleteExperiment(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteExperiment, id)
+	return err
+}
 
 const experimentGoalEvents = `-- name: ExperimentGoalEvents :many
 
@@ -47,10 +102,9 @@ type ExperimentGoalEventsRow struct {
 	Uses int32       `json:"uses"`
 }
 
-// Prism experiment spine reads (moved from the commerce experiments.sql at the
-// physical split). Exposures + goals ride the analytics_events spine and resolve
-// through analytics_identities - both live in the signals db, so these are
-// self-contained here. Experiment CRUD (the experiments table) stays in commerce.
+// Prism: the experiments table plus the spine reads that score it. Exposures and
+// goals ride analytics_events and resolve through analytics_identities, so a
+// results query reads the definition and its numbers from the one database.
 // Pickable goal-event suggestions for this channel, most-frequent first: web
 // custom-event names (props.name, excluding the internal '$experiment') PLUS
 // commerce/account spine event names (e.g. order_placed) so experiments can
@@ -173,4 +227,138 @@ func (q *Queries) ExperimentResults(ctx context.Context, arg ExperimentResultsPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const getExperiment = `-- name: GetExperiment :one
+SELECT id, channel_id, key, name, status, coverage, goal_event, variations, segment_slug, created_at, updated_at FROM experiments WHERE id = $1
+`
+
+func (q *Queries) GetExperiment(ctx context.Context, id uuid.UUID) (Experiment, error) {
+	row := q.db.QueryRowContext(ctx, getExperiment, id)
+	var i Experiment
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.Key,
+		&i.Name,
+		&i.Status,
+		&i.Coverage,
+		&i.GoalEvent,
+		&i.Variations,
+		&i.SegmentSlug,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listExperiments = `-- name: ListExperiments :many
+SELECT id, channel_id, key, name, status, coverage, goal_event, variations, segment_slug, created_at, updated_at FROM experiments WHERE channel_id = $1 ORDER BY created_at DESC
+`
+
+func (q *Queries) ListExperiments(ctx context.Context, channelID uuid.UUID) ([]Experiment, error) {
+	rows, err := q.db.QueryContext(ctx, listExperiments, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Experiment{}
+	for rows.Next() {
+		var i Experiment
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChannelID,
+			&i.Key,
+			&i.Name,
+			&i.Status,
+			&i.Coverage,
+			&i.GoalEvent,
+			&i.Variations,
+			&i.SegmentSlug,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRunningExperiments = `-- name: ListRunningExperiments :many
+SELECT id, channel_id, key, name, status, coverage, goal_event, variations, segment_slug, created_at, updated_at FROM experiments WHERE channel_id = $1 AND status = 'running' ORDER BY key
+`
+
+func (q *Queries) ListRunningExperiments(ctx context.Context, channelID uuid.UUID) ([]Experiment, error) {
+	rows, err := q.db.QueryContext(ctx, listRunningExperiments, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Experiment{}
+	for rows.Next() {
+		var i Experiment
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChannelID,
+			&i.Key,
+			&i.Name,
+			&i.Status,
+			&i.Coverage,
+			&i.GoalEvent,
+			&i.Variations,
+			&i.SegmentSlug,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateExperiment = `-- name: UpdateExperiment :execrows
+UPDATE experiments
+SET name = $1, status = $2, coverage = $3,
+    goal_event = $4, variations = $5, segment_slug = $6, updated_at = NOW()
+WHERE id = $7
+`
+
+type UpdateExperimentParams struct {
+	Name        string          `json:"name"`
+	Status      string          `json:"status"`
+	Coverage    int32           `json:"coverage"`
+	GoalEvent   string          `json:"goal_event"`
+	Variations  json.RawMessage `json:"variations"`
+	SegmentSlug string          `json:"segment_slug"`
+	ID          uuid.UUID       `json:"id"`
+}
+
+func (q *Queries) UpdateExperiment(ctx context.Context, arg UpdateExperimentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateExperiment,
+		arg.Name,
+		arg.Status,
+		arg.Coverage,
+		arg.GoalEvent,
+		arg.Variations,
+		arg.SegmentSlug,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

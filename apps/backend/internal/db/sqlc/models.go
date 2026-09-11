@@ -1463,20 +1463,6 @@ type EventOutbox struct {
 	CreatedAt     time.Time       `json:"created_at"`
 }
 
-type Experiment struct {
-	ID          uuid.UUID       `json:"id"`
-	ChannelID   uuid.UUID       `json:"channel_id"`
-	Key         string          `json:"key"`
-	Name        string          `json:"name"`
-	Status      string          `json:"status"`
-	Coverage    int32           `json:"coverage"`
-	GoalEvent   string          `json:"goal_event"`
-	Variations  json.RawMessage `json:"variations"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
-	SegmentSlug string          `json:"segment_slug"`
-}
-
 type Flow struct {
 	ID            uuid.UUID       `json:"id"`
 	ChannelID     uuid.UUID       `json:"channel_id"`
