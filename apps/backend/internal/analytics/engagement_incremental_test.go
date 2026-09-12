@@ -8,17 +8,15 @@ import (
 	"github.com/google/uuid"
 
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
-	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/testdb"
 )
 
-// Gated on DATABASE_URL + SIGNALS_DB_URL - an incremental refresh must land the projection on exactly what a full recompute would produce: aged-out customers deleted, fresh ones upserted, untouched ones untouched
+// Gated on SIGNALS_DB_URL - an incremental refresh must land the projection on exactly what a full recompute would produce: aged-out customers deleted, fresh ones upserted, untouched ones untouched
 func TestIncrementalEngagementMatchesFull(t *testing.T) {
-	cconn := testdb.Require(t)
 	sconn := testdb.RequireSignals(t)
 
 	ctx := context.Background()
-	rec := NewRecorder(db.New(cconn), signalsdb.New(sconn))
+	rec := NewRecorder(signalsdb.New(sconn))
 	ch := uuid.New()
 	agedC, freshC, stableC := uuid.New(), uuid.New(), uuid.New()
 	t1 := time.Now().UTC()

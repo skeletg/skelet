@@ -61,7 +61,7 @@ func TestArchiveEventsBySourceCH(t *testing.T) {
 	ctx := context.Background()
 	st := testStore(t)
 	defer st.Close()
-	rec := analytics.NewRecorder(nil, nil)
+	rec := analytics.NewRecorder(nil)
 	rec.SetSpine(st)
 	sink := newFakeSink()
 	rec.SetArchiveSink(sink)
@@ -167,7 +167,7 @@ func TestArchiveEventsDropsPartitionsCH(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	rec := analytics.NewRecorder(nil, nil)
+	rec := analytics.NewRecorder(nil)
 	rec.SetSpine(st)
 	sink := newFakeSink()
 	rec.SetArchiveSink(sink)

@@ -10,7 +10,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/admin"
 	"github.com/skeletg/skelet/apps/backend/internal/adminprefs"
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
-	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/audit"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
 	"github.com/skeletg/skelet/apps/backend/internal/blog"
@@ -53,6 +52,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/sales"
 	"github.com/skeletg/skelet/apps/backend/internal/scheduler"
 	"github.com/skeletg/skelet/apps/backend/internal/searchmerch"
+	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
@@ -111,7 +111,8 @@ type Resolver struct {
 	EmailTmplSvc      *emailtemplate.Service
 	CampaignSvc       *campaign.Service
 	FlowSvc           *flow.Service
-	AnalyticsSvc      *analytics.Recorder
+	// Core's own record of every mail it sent - the engagement panel reads it, not the suite
+	SendLog *sendlog.Store
 	// Core's plug into the Signals service - the chat reads the suite through it rather than holding its services
 	SignalsAPI       *signalsclient.Client
 	NotificationSvc  *notification.Service

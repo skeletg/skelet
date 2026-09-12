@@ -14,11 +14,11 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics/spinech"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics/spinequeue"
+	"github.com/skeletg/skelet/apps/backend/internal/archivefile"
 	"github.com/skeletg/skelet/apps/backend/internal/backup"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 )
 
 // Options carries the per-binary database handles - everything env-shaped (SIGNALS_ENABLED, SIGNALS_ENGINE, SIGNALS_CH_URL, SIGNALS_QUEUE_URL) is read here
@@ -32,7 +32,6 @@ type Options struct {
 
 type Stack struct {
 	Recorder *analytics.Recorder
-	SendLog  *sendlog.Store              // core's, built here too so this process can age the log out
 	Queue    *spinequeue.Queue           // non-nil when SIGNALS_QUEUE_URL is set
 	Enabled  bool                        // SIGNALS_ENABLED (the Recorder already no-ops its writes when off)
 	CHPing   func(context.Context) error // non-nil under the ClickHouse engine, for health endpoints
@@ -40,16 +39,11 @@ type Stack struct {
 }
 
 func Build(ctx context.Context, o Options) (*Stack, error) {
-	rec := analytics.NewRecorder(o.Commerce, o.Spine)
-	sends := sendlog.NewStore(o.Commerce)
-	st := &Stack{Recorder: rec, SendLog: sends, Enabled: envBool("SIGNALS_ENABLED", true)}
+	rec := analytics.NewRecorder(o.Spine)
+	st := &Stack{Recorder: rec, Enabled: envBool("SIGNALS_ENABLED", true)}
 	rec.SetEnabled(st.Enabled)
 	if !st.Enabled {
 		slog.Info("signals disabled via SIGNALS_ENABLED=false")
-	}
-	if o.CommerceRead != nil {
-		rec.SetReadQueries(o.CommerceRead)
-		sends.SetReadQueries(o.CommerceRead)
 	}
 	if o.SpineRead != nil {
 		rec.SetSpineReadQueries(o.SpineRead)
@@ -73,8 +67,7 @@ func Build(ctx context.Context, o Options) (*Stack, error) {
 	if store, prefix, err := backup.ArchiveStorage(ctx); err != nil {
 		slog.Warn("retention archive destination unavailable", "err", err)
 	} else if store != nil {
-		rec.SetArchiveSink(archiveSink{store: store, prefix: prefix})
-		sends.SetArchiveSink(archiveSink{store: store, prefix: prefix})
+		rec.SetArchiveSink(archivefile.NewStorageSink(store, prefix))
 	}
 	if qURL := os.Getenv("SIGNALS_QUEUE_URL"); qURL != "" {
 		q, err := spinequeue.New(ctx, qURL)

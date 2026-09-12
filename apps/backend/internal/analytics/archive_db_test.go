@@ -40,7 +40,7 @@ func TestPgSpineArchiveEventsExportsThenDeletes(t *testing.T) {
 	seed(now.Add(-time.Hour)) // its day hasn't fully aged, so it must survive the sweep
 
 	sink := newFakeSink()
-	rec := NewRecorder(nil, signalsdb.New(conn))
+	rec := NewRecorder(signalsdb.New(conn))
 	rec.SetArchiveSink(sink)
 
 	n, err := rec.ArchiveEventsBySource(ctx, src, now.AddDate(0, 0, -1))
@@ -85,7 +85,7 @@ func TestPgSpineArchiveEventsKeepsRowsWhenSinkFails(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
-	rec := NewRecorder(nil, signalsdb.New(conn))
+	rec := NewRecorder(signalsdb.New(conn))
 	rec.SetArchiveSink(downSink{})
 	if _, err := rec.ArchiveEventsBySource(ctx, src, time.Now().UTC().AddDate(0, 0, -1)); err == nil {
 		t.Fatal("archive against a dead sink must error")

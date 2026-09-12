@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
-	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 )
 
 const (
@@ -39,17 +38,11 @@ const (
 )
 
 type Recorder struct {
-	q       *db.Queries        // commerce db, primary read-write: traits, identity + orchestration - takes all writes
 	qs      *signalsdb.Queries // signals write handle, backing the default pg spine driver
-	qr      *db.Queries        // optional dedicated read pool (replica or bulkhead) the heavy read.go aggregations route to - never used for writes
-	spine   SpineStore         // the pluggable engine driver, Postgres today and ClickHouse later - ALL spine access goes through it (ingest, identity, every analytical read) and the Recorder only orchestrates spine plus commerce
+	spine   SpineStore         // the pluggable engine driver, Postgres today and ClickHouse later - ALL spine access goes through it, ingest and every analytical read alike
 	archive ArchiveSink        // optional retention-archive destination (the BACKUP_* bucket) - nil makes retention_action=archive fail closed
 	// The server-wide Signals switch - every spine write no-ops (web, activity, sends, identity). NewSend/GetSend are not gated by it: the flow engine delivers transactional mail either way
 	disabled bool
-}
-
-func (r *Recorder) SetReadQueries(qr *db.Queries) { // optional - unset means reads use the primary pool
-	r.qr = qr
 }
 
 // Gives the default Postgres spine driver its read pool, so spine aggregations don't run on the write pool - no-op for a non-pg driver
@@ -75,15 +68,9 @@ func (r *Recorder) SetEnabled(v bool) { r.disabled = !v }
 
 func (r *Recorder) Enabled() bool { return !r.disabled }
 
-func (r *Recorder) read() *db.Queries { // read-only aggregations - writes always use r.q directly
-	if r.qr != nil {
-		return r.qr
-	}
-	return r.q
-}
-
-func NewRecorder(q *db.Queries, qs *signalsdb.Queries) *Recorder { // defaults to the Postgres spine driver - SetSpine swaps in ClickHouse
-	return &Recorder{q: q, qs: qs, spine: newPGSpine(qs, nil)}
+// The Recorder reads and writes the signals database only - it holds no commerce handle
+func NewRecorder(qs *signalsdb.Queries) *Recorder { // defaults to the Postgres spine driver - SetSpine swaps in ClickHouse
+	return &Recorder{qs: qs, spine: newPGSpine(qs, nil)}
 }
 
 type Hit struct {
@@ -249,11 +236,6 @@ func (r *Recorder) Maintain(ctx context.Context) {
 	if err := r.sweepIdentityErasures(ctx); err != nil {
 		log.Printf("[analytics] identity erasure sweep: %v", err)
 	}
-}
-
-// Pre-creates the send log's upcoming month partitions - core owns the schedule, since the table is commerce-side and fills whether or not Signals runs
-func (r *Recorder) EnsureEmailSendPartitions(ctx context.Context) error {
-	return r.q.EnsureEmailSendPartitions(ctx)
 }
 
 type LensCellIncrement struct { // a binned heatmap increment from one tracker flush - ClickHouse appends these as raw events where Postgres upserts hot counter rows

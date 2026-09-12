@@ -129,7 +129,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		FormSvc:           s.Form,
 		WebFormSvc:        s.WebForm,
 		ChatSvc:           s.Chat,
-		AnalyticsSvc:      s.Recorder,
+		SendLog:           s.SendLog,
 		Health:            healthReg,
 		SignalsAPI:        s.SignalsClient,
 		FlowSvc:           s.Flow,
