@@ -17,12 +17,18 @@ service IngestService {
 }
 
 // The send an engagement belongs to, reduced to what the spine stores - core keeps the send log itself
+// The origin rides along rather than being looked up later, so an event stays true to the send as it
+// was, and attribution never has to reach back into core's tables
 message EmailSendRef {
   string send_id = 1;
   string channel_id = 2;
   optional string customer_id = 3;
   // campaign | flow | transactional
   string source = 4;
+  // Set for a campaign send
+  optional string campaign_id = 5;
+  // Set for a flow send
+  optional string flow_id = 6;
 }
 
 // One pixel load or link follow, already classified by the caller

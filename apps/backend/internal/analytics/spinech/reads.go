@@ -923,7 +923,8 @@ func (s *Store) SegmentAffinitiesForMembers(ctx context.Context, channelID uuid.
 
 func (s *Store) RecentEngagementEvents(ctx context.Context, customerID uuid.UUID, since time.Time) ([]analytics.EngagementCandidate, error) {
 	rows, err := s.conn.Query(ctx, `
-		SELECT event_name, occurred_at, send_id
+		SELECT event_name, occurred_at, send_id, source,
+		       JSONExtractString(properties, 'campaign_id'), JSONExtractString(properties, 'flow_id')
 		FROM analytics_events FINAL
 		WHERE customer_id = ? AND event_name IN ('email_opened', 'email_clicked')
 		  AND send_id != toUUID('00000000-0000-0000-0000-000000000000') AND occurred_at >= ?
@@ -935,7 +936,7 @@ func (s *Store) RecentEngagementEvents(ctx context.Context, customerID uuid.UUID
 	var out []analytics.EngagementCandidate
 	for rows.Next() {
 		var c analytics.EngagementCandidate
-		if err := rows.Scan(&c.EventName, &c.OccurredAt, &c.SendID); err != nil {
+		if err := rows.Scan(&c.EventName, &c.OccurredAt, &c.SendID, &c.Source, &c.CampaignID, &c.FlowID); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

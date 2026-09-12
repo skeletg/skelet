@@ -81,5 +81,8 @@ func (s *Service) RecordClick(ctx context.Context, token string, h signalsclient
 
 // The send reduced to what the spine stores - the send log itself stays core's
 func sendRef(s sendlog.Send) signalsclient.SendRef {
-	return signalsclient.SendRef{ID: s.ID, ChannelID: s.ChannelID, CustomerID: s.CustomerID, Source: s.Source}
+	return signalsclient.SendRef{
+		ID: s.ID, ChannelID: s.ChannelID, CustomerID: s.CustomerID, Source: s.Source,
+		CampaignID: s.CampaignID, FlowID: s.FlowID,
+	}
 }
