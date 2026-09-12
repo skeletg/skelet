@@ -168,7 +168,7 @@ type Querier interface {
 	CancelEmailCampaign(ctx context.Context, id uuid.UUID) (int64, error)
 	CancelStaleSeoCrawls(ctx context.Context, silentForMinutes int32) error
 	CascadeAttributeValuesIndexable(ctx context.Context, arg CascadeAttributeValuesIndexableParams) error
-	// Synapse's commerce-side reads - the order half of the segment panels, whose membership and traits halves live in the signals database and are joined in the caller
+	// Synapse's one commerce-side read - the customer universe a segment definition draws from
 	// Every customer id in a channel - the universe a behavioral segment draws from
 	// Used to evaluate negated / OR'd nodes in a segment definition tree (NOT X =
 	// universe minus X)
@@ -2017,11 +2017,6 @@ type Querier interface {
 	// locale ranked NULL - which scans into the generated float32 as an error and failed
 	// the entire query. COALESCE lands those last, where an unranked match belongs
 	SearchProductsFallback(ctx context.Context, arg SearchProductsFallbackParams) ([]SearchProductsFallbackRow, error)
-	// The commerce half of a segment's member panel - traits are read separately from the signals
-	// database and joined in the caller, since the two no longer share one
-	SegmentMemberOrderStats(ctx context.Context, customerIds []uuid.UUID) ([]SegmentMemberOrderStatsRow, error)
-	// Distinct non-cancelled orders and total spend for a known set of customers - the commerce half of a segment's rollup, since membership moved and the join cannot span both
-	SegmentOrderRollup(ctx context.Context, customerIds []uuid.UUID) (SegmentOrderRollupRow, error)
 	// Every fetched page with the on-page fields an audit needs - bounded by the crawl's page budget, so the caller
 	// can group and flag in one pass instead of paging
 	SeoCrawlAudit(ctx context.Context, crawlID uuid.UUID) ([]SeoCrawlAuditRow, error)

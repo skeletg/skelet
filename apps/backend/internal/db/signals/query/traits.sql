@@ -347,3 +347,21 @@ SELECT channel_id FROM customer_roster WHERE customer_id = sqlc.arg(customer_id)
 DELETE FROM customer_segment_memberships m WHERE NOT EXISTS (
     SELECT 1 FROM customer_roster r WHERE r.customer_id = m.customer_id
 );
+
+-- name: SegmentMemberOrderStats :many
+-- The order half of a segment's member panel, off the same projection the RFM scores beside it derive
+-- from, so a member's orders and spend agree with their recency/frequency/monetary
+SELECT customer_id,
+       order_count::int        AS orders,
+       monetary_cents::bigint  AS spend_cents,
+       last_order_at
+FROM customer_order_agg
+WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]);
+
+-- name: SegmentOrderRollup :one
+-- The same projection summed for a segment's rollup - order_count is already distinct orders per
+-- customer, so the sum needs no DISTINCT of its own
+SELECT COALESCE(SUM(order_count), 0)::bigint    AS orders,
+       COALESCE(SUM(monetary_cents), 0)::bigint AS revenue_cents
+FROM customer_order_agg
+WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]);
