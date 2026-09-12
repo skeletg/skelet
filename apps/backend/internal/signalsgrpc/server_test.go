@@ -169,3 +169,143 @@ func TestAPanicAnswersInternalAndKeepsServing(t *testing.T) {
 		t.Errorf("the server did not survive the panic: %v %v", res.GetStatus(), err)
 	}
 }
+
+// The behavioural-segment half of Synapse is not served yet, because its engine still lives in the
+// resolver layer. Pinning that here means the day it moves, this test is what says so
+func TestBehaviouralSegmentMethodsAreNotServedYet(t *testing.T) {
+	c := signalsv1.NewSynapseServiceClient(testConn(t))
+	ctx := tokenCtx(t)
+	id := uuid.New().String()
+
+	for name, call := range map[string]func() error{
+		"ListBehavioralSegments": func() error {
+			_, e := c.ListBehavioralSegments(ctx, &signalsv1.ListBehavioralSegmentsRequest{ChannelId: id})
+			return e
+		},
+		"GetBehavioralSegment": func() error {
+			_, e := c.GetBehavioralSegment(ctx, &signalsv1.GetBehavioralSegmentRequest{Id: id})
+			return e
+		},
+		"PreviewBehavioralSegment": func() error {
+			_, e := c.PreviewBehavioralSegment(ctx, &signalsv1.PreviewBehavioralSegmentRequest{ChannelId: id})
+			return e
+		},
+		"SaveBehavioralSegment": func() error {
+			_, e := c.SaveBehavioralSegment(ctx, &signalsv1.SaveBehavioralSegmentRequest{ChannelId: id})
+			return e
+		},
+		"RefreshBehavioralSegment": func() error {
+			_, e := c.RefreshBehavioralSegment(ctx, &signalsv1.RefreshBehavioralSegmentRequest{SegmentId: id})
+			return e
+		},
+		"SetSegmentLifecycleWindows": func() error {
+			_, e := c.SetSegmentLifecycleWindows(ctx, &signalsv1.SetSegmentLifecycleWindowsRequest{SegmentId: id})
+			return e
+		},
+	} {
+		if got := status.Code(call()); got != codes.Unimplemented {
+			t.Errorf("%s answered %s - if it is implemented now, drop it from this list", name, got)
+		}
+	}
+}
+
+// Every other Synapse and Lens method has to refuse an anonymous caller, same as Prism
+func TestReadMethodsRefuseAnAnonymousCaller(t *testing.T) {
+	conn := testConn(t)
+	sy, lc := signalsv1.NewSynapseServiceClient(conn), signalsv1.NewLensServiceClient(conn)
+	ctx := context.Background()
+	id := uuid.New().String()
+
+	for name, call := range map[string]func() error{
+		"Synapse.GetSynapseOverview": func() error {
+			_, e := sy.GetSynapseOverview(ctx, &signalsv1.GetSynapseOverviewRequest{ChannelId: id})
+			return e
+		},
+		"Synapse.GetFunnel":     func() error { _, e := sy.GetFunnel(ctx, &signalsv1.GetFunnelRequest{ChannelId: id}); return e },
+		"Synapse.GetFlow":       func() error { _, e := sy.GetFlow(ctx, &signalsv1.GetFlowRequest{ChannelId: id}); return e },
+		"Synapse.GetRetention":  func() error { _, e := sy.GetRetention(ctx, &signalsv1.GetRetentionRequest{ChannelId: id}); return e },
+		"Synapse.GetStickiness": func() error { _, e := sy.GetStickiness(ctx, &signalsv1.GetStickinessRequest{ChannelId: id}); return e },
+		"Synapse.GetInsights":   func() error { _, e := sy.GetInsights(ctx, &signalsv1.GetInsightsRequest{ChannelId: id}); return e },
+		"Synapse.GetCustomerProfile": func() error {
+			_, e := sy.GetCustomerProfile(ctx, &signalsv1.GetCustomerProfileRequest{CustomerId: id})
+			return e
+		},
+		"Synapse.GetVisitorProfile": func() error {
+			_, e := sy.GetVisitorProfile(ctx, &signalsv1.GetVisitorProfileRequest{ChannelId: id, AnonId: "a"})
+			return e
+		},
+		"Synapse.ListCustomerAudiences": func() error {
+			_, e := sy.ListCustomerAudiences(ctx, &signalsv1.ListCustomerAudiencesRequest{CustomerId: id})
+			return e
+		},
+		"Synapse.ListTrackedAttributes": func() error {
+			_, e := sy.ListTrackedAttributes(ctx, &signalsv1.ListTrackedAttributesRequest{ChannelId: id})
+			return e
+		},
+		"Synapse.ListAffinityValues": func() error {
+			_, e := sy.ListAffinityValues(ctx, &signalsv1.ListAffinityValuesRequest{ChannelId: id, Attribute: "brand"})
+			return e
+		},
+		"Lens.GetOverview":   func() error { _, e := lc.GetOverview(ctx, &signalsv1.GetOverviewRequest{ChannelId: id}); return e },
+		"Lens.GetBotTraffic": func() error { _, e := lc.GetBotTraffic(ctx, &signalsv1.GetBotTrafficRequest{ChannelId: id}); return e },
+		"Lens.ListPages":     func() error { _, e := lc.ListPages(ctx, &signalsv1.ListPagesRequest{ChannelId: id}); return e },
+		"Lens.ListStates":    func() error { _, e := lc.ListStates(ctx, &signalsv1.ListStatesRequest{ChannelId: id}); return e },
+		"Lens.GetPageStats":  func() error { _, e := lc.GetPageStats(ctx, &signalsv1.GetPageStatsRequest{ChannelId: id}); return e },
+		"Lens.GetHeatmap":    func() error { _, e := lc.GetHeatmap(ctx, &signalsv1.GetHeatmapRequest{ChannelId: id}); return e },
+		"Lens.ListSessions":  func() error { _, e := lc.ListSessions(ctx, &signalsv1.ListSessionsRequest{ChannelId: id}); return e },
+		"Lens.ListCustomerSessions": func() error {
+			_, e := lc.ListCustomerSessions(ctx, &signalsv1.ListCustomerSessionsRequest{CustomerId: id})
+			return e
+		},
+		"Lens.ListVisitorSessions": func() error {
+			_, e := lc.ListVisitorSessions(ctx, &signalsv1.ListVisitorSessionsRequest{AnonId: "a"})
+			return e
+		},
+		"Lens.GetSessionSignals": func() error { _, e := lc.GetSessionSignals(ctx, &signalsv1.GetSessionSignalsRequest{Id: id}); return e },
+		"Lens.GetFrustration": func() error {
+			_, e := lc.GetFrustration(ctx, &signalsv1.GetFrustrationRequest{ChannelId: id})
+			return e
+		},
+		"Lens.ListErrors": func() error { _, e := lc.ListErrors(ctx, &signalsv1.ListErrorsRequest{ChannelId: id}); return e },
+		"Lens.GetPerformance": func() error {
+			_, e := lc.GetPerformance(ctx, &signalsv1.GetPerformanceRequest{ChannelId: id})
+			return e
+		},
+		"Lens.GetVitalsSummary": func() error {
+			_, e := lc.GetVitalsSummary(ctx, &signalsv1.GetVitalsSummaryRequest{ChannelId: id})
+			return e
+		},
+		"Lens.GetSearchAnalytics": func() error {
+			_, e := lc.GetSearchAnalytics(ctx, &signalsv1.GetSearchAnalyticsRequest{ChannelId: id})
+			return e
+		},
+	} {
+		if got := status.Code(call()); got != codes.Unauthenticated {
+			t.Errorf("%s answered an anonymous caller with %s, want Unauthenticated", name, got)
+		}
+	}
+}
+
+// The streaming path has its own interceptor chain, so it needs its own proof - and refusing an
+// anonymous caller is not that proof, since a missing interceptor looks identical to no token
+// What distinguishes them is a real token getting through, so both directions are asserted here
+func TestTheStreamingPathRunsItsOwnAuth(t *testing.T) {
+	c := signalsv1.NewLensServiceClient(testConn(t))
+
+	drain := func(ctx context.Context) error {
+		stream, err := c.GetSessionEvents(ctx, &signalsv1.GetSessionEventsRequest{Id: uuid.New().String()})
+		if err != nil {
+			return err
+		}
+		_, err = stream.Recv()
+		return err
+	}
+
+	if got := status.Code(drain(context.Background())); got != codes.Unauthenticated {
+		t.Errorf("the replay stream answered an anonymous caller with %s, want Unauthenticated", got)
+	}
+	// A valid token has to reach the handler - it then fails on the nil service, which is the proof it arrived
+	if got := status.Code(drain(tokenCtx(t))); got == codes.Unauthenticated {
+		t.Error("a valid token did not survive the stream interceptor")
+	}
+}

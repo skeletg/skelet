@@ -166,9 +166,15 @@ func run() error {
 	// GraphQL surface can be retired without touching what serves it
 	grpcAddr := ":" + envDefault("SIGNALS_GRPC_PORT", "8092")
 	grpcSrv := signalsgrpc.NewServer(signalsgrpc.Deps{
-		Experiment: d.Experiment,
-		JWTSecret:  d.Config.JWTSecret,
-		Dev:        d.Config.IsDev(),
+		Experiment:  d.Experiment,
+		Lens:        lensSvc,
+		Destination: destSvc,
+		Segment:     d.Segment,
+		Analytics:   rec,
+		Commerce:    db.New(primaryConn),
+		Roster:      signalsdb.New(sigConn),
+		JWTSecret:   d.Config.JWTSecret,
+		Dev:         d.Config.IsDev(),
 	})
 	grpcLn, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
