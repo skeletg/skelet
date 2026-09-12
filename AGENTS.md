@@ -12,7 +12,7 @@ dashboard, and one or more Next.js storefronts. Everything runs in Docker.
 
 | Path | What |
 |---|---|
-| `apps/backend/` | Go, `go.mod` lives here. gqlgen + sqlc. Two GraphQL surfaces |
+| `apps/backend/` | Go, `go.mod` lives here. gqlgen + sqlc. Three GraphQL surfaces, plus the Signals wire contract |
 | `apps/dashboard/` | React 19 + Vite admin SPA, strict TypeScript |
 | `apps/channels/<name>/` | Next.js 16 storefronts, App Router, RSC |
 | `bin/` | Every dev operation, one script each |
@@ -34,7 +34,7 @@ resolve the right container, the right database URL and the right node_modules.
 ./skelet check            # every gate that can fail a commit, under a second
 ./skelet test             # go test + frontend typechecks + unit tests
 ./skelet lint             # gofmt + golangci-lint (hard) + eslint (reports only)
-./skelet gen              # ALL codegen: sqlc, gqlgen, plugin bridge, docs, TS types
+./skelet gen              # ALL codegen: buf, sqlc, gqlgen, plugin bridge, docs, TS types
 ./skelet go test ./...    # go, inside the app container
 ./skelet cli <args>       # the ops CLI, inside the app container
 ./skelet psql             # psql on the dev commerce database
@@ -54,6 +54,7 @@ Editing any of these is always a mistake; regenerate instead.
 | `graph/{admin,front}/model/models_gen.go` | same | `./skelet gen` |
 | `internal/db/sqlc/**` | `internal/db/query/*.sql` | `./skelet gen` |
 | `internal/db/signals/sqlc/**` | `internal/db/signals/query/*.sql` | `./skelet gen` |
+| `internal/signalspb/**` | `proto/skelet/signals/v1/*.proto` | `./skelet gen` |
 | `**/*.gql.ts`, `graphql/schema.types.ts` | `*.graphql` docs + the live schema | `./skelet gen` |
 | `plugins/firstparty/`, `plugin_resolvers.go` | `plugins/plugins.json` | `./skelet gen` |
 | `docs/{permissions,webhooks,settings}.md` | the code-defined registries | `./skelet gen` |
@@ -107,10 +108,12 @@ one, it rewrites whole files.
 
 ## 7. Patterns worth knowing
 
-**Two GraphQL surfaces, one process.** `/api/admin/graphql` and `/api/front/graphql`
-have entirely separate schemas, generated executables and resolver trees. The admin
-middleware is non-blocking, so an ungated admin resolver answers anonymous callers -
-every admin resolver must gate explicitly, and `authz_coverage_test.go` enforces it.
+**Three GraphQL surfaces.** `/api/admin/graphql` and `/api/front/graphql` run in the
+server process; `/api/signals/graphql` runs in `cmd/signals`. Each has entirely separate
+schemas, generated executables and resolver trees. The admin middleware is non-blocking,
+so an ungated admin resolver answers anonymous callers - every admin resolver must gate
+explicitly, and `authz_coverage_test.go` enforces it. The Signals surface works the same
+way, and so does the gRPC contract beside it: the interceptor injects, the handler refuses.
 
 **Everything is channel-scoped.** Catalog data is global; per-channel availability is a
 listing row. Permissions are scoped per channel too. When you add a resolver, decide its
