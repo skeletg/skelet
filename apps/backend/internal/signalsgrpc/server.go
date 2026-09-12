@@ -60,6 +60,7 @@ func NewServer(d Deps) *grpc.Server {
 	signalsv1.RegisterDestinationServiceServer(srv, &destinationServer{svc: d.Destination})
 	signalsv1.RegisterSegmentServiceServer(srv, &segmentServer{svc: d.Segment})
 	signalsv1.RegisterPulseServiceServer(srv, &pulseServer{rec: d.Analytics})
+	signalsv1.RegisterIngestServiceServer(srv, &ingestServer{rec: d.Analytics})
 	signalsv1.RegisterSynapseServiceServer(srv, &synapseServer{
 		rec: d.Analytics, segments: d.Segment, behavioral: d.Behavioral, commerce: d.Commerce, roster: d.Roster,
 	})
@@ -136,6 +137,27 @@ func windowDays(requested, fallback int32) int32 {
 }
 
 // A zero time marshals as an unset field rather than the zero instant, which reads as year 1
+// A blank or unparseable id is the nil uuid, which the recorder reads as "no channel"
+func uuidOrNil(raw string) uuid.UUID {
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return uuid.Nil
+	}
+	return id
+}
+
+// An absent optional id stays absent rather than becoming the nil uuid
+func optionalUUID(raw *string) *uuid.UUID {
+	if raw == nil || *raw == "" {
+		return nil
+	}
+	id, err := uuid.Parse(*raw)
+	if err != nil {
+		return nil
+	}
+	return &id
+}
+
 func ts(t time.Time) *timestamppb.Timestamp {
 	if t.IsZero() {
 		return nil

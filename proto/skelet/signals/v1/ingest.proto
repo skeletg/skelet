@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+// Writes core makes into the event spine - server-side commerce and account actions, and the
+// marketing-email engagement core's own pixel and redirect observe
+// The one part of the contract a system token authorizes, the event bus raising these with no admin to act for
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service IngestService {
+  rpc RecordActivity(RecordActivityRequest) returns (RecordActivityResponse);
+  // Credits an order to the customer's recent marketing engagement, last touch
+  rpc RecordConversion(RecordConversionRequest) returns (RecordConversionResponse);
+  rpc RecordEmailSent(RecordEmailSentRequest) returns (RecordEmailSentResponse);
+  rpc RecordEmailOpen(RecordEmailOpenRequest) returns (RecordEmailOpenResponse);
+  rpc RecordEmailClick(RecordEmailClickRequest) returns (RecordEmailClickResponse);
+}
+
+// The send an engagement belongs to, reduced to what the spine stores - core keeps the send log itself
+message EmailSendRef {
+  string send_id = 1;
+  string channel_id = 2;
+  optional string customer_id = 3;
+  // campaign | flow | transactional
+  string source = 4;
+}
+
+// One pixel load or link follow, already classified by the caller
+message EmailHit {
+  string user_agent = 1;
+  // A likely proxy or scanner open, flagged rather than dropped
+  bool machine = 2;
+  string device = 3;
+  string client = 4;
+  google.protobuf.Timestamp at = 5;
+}
+
+message RecordActivityRequest {
+  string event_name = 1;
+  // commerce | account
+  string source = 2;
+  string channel_id = 3;
+  // One of customer_id or anon_id is required - an action attributable to nobody has no place on a profile
+  optional string customer_id = 4;
+  string anon_id = 5;
+  google.protobuf.Timestamp at = 6;
+  // The event's properties as a JSON object, opaque to the wire
+  string props_json = 7;
+  // Keeps the write idempotent against an at-least-once bus - an outbox replay collapses on it
+  string dedupe_key = 8;
+}
+
+// recorded is false when the dedupe key had already been seen, which is a success
+message RecordActivityResponse {
+  bool recorded = 1;
+}
+
+message RecordConversionRequest {
+  string customer_id = 1;
+  string channel_id = 2;
+  string order_id = 3;
+  int64 revenue_cents = 4;
+  string currency = 5;
+  google.protobuf.Timestamp at = 6;
+}
+
+message RecordConversionResponse {
+  bool recorded = 1;
+}
+
+message RecordEmailSentRequest {
+  EmailSendRef send = 1;
+}
+
+message RecordEmailSentResponse {
+  bool recorded = 1;
+}
+
+message RecordEmailOpenRequest {
+  EmailSendRef send = 1;
+  EmailHit hit = 2;
+}
+
+message RecordEmailOpenResponse {
+  bool recorded = 1;
+}
+
+message RecordEmailClickRequest {
+  EmailSendRef send = 1;
+  EmailHit hit = 2;
+  string url = 3;
+  // Which link in the mail, so repeat follows of the same one collapse
+  int32 link_index = 4;
+}
+
+message RecordEmailClickResponse {
+  bool recorded = 1;
+}
