@@ -13,7 +13,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
-import { SynapseInsightsDocument, SynapseOverviewDocument } from './Synapse.signals.gql'
+import { SynapseInsightsDocument, SynapseOverviewDocument } from './Synapse.gql'
 
 type Measure = 'total' | 'unique'
 type Unit = 'day' | 'week'

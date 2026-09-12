@@ -1,6 +1,0 @@
-# Shared by the Synapse types below until that surface moves to core too.
-type AttributedRevenue {
-  currency: String!
-  cents:    Int64!
-  orders:   Int!
-}

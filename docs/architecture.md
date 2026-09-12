@@ -19,18 +19,15 @@ skelet/
 │   │   ├── graph/
 │   │   │   ├── schema/admin/*.graphqls   ← admin surface
 │   │   │   ├── schema/front/*.graphqls   ← storefront surface
-│   │   │   ├── schema/signals/*.graphqls ← Signals surface
 │   │   │   ├── admin/                    ← admin gqlgen output + resolvers
 │   │   │   │   ├── generated.go          ← DO NOT EDIT
 │   │   │   │   ├── model/models_gen.go   ← DO NOT EDIT
 │   │   │   │   ├── helpers.go            ← shared admin mappers
 │   │   │   │   ├── *_helpers.go          ← per-domain helpers
 │   │   │   │   └── *.resolvers.go        ← edit resolver bodies here
-│   │   │   ├── front/                    ← storefront gqlgen output + resolvers
-│   │   │   └── signals/                  ← Signals gqlgen output + resolvers
+│   │   │   └── front/                    ← storefront gqlgen output + resolvers
 │   │   ├── gqlgen.admin.yml         ← admin pipeline config
 │   │   ├── gqlgen.front.yml         ← storefront pipeline config
-│   │   ├── gqlgen.signals.yml       ← Signals pipeline config
 │   │   └── internal/                ← ~110 domain packages, see the table below
 │   │       ├── db/
 │   │       │   ├── migrations/      ← the generated baselines - see database.md

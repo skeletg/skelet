@@ -38,3 +38,452 @@ query CustomerCommerce($customerId: ID!) {
     memberSince
   }
 }
+
+query SynapseOverview($channelId: ID!, $sinceDays: Int) {
+  synapseOverview(channelId: $channelId, sinceDays: $sinceDays) {
+    totalEvents
+    pageViews
+    conversions
+    identifiedCustomers
+    anonymousVisitors
+    revenue {
+      currency
+      cents
+      orders
+    }
+    topEvents {
+      name
+      count
+    }
+    activeCustomers {
+      customerId
+      events
+      lastSeen
+    }
+    activeVisitors {
+      anonId
+      events
+      lastSeen
+      lastPage
+    }
+  }
+}
+
+# A single customer's full behavioural profile - the per-customer drill-down
+# reached from the Synapse overview's "most active customers" list. Lives under
+# Synapse (not the customer record, which is operational, not analytical).
+query CustomerProfile($customerId: ID!, $sinceDays: Int) {
+  customerProfile(customerId: $customerId, sinceDays: $sinceDays) {
+    firstSeen
+    lastSeen
+    totalEvents
+    pageViews
+    conversions
+    revenue {
+      currency
+      cents
+      orders
+    }
+    counts {
+      name
+      count
+    }
+    timeline {
+      eventName
+      occurredAt
+      source
+      summary
+      detailsJson
+    }
+    devices {
+      value
+      count
+    }
+    browsers {
+      value
+      count
+    }
+    referrers {
+      value
+      count
+    }
+    ipAddresses {
+      value
+      count
+    }
+    operatingSystems { value count }
+    screens { value count }
+    countries { value count }
+    sources { value count }
+    campaigns { value count }
+    topPages { title pageKey views dwellSeconds }
+    pagesViewedTotal
+    topProducts { name image price sku views }
+    searches { value count }
+    sessions
+    traits {
+      lifecycle
+      rfmRecency
+      rfmFrequency
+      rfmMonetary
+      recencyDays
+      frequency
+      monetaryCents
+      engagementScore
+      churnRisk
+      predictedClvCents
+      nextOrderDays
+    }
+    experiments {
+      experiment
+      variation
+      lastExposedAt
+    }
+    affinities {
+      slug
+      name
+      values {
+        value
+        count
+      }
+    }
+  }
+}
+
+# A single anonymous (not-yet-identified) visitor's behavioural profile - the
+# drill-down reached from the overview's "most active visitors" list. Same shape
+# as customerProfile (it reuses the CustomerProfile type server-side).
+query VisitorProfile($channelId: ID!, $anonId: String!, $sinceDays: Int) {
+  visitorProfile(channelId: $channelId, anonId: $anonId, sinceDays: $sinceDays) {
+    firstSeen
+    lastSeen
+    totalEvents
+    pageViews
+    conversions
+    revenue {
+      currency
+      cents
+      orders
+    }
+    counts {
+      name
+      count
+    }
+    timeline {
+      eventName
+      occurredAt
+      source
+      summary
+      detailsJson
+    }
+    devices {
+      value
+      count
+    }
+    browsers {
+      value
+      count
+    }
+    referrers {
+      value
+      count
+    }
+    ipAddresses {
+      value
+      count
+    }
+    operatingSystems { value count }
+    screens { value count }
+    countries { value count }
+    sources { value count }
+    campaigns { value count }
+    topPages { title pageKey views dwellSeconds }
+    pagesViewedTotal
+    topProducts { name image price sku views }
+    searches { value count }
+    sessions
+    traits {
+      lifecycle
+      rfmRecency
+      rfmFrequency
+      rfmMonetary
+      recencyDays
+      frequency
+      monetaryCents
+      engagementScore
+      churnRisk
+      predictedClvCents
+      nextOrderDays
+    }
+    experiments {
+      experiment
+      variation
+      lastExposedAt
+    }
+    affinities {
+      slug
+      name
+      values {
+        value
+        count
+      }
+    }
+  }
+}
+
+# Ordered conversion funnel over event-name steps for the channel.
+query SynapseFunnel($channelId: ID!, $steps: [String!]!, $sinceDays: Int) {
+  synapseFunnel(channelId: $channelId, steps: $steps, sinceDays: $sinceDays) {
+    steps {
+      eventName
+      count
+    }
+  }
+}
+
+# Cohort retention: startEvent → returnEvent over period buckets.
+query SynapseRetention($channelId: ID!, $startEvent: String!, $returnEvent: String!, $sinceDays: Int, $periods: Int, $unit: String) {
+  synapseRetention(channelId: $channelId, startEvent: $startEvent, returnEvent: $returnEvent, sinceDays: $sinceDays, periods: $periods, unit: $unit) {
+    cohort
+    buckets {
+      period
+      count
+      eligible
+    }
+    cohorts {
+      startAt
+      size
+      buckets {
+        period
+        count
+        eligible
+      }
+    }
+  }
+}
+
+# --- Behavioral segments ---
+# Leaf fields of a definition node; children are nested manually below (GraphQL
+# has no recursive fragments) to a depth that covers any realistic segment.
+fragment SegNodeFields on SegmentNode {
+  kind
+  op
+  event
+  negate
+  count
+  days
+  trait {
+    lifecycle
+    minRecencyScore
+    minFrequencyScore
+    minMonetaryScore
+    minEngagement
+  }
+  affinity {
+    attr
+    value
+    days
+    auto
+  }
+}
+
+query SynapseSegments($channelId: ID!) {
+  synapseSegments(channelId: $channelId) {
+    id
+    name
+    slug
+    memberCount
+    definition {
+      ...SegNodeFields
+      children {
+        ...SegNodeFields
+        children {
+          ...SegNodeFields
+          children {
+            ...SegNodeFields
+            children {
+              ...SegNodeFields
+            }
+          }
+        }
+      }
+    }
+    affinity {
+      auto
+    }
+    lifecycleWindows {
+      newDays
+      activeDays
+      atRiskDays
+    }
+  }
+}
+
+query SynapseSegment($id: ID!) {
+  synapseSegment(id: $id) {
+    segment {
+      id
+      channelId
+      name
+      slug
+      memberCount
+      definition {
+        ...SegNodeFields
+        children {
+          ...SegNodeFields
+          children {
+            ...SegNodeFields
+            children {
+              ...SegNodeFields
+              children {
+                ...SegNodeFields
+              }
+            }
+          }
+        }
+      }
+      lifecycleWindows {
+        newDays
+        activeDays
+        atRiskDays
+      }
+    }
+    currency
+    revenueCents
+    orders
+    aovCents
+    membersTruncated
+    members {
+      customerId
+      lifecycle
+      recencyDays
+      orders
+      spendCents
+      lastOrderAt
+    }
+    growth {
+      day
+      count
+    }
+    lifecycleMix {
+      stage
+      count
+    }
+    rfmDistribution {
+      dimension
+      score
+      count
+    }
+    topAffinities {
+      attr
+      value
+      members
+    }
+  }
+}
+
+query SynapseTrackedAttributes($channelId: ID!) {
+  synapseTrackedAttributes(channelId: $channelId) {
+    slug
+    name
+    values
+  }
+}
+
+query SynapseSegmentPreview($channelId: ID!, $root: SegmentNodeInput) {
+  synapseSegmentPreview(channelId: $channelId, root: $root)
+}
+
+mutation SynapseSaveSegment($channelId: ID!, $name: String!, $segmentId: ID, $root: SegmentNodeInput) {
+  synapseSaveSegment(channelId: $channelId, name: $name, segmentId: $segmentId, root: $root) {
+    id
+    name
+    slug
+    memberCount
+  }
+}
+
+mutation SynapseRefreshSegment($segmentId: ID!) {
+  synapseRefreshSegment(segmentId: $segmentId) {
+    id
+    memberCount
+  }
+}
+
+mutation SynapseSetSegmentLifecycleWindows($segmentId: ID!, $windows: SegmentLifecycleWindowsInput) {
+  synapseSetSegmentLifecycleWindows(segmentId: $segmentId, windows: $windows) {
+    id
+    lifecycleWindows {
+      newDays
+      activeDays
+      atRiskDays
+    }
+  }
+}
+
+# Forward path tree from a focus event.
+query SynapseFlow($channelId: ID!, $event: String!, $sinceDays: Int, $depth: Int) {
+  synapseFlow(channelId: $channelId, event: $event, sinceDays: $sinceDays, depth: $depth) {
+    focus
+    cohort
+    continued
+    avgSteps
+    nodes {
+      id
+      parentId
+      event
+      depth
+      count
+    }
+    topPaths {
+      events
+      count
+    }
+  }
+}
+
+# Commerce engagement: return rate over a window + daily-active trend.
+query SynapseStickiness($channelId: ID!, $event: String, $sinceDays: Int, $windowDays: Int) {
+  synapseStickiness(channelId: $channelId, event: $event, sinceDays: $sinceDays, windowDays: $windowDays) {
+    days {
+      day
+      count
+    }
+    windowDays
+    priorActive
+    activeNow
+    returning
+    returnRate
+    wau
+    mau
+  }
+}
+
+# Ad-hoc breakdown report: a measure over time, split by a property.
+query SynapseInsights($channelId: ID!, $event: String, $breakdown: String, $measure: String, $unit: String, $sinceDays: Int) {
+  synapseInsights(channelId: $channelId, event: $event, breakdown: $breakdown, measure: $measure, unit: $unit, sinceDays: $sinceDays) {
+    points {
+      bucket
+      key
+      value
+    }
+    series {
+      key
+      total
+    }
+    total
+    uniques
+    prevTotal
+    prevUniques
+  }
+}
+
+# The customer's audiences (Synapse segments) for the 360 rollup on the profile
+# page - segments live in the Signals database, so core's half can't carry them.
+query CustomerAudiences($customerId: ID!) {
+  customerAudiences(customerId: $customerId) {
+    id
+    name
+    slug
+  }
+}

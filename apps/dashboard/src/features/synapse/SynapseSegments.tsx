@@ -24,7 +24,7 @@ import {
   SynapseSegmentsDocument,
   SynapseSetSegmentLifecycleWindowsDocument,
   SynapseTrackedAttributesDocument,
-} from './Synapse.signals.gql'
+} from './Synapse.gql'
 import { SegmentTreeBuilder } from './SegmentTreeBuilder'
 import { newGroup, nodeComplete, nodeToInput, summarizeNode, type SegNode, type SummaryNode } from './segment-tree'
 

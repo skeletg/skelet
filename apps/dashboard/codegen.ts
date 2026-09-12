@@ -1,5 +1,5 @@
 import type { CodegenConfig } from '@graphql-codegen/cli'
-import { shared, SIGNALS_DOCUMENTS } from './codegen.shared'
+import { shared } from './codegen.shared'
 
 // Uses a non-VITE_ prefix on purpose: anything starting with VITE_ is inlined into the browser bundle by Vite, and pointing the bundle at
 // the in-network Docker hostname (http://app:8080/…) breaks Apollo in the dev container. Codegen-only env stays server-side
@@ -9,7 +9,7 @@ const config: CodegenConfig = {
   overwrite: true,
   schema: ENDPOINT,
   // Everything except the Signals surface, which codegen.signals.ts validates against its own schema
-  documents: ['src/**/*.graphql', `!${SIGNALS_DOCUMENTS}`],
+  documents: ['src/**/*.graphql'],
   config: shared,
   generates: {
     // Base schema types - referenced by every per-operation file below.

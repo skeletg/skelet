@@ -10,7 +10,7 @@ import {
 import { ActivityProfile } from './ActivityProfile'
 import { CustomerRecordingsSection } from '@/features/lens/SessionList'
 import { CustomerCommerceDocument, CustomerSignalsDocument, SynapseCustomerHeaderDocument } from './Synapse.gql'
-import { CustomerAudiencesDocument, CustomerProfileDocument } from './Synapse.signals.gql'
+import { CustomerAudiencesDocument, CustomerProfileDocument } from './Synapse.gql'
 
 function fmtMoney(cents: number, currency: string): string {
   return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
