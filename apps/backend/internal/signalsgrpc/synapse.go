@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
@@ -23,12 +24,9 @@ type synapseServer struct {
 	commerce *db.Queries
 	// A customer's channel comes off the synced roster, since this service has no customers table
 	roster *signalsdb.Queries
+	// Synapse's engine over segments - the definition grammar, the evaluator and the sync passes
+	behavioral *behavioralsegment.Service
 }
-
-// The six behavioural-segment methods are deliberately left unimplemented for now: their definition
-// grammar, evaluation and materialisation live in graph/signals rather than a service package, so
-// nothing but the GraphQL resolvers can call them yet. A caller gets UNIMPLEMENTED, which is honest
-// Moving that engine out is its own change, and the RPCs land with it
 
 func (s *synapseServer) GetSynapseOverview(ctx context.Context, req *signalsv1.GetSynapseOverviewRequest) (*signalsv1.GetSynapseOverviewResponse, error) {
 	cid, err := channelScope(ctx, "customers.view", req.GetChannelId())

@@ -22,6 +22,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/applog"
+	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/internal/cache"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
@@ -129,12 +130,14 @@ func run() error {
 	mux := http.NewServeMux()
 	wiring.RegisterPprof(mux)
 	// The suite's own admin API - the dashboard reaches it directly, authenticating with a service token core minted
+	behavioralSvc := behavioralsegment.New(rec, d.Segment)
 	mux.Handle(signalsapi.Path, wiring.SignalsGraphQLHandler(wiring.SignalsAPI{
 		Experiment:  d.Experiment,
 		Lens:        lensSvc,
 		Destination: destSvc,
 		Segment:     d.Segment,
 		Analytics:   rec,
+		Behavioral:  behavioralSvc,
 		Channel:     channelSvc,
 		Config:      configSvc,
 		Commerce:    db.New(primaryConn),
@@ -171,6 +174,7 @@ func run() error {
 		Destination: destSvc,
 		Segment:     d.Segment,
 		Analytics:   rec,
+		Behavioral:  behavioralSvc,
 		Commerce:    db.New(primaryConn),
 		Roster:      signalsdb.New(sigConn),
 		JWTSecret:   d.Config.JWTSecret,

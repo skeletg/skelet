@@ -118,7 +118,6 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		ShippingSvc:       s.Shipping,
 		PaymentSvc:        s.Payment,
 		PromotionSvc:      s.Promotion,
-		SegmentSvc:        s.Segment,
 		GiftcardSvc:       s.Giftcard,
 		SubscriptionSvc:   s.Subscription,
 		SalesSvc:          s.Sales,
