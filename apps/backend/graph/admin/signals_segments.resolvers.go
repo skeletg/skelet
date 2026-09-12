@@ -7,8 +7,46 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/internal/auth"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/internal/signalspb/skelet/signals/v1"
 )
+
+// Members are customers, so reading them needs the customers grant on top of the promotions one
+func (r *customerSegmentResolver) Members(ctx context.Context, obj *model.CustomerSegment, limit *int32, offset *int32) ([]*model.CustomerSegmentMember, error) {
+	checker := auth.GrantCheckerFrom(ctx)
+	if err := auth.RequirePermission(ctx, checker, "promotions.view"); err != nil {
+		return nil, err
+	}
+	if err := auth.RequirePermission(ctx, checker, "customers.view"); err != nil {
+		return nil, err
+	}
+	authed, err := signalsCtx(ctx, r.Resolver)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := uuid.Parse(obj.ID); err != nil {
+		return nil, errInvalidID("segment id", err)
+	}
+	lim := int32(50)
+	if limit != nil && *limit >= 1 && *limit <= 200 {
+		lim = *limit
+	}
+	token := ""
+	if offset != nil && *offset > 0 {
+		token = fmt.Sprint(*offset)
+	}
+	res, err := r.SignalsAPI.Segments.ListMembers(authed, &signalsv1.ListMembersRequest{
+		SegmentId: obj.ID, PageSize: lim, PageToken: token,
+	})
+	if err != nil {
+		return nil, signalsErr(err)
+	}
+	out := make([]*model.CustomerSegmentMember, 0, len(res.GetMembers()))
+	for _, m := range res.GetMembers() {
+		out = append(out, &model.CustomerSegmentMember{ID: m.GetCustomerId(), JoinedAt: m.GetJoinedAt().AsTime()})
+	}
+	return out, nil
+}
 
 func (r *mutationResolver) CreateCustomerSegment(ctx context.Context, input model.CreateCustomerSegmentInput) (*model.CustomerSegment, error) {
 	authed, err := r.signalsScoped(ctx, "promotions.manage")
@@ -208,3 +246,7 @@ func (r *queryResolver) ExperimentSegments(ctx context.Context) ([]*model.Segmen
 	}
 	return out, nil
 }
+
+func (r *Resolver) CustomerSegment() CustomerSegmentResolver { return &customerSegmentResolver{r} }
+
+type customerSegmentResolver struct{ *Resolver }

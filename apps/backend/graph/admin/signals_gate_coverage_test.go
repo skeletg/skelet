@@ -13,12 +13,21 @@ import (
 // SIGNALS_ENABLED=false has to leave the store sellable and its transactional mail flowing, so the gate is per file and anything still reachable with the suite off is written down below with why
 
 // Resolver file -> the suite it belongs to, every resolver in it gated
-// Prism, Lens, Synapse and the event spine are absent on purpose - they live on the Signals API, which is gated as a whole by its own token audience
 var signalsGatedFiles = map[string]string{
-	"campaign.resolvers.go":         "Pulse broadcasts",
-	"customer_profile.resolvers.go": "the commerce panels of the Synapse profile page",
-	"deliverability.resolvers.go":   "Pulse sending reputation",
+	"campaign.resolvers.go":           "Pulse broadcasts",
+	"customer_profile.resolvers.go":   "the commerce panels of the Synapse profile page",
+	"deliverability.resolvers.go":     "Pulse sending reputation",
+	"prism_experiments.resolvers.go":  "Prism experiments",
+	"pulse_engagement.resolvers.go":   "the Pulse engagement rollup",
+	"event_destinations.resolvers.go": "event destinations",
+	"signals_lens.resolvers.go":       "Lens web analytics",
+	"signals_synapse.resolvers.go":    "Synapse customer analytics",
+	"signals_segments.resolvers.go":   "customer segments",
 }
+
+// The suite-backed resolvers reach it through one of these, and each funnels into signalsCtx, which
+// is where requireSignals actually runs - TestTheSignalsHelperCarriesTheGate holds that chain up
+var signalsGateCarriers = []string{"requireSignals", "signalsCtx", "signalsScoped", "signalsChannel", "signalsWrite"}
 
 // Resolver file -> why its resolvers stay reachable with the suite off
 var signalsExemptFiles = map[string]string{
@@ -126,5 +135,29 @@ func TestSignalsExemptResolversStayUngated(t *testing.T) {
 }
 
 func callsRequireSignals(body *ast.BlockStmt) bool {
-	return slices.Contains(bodyCalls(body), "requireSignals")
+	calls := bodyCalls(body)
+	return slices.ContainsFunc(signalsGateCarriers, func(c string) bool { return slices.Contains(calls, c) })
+}
+
+// The carriers above are only a gate because signalsCtx runs requireSignals - assert that rather than trust it
+func TestTheSignalsHelperCarriesTheGate(t *testing.T) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "signals_helpers.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse signals_helpers.go: %v", err)
+	}
+	var found bool
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "signalsCtx" || fn.Body == nil {
+			continue
+		}
+		found = true
+		if !slices.Contains(bodyCalls(fn.Body), "requireSignals") {
+			t.Error("signalsCtx does not call requireSignals, so every Signals resolver answers with the suite switched off")
+		}
+	}
+	if !found {
+		t.Fatal("signalsCtx not found - the gate chain moved and this test no longer proves anything")
+	}
 }

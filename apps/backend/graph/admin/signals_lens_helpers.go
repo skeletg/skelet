@@ -39,7 +39,7 @@ func lensTimePoints(pts []*signalsv1.LensTimePoint) []*model.LensTimePoint {
 	return out
 }
 
-// The suite knows a visitor by their anon id, and a customer by id alone - the dashboard labels them from core
+// The suite knows a customer by id alone - the dashboard labels them from core
 func lensSessionModels(rows []*signalsv1.LensSession) []*model.LensSession {
 	out := make([]*model.LensSession, 0, len(rows))
 	for _, s := range rows {
@@ -60,7 +60,6 @@ func lensSessionModels(rows []*signalsv1.LensSession) []*model.LensSession {
 	return out
 }
 
-// Default 50, hard max 200
 func lensSessionLimit(limit *int32) int32 {
 	n := int32(50)
 	if limit != nil && *limit > 0 {

@@ -156,7 +156,6 @@ func (r *queryResolver) SynapseOverview(ctx context.Context, channelID string, s
 	for _, e := range ov.GetTopEvents() {
 		out.TopEvents = append(out.TopEvents, &model.CustomerEventCount{Name: e.GetName(), Count: e.GetCount()})
 	}
-	// The suite knows a customer by id alone - the dashboard labels them from core
 	for _, c := range ov.GetActiveCustomers() {
 		row := &model.SynapseActiveCustomer{CustomerID: c.GetCustomerId(), Events: c.GetEvents()}
 		if c.GetLastSeen() != nil {
@@ -293,7 +292,7 @@ func (r *queryResolver) SynapseStickiness(ctx context.Context, channelID string,
 	if event != nil {
 		ev = *event
 	}
-	// The return window: an explicit argument wins, else the channel's configured cadence, else the suite's default
+	// The return window - an explicit argument wins, else the channel's cadence, else the suite's default
 	window := int32(0)
 	if windowDays != nil && *windowDays > 0 {
 		window = *windowDays
@@ -397,7 +396,7 @@ func (r *queryResolver) SynapseRetention(ctx context.Context, channelID string, 
 	return out, nil
 }
 
-// Gated on the channel the operator reached the visitor from - the profile carries IPs and pages, so a bare global check would expose any visitor to any channel-scoped admin
+// Gated on the channel the operator reached the visitor from, since the profile carries IPs and pages
 func (r *queryResolver) VisitorProfile(ctx context.Context, channelID string, anonID string, sinceDays *int32) (*model.CustomerProfile, error) {
 	authed, err := r.signalsChannel(ctx, "customers.view", channelID)
 	if err != nil {

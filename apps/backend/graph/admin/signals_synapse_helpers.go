@@ -19,7 +19,7 @@ func profileValues(in []*signalsv1.ValueCount) []*model.ProfileValue {
 	return out
 }
 
-// Shared by customerProfile and visitorProfile - the anonymous side carries the same shape without an identity
+// Shared by customerProfile and visitorProfile - the anonymous side carries no identity
 func profileModel(p *signalsv1.Profile) *model.CustomerProfile {
 	out := &model.CustomerProfile{
 		TotalEvents: p.GetTotalEvents(),
@@ -261,8 +261,7 @@ func segmentAffinityProto(in *model.SegmentAffinityInput) *signalsv1.SegmentAffi
 	return out
 }
 
-// The contract carries a day bucket as YYYY-MM-DD, since a bucket is not an instant - this surface
-// has always spoken Time, so it is parsed back at midnight UTC
+// The contract carries a day bucket as YYYY-MM-DD, and this surface speaks Time - midnight UTC
 func signalsDay(s string) time.Time {
 	t, err := time.Parse("2006-01-02", s)
 	if err != nil {
