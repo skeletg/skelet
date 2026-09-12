@@ -123,7 +123,8 @@ small deployments - a `CREATE DATABASE`, not another container.
 
 `SIGNALS_GRPC_ADDR` is where `cmd/signals` serves the wire contract core calls
 (`signals:8092` in compose). It is core's only address for Signals, and leaving
-it unset means core makes no calls at all.
+it unset means core makes no calls at all - the admin chat then drops its
+Signals tools rather than offering ones that answer "unreachable".
 
 `SIGNALS_REPLICA_URL` is the Signals read pool, bulkheaded off the ingest
 writes. Unset means the Signals primary. It is NOT `DATABASE_REPLICA_URL`

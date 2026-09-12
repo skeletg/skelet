@@ -77,6 +77,7 @@ var Domain = fx.Module("domain",
 		newTrafficRollup,
 		newExperimentService,
 		newLensService,
+		newSignalsClient,
 
 		newMediaStorage,
 		newMediaLibraryService,
