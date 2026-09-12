@@ -172,43 +172,6 @@ func TestAPanicAnswersInternalAndKeepsServing(t *testing.T) {
 
 // The behavioural-segment half of Synapse is not served yet, because its engine still lives in the
 // resolver layer. Pinning that here means the day it moves, this test is what says so
-func TestBehaviouralSegmentMethodsAreNotServedYet(t *testing.T) {
-	c := signalsv1.NewSynapseServiceClient(testConn(t))
-	ctx := tokenCtx(t)
-	id := uuid.New().String()
-
-	for name, call := range map[string]func() error{
-		"ListBehavioralSegments": func() error {
-			_, e := c.ListBehavioralSegments(ctx, &signalsv1.ListBehavioralSegmentsRequest{ChannelId: id})
-			return e
-		},
-		"GetBehavioralSegment": func() error {
-			_, e := c.GetBehavioralSegment(ctx, &signalsv1.GetBehavioralSegmentRequest{Id: id})
-			return e
-		},
-		"PreviewBehavioralSegment": func() error {
-			_, e := c.PreviewBehavioralSegment(ctx, &signalsv1.PreviewBehavioralSegmentRequest{ChannelId: id})
-			return e
-		},
-		"SaveBehavioralSegment": func() error {
-			_, e := c.SaveBehavioralSegment(ctx, &signalsv1.SaveBehavioralSegmentRequest{ChannelId: id})
-			return e
-		},
-		"RefreshBehavioralSegment": func() error {
-			_, e := c.RefreshBehavioralSegment(ctx, &signalsv1.RefreshBehavioralSegmentRequest{SegmentId: id})
-			return e
-		},
-		"SetSegmentLifecycleWindows": func() error {
-			_, e := c.SetSegmentLifecycleWindows(ctx, &signalsv1.SetSegmentLifecycleWindowsRequest{SegmentId: id})
-			return e
-		},
-	} {
-		if got := status.Code(call()); got != codes.Unimplemented {
-			t.Errorf("%s answered %s - if it is implemented now, drop it from this list", name, got)
-		}
-	}
-}
-
 // Every other Synapse and Lens method has to refuse an anonymous caller, same as Prism
 func TestReadMethodsRefuseAnAnonymousCaller(t *testing.T) {
 	conn := testConn(t)
@@ -244,6 +207,30 @@ func TestReadMethodsRefuseAnAnonymousCaller(t *testing.T) {
 		},
 		"Synapse.ListAffinityValues": func() error {
 			_, e := sy.ListAffinityValues(ctx, &signalsv1.ListAffinityValuesRequest{ChannelId: id, Attribute: "brand"})
+			return e
+		},
+		"Synapse.ListBehavioralSegments": func() error {
+			_, e := sy.ListBehavioralSegments(ctx, &signalsv1.ListBehavioralSegmentsRequest{ChannelId: id})
+			return e
+		},
+		"Synapse.GetBehavioralSegment": func() error {
+			_, e := sy.GetBehavioralSegment(ctx, &signalsv1.GetBehavioralSegmentRequest{Id: id})
+			return e
+		},
+		"Synapse.PreviewBehavioralSegment": func() error {
+			_, e := sy.PreviewBehavioralSegment(ctx, &signalsv1.PreviewBehavioralSegmentRequest{ChannelId: id})
+			return e
+		},
+		"Synapse.SaveBehavioralSegment": func() error {
+			_, e := sy.SaveBehavioralSegment(ctx, &signalsv1.SaveBehavioralSegmentRequest{ChannelId: id, Name: "n"})
+			return e
+		},
+		"Synapse.RefreshBehavioralSegment": func() error {
+			_, e := sy.RefreshBehavioralSegment(ctx, &signalsv1.RefreshBehavioralSegmentRequest{SegmentId: id})
+			return e
+		},
+		"Synapse.SetSegmentLifecycleWindows": func() error {
+			_, e := sy.SetSegmentLifecycleWindows(ctx, &signalsv1.SetSegmentLifecycleWindowsRequest{SegmentId: id})
 			return e
 		},
 		"Lens.GetOverview":   func() error { _, e := lc.GetOverview(ctx, &signalsv1.GetOverviewRequest{ChannelId: id}); return e },

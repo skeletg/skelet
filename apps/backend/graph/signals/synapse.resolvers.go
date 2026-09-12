@@ -2,15 +2,14 @@ package signals
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/graph/signals/model"
+	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
-	"github.com/skeletg/skelet/apps/backend/internal/segment"
 )
 
 // The definition (channel + conditions) rides as JSON in the segment's reserved refresh_sql column - what comes out is a normal customer segment, targetable by campaigns + flows
@@ -22,88 +21,49 @@ func (r *mutationResolver) SynapseSaveSegment(ctx context.Context, channelID str
 	if strings.TrimSpace(name) == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	def := defFromInputs(channelID, root, conditions, trait, affinity)
-	ids, err := evalSegmentDef(ctx, r.AnalyticsSvc, def, time.Now())
-	if err != nil {
-		return nil, err
-	}
-	defJSON, err := json.Marshal(def)
-	if err != nil {
-		return nil, err
-	}
-	var seg segment.Segment
+	in := behavioralsegment.SaveInput{ChannelID: channelID, Name: name, Definition: defFromInputs(channelID, root, conditions, trait, affinity)}
 	if segmentID != nil && *segmentID != "" {
 		sid, err := uuid.Parse(*segmentID)
 		if err != nil {
 			return nil, errInvalidID("segmentId", err)
 		}
-		existing, err := r.SegmentSvc.Get(ctx, sid)
-		if err != nil {
-			return nil, errNotFound("segment")
-		}
-		existingDef, ok := parseSegmentDef(existing.RefreshSQL)
-		if !ok {
-			return nil, fmt.Errorf("not a behavioral segment")
-		}
-		if existingDef.ChannelID != channelID {
-			return nil, fmt.Errorf("segment belongs to another channel")
-		}
-		seg, err = r.SegmentSvc.Update(ctx, segment.UpdateInput{
-			ID: sid, Slug: existing.Slug, Name: name, Description: existing.Description, RefreshSQL: string(defJSON), IsActive: true,
-		})
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		seg, err = r.SegmentSvc.Create(ctx, segment.CreateInput{
-			Slug: slugify(name) + "-" + uuid.NewString()[:6], Name: name, RefreshSQL: string(defJSON), IsActive: true,
-		})
-		if err != nil {
-			return nil, err
-		}
+		in.SegmentID = &sid
 	}
-	if err := materializeSegment(ctx, r.Resolver, seg.ID, ids); err != nil {
+	seg, err := r.BehavioralSvc.Save(ctx, in, time.Now())
+	if err != nil {
 		return nil, err
 	}
-	return synapseSegmentModel(seg, len(ids)), nil
+	return synapseSegmentModel(seg), nil
 }
 
 func (r *mutationResolver) SynapseRefreshSegment(ctx context.Context, segmentID string) (*model.SynapseSegment, error) {
-	seg, def, err := synapseSegmentScope(ctx, r.Resolver, segmentID, "customers.manage") // .manage not .view - a refresh rewrites campaign/flow targeting
+	seg, err := synapseSegmentScope(ctx, r.Resolver, segmentID, "customers.manage") // .manage not .view - a refresh rewrites campaign/flow targeting
 	if err != nil {
 		return nil, err
 	}
-	ids, err := evalSegmentDef(ctx, r.AnalyticsSvc, def, time.Now()) // the full tree (events + traits + affinity, any AND/OR), so refresh matches what save would produce
+	seg, err = r.BehavioralSvc.Refresh(ctx, seg.ID, time.Now())
 	if err != nil {
 		return nil, err
 	}
-	if err := materializeSegment(ctx, r.Resolver, seg.ID, ids); err != nil {
-		return nil, err
-	}
-	return synapseSegmentModel(seg, len(ids)), nil
+	return synapseSegmentModel(seg), nil
 }
 
 // nil windows clears the override - members otherwise get these in place of the channel default, shortest wins across segments
 func (r *mutationResolver) SynapseSetSegmentLifecycleWindows(ctx context.Context, segmentID string, windows *model.SegmentLifecycleWindowsInput) (*model.SynapseSegment, error) {
-	seg, _, err := synapseSegmentScope(ctx, r.Resolver, segmentID, "customers.manage")
+	seg, err := synapseSegmentScope(ctx, r.Resolver, segmentID, "customers.manage")
 	if err != nil {
 		return nil, err
 	}
-	sid := seg.ID
 	var newDays, activeDays, atRiskDays *int32
 	if windows != nil {
-		if windows.NewDays <= 0 || windows.ActiveDays < windows.NewDays || windows.AtRiskDays < windows.ActiveDays {
-			return nil, fmt.Errorf("lifecycle windows must be positive and ascending (new ≤ active ≤ at-risk)")
-		}
 		n, a, ar := windows.NewDays, windows.ActiveDays, windows.AtRiskDays
 		newDays, activeDays, atRiskDays = &n, &a, &ar
 	}
-	seg, err = r.SegmentSvc.SetLifecycleWindows(ctx, sid, newDays, activeDays, atRiskDays)
+	seg, err = r.BehavioralSvc.SetLifecycleWindows(ctx, seg.ID, newDays, activeDays, atRiskDays)
 	if err != nil {
 		return nil, err
 	}
-	count, _ := r.SegmentSvc.MemberCount(ctx, sid)
-	return synapseSegmentModel(seg, int(count)), nil
+	return synapseSegmentModel(seg), nil
 }
 
 func (r *queryResolver) CustomerProfile(ctx context.Context, customerID string, sinceDays *int32) (*model.CustomerProfile, error) {
@@ -133,24 +93,18 @@ func (r *queryResolver) CustomerProfile(ctx context.Context, customerID string, 
 // Member names are resolved here because the analytics package can't import customer
 // Gated on the channel in the stored definition, not globally - the member list carries names/emails/spend, so a bare global check would let any admin enumerate segment ids across channels
 func (r *queryResolver) SynapseSegment(ctx context.Context, id string) (*model.SynapseSegmentDetail, error) {
-	seg, def, err := synapseSegmentScope(ctx, r.Resolver, id, "customers.view")
+	seg, err := synapseSegmentScope(ctx, r.Resolver, id, "customers.view")
 	if err != nil {
 		return nil, err
 	}
-	sid := seg.ID
-	segChannel, _ := uuid.Parse(def.ChannelID) // validated by synapseSegmentScope
-	count, _ := r.SegmentSvc.MemberCount(ctx, sid)
-	orders, revenue, err := r.AnalyticsSvc.SegmentMemberStats(ctx, sid)
-	if err != nil {
-		return nil, err
-	}
+	segChannel, _ := seg.Definition.Channel() // validated by synapseSegmentScope
 	const memberCap = 200
-	memRows, err := r.AnalyticsSvc.SegmentMembers(ctx, sid, memberCap)
+	d, err := r.BehavioralSvc.Detail(ctx, seg.ID, memberCap, 90, 12)
 	if err != nil {
 		return nil, err
 	}
-	members := make([]*model.SegmentMember, 0, len(memRows))
-	for _, m := range memRows {
+	members := make([]*model.SegmentMember, 0, len(d.Members))
+	for _, m := range d.Members {
 		var last *time.Time
 		if !m.LastOrderAt.IsZero() {
 			t := m.LastOrderAt
@@ -161,42 +115,21 @@ func (r *queryResolver) SynapseSegment(ctx context.Context, id string) (*model.S
 			RecencyDays: int32(m.RecencyDays), Orders: int32(m.Orders), SpendCents: int(m.SpendCents), LastOrderAt: last,
 		})
 	}
-	growth, err := r.AnalyticsSvc.SegmentGrowth(ctx, sid, 90)
-	if err != nil {
-		return nil, err
-	}
-	gpts := make([]*model.SegmentGrowthPoint, 0, len(growth))
-	for _, g := range growth {
+	gpts := make([]*model.SegmentGrowthPoint, 0, len(d.Growth))
+	for _, g := range d.Growth {
 		day := g.Day
 		gpts = append(gpts, &model.SegmentGrowthPoint{Day: day, Count: int32(g.Count)})
 	}
-	var aov int64
-	if orders > 0 {
-		aov = revenue / orders
-	}
-
-	mix, err := r.AnalyticsSvc.SegmentLifecycleMix(ctx, sid)
-	if err != nil {
-		return nil, err
-	}
-	lifecycleMix := make([]*model.SegmentStageCount, 0, len(mix))
-	for _, s := range mix {
+	lifecycleMix := make([]*model.SegmentStageCount, 0, len(d.LifecycleMix))
+	for _, s := range d.LifecycleMix {
 		lifecycleMix = append(lifecycleMix, &model.SegmentStageCount{Stage: s.Stage, Count: int32(s.Count)})
 	}
-	rfm, err := r.AnalyticsSvc.SegmentRfmDistribution(ctx, sid)
-	if err != nil {
-		return nil, err
-	}
-	rfmDist := make([]*model.SegmentRfmBucket, 0, len(rfm))
-	for _, b := range rfm {
+	rfmDist := make([]*model.SegmentRfmBucket, 0, len(d.RfmDistribution))
+	for _, b := range d.RfmDistribution {
 		rfmDist = append(rfmDist, &model.SegmentRfmBucket{Dimension: b.Dimension, Score: int32(b.Score), Count: int32(b.Count)})
 	}
-	affs, err := r.AnalyticsSvc.SegmentTopAffinities(ctx, sid, segChannel, time.Now().AddDate(0, 0, -90), 12)
-	if err != nil {
-		return nil, err
-	}
-	topAff := make([]*model.SegmentAffinityCount, 0, len(affs))
-	for _, a := range affs {
+	topAff := make([]*model.SegmentAffinityCount, 0, len(d.TopAffinities))
+	for _, a := range d.TopAffinities {
 		topAff = append(topAff, &model.SegmentAffinityCount{Attr: a.Attr, Value: a.Value, Members: int32(a.Members)})
 	}
 
@@ -206,13 +139,13 @@ func (r *queryResolver) SynapseSegment(ctx context.Context, id string) (*model.S
 	}
 
 	return &model.SynapseSegmentDetail{
-		Segment:          synapseSegmentModel(seg, int(count)),
+		Segment:          synapseSegmentModel(d.Segment),
 		Currency:         currency,
-		RevenueCents:     int(revenue),
-		Orders:           int32(orders),
-		AovCents:         int(aov),
+		RevenueCents:     int(d.RevenueCents),
+		Orders:           int32(d.Orders),
+		AovCents:         int(d.AOVCents),
 		Members:          members,
-		MembersTruncated: int(count) > len(members),
+		MembersTruncated: d.Segment.MemberCount > len(members),
 		Growth:           gpts,
 		LifecycleMix:     lifecycleMix,
 		RfmDistribution:  rfmDist,
@@ -294,22 +227,13 @@ func (r *queryResolver) SynapseSegments(ctx context.Context, channelID string) (
 	if _, err := synapseScope(ctx, r.Resolver, "customers.view", channelID); err != nil {
 		return nil, err
 	}
-	segs, err := listAllSegments(ctx, r.SegmentSvc) // unbounded page-through - auto-affinity segments alone can exceed any fixed cap, and a capped list silently hides segments that still fire
+	segs, err := r.BehavioralSvc.List(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
-	mine := make([]segment.Segment, 0)
-	ids := make([]uuid.UUID, 0)
+	out := make([]*model.SynapseSegment, 0, len(segs))
 	for _, s := range segs {
-		if def, ok := parseSegmentDef(s.RefreshSQL); ok && def.ChannelID == channelID {
-			mine = append(mine, s)
-			ids = append(ids, s.ID)
-		}
-	}
-	counts, _ := r.SegmentSvc.MemberCounts(ctx, ids)
-	out := make([]*model.SynapseSegment, 0, len(mine))
-	for _, s := range mine {
-		out = append(out, synapseSegmentModel(s, int(counts[s.ID])))
+		out = append(out, synapseSegmentModel(s))
 	}
 	return out, nil
 }
@@ -318,8 +242,7 @@ func (r *queryResolver) SynapseSegmentPreview(ctx context.Context, channelID str
 	if _, err := synapseScope(ctx, r.Resolver, "customers.view", channelID); err != nil {
 		return 0, err
 	}
-	def := defFromInputs(channelID, root, conditions, trait, affinity)
-	ids, err := evalSegmentDef(ctx, r.AnalyticsSvc, def, time.Now())
+	ids, err := r.BehavioralSvc.Evaluate(ctx, defFromInputs(channelID, root, conditions, trait, affinity), time.Now())
 	if err != nil {
 		return 0, err
 	}

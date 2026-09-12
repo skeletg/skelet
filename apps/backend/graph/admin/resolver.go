@@ -53,7 +53,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/sales"
 	"github.com/skeletg/skelet/apps/backend/internal/scheduler"
 	"github.com/skeletg/skelet/apps/backend/internal/searchmerch"
-	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
@@ -106,7 +105,6 @@ type Resolver struct {
 	ShippingSvc       *shipping.Service
 	PaymentSvc        *payment.Service
 	PromotionSvc      *promotion.Service
-	SegmentSvc        *segment.Service
 	GiftcardSvc       *giftcard.Service
 	SubscriptionSvc   *subscription.Service
 	SalesSvc          *sales.Service

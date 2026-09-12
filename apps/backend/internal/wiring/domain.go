@@ -11,6 +11,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	authpkg "github.com/skeletg/skelet/apps/backend/internal/auth"
 	"github.com/skeletg/skelet/apps/backend/internal/backinstock"
+	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/internal/cache"
 	"github.com/skeletg/skelet/apps/backend/internal/campaign"
@@ -72,6 +73,7 @@ var Domain = fx.Module("domain",
 
 		newSignalsStack,
 		newRecorder,
+		newBehavioralSegments,
 		newSignalsEnabled,
 		newGeoResolver,
 		newTrafficRollup,
@@ -131,6 +133,11 @@ func newSignalsStack(lc fx.Lifecycle, rc RootContext, mode SpineQueueMode, q *db
 }
 
 func newRecorder(s *signalsboot.Stack) *analytics.Recorder { return s.Recorder }
+
+// Synapse's engine over customer segments - both processes run it, the scheduler through one and the api through the other
+func newBehavioralSegments(rec *analytics.Recorder, segs *segment.Service) *behavioralsegment.Service {
+	return behavioralsegment.New(rec, segs)
+}
 
 // false switches off the whole suite (Pulse, Lens, Synapse, Prism, ingest, forwarding); transactional mail keeps working
 func newSignalsEnabled(s *signalsboot.Stack) SignalsEnabled { return SignalsEnabled(s.Enabled) }

@@ -98,7 +98,7 @@ contract. Everything below is `apps/backend/internal/<name>`.
 | Content | `cms`, `blog`, `blockkit`, `content`, `menu`, `form`, `webform`, `medialibrary`, `documents` |
 | Merchandising | `search`, `searchmerch`, `urlrewrite`, `sitecrawl`, `linkgraph` |
 | Marketing | `campaign`, `flow`, `emailtemplate`, `emailtrack`, `suppression`, `backinstock`, `experiment` |
-| Signals | `analytics`, `lens`, `signalsboot`, `ingesthttp`, `destination`, `signalsgrpc`, `signalspb` |
+| Signals | `analytics`, `lens`, `behavioralsegment`, `signalsboot`, `ingesthttp`, `destination`, `signalsgrpc`, `signalspb` |
 | Platform | `admin`, `auth`, `permission`, `channel`, `config`, `consent`, `integration`, `audit`, `activity`, `notification`, `adminprefs`, `ai`, `chat` |
 | Extension | `plugin`, `pluginset`, `pluginmigrate`, `remoteprovider`, `action` |
 | Data movement | `dataio`, `datajob`, `datapatch`, `catalogio`, `backup` |
