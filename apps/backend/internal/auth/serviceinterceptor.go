@@ -44,6 +44,9 @@ func serviceContext(ctx context.Context, audience, secret string) context.Contex
 			continue
 		}
 		if c, err := ValidateServiceToken(after, audience, secret); err == nil {
+			if c.System { // carries no admin and no grants, so only a handler asking for it by name lets it through
+				return WithSystemCaller(ctx)
+			}
 			return WithGrantChecker(WithAdmin(ctx, c.Admin()), c.Checker())
 		}
 	}

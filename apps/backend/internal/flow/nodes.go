@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 )
 
 // A side-effect node the engine runs and then moves past - control flow (wait, split, remote_action) stays in the engine
@@ -86,13 +87,16 @@ func (n addSegmentNode) Execute(ctx context.Context, node Node, run FlowRun) {
 }
 
 // The spine event written beside a send - optional, since the log itself is core's and a send is recorded either way
+// Satisfied by *signalsclient.Client - flow declares the shape rather than importing the suite
 type spineRecorder interface {
-	RecordSent(ctx context.Context, s sendlog.Send) error
+	RecordEmailSent(ctx context.Context, s signalsclient.SendRef) error
 }
 
 func (s *Service) recordSent(ctx context.Context, send sendlog.Send) {
 	if s.spine == nil {
 		return
 	}
-	_ = s.spine.RecordSent(ctx, send)
+	_ = s.spine.RecordEmailSent(ctx, signalsclient.SendRef{
+		ID: send.ID, ChannelID: send.ChannelID, CustomerID: send.CustomerID, Source: send.Source,
+	})
 }

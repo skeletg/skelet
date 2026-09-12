@@ -32,6 +32,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/referral"
 	"github.com/skeletg/skelet/apps/backend/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/internal/review"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
@@ -59,6 +60,7 @@ type subscriberDeps struct {
 	Email             email.Sender
 	EmailTemplate     *emailtemplate.Service
 	Recorder          *analytics.Recorder
+	SignalsClient     *signalsclient.Client
 	Signals           SignalsEnabled
 	BackInStock       *backinstock.Service
 
@@ -107,9 +109,9 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	if !d.Signals {
 		return // the Recorder no-ops anyway - skipping the subscribe also skips their per-event order lookups
 	}
-	activity.RegisterConversionAttribution(bus, d.Recorder)
-	activity.NewTracker(d.Recorder, d.Order).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
-	d.BackInStock.Register(bus)                             // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
+	activity.RegisterConversionAttribution(bus, d.SignalsClient)
+	activity.NewTracker(d.SignalsClient, d.Order).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
+	d.BackInStock.Register(bus)                                  // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
 }
 
 // Gives a new channel its transactional emails and the flows that deliver them, so receipts and account mail work without anyone running `skelet emails seed-transactional`

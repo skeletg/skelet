@@ -33,6 +33,7 @@ type Client struct {
 	ttl    time.Duration
 	grants Grants
 
+	Ingest      signalsv1.IngestServiceClient
 	Prism       signalsv1.PrismServiceClient
 	Lens        signalsv1.LensServiceClient
 	Synapse     signalsv1.SynapseServiceClient
@@ -53,6 +54,7 @@ func New(addr, jwtSecret string, ttl time.Duration, grants Grants) (*Client, err
 	}
 	return &Client{
 		conn: conn, secret: jwtSecret, ttl: ttl, grants: grants,
+		Ingest:      signalsv1.NewIngestServiceClient(conn),
 		Prism:       signalsv1.NewPrismServiceClient(conn),
 		Lens:        signalsv1.NewLensServiceClient(conn),
 		Synapse:     signalsv1.NewSynapseServiceClient(conn),
@@ -93,6 +95,19 @@ func (c *Client) Authed(ctx context.Context) (context.Context, error) {
 		sc.Grants = auth.FilterGrants(grants, signalsapi.Slugs)
 	}
 	token, err := auth.GenerateServiceToken(sc, signalsapi.Audience, c.secret, c.ttl)
+	if err != nil {
+		return nil, err
+	}
+	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token), nil
+}
+
+// System attaches core's own token, for the writes the event bus raises with no admin to act for
+// It carries no grants, so it authorizes the ingest methods and nothing else
+func (c *Client) System(ctx context.Context) (context.Context, error) {
+	if c == nil {
+		return nil, ErrUnavailable
+	}
+	token, err := auth.GenerateServiceToken(auth.ServiceClaims{System: true}, signalsapi.Audience, c.secret, c.ttl)
 	if err != nil {
 		return nil, err
 	}

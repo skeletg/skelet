@@ -103,7 +103,16 @@ type Hit struct {
 	BotCat  string // bot category when IsBot (ai|search|social|seo|monitoring|scraper|other)
 }
 
-func (r *Recorder) RecordSent(ctx context.Context, s sendlog.Send) error {
+// SendRef is the send an engagement belongs to, reduced to what the spine stores - the send log is
+// core's, and this package never reads it
+type SendRef struct {
+	ID         uuid.UUID
+	ChannelID  uuid.UUID
+	CustomerID *uuid.UUID
+	Source     string
+}
+
+func (r *Recorder) RecordSent(ctx context.Context, s SendRef) error {
 	if r.disabled {
 		return nil
 	}
@@ -112,7 +121,7 @@ func (r *Recorder) RecordSent(ctx context.Context, s sendlog.Send) error {
 }
 
 // Repeat opens within the same minute from the same client collapse on the dedupe key - the send log's own first-open stamp is core's, written by the caller
-func (r *Recorder) RecordOpen(ctx context.Context, s sendlog.Send, h Hit) (bool, error) {
+func (r *Recorder) RecordOpen(ctx context.Context, s SendRef, h Hit) (bool, error) {
 	if r.disabled {
 		return false, nil
 	}
@@ -125,7 +134,7 @@ func (r *Recorder) RecordOpen(ctx context.Context, s sendlog.Send, h Hit) (bool,
 	return true, nil
 }
 
-func (r *Recorder) RecordClick(ctx context.Context, s sendlog.Send, url string, linkIndex int, h Hit) (bool, error) {
+func (r *Recorder) RecordClick(ctx context.Context, s SendRef, url string, linkIndex int, h Hit) (bool, error) {
 	if r.disabled {
 		return false, nil
 	}
@@ -183,7 +192,7 @@ func (r *Recorder) RecordConversion(ctx context.Context, cs ConversionSpec) (boo
 		props["flow_id"] = anchor.flowID.UUID.String()
 	}
 	cust := cs.CustomerID
-	s := sendlog.Send{ID: anchor.sendID, ChannelID: cs.ChannelID, CustomerID: &cust, Source: anchor.source}
+	s := SendRef{ID: anchor.sendID, ChannelID: cs.ChannelID, CustomerID: &cust, Source: anchor.source}
 	ok, err = r.record(ctx, EventConversion, s, at, props, "conversion:"+cs.OrderID.String())
 	return ok, err
 }
@@ -373,7 +382,7 @@ func (r *Recorder) Identify(ctx context.Context, anonID string, customerID, chan
 	return nil
 }
 
-func (r *Recorder) record(ctx context.Context, name string, s sendlog.Send, at time.Time, props map[string]any, dedupeKey string) (bool, error) { // false on dedupe
+func (r *Recorder) record(ctx context.Context, name string, s SendRef, at time.Time, props map[string]any, dedupeKey string) (bool, error) { // false on dedupe
 	return r.spine.AppendEvent(ctx, SpineEvent{
 		EventName:  name,
 		OccurredAt: at,

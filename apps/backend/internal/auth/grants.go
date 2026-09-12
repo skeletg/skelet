@@ -145,6 +145,19 @@ func (c *GrantChecker) ListPermittedChannelIDs(_ context.Context, adminID uuid.U
 	return out, nil
 }
 
+const systemCallerKey contextKey = "system_caller"
+
+// WithSystemCaller marks the request as core's own process - it authorizes nothing on its own, and a
+// handler that accepts it says so explicitly
+func WithSystemCaller(ctx context.Context) context.Context {
+	return context.WithValue(ctx, systemCallerKey, true)
+}
+
+func IsSystemCaller(ctx context.Context) bool {
+	v, _ := ctx.Value(systemCallerKey).(bool)
+	return v
+}
+
 const grantCheckerKey contextKey = "grant_checker"
 
 // WithGrantChecker carries the caller's checker on the request, for a service that authorizes from a token rather than a database
