@@ -296,3 +296,131 @@ func TestTheStreamingPathRunsItsOwnAuth(t *testing.T) {
 		t.Error("a valid token did not survive the stream interceptor")
 	}
 }
+
+// A system token is core writing as itself, and it must buy nothing else on this server
+func systemCtx(t *testing.T) context.Context {
+	t.Helper()
+	tok, err := auth.GenerateServiceToken(auth.ServiceClaims{System: true}, signalsapi.Audience, testSecret, time.Minute)
+	if err != nil {
+		t.Fatalf("mint system: %v", err)
+	}
+	return metadata.AppendToOutgoingContext(context.Background(), "authorization", "Bearer "+tok)
+}
+
+func TestASystemTokenCarriesNoAuthorityOfItsOwn(t *testing.T) {
+	if _, err := auth.GenerateServiceToken(
+		auth.ServiceClaims{System: true, IsSuperuser: true}, signalsapi.Audience, testSecret, time.Minute,
+	); err == nil {
+		t.Error("a superuser system token was minted, which would open every read to the ingest credential")
+	}
+	if _, err := auth.GenerateServiceToken(
+		auth.ServiceClaims{System: true, Grants: []auth.Grant{{Slug: "lens.view"}}}, signalsapi.Audience, testSecret, time.Minute,
+	); err == nil {
+		t.Error("a granted system token was minted, which would let the ingest credential read")
+	}
+}
+
+// The two principals are disjoint: the writes take a system token, every read takes an admin one
+func TestTheIngestMethodsRefuseAnAdminToken(t *testing.T) {
+	c := signalsv1.NewIngestServiceClient(testConn(t))
+	admin := tokenCtx(t) // a superuser, so nothing but the principal check can be refusing it
+	id := uuid.New().String()
+
+	for name, call := range map[string]func(context.Context) error{
+		"RecordActivity": func(ctx context.Context) error {
+			_, e := c.RecordActivity(ctx, &signalsv1.RecordActivityRequest{EventName: "x", ChannelId: id})
+			return e
+		},
+		"RecordConversion": func(ctx context.Context) error {
+			_, e := c.RecordConversion(ctx, &signalsv1.RecordConversionRequest{CustomerId: id, OrderId: id})
+			return e
+		},
+		"RecordEmailSent": func(ctx context.Context) error {
+			_, e := c.RecordEmailSent(ctx, &signalsv1.RecordEmailSentRequest{Send: &signalsv1.EmailSendRef{SendId: id}})
+			return e
+		},
+		"RecordEmailOpen": func(ctx context.Context) error {
+			_, e := c.RecordEmailOpen(ctx, &signalsv1.RecordEmailOpenRequest{Send: &signalsv1.EmailSendRef{SendId: id}})
+			return e
+		},
+		"RecordEmailClick": func(ctx context.Context) error {
+			_, e := c.RecordEmailClick(ctx, &signalsv1.RecordEmailClickRequest{Send: &signalsv1.EmailSendRef{SendId: id}})
+			return e
+		},
+	} {
+		if got := status.Code(call(admin)); got != codes.PermissionDenied {
+			t.Errorf("%s answered a superuser admin token with %s, want PermissionDenied", name, got)
+		}
+		if got := status.Code(call(context.Background())); got != codes.PermissionDenied {
+			t.Errorf("%s answered an anonymous caller with %s, want PermissionDenied", name, got)
+		}
+	}
+}
+
+// The other direction of the same gate - refusing everyone would pass the test above while breaking every write
+// Every service here is nil, so getting past the principal check is what reaching the handler looks like
+func TestASystemTokenAuthorizesTheIngestMethods(t *testing.T) {
+	c := signalsv1.NewIngestServiceClient(testConn(t))
+	sys := systemCtx(t)
+	id := uuid.New().String()
+
+	for name, call := range map[string]func() error{
+		"RecordActivity": func() error {
+			_, e := c.RecordActivity(sys, &signalsv1.RecordActivityRequest{EventName: "x", ChannelId: id})
+			return e
+		},
+		"RecordConversion": func() error {
+			_, e := c.RecordConversion(sys, &signalsv1.RecordConversionRequest{CustomerId: id, OrderId: id})
+			return e
+		},
+		"RecordEmailSent": func() error {
+			_, e := c.RecordEmailSent(sys, &signalsv1.RecordEmailSentRequest{Send: &signalsv1.EmailSendRef{SendId: id}})
+			return e
+		},
+		"RecordEmailOpen": func() error {
+			_, e := c.RecordEmailOpen(sys, &signalsv1.RecordEmailOpenRequest{Send: &signalsv1.EmailSendRef{SendId: id}})
+			return e
+		},
+		"RecordEmailClick": func() error {
+			_, e := c.RecordEmailClick(sys, &signalsv1.RecordEmailClickRequest{Send: &signalsv1.EmailSendRef{SendId: id}})
+			return e
+		},
+	} {
+		switch got := status.Code(call()); got {
+		case codes.PermissionDenied, codes.Unauthenticated:
+			t.Errorf("%s refused core's own system token with %s, so no spine write would land", name, got)
+		}
+	}
+}
+
+// And the other way: a system token must not reach a read, whatever the service
+func TestASystemTokenCannotRead(t *testing.T) {
+	conn := testConn(t)
+	sys := systemCtx(t)
+	id := uuid.New().String()
+
+	for name, call := range map[string]func() error{
+		"Lens.GetOverview": func() error {
+			_, e := signalsv1.NewLensServiceClient(conn).GetOverview(sys, &signalsv1.GetOverviewRequest{ChannelId: id})
+			return e
+		},
+		"Synapse.GetSynapseOverview": func() error {
+			_, e := signalsv1.NewSynapseServiceClient(conn).GetSynapseOverview(sys, &signalsv1.GetSynapseOverviewRequest{ChannelId: id})
+			return e
+		},
+		"Prism.ListExperiments": func() error {
+			_, e := signalsv1.NewPrismServiceClient(conn).ListExperiments(sys, &signalsv1.ListExperimentsRequest{ChannelId: id})
+			return e
+		},
+		"Segment.ListSegments": func() error {
+			_, e := signalsv1.NewSegmentServiceClient(conn).ListSegments(sys, &signalsv1.ListSegmentsRequest{})
+			return e
+		},
+	} {
+		switch got := status.Code(call()); got {
+		case codes.Unauthenticated, codes.PermissionDenied:
+		default:
+			t.Errorf("%s let a system token through with %s", name, got)
+		}
+	}
+}

@@ -23,7 +23,6 @@ import (
 	graphadmin "github.com/skeletg/skelet/apps/backend/graph/admin"
 	graphfront "github.com/skeletg/skelet/apps/backend/graph/front"
 	"github.com/skeletg/skelet/apps/backend/graph/front/dataloaders"
-	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	authpkg "github.com/skeletg/skelet/apps/backend/internal/auth"
 	"github.com/skeletg/skelet/apps/backend/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/internal/cache"
@@ -45,6 +44,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/ratelimit"
 	"github.com/skeletg/skelet/apps/backend/internal/review"
 	"github.com/skeletg/skelet/apps/backend/internal/sentryx"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/internal/suppression"
 )
 
@@ -251,7 +251,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		// Over-limit: still serve the pixel (a mail client must never see an error), just skip the recording - same best-effort stance as /t
 		if tokenLimiter.Allow(r.Context(), "eopen:"+authpkg.ClientIP(r)) {
 			if ev := s.Campaign.RecordOpen(r.Context(), strings.TrimPrefix(r.URL.Path, "/e/o/"),
-				analytics.Hit{UA: r.UserAgent(), IP: r.RemoteAddr, At: time.Now()}); ev != nil {
+				signalsclient.Hit{UA: r.UserAgent(), At: time.Now()}); ev != nil {
 				s.Bus.Publish(r.Context(), ev)
 			}
 		}
@@ -266,7 +266,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 			return
 		}
 		dest, ev := s.Campaign.RecordClick(r.Context(), strings.TrimPrefix(r.URL.Path, "/e/c/"),
-			analytics.Hit{UA: r.UserAgent(), IP: r.RemoteAddr, At: time.Now()})
+			signalsclient.Hit{UA: r.UserAgent(), At: time.Now()})
 		if ev != nil {
 			s.Bus.Publish(r.Context(), ev)
 		}

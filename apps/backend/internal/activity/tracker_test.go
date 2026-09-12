@@ -7,21 +7,21 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
 	"github.com/skeletg/skelet/apps/backend/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/internal/events"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
 	"github.com/skeletg/skelet/apps/backend/internal/review"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/internal/subscription"
 )
 
-type fakeRecorder struct{ calls []analytics.ActivitySpec }
+type fakeRecorder struct{ calls []signalsclient.ActivitySpec }
 
-func (f *fakeRecorder) RecordActivity(_ context.Context, a analytics.ActivitySpec) (bool, error) {
+func (f *fakeRecorder) RecordActivity(_ context.Context, a signalsclient.ActivitySpec) error {
 	f.calls = append(f.calls, a)
-	return true, nil
+	return nil
 }
 
 type fakeOrders struct {
@@ -59,7 +59,7 @@ func TestTracker_MapsEvents(t *testing.T) {
 					OrderID: oid, OrderNumber: "1001", CustomerID: &cid, ChannelID: ch, TotalCents: 5000, Currency: "USD",
 				})
 			},
-			wantName: "order_placed", wantSource: analytics.SourceCommerce, wantDedupe: "act:order_placed:" + oid.String(),
+			wantName: "order_placed", wantSource: sourceCommerce, wantDedupe: "act:order_placed:" + oid.String(),
 		},
 		{
 			name:  "order status changed → order_fulfilled (resolved customer)",
@@ -69,7 +69,7 @@ func TestTracker_MapsEvents(t *testing.T) {
 					OrderID: oid, ChannelID: ch, FromStatus: "confirmed", ToStatus: "fulfilled",
 				})
 			},
-			wantName: "order_fulfilled", wantSource: analytics.SourceCommerce, wantDedupe: "act:order_status:fulfilled:" + oid.String(),
+			wantName: "order_fulfilled", wantSource: sourceCommerce, wantDedupe: "act:order_status:fulfilled:" + oid.String(),
 		},
 		{
 			name:  "cart add (logged in)",
@@ -79,7 +79,7 @@ func TestTracker_MapsEvents(t *testing.T) {
 					CartID: uuid.New(), ChannelID: ch, CustomerID: &cid, LineID: oid, ProductSku: "SKU1", UnitPrice: 1200, Quantity: 2,
 				})
 			},
-			wantName: "cart_add", wantSource: analytics.SourceCommerce, wantDedupe: "act:cart_add:" + oid.String(),
+			wantName: "cart_add", wantSource: sourceCommerce, wantDedupe: "act:cart_add:" + oid.String(),
 		},
 		{
 			name:  "review submitted",
@@ -89,7 +89,7 @@ func TestTracker_MapsEvents(t *testing.T) {
 					ReviewID: oid, ProductID: uuid.New(), ChannelID: ch, CustomerID: &cid, Status: review.Status("pending"),
 				})
 			},
-			wantName: "review_submitted", wantSource: analytics.SourceCommerce, wantDedupe: "act:review:" + oid.String(),
+			wantName: "review_submitted", wantSource: sourceCommerce, wantDedupe: "act:review:" + oid.String(),
 		},
 		{
 			name:  "subscription cancelled",
@@ -99,7 +99,7 @@ func TestTracker_MapsEvents(t *testing.T) {
 					Kind: subscription.EventCanceled, SubscriptionID: oid, CustomerID: &cid, ChannelID: ch,
 				})
 			},
-			wantName: "subscription_cancelled", wantSource: analytics.SourceCommerce, wantDedupe: "act:sub_cancelled:" + oid.String(),
+			wantName: "subscription_cancelled", wantSource: sourceCommerce, wantDedupe: "act:sub_cancelled:" + oid.String(),
 		},
 		{
 			name:  "customer registered",
@@ -109,7 +109,7 @@ func TestTracker_MapsEvents(t *testing.T) {
 					CustomerID: cid, ChannelID: ch, Source: "self",
 				})
 			},
-			wantName: "registered", wantSource: analytics.SourceAccount, wantDedupe: "act:registered:" + cid.String(),
+			wantName: "registered", wantSource: sourceAccount, wantDedupe: "act:registered:" + cid.String(),
 		},
 		{
 			name:  "customer login",
@@ -119,7 +119,7 @@ func TestTracker_MapsEvents(t *testing.T) {
 					Subject: auth.SubjectCustomer, SubjectID: cid, ChannelID: ch, IP: "1.2.3.4",
 				})
 			},
-			wantName: "login", wantSource: analytics.SourceAccount, wantDedupe: "act:login:" + cid.String(),
+			wantName: "login", wantSource: sourceAccount, wantDedupe: "act:login:" + cid.String(),
 		},
 	}
 
