@@ -491,6 +491,12 @@ type Querier interface {
 	// SegmentMemberEmails used to join customers for the audience export - that table is core's now, so this
 	// returns the ids and the caller resolves the addresses on the other side
 	SegmentMemberIDsOrdered(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error)
+	// The order half of a segment's member panel, off the same projection the RFM scores beside it derive
+	// from, so a member's orders and spend agree with their recency/frequency/monetary
+	SegmentMemberOrderStats(ctx context.Context, customerIds []uuid.UUID) ([]SegmentMemberOrderStatsRow, error)
+	// The same projection summed for a segment's rollup - order_count is already distinct orders per
+	// customer, so the sum needs no DISTINCT of its own
+	SegmentOrderRollup(ctx context.Context, customerIds []uuid.UUID) (SegmentOrderRollupRow, error)
 	// Hot path for the promotion engine: returns every active segment
 	// slug a customer belongs to - filters out inactive segments so a
 	// temporarily-disabled segment doesn't keep firing promotions
