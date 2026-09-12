@@ -40,7 +40,7 @@ func rosterFixture(t *testing.T) rosterEnv {
 		_, _ = conn.Exec(`DELETE FROM channels WHERE id = $1`, channelID)
 	})
 	q := db.New(conn)
-	return rosterEnv{rec: &Recorder{q: q, qs: signalsdb.New(sigConn)}, q: q, conn: conn, sigConn: sigConn, channel: channelID, ctx: context.Background()}
+	return rosterEnv{rec: &Recorder{qs: signalsdb.New(sigConn)}, q: q, conn: conn, sigConn: sigConn, channel: channelID, ctx: context.Background()}
 }
 
 func (e rosterEnv) customer(t *testing.T) uuid.UUID {

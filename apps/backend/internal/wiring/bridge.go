@@ -66,6 +66,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/scheduler"
 	"github.com/skeletg/skelet/apps/backend/internal/searchmerch"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
@@ -164,6 +165,7 @@ type Svcs struct {
 
 	SignalsStack   *signalsboot.Stack
 	Recorder       *analytics.Recorder
+	SendLog        *sendlog.Store
 	Behavioral     *behavioralsegment.Service
 	SignalsEnabled SignalsEnabled
 	Geo            *geo.Resolver

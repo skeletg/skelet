@@ -983,28 +983,6 @@ func asTime(v any) *time.Time {
 	return nil
 }
 
-type EmailEngagement struct { // a customer's lifetime Pulse email engagement, read from the authoritative email_sends projection where opens and clicks are bot-filtered at write time
-	Sent       int
-	Opened     int
-	Clicked    int
-	LastSentAt *time.Time
-	LastOpenAt *time.Time
-}
-
-func (r *Recorder) CustomerEmailEngagement(ctx context.Context, customerID uuid.UUID) (EmailEngagement, error) { // every email sent to a customer plus distinct opens and clicks - zero-valued with no error when they've never been sent one
-	row, err := r.read().CustomerEmailEngagement(ctx, uuid.NullUUID{UUID: customerID, Valid: true})
-	if err != nil {
-		return EmailEngagement{}, err
-	}
-	return EmailEngagement{
-		Sent:       int(row.Sent),
-		Opened:     int(row.Opened),
-		Clicked:    int(row.Clicked),
-		LastSentAt: asTime(row.LastSentAt),
-		LastOpenAt: asTime(row.LastOpenAt),
-	}, nil
-}
-
 // Pulls the single most descriptive value out of an event's properties for the timeline line
 // Event-aware: a page view shows the page TITLE (the product, category or search name) rather than the raw path, a filter event shows the chosen facets, commerce events show order/sku/status
 func SummarizeProps(eventName string, raw json.RawMessage) string {

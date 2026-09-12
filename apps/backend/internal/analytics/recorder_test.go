@@ -10,7 +10,7 @@ import (
 // Every write on a disabled Recorder must no-op BEFORE it touches the spine or commerce handles - the nil handles here panic if any guard goes missing
 func TestRecorderDisabledNoOps(t *testing.T) {
 	ctx := context.Background()
-	r := NewRecorder(nil, nil)
+	r := NewRecorder(nil)
 	r.SetEnabled(false)
 	cid := uuid.New()
 
