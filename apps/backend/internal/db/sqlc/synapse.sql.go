@@ -7,10 +7,8 @@ package db
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 )
 
 const channelCustomerIDs = `-- name: ChannelCustomerIDs :many
@@ -18,7 +16,7 @@ const channelCustomerIDs = `-- name: ChannelCustomerIDs :many
 SELECT id FROM customers WHERE channel_id = $1
 `
 
-// Synapse's commerce-side reads - the order half of the segment panels, whose membership and traits halves live in the signals database and are joined in the caller
+// Synapse's one commerce-side read - the customer universe a segment definition draws from
 // Every customer id in a channel - the universe a behavioral segment draws from
 // Used to evaluate negated / OR'd nodes in a segment definition tree (NOT X =
 // universe minus X)
@@ -43,74 +41,4 @@ func (q *Queries) ChannelCustomerIDs(ctx context.Context, channelID uuid.UUID) (
 		return nil, err
 	}
 	return items, nil
-}
-
-const segmentMemberOrderStats = `-- name: SegmentMemberOrderStats :many
-SELECT o.customer_id::uuid AS customer_id,
-       COUNT(o.id)::int AS orders,
-       COALESCE(SUM(o.total_amount), 0)::bigint AS spend_cents,
-       MAX(o.created_at)::timestamptz AS last_order_at
-FROM orders o
-WHERE o.customer_id = ANY($1::uuid[])
-  AND o.status NOT IN ('cancelled', 'draft')
-GROUP BY o.customer_id
-`
-
-type SegmentMemberOrderStatsRow struct {
-	CustomerID  uuid.UUID `json:"customer_id"`
-	Orders      int32     `json:"orders"`
-	SpendCents  int64     `json:"spend_cents"`
-	LastOrderAt time.Time `json:"last_order_at"`
-}
-
-// The commerce half of a segment's member panel - traits are read separately from the signals
-// database and joined in the caller, since the two no longer share one
-func (q *Queries) SegmentMemberOrderStats(ctx context.Context, customerIds []uuid.UUID) ([]SegmentMemberOrderStatsRow, error) {
-	rows, err := q.db.QueryContext(ctx, segmentMemberOrderStats, pq.Array(customerIds))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []SegmentMemberOrderStatsRow{}
-	for rows.Next() {
-		var i SegmentMemberOrderStatsRow
-		if err := rows.Scan(
-			&i.CustomerID,
-			&i.Orders,
-			&i.SpendCents,
-			&i.LastOrderAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const segmentOrderRollup = `-- name: SegmentOrderRollup :one
-SELECT
-    COUNT(DISTINCT o.id)::bigint             AS orders,
-    COALESCE(SUM(o.total_amount), 0)::bigint AS revenue_cents
-FROM orders o
-WHERE o.customer_id = ANY($1::uuid[])
-  AND o.status NOT IN ('cancelled', 'draft')
-`
-
-type SegmentOrderRollupRow struct {
-	Orders       int64 `json:"orders"`
-	RevenueCents int64 `json:"revenue_cents"`
-}
-
-// Distinct non-cancelled orders and total spend for a known set of customers - the commerce half of a segment's rollup, since membership moved and the join cannot span both
-func (q *Queries) SegmentOrderRollup(ctx context.Context, customerIds []uuid.UUID) (SegmentOrderRollupRow, error) {
-	row := q.db.QueryRowContext(ctx, segmentOrderRollup, pq.Array(customerIds))
-	var i SegmentOrderRollupRow
-	err := row.Scan(&i.Orders, &i.RevenueCents)
-	return i, err
 }
