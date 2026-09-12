@@ -108,6 +108,7 @@ func (s *ingestServer) scopedSend(ctx context.Context, send *signalsv1.EmailSend
 	return analytics.SendRef{
 		ID: id, ChannelID: uuidOrNil(send.GetChannelId()),
 		CustomerID: optionalUUID(send.CustomerId), Source: send.GetSource(),
+		CampaignID: optionalUUID(send.CampaignId), FlowID: optionalUUID(send.FlowId),
 	}, nil
 }
 

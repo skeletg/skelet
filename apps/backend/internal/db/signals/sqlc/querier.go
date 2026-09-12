@@ -106,10 +106,10 @@ type Querier interface {
 	CustomerConversions(ctx context.Context, arg CustomerConversionsParams) ([]CustomerConversionsRow, error)
 	// Spine half of the app-side conversion-attribution lookback (recorder's
 	// RecordConversion): every marketing open/click the customer logged since the
-	// cutoff, best-first (a click outranks an open; then most-recent). The caller
-	// resolves each send's origin from email_sends (commerce) and takes the first
-	// from a campaign or flow - the last-touch anchor. The per-customer 7-day set is
-	// small, so this is unbounded (the winner is picked app-side, not via LIMIT 1).
+	// cutoff, best-first (a click outranks an open; then most-recent). The send's
+	// origin rides on the event, so the caller takes the first campaign or flow one
+	// as the last-touch anchor without a second lookup. The per-customer 7-day set
+	// is small, so this is unbounded (the winner is picked app-side, not LIMIT 1).
 	CustomerEngagementEvents(ctx context.Context, arg CustomerEngagementEventsParams) ([]CustomerEngagementEventsRow, error)
 	CustomerEventCounts(ctx context.Context, arg CustomerEventCountsParams) ([]CustomerEventCountsRow, error)
 	// The experiments + assigned variation a customer has been exposed to, resolved
