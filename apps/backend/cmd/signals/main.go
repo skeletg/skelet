@@ -132,19 +132,17 @@ func run() error {
 	// The suite's own admin API - the dashboard reaches it directly, authenticating with a service token core minted
 	behavioralSvc := behavioralsegment.New(rec, d.Segment)
 	mux.Handle(signalsapi.Path, wiring.SignalsGraphQLHandler(wiring.SignalsAPI{
-		Experiment:  d.Experiment,
-		Lens:        lensSvc,
-		Destination: destSvc,
-		Segment:     d.Segment,
-		Analytics:   rec,
-		Behavioral:  behavioralSvc,
-		Channel:     channelSvc,
-		Config:      configSvc,
-		Commerce:    db.New(primaryConn),
-		Roster:      signalsdb.New(sigConn),
-		JWTSecret:   d.Config.JWTSecret,
-		Dev:         d.Config.IsDev(),
-		Telemetry:   telemetry,
+		Lens:       lensSvc,
+		Segment:    d.Segment,
+		Analytics:  rec,
+		Behavioral: behavioralSvc,
+		Channel:    channelSvc,
+		Config:     configSvc,
+		Commerce:   db.New(primaryConn),
+		Roster:     signalsdb.New(sigConn),
+		JWTSecret:  d.Config.JWTSecret,
+		Dev:        d.Config.IsDev(),
+		Telemetry:  telemetry,
 		// Core publishes here when it kills a session, so one revoked there stops working here too
 		Revocations: cache.NewRevocations(d.Valkey, wiring.AccessTokenTTL+time.Minute),
 	}))

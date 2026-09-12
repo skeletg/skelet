@@ -1,7 +1,7 @@
 import { useQuery } from '@apollo/client/react'
 import { formatCents } from '@/lib/format'
 import { useConfigScope } from '@/lib/config-scope'
-import { PulseEngagementDocument } from '@/features/pulse/Pulse.signals.gql'
+import { PulseEngagementDocument } from '@/features/pulse/Pulse.gql'
 import { NeedsChannel, Tile, WidgetSection } from './primitives'
 
 const DAYS = 30
