@@ -23,11 +23,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	IngestService_RecordActivity_FullMethodName   = "/skelet.signals.v1.IngestService/RecordActivity"
-	IngestService_RecordConversion_FullMethodName = "/skelet.signals.v1.IngestService/RecordConversion"
-	IngestService_RecordEmailSent_FullMethodName  = "/skelet.signals.v1.IngestService/RecordEmailSent"
-	IngestService_RecordEmailOpen_FullMethodName  = "/skelet.signals.v1.IngestService/RecordEmailOpen"
-	IngestService_RecordEmailClick_FullMethodName = "/skelet.signals.v1.IngestService/RecordEmailClick"
+	IngestService_RecordActivity_FullMethodName     = "/skelet.signals.v1.IngestService/RecordActivity"
+	IngestService_RecordConversion_FullMethodName   = "/skelet.signals.v1.IngestService/RecordConversion"
+	IngestService_RecordEmailSent_FullMethodName    = "/skelet.signals.v1.IngestService/RecordEmailSent"
+	IngestService_RecordEmailOpen_FullMethodName    = "/skelet.signals.v1.IngestService/RecordEmailOpen"
+	IngestService_RecordEmailClick_FullMethodName   = "/skelet.signals.v1.IngestService/RecordEmailClick"
+	IngestService_SyncCustomerRoster_FullMethodName = "/skelet.signals.v1.IngestService/SyncCustomerRoster"
 )
 
 // IngestServiceClient is the client API for IngestService service.
@@ -40,6 +41,9 @@ type IngestServiceClient interface {
 	RecordEmailSent(ctx context.Context, in *RecordEmailSentRequest, opts ...grpc.CallOption) (*RecordEmailSentResponse, error)
 	RecordEmailOpen(ctx context.Context, in *RecordEmailOpenRequest, opts ...grpc.CallOption) (*RecordEmailOpenResponse, error)
 	RecordEmailClick(ctx context.Context, in *RecordEmailClickRequest, opts ...grpc.CallOption) (*RecordEmailClickResponse, error)
+	// Core streams its customers across; the suite keeps the copy its trait and membership
+	// cleanup joins against, a foreign key being unable to span the two databases
+	SyncCustomerRoster(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[SyncCustomerRosterRequest, SyncCustomerRosterResponse], error)
 }
 
 type ingestServiceClient struct {
@@ -100,6 +104,19 @@ func (c *ingestServiceClient) RecordEmailClick(ctx context.Context, in *RecordEm
 	return out, nil
 }
 
+func (c *ingestServiceClient) SyncCustomerRoster(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[SyncCustomerRosterRequest, SyncCustomerRosterResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &IngestService_ServiceDesc.Streams[0], IngestService_SyncCustomerRoster_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SyncCustomerRosterRequest, SyncCustomerRosterResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type IngestService_SyncCustomerRosterClient = grpc.ClientStreamingClient[SyncCustomerRosterRequest, SyncCustomerRosterResponse]
+
 // IngestServiceServer is the server API for IngestService service.
 // All implementations must embed UnimplementedIngestServiceServer
 // for forward compatibility.
@@ -110,6 +127,9 @@ type IngestServiceServer interface {
 	RecordEmailSent(context.Context, *RecordEmailSentRequest) (*RecordEmailSentResponse, error)
 	RecordEmailOpen(context.Context, *RecordEmailOpenRequest) (*RecordEmailOpenResponse, error)
 	RecordEmailClick(context.Context, *RecordEmailClickRequest) (*RecordEmailClickResponse, error)
+	// Core streams its customers across; the suite keeps the copy its trait and membership
+	// cleanup joins against, a foreign key being unable to span the two databases
+	SyncCustomerRoster(grpc.ClientStreamingServer[SyncCustomerRosterRequest, SyncCustomerRosterResponse]) error
 	mustEmbedUnimplementedIngestServiceServer()
 }
 
@@ -134,6 +154,9 @@ func (UnimplementedIngestServiceServer) RecordEmailOpen(context.Context, *Record
 }
 func (UnimplementedIngestServiceServer) RecordEmailClick(context.Context, *RecordEmailClickRequest) (*RecordEmailClickResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RecordEmailClick not implemented")
+}
+func (UnimplementedIngestServiceServer) SyncCustomerRoster(grpc.ClientStreamingServer[SyncCustomerRosterRequest, SyncCustomerRosterResponse]) error {
+	return status.Error(codes.Unimplemented, "method SyncCustomerRoster not implemented")
 }
 func (UnimplementedIngestServiceServer) mustEmbedUnimplementedIngestServiceServer() {}
 func (UnimplementedIngestServiceServer) testEmbeddedByValue()                       {}
@@ -246,6 +269,13 @@ func _IngestService_RecordEmailClick_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IngestService_SyncCustomerRoster_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(IngestServiceServer).SyncCustomerRoster(&grpc.GenericServerStream[SyncCustomerRosterRequest, SyncCustomerRosterResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type IngestService_SyncCustomerRosterServer = grpc.ClientStreamingServer[SyncCustomerRosterRequest, SyncCustomerRosterResponse]
+
 // IngestService_ServiceDesc is the grpc.ServiceDesc for IngestService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -274,6 +304,12 @@ var IngestService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _IngestService_RecordEmailClick_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SyncCustomerRoster",
+			Handler:       _IngestService_SyncCustomerRoster_Handler,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "skelet/signals/v1/ingest.proto",
 }

@@ -14,6 +14,7 @@ import (
 )
 
 // Gated on both database markers - the roster replaces the join that gave every prospect a trait row, and the ON DELETE CASCADE that dropped a deleted customer's traits with them
+// Core pushes it, so these drive the receiving half the way the push job does
 
 type rosterEnv struct {
 	rec     *Recorder
@@ -53,6 +54,40 @@ func (e rosterEnv) customer(t *testing.T) uuid.UUID {
 	return c.ID
 }
 
+// push drives the receiver exactly as core's job does: page through commerce, then sweep
+func (e rosterEnv) push(t *testing.T) {
+	t.Helper()
+	sync := e.rec.BeginRosterSync()
+	e.pages(t, sync)
+	if _, _, err := sync.Commit(e.ctx); err != nil {
+		t.Fatalf("commit roster: %v", err)
+	}
+}
+
+func (e rosterEnv) pages(t *testing.T, sync *RosterSync) {
+	t.Helper()
+	for off := int32(0); ; off += 5000 {
+		rows, err := e.q.CustomerRosterForSync(e.ctx, db.CustomerRosterForSyncParams{Lim: 5000, Off: off})
+		if err != nil {
+			t.Fatalf("read roster: %v", err)
+		}
+		if len(rows) == 0 {
+			return
+		}
+		ids := make([]uuid.UUID, len(rows))
+		chans := make([]uuid.UUID, len(rows))
+		for i, c := range rows {
+			ids[i], chans[i] = c.CustomerID, c.ChannelID
+		}
+		if err := sync.Page(e.ctx, ids, chans); err != nil {
+			t.Fatalf("page: %v", err)
+		}
+		if len(rows) < 5000 {
+			return
+		}
+	}
+}
+
 func (e rosterEnv) onRoster(t *testing.T, id uuid.UUID) bool {
 	t.Helper()
 	var n int
@@ -66,9 +101,7 @@ func TestRosterCarriesEveryCustomerIncludingProspects(t *testing.T) {
 	e := rosterFixture(t)
 	a, b := e.customer(t), e.customer(t)
 
-	if err := e.rec.SyncRoster(e.ctx); err != nil {
-		t.Fatalf("SyncRoster: %v", err)
-	}
+	e.push(t)
 	if !e.onRoster(t, a) || !e.onRoster(t, b) {
 		t.Fatal("a never-ordered customer is missing from the roster, so they would get no trait row at all")
 	}
@@ -78,9 +111,7 @@ func TestADeletedCustomerLosesTheirTraits(t *testing.T) {
 	e := rosterFixture(t)
 	doomed, survivor := e.customer(t), e.customer(t)
 
-	if err := e.rec.SyncRoster(e.ctx); err != nil {
-		t.Fatalf("SyncRoster: %v", err)
-	}
+	e.push(t)
 	var segID uuid.UUID
 	if err := e.sigConn.QueryRow(`INSERT INTO customer_segments (slug, name) VALUES ($1,$2) RETURNING id`,
 		"roster-"+uuid.NewString()[:8], "Roster Test").Scan(&segID); err != nil {
@@ -99,9 +130,7 @@ func TestADeletedCustomerLosesTheirTraits(t *testing.T) {
 	if _, err := e.conn.Exec(`DELETE FROM customers WHERE id = $1`, doomed); err != nil {
 		t.Fatalf("delete customer: %v", err)
 	}
-	if err := e.rec.SyncRoster(e.ctx); err != nil {
-		t.Fatalf("SyncRoster after delete: %v", err)
-	}
+	e.push(t)
 
 	if e.onRoster(t, doomed) {
 		t.Error("a deleted customer is still on the roster")
@@ -126,5 +155,46 @@ func TestADeletedCustomerLosesTheirTraits(t *testing.T) {
 		if (n > 0) != wantTraits {
 			t.Errorf("customer %s has %d trait rows, want traits=%v - the cascade this replaces is gone", id, n, wantTraits)
 		}
+	}
+}
+
+// The sweep is what makes a push destructive, so a stream that dies partway must not reach it
+func TestAPartialPushPrunesNothing(t *testing.T) {
+	e := rosterFixture(t)
+	a, b := e.customer(t), e.customer(t)
+	e.push(t)
+	if !e.onRoster(t, a) || !e.onRoster(t, b) {
+		t.Fatal("the first push did not land")
+	}
+
+	// A push that carries nobody and is abandoned before Commit - what a broken stream looks like
+	abandoned := e.rec.BeginRosterSync()
+	if err := abandoned.Page(e.ctx, nil, nil); err != nil {
+		t.Fatalf("empty page: %v", err)
+	}
+
+	if !e.onRoster(t, a) || !e.onRoster(t, b) {
+		t.Error("an abandoned push removed customers from the roster")
+	}
+}
+
+// And the other side of it: a push that completes with nobody in it does sweep, since core saying
+// "no customers" is an answer rather than a failure
+func TestACompletedEmptyPushSweeps(t *testing.T) {
+	e := rosterFixture(t)
+	a := e.customer(t)
+	e.push(t)
+	if !e.onRoster(t, a) {
+		t.Fatal("the first push did not land")
+	}
+
+	empty := e.rec.BeginRosterSync()
+	if _, pruned, err := empty.Commit(e.ctx); err != nil {
+		t.Fatalf("commit empty: %v", err)
+	} else if pruned == 0 {
+		t.Error("a completed empty push pruned nobody, so a customer deleted in core would keep their traits forever")
+	}
+	if e.onRoster(t, a) {
+		t.Error("a completed empty push left a customer on the roster")
 	}
 }

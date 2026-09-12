@@ -168,11 +168,6 @@ type Querier interface {
 	CancelEmailCampaign(ctx context.Context, id uuid.UUID) (int64, error)
 	CancelStaleSeoCrawls(ctx context.Context, silentForMinutes int32) error
 	CascadeAttributeValuesIndexable(ctx context.Context, arg CascadeAttributeValuesIndexableParams) error
-	// Synapse's one commerce-side read - the customer universe a segment definition draws from
-	// Every customer id in a channel - the universe a behavioral segment draws from
-	// Used to evaluate negated / OR'd nodes in a segment definition tree (NOT X =
-	// universe minus X)
-	ChannelCustomerIDs(ctx context.Context, channelID uuid.UUID) ([]uuid.UUID, error)
 	// Atomically lease due scheduled campaigns for sending (multi-replica safe)
 	ClaimDueCampaigns(ctx context.Context, lim int32) ([]EmailCampaign, error)
 	// Lease-claim queued work, plus running rows whose lease lapsed (a crashed runner's) - SKIP LOCKED keeps
