@@ -7,13 +7,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	signalsv1 "github.com/skeletg/skelet/apps/backend/internal/signalspb/skelet/signals/v1"
 )
 
 // synapseSignalTools returns the Synapse customer-behaviour tools (customers.view).
@@ -27,8 +28,8 @@ func synapseSignalTools() []signalTool {
 				Schema:      windowSchema(nil),
 			},
 			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, _ int, _ toolArgs) string {
-				return reuseDigest(func(b *strings.Builder) { writeSynapseDigest(ctx, r, cid, since, b) }, "No customer-behaviour data in this window.")
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, _ toolArgs) string {
+				return reuseDigest(func(b *strings.Builder) { writeSynapseDigest(ctx, r, cid, days, b) }, "No customer-behaviour data in this window.")
 			},
 		},
 		{
@@ -43,8 +44,8 @@ func synapseSignalTools() []signalTool {
 				}, "event"),
 			},
 			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, _ int, a toolArgs) string {
-				return toolEventTrend(ctx, r, cid, since, a)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolEventTrend(ctx, r, cid, days, a)
 			},
 		},
 		{
@@ -57,8 +58,8 @@ func synapseSignalTools() []signalTool {
 				}, "steps"),
 			},
 			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, _ int, a toolArgs) string {
-				return toolFunnel(ctx, r, cid, since, a)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolFunnel(ctx, r, cid, days, a)
 			},
 		},
 		{
@@ -74,8 +75,8 @@ func synapseSignalTools() []signalTool {
 				}, "start_event", "return_event"),
 			},
 			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, _ int, a toolArgs) string {
-				return toolRetention(ctx, r, cid, since, a)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolRetention(ctx, r, cid, days, a)
 			},
 		},
 		{
@@ -112,8 +113,8 @@ func synapseSignalTools() []signalTool {
 				}, "event"),
 			},
 			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, days int, a toolArgs) string {
-				return toolStickiness(ctx, r, cid, since, days, a)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolStickiness(ctx, r, cid, days, a)
 			},
 		},
 		{
@@ -126,8 +127,8 @@ func synapseSignalTools() []signalTool {
 				}, "focus_event"),
 			},
 			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, _ int, a toolArgs) string {
-				return toolUserFlow(ctx, r, cid, since, a)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolUserFlow(ctx, r, cid, days, a)
 			},
 		},
 		{
@@ -151,8 +152,8 @@ func synapseSignalTools() []signalTool {
 				}, "attribute"),
 			},
 			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, _ int, a toolArgs) string {
-				return toolAffinityBreakdown(ctx, r, cid, since, a)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolAffinityBreakdown(ctx, r, cid, days, a)
 			},
 		},
 		{
@@ -162,8 +163,8 @@ func synapseSignalTools() []signalTool {
 				Schema:      windowSchema(nil),
 			},
 			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, _ int, _ toolArgs) string {
-				return toolListActiveCustomers(ctx, r, cid, since)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, _ toolArgs) string {
+				return toolListActiveCustomers(ctx, r, cid, days)
 			},
 		},
 		{
@@ -175,8 +176,8 @@ func synapseSignalTools() []signalTool {
 				}, "customer_id"),
 			},
 			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, _ int, a toolArgs) string {
-				return toolCustomerProfile(ctx, r, cid, since, a)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolCustomerProfile(ctx, r, cid, days, a)
 			},
 		},
 		{
@@ -188,14 +189,14 @@ func synapseSignalTools() []signalTool {
 				}, "anon_id"),
 			},
 			perm: func(p digestPerms) bool { return p.synapse },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, since time.Time, _ int, a toolArgs) string {
-				return toolVisitorProfile(ctx, r, since, a)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, days int, a toolArgs) string {
+				return toolVisitorProfile(ctx, r, cid, days, a)
 			},
 		},
 	}
 }
 
-func toolEventTrend(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, a toolArgs) string {
+func toolEventTrend(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
 	event := strings.TrimSpace(a.Event)
 	if event == "" {
 		return "Specify an 'event' name (see the top events in the snapshot)."
@@ -206,11 +207,18 @@ func toolEventTrend(ctx context.Context, r *Resolver, cid uuid.UUID, since time.
 	}
 	unit := unitOf(a.Unit)
 	breakdown := strings.TrimSpace(a.Breakdown)
-	ins, err := r.AnalyticsSvc.Insights(ctx, cid, event, breakdown, measure, unit, since, time.Now())
+	authed, err := signalsCall(ctx, r)
 	if err != nil {
-		return "Could not load the event trend."
+		return signalsUnavailable(err, "the event trend")
 	}
-	if len(ins.Points) == 0 {
+	ins, err := r.SignalsAPI.Synapse.GetInsights(authed, &signalsv1.GetInsightsRequest{
+		ChannelId: cid.String(), Event: event, Breakdown: breakdown,
+		Measure: measure, Unit: unit, SinceDays: int32(days),
+	})
+	if err != nil {
+		return signalsUnavailable(err, "the event trend")
+	}
+	if len(ins.GetPoints()) == 0 {
 		return fmt.Sprintf("No %q events in this window.", event)
 	}
 	var b strings.Builder
@@ -219,94 +227,104 @@ func toolEventTrend(ctx context.Context, r *Resolver, cid uuid.UUID, since time.
 		fmt.Fprintf(&b, " (broken down by %q)", breakdown)
 	}
 	b.WriteString(":\n")
-	for _, p := range ins.Points {
+	for _, p := range ins.GetPoints() {
 		if breakdown != "" {
-			fmt.Fprintf(&b, "%s\t%s: %d\n", p.Bucket.Format("2006-01-02"), p.Key, p.Value)
+			fmt.Fprintf(&b, "%s\t%s: %d\n", p.GetBucket().AsTime().Format("2006-01-02"), p.GetKey(), p.GetValue())
 		} else {
-			fmt.Fprintf(&b, "%s: %d\n", p.Bucket.Format("2006-01-02"), p.Value)
+			fmt.Fprintf(&b, "%s: %d\n", p.GetBucket().AsTime().Format("2006-01-02"), p.GetValue())
 		}
 	}
 	return b.String()
 }
 
-func toolFunnel(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, a toolArgs) string {
+func toolFunnel(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
 	steps := cleanSteps(a.Steps)
 	if len(steps) < 2 {
 		return "Provide at least 2 ordered event names in 'steps'."
 	}
-	fs, err := r.AnalyticsSvc.Funnel(ctx, cid, steps, since)
+	authed, err := signalsCall(ctx, r)
 	if err != nil {
-		return "Could not compute the funnel."
+		return signalsUnavailable(err, "the funnel")
 	}
+	res, err := r.SignalsAPI.Synapse.GetFunnel(authed, &signalsv1.GetFunnelRequest{
+		ChannelId: cid.String(), Steps: steps, SinceDays: int32(days),
+	})
+	if err != nil {
+		return signalsUnavailable(err, "the funnel")
+	}
+	fs := res.GetSteps()
 	if len(fs) == 0 {
 		return "No funnel data for those steps."
 	}
-	first := fs[0].Count
+	first := fs[0].GetCount()
 	var b strings.Builder
 	b.WriteString("Funnel (distinct people reaching each step):\n")
 	for i, s := range fs {
 		pct := 0.0
 		if first > 0 {
-			pct = float64(s.Count) / float64(first) * 100
+			pct = float64(s.GetCount()) / float64(first) * 100
 		}
-		fmt.Fprintf(&b, "%d. %s - %d (%.1f%% of step 1)\n", i+1, s.EventName, s.Count, pct)
+		fmt.Fprintf(&b, "%d. %s - %d (%.1f%% of step 1)\n", i+1, s.GetEventName(), s.GetCount(), pct)
 	}
 	return b.String()
 }
 
-func toolRetention(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, a toolArgs) string {
+func toolRetention(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
 	start := strings.TrimSpace(a.StartEvent)
 	ret := strings.TrimSpace(a.ReturnEvent)
 	if start == "" || ret == "" {
 		return "Provide both 'start_event' and 'return_event'."
 	}
-	unitDur := 24 * time.Hour
-	unitLabel := "day"
-	if a.Unit == "week" {
-		unitDur = 7 * 24 * time.Hour
-		unitLabel = "week"
-	}
+	unit := unitOf(a.Unit)
 	periods := clampLimit(a.Periods, 8, 12)
-	res, err := r.AnalyticsSvc.Retention(ctx, cid, start, ret, since, time.Now(), periods, unitDur)
+	authed, err := signalsCall(ctx, r)
 	if err != nil {
-		return "Could not compute retention."
+		return signalsUnavailable(err, "retention")
 	}
-	if res.Cohort == 0 {
+	res, err := r.SignalsAPI.Synapse.GetRetention(authed, &signalsv1.GetRetentionRequest{
+		ChannelId: cid.String(), StartEvent: start, ReturnEvent: ret,
+		SinceDays: int32(days), Periods: int32(periods), Unit: unit,
+	})
+	if err != nil {
+		return signalsUnavailable(err, "retention")
+	}
+	if res.GetCohort() == 0 {
 		return fmt.Sprintf("No one did %q in this window.", start)
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "Retention: %d people did %q; %% who later did %q each %s after:\n", res.Cohort, start, ret, unitLabel)
-	for _, bk := range res.Buckets {
+	fmt.Fprintf(&b, "Retention: %d people did %q; %% who later did %q each %s after:\n", res.GetCohort(), start, ret, unit)
+	for _, bk := range res.GetBuckets() {
 		pct := 0.0
-		if bk.Eligible > 0 {
-			pct = float64(bk.Count) / float64(bk.Eligible) * 100
+		if bk.GetEligible() > 0 {
+			pct = float64(bk.GetCount()) / float64(bk.GetEligible()) * 100
 		}
-		fmt.Fprintf(&b, "%s %d: %.1f%% (%d of %d)\n", unitLabel, bk.Period, pct, bk.Count, bk.Eligible)
+		fmt.Fprintf(&b, "%s %d: %.1f%% (%d of %d)\n", unit, bk.GetPeriod(), pct, bk.GetCount(), bk.GetEligible())
 	}
 	return b.String()
 }
 
 func toolListSegments(ctx context.Context, r *Resolver) string {
-	segs, _, err := r.SegmentSvc.List(ctx, 50, 0)
+	authed, err := signalsCall(ctx, r)
 	if err != nil {
-		return "Could not list segments."
+		return signalsUnavailable(err, "segments")
 	}
-	if len(segs) == 0 {
+	res, err := r.SignalsAPI.Segments.ListSegments(authed, &signalsv1.ListSegmentsRequest{PageSize: 50})
+	if err != nil {
+		return signalsUnavailable(err, "segments")
+	}
+	if len(res.GetSegments()) == 0 {
 		return "No segments are defined."
 	}
-	ids := make([]uuid.UUID, len(segs))
-	for i, s := range segs {
-		ids[i] = s.ID
-	}
-	counts, _ := r.SegmentSvc.MemberCounts(ctx, ids)
 	var b strings.Builder
 	b.WriteString("Segments (id - name - members):\n")
-	for _, s := range segs {
-		fmt.Fprintf(&b, "%s - %s - %d members\n", s.ID, s.Name, counts[s.ID])
+	for _, s := range res.GetSegments() {
+		fmt.Fprintf(&b, "%s - %s - %d members\n", s.GetId(), s.GetName(), s.GetMemberCount())
 	}
 	return b.String()
 }
 
+// Still in-process - its five reads are folded into GetBehavioralSegment, which answers UNIMPLEMENTED
+// while the segment-definition engine sits in the resolver layer
 func toolSegmentDetail(ctx context.Context, r *Resolver, days int, a toolArgs) string {
 	sid, err := uuid.Parse(strings.TrimSpace(a.SegmentID))
 	if err != nil {
@@ -355,57 +373,69 @@ func toolSegmentDetail(ctx context.Context, r *Resolver, days int, a toolArgs) s
 	return b.String()
 }
 
-// valueCountList joins a top-N of []analytics.ValueCount into "value (count)".
-func valueCountList(vals []analytics.ValueCount, n int) string {
+// valueCountList joins a top-N of a profile's context values into "value (count)".
+func valueCountList(vals []*signalsv1.ValueCount, n int) string {
 	parts := make([]string, 0, n)
 	for i, v := range vals {
 		if i >= n {
 			break
 		}
-		parts = append(parts, fmt.Sprintf("%s (%d)", v.Value, v.Count))
+		parts = append(parts, fmt.Sprintf("%s (%d)", v.GetValue(), v.GetCount()))
 	}
 	return strings.Join(parts, "; ")
 }
 
-func toolStickiness(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, days int, a toolArgs) string {
+func toolStickiness(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
 	event := strings.TrimSpace(a.Event)
 	if event == "" {
 		return "Specify an 'event' (see the snapshot's top events)."
 	}
-	st, err := r.AnalyticsSvc.Stickiness(ctx, cid, event, since, time.Now(), days)
+	authed, err := signalsCall(ctx, r)
 	if err != nil {
-		return "Could not load stickiness."
+		return signalsUnavailable(err, "stickiness")
+	}
+	st, err := r.SignalsAPI.Synapse.GetStickiness(authed, &signalsv1.GetStickinessRequest{
+		ChannelId: cid.String(), Event: event, SinceDays: int32(days), WindowDays: int32(days),
+	})
+	if err != nil {
+		return signalsUnavailable(err, "stickiness")
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%q engagement: WAU %d, MAU %d. Active now %d, prior window %d, returning %d (return rate %.1f%%).\n",
-		event, st.WAU, st.MAU, st.ActiveNow, st.PriorActive, st.Returning, st.ReturnRate)
-	if len(st.Days) > 0 {
+		event, st.GetWau(), st.GetMau(), st.GetActiveNow(), st.GetPriorActive(), st.GetReturning(), st.GetReturnRate())
+	if len(st.GetDays()) > 0 {
 		b.WriteString("Daily active:\n")
-		for _, d := range st.Days {
-			fmt.Fprintf(&b, "%s: %d\n", d.Day.Format("2006-01-02"), d.Count)
+		for _, d := range st.GetDays() {
+			fmt.Fprintf(&b, "%s: %d\n", d.GetDay(), d.GetCount())
 		}
 	}
 	return b.String()
 }
 
-func toolUserFlow(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, a toolArgs) string {
+func toolUserFlow(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
 	focus := strings.TrimSpace(a.FocusEvent)
 	if focus == "" {
 		return "Specify a 'focus_event'."
 	}
-	fr, err := r.AnalyticsSvc.Flow(ctx, cid, focus, since, 4, 6)
+	authed, err := signalsCall(ctx, r)
 	if err != nil {
-		return "Could not compute the flow."
+		return signalsUnavailable(err, "the flow")
 	}
-	if fr.Cohort == 0 {
+	fr, err := r.SignalsAPI.Synapse.GetFlow(authed, &signalsv1.GetFlowRequest{
+		ChannelId: cid.String(), Event: focus, SinceDays: int32(days),
+	})
+	if err != nil {
+		return signalsUnavailable(err, "the flow")
+	}
+	if fr.GetCohort() == 0 {
 		return fmt.Sprintf("No one did %q in this window.", focus)
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "After %q: %d people, %d continued (avg %.1f next steps).\n", focus, fr.Cohort, fr.Continued, fr.AvgSteps)
-	if len(fr.TopPaths) > 0 {
+	fmt.Fprintf(&b, "After %q: %d people, %d continued (avg %.1f next steps).\n", focus, fr.GetCohort(), fr.GetContinued(), fr.GetAvgSteps())
+	if len(fr.GetTopPaths()) > 0 {
 		b.WriteString("Top paths:\n")
-		for _, p := range fr.TopPaths {
-			fmt.Fprintf(&b, "- %s (%d)\n", strings.Join(p.Events, " → "), p.Count)
+		for _, p := range fr.GetTopPaths() {
+			fmt.Fprintf(&b, "- %s (%d)\n", strings.Join(p.GetEvents(), " → "), p.GetCount())
 		}
 	}
 	return b.String()
@@ -424,59 +454,74 @@ func toolListAffinityAttrs(ctx context.Context, r *Resolver) string {
 	return b.String()
 }
 
-func toolAffinityBreakdown(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, a toolArgs) string {
+func toolAffinityBreakdown(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
 	slug := strings.TrimSpace(a.Attribute)
 	if slug == "" {
 		return "Provide an 'attribute' slug (use list_affinity_attributes)."
 	}
 	limit := clampLimit(a.Limit, 15, 50)
-	vals, err := r.AnalyticsSvc.AffinityValueCounts(ctx, cid, slug, since, limit)
+	authed, err := signalsCall(ctx, r)
 	if err != nil {
-		return "Could not load the affinity breakdown."
+		return signalsUnavailable(err, "the affinity breakdown")
 	}
-	if len(vals) == 0 {
+	res, err := r.SignalsAPI.Synapse.ListAffinityValues(authed, &signalsv1.ListAffinityValuesRequest{
+		ChannelId: cid.String(), Attribute: slug, SinceDays: int32(days), Limit: int32(limit),
+	})
+	if err != nil {
+		return signalsUnavailable(err, "the affinity breakdown")
+	}
+	if len(res.GetValues()) == 0 {
 		return fmt.Sprintf("No affinity data for %q (check the slug via list_affinity_attributes).", slug)
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "Top %q values by distinct-customer reach:\n", slug)
-	for i, v := range vals {
-		fmt.Fprintf(&b, "%d. %s - %d customers\n", i+1, v.Value, v.Actors)
+	for i, v := range res.GetValues() {
+		fmt.Fprintf(&b, "%d. %s - %d customers\n", i+1, v.GetValue(), v.GetActors())
 	}
 	return b.String()
 }
 
-func toolListActiveCustomers(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time) string {
-	ov, err := r.AnalyticsSvc.SynapseOverview(ctx, cid, since)
+func toolListActiveCustomers(ctx context.Context, r *Resolver, cid uuid.UUID, days int) string {
+	authed, err := signalsCall(ctx, r)
 	if err != nil {
-		return "Could not load active customers."
+		return signalsUnavailable(err, "active customers")
+	}
+	ov, err := r.SignalsAPI.Synapse.GetSynapseOverview(authed, &signalsv1.GetSynapseOverviewRequest{ChannelId: cid.String(), SinceDays: int32(days)})
+	if err != nil {
+		return signalsUnavailable(err, "active customers")
 	}
 	var b strings.Builder
-	if len(ov.ActiveCustomers) > 0 {
-		ids := make([]uuid.UUID, 0, len(ov.ActiveCustomers))
-		for _, c := range ov.ActiveCustomers {
-			ids = append(ids, c.CustomerID)
+	if len(ov.GetActiveCustomers()) > 0 {
+		// The suite knows a customer by id alone, so the names come from core's own records
+		ids := make([]uuid.UUID, 0, len(ov.GetActiveCustomers()))
+		for _, c := range ov.GetActiveCustomers() {
+			if id, err := uuid.Parse(c.GetCustomerId()); err == nil {
+				ids = append(ids, id)
+			}
 		}
 		names, _ := r.CustomerSvc.GetByIDs(ctx, ids)
 		b.WriteString("Most active customers (id - name - events - last seen):\n")
-		for _, c := range ov.ActiveCustomers {
+		for _, c := range ov.GetActiveCustomers() {
 			name := "(unknown)"
-			if cust, ok := names[c.CustomerID]; ok {
-				if n := strings.TrimSpace(cust.FirstName + " " + cust.LastName); n != "" {
-					name = n
-				} else if cust.Email != "" {
-					name = cust.Email
+			if id, err := uuid.Parse(c.GetCustomerId()); err == nil {
+				if cust, ok := names[id]; ok {
+					if n := strings.TrimSpace(cust.FirstName + " " + cust.LastName); n != "" {
+						name = n
+					} else if cust.Email != "" {
+						name = cust.Email
+					}
 				}
 			}
-			fmt.Fprintf(&b, "%s - %s - %d events - %s\n", c.CustomerID, name, c.Events, c.LastSeen.Format("2006-01-02"))
+			fmt.Fprintf(&b, "%s - %s - %d events - %s\n", c.GetCustomerId(), name, c.GetEvents(), c.GetLastSeen().AsTime().Format("2006-01-02"))
 		}
 	}
-	if len(ov.ActiveVisitors) > 0 {
+	if len(ov.GetActiveVisitors()) > 0 {
 		b.WriteString("Most active anonymous visitors (anon_id - events - last page):\n")
-		for i, v := range ov.ActiveVisitors {
+		for i, v := range ov.GetActiveVisitors() {
 			if i >= 10 {
 				break
 			}
-			fmt.Fprintf(&b, "%s - %d events - %s\n", v.AnonID, v.Events, v.LastPage)
+			fmt.Fprintf(&b, "%s - %d events - %s\n", v.GetAnonId(), v.GetEvents(), v.GetLastPage())
 		}
 	}
 	if b.Len() == 0 {
@@ -485,96 +530,105 @@ func toolListActiveCustomers(ctx context.Context, r *Resolver, cid uuid.UUID, si
 	return b.String()
 }
 
-func toolCustomerProfile(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, a toolArgs) string {
+func toolCustomerProfile(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
 	custID, err := uuid.Parse(strings.TrimSpace(a.CustomerID))
 	if err != nil {
 		return "Provide a valid 'customer_id' (use list_active_customers)."
 	}
-	// CustomerProfile is NOT channel-scoped - guard against reading a customer
-	// outside the pinned channel.
-	ids, err := r.AnalyticsSvc.ChannelCustomerIDs(ctx, cid)
+	// A profile is not channel-scoped on either side of the wire, so the pin is enforced against core's own record
+	cust, err := r.CustomerSvc.GetByID(ctx, custID)
 	if err != nil {
 		return "Could not verify the customer."
 	}
-	found := slices.Contains(ids, custID)
-	if !found {
+	if cust.ChannelID != cid {
 		return "That customer isn't active in this channel."
 	}
-	p, err := r.AnalyticsSvc.CustomerProfile(ctx, custID, since)
+	authed, err := signalsCall(ctx, r)
 	if err != nil {
-		return "Could not load the customer profile."
+		return signalsUnavailable(err, "the customer profile")
+	}
+	res, err := r.SignalsAPI.Synapse.GetCustomerProfile(authed, &signalsv1.GetCustomerProfileRequest{
+		CustomerId: custID.String(), SinceDays: int32(days),
+	})
+	if err != nil {
+		return signalsUnavailable(err, "the customer profile")
 	}
 	label := "Customer " + custID.String()
-	if c, e := r.CustomerSvc.GetByID(ctx, custID); e == nil {
-		if n := strings.TrimSpace(c.FirstName + " " + c.LastName); n != "" {
-			label = n
-		} else if c.Email != "" {
-			label = c.Email
-		}
+	if n := strings.TrimSpace(cust.FirstName + " " + cust.LastName); n != "" {
+		label = n
+	} else if cust.Email != "" {
+		label = cust.Email
 	}
-	return formatProfile(label, p)
+	return formatProfile(label, res.GetProfile())
 }
 
-func toolVisitorProfile(ctx context.Context, r *Resolver, since time.Time, a toolArgs) string {
+func toolVisitorProfile(ctx context.Context, r *Resolver, cid uuid.UUID, days int, a toolArgs) string {
 	anon := strings.TrimSpace(a.AnonID)
 	if anon == "" {
 		return "Provide an 'anon_id' (use list_active_customers)."
 	}
-	p, err := r.AnalyticsSvc.VisitorProfile(ctx, anon, since)
+	authed, err := signalsCall(ctx, r)
 	if err != nil {
-		return "Could not load the visitor profile."
+		return signalsUnavailable(err, "the visitor profile")
 	}
-	return formatProfile("Anonymous visitor "+anon, p)
+	res, err := r.SignalsAPI.Synapse.GetVisitorProfile(authed, &signalsv1.GetVisitorProfileRequest{
+		ChannelId: cid.String(), AnonId: anon, SinceDays: int32(days),
+	})
+	if err != nil {
+		return signalsUnavailable(err, "the visitor profile")
+	}
+	return formatProfile("Anonymous visitor "+anon, res.GetProfile())
 }
 
 // formatProfile renders a bounded summary of a customer/visitor profile. It deliberately OMITS raw IPs and the full
 // event timeline to limit the PII that reaches the model provider
-func formatProfile(label string, p analytics.Profile) string {
+func formatProfile(label string, p *signalsv1.Profile) string {
 	var b strings.Builder
 	b.WriteString(label + "\n")
-	if p.FirstSeen != nil {
-		fmt.Fprintf(&b, "First seen %s. ", p.FirstSeen.Format("2006-01-02"))
+	if p.GetFirstSeen() != nil {
+		fmt.Fprintf(&b, "First seen %s. ", p.GetFirstSeen().AsTime().Format("2006-01-02"))
 	}
-	if p.LastSeen != nil {
-		fmt.Fprintf(&b, "Last seen %s.", p.LastSeen.Format("2006-01-02"))
+	if p.GetLastSeen() != nil {
+		fmt.Fprintf(&b, "Last seen %s.", p.GetLastSeen().AsTime().Format("2006-01-02"))
 	}
-	fmt.Fprintf(&b, "\n%d events, %d page views, %d conversions, %d sessions.\n", p.TotalEvents, p.PageViews, p.Conversions, p.Sessions)
-	for _, rev := range p.Revenue {
-		fmt.Fprintf(&b, "Revenue: %s across %d orders.\n", fmtMoney(rev.Cents, rev.Currency), rev.Orders)
+	fmt.Fprintf(&b, "\n%d events, %d page views, %d conversions, %d sessions.\n",
+		p.GetTotalEvents(), p.GetPageViews(), p.GetConversions(), p.GetSessions())
+	for _, rev := range p.GetRevenue() {
+		fmt.Fprintf(&b, "Revenue: %s across %d orders.\n", fmtMoney(rev.GetCents(), rev.GetCurrency()), rev.GetOrders())
 	}
-	if len(p.Counts) > 0 {
+	if len(p.GetCounts()) > 0 {
 		parts := make([]string, 0, 8)
-		for i, e := range p.Counts {
+		for i, e := range p.GetCounts() {
 			if i >= 8 {
 				break
 			}
-			parts = append(parts, fmt.Sprintf("%s=%d", e.Name, e.Count))
+			parts = append(parts, fmt.Sprintf("%s=%d", e.GetName(), e.GetCount()))
 		}
 		fmt.Fprintf(&b, "Top events: %s\n", strings.Join(parts, ", "))
 	}
-	if len(p.TopProducts) > 0 {
+	if len(p.GetTopProducts()) > 0 {
 		parts := make([]string, 0, 5)
-		for i, pr := range p.TopProducts {
+		for i, pr := range p.GetTopProducts() {
 			if i >= 5 {
 				break
 			}
-			parts = append(parts, fmt.Sprintf("%s (%d views)", pr.Name, pr.Views))
+			parts = append(parts, fmt.Sprintf("%s (%d views)", pr.GetName(), pr.GetViews()))
 		}
 		fmt.Fprintf(&b, "Viewed products: %s\n", strings.Join(parts, "; "))
 	}
-	if s := valueCountList(p.Devices, 3); s != "" {
+	if s := valueCountList(p.GetDevices(), 3); s != "" {
 		fmt.Fprintf(&b, "Devices: %s\n", s)
 	}
-	if s := valueCountList(p.Referrers, 3); s != "" {
+	if s := valueCountList(p.GetReferrers(), 3); s != "" {
 		fmt.Fprintf(&b, "Referrers: %s\n", s)
 	}
-	if s := valueCountList(p.Countries, 3); s != "" {
+	if s := valueCountList(p.GetCountries(), 3); s != "" {
 		fmt.Fprintf(&b, "Countries: %s\n", s)
 	}
-	if s := valueCountList(p.Sources, 3); s != "" {
+	if s := valueCountList(p.GetSources(), 3); s != "" {
 		fmt.Fprintf(&b, "Sources: %s\n", s)
 	}
-	if s := valueCountList(p.Searches, 5); s != "" {
+	if s := valueCountList(p.GetSearches(), 5); s != "" {
 		fmt.Fprintf(&b, "Searches: %s\n", s)
 	}
 	return b.String()
@@ -593,7 +647,7 @@ func segmentDefChannel(refreshSQL string) uuid.UUID {
 	return id
 }
 
-// Attributes flagged for affinity tracking - the vocabulary the breakdown tool offers
+// The vocabulary the breakdown tool offers - a catalog setting on core's own tables, so it reads locally
 func affinityAttrs(ctx context.Context, r *Resolver) []analytics.AffinityAttr {
 	attrs, err := r.Queries.ListSynapseTrackedAttributes(ctx)
 	if err != nil {
