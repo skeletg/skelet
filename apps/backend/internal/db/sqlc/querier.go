@@ -671,11 +671,6 @@ type Querier interface {
 	// The send-log retention sweep's work list: months (partitions + any
 	// default-partition strays) lying entirely before the cutoff.
 	EmailSendMonthsBefore(ctx context.Context, cutoff time.Time) ([]time.Time, error)
-	// Origin (source + campaign/flow) of a batch of sends, for the conversion-attribution
-	// lookback - the spine surfaces the customer's recent open/click send ids and this
-	// resolves which came from a campaign or flow. The attribution windows are days,
-	// so the pruning bound is far outside anything the caller asks about.
-	EmailSendsByIDs(ctx context.Context, ids []uuid.UUID) ([]EmailSendsByIDsRow, error)
 	// Promotes the pending secret + stores hashed recovery codes
 	EnableAdminTotp(ctx context.Context, arg EnableAdminTotpParams) error
 	// ==================== Rebuild queue ====================

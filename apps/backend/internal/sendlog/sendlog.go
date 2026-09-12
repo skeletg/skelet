@@ -38,12 +38,14 @@ type Spec struct {
 
 // Send is the resolved send identity the open and click endpoints need at action time
 type Send struct {
-	ID          uuid.UUID
-	ChannelID   uuid.UUID
-	Source      string
-	Email       string
-	CustomerID  *uuid.UUID
-	CampaignID  *uuid.UUID
+	ID         uuid.UUID
+	ChannelID  uuid.UUID
+	Source     string
+	Email      string
+	CustomerID *uuid.UUID
+	CampaignID *uuid.UUID
+	// Set for a flow send, the way CampaignID is for a campaign one - both are what attribution credits
+	FlowID      *uuid.UUID
 	RecipientID *uuid.UUID
 	SentAt      time.Time
 	// First-seen engagement, so a repeat pixel load can skip the write rather than re-stamping a COALESCE
@@ -90,7 +92,8 @@ func (s *Store) New(ctx context.Context, sp Spec) (Send, error) {
 	}
 	return Send{
 		ID: id, ChannelID: sp.ChannelID, Source: sp.Source, Email: sp.Email,
-		CustomerID: sp.CustomerID, CampaignID: sp.CampaignID, RecipientID: sp.RecipientID, SentAt: time.Now(),
+		CustomerID: sp.CustomerID, CampaignID: sp.CampaignID, FlowID: sp.FlowID,
+		RecipientID: sp.RecipientID, SentAt: time.Now(),
 	}, nil
 }
 
@@ -104,14 +107,10 @@ func (s *Store) Get(ctx context.Context, id uuid.UUID) (Send, bool, error) {
 	}
 	return Send{
 		ID: row.ID, ChannelID: row.ChannelID, Source: row.Source, Email: row.Email,
-		CustomerID: pu(row.CustomerID), CampaignID: pu(row.CampaignID), RecipientID: pu(row.RecipientID),
-		SentAt: row.SentAt, FirstOpenAt: nt(row.FirstOpenAt), FirstClickAt: nt(row.FirstClickAt),
+		CustomerID: pu(row.CustomerID), CampaignID: pu(row.CampaignID), FlowID: pu(row.FlowID),
+		RecipientID: pu(row.RecipientID),
+		SentAt:      row.SentAt, FirstOpenAt: nt(row.FirstOpenAt), FirstClickAt: nt(row.FirstClickAt),
 	}, true, nil
-}
-
-// ByIDs resolves a batch of sends to their origin, for attributing engagement back to a campaign or flow
-func (s *Store) ByIDs(ctx context.Context, ids []uuid.UUID) ([]db.EmailSendsByIDsRow, error) {
-	return s.read().EmailSendsByIDs(ctx, ids)
 }
 
 // MarkOpened and MarkClicked set the per-send first-seen timestamps, which is what makes a send report as read

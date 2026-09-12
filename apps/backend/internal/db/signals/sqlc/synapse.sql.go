@@ -8,6 +8,7 @@ package signalsdb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -204,7 +205,7 @@ func (q *Queries) AffinityValueActorCounts(ctx context.Context, arg AffinityValu
 }
 
 const customerEngagementEvents = `-- name: CustomerEngagementEvents :many
-SELECT event_name, occurred_at, send_id
+SELECT event_name, occurred_at, send_id, source, properties
 FROM analytics_events
 WHERE customer_id = $1
   AND event_name IN ('email_opened', 'email_clicked')
@@ -219,17 +220,19 @@ type CustomerEngagementEventsParams struct {
 }
 
 type CustomerEngagementEventsRow struct {
-	EventName  string        `json:"event_name"`
-	OccurredAt time.Time     `json:"occurred_at"`
-	SendID     uuid.NullUUID `json:"send_id"`
+	EventName  string          `json:"event_name"`
+	OccurredAt time.Time       `json:"occurred_at"`
+	SendID     uuid.NullUUID   `json:"send_id"`
+	Source     string          `json:"source"`
+	Properties json.RawMessage `json:"properties"`
 }
 
 // Spine half of the app-side conversion-attribution lookback (recorder's
 // RecordConversion): every marketing open/click the customer logged since the
-// cutoff, best-first (a click outranks an open; then most-recent). The caller
-// resolves each send's origin from email_sends (commerce) and takes the first
-// from a campaign or flow - the last-touch anchor. The per-customer 7-day set is
-// small, so this is unbounded (the winner is picked app-side, not via LIMIT 1).
+// cutoff, best-first (a click outranks an open; then most-recent). The send's
+// origin rides on the event, so the caller takes the first campaign or flow one
+// as the last-touch anchor without a second lookup. The per-customer 7-day set
+// is small, so this is unbounded (the winner is picked app-side, not LIMIT 1).
 func (q *Queries) CustomerEngagementEvents(ctx context.Context, arg CustomerEngagementEventsParams) ([]CustomerEngagementEventsRow, error) {
 	rows, err := q.db.QueryContext(ctx, customerEngagementEvents, arg.CustomerID, arg.Since)
 	if err != nil {
@@ -239,7 +242,13 @@ func (q *Queries) CustomerEngagementEvents(ctx context.Context, arg CustomerEnga
 	items := []CustomerEngagementEventsRow{}
 	for rows.Next() {
 		var i CustomerEngagementEventsRow
-		if err := rows.Scan(&i.EventName, &i.OccurredAt, &i.SendID); err != nil {
+		if err := rows.Scan(
+			&i.EventName,
+			&i.OccurredAt,
+			&i.SendID,
+			&i.Source,
+			&i.Properties,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

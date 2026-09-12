@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 )
 
 const campaignVariantStats = `-- name: CampaignVariantStats :many
@@ -133,50 +132,6 @@ func (q *Queries) EmailSendMonthsBefore(ctx context.Context, cutoff time.Time) (
 			return nil, err
 		}
 		items = append(items, months_month)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const emailSendsByIDs = `-- name: EmailSendsByIDs :many
-SELECT id, source, campaign_id, flow_id FROM email_sends
-WHERE id = ANY($1::uuid[]) AND sent_at >= now() - interval '90 days'
-`
-
-type EmailSendsByIDsRow struct {
-	ID         uuid.UUID     `json:"id"`
-	Source     string        `json:"source"`
-	CampaignID uuid.NullUUID `json:"campaign_id"`
-	FlowID     uuid.NullUUID `json:"flow_id"`
-}
-
-// Origin (source + campaign/flow) of a batch of sends, for the conversion-attribution
-// lookback - the spine surfaces the customer's recent open/click send ids and this
-// resolves which came from a campaign or flow. The attribution windows are days,
-// so the pruning bound is far outside anything the caller asks about.
-func (q *Queries) EmailSendsByIDs(ctx context.Context, ids []uuid.UUID) ([]EmailSendsByIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, emailSendsByIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []EmailSendsByIDsRow{}
-	for rows.Next() {
-		var i EmailSendsByIDsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Source,
-			&i.CampaignID,
-			&i.FlowID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

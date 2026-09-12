@@ -20,14 +20,6 @@ RETURNING id;
 SELECT * FROM email_sends
 WHERE id = sqlc.arg(id) AND sent_at >= now() - interval '90 days';
 
--- name: EmailSendsByIDs :many
--- Origin (source + campaign/flow) of a batch of sends, for the conversion-attribution
--- lookback - the spine surfaces the customer's recent open/click send ids and this
--- resolves which came from a campaign or flow. The attribution windows are days,
--- so the pruning bound is far outside anything the caller asks about.
-SELECT id, source, campaign_id, flow_id FROM email_sends
-WHERE id = ANY(sqlc.arg(ids)::uuid[]) AND sent_at >= now() - interval '90 days';
-
 -- name: MarkSendOpened :exec
 UPDATE email_sends
 SET first_open_at = COALESCE(first_open_at, NOW())
