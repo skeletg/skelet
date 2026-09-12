@@ -12,13 +12,12 @@ import (
 )
 
 // A dependency root nobody reads is invisible - the field compiles, wiring keeps handing it a live service, and the only symptom is a package the surface no longer needs staying linked into it
-// The three resolver packages are checked together because they drift for the same reason, and the other two have no test file of their own to hang this on
+// Both resolver packages are checked together because they drift for the same reason, and the storefront one has no test file of its own to hang this on
 
 // Package dir (relative to this one) -> the surface it serves
 var resolverPackages = map[string]string{
-	".":          "admin",
-	"../front":   "storefront",
-	"../signals": "signals",
+	".":        "admin",
+	"../front": "storefront",
 }
 
 // "<surface>.<field>" -> why it stays though no resolver reads it

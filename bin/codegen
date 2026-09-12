@@ -69,9 +69,6 @@ bin/gqlgen generate --config gqlgen.admin.yml
 echo "==> gqlgen front"
 bin/gqlgen generate --config gqlgen.front.yml
 
-echo "==> gqlgen signals"
-bin/gqlgen generate --config gqlgen.signals.yml
-
 # Plugin SDL is merged by the globs in both gqlgen configs above. gqlgen stubs each plugin field; this
 # turns those stubs into delegation through the runtime registry and writes the matching interfaces, so a
 # plugin author writes SDL and a resolver in their own package and touches no core Go at all

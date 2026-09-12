@@ -34,6 +34,11 @@ type ActionArgumentOption struct {
 	Label string `json:"label"`
 }
 
+type ActivePoint struct {
+	Day   time.Time `json:"day"`
+	Count int32     `json:"count"`
+}
+
 type AddBundleOptionInput struct {
 	ProductID     string          `json:"productId"`
 	InputType     BundleInputType `json:"inputType"`
@@ -356,6 +361,12 @@ type Attribute struct {
 	DefaultValue       any                       `json:"defaultValue,omitempty"`
 	CreatedAt          time.Time                 `json:"createdAt"`
 	UpdatedAt          time.Time                 `json:"updatedAt"`
+}
+
+type AttributeAffinity struct {
+	Slug   string          `json:"slug"`
+	Name   string          `json:"name"`
+	Values []*ProfileValue `json:"values"`
 }
 
 type AttributeContent struct {
@@ -1787,6 +1798,14 @@ type Customer struct {
 	VatIDCheckedAt         *time.Time         `json:"vatIdCheckedAt,omitempty"`
 }
 
+type CustomerActivityItem struct {
+	EventName   string    `json:"eventName"`
+	OccurredAt  time.Time `json:"occurredAt"`
+	Source      string    `json:"source"`
+	Summary     string    `json:"summary"`
+	DetailsJSON string    `json:"detailsJson"`
+}
+
 type CustomerAuthPayload struct {
 	AccessToken          *string   `json:"accessToken,omitempty"`
 	RefreshToken         *string   `json:"refreshToken,omitempty"`
@@ -1815,6 +1834,17 @@ type CustomerConsent struct {
 	IsDefault  bool               `json:"isDefault"`
 }
 
+type CustomerEventCount struct {
+	Name  string `json:"name"`
+	Count int32  `json:"count"`
+}
+
+type CustomerExperimentArm struct {
+	Experiment    string    `json:"experiment"`
+	Variation     string    `json:"variation"`
+	LastExposedAt time.Time `json:"lastExposedAt"`
+}
+
 type CustomerGroup struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
@@ -1833,6 +1863,34 @@ type CustomerLoginInput struct {
 type CustomerPage struct {
 	TotalCount int32       `json:"totalCount"`
 	Items      []*Customer `json:"items"`
+}
+
+type CustomerProfile struct {
+	FirstSeen        *time.Time               `json:"firstSeen,omitempty"`
+	LastSeen         *time.Time               `json:"lastSeen,omitempty"`
+	TotalEvents      int32                    `json:"totalEvents"`
+	PageViews        int32                    `json:"pageViews"`
+	Conversions      int32                    `json:"conversions"`
+	Revenue          []*AttributedRevenue     `json:"revenue"`
+	Counts           []*CustomerEventCount    `json:"counts"`
+	Timeline         []*CustomerActivityItem  `json:"timeline"`
+	Devices          []*ProfileValue          `json:"devices"`
+	Browsers         []*ProfileValue          `json:"browsers"`
+	Referrers        []*ProfileValue          `json:"referrers"`
+	IPAddresses      []*ProfileValue          `json:"ipAddresses"`
+	OperatingSystems []*ProfileValue          `json:"operatingSystems"`
+	Screens          []*ProfileValue          `json:"screens"`
+	Countries        []*ProfileValue          `json:"countries"`
+	Sources          []*ProfileValue          `json:"sources"`
+	Campaigns        []*ProfileValue          `json:"campaigns"`
+	TopPages         []*ProfilePageView       `json:"topPages"`
+	PagesViewedTotal int32                    `json:"pagesViewedTotal"`
+	TopProducts      []*ProfileProductView    `json:"topProducts"`
+	Searches         []*ProfileValue          `json:"searches"`
+	Sessions         int32                    `json:"sessions"`
+	Traits           *CustomerTraits          `json:"traits,omitempty"`
+	Experiments      []*CustomerExperimentArm `json:"experiments"`
+	Affinities       []*AttributeAffinity     `json:"affinities"`
 }
 
 type CustomerRegisterInput struct {
@@ -1894,6 +1952,21 @@ type CustomerSubscription struct {
 	UpdatedAt          time.Time              `json:"updatedAt"`
 	Invoices           []*SubscriptionInvoice `json:"invoices"`
 	PaymentMethodID    *string                `json:"paymentMethodId,omitempty"`
+}
+
+type CustomerTraits struct {
+	Lifecycle         string    `json:"lifecycle"`
+	RfmRecency        int32     `json:"rfmRecency"`
+	RfmFrequency      int32     `json:"rfmFrequency"`
+	RfmMonetary       int32     `json:"rfmMonetary"`
+	RecencyDays       int32     `json:"recencyDays"`
+	Frequency         int32     `json:"frequency"`
+	MonetaryCents     int       `json:"monetaryCents"`
+	EngagementScore   int32     `json:"engagementScore"`
+	ChurnRisk         int32     `json:"churnRisk"`
+	PredictedClvCents int       `json:"predictedClvCents"`
+	NextOrderDays     int32     `json:"nextOrderDays"`
+	ComputedAt        time.Time `json:"computedAt"`
 }
 
 // A column in a transfer file. The admin UI renders its reference table straight off these, so adding one needs no frontend work
@@ -2345,6 +2418,17 @@ type HealthGroup struct {
 	Key    string         `json:"key"`
 	Label  string         `json:"label"`
 	Checks []*HealthCheck `json:"checks"`
+}
+
+type InsightPoint struct {
+	Bucket time.Time `json:"bucket"`
+	Key    string    `json:"key"`
+	Value  int32     `json:"value"`
+}
+
+type InsightSeries struct {
+	Key   string `json:"key"`
+	Total int32  `json:"total"`
 }
 
 type Integration struct {
@@ -3248,6 +3332,26 @@ type ProductTypeAttribute struct {
 	GroupID   *string    `json:"groupId,omitempty"`
 }
 
+type ProfilePageView struct {
+	Title        string `json:"title"`
+	PageKey      string `json:"pageKey"`
+	Views        int32  `json:"views"`
+	DwellSeconds int32  `json:"dwellSeconds"`
+}
+
+type ProfileProductView struct {
+	Name  string `json:"name"`
+	Image string `json:"image"`
+	Price string `json:"price"`
+	Sku   string `json:"sku"`
+	Views int32  `json:"views"`
+}
+
+type ProfileValue struct {
+	Value string `json:"value"`
+	Count int32  `json:"count"`
+}
+
 type PromotionAction struct {
 	ID            string `json:"id"`
 	Type          string `json:"type"`
@@ -3547,6 +3651,18 @@ type RequestReturnInput struct {
 	Restock      *bool              `json:"restock,omitempty"`
 	RefundTarget *string            `json:"refundTarget,omitempty"`
 	Resolution   *string            `json:"resolution,omitempty"`
+}
+
+type RetentionBucket struct {
+	Period   int32 `json:"period"`
+	Count    int32 `json:"count"`
+	Eligible int32 `json:"eligible"`
+}
+
+type RetentionCohort struct {
+	StartAt time.Time          `json:"startAt"`
+	Size    int32              `json:"size"`
+	Buckets []*RetentionBucket `json:"buckets"`
 }
 
 type ReturnLineInput struct {
@@ -3926,9 +4042,97 @@ type SearchSynonym struct {
 	Terms string `json:"terms"`
 }
 
+type SegmentAffinityCount struct {
+	Attr    string `json:"attr"`
+	Value   string `json:"value"`
+	Members int32  `json:"members"`
+}
+
+type SegmentAffinityInput struct {
+	Attr  string `json:"attr"`
+	Value string `json:"value"`
+	Days  *int32 `json:"days,omitempty"`
+}
+
+type SegmentConditionInput struct {
+	Event  string `json:"event"`
+	Negate *bool  `json:"negate,omitempty"`
+	Count  *int32 `json:"count,omitempty"`
+	Days   *int32 `json:"days,omitempty"`
+}
+
+type SegmentGrowthPoint struct {
+	Day   time.Time `json:"day"`
+	Count int32     `json:"count"`
+}
+
+type SegmentLifecycleWindows struct {
+	NewDays    int32 `json:"newDays"`
+	ActiveDays int32 `json:"activeDays"`
+	AtRiskDays int32 `json:"atRiskDays"`
+}
+
+type SegmentLifecycleWindowsInput struct {
+	NewDays    int32 `json:"newDays"`
+	ActiveDays int32 `json:"activeDays"`
+	AtRiskDays int32 `json:"atRiskDays"`
+}
+
+type SegmentMember struct {
+	CustomerID  string     `json:"customerId"`
+	Lifecycle   string     `json:"lifecycle"`
+	RecencyDays int32      `json:"recencyDays"`
+	Orders      int32      `json:"orders"`
+	SpendCents  int        `json:"spendCents"`
+	LastOrderAt *time.Time `json:"lastOrderAt,omitempty"`
+}
+
+type SegmentNode struct {
+	Kind     SegmentNodeKind         `json:"kind"`
+	Op       *SegmentBoolOp          `json:"op,omitempty"`
+	Children []*SegmentNode          `json:"children,omitempty"`
+	Event    *string                 `json:"event,omitempty"`
+	Negate   *bool                   `json:"negate,omitempty"`
+	Count    *int32                  `json:"count,omitempty"`
+	Days     *int32                  `json:"days,omitempty"`
+	Trait    *SynapseSegmentTrait    `json:"trait,omitempty"`
+	Affinity *SynapseSegmentAffinity `json:"affinity,omitempty"`
+}
+
+type SegmentNodeInput struct {
+	Kind     SegmentNodeKind       `json:"kind"`
+	Op       *SegmentBoolOp        `json:"op,omitempty"`
+	Children []*SegmentNodeInput   `json:"children,omitempty"`
+	Event    *string               `json:"event,omitempty"`
+	Negate   *bool                 `json:"negate,omitempty"`
+	Count    *int32                `json:"count,omitempty"`
+	Days     *int32                `json:"days,omitempty"`
+	Trait    *SegmentTraitInput    `json:"trait,omitempty"`
+	Affinity *SegmentAffinityInput `json:"affinity,omitempty"`
+}
+
 type SegmentOption struct {
 	Slug string `json:"slug"`
 	Name string `json:"name"`
+}
+
+type SegmentRfmBucket struct {
+	Dimension string `json:"dimension"`
+	Score     int32  `json:"score"`
+	Count     int32  `json:"count"`
+}
+
+type SegmentStageCount struct {
+	Stage string `json:"stage"`
+	Count int32  `json:"count"`
+}
+
+type SegmentTraitInput struct {
+	Lifecycle         []string `json:"lifecycle,omitempty"`
+	MinRecencyScore   *int32   `json:"minRecencyScore,omitempty"`
+	MinFrequencyScore *int32   `json:"minFrequencyScore,omitempty"`
+	MinMonetaryScore  *int32   `json:"minMonetaryScore,omitempty"`
+	MinEngagement     *int32   `json:"minEngagement,omitempty"`
 }
 
 type SeoIssueCount struct {
@@ -3939,11 +4143,6 @@ type SeoIssueCount struct {
 type ServerFeatures struct {
 	Signals bool `json:"signals"`
 	Ai      bool `json:"ai"`
-}
-
-type ServiceToken struct {
-	Token     string    `json:"token"`
-	ExpiresAt time.Time `json:"expiresAt"`
 }
 
 type SetBlogPostChannelListingInput struct {
@@ -4097,6 +4296,12 @@ type SignalFlowRun struct {
 	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
+type SignalSegment struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
 type SignalsChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -4224,6 +4429,143 @@ type SubscriptionTerms struct {
 	TrialDays     int32                `json:"trialDays"`
 	CreatedAt     time.Time            `json:"createdAt"`
 	UpdatedAt     time.Time            `json:"updatedAt"`
+}
+
+type SynapseActiveCustomer struct {
+	CustomerID string     `json:"customerId"`
+	Events     int32      `json:"events"`
+	LastSeen   *time.Time `json:"lastSeen,omitempty"`
+}
+
+type SynapseFlow struct {
+	Focus     string             `json:"focus"`
+	Cohort    int32              `json:"cohort"`
+	Continued int32              `json:"continued"`
+	AvgSteps  float64            `json:"avgSteps"`
+	Nodes     []*SynapseFlowNode `json:"nodes"`
+	TopPaths  []*SynapseFlowPath `json:"topPaths"`
+}
+
+type SynapseFlowNode struct {
+	ID       string `json:"id"`
+	ParentID string `json:"parentId"`
+	Event    string `json:"event"`
+	Depth    int32  `json:"depth"`
+	Count    int32  `json:"count"`
+}
+
+type SynapseFlowPath struct {
+	Events []string `json:"events"`
+	Count  int32    `json:"count"`
+}
+
+type SynapseFunnel struct {
+	Steps []*SynapseFunnelStep `json:"steps"`
+}
+
+type SynapseFunnelStep struct {
+	EventName string `json:"eventName"`
+	Count     int32  `json:"count"`
+}
+
+type SynapseInsights struct {
+	Points      []*InsightPoint  `json:"points"`
+	Series      []*InsightSeries `json:"series"`
+	Total       int32            `json:"total"`
+	Uniques     int32            `json:"uniques"`
+	PrevTotal   int32            `json:"prevTotal"`
+	PrevUniques int32            `json:"prevUniques"`
+}
+
+type SynapseOverview struct {
+	TotalEvents         int32                    `json:"totalEvents"`
+	PageViews           int32                    `json:"pageViews"`
+	Conversions         int32                    `json:"conversions"`
+	IdentifiedCustomers int32                    `json:"identifiedCustomers"`
+	AnonymousVisitors   int32                    `json:"anonymousVisitors"`
+	Revenue             []*AttributedRevenue     `json:"revenue"`
+	TopEvents           []*CustomerEventCount    `json:"topEvents"`
+	ActiveCustomers     []*SynapseActiveCustomer `json:"activeCustomers"`
+	ActiveVisitors      []*SynapseVisitor        `json:"activeVisitors"`
+}
+
+type SynapseRetention struct {
+	Cohort  int32              `json:"cohort"`
+	Buckets []*RetentionBucket `json:"buckets"`
+	Cohorts []*RetentionCohort `json:"cohorts"`
+}
+
+type SynapseSegment struct {
+	ID               string                     `json:"id"`
+	ChannelID        string                     `json:"channelId"`
+	Name             string                     `json:"name"`
+	Slug             string                     `json:"slug"`
+	MemberCount      int32                      `json:"memberCount"`
+	Definition       *SegmentNode               `json:"definition,omitempty"`
+	Conditions       []*SynapseSegmentCondition `json:"conditions"`
+	Trait            *SynapseSegmentTrait       `json:"trait,omitempty"`
+	Affinity         *SynapseSegmentAffinity    `json:"affinity,omitempty"`
+	LifecycleWindows *SegmentLifecycleWindows   `json:"lifecycleWindows,omitempty"`
+}
+
+type SynapseSegmentAffinity struct {
+	Attr  string `json:"attr"`
+	Value string `json:"value"`
+	Days  int32  `json:"days"`
+	Auto  bool   `json:"auto"`
+}
+
+type SynapseSegmentCondition struct {
+	Event  string `json:"event"`
+	Negate bool   `json:"negate"`
+	Count  int32  `json:"count"`
+	Days   int32  `json:"days"`
+}
+
+type SynapseSegmentDetail struct {
+	Segment          *SynapseSegment         `json:"segment"`
+	Currency         string                  `json:"currency"`
+	RevenueCents     int                     `json:"revenueCents"`
+	Orders           int32                   `json:"orders"`
+	AovCents         int                     `json:"aovCents"`
+	Members          []*SegmentMember        `json:"members"`
+	MembersTruncated bool                    `json:"membersTruncated"`
+	Growth           []*SegmentGrowthPoint   `json:"growth"`
+	LifecycleMix     []*SegmentStageCount    `json:"lifecycleMix"`
+	RfmDistribution  []*SegmentRfmBucket     `json:"rfmDistribution"`
+	TopAffinities    []*SegmentAffinityCount `json:"topAffinities"`
+}
+
+type SynapseSegmentTrait struct {
+	Lifecycle         []string `json:"lifecycle"`
+	MinRecencyScore   int32    `json:"minRecencyScore"`
+	MinFrequencyScore int32    `json:"minFrequencyScore"`
+	MinMonetaryScore  int32    `json:"minMonetaryScore"`
+	MinEngagement     int32    `json:"minEngagement"`
+}
+
+type SynapseStickiness struct {
+	Days        []*ActivePoint `json:"days"`
+	WindowDays  int32          `json:"windowDays"`
+	PriorActive int32          `json:"priorActive"`
+	ActiveNow   int32          `json:"activeNow"`
+	Returning   int32          `json:"returning"`
+	ReturnRate  float64        `json:"returnRate"`
+	Wau         int32          `json:"wau"`
+	Mau         int32          `json:"mau"`
+}
+
+type SynapseTrackedAttribute struct {
+	Slug   string   `json:"slug"`
+	Name   string   `json:"name"`
+	Values []string `json:"values"`
+}
+
+type SynapseVisitor struct {
+	AnonID   string     `json:"anonId"`
+	Events   int32      `json:"events"`
+	LastSeen *time.Time `json:"lastSeen,omitempty"`
+	LastPage string     `json:"lastPage"`
 }
 
 type SyncCanonicalURLRewriteInput struct {
@@ -7540,6 +7882,120 @@ func (e *ReviewStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e ReviewStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SegmentBoolOp string
+
+const (
+	SegmentBoolOpAnd SegmentBoolOp = "AND"
+	SegmentBoolOpOr  SegmentBoolOp = "OR"
+)
+
+var AllSegmentBoolOp = []SegmentBoolOp{
+	SegmentBoolOpAnd,
+	SegmentBoolOpOr,
+}
+
+func (e SegmentBoolOp) IsValid() bool {
+	switch e {
+	case SegmentBoolOpAnd, SegmentBoolOpOr:
+		return true
+	}
+	return false
+}
+
+func (e SegmentBoolOp) String() string {
+	return string(e)
+}
+
+func (e *SegmentBoolOp) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SegmentBoolOp(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SegmentBoolOp", str)
+	}
+	return nil
+}
+
+func (e SegmentBoolOp) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SegmentBoolOp) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SegmentBoolOp) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type SegmentNodeKind string
+
+const (
+	SegmentNodeKindGroup    SegmentNodeKind = "GROUP"
+	SegmentNodeKindEvent    SegmentNodeKind = "EVENT"
+	SegmentNodeKindTrait    SegmentNodeKind = "TRAIT"
+	SegmentNodeKindAffinity SegmentNodeKind = "AFFINITY"
+)
+
+var AllSegmentNodeKind = []SegmentNodeKind{
+	SegmentNodeKindGroup,
+	SegmentNodeKindEvent,
+	SegmentNodeKindTrait,
+	SegmentNodeKindAffinity,
+}
+
+func (e SegmentNodeKind) IsValid() bool {
+	switch e {
+	case SegmentNodeKindGroup, SegmentNodeKindEvent, SegmentNodeKindTrait, SegmentNodeKindAffinity:
+		return true
+	}
+	return false
+}
+
+func (e SegmentNodeKind) String() string {
+	return string(e)
+}
+
+func (e *SegmentNodeKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SegmentNodeKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SegmentNodeKind", str)
+	}
+	return nil
+}
+
+func (e SegmentNodeKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SegmentNodeKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SegmentNodeKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

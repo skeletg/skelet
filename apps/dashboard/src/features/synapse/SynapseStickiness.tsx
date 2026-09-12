@@ -10,7 +10,7 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
-import { SynapseOverviewDocument, SynapseStickinessDocument } from './Synapse.signals.gql'
+import { SynapseOverviewDocument, SynapseStickinessDocument } from './Synapse.gql'
 
 const nfmt = (n: number) => n.toLocaleString()
 function fmtDay(v: string): string {

@@ -16,9 +16,7 @@ import {
 import { getEffectiveLocale } from '@/lib/locale-store'
 import { getEffectiveChannelId } from '@/lib/channel-store'
 import { devMonitorLink } from '@/lib/dev-monitor'
-import { ADMIN_GRAPHQL_ENDPOINT, SIGNALS_GRAPHQL_ENDPOINT } from '@/lib/api-endpoint'
-import { SIGNALS_OPERATIONS } from '@/graphql/signals-operations'
-import { getSignalsToken } from '@/shared/auth/signals-token'
+import { ADMIN_GRAPHQL_ENDPOINT } from '@/lib/api-endpoint'
 import { setSignalsDown } from '@/shared/signals/health'
 
 const ENDPOINT = ADMIN_GRAPHQL_ENDPOINT
@@ -127,15 +125,17 @@ function isUnauthError(error: unknown): boolean {
   return maybeHttp.statusCode === 401 || maybeHttp.status === 401
 }
 
-// The service answering with errors is still the service answering - only a failure to reach it counts as down
-function isGraphQLResponse(error: unknown): boolean {
-  return error instanceof CombinedGraphQLErrors
+// Core relays an unreachable suite under one code, so the banner no longer has to guess from a transport failure
+function isSignalsUnavailable(error: unknown): boolean {
+  return (
+    error instanceof CombinedGraphQLErrors &&
+    error.errors.some((e) => e.extensions?.code === 'SIGNALS_UNAVAILABLE')
+  )
 }
 
 const errorLink = new ErrorLink(({ error, operation, forward }) => {
   const opName = operation.operationName
-  // A transport failure on a Signals operation means the service is unreachable, which its screens have to say rather than render as empty
-  if (SIGNALS_OPERATIONS.has(opName ?? '') && !isGraphQLResponse(error)) setSignalsDown(true)
+  if (isSignalsUnavailable(error)) setSignalsDown(true)
   if (opName === 'AdminLogin' || opName === 'RefreshToken') return
   if (!isUnauthError(error)) return
 
@@ -189,23 +189,15 @@ const wsLink = new GraphQLWsLink(
   }),
 )
 
-// ---------- Signals API ----------
-// A second origin with its own credential, and SIGNALS_OPERATIONS is generated from the *.signals.graphql documents so routing can't drift from what codegen validated
-const signalsAuthLink = new SetContextLink(async (prevContext) => {
-  const token = await getSignalsToken()
-  const headers = { ...(prevContext.headers ?? {}) }
-  // Drop the admin bearer rather than leaving it, since sending a core credential to another service is worth not doing by accident
-  delete (headers as Record<string, unknown>).authorization
-  return { headers: { ...headers, ...(token ? { authorization: `Bearer ${token}` } : {}) } }
-})
-
-// Reaching the service at all is the fact the banner reports - a GraphQL error is the service answering, so only a transport failure counts
+// Clears the banner as soon as anything answers without that code - optimistic, and the next read
+// that does reach for Signals raises it again
 const signalsHealthLink = new ApolloLink(
   (operation, forward) =>
     new Observable<import('@apollo/client').ApolloLink.Result>((observer) => {
       const sub = forward(operation).subscribe({
         next: (result) => {
-          setSignalsDown(false)
+          const errs = 'errors' in result ? (result.errors ?? []) : []
+          if (!errs.some((e) => e.extensions?.code === 'SIGNALS_UNAVAILABLE')) setSignalsDown(false)
           observer.next(result)
         },
         error: (err) => observer.error(err),
@@ -215,23 +207,13 @@ const signalsHealthLink = new ApolloLink(
     }),
 )
 
-const signalsLink = signalsAuthLink
-  .concat(signalsHealthLink)
-  .concat(new HttpLink({ uri: SIGNALS_GRAPHQL_ENDPOINT }))
-
-const httpTransportLink = ApolloLink.split(
-  ({ operationName }) => SIGNALS_OPERATIONS.has(operationName ?? ''),
-  signalsLink,
-  terminalLink,
-)
-
 const transportLink = ApolloLink.split(
   ({ query }) => {
     const def = getMainDefinition(query)
     return def.kind === 'OperationDefinition' && def.operation === 'subscription'
   },
   wsLink,
-  httpTransportLink,
+  signalsHealthLink.concat(terminalLink),
 )
 
 export const apolloClient = new ApolloClient({
