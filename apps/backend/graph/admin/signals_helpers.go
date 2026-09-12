@@ -1,7 +1,7 @@
 package admin
 
-// Shared plumbing for the resolvers that read the Signals suite. Core owns the whole dashboard
-// surface, so these answer the operation and the suite answers the data
+// Shared plumbing for the resolvers that read the Signals suite - core answers the operation, the
+// suite answers the data
 
 import (
 	"context"
@@ -16,7 +16,11 @@ import (
 )
 
 // signalsCtx attaches the caller's own token, so the suite refuses what they could not read themselves
+// Every Signals-backed resolver reaches the suite through here, which is what carries the switch
 func signalsCtx(ctx context.Context, r *Resolver) (context.Context, error) {
+	if err := r.requireSignals(); err != nil {
+		return nil, err // switched off is a different answer from unreachable, and the operator gets the one that is true
+	}
 	authed, err := r.SignalsAPI.Authed(ctx)
 	if err != nil {
 		return nil, signalsErr(err)
@@ -24,8 +28,7 @@ func signalsCtx(ctx context.Context, r *Resolver) (context.Context, error) {
 	return authed, nil
 }
 
-// A gRPC status is the suite's answer, and it carries the class the dashboard needs to tell a bad
-// request from a service that is simply down
+// A gRPC status is the suite answering, and its code carries the class the dashboard renders on
 func signalsErr(err error) error {
 	if err == nil {
 		return nil
@@ -52,7 +55,7 @@ func signalsErr(err error) error {
 	return apperr.New("SIGNALS_"+st.Code().String(), class, st.Message())
 }
 
-// signalsScoped gates on the permission here, then hands the caller's token to the suite, which gates again on the channel the data actually belongs to
+// The permission gate core can make on its own - the suite gates again on the channel the data belongs to
 func (r *Resolver) signalsScoped(ctx context.Context, perm string) (context.Context, error) {
 	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), perm); err != nil {
 		return nil, err
@@ -60,7 +63,7 @@ func (r *Resolver) signalsScoped(ctx context.Context, perm string) (context.Cont
 	return signalsCtx(ctx, r)
 }
 
-// signalsChannel adds the channel gate core can make locally, before the suite makes it again on its side
+// Adds the channel gate too, where the operation names one
 func (r *Resolver) signalsChannel(ctx context.Context, perm, channelID string) (context.Context, error) {
 	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), perm); err != nil {
 		return nil, err

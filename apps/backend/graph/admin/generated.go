@@ -38,6 +38,7 @@ type ResolverRoot interface {
 	Collection() CollectionResolver
 	Country() CountryResolver
 	Customer() CustomerResolver
+	CustomerSegment() CustomerSegmentResolver
 	InventoryLocation() InventoryLocationResolver
 	Mutation() MutationResolver
 	Order() OrderResolver
@@ -4385,6 +4386,9 @@ type CountryResolver interface {
 }
 type CustomerResolver interface {
 	Consents(ctx context.Context, obj *model.Customer) ([]*model.CustomerConsent, error)
+}
+type CustomerSegmentResolver interface {
+	Members(ctx context.Context, obj *model.CustomerSegment, limit *int32, offset *int32) ([]*model.CustomerSegmentMember, error)
 }
 type InventoryLocationResolver interface {
 	Country(ctx context.Context, obj *model.InventoryLocation) (*model.Country, error)
@@ -77385,7 +77389,8 @@ func (ec *executionContext) _CustomerSegment_members(ctx context.Context, field 
 			return ec.fieldContext_CustomerSegment_members(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Members, nil
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.CustomerSegment().Members(ctx, obj, fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.CustomerSegmentMember) graphql.Marshaler {
@@ -77399,8 +77404,8 @@ func (ec *executionContext) fieldContext_CustomerSegment_members(ctx context.Con
 	fc = &graphql.FieldContext{
 		Object:     "CustomerSegment",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_CustomerSegmentMember(ctx, field)
 		},
@@ -170130,52 +170135,85 @@ func (ec *executionContext) _CustomerSegment(ctx context.Context, sel ast.Select
 		case "id":
 			out.Values[i] = ec._CustomerSegment_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "slug":
 			out.Values[i] = ec._CustomerSegment_slug(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._CustomerSegment_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "description":
 			out.Values[i] = ec._CustomerSegment_description(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "isActive":
 			out.Values[i] = ec._CustomerSegment_isActive(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "memberCount":
 			out.Values[i] = ec._CustomerSegment_memberCount(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "members":
-			out.Values[i] = ec._CustomerSegment_members(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._CustomerSegment_members(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "rules":
 			out.Values[i] = ec._CustomerSegment_rules(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._CustomerSegment_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._CustomerSegment_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
