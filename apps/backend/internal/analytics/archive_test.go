@@ -132,7 +132,7 @@ func TestArchiveFileAbortDiscardsObject(t *testing.T) {
 }
 
 func TestArchiveModeFailsClosedWithoutSink(t *testing.T) {
-	rec := NewRecorder(nil, nil)
+	rec := NewRecorder(nil)
 	ctx := context.Background()
 	if _, err := rec.ArchivePrune(ctx, time.Now()); !errors.Is(err, ErrNoArchiveSink) {
 		t.Fatalf("ArchivePrune err = %v", err)
