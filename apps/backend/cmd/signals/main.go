@@ -23,7 +23,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/applog"
 	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
-	"github.com/skeletg/skelet/apps/backend/internal/cache"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
@@ -32,7 +31,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/httpx"
 	"github.com/skeletg/skelet/apps/backend/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/internal/observability"
-	"github.com/skeletg/skelet/apps/backend/internal/signalsapi"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsgrpc"
 	"github.com/skeletg/skelet/apps/backend/internal/wiring"
@@ -129,25 +127,7 @@ func run() error {
 
 	mux := http.NewServeMux()
 	wiring.RegisterPprof(mux)
-	// The suite's own admin API - the dashboard reaches it directly, authenticating with a service token core minted
 	behavioralSvc := behavioralsegment.New(rec, d.Segment)
-	mux.Handle(signalsapi.Path, wiring.SignalsGraphQLHandler(wiring.SignalsAPI{
-		Experiment:  d.Experiment,
-		Lens:        lensSvc,
-		Destination: destSvc,
-		Segment:     d.Segment,
-		Analytics:   rec,
-		Behavioral:  behavioralSvc,
-		Channel:     channelSvc,
-		Config:      configSvc,
-		Commerce:    db.New(primaryConn),
-		Roster:      signalsdb.New(sigConn),
-		JWTSecret:   d.Config.JWTSecret,
-		Dev:         d.Config.IsDev(),
-		Telemetry:   telemetry,
-		// Core publishes here when it kills a session, so one revoked there stops working here too
-		Revocations: cache.NewRevocations(d.Valkey, wiring.AccessTokenTTL+time.Minute),
-	}))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := primaryConn.PingContext(r.Context()); err != nil { // every datastore this process prunes/forwards against - commerce alone read healthy while the actual work errored forever
 			http.Error(w, "commerce db unavailable", http.StatusServiceUnavailable)

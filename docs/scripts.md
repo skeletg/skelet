@@ -106,7 +106,7 @@ for. The individual scripts exist so you can rerun one while fixing it.
 
 | Script | What it does |
 |---|---|
-| `codegen` | Regenerate everything in order: the Signals wire contract (buf), sqlc, gqlgen (all three surfaces), the plugin bridge, the remote-provider contract, the generated reference tables in `docs/` (permissions, webhook events, settings), dashboard TS types, storefront TS types. Needs the backend up for the last two steps, or pass `--no-frontend` to stop before them. `--check` fails on stale output instead of writing it. |
+| `codegen` | Regenerate everything in order: the Signals wire contract (buf), sqlc, gqlgen (both surfaces), the plugin bridge, the remote-provider contract, the generated reference tables in `docs/` (permissions, webhook events, settings), dashboard TS types, storefront TS types. Needs the backend up for the last two steps, or pass `--no-frontend` to stop before them. `--check` fails on stale output instead of writing it. |
 | `sqlc` | sqlc, pinned to 1.31.1 so regens don't rewrite every version header. |
 | `buf` | buf against `proto/`, for one command at a time - `bin/buf lint /var/www/proto`. It runs from the Go module, since that is where `go tool` finds buf and its two protoc plugins; nothing is installed outside `go.mod`. |
 | `gqlgen` | One gqlgen surface at a time. Usually you want `codegen` instead. |

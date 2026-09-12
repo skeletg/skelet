@@ -1,6 +1,6 @@
 // Pure model plus helpers for the segment definition tree - no JSX, which keeps the builder
 // component fast-refresh clean - Mirrors the backend SegmentNode
-import type { SegmentNodeInput, SegmentNodeKind, SegmentBoolOp } from '@/graphql/signals.types'
+import type { SegmentNodeInput, SegmentNodeKind, SegmentBoolOp } from '@/graphql/schema.types'
 import { eventLabel } from './eventLabel'
 
 export type TraitLeaf = {

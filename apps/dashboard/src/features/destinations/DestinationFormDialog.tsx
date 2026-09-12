@@ -15,12 +15,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
-import type { EventDestinationInput } from '@/graphql/signals.types'
+import type { EventDestinationInput } from '@/graphql/schema.types'
 import { DESTINATION_KINDS } from './kinds'
 import {
   CreateEventDestinationDocument,
   UpdateEventDestinationDocument,
-} from './Destinations.signals.gql'
+} from './Destinations.gql'
 
 // The analytics spine's source column - filters match against these
 const EVENT_SOURCES = ['campaign', 'flow', 'transactional', 'web', 'system']

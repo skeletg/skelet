@@ -22,7 +22,7 @@ import {
 import { useConfigScope } from '@/lib/config-scope'
 import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { eventLabel } from './eventLabel'
-import { SynapseOverviewDocument, SynapseStickinessDocument } from './Synapse.signals.gql'
+import { SynapseOverviewDocument, SynapseStickinessDocument } from './Synapse.gql'
 
 const ACCENT = '#6366f1'
 const nfmt = (n: number) => n.toLocaleString()

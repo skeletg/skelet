@@ -1,4 +1,4 @@
-// Signals runs as its own service, so when it is down every query fails at the network and its pages render as though there were simply no data - tracked once here, since one unreachable service is one fact rather than a fact per screen
+// Signals runs as its own service, and core answers SIGNALS_UNAVAILABLE when it cannot reach it - tracked once here, since one unreachable service is one fact rather than a fact per screen
 
 type Listener = (down: boolean) => void
 

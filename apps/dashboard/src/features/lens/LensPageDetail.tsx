@@ -21,7 +21,7 @@ import {
 } from '@/components/layout/detail-page'
 import { AutocompletePicker } from '@/features/promotions/widgets/AutocompletePicker'
 import { useConfigScope } from '@/lib/config-scope'
-import { LensHeatmapDocument, LensPagesDocument, LensPageStatsDocument, LensStatesDocument } from './Lens.signals.gql'
+import { LensHeatmapDocument, LensPagesDocument, LensPageStatsDocument, LensStatesDocument } from './Lens.gql'
 
 const CELL = 10 // must match the backend cellSize
 type Kind = 'click' | 'move' | 'scroll'

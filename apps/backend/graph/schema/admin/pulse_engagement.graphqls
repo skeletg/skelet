@@ -10,12 +10,6 @@ type PulseEngagement {
   topLinks:    [LinkClicks!]!
 }
 
-type AttributedRevenue {
-  currency: String!
-  cents:    Int64!
-  orders:   Int!
-}
-
 type LinkClicks {
   url:    String!
   clicks: Int!

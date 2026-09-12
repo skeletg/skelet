@@ -32,7 +32,7 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
-import { DeleteExperimentDocument, ExperimentsDocument } from './Prism.signals.gql'
+import { DeleteExperimentDocument, ExperimentsDocument } from './Prism.gql'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',

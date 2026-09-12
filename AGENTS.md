@@ -12,7 +12,7 @@ dashboard, and one or more Next.js storefronts. Everything runs in Docker.
 
 | Path | What |
 |---|---|
-| `apps/backend/` | Go, `go.mod` lives here. gqlgen + sqlc. Three GraphQL surfaces, plus the Signals wire contract |
+| `apps/backend/` | Go, `go.mod` lives here. gqlgen + sqlc. Two GraphQL surfaces, plus the Signals wire contract |
 | `apps/dashboard/` | React 19 + Vite admin SPA, strict TypeScript |
 | `apps/channels/<name>/` | Next.js 16 storefronts, App Router, RSC |
 | `bin/` | Every dev operation, one script each |
@@ -108,12 +108,15 @@ one, it rewrites whole files.
 
 ## 7. Patterns worth knowing
 
-**Three GraphQL surfaces.** `/api/admin/graphql` and `/api/front/graphql` run in the
-server process; `/api/signals/graphql` runs in `cmd/signals`. Each has entirely separate
-schemas, generated executables and resolver trees. The admin middleware is non-blocking,
-so an ungated admin resolver answers anonymous callers - every admin resolver must gate
-explicitly, and `authz_coverage_test.go` enforces it. The Signals surface works the same
-way, and so does the gRPC contract beside it: the interceptor injects, the handler refuses.
+**Two GraphQL surfaces.** `/api/admin/graphql` and `/api/front/graphql`, both in the
+server process, with entirely separate schemas, generated executables and resolver trees.
+The admin middleware is non-blocking, so an ungated admin resolver answers anonymous
+callers - every admin resolver must gate explicitly, and `authz_coverage_test.go` enforces
+it. The gRPC contract works the same way: the interceptor injects, the handler refuses.
+
+**The dashboard talks to core and nothing else.** Signals runs as its own service and
+answers only over the wire contract, so an admin resolver that needs it calls
+`r.SignalsAPI` and maps the answer - see `graph/admin/signals_*.go`.
 
 **Everything is channel-scoped.** Catalog data is global; per-channel availability is a
 listing row. Permissions are scoped per channel too. When you add a resolver, decide its

@@ -17,7 +17,7 @@ import {
   UpsertCmsPageVariantContentDocument,
   type CmsPageRowFragment,
 } from '../Cms.gql'
-import { ExperimentsDocument } from '@/features/prism/Prism.signals.gql'
+import { ExperimentsDocument } from '@/features/prism/Prism.gql'
 import { PageBlockCanvas } from '../PageBlockCanvas'
 import { parseDocument, serializeDocument, type CmsBlock } from '../page-blocks'
 

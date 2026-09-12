@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@apollo/client/react'
 
-import { CustomerSegmentsListDocument } from '@/features/promotions/Promotions.signals.gql'
+import { CustomerSegmentsListDocument } from '@/features/promotions/Promotions.gql'
 import type { WidgetProps } from '../SchemaForm'
 import { AutocompletePicker, type Option } from './AutocompletePicker'
 
