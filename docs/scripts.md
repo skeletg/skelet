@@ -31,7 +31,7 @@ one when you're outside a checkout entirely.
 | `sh`, `go`, `cli`, `psql` | `bash`, `go`, `cli`, `psql` |
 | `npm <app> <args>` | `dash` when app is `dashboard`, else `channel <app>` |
 | `db migrate [--signals]`, `db export`, `db import`, `db shell` | `migrate`, `migrate-signals`, `db-export`, `db-import`, `psql` |
-| `gen`, `gen sqlc`, `gen gqlgen` | `codegen`, `sqlc`, `gqlgen` |
+| `gen`, `gen sqlc`, `gen gqlgen`, `gen buf` | `codegen`, `sqlc`, `gqlgen`, `buf` |
 | `check`, `check pins\|structure\|contracts`, `check codegen` | `check`, the three gates, `codegen --check` |
 | `test`, `test e2e`, `lint` | `test`, `test-e2e`, `lint` |
 | `signals backfill-ch` | `signals-ch-backfill` |
@@ -106,8 +106,9 @@ for. The individual scripts exist so you can rerun one while fixing it.
 
 | Script | What it does |
 |---|---|
-| `codegen` | Regenerate everything in order: sqlc, gqlgen (both surfaces), the plugin bridge, the remote-provider contract, the generated reference tables in `docs/` (permissions, webhook events, settings), dashboard TS types, storefront TS types. Needs the backend up for the last two steps, or pass `--no-frontend` to stop before them. `--check` fails on stale output instead of writing it. |
+| `codegen` | Regenerate everything in order: the Signals wire contract (buf), sqlc, gqlgen (all three surfaces), the plugin bridge, the remote-provider contract, the generated reference tables in `docs/` (permissions, webhook events, settings), dashboard TS types, storefront TS types. Needs the backend up for the last two steps, or pass `--no-frontend` to stop before them. `--check` fails on stale output instead of writing it. |
 | `sqlc` | sqlc, pinned to 1.31.1 so regens don't rewrite every version header. |
+| `buf` | buf against `proto/`, for one command at a time - `bin/buf lint /var/www/proto`. It runs from the Go module, since that is where `go tool` finds buf and its two protoc plugins; nothing is installed outside `go.mod`. |
 | `gqlgen` | One gqlgen surface at a time. Usually you want `codegen` instead. |
 | `lint` | gofmt + golangci-lint are hard gates; dashboard + storefront ESLint run after but don't fail the script (matches CI, which keeps frontend lint non-blocking until it's clean). |
 | `test` | Backend `go test` + dashboard/storefront typechecks + dashboard and storefront unit tests (vitest) - the same hard gates CI runs. Args are forwarded to `go test`; `--no-frontend` skips the frontend steps. The default sweep excludes `internal/e2e` (it writes real rows and never cleans up) - run that with `test-e2e`. |

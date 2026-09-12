@@ -1,12 +1,14 @@
 # Architecture
 
-What Skelet is made of: where the code lives, what it runs on, and how the
-two GraphQL surfaces and the domain packages are shaped.
+What Skelet is made of: where the code lives, what it runs on, how the GraphQL
+surfaces and the Signals wire contract are laid out, and how the domain packages
+are shaped.
 
 ## Project Layout
 
 ```
 skelet/
+├── proto/skelet/signals/v1/         ← the core-to-Signals wire contract
 ├── apps/
 │   ├── backend/                     ← Go (go.mod lives here)
 │   │   ├── cmd/                     ← one module, several binaries
@@ -17,20 +19,26 @@ skelet/
 │   │   ├── graph/
 │   │   │   ├── schema/admin/*.graphqls   ← admin surface
 │   │   │   ├── schema/front/*.graphqls   ← storefront surface
+│   │   │   ├── schema/signals/*.graphqls ← Signals surface
 │   │   │   ├── admin/                    ← admin gqlgen output + resolvers
 │   │   │   │   ├── generated.go          ← DO NOT EDIT
 │   │   │   │   ├── model/models_gen.go   ← DO NOT EDIT
 │   │   │   │   ├── helpers.go            ← shared admin mappers
 │   │   │   │   ├── *_helpers.go          ← per-domain helpers
 │   │   │   │   └── *.resolvers.go        ← edit resolver bodies here
-│   │   │   └── front/                    ← storefront gqlgen output + resolvers
+│   │   │   ├── front/                    ← storefront gqlgen output + resolvers
+│   │   │   └── signals/                  ← Signals gqlgen output + resolvers
 │   │   ├── gqlgen.admin.yml         ← admin pipeline config
 │   │   ├── gqlgen.front.yml         ← storefront pipeline config
-│   │       └── internal/            ← ~110 domain packages, see the table below
-│   │           └── db/
-│   │               ├── migrations/  ← the generated baselines - see database.md
-│   │               ├── query/*.sql  ← sqlc input
-│   │               └── sqlc/        ← sqlc output (DO NOT EDIT)
+│   │   ├── gqlgen.signals.yml       ← Signals pipeline config
+│   │   └── internal/                ← ~110 domain packages, see the table below
+│   │       ├── db/
+│   │       │   ├── migrations/      ← the generated baselines - see database.md
+│   │       │   ├── query/*.sql      ← sqlc input
+│   │       │   ├── sqlc/            ← sqlc output (DO NOT EDIT)
+│   │       │   └── signals/         ← the same three, for the Signals database
+│   │       ├── signalspb/           ← protoc output (DO NOT EDIT)
+│   │       └── signalsgrpc/         ← the wire contract's handlers
 │   ├── dashboard/                   ← React + Vite admin UI
 │   │   ├── src/
 │   │   │   ├── components/          ← shared UI primitives (shadcn)
@@ -90,7 +98,7 @@ contract. Everything below is `apps/backend/internal/<name>`.
 | Content | `cms`, `blog`, `blockkit`, `content`, `menu`, `form`, `webform`, `medialibrary`, `documents` |
 | Merchandising | `search`, `searchmerch`, `urlrewrite`, `sitecrawl`, `linkgraph` |
 | Marketing | `campaign`, `flow`, `emailtemplate`, `emailtrack`, `suppression`, `backinstock`, `experiment` |
-| Signals | `analytics`, `lens`, `signalsboot`, `ingesthttp`, `destination` |
+| Signals | `analytics`, `lens`, `signalsboot`, `ingesthttp`, `destination`, `signalsgrpc`, `signalspb` |
 | Platform | `admin`, `auth`, `permission`, `channel`, `config`, `consent`, `integration`, `audit`, `activity`, `notification`, `adminprefs`, `ai`, `chat` |
 | Extension | `plugin`, `pluginset`, `pluginmigrate`, `remoteprovider`, `action` |
 | Data movement | `dataio`, `datajob`, `datapatch`, `catalogio`, `backup` |

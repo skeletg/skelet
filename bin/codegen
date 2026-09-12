@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 export LC_ALL=C.UTF-8 LANG=C.UTF-8
-# Regen everything: sqlc -> gqlgen -> plugin bridge -> TS docs (backend must be up) --check bails on stale output;
+# Regen everything: sqlc -> buf -> gqlgen -> plugin bridge -> TS docs (backend must be up) --check bails on stale output;
 # --no-frontend drops the two steps that need a live backend, which is the half CI can run - same flag name as bin/test
 set -e
 cd "$(dirname "$(dirname "$0")")"
@@ -22,6 +22,7 @@ GENERATED_PATHS=(
     'apps/backend/graph/admin/plugin_resolvers.go'
     'apps/backend/graph/front/plugin_resolvers.go'
     'apps/backend/internal/db/sqlc/'
+    'apps/backend/internal/signalspb/'
     'apps/backend/graph/admin/generated.go'
     'apps/backend/graph/admin/model/'
     'apps/backend/graph/front/generated.go'
@@ -41,6 +42,11 @@ GENERATED_PATHS=(
 if [ "$mode" = "check" ]; then
     pre_hash=$(git diff -- "${GENERATED_PATHS[@]}" | sha256sum | cut -d' ' -f1)
 fi
+
+# The core-to-Signals wire contract, before anything that might use its types
+echo "==> buf (signals grpc contract)"
+bin/buf lint /var/www/proto
+bin/buf generate --template /var/www/proto/buf.gen.yaml /var/www/proto
 
 # Before gqlgen: the enabled set in plugins/plugins.json decides which plugins compile in, and is where the
 # SDL list should be driven from too, instead of gqlgen globbing every directory under plugins/

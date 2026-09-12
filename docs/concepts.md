@@ -106,8 +106,11 @@ differs - currency, tax, pricing - not when only the words do.
 
 **Signals** is the built-in analytics stack. It's a separate process
 (`cmd/signals`) writing to a separate database (`signals-db`), never the
-commerce one. Its four dashboard surfaces have their own names, and they are
-just names - there's no shared subsystem behind them beyond the event spine:
+commerce one. It answers over two surfaces: a GraphQL API the dashboard reaches
+directly, and a gRPC contract (`proto/skelet/signals/v1/`) that core calls.
+
+Its four dashboard surfaces have their own names, and they are just names -
+there's no shared subsystem behind them beyond the event spine:
 
 | Name | Route | What it shows |
 |---|---|---|

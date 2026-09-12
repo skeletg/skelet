@@ -7,6 +7,7 @@ lives, start here.
 ```
 skelet/
 ├── apps/          the three applications - everything else supports these
+├── proto/         the core-to-Signals wire contract, owned by neither side
 ├── bin/           one script per dev operation
 ├── docs/          you are here
 ├── env/           environment templates, one file per service
@@ -35,6 +36,19 @@ Inside `apps/backend` you will also find untracked build output - `server`,
 `signals` and `tmp/` are compiled binaries and air's scratch directory, not
 source. What the packages inside each app mean is
 [architecture.md](architecture.md).
+
+### `proto/`
+
+The wire contract between core and Signals, as protobuf. It sits at the root
+rather than inside `apps/backend/` because neither side owns it - core calls it
+and Signals serves it, and when Signals becomes its own module both will import
+the code generated from here.
+
+`buf.yaml` holds the lint and compatibility rules, `buf.gen.yaml` says which
+plugins run and where the output lands (`apps/backend/internal/signalspb/`,
+never hand-edited). `./skelet gen` regenerates; `./skelet check contracts`
+refuses a change that would break a deployed peer, since the two processes
+deploy separately and an old core will meet a new Signals.
 
 ### `bin/`
 
@@ -112,7 +126,7 @@ than written - `permissions.md`, `settings.md` and `webhooks.md` are rebuilt by
 `cmd/…` is relative to `apps/backend`, which is where all three of those live -
 the short form keeps Go prose readable, and there is no second `internal/` to
 confuse it with. Write the repo-root form when a page compares apps, the way
-`architecture.md` does for the two GraphQL surfaces.
+`architecture.md` does for the GraphQL surfaces.
 
 ### `examples/`
 
