@@ -121,6 +121,10 @@ It does not need a separate server. A second database on the commerce
 Postgres instance works exactly the same, which is the usual answer for
 small deployments - a `CREATE DATABASE`, not another container.
 
+`SIGNALS_GRPC_ADDR` is where `cmd/signals` serves the wire contract core calls
+(`signals:8092` in compose). It is core's only address for Signals, and leaving
+it unset means core makes no calls at all.
+
 `SIGNALS_REPLICA_URL` is the Signals read pool, bulkheaded off the ingest
 writes. Unset means the Signals primary. It is NOT `DATABASE_REPLICA_URL`
 - that's the commerce replica and doesn't hold spine tables.
@@ -403,7 +407,7 @@ in one process; splitting buys isolation.
 | Tier | Switch | What it does |
 |---|---|---|
 | `worker` | `JOBS_EXTERNAL=true` | App stops claiming scheduler jobs, webhook deliveries and outbox rows, leaving them to the worker. |
-| `signals` | `SIGNALS_JOBS_EXTERNAL=true` | App defers Signals retention, spine forwarding and trait compute. |
+| `signals` | `SIGNALS_JOBS_EXTERNAL=true` | App defers Signals retention, spine forwarding and trait compute. The same process serves the suite's own admin API on `:8090` and its wire contract on `:8092`. |
 | `ingest` | route `/t/*` | Serves the public tracker surface on `127.0.0.1:8091`. |
 | `media` | route `/media/t/*` | Image resize + focal crop, so decode CPU doesn't land next to checkout. |
 

@@ -11,7 +11,7 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 |---|---|
 | [concepts.md](concepts.md) | The vocabulary: channel, scope, listing, locale, the Signals surfaces. Read first |
 | [layout.md](layout.md) | What every directory at the root is for, dotfiles included |
-| [architecture.md](architecture.md) | Where the code lives, the two GraphQL surfaces, the shape every domain package follows |
+| [architecture.md](architecture.md) | Where the code lives, the GraphQL surfaces and the Signals wire contract, the shape every domain package follows |
 | [workflow.md](workflow.md) | Daily commands, the Docker setup, what to regenerate after a schema change, which apps run |
 | [conventions.md](conventions.md) | House rules per app - the dashboard's staged-save convention most of all |
 | [commerce-model.md](commerce-model.md) | Per-domain engineering notes and footguns |
