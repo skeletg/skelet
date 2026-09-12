@@ -11,11 +11,11 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/fx"
 
-	graphsignals "github.com/skeletg/skelet/apps/backend/graph/signals"
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/audit"
 	"github.com/skeletg/skelet/apps/backend/internal/backup"
+	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/internal/campaign"
 	"github.com/skeletg/skelet/apps/backend/internal/cart"
@@ -89,6 +89,7 @@ type jobDeps struct {
 	Backup       *backup.Service
 	Destination  *destination.Service
 	Recorder     *analytics.Recorder
+	Behavioral   *behavioralsegment.Service
 	SendLog      *sendlog.Store
 	Order        *order.Service
 	Payment      *paymentpkg.Service
@@ -358,13 +359,15 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 						}
 						return def
 					}
-					_, _, _ = graphsignals.SyncAffinitySegments(ctx, d.Recorder, d.Segment, cids, auto, // best-effort - a sync failure must not abort the membership refresh below
-						cfg("pulse/synapse/affinity_segment_min_actors", 5),
-						cfg("pulse/synapse/affinity_segment_max_values", 20),
-						cfg("pulse/synapse/affinity_segment_window_days", 90), now)
+					_, _, _ = d.Behavioral.SyncAffinity(ctx, behavioralsegment.AffinitySyncOptions{ // best-effort - a sync failure must not abort the membership refresh below
+						Channels: cids, Attributes: auto,
+						MinActors:  cfg("pulse/synapse/affinity_segment_min_actors", 5),
+						MaxValues:  cfg("pulse/synapse/affinity_segment_max_values", 20),
+						WindowDays: cfg("pulse/synapse/affinity_segment_window_days", 90),
+					}, now)
 				}
 			}
-			_, err := graphsignals.RefreshDefinedSegments(ctx, d.Recorder, d.Segment, now, func(ch, cust uuid.UUID, slug string) {
+			_, err := d.Behavioral.RefreshAll(ctx, now, func(ch, cust uuid.UUID, slug string) {
 				d.Flow.OnSegmentEntered(ctx, ch, cust, slug)
 			})
 			return err

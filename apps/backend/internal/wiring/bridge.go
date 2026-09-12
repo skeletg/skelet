@@ -16,6 +16,7 @@ import (
 	authpkg "github.com/skeletg/skelet/apps/backend/internal/auth"
 	"github.com/skeletg/skelet/apps/backend/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/internal/backup"
+	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/internal/campaign"
 	"github.com/skeletg/skelet/apps/backend/internal/cart"
@@ -163,6 +164,7 @@ type Svcs struct {
 
 	SignalsStack   *signalsboot.Stack
 	Recorder       *analytics.Recorder
+	Behavioral     *behavioralsegment.Service
 	SignalsEnabled SignalsEnabled
 	Geo            *geo.Resolver
 	TrafficRollup  *analytics.TrafficRollup
