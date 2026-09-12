@@ -160,3 +160,43 @@ func propsJSON(p map[string]any) string {
 	}
 	return string(b)
 }
+
+// RosterPage is one batch of core's customers on the way to the suite
+type RosterPage struct {
+	CustomerIDs []uuid.UUID
+	ChannelIDs  []uuid.UUID
+}
+
+// PushCustomerRoster streams core's whole customer list across. next yields pages until it returns
+// none; the suite sweeps what the stream did not carry, so an error partway leaves its copy alone
+func (c *Client) PushCustomerRoster(ctx context.Context, next func() (RosterPage, bool, error)) (synced, pruned int32, err error) {
+	sys, err := c.System(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	stream, err := c.Ingest.SyncCustomerRoster(sys)
+	if err != nil {
+		return 0, 0, err
+	}
+	for {
+		page, more, err := next()
+		if err != nil {
+			return 0, 0, err // abandoning the stream is what stops the suite pruning on a partial read
+		}
+		if !more {
+			break
+		}
+		entries := make([]*signalsv1.RosterEntry, 0, len(page.CustomerIDs))
+		for i, id := range page.CustomerIDs {
+			entries = append(entries, &signalsv1.RosterEntry{CustomerId: id.String(), ChannelId: page.ChannelIDs[i].String()})
+		}
+		if err := stream.Send(&signalsv1.SyncCustomerRosterRequest{Customers: entries}); err != nil {
+			return 0, 0, err
+		}
+	}
+	res, err := stream.CloseAndRecv()
+	if err != nil {
+		return 0, 0, err
+	}
+	return res.GetSynced(), res.GetPruned(), nil
+}

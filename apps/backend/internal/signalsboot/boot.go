@@ -15,7 +15,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/analytics/spinech"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics/spinequeue"
 	"github.com/skeletg/skelet/apps/backend/internal/backup"
-	"github.com/skeletg/skelet/apps/backend/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
@@ -102,19 +101,16 @@ func (s *Stack) Close() {
 
 // TraitComputeJob is the shared trait-compute body (RFM / lifecycle / engagement), owned by cmd/signals under SIGNALS_JOBS_EXTERNAL and by cmd/server otherwise
 // Lifecycle windows are per-channel so staging matches the catalog's repurchase cadence (tire shop >> consumables), falling back to the registered defaults
-func TraitComputeJob(rec *analytics.Recorder, channels *channel.Service, cfgSvc *config.Service) func(context.Context) error {
+// Core pushes the roster on its own schedule, so a customer added since the last push gets their first trait row on the next run
+func TraitComputeJob(rec *analytics.Recorder, cfgSvc *config.Service) func(context.Context) error {
 	return func(ctx context.Context) error {
-		// One sync for every channel, ahead of the per-channel recompute the roster drives - a customer missing from it gets no trait row
-		if err := rec.SyncRoster(ctx); err != nil {
-			return err
-		}
-		chs, err := channels.List(ctx)
+		chs, err := rec.RosterChannels(ctx)
 		if err != nil {
 			return err
 		}
 		now := time.Now()
-		for _, ch := range chs {
-			sc := config.Scope{Kind: config.ScopeChannel, ChannelID: &ch.ID}
+		for _, chID := range chs {
+			sc := config.Scope{Kind: config.ScopeChannel, ChannelID: &chID}
 			cfg := func(key string, def int) int {
 				if v, err := cfgSvc.GetInt(ctx, key, sc); err == nil && v > 0 {
 					return int(v)
@@ -126,7 +122,7 @@ func TraitComputeJob(rec *analytics.Recorder, channels *channel.Service, cfgSvc 
 				ActiveDays: cfg("pulse/synapse/lifecycle_active_days", 90),
 				AtRiskDays: cfg("pulse/synapse/lifecycle_at_risk_days", 180),
 			}
-			if _, err := rec.ComputeTraits(ctx, ch.ID, now, lc); err != nil {
+			if _, err := rec.ComputeTraits(ctx, chID, now, lc); err != nil {
 				return err
 			}
 		}

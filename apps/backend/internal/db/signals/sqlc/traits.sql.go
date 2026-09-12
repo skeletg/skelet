@@ -219,6 +219,35 @@ func (q *Queries) ChannelOrderAggregates(ctx context.Context, channelID uuid.Nul
 	return items, nil
 }
 
+const channelRosterCustomerIDs = `-- name: ChannelRosterCustomerIDs :many
+SELECT customer_id FROM customer_roster WHERE channel_id = $1
+`
+
+// Every customer id in a channel - the universe a behavioral segment draws from, for evaluating a
+// negated node (NOT X is the universe minus X)
+func (q *Queries) ChannelRosterCustomerIDs(ctx context.Context, channelID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, channelRosterCustomerIDs, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var customer_id uuid.UUID
+		if err := rows.Scan(&customer_id); err != nil {
+			return nil, err
+		}
+		items = append(items, customer_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const clearChannelEngagement = `-- name: ClearChannelEngagement :exec
 DELETE FROM customer_engagement_30d WHERE channel_id = $1
 `
@@ -736,6 +765,35 @@ func (q *Queries) RfmDistributionForCustomers(ctx context.Context, customerIds [
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const rosterChannels = `-- name: RosterChannels :many
+SELECT DISTINCT channel_id FROM customer_roster
+`
+
+// The channels the roster covers - what the trait recompute iterates, since a channel with no
+// customers has nothing to compute
+func (q *Queries) RosterChannels(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, rosterChannels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var channel_id uuid.UUID
+		if err := rows.Scan(&channel_id); err != nil {
+			return nil, err
+		}
+		items = append(items, channel_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

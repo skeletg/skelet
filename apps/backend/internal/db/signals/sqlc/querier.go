@@ -82,6 +82,9 @@ type Querier interface {
 	// status filter did at read time and an append-only log has to do by netting instead
 	// Guest orders carry no customer_id and are skipped, matching the commerce join
 	ChannelOrderAggregates(ctx context.Context, channelID uuid.NullUUID) ([]ChannelOrderAggregatesRow, error)
+	// Every customer id in a channel - the universe a behavioral segment draws from, for evaluating a
+	// negated node (NOT X is the universe minus X)
+	ChannelRosterCustomerIDs(ctx context.Context, channelID uuid.UUID) ([]uuid.UUID, error)
 	// Wipe a channel's engagement projection - the empty-refresh case (no active
 	// customers in the window)
 	ClearChannelEngagement(ctx context.Context, channelID uuid.UUID) error
@@ -462,6 +465,9 @@ type Querier interface {
 	// resolved across anon + identity. Window length is the store's return cadence.
 	ReturnWindowStats(ctx context.Context, arg ReturnWindowStatsParams) (ReturnWindowStatsRow, error)
 	RfmDistributionForCustomers(ctx context.Context, customerIds []uuid.UUID) ([]RfmDistributionForCustomersRow, error)
+	// The channels the roster covers - what the trait recompute iterates, since a channel with no
+	// customers has nothing to compute
+	RosterChannels(ctx context.Context) ([]uuid.UUID, error)
 	// Spine half of the app-side SegmentTopAffinities read: top attr:<slug> = value
 	// among a segment's members (their customer ids passed in - the commerce half,
 	// customer_segment_memberships, lives in the commerce db). Distinct-member counts,

@@ -6,6 +6,10 @@ package signalsgrpc
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
+
+	"github.com/google/uuid"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -137,4 +141,42 @@ func requireSystem(ctx context.Context) error {
 		return status.Error(codes.PermissionDenied, "this method takes a system token")
 	}
 	return nil
+}
+
+// SyncCustomerRoster takes core's whole customer list as a stream. The sweep runs only once the
+// stream has ended cleanly, so a push that dies partway leaves the roster as it was rather than
+// emptying it and taking every trait and membership with it
+func (s *ingestServer) SyncCustomerRoster(stream signalsv1.IngestService_SyncCustomerRosterServer) error {
+	if err := requireSystem(stream.Context()); err != nil {
+		return err
+	}
+	sync := s.rec.BeginRosterSync()
+	for {
+		page, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return err // the client gave up, so nothing is pruned
+		}
+		customers := make([]uuid.UUID, 0, len(page.GetCustomers()))
+		channels := make([]uuid.UUID, 0, len(page.GetCustomers()))
+		for _, e := range page.GetCustomers() {
+			cust, cerr := uuid.Parse(e.GetCustomerId())
+			ch, cherr := uuid.Parse(e.GetChannelId())
+			if cerr != nil || cherr != nil {
+				return invalidArgument("roster entry carries an unparseable id")
+			}
+			customers = append(customers, cust)
+			channels = append(channels, ch)
+		}
+		if err := sync.Page(stream.Context(), customers, channels); err != nil {
+			return err
+		}
+	}
+	synced, pruned, err := sync.Commit(stream.Context())
+	if err != nil {
+		return err
+	}
+	return stream.SendAndClose(&signalsv1.SyncCustomerRosterResponse{Synced: int32(synced), Pruned: int32(pruned)})
 }

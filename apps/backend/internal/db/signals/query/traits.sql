@@ -365,3 +365,13 @@ SELECT COALESCE(SUM(order_count), 0)::bigint    AS orders,
        COALESCE(SUM(monetary_cents), 0)::bigint AS revenue_cents
 FROM customer_order_agg
 WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]);
+
+-- name: RosterChannels :many
+-- The channels the roster covers - what the trait recompute iterates, since a channel with no
+-- customers has nothing to compute
+SELECT DISTINCT channel_id FROM customer_roster;
+
+-- name: ChannelRosterCustomerIDs :many
+-- Every customer id in a channel - the universe a behavioral segment draws from, for evaluating a
+-- negated node (NOT X is the universe minus X)
+SELECT customer_id FROM customer_roster WHERE channel_id = sqlc.arg(channel_id);
