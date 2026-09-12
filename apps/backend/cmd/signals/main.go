@@ -93,7 +93,7 @@ func run() error {
 	}()
 
 	primaryConn, sigConn := d.DB, d.SignalsPool.DB
-	configSvc, channelSvc := d.ConfigSvc, d.ChannelSvc
+	configSvc := d.ConfigSvc
 	stack := d.Stack
 	rec, chPing := stack.Recorder, stack.CHPing
 	lensSvc := d.Lens
@@ -107,7 +107,7 @@ func run() error {
 		wg.Go(func() { wiring.SuperviseLoop(ctx, func(ctx context.Context) { runForwarding(ctx, destSvc) }) })
 		wg.Go(func() {
 			wiring.SuperviseLoop(ctx, func(ctx context.Context) {
-				runTraitCompute(ctx, signalsboot.TraitComputeJob(rec, channelSvc, configSvc))
+				runTraitCompute(ctx, signalsboot.TraitComputeJob(rec, configSvc))
 			})
 		})
 	} else {

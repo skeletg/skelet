@@ -43,6 +43,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/internal/urlrewrite"
@@ -61,38 +62,39 @@ type jobDeps struct {
 	Wcfg    Config
 	Queries *db.Queries
 
-	Config       *config.Service
-	Audit        *audit.Service
-	Notification *notification.Service
-	SiteCrawl    *sitecrawl.Service
-	LinkGraph    *linkgraph.Service
-	Webhook      *webhook.Service
-	Catalog      *catalog.Service
-	MediaLibrary *medialibrary.Service
-	Subscription *subscription.Service
-	Lens         *lens.Service
-	Chat         *chat.Service
-	AI           *ai.Service
-	Review       *review.Service
-	Campaign     *campaign.Service
-	Flow         *flow.Service
-	Inventory    *inventory.Service
-	CacheQueue   *revalidate.Queue
-	Cart         *cart.Service
-	Channel      *channel.Service
-	URLRewrite   *urlrewrite.Service
-	CMS          *cms.Service
-	Blog         *blog.Service
-	Currency     *currency.Service
-	DataJob      *datajob.Service
-	Segment      *segment.Service
-	Backup       *backup.Service
-	Destination  *destination.Service
-	Recorder     *analytics.Recorder
-	Behavioral   *behavioralsegment.Service
-	SendLog      *sendlog.Store
-	Order        *order.Service
-	Payment      *paymentpkg.Service
+	Config        *config.Service
+	Audit         *audit.Service
+	Notification  *notification.Service
+	SiteCrawl     *sitecrawl.Service
+	LinkGraph     *linkgraph.Service
+	Webhook       *webhook.Service
+	Catalog       *catalog.Service
+	MediaLibrary  *medialibrary.Service
+	Subscription  *subscription.Service
+	Lens          *lens.Service
+	Chat          *chat.Service
+	AI            *ai.Service
+	Review        *review.Service
+	Campaign      *campaign.Service
+	Flow          *flow.Service
+	Inventory     *inventory.Service
+	CacheQueue    *revalidate.Queue
+	Cart          *cart.Service
+	Channel       *channel.Service
+	URLRewrite    *urlrewrite.Service
+	CMS           *cms.Service
+	Blog          *blog.Service
+	Currency      *currency.Service
+	DataJob       *datajob.Service
+	Segment       *segment.Service
+	Backup        *backup.Service
+	Destination   *destination.Service
+	Recorder      *analytics.Recorder
+	Behavioral    *behavioralsegment.Service
+	SignalsClient *signalsclient.Client
+	SendLog       *sendlog.Store
+	Order         *order.Service
+	Payment       *paymentpkg.Service
 
 	SignalsEnabled SignalsEnabled
 }
@@ -372,8 +374,36 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 			})
 			return err
 		})
+	// Core owns customers, so core pushes them - the suite sweeps what the stream did not carry, which is the cascade a foreign key cannot give it across two databases
+	signalsJob("customer-roster-push", "@every 6h", "Stream core's customer list to Signals, so its trait and membership cleanup can tell a deleted customer from an absent one.",
+		func(ctx context.Context) error {
+			const page = 5000
+			var off int32
+			next := func() (signalsclient.RosterPage, bool, error) {
+				rows, err := d.Queries.CustomerRosterForSync(ctx, db.CustomerRosterForSyncParams{Lim: page, Off: off})
+				if err != nil || len(rows) == 0 {
+					return signalsclient.RosterPage{}, false, err
+				}
+				off += page
+				out := signalsclient.RosterPage{
+					CustomerIDs: make([]uuid.UUID, len(rows)), ChannelIDs: make([]uuid.UUID, len(rows)),
+				}
+				for i, c := range rows {
+					out.CustomerIDs[i], out.ChannelIDs[i] = c.CustomerID, c.ChannelID
+				}
+				return out, true, nil
+			}
+			synced, pruned, err := d.SignalsClient.PushCustomerRoster(ctx, next)
+			if err != nil {
+				return err
+			}
+			if pruned > 0 {
+				log.Printf("[roster] pushed %d customers, %d gone", synced, pruned)
+			}
+			return nil
+		})
 	signalsWorkerJob("trait-compute", "@every 12h", "Recompute per-customer RFM / lifecycle / engagement traits (Synapse → shared across Signals).", // body shared with cmd/signals, which owns this job under SIGNALS_JOBS_EXTERNAL - pure DB compute with no flow-enrollment side effects, unlike the two jobs above
-		signalsboot.TraitComputeJob(d.Recorder, d.Channel, d.Config))
+		signalsboot.TraitComputeJob(d.Recorder, d.Config))
 	retentionJob("lens-prune", "@every 24h", "Age out Lens web-analytics events + heatmap grids + page snapshots past the retention window (replay and per-day rollups run their own windows).",
 		signalsboot.LensPruneJob(d.Config, d.Lens))
 	if d.AI.Enabled() {

@@ -703,7 +703,7 @@ func (s *pgSpine) EventActors(ctx context.Context, channelID uuid.UUID, event st
 }
 
 func (r *Recorder) ChannelCustomerIDs(ctx context.Context, channelID uuid.UUID) ([]uuid.UUID, error) { // the universe a segment-definition tree draws from, needed to evaluate negated or standalone-OR nodes, where NOT X is the universe minus X
-	return r.read().ChannelCustomerIDs(ctx, channelID)
+	return r.qs.ChannelRosterCustomerIDs(ctx, channelID)
 }
 
 // Distinct non-cancelled orders and total spend in cents for the detail page, off the spine projection

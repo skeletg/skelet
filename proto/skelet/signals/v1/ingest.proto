@@ -14,6 +14,25 @@ service IngestService {
   rpc RecordEmailSent(RecordEmailSentRequest) returns (RecordEmailSentResponse);
   rpc RecordEmailOpen(RecordEmailOpenRequest) returns (RecordEmailOpenResponse);
   rpc RecordEmailClick(RecordEmailClickRequest) returns (RecordEmailClickResponse);
+  // Core streams its customers across; the suite keeps the copy its trait and membership
+  // cleanup joins against, a foreign key being unable to span the two databases
+  rpc SyncCustomerRoster(stream SyncCustomerRosterRequest) returns (SyncCustomerRosterResponse);
+}
+
+message RosterEntry {
+  string customer_id = 1;
+  string channel_id = 2;
+}
+
+// One page of the roster - the stream is the whole of it, and a stream that ends early prunes nothing
+message SyncCustomerRosterRequest {
+  repeated RosterEntry customers = 1;
+}
+
+message SyncCustomerRosterResponse {
+  int32 synced = 1;
+  // Customers the stream did not carry, whose traits and memberships went with them
+  int32 pruned = 2;
 }
 
 // The send an engagement belongs to, reduced to what the spine stores - core keeps the send log itself
