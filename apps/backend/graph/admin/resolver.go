@@ -29,14 +29,12 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/emailtemplate"
-	"github.com/skeletg/skelet/apps/backend/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/internal/flow"
 	"github.com/skeletg/skelet/apps/backend/internal/form"
 	"github.com/skeletg/skelet/apps/backend/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/internal/health"
 	"github.com/skeletg/skelet/apps/backend/internal/integration"
 	"github.com/skeletg/skelet/apps/backend/internal/inventory"
-	"github.com/skeletg/skelet/apps/backend/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/internal/linkgraph"
 	"github.com/skeletg/skelet/apps/backend/internal/locale"
 	"github.com/skeletg/skelet/apps/backend/internal/loyalty"
@@ -57,6 +55,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/searchmerch"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/internal/subscription"
@@ -115,21 +114,21 @@ type Resolver struct {
 	CampaignSvc       *campaign.Service
 	FlowSvc           *flow.Service
 	AnalyticsSvc      *analytics.Recorder
-	LensSvc           *lens.Service
-	ExperimentSvc     *experiment.Service
-	NotificationSvc   *notification.Service
-	NotificationHub   *notification.Hub // live push fan-out for the notificationAdded subscription
-	SuppressionSvc    *suppression.Service
-	FormSvc           *form.Service
-	WebFormSvc        *webform.Service
-	ChatSvc           *chat.Service
-	CacheClient       *revalidate.Client
-	CacheQueue        *revalidate.Queue
-	RefreshStore      *auth.RefreshStore // admin refresh tokens
-	BlogPreviewStore  *preview.Store     // short-lived blog preview tokens
-	CMSPreviewStore   *preview.Store     // short-lived CMS page preview tokens
-	JWTSecret         string
-	JWTTTL            time.Duration
+	// Core's plug into the Signals service - the chat reads the suite through it rather than holding its services
+	SignalsAPI       *signalsclient.Client
+	NotificationSvc  *notification.Service
+	NotificationHub  *notification.Hub // live push fan-out for the notificationAdded subscription
+	SuppressionSvc   *suppression.Service
+	FormSvc          *form.Service
+	WebFormSvc       *webform.Service
+	ChatSvc          *chat.Service
+	CacheClient      *revalidate.Client
+	CacheQueue       *revalidate.Queue
+	RefreshStore     *auth.RefreshStore // admin refresh tokens
+	BlogPreviewStore *preview.Store     // short-lived blog preview tokens
+	CMSPreviewStore  *preview.Store     // short-lived CMS page preview tokens
+	JWTSecret        string
+	JWTTTL           time.Duration
 
 	RateLimiter   ratelimit.Limiter   // shares the Valkey-backed counters with the storefront limiter so every pod sees the same budget - nil disables the check, which is what tests do
 	AuthLimiter   ratelimit.Limiter   // tighter limiter for the admin login surface

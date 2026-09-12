@@ -67,6 +67,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/internal/sms"
 	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
@@ -167,6 +168,7 @@ type Svcs struct {
 	TrafficRollup  *analytics.TrafficRollup
 	Experiment     *experiment.Service
 	Lens           *lens.Service
+	SignalsClient  *signalsclient.Client
 
 	MediaStorage    *media.Storage
 	MediaLibrary    *medialibrary.Service

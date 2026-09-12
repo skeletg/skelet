@@ -26,10 +26,11 @@ const (
 )
 
 type LensPageStat struct {
-	state    protoimpl.MessageState `protogen:"open.v1"`
-	PageKey  string                 `protobuf:"bytes,1,opt,name=page_key,json=pageKey,proto3" json:"page_key,omitempty"`
-	Views    int32                  `protobuf:"varint,2,opt,name=views,proto3" json:"views,omitempty"`
-	Visitors int32                  `protobuf:"varint,3,opt,name=visitors,proto3" json:"visitors,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	PageKey string                 `protobuf:"bytes,1,opt,name=page_key,json=pageKey,proto3" json:"page_key,omitempty"`
+	Views   int32                  `protobuf:"varint,2,opt,name=views,proto3" json:"views,omitempty"`
+	// 0 on the overview - that rollup counts views per page, uniques only channel-wide
+	Visitors int32 `protobuf:"varint,3,opt,name=visitors,proto3" json:"visitors,omitempty"`
 	// Cumulative across the whole grid, not the window
 	Clicks int32 `protobuf:"varint,4,opt,name=clicks,proto3" json:"clicks,omitempty"`
 	// 0..100, cumulative

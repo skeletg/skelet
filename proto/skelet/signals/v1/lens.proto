@@ -32,6 +32,7 @@ service LensService {
 message LensPageStat {
   string page_key = 1;
   int32 views = 2;
+  // 0 on the overview - that rollup counts views per page, uniques only channel-wide
   int32 visitors = 3;
   // Cumulative across the whole grid, not the window
   int32 clicks = 4;

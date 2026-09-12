@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/internal/sales"
+	signalsv1 "github.com/skeletg/skelet/apps/backend/internal/signalspb/skelet/signals/v1"
 )
 
 func pctDelta(cur, prev int64) float64 {
@@ -74,15 +75,19 @@ func buildInsights(ctx context.Context, r *Resolver, cid uuid.UUID, days int, p 
 	}
 
 	if p.prism {
-		if ov, err := r.ExperimentSvc.Overview(ctx, cid, since); err == nil && ov.Decided > 0 {
-			add("good", "Experiment decided",
-				fmt.Sprintf("%d running experiment(s) reached a significant winner - consider rolling out.", ov.Decided))
+		if authed, aerr := signalsCall(ctx, r); aerr == nil {
+			if ov, err := r.SignalsAPI.Prism.GetExperimentsOverview(authed, &signalsv1.GetExperimentsOverviewRequest{ChannelId: cid.String(), SinceDays: int32(days)}); err == nil && ov.GetDecided() > 0 {
+				add("good", "Experiment decided",
+					fmt.Sprintf("%d running experiment(s) reached a significant winner - consider rolling out.", ov.GetDecided()))
+			}
 		}
 	}
 
 	if p.lens {
-		if ov, err := r.LensSvc.Overview(ctx, cid, since); err == nil && ov.Visitors > 0 {
-			add("info", "Traffic", fmt.Sprintf("%d visitors / %d page views in the last %dd.", ov.Visitors, ov.Views, days))
+		if authed, aerr := signalsCall(ctx, r); aerr == nil {
+			if ov, err := r.SignalsAPI.Lens.GetOverview(authed, &signalsv1.GetOverviewRequest{ChannelId: cid.String(), SinceDays: int32(days)}); err == nil && ov.GetVisitors() > 0 {
+				add("info", "Traffic", fmt.Sprintf("%d visitors / %d page views in the last %dd.", ov.GetVisitors(), ov.GetViews(), days))
+			}
 		}
 	}
 
