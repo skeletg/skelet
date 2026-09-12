@@ -4,11 +4,27 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 )
+
+// Configured but never dialled - grpc.NewClient connects lazily, so this stands in for a reachable suite
+func dialableSignals(t *testing.T) *signalsclient.Client {
+	t.Helper()
+	c, err := signalsclient.New("127.0.0.1:1", "test-secret", time.Minute, nil)
+	if err != nil {
+		t.Fatalf("signalsclient.New: %v", err)
+	}
+	if c == nil {
+		t.Fatal("an addressed client should not be nil")
+	}
+	return c
+}
 
 func TestPermittedTools(t *testing.T) {
 	got := permittedTools(digestPerms{sales: true, lens: true}, true)
@@ -149,9 +165,15 @@ func TestSignalsSectionsFollowTheSwitch(t *testing.T) {
 	ctx := auth.WithAdmin(context.Background(), &auth.Claims{AdminID: uuid.New(), IsSuperuser: true})
 	cid := uuid.New()
 
-	on := digestPermsFor(ctx, &Resolver{SignalsEnabled: true}, cid)
+	on := digestPermsFor(ctx, &Resolver{SignalsEnabled: true, SignalsAPI: dialableSignals(t)}, cid)
 	if !on.lens || !on.synapse || !on.pulse || !on.prism {
 		t.Fatalf("a superuser should see every suite section with the switch on, got %+v", on)
+	}
+
+	// The switch is not the only way the suite goes away - with no service to dial there is nothing to offer either
+	unaddressed := digestPermsFor(ctx, &Resolver{SignalsEnabled: true}, cid)
+	if unaddressed.lens || unaddressed.synapse || unaddressed.pulse || unaddressed.prism {
+		t.Errorf("suite sections should be off with no Signals address configured, got %+v", unaddressed)
 	}
 
 	off := digestPermsFor(ctx, &Resolver{SignalsEnabled: false}, cid)

@@ -12,6 +12,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
 	"github.com/skeletg/skelet/apps/backend/internal/sales"
+	signalsv1 "github.com/skeletg/skelet/apps/backend/internal/signalspb/skelet/signals/v1"
 )
 
 // The raw provider error can carry the provider host and status, so it goes to the log and the dashboard gets a generic one
@@ -29,8 +30,8 @@ func digestPermsFor(ctx context.Context, r *Resolver, cid uuid.UUID) digestPerms
 		pc, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, perm)
 		return err == nil && (pc.Bypass() || pc.Allows(cid))
 	}
-	// The four suite sections read the spine and the signals database, so with SIGNALS_ENABLED=false they are not offered at all - the model never sees the tool, rather than calling it and getting an empty answer back
-	signals := func(perm string) bool { return r.SignalsEnabled && allows(perm) }
+	// With the suite switched off or unaddressed the model is never offered a tool whose data does not exist
+	signals := func(perm string) bool { return r.SignalsEnabled && r.SignalsAPI != nil && allows(perm) }
 	return digestPerms{
 		sales:         allows("reports.view"),
 		lens:          signals("lens.view"),
@@ -152,22 +153,22 @@ func pageContextLine(page *model.SignalsChatPage) string {
 }
 
 // Every section is best-effort - a read failure drops that section rather than failing the chat
-func buildSignalsDigest(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, p digestPerms, maxChars int) string {
+func buildSignalsDigest(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, days int, p digestPerms, maxChars int) string {
 	var b strings.Builder
 	if p.sales {
 		writeSalesDigest(ctx, r, cid, since, &b)
 	}
 	if p.lens {
-		writeLensDigest(ctx, r, cid, since, &b)
+		writeLensDigest(ctx, r, cid, days, &b)
 	}
 	if p.synapse {
-		writeSynapseDigest(ctx, r, cid, since, &b)
+		writeSynapseDigest(ctx, r, cid, days, &b)
 	}
 	if p.pulse {
-		writePulseDigest(ctx, r, cid, since, &b)
+		writePulseDigest(ctx, r, cid, days, &b)
 	}
 	if p.prism {
-		writePrismDigest(ctx, r, cid, since, &b)
+		writePrismDigest(ctx, r, cid, days, &b)
 	}
 	out := strings.TrimSpace(b.String())
 	if maxChars <= 0 {
@@ -218,123 +219,135 @@ func writeSalesDigest(ctx context.Context, r *Resolver, cid uuid.UUID, since tim
 	b.WriteString("\n")
 }
 
-func writeLensDigest(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, b *strings.Builder) {
-	ov, err := r.LensSvc.Overview(ctx, cid, since)
+func writeLensDigest(ctx context.Context, r *Resolver, cid uuid.UUID, days int, b *strings.Builder) {
+	authed, err := signalsCall(ctx, r)
+	if err != nil {
+		return
+	}
+	ov, err := r.SignalsAPI.Lens.GetOverview(authed, &signalsv1.GetOverviewRequest{ChannelId: cid.String(), SinceDays: int32(days)})
 	if err != nil {
 		return
 	}
 	b.WriteString("## Lens (web traffic)\n")
-	fmt.Fprintf(b, "- %d page views, %d unique visitors\n", ov.Views, ov.Visitors)
-	if len(ov.TopPages) > 0 {
+	fmt.Fprintf(b, "- %d page views, %d unique visitors\n", ov.GetViews(), ov.GetVisitors())
+	if len(ov.GetTopPages()) > 0 {
 		parts := make([]string, 0, 5)
-		for i, pg := range ov.TopPages {
+		for i, pg := range ov.GetTopPages() {
 			if i >= 5 {
 				break
 			}
-			parts = append(parts, fmt.Sprintf("%s (%d views)", pg.PageKey, pg.Views))
+			parts = append(parts, fmt.Sprintf("%s (%d views)", pg.GetPageKey(), pg.GetViews()))
 		}
 		fmt.Fprintf(b, "Top pages: %s\n", strings.Join(parts, "; "))
 	}
-	if len(ov.Devices) > 0 {
-		parts := make([]string, 0, len(ov.Devices))
-		for _, d := range ov.Devices {
-			parts = append(parts, fmt.Sprintf("%s=%d", d.Label, d.Views))
+	if len(ov.GetDevices()) > 0 {
+		parts := make([]string, 0, len(ov.GetDevices()))
+		for _, d := range ov.GetDevices() {
+			parts = append(parts, fmt.Sprintf("%s=%d", d.GetLabel(), d.GetViews()))
 		}
 		fmt.Fprintf(b, "Devices: %s\n", strings.Join(parts, ", "))
 	}
-	if len(ov.Referrers) > 0 {
+	if len(ov.GetReferrers()) > 0 {
 		parts := make([]string, 0, 5)
-		for i, rf := range ov.Referrers {
+		for i, rf := range ov.GetReferrers() {
 			if i >= 5 {
 				break
 			}
-			parts = append(parts, fmt.Sprintf("%s (%d)", rf.Label, rf.Views))
+			parts = append(parts, fmt.Sprintf("%s (%d)", rf.GetLabel(), rf.GetViews()))
 		}
 		fmt.Fprintf(b, "Top referrers: %s\n", strings.Join(parts, "; "))
 	}
-	if vitals, err := r.LensSvc.VitalsOverall(ctx, cid, since); err == nil && len(vitals) > 0 {
-		parts := make([]string, 0, len(vitals))
-		for _, v := range vitals {
-			parts = append(parts, fmt.Sprintf("%s p75=%.0f", v.Metric, v.P75))
+	if vs, err := r.SignalsAPI.Lens.GetVitalsSummary(authed, &signalsv1.GetVitalsSummaryRequest{ChannelId: cid.String(), SinceDays: int32(days)}); err == nil && len(vs.GetVitals()) > 0 {
+		parts := make([]string, 0, len(vs.GetVitals()))
+		for _, v := range vs.GetVitals() {
+			parts = append(parts, fmt.Sprintf("%s p75=%.0f", v.GetMetric(), v.GetP75()))
 		}
 		fmt.Fprintf(b, "Web vitals: %s\n", strings.Join(parts, ", "))
 	}
 	b.WriteString("\n")
 }
 
-func writeSynapseDigest(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, b *strings.Builder) {
-	ov, err := r.AnalyticsSvc.SynapseOverview(ctx, cid, since)
+func writeSynapseDigest(ctx context.Context, r *Resolver, cid uuid.UUID, days int, b *strings.Builder) {
+	authed, err := signalsCall(ctx, r)
+	if err != nil {
+		return
+	}
+	ov, err := r.SignalsAPI.Synapse.GetSynapseOverview(authed, &signalsv1.GetSynapseOverviewRequest{ChannelId: cid.String(), SinceDays: int32(days)})
 	if err != nil {
 		return
 	}
 	b.WriteString("## Synapse (customer behaviour)\n")
 	fmt.Fprintf(b, "- %d events, %d page views, %d conversions, %d identified customers, %d anonymous visitors\n",
-		ov.TotalEvents, ov.PageViews, ov.Conversions, ov.IdentifiedCustomers, ov.AnonymousVisitors)
-	for _, rev := range ov.Revenue {
-		fmt.Fprintf(b, "Tracked revenue: %s across %d orders\n", fmtMoney(rev.Cents, rev.Currency), rev.Orders)
+		ov.GetTotalEvents(), ov.GetPageViews(), ov.GetConversions(), ov.GetIdentifiedCustomers(), ov.GetAnonymousVisitors())
+	for _, rev := range ov.GetRevenue() {
+		fmt.Fprintf(b, "Tracked revenue: %s across %d orders\n", fmtMoney(rev.GetCents(), rev.GetCurrency()), rev.GetOrders())
 	}
-	if len(ov.TopEvents) > 0 {
+	if len(ov.GetTopEvents()) > 0 {
 		parts := make([]string, 0, 8)
-		for i, e := range ov.TopEvents {
+		for i, e := range ov.GetTopEvents() {
 			if i >= 8 {
 				break
 			}
-			parts = append(parts, fmt.Sprintf("%s=%d", e.Name, e.Count))
+			parts = append(parts, fmt.Sprintf("%s=%d", e.GetName(), e.GetCount()))
 		}
 		fmt.Fprintf(b, "Top events: %s\n", strings.Join(parts, ", "))
 	}
-	if segs, _, err := r.SegmentSvc.List(ctx, 50, 0); err == nil && len(segs) > 0 {
-		ids := make([]uuid.UUID, len(segs))
-		for i, sg := range segs {
-			ids[i] = sg.ID
-		}
-		counts, _ := r.SegmentSvc.MemberCounts(ctx, ids)
-		parts := make([]string, 0, len(segs))
-		for _, sg := range segs {
-			parts = append(parts, fmt.Sprintf("%s (%d members)", sg.Name, counts[sg.ID]))
+	if segs, err := r.SignalsAPI.Segments.ListSegments(authed, &signalsv1.ListSegmentsRequest{PageSize: 50}); err == nil && len(segs.GetSegments()) > 0 {
+		parts := make([]string, 0, len(segs.GetSegments()))
+		for _, sg := range segs.GetSegments() {
+			parts = append(parts, fmt.Sprintf("%s (%d members)", sg.GetName(), sg.GetMemberCount()))
 		}
 		fmt.Fprintf(b, "Segments: %s\n", strings.Join(parts, "; "))
 	}
 	b.WriteString("\n")
 }
 
-func writePulseDigest(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, b *strings.Builder) {
-	e, err := r.AnalyticsSvc.Engagement(ctx, cid, since)
+func writePulseDigest(ctx context.Context, r *Resolver, cid uuid.UUID, days int, b *strings.Builder) {
+	authed, err := signalsCall(ctx, r)
+	if err != nil {
+		return
+	}
+	e, err := r.SignalsAPI.Pulse.GetEngagement(authed, &signalsv1.GetEngagementRequest{ChannelId: cid.String(), SinceDays: int32(days)})
 	if err != nil {
 		return
 	}
 	b.WriteString("## Pulse (email engagement)\n")
-	fmt.Fprintf(b, "- %d opens (human), %d clicks, %d conversions\n", e.OpensHuman, e.Clicks, e.Conversions)
-	for _, rev := range e.Revenue {
-		fmt.Fprintf(b, "Attributed revenue: %s across %d orders\n", fmtMoney(rev.Cents, rev.Currency), rev.Orders)
+	fmt.Fprintf(b, "- %d opens (human), %d clicks, %d conversions\n", e.GetOpensHuman(), e.GetClicks(), e.GetConversions())
+	for _, rev := range e.GetRevenue() {
+		fmt.Fprintf(b, "Attributed revenue: %s across %d orders\n", fmtMoney(rev.GetCents(), rev.GetCurrency()), rev.GetOrders())
 	}
-	if len(e.TopLinks) > 0 {
+	if len(e.GetTopLinks()) > 0 {
 		parts := make([]string, 0, 5)
-		for i, l := range e.TopLinks {
+		for i, l := range e.GetTopLinks() {
 			if i >= 5 {
 				break
 			}
-			parts = append(parts, fmt.Sprintf("%s (%d clicks)", l.URL, l.Clicks))
+			parts = append(parts, fmt.Sprintf("%s (%d clicks)", l.GetUrl(), l.GetClicks()))
 		}
 		fmt.Fprintf(b, "Top links: %s\n", strings.Join(parts, "; "))
 	}
 	b.WriteString("\n")
 }
 
-func writePrismDigest(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, b *strings.Builder) {
-	ov, err := r.ExperimentSvc.Overview(ctx, cid, since)
+func writePrismDigest(ctx context.Context, r *Resolver, cid uuid.UUID, days int, b *strings.Builder) {
+	authed, err := signalsCall(ctx, r)
 	if err != nil {
 		return
 	}
+	res, err := r.SignalsAPI.Prism.GetExperimentsOverview(authed, &signalsv1.GetExperimentsOverviewRequest{ChannelId: cid.String(), SinceDays: int32(days)})
+	if err != nil {
+		return
+	}
+	ov := res
 	b.WriteString("## Prism (A/B experiments)\n")
-	fmt.Fprintf(b, "- %d running, %d with a decided winner, %d total exposed\n", ov.Running, ov.Decided, ov.TotalExposed)
-	for _, s := range ov.Experiments {
+	fmt.Fprintf(b, "- %d running, %d with a decided winner, %d total exposed\n", ov.GetRunning(), ov.GetDecided(), ov.GetTotalExposed())
+	for _, s := range ov.GetExperiments() {
 		winner := ""
-		if s.Winner != "" {
-			winner = fmt.Sprintf(", winner: %s", s.Winner)
+		if s.GetWinner() != "" {
+			winner = fmt.Sprintf(", winner: %s", s.GetWinner())
 		}
 		fmt.Fprintf(b, "- %s (id %s): leader %q (uplift %.1f%%, chance-to-win %.0f%%)%s\n",
-			s.Experiment.Name, s.Experiment.ID, s.Leader, s.LeaderUplift*100, s.LeaderChanceToWin*100, winner)
+			s.GetName(), s.GetId(), s.GetLeader(), s.GetLeaderUplift()*100, s.GetLeaderChanceToWin()*100, winner)
 	}
 	b.WriteString("\n")
 }

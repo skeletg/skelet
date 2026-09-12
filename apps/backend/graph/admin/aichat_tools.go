@@ -9,13 +9,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/status"
+
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 )
 
 type signalTool struct {
 	def  ai.Tool
 	perm func(digestPerms) bool
-	run  func(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, days int, a toolArgs) string
+	// Both halves of one window - the commerce read-models filter on a timestamp range, the Signals contract takes a day count
+	run func(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, days int, a toolArgs) string
 }
 
 // One bag for every tool, each reading the fields it needs - channel is NEVER in here, it's pinned to the request's
@@ -128,6 +132,20 @@ func signalTools() []signalTool {
 	out = append(out, marketingSignalTools()...)
 	out = append(out, storeConfigSignalTools()...)
 	return out
+}
+
+// The model has to tell "could not ask" from "asked, nothing there"
+// A gRPC status from the service itself is its own message, usually a permission refusal worth relaying
+func signalsUnavailable(err error, what string) string {
+	if signalsclient.Unreachable(err) {
+		return "The Signals service is not reachable right now, so " + what + " could not be read."
+	}
+	return "Could not load " + what + ": " + status.Convert(err).Message()
+}
+
+// Every Signals tool starts here - the caller's own token rides along, so the service refuses what they could not read themselves
+func signalsCall(ctx context.Context, r *Resolver) (context.Context, error) {
+	return r.SignalsAPI.Authed(ctx)
 }
 
 // Runs a digest section writer into a fresh builder so tool output and the snapshot share one formatting

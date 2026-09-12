@@ -55,7 +55,7 @@ func (r *mutationResolver) SignalsChat(ctx context.Context, channelID string, si
 	if useTools {
 		digestCap = 2500
 	}
-	digest := buildSignalsDigest(ctx, r.Resolver, cid, since, perms, digestCap)
+	digest := buildSignalsDigest(ctx, r.Resolver, cid, since, days, perms, digestCap)
 	system := signalsSystemPrompt(days, digest, useTools, pageContextLine(page))
 
 	msgs := make([]ai.ChatMessage, 0, len(messages))
