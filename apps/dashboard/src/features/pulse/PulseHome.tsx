@@ -16,7 +16,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { EmailCampaignsDocument } from '@/features/campaigns/Campaigns.gql'
 import { FlowsDocument } from '@/features/flows/Flows.gql'
 import { LibraryEmailsDocument } from '@/features/emails/Emails.gql'
-import { PulseEngagementDocument } from './Pulse.signals.gql'
+import { PulseEngagementDocument } from './Pulse.gql'
 
 const ACCENT = '#6366f1'
 

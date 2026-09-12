@@ -1146,6 +1146,29 @@ type ComplexityRoot struct {
 		TotalCount func(childComplexity int) int
 	}
 
+	CustomerSegment struct {
+		CreatedAt   func(childComplexity int) int
+		Description func(childComplexity int) int
+		ID          func(childComplexity int) int
+		IsActive    func(childComplexity int) int
+		MemberCount func(childComplexity int) int
+		Members     func(childComplexity int, limit *int32, offset *int32) int
+		Name        func(childComplexity int) int
+		Rules       func(childComplexity int) int
+		Slug        func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+	}
+
+	CustomerSegmentList struct {
+		Items      func(childComplexity int) int
+		TotalCount func(childComplexity int) int
+	}
+
+	CustomerSegmentMember struct {
+		ID       func(childComplexity int) int
+		JoinedAt func(childComplexity int) int
+	}
+
 	CustomerSignals struct {
 		Consents func(childComplexity int) int
 		Email    func(childComplexity int) int
@@ -1356,6 +1379,94 @@ type ComplexityRoot struct {
 		Severity func(childComplexity int) int
 	}
 
+	EventDestination struct {
+		ChannelID       func(childComplexity int) int
+		CreatedAt       func(childComplexity int) int
+		EventNames      func(childComplexity int) int
+		EventSources    func(childComplexity int) int
+		ID              func(childComplexity int) int
+		IsActive        func(childComplexity int) int
+		Kind            func(childComplexity int) int
+		LastError       func(childComplexity int) int
+		LastForwardedAt func(childComplexity int) int
+		Name            func(childComplexity int) int
+		TargetURL       func(childComplexity int) int
+		UpdatedAt       func(childComplexity int) int
+	}
+
+	Experiment struct {
+		ChannelID   func(childComplexity int) int
+		Coverage    func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		GoalEvent   func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Key         func(childComplexity int) int
+		Name        func(childComplexity int) int
+		SegmentSlug func(childComplexity int) int
+		Status      func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+		Variations  func(childComplexity int) int
+	}
+
+	ExperimentResults struct {
+		SampleRatioMismatch func(childComplexity int) int
+		SequentialWinner    func(childComplexity int) int
+		TotalExposed        func(childComplexity int) int
+		TotalRevenue        func(childComplexity int) int
+		Variations          func(childComplexity int) int
+		Winner              func(childComplexity int) int
+	}
+
+	ExperimentSummary struct {
+		Conversions         func(childComplexity int) int
+		Coverage            func(childComplexity int) int
+		ID                  func(childComplexity int) int
+		Key                 func(childComplexity int) int
+		Leader              func(childComplexity int) int
+		LeaderChanceToWin   func(childComplexity int) int
+		LeaderIsControl     func(childComplexity int) int
+		LeaderRate          func(childComplexity int) int
+		LeaderUplift        func(childComplexity int) int
+		Name                func(childComplexity int) int
+		SampleRatioMismatch func(childComplexity int) int
+		TotalExposed        func(childComplexity int) int
+		Variations          func(childComplexity int) int
+		Winner              func(childComplexity int) int
+	}
+
+	ExperimentVariation struct {
+		Key    func(childComplexity int) int
+		Name   func(childComplexity int) int
+		Value  func(childComplexity int) int
+		Weight func(childComplexity int) int
+	}
+
+	ExperimentVariationResult struct {
+		AlwaysValidP          func(childComplexity int) int
+		ChanceToWin           func(childComplexity int) int
+		CiHigh                func(childComplexity int) int
+		CiLow                 func(childComplexity int) int
+		Converted             func(childComplexity int) int
+		Exposed               func(childComplexity int) int
+		IsControl             func(childComplexity int) int
+		Name                  func(childComplexity int) int
+		Rate                  func(childComplexity int) int
+		RevenueCents          func(childComplexity int) int
+		SequentialSignificant func(childComplexity int) int
+		Significant           func(childComplexity int) int
+		Uplift                func(childComplexity int) int
+		Variation             func(childComplexity int) int
+	}
+
+	ExperimentsOverview struct {
+		Decided      func(childComplexity int) int
+		Draft        func(childComplexity int) int
+		Experiments  func(childComplexity int) int
+		Running      func(childComplexity int) int
+		Stopped      func(childComplexity int) int
+		TotalExposed func(childComplexity int) int
+	}
+
 	FacetOverride struct {
 		AttributeID   func(childComplexity int) int
 		AttributeSlug func(childComplexity int) int
@@ -1545,6 +1656,11 @@ type ComplexityRoot struct {
 		Styles    func(childComplexity int) int
 		Subject   func(childComplexity int) int
 		UpdatedAt func(childComplexity int) int
+	}
+
+	LinkClicks struct {
+		Clicks func(childComplexity int) int
+		URL    func(childComplexity int) int
 	}
 
 	LinkEdge struct {
@@ -1781,6 +1897,7 @@ type ComplexityRoot struct {
 		ArchiveBlogPost                 func(childComplexity int, id string) int
 		AssignAttribute                 func(childComplexity int, productTypeID string, attributeID string, sortOrder *int32, groupID *string) int
 		AssignCMSAttribute              func(childComplexity int, input model.AssignCMSAttributeInput) int
+		AssignCustomersToSegment        func(childComplexity int, segmentID string, customerIds []string) int
 		AssignEmailSlot                 func(childComplexity int, emailID string, slot string) int
 		AssignReviewQuestion            func(childComplexity int, input model.AssignReviewQuestionInput) int
 		BulkDeleteCMSPages              func(childComplexity int, ids []string) int
@@ -1800,6 +1917,7 @@ type ComplexityRoot struct {
 		ClearProductAttribute           func(childComplexity int, productID string, attributeID string) int
 		ClearProductListing             func(childComplexity int, productID string, channelID string) int
 		ClearProductMediaRole           func(childComplexity int, productID string, role model.ProductMediaRole) int
+		ClearSegmentMembership          func(childComplexity int, segmentID string) int
 		ClearSubscriptionTerms          func(childComplexity int, productID string) int
 		ClearWebhookDeadLetters         func(childComplexity int, webhookID string) int
 		ClearWebhookDeliveries          func(childComplexity int, webhookID string) int
@@ -1829,9 +1947,12 @@ type ComplexityRoot struct {
 		CreateCountry                   func(childComplexity int, input model.CreateCountryInput) int
 		CreateCurrency                  func(childComplexity int, input model.CreateCurrencyInput) int
 		CreateCustomerGroup             func(childComplexity int, input model.CreateCustomerGroupInput) int
+		CreateCustomerSegment           func(childComplexity int, input model.CreateCustomerSegmentInput) int
 		CreateDraftOrder                func(childComplexity int, input model.CreateDraftOrderInput) int
 		CreateEmailCampaign             func(childComplexity int, input model.SaveCampaignInput) int
 		CreateEmailGroup                func(childComplexity int, name string) int
+		CreateEventDestination          func(childComplexity int, input model.EventDestinationInput) int
+		CreateExperiment                func(childComplexity int, input model.SaveExperimentInput) int
 		CreateFlow                      func(childComplexity int, input model.SaveFlowInput) int
 		CreateFulfillment               func(childComplexity int, input model.CreateFulfillmentInput) int
 		CreateIntegration               func(childComplexity int, input model.CreateIntegrationInput) int
@@ -1894,9 +2015,12 @@ type ComplexityRoot struct {
 		DeleteCurrency                  func(childComplexity int, code string) int
 		DeleteCustomer                  func(childComplexity int, id string) int
 		DeleteCustomerGroup             func(childComplexity int, id string) int
+		DeleteCustomerSegment           func(childComplexity int, id string) int
 		DeleteEmailBlock                func(childComplexity int, channelID string, slug string) int
 		DeleteEmailCampaign             func(childComplexity int, id string) int
 		DeleteEmailGroup                func(childComplexity int, id string) int
+		DeleteEventDestination          func(childComplexity int, id string) int
+		DeleteExperiment                func(childComplexity int, id string) int
 		DeleteFlow                      func(childComplexity int, id string) int
 		DeleteIntegration               func(childComplexity int, id string) int
 		DeleteInventoryLocation         func(childComplexity int, id string) int
@@ -1979,6 +2103,7 @@ type ComplexityRoot struct {
 		RecheckReviewModeration         func(childComplexity int, id string) int
 		RecordOfflinePayment            func(childComplexity int, input model.RecordOfflinePaymentInput) int
 		RedeliverWebhookDelivery        func(childComplexity int, deliveryID string) int
+		RefreshSegment                  func(childComplexity int, segmentID string) int
 		RefreshToken                    func(childComplexity int, token string) int
 		RefundPayment                   func(childComplexity int, orderID string, amount *int32, reason *string) int
 		RegenerateIntegrationToken      func(childComplexity int, id string) int
@@ -1987,6 +2112,7 @@ type ComplexityRoot struct {
 		RejectReturn                    func(childComplexity int, id string) int
 		RejectReview                    func(childComplexity int, id string, note *string) int
 		ReleaseOrder                    func(childComplexity int, id string) int
+		RemoveCustomerFromSegment       func(childComplexity int, segmentID string, customerID string) int
 		RemoveGroupedMember             func(childComplexity int, id string) int
 		RemoveKitComponent              func(childComplexity int, id string) int
 		RemoveProductChild              func(childComplexity int, parentID string, childID string) int
@@ -2084,6 +2210,7 @@ type ComplexityRoot struct {
 		SetRemoteProviderActive         func(childComplexity int, id string, active bool) int
 		SetReviewCategories             func(childComplexity int, id string, categorySlugs []string) int
 		SetReviewModerationTags         func(childComplexity int, id string, tagSlugs []string) int
+		SetSegmentRules                 func(childComplexity int, segmentID string, rules interface{}) int
 		SetShippingCarrierCountries     func(childComplexity int, channelID string, carrierSlug string, mode string, countries []string) int
 		SetShippingCarrierEnabled       func(childComplexity int, channelID string, carrierSlug string, enabled bool) int
 		SetSubscriptionTerms            func(childComplexity int, input model.SetSubscriptionTermsInput) int
@@ -2094,6 +2221,7 @@ type ComplexityRoot struct {
 		SubmitCMSPageForReview          func(childComplexity int, id string) int
 		SuggestEmailSubjects            func(childComplexity int, context string, count *int32) int
 		SuppressEmail                   func(childComplexity int, email string, note *string) int
+		SyncAudience                    func(childComplexity int, segmentID string, destinationID string) int
 		SyncCanonicalURLRewrite         func(childComplexity int, input model.SyncCanonicalURLRewriteInput) int
 		SyncProductInventory            func(childComplexity int, input model.SyncProductInventoryInput) int
 		SyncProductInventoryBatch       func(childComplexity int, items []*model.SyncProductInventoryInput) int
@@ -2129,7 +2257,10 @@ type ComplexityRoot struct {
 		UpdateCountry                   func(childComplexity int, input model.UpdateCountryInput) int
 		UpdateCurrency                  func(childComplexity int, input model.UpdateCurrencyInput) int
 		UpdateCustomerGroup             func(childComplexity int, id string, input model.UpdateCustomerGroupInput) int
+		UpdateCustomerSegment           func(childComplexity int, input model.UpdateCustomerSegmentInput) int
 		UpdateEmailCampaign             func(childComplexity int, id string, input model.SaveCampaignInput) int
+		UpdateEventDestination          func(childComplexity int, id string, input model.EventDestinationInput) int
+		UpdateExperiment                func(childComplexity int, id string, input model.SaveExperimentInput) int
 		UpdateFlow                      func(childComplexity int, id string, input model.SaveFlowInput) int
 		UpdateGroupedMember             func(childComplexity int, input model.UpdateGroupedMemberInput) int
 		UpdateIntegration               func(childComplexity int, input model.UpdateIntegrationInput) int
@@ -2726,6 +2857,15 @@ type ComplexityRoot struct {
 		Slug         func(childComplexity int) int
 	}
 
+	PulseEngagement struct {
+		Clicks      func(childComplexity int) int
+		Conversions func(childComplexity int) int
+		OpensHuman  func(childComplexity int) int
+		OpensRaw    func(childComplexity int) int
+		Revenue     func(childComplexity int) int
+		TopLinks    func(childComplexity int) int
+	}
+
 	Query struct {
 		Admin                        func(childComplexity int, id string) int
 		AdminActions                 func(childComplexity int) int
@@ -2788,6 +2928,8 @@ type ComplexityRoot struct {
 		CustomerCommerce             func(childComplexity int, customerID string) int
 		CustomerGroup                func(childComplexity int, id string) int
 		CustomerGroups               func(childComplexity int) int
+		CustomerSegment              func(childComplexity int, id string) int
+		CustomerSegments             func(childComplexity int, limit *int32, offset *int32) int
 		CustomerSignals              func(childComplexity int, customerID string) int
 		Customers                    func(childComplexity int, channelID *string) int
 		CustomersByIds               func(childComplexity int, ids []string) int
@@ -2806,6 +2948,13 @@ type ComplexityRoot struct {
 		EmailPreflight               func(childComplexity int, id string) int
 		EmailRevisions               func(childComplexity int, id string) int
 		EmailSuppressions            func(childComplexity int, reason *string, limit *int32, offset *int32) int
+		EventDestinations            func(childComplexity int, channelID string) int
+		Experiment                   func(childComplexity int, id string) int
+		ExperimentGoalEvents         func(childComplexity int, channelID string) int
+		ExperimentResults            func(childComplexity int, id string, sinceDays *int32) int
+		ExperimentSegments           func(childComplexity int) int
+		Experiments                  func(childComplexity int, channelID string) int
+		ExperimentsOverview          func(childComplexity int, channelID string, sinceDays *int32) int
 		ExportCustomerData           func(childComplexity int, customerID string) int
 		Flow                         func(childComplexity int, id string) int
 		FlowConditionKinds           func(childComplexity int) int
@@ -2862,6 +3011,7 @@ type ComplexityRoot struct {
 		PromotionConditionTypes      func(childComplexity int) int
 		PromotionRule                func(childComplexity int, id string) int
 		PromotionRules               func(childComplexity int, limit *int32, offset *int32) int
+		PulseEngagement              func(childComplexity int, channelID string, sinceDays *int32) int
 		RebuildQueue                 func(childComplexity int, recentLimit *int32) int
 		ReferenceCandidates          func(childComplexity int, target model.AttributeReferenceTarget, search *string, limit *int32) int
 		RemoteProvider               func(childComplexity int, id string) int
@@ -3262,6 +3412,11 @@ type ComplexityRoot struct {
 	SearchSynonym struct {
 		ID    func(childComplexity int) int
 		Terms func(childComplexity int) int
+	}
+
+	SegmentOption struct {
+		Name func(childComplexity int) int
+		Slug func(childComplexity int) int
 	}
 
 	SeoIssueCount struct {
@@ -3992,6 +4147,10 @@ type MutationResolver interface {
 	RestoreEmailRevision(ctx context.Context, revisionID string) (*model.LibraryEmail, error)
 	SuggestEmailSubjects(ctx context.Context, context string, count *int32) ([]string, error)
 	RewriteEmailText(ctx context.Context, text string, instruction *string) (string, error)
+	CreateEventDestination(ctx context.Context, input model.EventDestinationInput) (*model.EventDestination, error)
+	UpdateEventDestination(ctx context.Context, id string, input model.EventDestinationInput) (*model.EventDestination, error)
+	DeleteEventDestination(ctx context.Context, id string) (bool, error)
+	SyncAudience(ctx context.Context, segmentID string, destinationID string) (int32, error)
 	CreateFlow(ctx context.Context, input model.SaveFlowInput) (*model.Flow, error)
 	UpdateFlow(ctx context.Context, id string, input model.SaveFlowInput) (*model.Flow, error)
 	DeleteFlow(ctx context.Context, id string) (bool, error)
@@ -4070,6 +4229,9 @@ type MutationResolver interface {
 	SetPaymentMethodEnabled(ctx context.Context, channelID string, providerSlug string, enabled bool) (*model.PaymentMethodAdmin, error)
 	SetPaymentMethodCountries(ctx context.Context, channelID string, providerSlug string, mode string, countries []string) (*model.PaymentMethodAdmin, error)
 	SetMyPreference(ctx context.Context, key string, value interface{}) (bool, error)
+	CreateExperiment(ctx context.Context, input model.SaveExperimentInput) (*model.Experiment, error)
+	UpdateExperiment(ctx context.Context, id string, input model.SaveExperimentInput) (*model.Experiment, error)
+	DeleteExperiment(ctx context.Context, id string) (bool, error)
 	SetProductVariantMode(ctx context.Context, productID string, mode model.VariantMode) (*model.Product, error)
 	CreatePromotionRule(ctx context.Context, input model.CreatePromotionRuleInput) (*model.PromotionRule, error)
 	UpdatePromotionRule(ctx context.Context, input model.UpdatePromotionRuleInput) (*model.PromotionRule, error)
@@ -4131,6 +4293,14 @@ type MutationResolver interface {
 	DeleteShippingBox(ctx context.Context, id string) (bool, error)
 	SetShippingCarrierEnabled(ctx context.Context, channelID string, carrierSlug string, enabled bool) (*model.ShippingCarrierAdmin, error)
 	SetShippingCarrierCountries(ctx context.Context, channelID string, carrierSlug string, mode string, countries []string) (*model.ShippingCarrierAdmin, error)
+	CreateCustomerSegment(ctx context.Context, input model.CreateCustomerSegmentInput) (*model.CustomerSegment, error)
+	UpdateCustomerSegment(ctx context.Context, input model.UpdateCustomerSegmentInput) (*model.CustomerSegment, error)
+	DeleteCustomerSegment(ctx context.Context, id string) (bool, error)
+	AssignCustomersToSegment(ctx context.Context, segmentID string, customerIds []string) (bool, error)
+	RemoveCustomerFromSegment(ctx context.Context, segmentID string, customerID string) (bool, error)
+	ClearSegmentMembership(ctx context.Context, segmentID string) (bool, error)
+	SetSegmentRules(ctx context.Context, segmentID string, rules interface{}) (*model.CustomerSegment, error)
+	RefreshSegment(ctx context.Context, segmentID string) (int32, error)
 	CancelSubscription(ctx context.Context, id string) (*model.CustomerSubscription, error)
 	PauseSubscription(ctx context.Context, id string) (*model.CustomerSubscription, error)
 	ResumeSubscription(ctx context.Context, id string) (*model.CustomerSubscription, error)
@@ -4289,6 +4459,7 @@ type QueryResolver interface {
 	EmailPreflight(ctx context.Context, id string) ([]*model.EmailWarning, error)
 	EmailRevisions(ctx context.Context, id string) ([]*model.EmailRevision, error)
 	RenderLibraryPreview(ctx context.Context, channelID string, customerID *string, subject string, preheader *string, blocks interface{}, styles interface{}) (*model.EmailPreview, error)
+	EventDestinations(ctx context.Context, channelID string) ([]*model.EventDestination, error)
 	ServerFeatures(ctx context.Context) (*model.ServerFeatures, error)
 	Flows(ctx context.Context, channelID string, includeDeleted *bool) ([]*model.Flow, error)
 	Flow(ctx context.Context, id string) (*model.Flow, error)
@@ -4331,6 +4502,11 @@ type QueryResolver interface {
 	CreditableQuantities(ctx context.Context, orderID string) ([]*model.OrderLineQuantity, error)
 	PaymentMethods(ctx context.Context, channelID string) ([]*model.PaymentMethodAdmin, error)
 	MyPreferences(ctx context.Context) ([]*model.AdminPreference, error)
+	Experiments(ctx context.Context, channelID string) ([]*model.Experiment, error)
+	Experiment(ctx context.Context, id string) (*model.Experiment, error)
+	ExperimentResults(ctx context.Context, id string, sinceDays *int32) (*model.ExperimentResults, error)
+	ExperimentsOverview(ctx context.Context, channelID string, sinceDays *int32) (*model.ExperimentsOverview, error)
+	ExperimentGoalEvents(ctx context.Context, channelID string) ([]string, error)
 	PromotionRules(ctx context.Context, limit *int32, offset *int32) (*model.PromotionRuleList, error)
 	PromotionRule(ctx context.Context, id string) (*model.PromotionRule, error)
 	PromotionConditionTypes(ctx context.Context) ([]*model.PromotionTypeDescriptor, error)
@@ -4339,6 +4515,7 @@ type QueryResolver interface {
 	PromotionAnalyticsTotals(ctx context.Context, start *time.Time, end *time.Time) (*model.PromotionAnalyticsTotals, error)
 	PromotionAnalyticsDaily(ctx context.Context, start *time.Time, end *time.Time, ruleID *string) ([]*model.PromotionAnalyticsDailyPoint, error)
 	SimulatePromotion(ctx context.Context, input model.PromotionSimulationInput) (*model.PromotionSimulationResult, error)
+	PulseEngagement(ctx context.Context, channelID string, sinceDays *int32) (*model.PulseEngagement, error)
 	ProductQuestions(ctx context.Context, status *string, limit *int32, offset *int32) ([]*model.AdminProductQuestion, error)
 	RemoteProviders(ctx context.Context, kind *model.RemoteProviderKind) ([]*model.RemoteProvider, error)
 	RemoteProvider(ctx context.Context, id string) (*model.RemoteProvider, error)
@@ -4363,6 +4540,9 @@ type QueryResolver interface {
 	ShippingZone(ctx context.Context, id string) (*model.ShippingZone, error)
 	ShippingCarriers(ctx context.Context, channelID string) ([]*model.ShippingCarrierAdmin, error)
 	ShippingBoxes(ctx context.Context, channelID string) ([]*model.ShippingBox, error)
+	CustomerSegments(ctx context.Context, limit *int32, offset *int32) (*model.CustomerSegmentList, error)
+	CustomerSegment(ctx context.Context, id string) (*model.CustomerSegment, error)
+	ExperimentSegments(ctx context.Context) ([]*model.SegmentOption, error)
 	SignalsToken(ctx context.Context) (*model.ServiceToken, error)
 	Subscriptions(ctx context.Context, status *model.SubscriptionStatus, limit *int32, offset *int32) ([]*model.CustomerSubscription, error)
 	Subscription(ctx context.Context, id string) (*model.CustomerSubscription, error)
@@ -9079,6 +9259,98 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CustomerPage.TotalCount(childComplexity), true
 
+	case "CustomerSegment.createdAt":
+		if e.ComplexityRoot.CustomerSegment.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.CreatedAt(childComplexity), true
+	case "CustomerSegment.description":
+		if e.ComplexityRoot.CustomerSegment.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.Description(childComplexity), true
+	case "CustomerSegment.id":
+		if e.ComplexityRoot.CustomerSegment.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.ID(childComplexity), true
+	case "CustomerSegment.isActive":
+		if e.ComplexityRoot.CustomerSegment.IsActive == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.IsActive(childComplexity), true
+	case "CustomerSegment.memberCount":
+		if e.ComplexityRoot.CustomerSegment.MemberCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.MemberCount(childComplexity), true
+	case "CustomerSegment.members":
+		if e.ComplexityRoot.CustomerSegment.Members == nil {
+			break
+		}
+
+		args, err := ec.field_CustomerSegment_members_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.CustomerSegment.Members(childComplexity, args["limit"].(*int32), args["offset"].(*int32)), true
+	case "CustomerSegment.name":
+		if e.ComplexityRoot.CustomerSegment.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.Name(childComplexity), true
+	case "CustomerSegment.rules":
+		if e.ComplexityRoot.CustomerSegment.Rules == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.Rules(childComplexity), true
+	case "CustomerSegment.slug":
+		if e.ComplexityRoot.CustomerSegment.Slug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.Slug(childComplexity), true
+	case "CustomerSegment.updatedAt":
+		if e.ComplexityRoot.CustomerSegment.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.UpdatedAt(childComplexity), true
+
+	case "CustomerSegmentList.items":
+		if e.ComplexityRoot.CustomerSegmentList.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegmentList.Items(childComplexity), true
+	case "CustomerSegmentList.totalCount":
+		if e.ComplexityRoot.CustomerSegmentList.TotalCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegmentList.TotalCount(childComplexity), true
+
+	case "CustomerSegmentMember.id":
+		if e.ComplexityRoot.CustomerSegmentMember.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegmentMember.ID(childComplexity), true
+	case "CustomerSegmentMember.joinedAt":
+		if e.ComplexityRoot.CustomerSegmentMember.JoinedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegmentMember.JoinedAt(childComplexity), true
+
 	case "CustomerSignals.consents":
 		if e.ComplexityRoot.CustomerSignals.Consents == nil {
 			break
@@ -10016,6 +10288,415 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.EmailWarning.Severity(childComplexity), true
 
+	case "EventDestination.channelId":
+		if e.ComplexityRoot.EventDestination.ChannelID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EventDestination.ChannelID(childComplexity), true
+	case "EventDestination.createdAt":
+		if e.ComplexityRoot.EventDestination.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EventDestination.CreatedAt(childComplexity), true
+	case "EventDestination.eventNames":
+		if e.ComplexityRoot.EventDestination.EventNames == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EventDestination.EventNames(childComplexity), true
+	case "EventDestination.eventSources":
+		if e.ComplexityRoot.EventDestination.EventSources == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EventDestination.EventSources(childComplexity), true
+	case "EventDestination.id":
+		if e.ComplexityRoot.EventDestination.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EventDestination.ID(childComplexity), true
+	case "EventDestination.isActive":
+		if e.ComplexityRoot.EventDestination.IsActive == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EventDestination.IsActive(childComplexity), true
+	case "EventDestination.kind":
+		if e.ComplexityRoot.EventDestination.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EventDestination.Kind(childComplexity), true
+	case "EventDestination.lastError":
+		if e.ComplexityRoot.EventDestination.LastError == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EventDestination.LastError(childComplexity), true
+	case "EventDestination.lastForwardedAt":
+		if e.ComplexityRoot.EventDestination.LastForwardedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EventDestination.LastForwardedAt(childComplexity), true
+	case "EventDestination.name":
+		if e.ComplexityRoot.EventDestination.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EventDestination.Name(childComplexity), true
+	case "EventDestination.targetUrl":
+		if e.ComplexityRoot.EventDestination.TargetURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EventDestination.TargetURL(childComplexity), true
+	case "EventDestination.updatedAt":
+		if e.ComplexityRoot.EventDestination.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.EventDestination.UpdatedAt(childComplexity), true
+
+	case "Experiment.channelId":
+		if e.ComplexityRoot.Experiment.ChannelID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Experiment.ChannelID(childComplexity), true
+	case "Experiment.coverage":
+		if e.ComplexityRoot.Experiment.Coverage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Experiment.Coverage(childComplexity), true
+	case "Experiment.createdAt":
+		if e.ComplexityRoot.Experiment.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Experiment.CreatedAt(childComplexity), true
+	case "Experiment.goalEvent":
+		if e.ComplexityRoot.Experiment.GoalEvent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Experiment.GoalEvent(childComplexity), true
+	case "Experiment.id":
+		if e.ComplexityRoot.Experiment.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Experiment.ID(childComplexity), true
+	case "Experiment.key":
+		if e.ComplexityRoot.Experiment.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Experiment.Key(childComplexity), true
+	case "Experiment.name":
+		if e.ComplexityRoot.Experiment.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Experiment.Name(childComplexity), true
+	case "Experiment.segmentSlug":
+		if e.ComplexityRoot.Experiment.SegmentSlug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Experiment.SegmentSlug(childComplexity), true
+	case "Experiment.status":
+		if e.ComplexityRoot.Experiment.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Experiment.Status(childComplexity), true
+	case "Experiment.updatedAt":
+		if e.ComplexityRoot.Experiment.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Experiment.UpdatedAt(childComplexity), true
+	case "Experiment.variations":
+		if e.ComplexityRoot.Experiment.Variations == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Experiment.Variations(childComplexity), true
+
+	case "ExperimentResults.sampleRatioMismatch":
+		if e.ComplexityRoot.ExperimentResults.SampleRatioMismatch == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentResults.SampleRatioMismatch(childComplexity), true
+	case "ExperimentResults.sequentialWinner":
+		if e.ComplexityRoot.ExperimentResults.SequentialWinner == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentResults.SequentialWinner(childComplexity), true
+	case "ExperimentResults.totalExposed":
+		if e.ComplexityRoot.ExperimentResults.TotalExposed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentResults.TotalExposed(childComplexity), true
+	case "ExperimentResults.totalRevenue":
+		if e.ComplexityRoot.ExperimentResults.TotalRevenue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentResults.TotalRevenue(childComplexity), true
+	case "ExperimentResults.variations":
+		if e.ComplexityRoot.ExperimentResults.Variations == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentResults.Variations(childComplexity), true
+	case "ExperimentResults.winner":
+		if e.ComplexityRoot.ExperimentResults.Winner == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentResults.Winner(childComplexity), true
+
+	case "ExperimentSummary.conversions":
+		if e.ComplexityRoot.ExperimentSummary.Conversions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.Conversions(childComplexity), true
+	case "ExperimentSummary.coverage":
+		if e.ComplexityRoot.ExperimentSummary.Coverage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.Coverage(childComplexity), true
+	case "ExperimentSummary.id":
+		if e.ComplexityRoot.ExperimentSummary.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.ID(childComplexity), true
+	case "ExperimentSummary.key":
+		if e.ComplexityRoot.ExperimentSummary.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.Key(childComplexity), true
+	case "ExperimentSummary.leader":
+		if e.ComplexityRoot.ExperimentSummary.Leader == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.Leader(childComplexity), true
+	case "ExperimentSummary.leaderChanceToWin":
+		if e.ComplexityRoot.ExperimentSummary.LeaderChanceToWin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.LeaderChanceToWin(childComplexity), true
+	case "ExperimentSummary.leaderIsControl":
+		if e.ComplexityRoot.ExperimentSummary.LeaderIsControl == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.LeaderIsControl(childComplexity), true
+	case "ExperimentSummary.leaderRate":
+		if e.ComplexityRoot.ExperimentSummary.LeaderRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.LeaderRate(childComplexity), true
+	case "ExperimentSummary.leaderUplift":
+		if e.ComplexityRoot.ExperimentSummary.LeaderUplift == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.LeaderUplift(childComplexity), true
+	case "ExperimentSummary.name":
+		if e.ComplexityRoot.ExperimentSummary.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.Name(childComplexity), true
+	case "ExperimentSummary.sampleRatioMismatch":
+		if e.ComplexityRoot.ExperimentSummary.SampleRatioMismatch == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.SampleRatioMismatch(childComplexity), true
+	case "ExperimentSummary.totalExposed":
+		if e.ComplexityRoot.ExperimentSummary.TotalExposed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.TotalExposed(childComplexity), true
+	case "ExperimentSummary.variations":
+		if e.ComplexityRoot.ExperimentSummary.Variations == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.Variations(childComplexity), true
+	case "ExperimentSummary.winner":
+		if e.ComplexityRoot.ExperimentSummary.Winner == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentSummary.Winner(childComplexity), true
+
+	case "ExperimentVariation.key":
+		if e.ComplexityRoot.ExperimentVariation.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariation.Key(childComplexity), true
+	case "ExperimentVariation.name":
+		if e.ComplexityRoot.ExperimentVariation.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariation.Name(childComplexity), true
+	case "ExperimentVariation.value":
+		if e.ComplexityRoot.ExperimentVariation.Value == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariation.Value(childComplexity), true
+	case "ExperimentVariation.weight":
+		if e.ComplexityRoot.ExperimentVariation.Weight == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariation.Weight(childComplexity), true
+
+	case "ExperimentVariationResult.alwaysValidP":
+		if e.ComplexityRoot.ExperimentVariationResult.AlwaysValidP == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.AlwaysValidP(childComplexity), true
+	case "ExperimentVariationResult.chanceToWin":
+		if e.ComplexityRoot.ExperimentVariationResult.ChanceToWin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.ChanceToWin(childComplexity), true
+	case "ExperimentVariationResult.ciHigh":
+		if e.ComplexityRoot.ExperimentVariationResult.CiHigh == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.CiHigh(childComplexity), true
+	case "ExperimentVariationResult.ciLow":
+		if e.ComplexityRoot.ExperimentVariationResult.CiLow == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.CiLow(childComplexity), true
+	case "ExperimentVariationResult.converted":
+		if e.ComplexityRoot.ExperimentVariationResult.Converted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.Converted(childComplexity), true
+	case "ExperimentVariationResult.exposed":
+		if e.ComplexityRoot.ExperimentVariationResult.Exposed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.Exposed(childComplexity), true
+	case "ExperimentVariationResult.isControl":
+		if e.ComplexityRoot.ExperimentVariationResult.IsControl == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.IsControl(childComplexity), true
+	case "ExperimentVariationResult.name":
+		if e.ComplexityRoot.ExperimentVariationResult.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.Name(childComplexity), true
+	case "ExperimentVariationResult.rate":
+		if e.ComplexityRoot.ExperimentVariationResult.Rate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.Rate(childComplexity), true
+	case "ExperimentVariationResult.revenueCents":
+		if e.ComplexityRoot.ExperimentVariationResult.RevenueCents == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.RevenueCents(childComplexity), true
+	case "ExperimentVariationResult.sequentialSignificant":
+		if e.ComplexityRoot.ExperimentVariationResult.SequentialSignificant == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.SequentialSignificant(childComplexity), true
+	case "ExperimentVariationResult.significant":
+		if e.ComplexityRoot.ExperimentVariationResult.Significant == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.Significant(childComplexity), true
+	case "ExperimentVariationResult.uplift":
+		if e.ComplexityRoot.ExperimentVariationResult.Uplift == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.Uplift(childComplexity), true
+	case "ExperimentVariationResult.variation":
+		if e.ComplexityRoot.ExperimentVariationResult.Variation == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentVariationResult.Variation(childComplexity), true
+
+	case "ExperimentsOverview.decided":
+		if e.ComplexityRoot.ExperimentsOverview.Decided == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentsOverview.Decided(childComplexity), true
+	case "ExperimentsOverview.draft":
+		if e.ComplexityRoot.ExperimentsOverview.Draft == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentsOverview.Draft(childComplexity), true
+	case "ExperimentsOverview.experiments":
+		if e.ComplexityRoot.ExperimentsOverview.Experiments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentsOverview.Experiments(childComplexity), true
+	case "ExperimentsOverview.running":
+		if e.ComplexityRoot.ExperimentsOverview.Running == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentsOverview.Running(childComplexity), true
+	case "ExperimentsOverview.stopped":
+		if e.ComplexityRoot.ExperimentsOverview.Stopped == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentsOverview.Stopped(childComplexity), true
+	case "ExperimentsOverview.totalExposed":
+		if e.ComplexityRoot.ExperimentsOverview.TotalExposed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ExperimentsOverview.TotalExposed(childComplexity), true
+
 	case "FacetOverride.attributeId":
 		if e.ComplexityRoot.FacetOverride.AttributeID == nil {
 			break
@@ -10855,6 +11536,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LibraryEmail.UpdatedAt(childComplexity), true
+
+	case "LinkClicks.clicks":
+		if e.ComplexityRoot.LinkClicks.Clicks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LinkClicks.Clicks(childComplexity), true
+	case "LinkClicks.url":
+		if e.ComplexityRoot.LinkClicks.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LinkClicks.URL(childComplexity), true
 
 	case "LinkEdge.boilerplate":
 		if e.ComplexityRoot.LinkEdge.Boilerplate == nil {
@@ -12148,6 +12842,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.AssignCMSAttribute(childComplexity, args["input"].(model.AssignCMSAttributeInput)), true
+	case "Mutation.assignCustomersToSegment":
+		if e.ComplexityRoot.Mutation.AssignCustomersToSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_assignCustomersToSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AssignCustomersToSegment(childComplexity, args["segmentId"].(string), args["customerIds"].([]string)), true
 	case "Mutation.assignEmailSlot":
 		if e.ComplexityRoot.Mutation.AssignEmailSlot == nil {
 			break
@@ -12357,6 +13062,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ClearProductMediaRole(childComplexity, args["productId"].(string), args["role"].(model.ProductMediaRole)), true
+	case "Mutation.clearSegmentMembership":
+		if e.ComplexityRoot.Mutation.ClearSegmentMembership == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_clearSegmentMembership_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ClearSegmentMembership(childComplexity, args["segmentId"].(string)), true
 	case "Mutation.clearSubscriptionTerms":
 		if e.ComplexityRoot.Mutation.ClearSubscriptionTerms == nil {
 			break
@@ -12676,6 +13392,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateCustomerGroup(childComplexity, args["input"].(model.CreateCustomerGroupInput)), true
+	case "Mutation.createCustomerSegment":
+		if e.ComplexityRoot.Mutation.CreateCustomerSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createCustomerSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateCustomerSegment(childComplexity, args["input"].(model.CreateCustomerSegmentInput)), true
 	case "Mutation.createDraftOrder":
 		if e.ComplexityRoot.Mutation.CreateDraftOrder == nil {
 			break
@@ -12709,6 +13436,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateEmailGroup(childComplexity, args["name"].(string)), true
+	case "Mutation.createEventDestination":
+		if e.ComplexityRoot.Mutation.CreateEventDestination == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createEventDestination_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateEventDestination(childComplexity, args["input"].(model.EventDestinationInput)), true
+	case "Mutation.createExperiment":
+		if e.ComplexityRoot.Mutation.CreateExperiment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createExperiment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateExperiment(childComplexity, args["input"].(model.SaveExperimentInput)), true
 	case "Mutation.createFlow":
 		if e.ComplexityRoot.Mutation.CreateFlow == nil {
 			break
@@ -13391,6 +14140,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteCustomerGroup(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteCustomerSegment":
+		if e.ComplexityRoot.Mutation.DeleteCustomerSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteCustomerSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteCustomerSegment(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteEmailBlock":
 		if e.ComplexityRoot.Mutation.DeleteEmailBlock == nil {
 			break
@@ -13424,6 +14184,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteEmailGroup(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteEventDestination":
+		if e.ComplexityRoot.Mutation.DeleteEventDestination == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteEventDestination_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteEventDestination(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteExperiment":
+		if e.ComplexityRoot.Mutation.DeleteExperiment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteExperiment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteExperiment(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteFlow":
 		if e.ComplexityRoot.Mutation.DeleteFlow == nil {
 			break
@@ -14321,6 +15103,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RedeliverWebhookDelivery(childComplexity, args["deliveryId"].(string)), true
+	case "Mutation.refreshSegment":
+		if e.ComplexityRoot.Mutation.RefreshSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_refreshSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RefreshSegment(childComplexity, args["segmentId"].(string)), true
 	case "Mutation.refreshToken":
 		if e.ComplexityRoot.Mutation.RefreshToken == nil {
 			break
@@ -14409,6 +15202,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ReleaseOrder(childComplexity, args["id"].(string)), true
+	case "Mutation.removeCustomerFromSegment":
+		if e.ComplexityRoot.Mutation.RemoveCustomerFromSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeCustomerFromSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RemoveCustomerFromSegment(childComplexity, args["segmentId"].(string), args["customerId"].(string)), true
 	case "Mutation.removeGroupedMember":
 		if e.ComplexityRoot.Mutation.RemoveGroupedMember == nil {
 			break
@@ -15476,6 +16280,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetReviewModerationTags(childComplexity, args["id"].(string), args["tagSlugs"].([]string)), true
+	case "Mutation.setSegmentRules":
+		if e.ComplexityRoot.Mutation.SetSegmentRules == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setSegmentRules_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetSegmentRules(childComplexity, args["segmentId"].(string), args["rules"].(interface{})), true
 	case "Mutation.setShippingCarrierCountries":
 		if e.ComplexityRoot.Mutation.SetShippingCarrierCountries == nil {
 			break
@@ -15586,6 +16401,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SuppressEmail(childComplexity, args["email"].(string), args["note"].(*string)), true
+	case "Mutation.syncAudience":
+		if e.ComplexityRoot.Mutation.SyncAudience == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_syncAudience_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SyncAudience(childComplexity, args["segmentId"].(string), args["destinationId"].(string)), true
 	case "Mutation.syncCanonicalUrlRewrite":
 		if e.ComplexityRoot.Mutation.SyncCanonicalURLRewrite == nil {
 			break
@@ -15971,6 +16797,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateCustomerGroup(childComplexity, args["id"].(string), args["input"].(model.UpdateCustomerGroupInput)), true
+	case "Mutation.updateCustomerSegment":
+		if e.ComplexityRoot.Mutation.UpdateCustomerSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateCustomerSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateCustomerSegment(childComplexity, args["input"].(model.UpdateCustomerSegmentInput)), true
 	case "Mutation.updateEmailCampaign":
 		if e.ComplexityRoot.Mutation.UpdateEmailCampaign == nil {
 			break
@@ -15982,6 +16819,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateEmailCampaign(childComplexity, args["id"].(string), args["input"].(model.SaveCampaignInput)), true
+	case "Mutation.updateEventDestination":
+		if e.ComplexityRoot.Mutation.UpdateEventDestination == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateEventDestination_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateEventDestination(childComplexity, args["id"].(string), args["input"].(model.EventDestinationInput)), true
+	case "Mutation.updateExperiment":
+		if e.ComplexityRoot.Mutation.UpdateExperiment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateExperiment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateExperiment(childComplexity, args["id"].(string), args["input"].(model.SaveExperimentInput)), true
 	case "Mutation.updateFlow":
 		if e.ComplexityRoot.Mutation.UpdateFlow == nil {
 			break
@@ -19033,6 +19892,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PromotionTypeDescriptor.Slug(childComplexity), true
 
+	case "PulseEngagement.clicks":
+		if e.ComplexityRoot.PulseEngagement.Clicks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseEngagement.Clicks(childComplexity), true
+	case "PulseEngagement.conversions":
+		if e.ComplexityRoot.PulseEngagement.Conversions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseEngagement.Conversions(childComplexity), true
+	case "PulseEngagement.opensHuman":
+		if e.ComplexityRoot.PulseEngagement.OpensHuman == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseEngagement.OpensHuman(childComplexity), true
+	case "PulseEngagement.opensRaw":
+		if e.ComplexityRoot.PulseEngagement.OpensRaw == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseEngagement.OpensRaw(childComplexity), true
+	case "PulseEngagement.revenue":
+		if e.ComplexityRoot.PulseEngagement.Revenue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseEngagement.Revenue(childComplexity), true
+	case "PulseEngagement.topLinks":
+		if e.ComplexityRoot.PulseEngagement.TopLinks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PulseEngagement.TopLinks(childComplexity), true
+
 	case "Query.admin":
 		if e.ComplexityRoot.Query.Admin == nil {
 			break
@@ -19614,6 +20510,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.CustomerGroups(childComplexity), true
+	case "Query.customerSegment":
+		if e.ComplexityRoot.Query.CustomerSegment == nil {
+			break
+		}
+
+		args, err := ec.field_Query_customerSegment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.CustomerSegment(childComplexity, args["id"].(string)), true
+	case "Query.customerSegments":
+		if e.ComplexityRoot.Query.CustomerSegments == nil {
+			break
+		}
+
+		args, err := ec.field_Query_customerSegments_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.CustomerSegments(childComplexity, args["limit"].(*int32), args["offset"].(*int32)), true
 	case "Query.customerSignals":
 		if e.ComplexityRoot.Query.CustomerSignals == nil {
 			break
@@ -19792,6 +20710,78 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.EmailSuppressions(childComplexity, args["reason"].(*string), args["limit"].(*int32), args["offset"].(*int32)), true
+	case "Query.eventDestinations":
+		if e.ComplexityRoot.Query.EventDestinations == nil {
+			break
+		}
+
+		args, err := ec.field_Query_eventDestinations_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.EventDestinations(childComplexity, args["channelId"].(string)), true
+	case "Query.experiment":
+		if e.ComplexityRoot.Query.Experiment == nil {
+			break
+		}
+
+		args, err := ec.field_Query_experiment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Experiment(childComplexity, args["id"].(string)), true
+	case "Query.experimentGoalEvents":
+		if e.ComplexityRoot.Query.ExperimentGoalEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Query_experimentGoalEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ExperimentGoalEvents(childComplexity, args["channelId"].(string)), true
+	case "Query.experimentResults":
+		if e.ComplexityRoot.Query.ExperimentResults == nil {
+			break
+		}
+
+		args, err := ec.field_Query_experimentResults_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ExperimentResults(childComplexity, args["id"].(string), args["sinceDays"].(*int32)), true
+	case "Query.experimentSegments":
+		if e.ComplexityRoot.Query.ExperimentSegments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.ExperimentSegments(childComplexity), true
+	case "Query.experiments":
+		if e.ComplexityRoot.Query.Experiments == nil {
+			break
+		}
+
+		args, err := ec.field_Query_experiments_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Experiments(childComplexity, args["channelId"].(string)), true
+	case "Query.experimentsOverview":
+		if e.ComplexityRoot.Query.ExperimentsOverview == nil {
+			break
+		}
+
+		args, err := ec.field_Query_experimentsOverview_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ExperimentsOverview(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32)), true
 	case "Query.exportCustomerData":
 		if e.ComplexityRoot.Query.ExportCustomerData == nil {
 			break
@@ -20344,6 +21334,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.PromotionRules(childComplexity, args["limit"].(*int32), args["offset"].(*int32)), true
+	case "Query.pulseEngagement":
+		if e.ComplexityRoot.Query.PulseEngagement == nil {
+			break
+		}
+
+		args, err := ec.field_Query_pulseEngagement_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.PulseEngagement(childComplexity, args["channelId"].(string), args["sinceDays"].(*int32)), true
 	case "Query.rebuildQueue":
 		if e.ComplexityRoot.Query.RebuildQueue == nil {
 			break
@@ -22300,6 +23301,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.SearchSynonym.Terms(childComplexity), true
 
+	case "SegmentOption.name":
+		if e.ComplexityRoot.SegmentOption.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentOption.Name(childComplexity), true
+	case "SegmentOption.slug":
+		if e.ComplexityRoot.SegmentOption.Slug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentOption.Slug(childComplexity), true
+
 	case "SeoIssueCount.count":
 		if e.ComplexityRoot.SeoIssueCount.Count == nil {
 			break
@@ -24044,6 +25058,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateCountryInput,
 		ec.unmarshalInputCreateCurrencyInput,
 		ec.unmarshalInputCreateCustomerGroupInput,
+		ec.unmarshalInputCreateCustomerSegmentInput,
 		ec.unmarshalInputCreateDraftOrderInput,
 		ec.unmarshalInputCreateFulfillmentInput,
 		ec.unmarshalInputCreateIntegrationInput,
@@ -24076,6 +25091,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputEditLineQtyInput,
 		ec.unmarshalInputEditOrderAddressInput,
 		ec.unmarshalInputEditOrderInput,
+		ec.unmarshalInputEventDestinationInput,
+		ec.unmarshalInputExperimentVariationInput,
 		ec.unmarshalInputFacetOverrideInput,
 		ec.unmarshalInputFulfillmentLineInput,
 		ec.unmarshalInputGenerateConfigurableChildInput,
@@ -24103,6 +25120,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputRolePermissionScopeInput,
 		ec.unmarshalInputSaveCampaignInput,
 		ec.unmarshalInputSaveEmailBlockInput,
+		ec.unmarshalInputSaveExperimentInput,
 		ec.unmarshalInputSaveFlowInput,
 		ec.unmarshalInputSaveLibraryEmailInput,
 		ec.unmarshalInputSaveSignupFormInput,
@@ -24143,6 +25161,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateCountryInput,
 		ec.unmarshalInputUpdateCurrencyInput,
 		ec.unmarshalInputUpdateCustomerGroupInput,
+		ec.unmarshalInputUpdateCustomerSegmentInput,
 		ec.unmarshalInputUpdateGroupedMemberInput,
 		ec.unmarshalInputUpdateIntegrationInput,
 		ec.unmarshalInputUpdateInventoryLocationInput,
@@ -28681,6 +29700,60 @@ extend type Mutation {
   rewriteEmailText(text: String!, instruction: String): String!
 }
 `, BuiltIn: false},
+	{Name: "../schema/admin/event_destinations.graphqls", Input: `# Event destinations: forward analytics-spine events to external
+# systems, and sync segment audiences as hashed identifiers. Forwarding
+# runs on a 1-minute scheduled sweep with a durable per-destination
+# cursor (at-least-once, ingest order); lastError surfaces delivery
+# problems until a sweep succeeds again.
+type EventDestination {
+  id:        ID!
+  channelId: ID!
+  name:      String!
+  # webhook (generic signed JSON batch) | ga4_mp (Google Analytics 4
+  # Measurement Protocol) | meta_capi (Meta Conversions API).
+  kind:      String!
+  targetUrl: String!
+  # Filters: empty = all. Sources match the spine's source column
+  # (campaign/flow/transactional/web/system); names match event names.
+  eventSources: [String!]!
+  eventNames:   [String!]!
+  isActive:  Boolean!
+  lastError: String!
+  lastForwardedAt: Time
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+input EventDestinationInput {
+  channelId: ID!
+  name:      String!
+  kind:      String!
+  targetUrl: String!
+  # webhook kind: HMAC signing key (signature over "<ts>.<body>" in
+  # X-Destination-Signature + X-Destination-Timestamp). Other kinds
+  # carry credentials in targetUrl query params per their conventions.
+  secret:       String
+  eventSources: [String!]
+  eventNames:   [String!]
+  isActive:     Boolean
+}
+
+extend type Query {
+  eventDestinations(channelId: ID!): [EventDestination!]!
+  # Segment membership as a hashed-email CSV (header email_sha256) -
+  # the format Meta/Google Customer Match accept for manual uploads.
+  # Raw emails never leave the store.
+}
+
+extend type Mutation {
+  createEventDestination(input: EventDestinationInput!): EventDestination!
+  updateEventDestination(id: ID!, input: EventDestinationInput!): EventDestination!
+  deleteEventDestination(id: ID!): Boolean!
+  # Push a segment's membership to a destination as SHA-256-hashed
+  # emails. Returns the number of identifiers sent.
+  syncAudience(segmentId: ID!, destinationId: ID!): Int!
+}
+`, BuiltIn: false},
 	{Name: "../schema/admin/features.graphqls", Input: `# Server-wide feature switches (env-driven, not admin-configurable) so
 # the dashboard can hide UI for subsystems the deployment turned off.
 type ServerFeatures {
@@ -30468,6 +31541,132 @@ extend type Mutation {
   setMyPreference(key: String!, value: JSON): Boolean!
 }
 `, BuiltIn: false},
+	{Name: "../schema/admin/prism_experiments.graphqls", Input: `# Prism: frontend A/B experiments, where the storefront SDK assigns visitors and tracks exposures through Lens and these resolvers are admin CRUD plus results, gated on experiments.view / experiments.manage
+
+type Experiment {
+  id:         ID!
+  channelId:  ID!
+  key:        String!
+  name:       String!
+  status:     String!   # draft | running | stopped
+  coverage:   Int!      # % of visitors entered
+  goalEvent:  String!   # conversion event name (a window.lens.track name)
+  segmentSlug: String!  # optional targeting: only customers in this segment (""=all)
+  variations: [ExperimentVariation!]!
+  createdAt:  Time!
+  updatedAt:  Time!
+}
+
+type ExperimentVariation {
+  key:    String!
+  name:   String!
+  weight: Int!
+  value:  String!   # payload the storefront renders for this arm
+}
+
+# One variation's analysed results. rate/ciLow/ciHigh are 0..1 fractions;
+# uplift is relative vs the control (0 for the control); chanceToWin is the
+# one-sided P(variation beats control), 0..1 (0 for the control).
+type ExperimentVariationResult {
+  variation:   String!
+  name:        String!
+  exposed:     Int!
+  converted:   Int!
+  revenueCents: Int64!   # revenue from matched goal events (commerce goals); 0 otherwise
+  rate:        Float!
+  ciLow:       Float!
+  ciHigh:      Float!
+  uplift:      Float!
+  chanceToWin: Float!
+  isControl:   Boolean!
+  # Fixed-horizon 95% significance (valid when the sample size was
+  # pre-registered).
+  significant: Boolean!
+  # mSPRT always-valid p-value: stays correct under continuous peeking;
+  # 1.0 until there's evidence. sequentialSignificant = p < 0.05 AND the
+  # variation beats the control - this is the number to act on while
+  # the experiment is still running.
+  alwaysValidP:          Float!
+  sequentialSignificant: Boolean!
+}
+
+# An experiment's full analysis: per-variation stats plus a significance-gated
+# winner ("" until a challenger clears 97.5% chance-to-win) and a sample-ratio-
+# mismatch flag (observed split ≠ configured weights → don't trust the numbers).
+type ExperimentResults {
+  variations:          [ExperimentVariationResult!]!
+  winner:              String!
+  # Peeking-safe winner (mSPRT p < 0.05); "" until one exists.
+  sequentialWinner:    String!
+  sampleRatioMismatch: Boolean!
+  totalExposed:        Int!
+  totalRevenue:        Int64!   # cents across all arms from matched commerce goals
+}
+
+# One running experiment's headline result for the Prism overview hub.
+type ExperimentSummary {
+  id:                  ID!
+  key:                 String!
+  name:                String!
+  variations:          Int!
+  coverage:            Int!
+  totalExposed:        Int!
+  conversions:         Int!       # total conversions across all arms
+  leader:              String!    # leading variation name ("" until there's data)
+  leaderRate:          Float!     # the leader's conversion rate (0..1)
+  leaderUplift:        Float!     # the leader's relative uplift vs control (0 if control)
+  leaderChanceToWin:   Float!     # 0 when the leader is the control / no data
+  leaderIsControl:     Boolean!
+  winner:              String!    # significance-gated winner name ("" if none)
+  sampleRatioMismatch: Boolean!
+}
+
+# Channel-wide A/B snapshot for the /prism hub.
+type ExperimentsOverview {
+  running:      Int!
+  draft:        Int!
+  stopped:      Int!
+  totalExposed: Int!                    # across running experiments, in the window
+  decided:      Int!                    # running experiments with a significant winner
+  experiments:  [ExperimentSummary!]!   # running, most-exposed first
+}
+
+input ExperimentVariationInput {
+  key:    String!
+  name:   String!
+  weight: Int!
+  value:  String!
+}
+
+input SaveExperimentInput {
+  channelId:   ID!     # ignored on update
+  key:         String!
+  name:        String!
+  status:      String!
+  coverage:    Int!
+  goalEvent:   String!
+  segmentSlug: String  # optional segment targeting (""/null = all visitors)
+  variations:  [ExperimentVariationInput!]!
+}
+
+extend type Query {
+  experiments(channelId: ID!): [Experiment!]!
+  experiment(id: ID!): Experiment
+  # Analysed results over the last ` + "`" + `sinceDays` + "`" + ` days (default 30).
+  experimentResults(id: ID!, sinceDays: Int): ExperimentResults!
+  # Channel-wide A/B snapshot for the Prism hub (default last 30 days).
+  experimentsOverview(channelId: ID!, sinceDays: Int): ExperimentsOverview!
+  # Custom-event names the storefront has fired for this channel (goal-event
+  # suggestions for the editor), most-frequent first.
+  experimentGoalEvents(channelId: ID!): [String!]!
+}
+
+extend type Mutation {
+  createExperiment(input: SaveExperimentInput!): Experiment!
+  updateExperiment(id: ID!, input: SaveExperimentInput!): Experiment!
+  deleteExperiment(id: ID!): Boolean!
+}
+`, BuiltIn: false},
 	{Name: "../schema/admin/product_memberships.graphqls", Input: `# Product.partOf - the inverse of the parent→child relationships. Given a
 # product, report what it belongs to: its configurable parent, the bundles
 # it's a selection in, and the grouped products it's a member of - each with
@@ -30854,6 +32053,28 @@ extend type Query {
   # Used by the dashboard's "Simulate" button to debug "why didn't rule
   # X fire?" without touching real customer carts.
   simulatePromotion(input: PromotionSimulationInput!): PromotionSimulationResult!
+}
+`, BuiltIn: false},
+	{Name: "../schema/admin/pulse_engagement.graphqls", Input: `# Marketing-email engagement analytics (the Pulse "advanced tracking" rollup),
+# read off the analytics event spine. Channel-scoped; gated on emails.view.
+
+type PulseEngagement {
+  opensRaw:    Int!   # every logged open (incl. machine/proxy prefetch)
+  opensHuman:  Int!   # machine-flagged opens excluded
+  clicks:      Int!   # human clicks
+  conversions: Int!   # orders attributed to recent email engagement
+  revenue:     [AttributedRevenue!]!
+  topLinks:    [LinkClicks!]!
+}
+
+type LinkClicks {
+  url:    String!
+  clicks: Int!
+}
+
+extend type Query {
+  # Engagement rollup for a channel over the last ` + "`" + `sinceDays` + "`" + ` days (default 30).
+  pulseEngagement(channelId: ID!, sinceDays: Int): PulseEngagement!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/qna.graphqls", Input: `# Product Q&A moderation: answer (publishes) or reject shopper questions.
@@ -31771,6 +32992,84 @@ extend type Mutation {
   setShippingCarrierEnabled(channelId: ID!, carrierSlug: String!, enabled: Boolean!): ShippingCarrierAdmin!
   # mode is "all" or "specific"; countries is the allow-list (ignored when "all").
   setShippingCarrierCountries(channelId: ID!, carrierSlug: String!, mode: String!, countries: [String!]!): ShippingCarrierAdmin!
+}
+`, BuiltIn: false},
+	{Name: "../schema/admin/signals_segments.graphqls", Input: `# Customer segments, served by the Signals API - audiences are a Signals capability, so core gates promotions and CMS blocks on them only while this service runs
+
+# Customer segments - audiences, which core offers to promotions and CMS blocks only while Signals runs
+# A member row carries the customer id alone, since this service has no customers table to name them from
+# One row of a segment's membership page
+type CustomerSegmentMember {
+  id:       ID!
+  joinedAt: Time!
+}
+
+type CustomerSegment {
+  id:           ID!
+  slug:         String!
+  name:         String!
+  description:  String!
+  isActive:     Boolean!
+  memberCount:  Int!
+  # Newest-first member page - covers manual and dynamic membership alike
+  members(limit: Int = 50, offset: Int = 0): [CustomerSegmentMember!]!
+  # Dynamic-segment condition tree (null = static/manual membership):
+  # { logic: "and"|"or", conditions: [{kind: trait|lifecycle|order_count|
+  # total_spent_cents|last_order_days|consent|group, ...}] }. Compiled to
+  # parameterized SQL server-side - operators never write SQL.
+  rules:        JSON
+  createdAt:    Time!
+  updatedAt:    Time!
+}
+
+type CustomerSegmentList {
+  items:      [CustomerSegment!]!
+  totalCount: Int!
+}
+
+# A segment reduced to what a picker needs - named for Prism, which asked first, and kept so because CMS block visibility calls it too
+type SegmentOption {
+  slug: String!
+  name: String!
+}
+
+input CreateCustomerSegmentInput {
+  slug:        String!
+  name:        String!
+  description: String
+  isActive:    Boolean
+}
+
+input UpdateCustomerSegmentInput {
+  id:          ID!
+  slug:        String
+  name:        String
+  description: String
+  isActive:    Boolean
+}
+
+extend type Query {
+  # Customer segments.
+  customerSegments(limit: Int = 25, offset: Int = 0): CustomerSegmentList!
+  customerSegment(id: ID!): CustomerSegment
+  # Active segments for a targeting picker, which CMS block visibility also calls
+  experimentSegments: [SegmentOption!]!
+}
+
+extend type Mutation {
+  # Customer segments + bulk membership.
+  createCustomerSegment(input: CreateCustomerSegmentInput!): CustomerSegment!
+  updateCustomerSegment(input: UpdateCustomerSegmentInput!): CustomerSegment!
+  deleteCustomerSegment(id: ID!): Boolean!
+  assignCustomersToSegment(segmentId: ID!, customerIds: [ID!]!): Boolean!
+  removeCustomerFromSegment(segmentId: ID!, customerId: ID!): Boolean!
+  clearSegmentMembership(segmentId: ID!): Boolean!
+  # Set (or clear, with null) a segment's dynamic rules; validation
+  # rejects unknown kinds/fields/ops at save time.
+  setSegmentRules(segmentId: ID!, rules: JSON): CustomerSegment!
+  # Recompute a dynamic segment's membership now (also swept by the
+  # 6-hourly synapse-segment-refresh job). Returns the member count.
+  refreshSegment(segmentId: ID!): Int!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/signals_token.graphqls", Input: `# Access to the Signals API, which runs as its own service and does not share this one's session store - the dashboard exchanges its admin session for a short-lived token carrying only what that surface checks
@@ -34560,6 +35859,52 @@ func (ec *executionContext) childFields_CustomerPage(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type CustomerPage", field.Name)
 }
 
+func (ec *executionContext) childFields_CustomerSegment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_CustomerSegment_id(ctx, field)
+	case "slug":
+		return ec.fieldContext_CustomerSegment_slug(ctx, field)
+	case "name":
+		return ec.fieldContext_CustomerSegment_name(ctx, field)
+	case "description":
+		return ec.fieldContext_CustomerSegment_description(ctx, field)
+	case "isActive":
+		return ec.fieldContext_CustomerSegment_isActive(ctx, field)
+	case "memberCount":
+		return ec.fieldContext_CustomerSegment_memberCount(ctx, field)
+	case "members":
+		return ec.fieldContext_CustomerSegment_members(ctx, field)
+	case "rules":
+		return ec.fieldContext_CustomerSegment_rules(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_CustomerSegment_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_CustomerSegment_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CustomerSegment", field.Name)
+}
+
+func (ec *executionContext) childFields_CustomerSegmentList(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "items":
+		return ec.fieldContext_CustomerSegmentList_items(ctx, field)
+	case "totalCount":
+		return ec.fieldContext_CustomerSegmentList_totalCount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CustomerSegmentList", field.Name)
+}
+
+func (ec *executionContext) childFields_CustomerSegmentMember(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_CustomerSegmentMember_id(ctx, field)
+	case "joinedAt":
+		return ec.fieldContext_CustomerSegmentMember_joinedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CustomerSegmentMember", field.Name)
+}
+
 func (ec *executionContext) childFields_CustomerSignals(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "consents":
@@ -34980,6 +36325,182 @@ func (ec *executionContext) childFields_EmailWarning(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type EmailWarning", field.Name)
 }
 
+func (ec *executionContext) childFields_EventDestination(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_EventDestination_id(ctx, field)
+	case "channelId":
+		return ec.fieldContext_EventDestination_channelId(ctx, field)
+	case "name":
+		return ec.fieldContext_EventDestination_name(ctx, field)
+	case "kind":
+		return ec.fieldContext_EventDestination_kind(ctx, field)
+	case "targetUrl":
+		return ec.fieldContext_EventDestination_targetUrl(ctx, field)
+	case "eventSources":
+		return ec.fieldContext_EventDestination_eventSources(ctx, field)
+	case "eventNames":
+		return ec.fieldContext_EventDestination_eventNames(ctx, field)
+	case "isActive":
+		return ec.fieldContext_EventDestination_isActive(ctx, field)
+	case "lastError":
+		return ec.fieldContext_EventDestination_lastError(ctx, field)
+	case "lastForwardedAt":
+		return ec.fieldContext_EventDestination_lastForwardedAt(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_EventDestination_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_EventDestination_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type EventDestination", field.Name)
+}
+
+func (ec *executionContext) childFields_Experiment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Experiment_id(ctx, field)
+	case "channelId":
+		return ec.fieldContext_Experiment_channelId(ctx, field)
+	case "key":
+		return ec.fieldContext_Experiment_key(ctx, field)
+	case "name":
+		return ec.fieldContext_Experiment_name(ctx, field)
+	case "status":
+		return ec.fieldContext_Experiment_status(ctx, field)
+	case "coverage":
+		return ec.fieldContext_Experiment_coverage(ctx, field)
+	case "goalEvent":
+		return ec.fieldContext_Experiment_goalEvent(ctx, field)
+	case "segmentSlug":
+		return ec.fieldContext_Experiment_segmentSlug(ctx, field)
+	case "variations":
+		return ec.fieldContext_Experiment_variations(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_Experiment_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_Experiment_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Experiment", field.Name)
+}
+
+func (ec *executionContext) childFields_ExperimentResults(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "variations":
+		return ec.fieldContext_ExperimentResults_variations(ctx, field)
+	case "winner":
+		return ec.fieldContext_ExperimentResults_winner(ctx, field)
+	case "sequentialWinner":
+		return ec.fieldContext_ExperimentResults_sequentialWinner(ctx, field)
+	case "sampleRatioMismatch":
+		return ec.fieldContext_ExperimentResults_sampleRatioMismatch(ctx, field)
+	case "totalExposed":
+		return ec.fieldContext_ExperimentResults_totalExposed(ctx, field)
+	case "totalRevenue":
+		return ec.fieldContext_ExperimentResults_totalRevenue(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ExperimentResults", field.Name)
+}
+
+func (ec *executionContext) childFields_ExperimentSummary(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_ExperimentSummary_id(ctx, field)
+	case "key":
+		return ec.fieldContext_ExperimentSummary_key(ctx, field)
+	case "name":
+		return ec.fieldContext_ExperimentSummary_name(ctx, field)
+	case "variations":
+		return ec.fieldContext_ExperimentSummary_variations(ctx, field)
+	case "coverage":
+		return ec.fieldContext_ExperimentSummary_coverage(ctx, field)
+	case "totalExposed":
+		return ec.fieldContext_ExperimentSummary_totalExposed(ctx, field)
+	case "conversions":
+		return ec.fieldContext_ExperimentSummary_conversions(ctx, field)
+	case "leader":
+		return ec.fieldContext_ExperimentSummary_leader(ctx, field)
+	case "leaderRate":
+		return ec.fieldContext_ExperimentSummary_leaderRate(ctx, field)
+	case "leaderUplift":
+		return ec.fieldContext_ExperimentSummary_leaderUplift(ctx, field)
+	case "leaderChanceToWin":
+		return ec.fieldContext_ExperimentSummary_leaderChanceToWin(ctx, field)
+	case "leaderIsControl":
+		return ec.fieldContext_ExperimentSummary_leaderIsControl(ctx, field)
+	case "winner":
+		return ec.fieldContext_ExperimentSummary_winner(ctx, field)
+	case "sampleRatioMismatch":
+		return ec.fieldContext_ExperimentSummary_sampleRatioMismatch(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ExperimentSummary", field.Name)
+}
+
+func (ec *executionContext) childFields_ExperimentVariation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_ExperimentVariation_key(ctx, field)
+	case "name":
+		return ec.fieldContext_ExperimentVariation_name(ctx, field)
+	case "weight":
+		return ec.fieldContext_ExperimentVariation_weight(ctx, field)
+	case "value":
+		return ec.fieldContext_ExperimentVariation_value(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ExperimentVariation", field.Name)
+}
+
+func (ec *executionContext) childFields_ExperimentVariationResult(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "variation":
+		return ec.fieldContext_ExperimentVariationResult_variation(ctx, field)
+	case "name":
+		return ec.fieldContext_ExperimentVariationResult_name(ctx, field)
+	case "exposed":
+		return ec.fieldContext_ExperimentVariationResult_exposed(ctx, field)
+	case "converted":
+		return ec.fieldContext_ExperimentVariationResult_converted(ctx, field)
+	case "revenueCents":
+		return ec.fieldContext_ExperimentVariationResult_revenueCents(ctx, field)
+	case "rate":
+		return ec.fieldContext_ExperimentVariationResult_rate(ctx, field)
+	case "ciLow":
+		return ec.fieldContext_ExperimentVariationResult_ciLow(ctx, field)
+	case "ciHigh":
+		return ec.fieldContext_ExperimentVariationResult_ciHigh(ctx, field)
+	case "uplift":
+		return ec.fieldContext_ExperimentVariationResult_uplift(ctx, field)
+	case "chanceToWin":
+		return ec.fieldContext_ExperimentVariationResult_chanceToWin(ctx, field)
+	case "isControl":
+		return ec.fieldContext_ExperimentVariationResult_isControl(ctx, field)
+	case "significant":
+		return ec.fieldContext_ExperimentVariationResult_significant(ctx, field)
+	case "alwaysValidP":
+		return ec.fieldContext_ExperimentVariationResult_alwaysValidP(ctx, field)
+	case "sequentialSignificant":
+		return ec.fieldContext_ExperimentVariationResult_sequentialSignificant(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ExperimentVariationResult", field.Name)
+}
+
+func (ec *executionContext) childFields_ExperimentsOverview(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "running":
+		return ec.fieldContext_ExperimentsOverview_running(ctx, field)
+	case "draft":
+		return ec.fieldContext_ExperimentsOverview_draft(ctx, field)
+	case "stopped":
+		return ec.fieldContext_ExperimentsOverview_stopped(ctx, field)
+	case "totalExposed":
+		return ec.fieldContext_ExperimentsOverview_totalExposed(ctx, field)
+	case "decided":
+		return ec.fieldContext_ExperimentsOverview_decided(ctx, field)
+	case "experiments":
+		return ec.fieldContext_ExperimentsOverview_experiments(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ExperimentsOverview", field.Name)
+}
+
 func (ec *executionContext) childFields_FacetOverride(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "attributeId":
@@ -35334,6 +36855,16 @@ func (ec *executionContext) childFields_LibraryEmail(ctx context.Context, field 
 		return ec.fieldContext_LibraryEmail_updatedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type LibraryEmail", field.Name)
+}
+
+func (ec *executionContext) childFields_LinkClicks(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "url":
+		return ec.fieldContext_LinkClicks_url(ctx, field)
+	case "clicks":
+		return ec.fieldContext_LinkClicks_clicks(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LinkClicks", field.Name)
 }
 
 func (ec *executionContext) childFields_LinkEdge(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -36800,6 +38331,24 @@ func (ec *executionContext) childFields_PromotionTypeDescriptor(ctx context.Cont
 	return nil, fmt.Errorf("no field named %q was found under type PromotionTypeDescriptor", field.Name)
 }
 
+func (ec *executionContext) childFields_PulseEngagement(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "opensRaw":
+		return ec.fieldContext_PulseEngagement_opensRaw(ctx, field)
+	case "opensHuman":
+		return ec.fieldContext_PulseEngagement_opensHuman(ctx, field)
+	case "clicks":
+		return ec.fieldContext_PulseEngagement_clicks(ctx, field)
+	case "conversions":
+		return ec.fieldContext_PulseEngagement_conversions(ctx, field)
+	case "revenue":
+		return ec.fieldContext_PulseEngagement_revenue(ctx, field)
+	case "topLinks":
+		return ec.fieldContext_PulseEngagement_topLinks(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PulseEngagement", field.Name)
+}
+
 func (ec *executionContext) childFields_RebuildQueueStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "pending":
@@ -37480,6 +39029,16 @@ func (ec *executionContext) childFields_SearchSynonym(ctx context.Context, field
 		return ec.fieldContext_SearchSynonym_terms(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SearchSynonym", field.Name)
+}
+
+func (ec *executionContext) childFields_SegmentOption(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "slug":
+		return ec.fieldContext_SegmentOption_slug(ctx, field)
+	case "name":
+		return ec.fieldContext_SegmentOption_name(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SegmentOption", field.Name)
 }
 
 func (ec *executionContext) childFields_SeoIssueCount(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -38404,6 +39963,28 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_CustomerSegment_members_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_addAttributeValue_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -39236,6 +40817,28 @@ func (ec *executionContext) field_Mutation_assignCMSAttribute_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_assignCustomersToSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "segmentId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["segmentId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "customerIds",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["customerIds"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_assignEmailSlot_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -39579,6 +41182,20 @@ func (ec *executionContext) field_Mutation_clearProductMediaRole_args(ctx contex
 		return nil, err
 	}
 	args["role"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_clearSegmentMembership_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "segmentId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["segmentId"] = arg0
 	return args, nil
 }
 
@@ -40076,6 +41693,20 @@ func (ec *executionContext) field_Mutation_createCustomerGroup_args(ctx context.
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createCustomerSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.CreateCustomerSegmentInput, error) {
+			return ec.unmarshalNCreateCustomerSegmentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCreateCustomerSegmentInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createDraftOrder_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -40115,6 +41746,34 @@ func (ec *executionContext) field_Mutation_createEmailGroup_args(ctx context.Con
 		return nil, err
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createEventDestination_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.EventDestinationInput, error) {
+			return ec.unmarshalNEventDestinationInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestinationInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createExperiment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.SaveExperimentInput, error) {
+			return ec.unmarshalNSaveExperimentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSaveExperimentInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -41068,6 +42727,20 @@ func (ec *executionContext) field_Mutation_deleteCustomerGroup_args(ctx context.
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteCustomerSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteCustomer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -41119,6 +42792,34 @@ func (ec *executionContext) field_Mutation_deleteEmailCampaign_args(ctx context.
 }
 
 func (ec *executionContext) field_Mutation_deleteEmailGroup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteEventDestination_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteExperiment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -42562,6 +44263,20 @@ func (ec *executionContext) field_Mutation_redeliverWebhookDelivery_args(ctx con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_refreshSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "segmentId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["segmentId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_refreshToken_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -42703,6 +44418,28 @@ func (ec *executionContext) field_Mutation_releaseOrder_args(ctx context.Context
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_removeCustomerFromSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "segmentId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["segmentId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "customerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["customerId"] = arg1
 	return args, nil
 }
 
@@ -44792,6 +46529,28 @@ func (ec *executionContext) field_Mutation_setReviewModerationTags_args(ctx cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_setSegmentRules_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "segmentId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["segmentId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "rules",
+		func(ctx context.Context, v any) (any, error) {
+			return ec.unmarshalOJSON2interface(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["rules"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_setShippingCarrierCountries_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -45017,6 +46776,28 @@ func (ec *executionContext) field_Mutation_suppressEmail_args(ctx context.Contex
 		return nil, err
 	}
 	args["note"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_syncAudience_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "segmentId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["segmentId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "destinationId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["destinationId"] = arg1
 	return args, nil
 }
 
@@ -45622,6 +47403,20 @@ func (ec *executionContext) field_Mutation_updateCustomerGroup_args(ctx context.
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateCustomerSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.UpdateCustomerSegmentInput, error) {
+			return ec.unmarshalNUpdateCustomerSegmentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐUpdateCustomerSegmentInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateEmailCampaign_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -45636,6 +47431,50 @@ func (ec *executionContext) field_Mutation_updateEmailCampaign_args(ctx context.
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.SaveCampaignInput, error) {
 			return ec.unmarshalNSaveCampaignInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSaveCampaignInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateEventDestination_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.EventDestinationInput, error) {
+			return ec.unmarshalNEventDestinationInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestinationInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateExperiment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.SaveExperimentInput, error) {
+			return ec.unmarshalNSaveExperimentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSaveExperimentInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -47596,6 +49435,42 @@ func (ec *executionContext) field_Query_customerGroup_args(ctx context.Context, 
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_customerSegment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_customerSegments_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_customerSignals_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -47915,6 +49790,106 @@ func (ec *executionContext) field_Query_emailSuppressions_args(ctx context.Conte
 		return nil, err
 	}
 	args["offset"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_eventDestinations_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_experimentGoalEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_experimentResults_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sinceDays",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sinceDays"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_experiment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_experimentsOverview_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sinceDays",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sinceDays"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_experiments_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
 	return args, nil
 }
 
@@ -48813,6 +50788,28 @@ func (ec *executionContext) field_Query_promotionRules_args(ctx context.Context,
 		return nil, err
 	}
 	args["offset"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_pulseEngagement_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sinceDays",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["sinceDays"] = arg1
 	return args, nil
 }
 
@@ -68412,6 +70409,357 @@ func (ec *executionContext) fieldContext_CustomerPage_items(_ context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _CustomerSegment_id(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_slug(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_slug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_slug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_name(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_description(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_isActive(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_isActive(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsActive, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_isActive(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_memberCount(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_memberCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MemberCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_memberCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_members(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_members(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Members, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.CustomerSegmentMember) graphql.Marshaler {
+			return ec.marshalNCustomerSegmentMember2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegmentMemberᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_members(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CustomerSegment",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegmentMember(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_CustomerSegment_members_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CustomerSegment_rules(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_rules(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rules, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v any) graphql.Marshaler {
+			return ec.marshalOJSON2interface(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_rules(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegment_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegmentList_items(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegmentList) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegmentList_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.CustomerSegment) graphql.Marshaler {
+			return ec.marshalNCustomerSegment2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegmentᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegmentList_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CustomerSegmentList",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegment(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CustomerSegmentList_totalCount(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegmentList) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegmentList_totalCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegmentList_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegmentList", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegmentMember_id(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegmentMember) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegmentMember_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegmentMember_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegmentMember", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerSegmentMember_joinedAt(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegmentMember) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegmentMember_joinedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.JoinedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegmentMember_joinedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegmentMember", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
 func (ec *executionContext) _CustomerSignals_consents(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSignals) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -72021,6 +74369,1574 @@ func (ec *executionContext) fieldContext_EmailWarning_message(_ context.Context,
 	return graphql.NewScalarFieldContext("EmailWarning", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _EventDestination_id(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EventDestination_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EventDestination_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _EventDestination_channelId(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EventDestination_channelId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EventDestination_channelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _EventDestination_name(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EventDestination_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EventDestination_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EventDestination_kind(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EventDestination_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EventDestination_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EventDestination_targetUrl(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EventDestination_targetUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TargetURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EventDestination_targetUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EventDestination_eventSources(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EventDestination_eventSources(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EventSources, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EventDestination_eventSources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EventDestination_eventNames(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EventDestination_eventNames(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EventNames, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EventDestination_eventNames(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EventDestination_isActive(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EventDestination_isActive(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsActive, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EventDestination_isActive(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _EventDestination_lastError(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EventDestination_lastError(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastError, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EventDestination_lastError(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _EventDestination_lastForwardedAt(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EventDestination_lastForwardedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastForwardedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_EventDestination_lastForwardedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _EventDestination_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EventDestination_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EventDestination_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _EventDestination_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.EventDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_EventDestination_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_EventDestination_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("EventDestination", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Experiment_id(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Experiment_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Experiment_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _Experiment_channelId(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Experiment_channelId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Experiment_channelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _Experiment_key(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Experiment_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Experiment_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Experiment_name(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Experiment_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Experiment_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Experiment_status(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Experiment_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Experiment_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Experiment_coverage(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Experiment_coverage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Coverage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Experiment_coverage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Experiment_goalEvent(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Experiment_goalEvent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GoalEvent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Experiment_goalEvent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Experiment_segmentSlug(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Experiment_segmentSlug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SegmentSlug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Experiment_segmentSlug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Experiment_variations(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Experiment_variations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Variations, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.ExperimentVariation) graphql.Marshaler {
+			return ec.marshalNExperimentVariation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Experiment_variations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Experiment",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ExperimentVariation(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Experiment_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Experiment_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Experiment_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Experiment_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Experiment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Experiment_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Experiment_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Experiment", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentResults_variations(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentResults) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentResults_variations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Variations, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.ExperimentVariationResult) graphql.Marshaler {
+			return ec.marshalNExperimentVariationResult2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationResultᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentResults_variations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExperimentResults",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ExperimentVariationResult(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ExperimentResults_winner(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentResults) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentResults_winner(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Winner, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentResults_winner(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentResults", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentResults_sequentialWinner(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentResults) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentResults_sequentialWinner(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SequentialWinner, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentResults_sequentialWinner(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentResults", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentResults_sampleRatioMismatch(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentResults) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentResults_sampleRatioMismatch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SampleRatioMismatch, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentResults_sampleRatioMismatch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentResults", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentResults_totalExposed(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentResults) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentResults_totalExposed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalExposed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentResults_totalExposed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentResults", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentResults_totalRevenue(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentResults) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentResults_totalRevenue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalRevenue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentResults_totalRevenue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentResults", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_id(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_key(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_name(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_variations(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_variations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Variations, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_variations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_coverage(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_coverage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Coverage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_coverage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_totalExposed(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_totalExposed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalExposed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_totalExposed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_conversions(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_conversions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Conversions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_conversions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_leader(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_leader(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Leader, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_leader(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_leaderRate(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_leaderRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LeaderRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_leaderRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_leaderUplift(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_leaderUplift(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LeaderUplift, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_leaderUplift(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_leaderChanceToWin(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_leaderChanceToWin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LeaderChanceToWin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_leaderChanceToWin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_leaderIsControl(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_leaderIsControl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LeaderIsControl, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_leaderIsControl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_winner(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_winner(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Winner, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_winner(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentSummary_sampleRatioMismatch(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentSummary_sampleRatioMismatch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SampleRatioMismatch, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentSummary_sampleRatioMismatch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentSummary", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariation_key(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariation_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariation_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariation_name(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariation_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariation_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariation_weight(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariation_weight(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Weight, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariation_weight(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariation", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariation_value(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariation_value(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariation_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_variation(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_variation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Variation, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_variation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_name(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_exposed(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_exposed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Exposed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_exposed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_converted(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_converted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Converted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_converted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_revenueCents(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_revenueCents(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RevenueCents, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt642int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_revenueCents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_rate(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_rate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_rate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_ciLow(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_ciLow(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CiLow, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_ciLow(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_ciHigh(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_ciHigh(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CiHigh, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_ciHigh(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_uplift(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_uplift(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Uplift, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_uplift(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_chanceToWin(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_chanceToWin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChanceToWin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_chanceToWin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_isControl(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_isControl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsControl, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_isControl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_significant(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_significant(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Significant, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_significant(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_alwaysValidP(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_alwaysValidP(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AlwaysValidP, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_alwaysValidP(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentVariationResult_sequentialSignificant(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentVariationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentVariationResult_sequentialSignificant(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SequentialSignificant, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentVariationResult_sequentialSignificant(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentVariationResult", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentsOverview_running(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentsOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentsOverview_running(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Running, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentsOverview_running(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentsOverview", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentsOverview_draft(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentsOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentsOverview_draft(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Draft, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentsOverview_draft(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentsOverview", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentsOverview_stopped(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentsOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentsOverview_stopped(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Stopped, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentsOverview_stopped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentsOverview", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentsOverview_totalExposed(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentsOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentsOverview_totalExposed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalExposed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentsOverview_totalExposed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentsOverview", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentsOverview_decided(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentsOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentsOverview_decided(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Decided, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentsOverview_decided(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ExperimentsOverview", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ExperimentsOverview_experiments(ctx context.Context, field graphql.CollectedField, obj *model.ExperimentsOverview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ExperimentsOverview_experiments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Experiments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.ExperimentSummary) graphql.Marshaler {
+			return ec.marshalNExperimentSummary2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentSummaryᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ExperimentsOverview_experiments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ExperimentsOverview",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ExperimentSummary(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _FacetOverride_attributeId(ctx context.Context, field graphql.CollectedField, obj *model.FacetOverride) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -75314,6 +79230,52 @@ func (ec *executionContext) _LibraryEmail_updatedAt(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_LibraryEmail_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("LibraryEmail", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _LinkClicks_url(ctx context.Context, field graphql.CollectedField, obj *model.LinkClicks) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LinkClicks_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LinkClicks_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LinkClicks", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _LinkClicks_clicks(ctx context.Context, field graphql.CollectedField, obj *model.LinkClicks) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LinkClicks_clicks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Clicks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LinkClicks_clicks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LinkClicks", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _LinkEdge_from(ctx context.Context, field graphql.CollectedField, obj *model.LinkEdge) (ret graphql.Marshaler) {
@@ -90924,6 +94886,182 @@ func (ec *executionContext) fieldContext_Mutation_rewriteEmailText(ctx context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createEventDestination(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createEventDestination(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateEventDestination(ctx, fc.Args["input"].(model.EventDestinationInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EventDestination) graphql.Marshaler {
+			return ec.marshalNEventDestination2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestination(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createEventDestination(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EventDestination(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createEventDestination_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateEventDestination(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateEventDestination(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateEventDestination(ctx, fc.Args["id"].(string), fc.Args["input"].(model.EventDestinationInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.EventDestination) graphql.Marshaler {
+			return ec.marshalNEventDestination2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestination(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateEventDestination(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EventDestination(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateEventDestination_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteEventDestination(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteEventDestination(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteEventDestination(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteEventDestination(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteEventDestination_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_syncAudience(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_syncAudience(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SyncAudience(ctx, fc.Args["segmentId"].(string), fc.Args["destinationId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_syncAudience(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_syncAudience_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createFlow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -94341,6 +98479,138 @@ func (ec *executionContext) fieldContext_Mutation_setMyPreference(ctx context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createExperiment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createExperiment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateExperiment(ctx, fc.Args["input"].(model.SaveExperimentInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Experiment) graphql.Marshaler {
+			return ec.marshalNExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createExperiment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Experiment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createExperiment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateExperiment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateExperiment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateExperiment(ctx, fc.Args["id"].(string), fc.Args["input"].(model.SaveExperimentInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Experiment) graphql.Marshaler {
+			return ec.marshalNExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateExperiment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Experiment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateExperiment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteExperiment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteExperiment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteExperiment(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteExperiment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteExperiment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_setProductVariantMode(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -97019,6 +101289,364 @@ func (ec *executionContext) fieldContext_Mutation_setShippingCarrierCountries(ct
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_setShippingCarrierCountries_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createCustomerSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createCustomerSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateCustomerSegment(ctx, fc.Args["input"].(model.CreateCustomerSegmentInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {
+			return ec.marshalNCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegment(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createCustomerSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createCustomerSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateCustomerSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateCustomerSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateCustomerSegment(ctx, fc.Args["input"].(model.UpdateCustomerSegmentInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {
+			return ec.marshalNCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegment(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateCustomerSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateCustomerSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteCustomerSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteCustomerSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteCustomerSegment(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteCustomerSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteCustomerSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_assignCustomersToSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_assignCustomersToSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AssignCustomersToSegment(ctx, fc.Args["segmentId"].(string), fc.Args["customerIds"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_assignCustomersToSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_assignCustomersToSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeCustomerFromSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_removeCustomerFromSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RemoveCustomerFromSegment(ctx, fc.Args["segmentId"].(string), fc.Args["customerId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_removeCustomerFromSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeCustomerFromSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_clearSegmentMembership(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_clearSegmentMembership(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ClearSegmentMembership(ctx, fc.Args["segmentId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_clearSegmentMembership(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_clearSegmentMembership_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setSegmentRules(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setSegmentRules(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetSegmentRules(ctx, fc.Args["segmentId"].(string),
+				func() any {
+					if fc.Args["rules"] == nil {
+						return nil
+					}
+					return fc.Args["rules"].(any)
+				}())
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {
+			return ec.marshalNCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegment(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setSegmentRules(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setSegmentRules_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_refreshSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_refreshSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RefreshSegment(ctx, fc.Args["segmentId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_refreshSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_refreshSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -107941,6 +112569,162 @@ func (ec *executionContext) fieldContext_PromotionTypeDescriptor_paramsSchema(_ 
 	return graphql.NewScalarFieldContext("PromotionTypeDescriptor", field, false, false, errors.New("field of type JSON does not have child fields"))
 }
 
+func (ec *executionContext) _PulseEngagement_opensRaw(ctx context.Context, field graphql.CollectedField, obj *model.PulseEngagement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseEngagement_opensRaw(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OpensRaw, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseEngagement_opensRaw(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PulseEngagement", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PulseEngagement_opensHuman(ctx context.Context, field graphql.CollectedField, obj *model.PulseEngagement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseEngagement_opensHuman(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OpensHuman, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseEngagement_opensHuman(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PulseEngagement", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PulseEngagement_clicks(ctx context.Context, field graphql.CollectedField, obj *model.PulseEngagement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseEngagement_clicks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Clicks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseEngagement_clicks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PulseEngagement", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PulseEngagement_conversions(ctx context.Context, field graphql.CollectedField, obj *model.PulseEngagement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseEngagement_conversions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Conversions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseEngagement_conversions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PulseEngagement", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PulseEngagement_revenue(ctx context.Context, field graphql.CollectedField, obj *model.PulseEngagement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseEngagement_revenue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Revenue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AttributedRevenue) graphql.Marshaler {
+			return ec.marshalNAttributedRevenue2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐAttributedRevenueᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseEngagement_revenue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PulseEngagement",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AttributedRevenue(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PulseEngagement_topLinks(ctx context.Context, field graphql.CollectedField, obj *model.PulseEngagement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PulseEngagement_topLinks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TopLinks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LinkClicks) graphql.Marshaler {
+			return ec.marshalNLinkClicks2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐLinkClicksᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PulseEngagement_topLinks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PulseEngagement",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LinkClicks(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_adminActions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -111968,6 +116752,50 @@ func (ec *executionContext) fieldContext_Query_renderLibraryPreview(ctx context.
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_eventDestinations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_eventDestinations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().EventDestinations(ctx, fc.Args["channelId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.EventDestination) graphql.Marshaler {
+			return ec.marshalNEventDestination2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestinationᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_eventDestinations(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_EventDestination(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_eventDestinations_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_serverFeatures(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -113651,6 +118479,226 @@ func (ec *executionContext) fieldContext_Query_myPreferences(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_experiments(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_experiments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Experiments(ctx, fc.Args["channelId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Experiment) graphql.Marshaler {
+			return ec.marshalNExperiment2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_experiments(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Experiment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_experiments_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_experiment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_experiment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Experiment(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Experiment) graphql.Marshaler {
+			return ec.marshalOExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_experiment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Experiment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_experiment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_experimentResults(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_experimentResults(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ExperimentResults(ctx, fc.Args["id"].(string), fc.Args["sinceDays"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ExperimentResults) graphql.Marshaler {
+			return ec.marshalNExperimentResults2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentResults(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_experimentResults(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ExperimentResults(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_experimentResults_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_experimentsOverview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_experimentsOverview(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ExperimentsOverview(ctx, fc.Args["channelId"].(string), fc.Args["sinceDays"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ExperimentsOverview) graphql.Marshaler {
+			return ec.marshalNExperimentsOverview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentsOverview(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_experimentsOverview(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ExperimentsOverview(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_experimentsOverview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_experimentGoalEvents(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_experimentGoalEvents(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ExperimentGoalEvents(ctx, fc.Args["channelId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_experimentGoalEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_experimentGoalEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_promotionRules(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -113973,6 +119021,50 @@ func (ec *executionContext) fieldContext_Query_simulatePromotion(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_simulatePromotion_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_pulseEngagement(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_pulseEngagement(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().PulseEngagement(ctx, fc.Args["channelId"].(string), fc.Args["sinceDays"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PulseEngagement) graphql.Marshaler {
+			return ec.marshalNPulseEngagement2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐPulseEngagement(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_pulseEngagement(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PulseEngagement(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_pulseEngagement_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -114983,6 +120075,126 @@ func (ec *executionContext) fieldContext_Query_shippingBoxes(ctx context.Context
 	if fc.Args, err = ec.field_Query_shippingBoxes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_customerSegments(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_customerSegments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().CustomerSegments(ctx, fc.Args["limit"].(*int32), fc.Args["offset"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerSegmentList) graphql.Marshaler {
+			return ec.marshalNCustomerSegmentList2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegmentList(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_customerSegments(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegmentList(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_customerSegments_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_customerSegment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_customerSegment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().CustomerSegment(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {
+			return ec.marshalOCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegment(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_customerSegment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerSegment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_customerSegment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_experimentSegments(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_experimentSegments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().ExperimentSegments(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.SegmentOption) graphql.Marshaler {
+			return ec.marshalNSegmentOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSegmentOptionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_experimentSegments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SegmentOption(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -121319,6 +126531,52 @@ func (ec *executionContext) _SearchSynonym_terms(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_SearchSynonym_terms(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SearchSynonym", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SegmentOption_slug(ctx context.Context, field graphql.CollectedField, obj *model.SegmentOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentOption_slug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentOption_slug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentOption", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _SegmentOption_name(ctx context.Context, field graphql.CollectedField, obj *model.SegmentOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentOption_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentOption_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentOption", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _SeoIssueCount_issue(ctx context.Context, field graphql.CollectedField, obj *model.SeoIssueCount) (ret graphql.Marshaler) {
@@ -131893,6 +137151,57 @@ func (ec *executionContext) unmarshalInputCreateCustomerGroupInput(ctx context.C
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCreateCustomerSegmentInput(ctx context.Context, obj any) (model.CreateCustomerSegmentInput, error) {
+	var it model.CreateCustomerSegmentInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"slug", "name", "description", "isActive"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "slug":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("slug"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Slug = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "isActive":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isActive"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsActive = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateDraftOrderInput(ctx context.Context, obj any) (model.CreateDraftOrderInput, error) {
 	var it model.CreateDraftOrderInput
 	if obj == nil {
@@ -134281,6 +139590,136 @@ func (ec *executionContext) unmarshalInputEditOrderInput(ctx context.Context, ob
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputEventDestinationInput(ctx context.Context, obj any) (model.EventDestinationInput, error) {
+	var it model.EventDestinationInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"channelId", "name", "kind", "targetUrl", "secret", "eventSources", "eventNames", "isActive"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "channelId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ChannelID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		case "targetUrl":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("targetUrl"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TargetURL = data
+		case "secret":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("secret"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Secret = data
+		case "eventSources":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("eventSources"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EventSources = data
+		case "eventNames":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("eventNames"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EventNames = data
+		case "isActive":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isActive"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsActive = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputExperimentVariationInput(ctx context.Context, obj any) (model.ExperimentVariationInput, error) {
+	var it model.ExperimentVariationInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"key", "name", "weight", "value"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "key":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Key = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "weight":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("weight"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Weight = data
+		case "value":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Value = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputFacetOverrideInput(ctx context.Context, obj any) (model.FacetOverrideInput, error) {
 	var it model.FacetOverrideInput
 	if obj == nil {
@@ -135797,6 +141236,85 @@ func (ec *executionContext) unmarshalInputSaveEmailBlockInput(ctx context.Contex
 				return it, err
 			}
 			it.Scripted = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputSaveExperimentInput(ctx context.Context, obj any) (model.SaveExperimentInput, error) {
+	var it model.SaveExperimentInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"channelId", "key", "name", "status", "coverage", "goalEvent", "segmentSlug", "variations"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "channelId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ChannelID = data
+		case "key":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Key = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		case "coverage":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("coverage"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Coverage = data
+		case "goalEvent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("goalEvent"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.GoalEvent = data
+		case "segmentSlug":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("segmentSlug"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SegmentSlug = data
+		case "variations":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("variations"))
+			data, err := ec.unmarshalNExperimentVariationInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Variations = data
 		}
 	}
 	return it, nil
@@ -138464,6 +143982,64 @@ func (ec *executionContext) unmarshalInputUpdateCustomerGroupInput(ctx context.C
 				return it, err
 			}
 			it.Description = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateCustomerSegmentInput(ctx context.Context, obj any) (model.UpdateCustomerSegmentInput, error) {
+	var it model.UpdateCustomerSegmentInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "slug", "name", "description", "isActive"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "slug":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("slug"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Slug = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "isActive":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isActive"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsActive = data
 		}
 	}
 	return it, nil
@@ -149433,6 +155009,175 @@ func (ec *executionContext) _CustomerPage(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var customerSegmentImplementors = []string{"CustomerSegment"}
+
+func (ec *executionContext) _CustomerSegment(ctx context.Context, sel ast.SelectionSet, obj *model.CustomerSegment) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, customerSegmentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CustomerSegment")
+		case "id":
+			out.Values[i] = ec._CustomerSegment_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "slug":
+			out.Values[i] = ec._CustomerSegment_slug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._CustomerSegment_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._CustomerSegment_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isActive":
+			out.Values[i] = ec._CustomerSegment_isActive(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "memberCount":
+			out.Values[i] = ec._CustomerSegment_memberCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "members":
+			out.Values[i] = ec._CustomerSegment_members(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rules":
+			out.Values[i] = ec._CustomerSegment_rules(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._CustomerSegment_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._CustomerSegment_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var customerSegmentListImplementors = []string{"CustomerSegmentList"}
+
+func (ec *executionContext) _CustomerSegmentList(ctx context.Context, sel ast.SelectionSet, obj *model.CustomerSegmentList) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, customerSegmentListImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CustomerSegmentList")
+		case "items":
+			out.Values[i] = ec._CustomerSegmentList_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalCount":
+			out.Values[i] = ec._CustomerSegmentList_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var customerSegmentMemberImplementors = []string{"CustomerSegmentMember"}
+
+func (ec *executionContext) _CustomerSegmentMember(ctx context.Context, sel ast.SelectionSet, obj *model.CustomerSegmentMember) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, customerSegmentMemberImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CustomerSegmentMember")
+		case "id":
+			out.Values[i] = ec._CustomerSegmentMember_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "joinedAt":
+			out.Values[i] = ec._CustomerSegmentMember_joinedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var customerSignalsImplementors = []string{"CustomerSignals"}
 
 func (ec *executionContext) _CustomerSignals(ctx context.Context, sel ast.SelectionSet, obj *model.CustomerSignals) graphql.Marshaler {
@@ -150825,6 +156570,572 @@ func (ec *executionContext) _EmailWarning(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var eventDestinationImplementors = []string{"EventDestination"}
+
+func (ec *executionContext) _EventDestination(ctx context.Context, sel ast.SelectionSet, obj *model.EventDestination) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, eventDestinationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EventDestination")
+		case "id":
+			out.Values[i] = ec._EventDestination_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "channelId":
+			out.Values[i] = ec._EventDestination_channelId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._EventDestination_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._EventDestination_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "targetUrl":
+			out.Values[i] = ec._EventDestination_targetUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventSources":
+			out.Values[i] = ec._EventDestination_eventSources(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventNames":
+			out.Values[i] = ec._EventDestination_eventNames(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isActive":
+			out.Values[i] = ec._EventDestination_isActive(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastError":
+			out.Values[i] = ec._EventDestination_lastError(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastForwardedAt":
+			out.Values[i] = ec._EventDestination_lastForwardedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._EventDestination_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._EventDestination_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var experimentImplementors = []string{"Experiment"}
+
+func (ec *executionContext) _Experiment(ctx context.Context, sel ast.SelectionSet, obj *model.Experiment) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, experimentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Experiment")
+		case "id":
+			out.Values[i] = ec._Experiment_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "channelId":
+			out.Values[i] = ec._Experiment_channelId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "key":
+			out.Values[i] = ec._Experiment_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._Experiment_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._Experiment_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "coverage":
+			out.Values[i] = ec._Experiment_coverage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "goalEvent":
+			out.Values[i] = ec._Experiment_goalEvent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "segmentSlug":
+			out.Values[i] = ec._Experiment_segmentSlug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "variations":
+			out.Values[i] = ec._Experiment_variations(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Experiment_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Experiment_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var experimentResultsImplementors = []string{"ExperimentResults"}
+
+func (ec *executionContext) _ExperimentResults(ctx context.Context, sel ast.SelectionSet, obj *model.ExperimentResults) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, experimentResultsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ExperimentResults")
+		case "variations":
+			out.Values[i] = ec._ExperimentResults_variations(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "winner":
+			out.Values[i] = ec._ExperimentResults_winner(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sequentialWinner":
+			out.Values[i] = ec._ExperimentResults_sequentialWinner(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sampleRatioMismatch":
+			out.Values[i] = ec._ExperimentResults_sampleRatioMismatch(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalExposed":
+			out.Values[i] = ec._ExperimentResults_totalExposed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalRevenue":
+			out.Values[i] = ec._ExperimentResults_totalRevenue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var experimentSummaryImplementors = []string{"ExperimentSummary"}
+
+func (ec *executionContext) _ExperimentSummary(ctx context.Context, sel ast.SelectionSet, obj *model.ExperimentSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, experimentSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ExperimentSummary")
+		case "id":
+			out.Values[i] = ec._ExperimentSummary_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "key":
+			out.Values[i] = ec._ExperimentSummary_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._ExperimentSummary_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "variations":
+			out.Values[i] = ec._ExperimentSummary_variations(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "coverage":
+			out.Values[i] = ec._ExperimentSummary_coverage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalExposed":
+			out.Values[i] = ec._ExperimentSummary_totalExposed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "conversions":
+			out.Values[i] = ec._ExperimentSummary_conversions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "leader":
+			out.Values[i] = ec._ExperimentSummary_leader(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "leaderRate":
+			out.Values[i] = ec._ExperimentSummary_leaderRate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "leaderUplift":
+			out.Values[i] = ec._ExperimentSummary_leaderUplift(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "leaderChanceToWin":
+			out.Values[i] = ec._ExperimentSummary_leaderChanceToWin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "leaderIsControl":
+			out.Values[i] = ec._ExperimentSummary_leaderIsControl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "winner":
+			out.Values[i] = ec._ExperimentSummary_winner(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sampleRatioMismatch":
+			out.Values[i] = ec._ExperimentSummary_sampleRatioMismatch(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var experimentVariationImplementors = []string{"ExperimentVariation"}
+
+func (ec *executionContext) _ExperimentVariation(ctx context.Context, sel ast.SelectionSet, obj *model.ExperimentVariation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, experimentVariationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ExperimentVariation")
+		case "key":
+			out.Values[i] = ec._ExperimentVariation_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._ExperimentVariation_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "weight":
+			out.Values[i] = ec._ExperimentVariation_weight(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "value":
+			out.Values[i] = ec._ExperimentVariation_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var experimentVariationResultImplementors = []string{"ExperimentVariationResult"}
+
+func (ec *executionContext) _ExperimentVariationResult(ctx context.Context, sel ast.SelectionSet, obj *model.ExperimentVariationResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, experimentVariationResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ExperimentVariationResult")
+		case "variation":
+			out.Values[i] = ec._ExperimentVariationResult_variation(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._ExperimentVariationResult_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "exposed":
+			out.Values[i] = ec._ExperimentVariationResult_exposed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "converted":
+			out.Values[i] = ec._ExperimentVariationResult_converted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revenueCents":
+			out.Values[i] = ec._ExperimentVariationResult_revenueCents(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rate":
+			out.Values[i] = ec._ExperimentVariationResult_rate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ciLow":
+			out.Values[i] = ec._ExperimentVariationResult_ciLow(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ciHigh":
+			out.Values[i] = ec._ExperimentVariationResult_ciHigh(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "uplift":
+			out.Values[i] = ec._ExperimentVariationResult_uplift(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "chanceToWin":
+			out.Values[i] = ec._ExperimentVariationResult_chanceToWin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isControl":
+			out.Values[i] = ec._ExperimentVariationResult_isControl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "significant":
+			out.Values[i] = ec._ExperimentVariationResult_significant(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "alwaysValidP":
+			out.Values[i] = ec._ExperimentVariationResult_alwaysValidP(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sequentialSignificant":
+			out.Values[i] = ec._ExperimentVariationResult_sequentialSignificant(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var experimentsOverviewImplementors = []string{"ExperimentsOverview"}
+
+func (ec *executionContext) _ExperimentsOverview(ctx context.Context, sel ast.SelectionSet, obj *model.ExperimentsOverview) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, experimentsOverviewImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ExperimentsOverview")
+		case "running":
+			out.Values[i] = ec._ExperimentsOverview_running(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "draft":
+			out.Values[i] = ec._ExperimentsOverview_draft(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stopped":
+			out.Values[i] = ec._ExperimentsOverview_stopped(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalExposed":
+			out.Values[i] = ec._ExperimentsOverview_totalExposed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "decided":
+			out.Values[i] = ec._ExperimentsOverview_decided(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "experiments":
+			out.Values[i] = ec._ExperimentsOverview_experiments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var facetOverrideImplementors = []string{"FacetOverride"}
 
 func (ec *executionContext) _FacetOverride(ctx context.Context, sel ast.SelectionSet, obj *model.FacetOverride) graphql.Marshaler {
@@ -152113,6 +158424,49 @@ func (ec *executionContext) _LibraryEmail(ctx context.Context, sel ast.Selection
 			}
 		case "updatedAt":
 			out.Values[i] = ec._LibraryEmail_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var linkClicksImplementors = []string{"LinkClicks"}
+
+func (ec *executionContext) _LinkClicks(ctx context.Context, sel ast.SelectionSet, obj *model.LinkClicks) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, linkClicksImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LinkClicks")
+		case "url":
+			out.Values[i] = ec._LinkClicks_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clicks":
+			out.Values[i] = ec._LinkClicks_clicks(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -155401,6 +161755,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createEventDestination":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createEventDestination(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateEventDestination":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateEventDestination(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteEventDestination":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteEventDestination(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "syncAudience":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_syncAudience(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createFlow":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createFlow(ctx, field)
@@ -155947,6 +162329,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createExperiment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createExperiment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateExperiment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateExperiment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteExperiment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteExperiment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "setProductVariantMode":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_setProductVariantMode(ctx, field)
@@ -156370,6 +162773,62 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "setShippingCarrierCountries":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_setShippingCarrierCountries(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createCustomerSegment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createCustomerSegment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateCustomerSegment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateCustomerSegment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteCustomerSegment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteCustomerSegment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "assignCustomersToSegment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_assignCustomersToSegment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeCustomerFromSegment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeCustomerFromSegment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clearSegmentMembership":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_clearSegmentMembership(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setSegmentRules":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setSegmentRules(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "refreshSegment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_refreshSegment(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -160743,6 +167202,69 @@ func (ec *executionContext) _PromotionTypeDescriptor(ctx context.Context, sel as
 	return out
 }
 
+var pulseEngagementImplementors = []string{"PulseEngagement"}
+
+func (ec *executionContext) _PulseEngagement(ctx context.Context, sel ast.SelectionSet, obj *model.PulseEngagement) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pulseEngagementImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PulseEngagement")
+		case "opensRaw":
+			out.Values[i] = ec._PulseEngagement_opensRaw(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "opensHuman":
+			out.Values[i] = ec._PulseEngagement_opensHuman(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clicks":
+			out.Values[i] = ec._PulseEngagement_clicks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "conversions":
+			out.Values[i] = ec._PulseEngagement_conversions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revenue":
+			out.Values[i] = ec._PulseEngagement_revenue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "topLinks":
+			out.Values[i] = ec._PulseEngagement_topLinks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var queryImplementors = []string{"Query"}
 
 func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -162919,6 +169441,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "eventDestinations":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_eventDestinations(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "serverFeatures":
 			field := field
 
@@ -163843,6 +170387,116 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "experiments":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_experiments(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "experiment":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_experiment(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "experimentResults":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_experimentResults(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "experimentsOverview":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_experimentsOverview(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "experimentGoalEvents":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_experimentGoalEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "promotionRules":
 			field := field
 
@@ -164007,6 +170661,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_simulatePromotion(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "pulseEngagement":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_pulseEngagement(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -164535,6 +171211,72 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_shippingBoxes(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "customerSegments":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_customerSegments(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "customerSegment":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_customerSegment(ctx, field)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "experimentSegments":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_experimentSegments(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -167467,6 +174209,49 @@ func (ec *executionContext) _SearchSynonym(ctx context.Context, sel ast.Selectio
 			}
 		case "terms":
 			out.Values[i] = ec._SearchSynonym_terms(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var segmentOptionImplementors = []string{"SegmentOption"}
+
+func (ec *executionContext) _SegmentOption(ctx context.Context, sel ast.SelectionSet, obj *model.SegmentOption) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, segmentOptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SegmentOption")
+		case "slug":
+			out.Values[i] = ec._SegmentOption_slug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._SegmentOption_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -173413,6 +180198,11 @@ func (ec *executionContext) unmarshalNCreateCustomerGroupInput2githubᚗcomᚋsk
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateCustomerSegmentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCreateCustomerSegmentInput(ctx context.Context, v any) (model.CreateCustomerSegmentInput, error) {
+	res, err := ec.unmarshalInputCreateCustomerSegmentInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateDraftOrderInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCreateDraftOrderInput(ctx context.Context, v any) (model.CreateDraftOrderInput, error) {
 	res, err := ec.unmarshalInputCreateDraftOrderInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -173772,6 +180562,76 @@ func (ec *executionContext) marshalNCustomerPage2ᚖgithubᚗcomᚋskeletgᚋske
 		return graphql.Null
 	}
 	return ec._CustomerPage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCustomerSegment2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegment(ctx context.Context, sel ast.SelectionSet, v model.CustomerSegment) graphql.Marshaler {
+	return ec._CustomerSegment(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCustomerSegment2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegmentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CustomerSegment) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegment(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegment(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CustomerSegment(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCustomerSegmentList2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegmentList(ctx context.Context, sel ast.SelectionSet, v model.CustomerSegmentList) graphql.Marshaler {
+	return ec._CustomerSegmentList(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCustomerSegmentList2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegmentList(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSegmentList) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CustomerSegmentList(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCustomerSegmentMember2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegmentMemberᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CustomerSegmentMember) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCustomerSegmentMember2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegmentMember(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCustomerSegmentMember2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegmentMember(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSegmentMember) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CustomerSegmentMember(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNCustomerSignals2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSignals(ctx context.Context, sel ast.SelectionSet, v model.CustomerSignals) graphql.Marshaler {
@@ -174270,6 +181130,196 @@ func (ec *executionContext) marshalNEmailWarning2ᚖgithubᚗcomᚋskeletgᚋske
 		return graphql.Null
 	}
 	return ec._EmailWarning(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEventDestination2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestination(ctx context.Context, sel ast.SelectionSet, v model.EventDestination) graphql.Marshaler {
+	return ec._EventDestination(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNEventDestination2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestinationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EventDestination) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNEventDestination2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestination(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEventDestination2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestination(ctx context.Context, sel ast.SelectionSet, v *model.EventDestination) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EventDestination(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNEventDestinationInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐEventDestinationInput(ctx context.Context, v any) (model.EventDestinationInput, error) {
+	res, err := ec.unmarshalInputEventDestinationInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNExperiment2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx context.Context, sel ast.SelectionSet, v model.Experiment) graphql.Marshaler {
+	return ec._Experiment(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNExperiment2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Experiment) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx context.Context, sel ast.SelectionSet, v *model.Experiment) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Experiment(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNExperimentResults2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentResults(ctx context.Context, sel ast.SelectionSet, v model.ExperimentResults) graphql.Marshaler {
+	return ec._ExperimentResults(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNExperimentResults2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentResults(ctx context.Context, sel ast.SelectionSet, v *model.ExperimentResults) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ExperimentResults(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNExperimentSummary2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ExperimentSummary) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNExperimentSummary2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentSummary(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNExperimentSummary2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentSummary(ctx context.Context, sel ast.SelectionSet, v *model.ExperimentSummary) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ExperimentSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNExperimentVariation2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ExperimentVariation) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNExperimentVariation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariation(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNExperimentVariation2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariation(ctx context.Context, sel ast.SelectionSet, v *model.ExperimentVariation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ExperimentVariation(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNExperimentVariationInput2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationInputᚄ(ctx context.Context, v any) ([]*model.ExperimentVariationInput, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.ExperimentVariationInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNExperimentVariationInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNExperimentVariationInput2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationInput(ctx context.Context, v any) (*model.ExperimentVariationInput, error) {
+	res, err := ec.unmarshalInputExperimentVariationInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNExperimentVariationResult2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationResultᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ExperimentVariationResult) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNExperimentVariationResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationResult(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNExperimentVariationResult2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentVariationResult(ctx context.Context, sel ast.SelectionSet, v *model.ExperimentVariationResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ExperimentVariationResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNExperimentsOverview2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentsOverview(ctx context.Context, sel ast.SelectionSet, v model.ExperimentsOverview) graphql.Marshaler {
+	return ec._ExperimentsOverview(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNExperimentsOverview2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperimentsOverview(ctx context.Context, sel ast.SelectionSet, v *model.ExperimentsOverview) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ExperimentsOverview(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNFacetOverride2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐFacetOverrideᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FacetOverride) graphql.Marshaler {
@@ -174955,6 +182005,32 @@ func (ec *executionContext) marshalNLibraryEmail2ᚖgithubᚗcomᚋskeletgᚋske
 		return graphql.Null
 	}
 	return ec._LibraryEmail(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLinkClicks2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐLinkClicksᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LinkClicks) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLinkClicks2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐLinkClicks(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLinkClicks2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐLinkClicks(ctx context.Context, sel ast.SelectionSet, v *model.LinkClicks) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LinkClicks(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNLinkEdge2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐLinkEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LinkEdge) graphql.Marshaler {
@@ -176769,6 +183845,20 @@ func (ec *executionContext) marshalNPromotionTypeDescriptor2ᚖgithubᚗcomᚋsk
 	return ec._PromotionTypeDescriptor(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNPulseEngagement2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐPulseEngagement(ctx context.Context, sel ast.SelectionSet, v model.PulseEngagement) graphql.Marshaler {
+	return ec._PulseEngagement(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPulseEngagement2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐPulseEngagement(ctx context.Context, sel ast.SelectionSet, v *model.PulseEngagement) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PulseEngagement(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNRebuildQueueStatus2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐRebuildQueueStatus(ctx context.Context, sel ast.SelectionSet, v model.RebuildQueueStatus) graphql.Marshaler {
 	return ec._RebuildQueueStatus(ctx, sel, &v)
 }
@@ -177614,6 +184704,11 @@ func (ec *executionContext) unmarshalNSaveEmailBlockInput2githubᚗcomᚋskeletg
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNSaveExperimentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSaveExperimentInput(ctx context.Context, v any) (model.SaveExperimentInput, error) {
+	res, err := ec.unmarshalInputSaveExperimentInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNSaveFlowInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSaveFlowInput(ctx context.Context, v any) (model.SaveFlowInput, error) {
 	res, err := ec.unmarshalInputSaveFlowInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -177836,6 +184931,32 @@ func (ec *executionContext) marshalNSearchSynonym2ᚖgithubᚗcomᚋskeletgᚋsk
 		return graphql.Null
 	}
 	return ec._SearchSynonym(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSegmentOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSegmentOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SegmentOption) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSegmentOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSegmentOption(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSegmentOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSegmentOption(ctx context.Context, sel ast.SelectionSet, v *model.SegmentOption) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SegmentOption(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNSeoIssue2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐSeoIssue(ctx context.Context, v any) (model.SeoIssue, error) {
@@ -178953,6 +186074,11 @@ func (ec *executionContext) unmarshalNUpdateCurrencyInput2githubᚗcomᚋskeletg
 
 func (ec *executionContext) unmarshalNUpdateCustomerGroupInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐUpdateCustomerGroupInput(ctx context.Context, v any) (model.UpdateCustomerGroupInput, error) {
 	res, err := ec.unmarshalInputUpdateCustomerGroupInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateCustomerSegmentInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐUpdateCustomerSegmentInput(ctx context.Context, v any) (model.UpdateCustomerSegmentInput, error) {
+	res, err := ec.unmarshalInputUpdateCustomerSegmentInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -180090,6 +187216,13 @@ func (ec *executionContext) marshalOCurrency2ᚖgithubᚗcomᚋskeletgᚋskelet�
 	return ec._Currency(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalOCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSegment(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CustomerSegment(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalOCustomerSubscription2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐCustomerSubscription(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSubscription) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -180175,6 +187308,13 @@ func (ec *executionContext) marshalOEmailCampaign2ᚖgithubᚗcomᚋskeletgᚋsk
 		return graphql.Null
 	}
 	return ec._EmailCampaign(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOExperiment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋgraphᚋadminᚋmodelᚐExperiment(ctx context.Context, sel ast.SelectionSet, v *model.Experiment) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Experiment(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {

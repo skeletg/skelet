@@ -57,13 +57,6 @@ type BotTraffic struct {
 	Daily      []*BotDayPoint `json:"daily"`
 }
 
-type CreateCustomerSegmentInput struct {
-	Slug        string  `json:"slug"`
-	Name        string  `json:"name"`
-	Description *string `json:"description,omitempty"`
-	IsActive    *bool   `json:"isActive,omitempty"`
-}
-
 type CustomerActivityItem struct {
 	EventName   string    `json:"eventName"`
 	OccurredAt  time.Time `json:"occurredAt"`
@@ -111,29 +104,6 @@ type CustomerProfile struct {
 	Affinities       []*AttributeAffinity     `json:"affinities"`
 }
 
-type CustomerSegment struct {
-	ID          string                   `json:"id"`
-	Slug        string                   `json:"slug"`
-	Name        string                   `json:"name"`
-	Description string                   `json:"description"`
-	IsActive    bool                     `json:"isActive"`
-	MemberCount int32                    `json:"memberCount"`
-	Members     []*CustomerSegmentMember `json:"members"`
-	Rules       any                      `json:"rules,omitempty"`
-	CreatedAt   time.Time                `json:"createdAt"`
-	UpdatedAt   time.Time                `json:"updatedAt"`
-}
-
-type CustomerSegmentList struct {
-	Items      []*CustomerSegment `json:"items"`
-	TotalCount int32              `json:"totalCount"`
-}
-
-type CustomerSegmentMember struct {
-	ID       string    `json:"id"`
-	JoinedAt time.Time `json:"joinedAt"`
-}
-
 type CustomerTraits struct {
 	Lifecycle         string    `json:"lifecycle"`
 	RfmRecency        int32     `json:"rfmRecency"`
@@ -147,112 +117,6 @@ type CustomerTraits struct {
 	PredictedClvCents int       `json:"predictedClvCents"`
 	NextOrderDays     int32     `json:"nextOrderDays"`
 	ComputedAt        time.Time `json:"computedAt"`
-}
-
-type EventDestination struct {
-	ID              string     `json:"id"`
-	ChannelID       string     `json:"channelId"`
-	Name            string     `json:"name"`
-	Kind            string     `json:"kind"`
-	TargetURL       string     `json:"targetUrl"`
-	EventSources    []string   `json:"eventSources"`
-	EventNames      []string   `json:"eventNames"`
-	IsActive        bool       `json:"isActive"`
-	LastError       string     `json:"lastError"`
-	LastForwardedAt *time.Time `json:"lastForwardedAt,omitempty"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	UpdatedAt       time.Time  `json:"updatedAt"`
-}
-
-type EventDestinationInput struct {
-	ChannelID    string   `json:"channelId"`
-	Name         string   `json:"name"`
-	Kind         string   `json:"kind"`
-	TargetURL    string   `json:"targetUrl"`
-	Secret       *string  `json:"secret,omitempty"`
-	EventSources []string `json:"eventSources,omitempty"`
-	EventNames   []string `json:"eventNames,omitempty"`
-	IsActive     *bool    `json:"isActive,omitempty"`
-}
-
-type Experiment struct {
-	ID          string                 `json:"id"`
-	ChannelID   string                 `json:"channelId"`
-	Key         string                 `json:"key"`
-	Name        string                 `json:"name"`
-	Status      string                 `json:"status"`
-	Coverage    int32                  `json:"coverage"`
-	GoalEvent   string                 `json:"goalEvent"`
-	SegmentSlug string                 `json:"segmentSlug"`
-	Variations  []*ExperimentVariation `json:"variations"`
-	CreatedAt   time.Time              `json:"createdAt"`
-	UpdatedAt   time.Time              `json:"updatedAt"`
-}
-
-type ExperimentResults struct {
-	Variations          []*ExperimentVariationResult `json:"variations"`
-	Winner              string                       `json:"winner"`
-	SequentialWinner    string                       `json:"sequentialWinner"`
-	SampleRatioMismatch bool                         `json:"sampleRatioMismatch"`
-	TotalExposed        int32                        `json:"totalExposed"`
-	TotalRevenue        int                          `json:"totalRevenue"`
-}
-
-type ExperimentSummary struct {
-	ID                  string  `json:"id"`
-	Key                 string  `json:"key"`
-	Name                string  `json:"name"`
-	Variations          int32   `json:"variations"`
-	Coverage            int32   `json:"coverage"`
-	TotalExposed        int32   `json:"totalExposed"`
-	Conversions         int32   `json:"conversions"`
-	Leader              string  `json:"leader"`
-	LeaderRate          float64 `json:"leaderRate"`
-	LeaderUplift        float64 `json:"leaderUplift"`
-	LeaderChanceToWin   float64 `json:"leaderChanceToWin"`
-	LeaderIsControl     bool    `json:"leaderIsControl"`
-	Winner              string  `json:"winner"`
-	SampleRatioMismatch bool    `json:"sampleRatioMismatch"`
-}
-
-type ExperimentVariation struct {
-	Key    string `json:"key"`
-	Name   string `json:"name"`
-	Weight int32  `json:"weight"`
-	Value  string `json:"value"`
-}
-
-type ExperimentVariationInput struct {
-	Key    string `json:"key"`
-	Name   string `json:"name"`
-	Weight int32  `json:"weight"`
-	Value  string `json:"value"`
-}
-
-type ExperimentVariationResult struct {
-	Variation             string  `json:"variation"`
-	Name                  string  `json:"name"`
-	Exposed               int32   `json:"exposed"`
-	Converted             int32   `json:"converted"`
-	RevenueCents          int     `json:"revenueCents"`
-	Rate                  float64 `json:"rate"`
-	CiLow                 float64 `json:"ciLow"`
-	CiHigh                float64 `json:"ciHigh"`
-	Uplift                float64 `json:"uplift"`
-	ChanceToWin           float64 `json:"chanceToWin"`
-	IsControl             bool    `json:"isControl"`
-	Significant           bool    `json:"significant"`
-	AlwaysValidP          float64 `json:"alwaysValidP"`
-	SequentialSignificant bool    `json:"sequentialSignificant"`
-}
-
-type ExperimentsOverview struct {
-	Running      int32                `json:"running"`
-	Draft        int32                `json:"draft"`
-	Stopped      int32                `json:"stopped"`
-	TotalExposed int32                `json:"totalExposed"`
-	Decided      int32                `json:"decided"`
-	Experiments  []*ExperimentSummary `json:"experiments"`
 }
 
 type InsightPoint struct {
@@ -425,11 +289,6 @@ type LensVital struct {
 	Samples int32   `json:"samples"`
 }
 
-type LinkClicks struct {
-	URL    string `json:"url"`
-	Clicks int32  `json:"clicks"`
-}
-
 type Mutation struct {
 }
 
@@ -453,15 +312,6 @@ type ProfileValue struct {
 	Count int32  `json:"count"`
 }
 
-type PulseEngagement struct {
-	OpensRaw    int32                `json:"opensRaw"`
-	OpensHuman  int32                `json:"opensHuman"`
-	Clicks      int32                `json:"clicks"`
-	Conversions int32                `json:"conversions"`
-	Revenue     []*AttributedRevenue `json:"revenue"`
-	TopLinks    []*LinkClicks        `json:"topLinks"`
-}
-
 type Query struct {
 }
 
@@ -475,17 +325,6 @@ type RetentionCohort struct {
 	StartAt time.Time          `json:"startAt"`
 	Size    int32              `json:"size"`
 	Buckets []*RetentionBucket `json:"buckets"`
-}
-
-type SaveExperimentInput struct {
-	ChannelID   string                      `json:"channelId"`
-	Key         string                      `json:"key"`
-	Name        string                      `json:"name"`
-	Status      string                      `json:"status"`
-	Coverage    int32                       `json:"coverage"`
-	GoalEvent   string                      `json:"goalEvent"`
-	SegmentSlug *string                     `json:"segmentSlug,omitempty"`
-	Variations  []*ExperimentVariationInput `json:"variations"`
 }
 
 type SegmentAffinityCount struct {
@@ -555,11 +394,6 @@ type SegmentNodeInput struct {
 	Days     *int32                `json:"days,omitempty"`
 	Trait    *SegmentTraitInput    `json:"trait,omitempty"`
 	Affinity *SegmentAffinityInput `json:"affinity,omitempty"`
-}
-
-type SegmentOption struct {
-	Slug string `json:"slug"`
-	Name string `json:"name"`
 }
 
 type SegmentRfmBucket struct {
@@ -722,14 +556,6 @@ type SynapseVisitor struct {
 	Events   int32      `json:"events"`
 	LastSeen *time.Time `json:"lastSeen,omitempty"`
 	LastPage string     `json:"lastPage"`
-}
-
-type UpdateCustomerSegmentInput struct {
-	ID          string  `json:"id"`
-	Slug        *string `json:"slug,omitempty"`
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-	IsActive    *bool   `json:"isActive,omitempty"`
 }
 
 type SegmentBoolOp string

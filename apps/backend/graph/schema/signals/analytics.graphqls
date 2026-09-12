@@ -1,27 +1,6 @@
-# Marketing-email engagement analytics (the Pulse "advanced tracking" rollup),
-# read off the analytics event spine. Channel-scoped; gated on emails.view.
-
-type PulseEngagement {
-  opensRaw:    Int!   # every logged open (incl. machine/proxy prefetch)
-  opensHuman:  Int!   # machine-flagged opens excluded
-  clicks:      Int!   # human clicks
-  conversions: Int!   # orders attributed to recent email engagement
-  revenue:     [AttributedRevenue!]!
-  topLinks:    [LinkClicks!]!
-}
-
+# Shared by the Synapse types below until that surface moves to core too.
 type AttributedRevenue {
   currency: String!
   cents:    Int64!
   orders:   Int!
-}
-
-type LinkClicks {
-  url:    String!
-  clicks: Int!
-}
-
-extend type Query {
-  # Engagement rollup for a channel over the last `sinceDays` days (default 30).
-  pulseEngagement(channelId: ID!, sinceDays: Int): PulseEngagement!
 }

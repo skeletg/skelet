@@ -35,8 +35,7 @@ import {
 } from '@/components/layout/detail-page'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useConfigScope } from '@/lib/config-scope'
-import { CreateSignupFormDocument, DeleteSignupFormDocument, SignupFormDocument, SignupFormSubmissionsDocument, UpdateSignupFormDocument, type SignupFormFieldsFragment } from './Forms.gql'
-import { FormSegmentsDocument } from './Forms.signals.gql'
+import { CreateSignupFormDocument, DeleteSignupFormDocument, FormSegmentsDocument, SignupFormDocument, SignupFormSubmissionsDocument, UpdateSignupFormDocument, type SignupFormFieldsFragment } from './Forms.gql'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',

@@ -17,8 +17,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/internal/destination"
-	"github.com/skeletg/skelet/apps/backend/internal/experiment"
 	"github.com/skeletg/skelet/apps/backend/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/internal/observability"
@@ -28,19 +26,17 @@ import (
 
 // SignalsAPI is what the Signals GraphQL surface needs - suite services only, since this process has no commerce services to offer
 type SignalsAPI struct {
-	Experiment  *experiment.Service
-	Lens        *lens.Service
-	Destination *destination.Service
-	Segment     *segment.Service
-	Analytics   *analytics.Recorder
-	Behavioral  *behavioralsegment.Service
-	Channel     *channel.Service
-	Config      *config.Service
-	Roster      *signalsdb.Queries
-	Commerce    *db.Queries
-	JWTSecret   string
-	Dev         bool
-	Telemetry   observability.Telemetry
+	Lens       *lens.Service
+	Segment    *segment.Service
+	Analytics  *analytics.Recorder
+	Behavioral *behavioralsegment.Service
+	Channel    *channel.Service
+	Config     *config.Service
+	Roster     *signalsdb.Queries
+	Commerce   *db.Queries
+	JWTSecret  string
+	Dev        bool
+	Telemetry  observability.Telemetry
 	// Optional - nil means a session killed in core keeps working here until its token expires
 	Revocations auth.Revocations
 }
@@ -49,7 +45,7 @@ type SignalsAPI struct {
 func SignalsGraphQLHandler(a SignalsAPI) http.Handler {
 	srv := handler.New(graphsignals.NewExecutableSchema(graphsignals.Config{
 		Resolvers: &graphsignals.Resolver{
-			ExperimentSvc: a.Experiment, LensSvc: a.Lens, DestinationSvc: a.Destination, SegmentSvc: a.Segment,
+			LensSvc: a.Lens, SegmentSvc: a.Segment,
 			AnalyticsSvc: a.Analytics, BehavioralSvc: a.Behavioral, ChannelSvc: a.Channel, ConfigSvc: a.Config, Commerce: a.Commerce, Roster: a.Roster,
 		},
 	}))

@@ -66,13 +66,6 @@ export type BotTraffic = {
   topPages: Array<BotPage>;
 };
 
-export type CreateCustomerSegmentInput = {
-  description?: InputMaybe<Scalars['String']['input']>;
-  isActive?: InputMaybe<Scalars['Boolean']['input']>;
-  name: Scalars['String']['input'];
-  slug: Scalars['String']['input'];
-};
-
 export type CustomerActivityItem = {
   __typename?: 'CustomerActivityItem';
   detailsJson: Scalars['String']['output'];
@@ -124,38 +117,6 @@ export type CustomerProfile = {
   traits?: Maybe<CustomerTraits>;
 };
 
-export type CustomerSegment = {
-  __typename?: 'CustomerSegment';
-  createdAt: Scalars['Time']['output'];
-  description: Scalars['String']['output'];
-  id: Scalars['ID']['output'];
-  isActive: Scalars['Boolean']['output'];
-  memberCount: Scalars['Int']['output'];
-  members: Array<CustomerSegmentMember>;
-  name: Scalars['String']['output'];
-  rules?: Maybe<Scalars['JSON']['output']>;
-  slug: Scalars['String']['output'];
-  updatedAt: Scalars['Time']['output'];
-};
-
-
-export type CustomerSegmentMembersArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-};
-
-export type CustomerSegmentList = {
-  __typename?: 'CustomerSegmentList';
-  items: Array<CustomerSegment>;
-  totalCount: Scalars['Int']['output'];
-};
-
-export type CustomerSegmentMember = {
-  __typename?: 'CustomerSegmentMember';
-  id: Scalars['ID']['output'];
-  joinedAt: Scalars['Time']['output'];
-};
-
 export type CustomerTraits = {
   __typename?: 'CustomerTraits';
   churnRisk: Scalars['Int']['output'];
@@ -170,119 +131,6 @@ export type CustomerTraits = {
   rfmFrequency: Scalars['Int']['output'];
   rfmMonetary: Scalars['Int']['output'];
   rfmRecency: Scalars['Int']['output'];
-};
-
-export type EventDestination = {
-  __typename?: 'EventDestination';
-  channelId: Scalars['ID']['output'];
-  createdAt: Scalars['Time']['output'];
-  eventNames: Array<Scalars['String']['output']>;
-  eventSources: Array<Scalars['String']['output']>;
-  id: Scalars['ID']['output'];
-  isActive: Scalars['Boolean']['output'];
-  kind: Scalars['String']['output'];
-  lastError: Scalars['String']['output'];
-  lastForwardedAt?: Maybe<Scalars['Time']['output']>;
-  name: Scalars['String']['output'];
-  targetUrl: Scalars['String']['output'];
-  updatedAt: Scalars['Time']['output'];
-};
-
-export type EventDestinationInput = {
-  channelId: Scalars['ID']['input'];
-  eventNames?: InputMaybe<Array<Scalars['String']['input']>>;
-  eventSources?: InputMaybe<Array<Scalars['String']['input']>>;
-  isActive?: InputMaybe<Scalars['Boolean']['input']>;
-  kind: Scalars['String']['input'];
-  name: Scalars['String']['input'];
-  secret?: InputMaybe<Scalars['String']['input']>;
-  targetUrl: Scalars['String']['input'];
-};
-
-export type Experiment = {
-  __typename?: 'Experiment';
-  channelId: Scalars['ID']['output'];
-  coverage: Scalars['Int']['output'];
-  createdAt: Scalars['Time']['output'];
-  goalEvent: Scalars['String']['output'];
-  id: Scalars['ID']['output'];
-  key: Scalars['String']['output'];
-  name: Scalars['String']['output'];
-  segmentSlug: Scalars['String']['output'];
-  status: Scalars['String']['output'];
-  updatedAt: Scalars['Time']['output'];
-  variations: Array<ExperimentVariation>;
-};
-
-export type ExperimentResults = {
-  __typename?: 'ExperimentResults';
-  sampleRatioMismatch: Scalars['Boolean']['output'];
-  sequentialWinner: Scalars['String']['output'];
-  totalExposed: Scalars['Int']['output'];
-  totalRevenue: Scalars['Int64']['output'];
-  variations: Array<ExperimentVariationResult>;
-  winner: Scalars['String']['output'];
-};
-
-export type ExperimentSummary = {
-  __typename?: 'ExperimentSummary';
-  conversions: Scalars['Int']['output'];
-  coverage: Scalars['Int']['output'];
-  id: Scalars['ID']['output'];
-  key: Scalars['String']['output'];
-  leader: Scalars['String']['output'];
-  leaderChanceToWin: Scalars['Float']['output'];
-  leaderIsControl: Scalars['Boolean']['output'];
-  leaderRate: Scalars['Float']['output'];
-  leaderUplift: Scalars['Float']['output'];
-  name: Scalars['String']['output'];
-  sampleRatioMismatch: Scalars['Boolean']['output'];
-  totalExposed: Scalars['Int']['output'];
-  variations: Scalars['Int']['output'];
-  winner: Scalars['String']['output'];
-};
-
-export type ExperimentVariation = {
-  __typename?: 'ExperimentVariation';
-  key: Scalars['String']['output'];
-  name: Scalars['String']['output'];
-  value: Scalars['String']['output'];
-  weight: Scalars['Int']['output'];
-};
-
-export type ExperimentVariationInput = {
-  key: Scalars['String']['input'];
-  name: Scalars['String']['input'];
-  value: Scalars['String']['input'];
-  weight: Scalars['Int']['input'];
-};
-
-export type ExperimentVariationResult = {
-  __typename?: 'ExperimentVariationResult';
-  alwaysValidP: Scalars['Float']['output'];
-  chanceToWin: Scalars['Float']['output'];
-  ciHigh: Scalars['Float']['output'];
-  ciLow: Scalars['Float']['output'];
-  converted: Scalars['Int']['output'];
-  exposed: Scalars['Int']['output'];
-  isControl: Scalars['Boolean']['output'];
-  name: Scalars['String']['output'];
-  rate: Scalars['Float']['output'];
-  revenueCents: Scalars['Int64']['output'];
-  sequentialSignificant: Scalars['Boolean']['output'];
-  significant: Scalars['Boolean']['output'];
-  uplift: Scalars['Float']['output'];
-  variation: Scalars['String']['output'];
-};
-
-export type ExperimentsOverview = {
-  __typename?: 'ExperimentsOverview';
-  decided: Scalars['Int']['output'];
-  draft: Scalars['Int']['output'];
-  experiments: Array<ExperimentSummary>;
-  running: Scalars['Int']['output'];
-  stopped: Scalars['Int']['output'];
-  totalExposed: Scalars['Int']['output'];
 };
 
 export type InsightPoint = {
@@ -479,90 +327,11 @@ export type LensVital = {
   samples: Scalars['Int']['output'];
 };
 
-export type LinkClicks = {
-  __typename?: 'LinkClicks';
-  clicks: Scalars['Int']['output'];
-  url: Scalars['String']['output'];
-};
-
 export type Mutation = {
   __typename?: 'Mutation';
-  assignCustomersToSegment: Scalars['Boolean']['output'];
-  clearSegmentMembership: Scalars['Boolean']['output'];
-  createCustomerSegment: CustomerSegment;
-  createEventDestination: EventDestination;
-  createExperiment: Experiment;
-  deleteCustomerSegment: Scalars['Boolean']['output'];
-  deleteEventDestination: Scalars['Boolean']['output'];
-  deleteExperiment: Scalars['Boolean']['output'];
-  refreshSegment: Scalars['Int']['output'];
-  removeCustomerFromSegment: Scalars['Boolean']['output'];
-  setSegmentRules: CustomerSegment;
   synapseRefreshSegment: SynapseSegment;
   synapseSaveSegment: SynapseSegment;
   synapseSetSegmentLifecycleWindows: SynapseSegment;
-  syncAudience: Scalars['Int']['output'];
-  updateCustomerSegment: CustomerSegment;
-  updateEventDestination: EventDestination;
-  updateExperiment: Experiment;
-};
-
-
-export type MutationAssignCustomersToSegmentArgs = {
-  customerIds: Array<Scalars['ID']['input']>;
-  segmentId: Scalars['ID']['input'];
-};
-
-
-export type MutationClearSegmentMembershipArgs = {
-  segmentId: Scalars['ID']['input'];
-};
-
-
-export type MutationCreateCustomerSegmentArgs = {
-  input: CreateCustomerSegmentInput;
-};
-
-
-export type MutationCreateEventDestinationArgs = {
-  input: EventDestinationInput;
-};
-
-
-export type MutationCreateExperimentArgs = {
-  input: SaveExperimentInput;
-};
-
-
-export type MutationDeleteCustomerSegmentArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
-export type MutationDeleteEventDestinationArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
-export type MutationDeleteExperimentArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
-export type MutationRefreshSegmentArgs = {
-  segmentId: Scalars['ID']['input'];
-};
-
-
-export type MutationRemoveCustomerFromSegmentArgs = {
-  customerId: Scalars['ID']['input'];
-  segmentId: Scalars['ID']['input'];
-};
-
-
-export type MutationSetSegmentRulesArgs = {
-  rules?: InputMaybe<Scalars['JSON']['input']>;
-  segmentId: Scalars['ID']['input'];
 };
 
 
@@ -585,29 +354,6 @@ export type MutationSynapseSaveSegmentArgs = {
 export type MutationSynapseSetSegmentLifecycleWindowsArgs = {
   segmentId: Scalars['ID']['input'];
   windows?: InputMaybe<SegmentLifecycleWindowsInput>;
-};
-
-
-export type MutationSyncAudienceArgs = {
-  destinationId: Scalars['ID']['input'];
-  segmentId: Scalars['ID']['input'];
-};
-
-
-export type MutationUpdateCustomerSegmentArgs = {
-  input: UpdateCustomerSegmentInput;
-};
-
-
-export type MutationUpdateEventDestinationArgs = {
-  id: Scalars['ID']['input'];
-  input: EventDestinationInput;
-};
-
-
-export type MutationUpdateExperimentArgs = {
-  id: Scalars['ID']['input'];
-  input: SaveExperimentInput;
 };
 
 export type ProfilePageView = {
@@ -633,30 +379,11 @@ export type ProfileValue = {
   value: Scalars['String']['output'];
 };
 
-export type PulseEngagement = {
-  __typename?: 'PulseEngagement';
-  clicks: Scalars['Int']['output'];
-  conversions: Scalars['Int']['output'];
-  opensHuman: Scalars['Int']['output'];
-  opensRaw: Scalars['Int']['output'];
-  revenue: Array<AttributedRevenue>;
-  topLinks: Array<LinkClicks>;
-};
-
 export type Query = {
   __typename?: 'Query';
   botTraffic: BotTraffic;
   customerAudiences: Array<SignalSegment>;
   customerProfile: CustomerProfile;
-  customerSegment?: Maybe<CustomerSegment>;
-  customerSegments: CustomerSegmentList;
-  eventDestinations: Array<EventDestination>;
-  experiment?: Maybe<Experiment>;
-  experimentGoalEvents: Array<Scalars['String']['output']>;
-  experimentResults: ExperimentResults;
-  experimentSegments: Array<SegmentOption>;
-  experiments: Array<Experiment>;
-  experimentsOverview: ExperimentsOverview;
   lensCustomerSessions: Array<LensSession>;
   lensErrors: Array<LensErrorStat>;
   lensFrustration: LensFrustration;
@@ -672,7 +399,6 @@ export type Query = {
   lensStates: Array<Scalars['String']['output']>;
   lensVisitorSessions: Array<LensSession>;
   lensVitalsSummary: Array<LensVital>;
-  pulseEngagement: PulseEngagement;
   synapseFlow: SynapseFlow;
   synapseFunnel: SynapseFunnel;
   synapseInsights: SynapseInsights;
@@ -701,49 +427,6 @@ export type QueryCustomerAudiencesArgs = {
 
 export type QueryCustomerProfileArgs = {
   customerId: Scalars['ID']['input'];
-  sinceDays?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type QueryCustomerSegmentArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
-export type QueryCustomerSegmentsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type QueryEventDestinationsArgs = {
-  channelId: Scalars['ID']['input'];
-};
-
-
-export type QueryExperimentArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
-export type QueryExperimentGoalEventsArgs = {
-  channelId: Scalars['ID']['input'];
-};
-
-
-export type QueryExperimentResultsArgs = {
-  id: Scalars['ID']['input'];
-  sinceDays?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type QueryExperimentsArgs = {
-  channelId: Scalars['ID']['input'];
-};
-
-
-export type QueryExperimentsOverviewArgs = {
-  channelId: Scalars['ID']['input'];
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
 };
 
@@ -834,12 +517,6 @@ export type QueryLensVisitorSessionsArgs = {
 
 
 export type QueryLensVitalsSummaryArgs = {
-  channelId: Scalars['ID']['input'];
-  sinceDays?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type QueryPulseEngagementArgs = {
   channelId: Scalars['ID']['input'];
   sinceDays?: InputMaybe<Scalars['Int']['input']>;
 };
@@ -938,17 +615,6 @@ export type RetentionCohort = {
   startAt: Scalars['Time']['output'];
 };
 
-export type SaveExperimentInput = {
-  channelId: Scalars['ID']['input'];
-  coverage: Scalars['Int']['input'];
-  goalEvent: Scalars['String']['input'];
-  key: Scalars['String']['input'];
-  name: Scalars['String']['input'];
-  segmentSlug?: InputMaybe<Scalars['String']['input']>;
-  status: Scalars['String']['input'];
-  variations: Array<ExperimentVariationInput>;
-};
-
 export type SegmentAffinityCount = {
   __typename?: 'SegmentAffinityCount';
   attr: Scalars['String']['output'];
@@ -1032,12 +698,6 @@ export type SegmentNodeKind =
   | 'EVENT'
   | 'GROUP'
   | 'TRAIT';
-
-export type SegmentOption = {
-  __typename?: 'SegmentOption';
-  name: Scalars['String']['output'];
-  slug: Scalars['String']['output'];
-};
 
 export type SegmentRfmBucket = {
   __typename?: 'SegmentRfmBucket';
@@ -1219,12 +879,4 @@ export type SynapseVisitor = {
   events: Scalars['Int']['output'];
   lastPage: Scalars['String']['output'];
   lastSeen?: Maybe<Scalars['Time']['output']>;
-};
-
-export type UpdateCustomerSegmentInput = {
-  description?: InputMaybe<Scalars['String']['input']>;
-  id: Scalars['ID']['input'];
-  isActive?: InputMaybe<Scalars['Boolean']['input']>;
-  name?: InputMaybe<Scalars['String']['input']>;
-  slug?: InputMaybe<Scalars['String']['input']>;
 };

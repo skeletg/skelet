@@ -22,28 +22,3 @@ func errNotFound(entity string) error {
 func errNotConfigured(subsystem string) error {
 	return apperr.New("NOT_CONFIGURED", apperr.ClassUnavailable, subsystem+" is not configured")
 }
-
-func boolDeref(b *bool, def bool) bool {
-	if b == nil {
-		return def
-	}
-	return *b
-}
-
-func errInvalidInput(field string, err error) error {
-	return &apperr.Error{Code: "INVALID_INPUT", Class: apperr.ClassValidation, Message: field + " is invalid", Cause: err}
-}
-
-func derefBoolDefault(b *bool, def bool) bool {
-	if b == nil {
-		return def
-	}
-	return *b
-}
-
-func derefInt32Default(i *int32, def int32) int32 {
-	if i == nil {
-		return def
-	}
-	return *i
-}

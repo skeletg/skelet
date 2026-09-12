@@ -1629,6 +1629,13 @@ export type CreateCustomerGroupInput = {
   slug: Scalars['String']['input'];
 };
 
+export type CreateCustomerSegmentInput = {
+  description?: InputMaybe<Scalars['String']['input']>;
+  isActive?: InputMaybe<Scalars['Boolean']['input']>;
+  name: Scalars['String']['input'];
+  slug: Scalars['String']['input'];
+};
+
 export type CreateDraftOrderInput = {
   billingAddress: AddressInput;
   channelId: Scalars['ID']['input'];
@@ -2058,6 +2065,38 @@ export type CustomerRegisterInput = {
   referralCode?: InputMaybe<Scalars['String']['input']>;
 };
 
+export type CustomerSegment = {
+  __typename?: 'CustomerSegment';
+  createdAt: Scalars['Time']['output'];
+  description: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  isActive: Scalars['Boolean']['output'];
+  memberCount: Scalars['Int']['output'];
+  members: Array<CustomerSegmentMember>;
+  name: Scalars['String']['output'];
+  rules?: Maybe<Scalars['JSON']['output']>;
+  slug: Scalars['String']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
+
+export type CustomerSegmentMembersArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type CustomerSegmentList = {
+  __typename?: 'CustomerSegmentList';
+  items: Array<CustomerSegment>;
+  totalCount: Scalars['Int']['output'];
+};
+
+export type CustomerSegmentMember = {
+  __typename?: 'CustomerSegmentMember';
+  id: Scalars['ID']['output'];
+  joinedAt: Scalars['Time']['output'];
+};
+
 export type CustomerSignals = {
   __typename?: 'CustomerSignals';
   consents: Array<SignalConsent>;
@@ -2336,6 +2375,119 @@ export type EmailWarning = {
   severity: Scalars['String']['output'];
 };
 
+export type EventDestination = {
+  __typename?: 'EventDestination';
+  channelId: Scalars['ID']['output'];
+  createdAt: Scalars['Time']['output'];
+  eventNames: Array<Scalars['String']['output']>;
+  eventSources: Array<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  isActive: Scalars['Boolean']['output'];
+  kind: Scalars['String']['output'];
+  lastError: Scalars['String']['output'];
+  lastForwardedAt?: Maybe<Scalars['Time']['output']>;
+  name: Scalars['String']['output'];
+  targetUrl: Scalars['String']['output'];
+  updatedAt: Scalars['Time']['output'];
+};
+
+export type EventDestinationInput = {
+  channelId: Scalars['ID']['input'];
+  eventNames?: InputMaybe<Array<Scalars['String']['input']>>;
+  eventSources?: InputMaybe<Array<Scalars['String']['input']>>;
+  isActive?: InputMaybe<Scalars['Boolean']['input']>;
+  kind: Scalars['String']['input'];
+  name: Scalars['String']['input'];
+  secret?: InputMaybe<Scalars['String']['input']>;
+  targetUrl: Scalars['String']['input'];
+};
+
+export type Experiment = {
+  __typename?: 'Experiment';
+  channelId: Scalars['ID']['output'];
+  coverage: Scalars['Int']['output'];
+  createdAt: Scalars['Time']['output'];
+  goalEvent: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  key: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  segmentSlug: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+  updatedAt: Scalars['Time']['output'];
+  variations: Array<ExperimentVariation>;
+};
+
+export type ExperimentResults = {
+  __typename?: 'ExperimentResults';
+  sampleRatioMismatch: Scalars['Boolean']['output'];
+  sequentialWinner: Scalars['String']['output'];
+  totalExposed: Scalars['Int']['output'];
+  totalRevenue: Scalars['Int64']['output'];
+  variations: Array<ExperimentVariationResult>;
+  winner: Scalars['String']['output'];
+};
+
+export type ExperimentSummary = {
+  __typename?: 'ExperimentSummary';
+  conversions: Scalars['Int']['output'];
+  coverage: Scalars['Int']['output'];
+  id: Scalars['ID']['output'];
+  key: Scalars['String']['output'];
+  leader: Scalars['String']['output'];
+  leaderChanceToWin: Scalars['Float']['output'];
+  leaderIsControl: Scalars['Boolean']['output'];
+  leaderRate: Scalars['Float']['output'];
+  leaderUplift: Scalars['Float']['output'];
+  name: Scalars['String']['output'];
+  sampleRatioMismatch: Scalars['Boolean']['output'];
+  totalExposed: Scalars['Int']['output'];
+  variations: Scalars['Int']['output'];
+  winner: Scalars['String']['output'];
+};
+
+export type ExperimentVariation = {
+  __typename?: 'ExperimentVariation';
+  key: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  value: Scalars['String']['output'];
+  weight: Scalars['Int']['output'];
+};
+
+export type ExperimentVariationInput = {
+  key: Scalars['String']['input'];
+  name: Scalars['String']['input'];
+  value: Scalars['String']['input'];
+  weight: Scalars['Int']['input'];
+};
+
+export type ExperimentVariationResult = {
+  __typename?: 'ExperimentVariationResult';
+  alwaysValidP: Scalars['Float']['output'];
+  chanceToWin: Scalars['Float']['output'];
+  ciHigh: Scalars['Float']['output'];
+  ciLow: Scalars['Float']['output'];
+  converted: Scalars['Int']['output'];
+  exposed: Scalars['Int']['output'];
+  isControl: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
+  rate: Scalars['Float']['output'];
+  revenueCents: Scalars['Int64']['output'];
+  sequentialSignificant: Scalars['Boolean']['output'];
+  significant: Scalars['Boolean']['output'];
+  uplift: Scalars['Float']['output'];
+  variation: Scalars['String']['output'];
+};
+
+export type ExperimentsOverview = {
+  __typename?: 'ExperimentsOverview';
+  decided: Scalars['Int']['output'];
+  draft: Scalars['Int']['output'];
+  experiments: Array<ExperimentSummary>;
+  running: Scalars['Int']['output'];
+  stopped: Scalars['Int']['output'];
+  totalExposed: Scalars['Int']['output'];
+};
+
 export type FacetOverride = {
   __typename?: 'FacetOverride';
   attributeId: Scalars['ID']['output'];
@@ -2588,6 +2740,12 @@ export type LibraryEmail = {
   styles: Scalars['JSON']['output'];
   subject: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
+};
+
+export type LinkClicks = {
+  __typename?: 'LinkClicks';
+  clicks: Scalars['Int']['output'];
+  url: Scalars['String']['output'];
 };
 
 export type LinkEdge = {
@@ -2897,6 +3055,7 @@ export type Mutation = {
   archiveBlogPost: BlogPost;
   assignAttribute: ProductType;
   assignCMSAttribute: CmsPageType;
+  assignCustomersToSegment: Scalars['Boolean']['output'];
   assignEmailSlot: Scalars['Boolean']['output'];
   assignReviewQuestion: Scalars['Boolean']['output'];
   bulkDeleteCMSPages: BulkCmsPageResult;
@@ -2917,6 +3076,7 @@ export type Mutation = {
   clearProductAttribute: Product;
   clearProductListing: Scalars['Boolean']['output'];
   clearProductMediaRole: Product;
+  clearSegmentMembership: Scalars['Boolean']['output'];
   clearSubscriptionTerms: Product;
   clearWebhookDeadLetters: Scalars['Int']['output'];
   clearWebhookDeliveries: Scalars['Int']['output'];
@@ -2946,9 +3106,12 @@ export type Mutation = {
   createCountry: Country;
   createCurrency: Currency;
   createCustomerGroup: CustomerGroup;
+  createCustomerSegment: CustomerSegment;
   createDraftOrder: Order;
   createEmailCampaign: EmailCampaign;
   createEmailGroup: EmailGroup;
+  createEventDestination: EventDestination;
+  createExperiment: Experiment;
   createFlow: Flow;
   createFulfillment: Order;
   createIntegration: CreateIntegrationPayload;
@@ -3011,9 +3174,12 @@ export type Mutation = {
   deleteCurrency: Scalars['Boolean']['output'];
   deleteCustomer: Scalars['Boolean']['output'];
   deleteCustomerGroup: Scalars['Boolean']['output'];
+  deleteCustomerSegment: Scalars['Boolean']['output'];
   deleteEmailBlock: Scalars['Boolean']['output'];
   deleteEmailCampaign: Scalars['Boolean']['output'];
   deleteEmailGroup: Scalars['Boolean']['output'];
+  deleteEventDestination: Scalars['Boolean']['output'];
+  deleteExperiment: Scalars['Boolean']['output'];
   deleteFlow: Scalars['Boolean']['output'];
   deleteIntegration: Scalars['Boolean']['output'];
   deleteInventoryLocation: Scalars['Boolean']['output'];
@@ -3096,6 +3262,7 @@ export type Mutation = {
   recheckReviewModeration: Review;
   recordOfflinePayment: Order;
   redeliverWebhookDelivery: WebhookQueueItem;
+  refreshSegment: Scalars['Int']['output'];
   refreshToken: AdminAuthPayload;
   refundPayment: Order;
   regenerateIntegrationToken: RegenerateIntegrationTokenPayload;
@@ -3104,6 +3271,7 @@ export type Mutation = {
   rejectReturn: OrderReturn;
   rejectReview: Review;
   releaseOrder: Order;
+  removeCustomerFromSegment: Scalars['Boolean']['output'];
   removeGroupedMember: Product;
   removeKitComponent: Product;
   removeProductChild: Product;
@@ -3201,6 +3369,7 @@ export type Mutation = {
   setRemoteProviderActive: RemoteProvider;
   setReviewCategories: Review;
   setReviewModerationTags: Review;
+  setSegmentRules: CustomerSegment;
   setShippingCarrierCountries: ShippingCarrierAdmin;
   setShippingCarrierEnabled: ShippingCarrierAdmin;
   setSubscriptionTerms: Product;
@@ -3212,6 +3381,7 @@ export type Mutation = {
   submitCMSPageForReview: CmsPage;
   suggestEmailSubjects: Array<Scalars['String']['output']>;
   suppressEmail: Scalars['Boolean']['output'];
+  syncAudience: Scalars['Int']['output'];
   syncCanonicalUrlRewrite: UrlRewrite;
   syncProductInventory: InventoryItem;
   syncProductInventoryBatch: SyncProductInventoryBatchResult;
@@ -3247,7 +3417,10 @@ export type Mutation = {
   updateCountry: Country;
   updateCurrency: Currency;
   updateCustomerGroup: CustomerGroup;
+  updateCustomerSegment: CustomerSegment;
   updateEmailCampaign: EmailCampaign;
+  updateEventDestination: EventDestination;
+  updateExperiment: Experiment;
   updateFlow: Flow;
   updateGroupedMember: Product;
   updateIntegration: Integration;
@@ -3539,6 +3712,12 @@ export type MutationAssignCmsAttributeArgs = {
 };
 
 
+export type MutationAssignCustomersToSegmentArgs = {
+  customerIds: Array<Scalars['ID']['input']>;
+  segmentId: Scalars['ID']['input'];
+};
+
+
 export type MutationAssignEmailSlotArgs = {
   emailId: Scalars['ID']['input'];
   slot: Scalars['String']['input'];
@@ -3641,6 +3820,11 @@ export type MutationClearProductListingArgs = {
 export type MutationClearProductMediaRoleArgs = {
   productId: Scalars['ID']['input'];
   role: ProductMediaRole;
+};
+
+
+export type MutationClearSegmentMembershipArgs = {
+  segmentId: Scalars['ID']['input'];
 };
 
 
@@ -3800,6 +3984,11 @@ export type MutationCreateCustomerGroupArgs = {
 };
 
 
+export type MutationCreateCustomerSegmentArgs = {
+  input: CreateCustomerSegmentInput;
+};
+
+
 export type MutationCreateDraftOrderArgs = {
   input: CreateDraftOrderInput;
 };
@@ -3812,6 +4001,16 @@ export type MutationCreateEmailCampaignArgs = {
 
 export type MutationCreateEmailGroupArgs = {
   name: Scalars['String']['input'];
+};
+
+
+export type MutationCreateEventDestinationArgs = {
+  input: EventDestinationInput;
+};
+
+
+export type MutationCreateExperimentArgs = {
+  input: SaveExperimentInput;
 };
 
 
@@ -4137,6 +4336,11 @@ export type MutationDeleteCustomerGroupArgs = {
 };
 
 
+export type MutationDeleteCustomerSegmentArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationDeleteEmailBlockArgs = {
   channelId: Scalars['ID']['input'];
   slug: Scalars['String']['input'];
@@ -4149,6 +4353,16 @@ export type MutationDeleteEmailCampaignArgs = {
 
 
 export type MutationDeleteEmailGroupArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteEventDestinationArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteExperimentArgs = {
   id: Scalars['ID']['input'];
 };
 
@@ -4595,6 +4809,11 @@ export type MutationRedeliverWebhookDeliveryArgs = {
 };
 
 
+export type MutationRefreshSegmentArgs = {
+  segmentId: Scalars['ID']['input'];
+};
+
+
 export type MutationRefreshTokenArgs = {
   token: Scalars['String']['input'];
 };
@@ -4636,6 +4855,12 @@ export type MutationRejectReviewArgs = {
 
 export type MutationReleaseOrderArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationRemoveCustomerFromSegmentArgs = {
+  customerId: Scalars['ID']['input'];
+  segmentId: Scalars['ID']['input'];
 };
 
 
@@ -5215,6 +5440,12 @@ export type MutationSetReviewModerationTagsArgs = {
 };
 
 
+export type MutationSetSegmentRulesArgs = {
+  rules?: InputMaybe<Scalars['JSON']['input']>;
+  segmentId: Scalars['ID']['input'];
+};
+
+
 export type MutationSetShippingCarrierCountriesArgs = {
   carrierSlug: Scalars['String']['input'];
   channelId: Scalars['ID']['input'];
@@ -5273,6 +5504,12 @@ export type MutationSuggestEmailSubjectsArgs = {
 export type MutationSuppressEmailArgs = {
   email: Scalars['String']['input'];
   note?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type MutationSyncAudienceArgs = {
+  destinationId: Scalars['ID']['input'];
+  segmentId: Scalars['ID']['input'];
 };
 
 
@@ -5465,9 +5702,26 @@ export type MutationUpdateCustomerGroupArgs = {
 };
 
 
+export type MutationUpdateCustomerSegmentArgs = {
+  input: UpdateCustomerSegmentInput;
+};
+
+
 export type MutationUpdateEmailCampaignArgs = {
   id: Scalars['ID']['input'];
   input: SaveCampaignInput;
+};
+
+
+export type MutationUpdateEventDestinationArgs = {
+  id: Scalars['ID']['input'];
+  input: EventDestinationInput;
+};
+
+
+export type MutationUpdateExperimentArgs = {
+  id: Scalars['ID']['input'];
+  input: SaveExperimentInput;
 };
 
 
@@ -6498,6 +6752,16 @@ export type PromotionTypeDescriptor = {
   slug: Scalars['String']['output'];
 };
 
+export type PulseEngagement = {
+  __typename?: 'PulseEngagement';
+  clicks: Scalars['Int']['output'];
+  conversions: Scalars['Int']['output'];
+  opensHuman: Scalars['Int']['output'];
+  opensRaw: Scalars['Int']['output'];
+  revenue: Array<AttributedRevenue>;
+  topLinks: Array<LinkClicks>;
+};
+
 export type Query = {
   __typename?: 'Query';
   admin: AdminUser;
@@ -6561,6 +6825,8 @@ export type Query = {
   customerCommerce: CustomerCommerce;
   customerGroup: CustomerGroup;
   customerGroups: Array<CustomerGroup>;
+  customerSegment?: Maybe<CustomerSegment>;
+  customerSegments: CustomerSegmentList;
   customerSignals: CustomerSignals;
   customers: Array<Customer>;
   customersByIds: Array<Customer>;
@@ -6580,6 +6846,13 @@ export type Query = {
   emailPreflight: Array<EmailWarning>;
   emailRevisions: Array<EmailRevision>;
   emailSuppressions: EmailSuppressionPage;
+  eventDestinations: Array<EventDestination>;
+  experiment?: Maybe<Experiment>;
+  experimentGoalEvents: Array<Scalars['String']['output']>;
+  experimentResults: ExperimentResults;
+  experimentSegments: Array<SegmentOption>;
+  experiments: Array<Experiment>;
+  experimentsOverview: ExperimentsOverview;
   exportCustomerData: Scalars['String']['output'];
   flow?: Maybe<Flow>;
   flowConditionKinds: Array<Scalars['String']['output']>;
@@ -6636,6 +6909,7 @@ export type Query = {
   promotionConditionTypes: Array<PromotionTypeDescriptor>;
   promotionRule?: Maybe<PromotionRule>;
   promotionRules: PromotionRuleList;
+  pulseEngagement: PulseEngagement;
   rebuildQueue: RebuildQueueStatus;
   referenceCandidates: Array<Linkable>;
   remoteProvider: RemoteProvider;
@@ -6950,6 +7224,17 @@ export type QueryCustomerGroupArgs = {
 };
 
 
+export type QueryCustomerSegmentArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryCustomerSegmentsArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
 export type QueryCustomerSignalsArgs = {
   customerId: Scalars['ID']['input'];
 };
@@ -7031,6 +7316,38 @@ export type QueryEmailSuppressionsArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   reason?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type QueryEventDestinationsArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
+export type QueryExperimentArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryExperimentGoalEventsArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
+export type QueryExperimentResultsArgs = {
+  id: Scalars['ID']['input'];
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryExperimentsArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
+export type QueryExperimentsOverviewArgs = {
+  channelId: Scalars['ID']['input'];
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -7283,6 +7600,12 @@ export type QueryPromotionRuleArgs = {
 export type QueryPromotionRulesArgs = {
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryPulseEngagementArgs = {
+  channelId: Scalars['ID']['input'];
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -8004,6 +8327,17 @@ export type SaveEmailBlockInput = {
   textTemplate?: InputMaybe<Scalars['String']['input']>;
 };
 
+export type SaveExperimentInput = {
+  channelId: Scalars['ID']['input'];
+  coverage: Scalars['Int']['input'];
+  goalEvent: Scalars['String']['input'];
+  key: Scalars['String']['input'];
+  name: Scalars['String']['input'];
+  segmentSlug?: InputMaybe<Scalars['String']['input']>;
+  status: Scalars['String']['input'];
+  variations: Array<ExperimentVariationInput>;
+};
+
 export type SaveFlowInput = {
   channelId: Scalars['ID']['input'];
   graph: Scalars['JSON']['input'];
@@ -8132,6 +8466,12 @@ export type SearchSynonym = {
   __typename?: 'SearchSynonym';
   id: Scalars['ID']['output'];
   terms: Scalars['String']['output'];
+};
+
+export type SegmentOption = {
+  __typename?: 'SegmentOption';
+  name: Scalars['String']['output'];
+  slug: Scalars['String']['output'];
 };
 
 export type SeoIssue =
@@ -8820,6 +9160,14 @@ export type UpdateCurrencyInput = {
 export type UpdateCustomerGroupInput = {
   description?: InputMaybe<Scalars['String']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type UpdateCustomerSegmentInput = {
+  description?: InputMaybe<Scalars['String']['input']>;
+  id: Scalars['ID']['input'];
+  isActive?: InputMaybe<Scalars['Boolean']['input']>;
+  name?: InputMaybe<Scalars['String']['input']>;
+  slug?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type UpdateGroupedMemberInput = {

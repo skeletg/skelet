@@ -45,7 +45,7 @@ import { RootCategoriesDocument } from '@/features/catalog/Categories.gql'
 import { AutocompletePicker } from '@/features/promotions/widgets/AutocompletePicker'
 import { MediaImageInput } from '@/features/media/MediaImageInput'
 import { type AssetRef } from '@/features/media/asset-ref'
-import { PrismSegmentsDocument } from '@/features/prism/Prism.signals.gql'
+import { PrismSegmentsDocument } from '@/features/prism/Prism.gql'
 import { LexicalRichTextEditor, type RichTextValue } from '@/features/catalog/LexicalRichTextEditor'
 import { LinkField } from './LinkField'
 import {

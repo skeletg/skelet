@@ -45,7 +45,7 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
-import { CustomerSegmentsListDocument } from '@/features/promotions/Promotions.signals.gql'
+import { CustomerSegmentsListDocument } from '@/features/promotions/Promotions.gql'
 import { DestinationKindBadge } from './DestinationKindBadge'
 import {
   DestinationFormDialog,
@@ -55,7 +55,7 @@ import {
   DeleteEventDestinationDocument,
   EventDestinationsDocument,
   SyncAudienceDocument,
-} from './Destinations.signals.gql'
+} from './Destinations.gql'
 
 type DestinationRow = ExistingDestination & {
   lastError: string
