@@ -635,6 +635,8 @@ func (x *ExperimentInput) GetVariations() []*ExperimentVariation {
 type ListExperimentsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ChannelId     string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken     string                 `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -676,9 +678,24 @@ func (x *ListExperimentsRequest) GetChannelId() string {
 	return ""
 }
 
+func (x *ListExperimentsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListExperimentsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
 type ListExperimentsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Experiments   []*Experiment          `protobuf:"bytes,1,rep,name=experiments,proto3" json:"experiments,omitempty"`
+	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -718,6 +735,13 @@ func (x *ListExperimentsResponse) GetExperiments() []*Experiment {
 		return x.Experiments
 	}
 	return nil
+}
+
+func (x *ListExperimentsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
 }
 
 type GetExperimentRequest struct {
@@ -764,11 +788,9 @@ func (x *GetExperimentRequest) GetId() string {
 	return ""
 }
 
-// The experiment is absent rather than an error when the id matches nothing, since asking whether
-// one exists is a normal read
 type GetExperimentResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Experiment    *Experiment            `protobuf:"bytes,1,opt,name=experiment,proto3,oneof" json:"experiment,omitempty"`
+	Experiment    *Experiment            `protobuf:"bytes,1,opt,name=experiment,proto3" json:"experiment,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1529,19 +1551,22 @@ const file_skelet_signals_v1_prism_proto_rawDesc = "" +
 	"\fsegment_slug\x18\a \x01(\tR\vsegmentSlug\x12F\n" +
 	"\n" +
 	"variations\x18\b \x03(\v2&.skelet.signals.v1.ExperimentVariationR\n" +
-	"variations\"7\n" +
+	"variations\"s\n" +
 	"\x16ListExperimentsRequest\x12\x1d\n" +
 	"\n" +
-	"channel_id\x18\x01 \x01(\tR\tchannelId\"Z\n" +
-	"\x17ListExperimentsResponse\x12?\n" +
-	"\vexperiments\x18\x01 \x03(\v2\x1d.skelet.signals.v1.ExperimentR\vexperiments\"&\n" +
-	"\x14GetExperimentRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"j\n" +
-	"\x15GetExperimentResponse\x12B\n" +
+	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"experiment\x18\x01 \x01(\v2\x1d.skelet.signals.v1.ExperimentH\x00R\n" +
-	"experiment\x88\x01\x01B\r\n" +
-	"\v_experiment\"L\n" +
+	"page_token\x18\x03 \x01(\tR\tpageToken\"\x82\x01\n" +
+	"\x17ListExperimentsResponse\x12?\n" +
+	"\vexperiments\x18\x01 \x03(\v2\x1d.skelet.signals.v1.ExperimentR\vexperiments\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"&\n" +
+	"\x14GetExperimentRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"V\n" +
+	"\x15GetExperimentResponse\x12=\n" +
+	"\n" +
+	"experiment\x18\x01 \x01(\v2\x1d.skelet.signals.v1.ExperimentR\n" +
+	"experiment\"L\n" +
 	"\x1bGetExperimentResultsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -1683,7 +1708,6 @@ func file_skelet_signals_v1_prism_proto_init() {
 	if File_skelet_signals_v1_prism_proto != nil {
 		return
 	}
-	file_skelet_signals_v1_prism_proto_msgTypes[8].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

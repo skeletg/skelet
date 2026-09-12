@@ -1,8 +1,7 @@
 syntax = "proto3";
 
-// Event destinations: spine events forwarded to external systems, and segment audiences pushed as
-// hashed identifiers. Forwarding runs on a scheduled sweep with a durable per-destination cursor,
-// so delivery is at-least-once in ingest order and last_error stands until a sweep succeeds
+// Event destinations: spine events forwarded to external systems, and segment audiences pushed as hashed identifiers
+// Forwarding runs on a scheduled sweep with a durable per-destination cursor, so delivery is at-least-once in ingest order and last_error stands until a sweep succeeds
 package skelet.signals.v1;
 
 import "google/protobuf/timestamp.proto";
@@ -48,10 +47,13 @@ message DestinationInput {
 
 message ListDestinationsRequest {
   string channel_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
 }
 
 message ListDestinationsResponse {
   repeated EventDestination destinations = 1;
+  string next_page_token = 2;
 }
 
 message CreateDestinationRequest {

@@ -104,20 +104,21 @@ message ExperimentInput {
 
 message ListExperimentsRequest {
   string channel_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
 }
 
 message ListExperimentsResponse {
   repeated Experiment experiments = 1;
+  string next_page_token = 2;
 }
 
 message GetExperimentRequest {
   string id = 1;
 }
 
-// The experiment is absent rather than an error when the id matches nothing, since asking whether
-// one exists is a normal read
 message GetExperimentResponse {
-  optional Experiment experiment = 1;
+  Experiment experiment = 1;
 }
 
 message GetExperimentResultsRequest {

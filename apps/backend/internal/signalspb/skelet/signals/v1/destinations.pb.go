@@ -4,9 +4,8 @@
 // 	protoc        (unknown)
 // source: skelet/signals/v1/destinations.proto
 
-// Event destinations: spine events forwarded to external systems, and segment audiences pushed as
-// hashed identifiers. Forwarding runs on a scheduled sweep with a durable per-destination cursor,
-// so delivery is at-least-once in ingest order and last_error stands until a sweep succeeds
+// Event destinations: spine events forwarded to external systems, and segment audiences pushed as hashed identifiers
+// Forwarding runs on a scheduled sweep with a durable per-destination cursor, so delivery is at-least-once in ingest order and last_error stands until a sweep succeeds
 
 package signalsv1
 
@@ -266,6 +265,8 @@ func (x *DestinationInput) GetIsActive() bool {
 type ListDestinationsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ChannelId     string                 `protobuf:"bytes,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken     string                 `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -307,9 +308,24 @@ func (x *ListDestinationsRequest) GetChannelId() string {
 	return ""
 }
 
+func (x *ListDestinationsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListDestinationsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
 type ListDestinationsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Destinations  []*EventDestination    `protobuf:"bytes,1,rep,name=destinations,proto3" json:"destinations,omitempty"`
+	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -349,6 +365,13 @@ func (x *ListDestinationsResponse) GetDestinations() []*EventDestination {
 		return x.Destinations
 	}
 	return nil
+}
+
+func (x *ListDestinationsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
 }
 
 type CreateDestinationRequest struct {
@@ -760,12 +783,16 @@ const file_skelet_signals_v1_destinations_proto_rawDesc = "" +
 	"\tis_active\x18\b \x01(\bH\x01R\bisActive\x88\x01\x01B\t\n" +
 	"\a_secretB\f\n" +
 	"\n" +
-	"_is_active\"8\n" +
+	"_is_active\"t\n" +
 	"\x17ListDestinationsRequest\x12\x1d\n" +
 	"\n" +
-	"channel_id\x18\x01 \x01(\tR\tchannelId\"c\n" +
+	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x03 \x01(\tR\tpageToken\"\x8b\x01\n" +
 	"\x18ListDestinationsResponse\x12G\n" +
-	"\fdestinations\x18\x01 \x03(\v2#.skelet.signals.v1.EventDestinationR\fdestinations\"a\n" +
+	"\fdestinations\x18\x01 \x03(\v2#.skelet.signals.v1.EventDestinationR\fdestinations\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"a\n" +
 	"\x18CreateDestinationRequest\x12E\n" +
 	"\vdestination\x18\x01 \x01(\v2#.skelet.signals.v1.DestinationInputR\vdestination\"b\n" +
 	"\x19CreateDestinationResponse\x12E\n" +
