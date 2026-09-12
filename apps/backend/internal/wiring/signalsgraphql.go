@@ -18,7 +18,6 @@ import (
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/graphqlx"
-	"github.com/skeletg/skelet/apps/backend/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/internal/observability"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsapi"
@@ -26,7 +25,6 @@ import (
 
 // SignalsAPI is what the Signals GraphQL surface needs - suite services only, since this process has no commerce services to offer
 type SignalsAPI struct {
-	Lens       *lens.Service
 	Segment    *segment.Service
 	Analytics  *analytics.Recorder
 	Behavioral *behavioralsegment.Service
@@ -45,7 +43,7 @@ type SignalsAPI struct {
 func SignalsGraphQLHandler(a SignalsAPI) http.Handler {
 	srv := handler.New(graphsignals.NewExecutableSchema(graphsignals.Config{
 		Resolvers: &graphsignals.Resolver{
-			LensSvc: a.Lens, SegmentSvc: a.Segment,
+			SegmentSvc:   a.Segment,
 			AnalyticsSvc: a.Analytics, BehavioralSvc: a.Behavioral, ChannelSvc: a.Channel, ConfigSvc: a.Config, Commerce: a.Commerce, Roster: a.Roster,
 		},
 	}))

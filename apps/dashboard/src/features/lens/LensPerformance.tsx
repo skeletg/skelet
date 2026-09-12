@@ -13,7 +13,7 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
-import { type LensPerformanceQuery, LensPerformanceDocument } from './Lens.signals.gql'
+import { type LensPerformanceQuery, LensPerformanceDocument } from './Lens.gql'
 
 type Row = LensPerformanceQuery['lensPerformance'][number]
 type Metric = 'lcp' | 'cls' | 'inp' | 'ttfb'
