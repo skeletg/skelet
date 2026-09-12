@@ -42,7 +42,11 @@ type SendRef struct {
 	ID         uuid.UUID
 	ChannelID  uuid.UUID
 	CustomerID *uuid.UUID
-	Source     string
+	// campaign | flow | transactional
+	Source string
+	// The origin attribution credits, travelling with the send rather than being looked up later
+	CampaignID *uuid.UUID
+	FlowID     *uuid.UUID
 }
 
 // One pixel load or link follow, classified before it is sent
@@ -112,6 +116,7 @@ func sendProto(s SendRef) *signalsv1.EmailSendRef {
 	return &signalsv1.EmailSendRef{
 		SendId: s.ID.String(), ChannelId: idString(s.ChannelID),
 		CustomerId: optionalID(s.CustomerID), Source: s.Source,
+		CampaignId: optionalID(s.CampaignID), FlowId: optionalID(s.FlowID),
 	}
 }
 

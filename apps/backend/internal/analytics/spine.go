@@ -152,6 +152,10 @@ type EngagementCandidate struct {
 	EventName  string
 	OccurredAt time.Time
 	SendID     uuid.UUID
+	// The send's origin, written onto the event so attribution needs no second lookup
+	Source     string
+	CampaignID string
+	FlowID     string
 }
 
 // A customer's windowed spine event count, for the trait projection
@@ -432,7 +436,10 @@ func (s *pgSpine) RecentEngagementEvents(ctx context.Context, customerID uuid.UU
 		if !c.SendID.Valid {
 			continue
 		}
-		out = append(out, EngagementCandidate{EventName: c.EventName, OccurredAt: c.OccurredAt, SendID: c.SendID.UUID})
+		out = append(out, EngagementCandidate{
+			EventName: c.EventName, OccurredAt: c.OccurredAt, SendID: c.SendID.UUID,
+			Source: c.Source, CampaignID: propString(c.Properties, "campaign_id"), FlowID: propString(c.Properties, "flow_id"),
+		})
 	}
 	return out, nil
 }
@@ -950,4 +957,17 @@ func anyString(v any) string { // sqlc types a COALESCE'd jsonb extract as any a
 		return string(t)
 	}
 	return ""
+}
+
+// One string out of an event's stored properties, empty when it is absent or not a string
+func propString(raw json.RawMessage, key string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return ""
+	}
+	s, _ := m[key].(string)
+	return s
 }

@@ -15,13 +15,12 @@ import (
 
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 )
 
 const (
 	EventEmailSent     = "email_sent"
-	EventEmailOpened   = sendlog.KindOpened
-	EventEmailClicked  = sendlog.KindClicked
+	EventEmailOpened   = "email_opened"
+	EventEmailClicked  = "email_clicked"
 	EventConversion    = "conversion"
 	EventPageView      = "page_view"      // web (Lens)
 	EventCustom        = "custom"         // web (Lens) - arbitrary client event
@@ -40,7 +39,6 @@ const (
 )
 
 type Recorder struct {
-	sends   *sendlog.Store     // engagement attribution reads the send log; core owns it
 	q       *db.Queries        // commerce db, primary read-write: traits, identity + orchestration - takes all writes
 	qs      *signalsdb.Queries // signals write handle, backing the default pg spine driver
 	qr      *db.Queries        // optional dedicated read pool (replica or bulkhead) the heavy read.go aggregations route to - never used for writes
@@ -52,7 +50,6 @@ type Recorder struct {
 
 func (r *Recorder) SetReadQueries(qr *db.Queries) { // optional - unset means reads use the primary pool
 	r.qr = qr
-	r.sends.SetReadQueries(qr)
 }
 
 // Gives the default Postgres spine driver its read pool, so spine aggregations don't run on the write pool - no-op for a non-pg driver
@@ -86,7 +83,7 @@ func (r *Recorder) read() *db.Queries { // read-only aggregations - writes alway
 }
 
 func NewRecorder(q *db.Queries, qs *signalsdb.Queries) *Recorder { // defaults to the Postgres spine driver - SetSpine swaps in ClickHouse
-	return &Recorder{q: q, qs: qs, spine: newPGSpine(qs, nil), sends: sendlog.NewStore(q)}
+	return &Recorder{q: q, qs: qs, spine: newPGSpine(qs, nil)}
 }
 
 type Hit struct {
@@ -105,12 +102,22 @@ type Hit struct {
 
 // SendRef is the send an engagement belongs to, reduced to what the spine stores - the send log is
 // core's, and this package never reads it
+// The origin comes with the send rather than being resolved later, so the event stays true to it
 type SendRef struct {
 	ID         uuid.UUID
 	ChannelID  uuid.UUID
 	CustomerID *uuid.UUID
+	// campaign | flow | transactional
 	Source     string
+	CampaignID *uuid.UUID
+	FlowID     *uuid.UUID
 }
+
+// The origins attribution credits - a transactional send is not marketing and anchors nothing
+const (
+	SourceCampaign = "campaign"
+	SourceFlow     = "flow"
+)
 
 func (r *Recorder) RecordSent(ctx context.Context, s SendRef) error {
 	if r.disabled {
@@ -185,11 +192,11 @@ func (r *Recorder) RecordConversion(ctx context.Context, cs ConversionSpec) (boo
 		"attributed_send_id": anchor.sendID.String(),
 		"attributed_source":  anchor.source,
 	}
-	if anchor.campaignID.Valid {
-		props["campaign_id"] = anchor.campaignID.UUID.String()
+	if anchor.campaignID != "" {
+		props["campaign_id"] = anchor.campaignID
 	}
-	if anchor.flowID.Valid {
-		props["flow_id"] = anchor.flowID.UUID.String()
+	if anchor.flowID != "" {
+		props["flow_id"] = anchor.flowID
 	}
 	cust := cs.CustomerID
 	s := SendRef{ID: anchor.sendID, ChannelID: cs.ChannelID, CustomerID: &cust, Source: anchor.source}
@@ -197,45 +204,29 @@ func (r *Recorder) RecordConversion(ctx context.Context, cs ConversionSpec) (boo
 	return ok, err
 }
 
-type emailAnchor struct { // the last-touch open or click a conversion attributes to, resolved from the spine event plus email_sends for its campaign or flow origin
+type emailAnchor struct { // the last-touch open or click a conversion attributes to, read off the spine event alone
 	eventName  string
 	occurredAt time.Time
 	sendID     uuid.UUID
 	source     string
-	campaignID uuid.NullUUID
-	flowID     uuid.NullUUID
+	campaignID string
+	flowID     string
 }
 
 // A click outranks an open, then most-recent wins, keeping only sends that came from a campaign or flow
-// Two queries rather than a join, because a spine-to-email_sends join can't cross databases with the spine in the signals db - the spine surfaces candidates best-first and email_sends resolves each origin, so the first campaign or flow candidate is the anchor
+// One query: the send's origin was written onto the event, so there is nothing to resolve afterwards
 func (r *Recorder) mostRecentEngagement(ctx context.Context, customerID uuid.UUID, since time.Time) (emailAnchor, bool, error) {
 	cands, err := r.spine.RecentEngagementEvents(ctx, customerID, since)
 	if err != nil {
 		return emailAnchor{}, false, err
 	}
-	if len(cands) == 0 {
-		return emailAnchor{}, false, nil
-	}
-	ids := make([]uuid.UUID, 0, len(cands))
 	for _, c := range cands {
-		ids = append(ids, c.SendID)
-	}
-	sends, err := r.sends.ByIDs(ctx, ids) // the send log is core's, and this is Signals reading it - the direction that keeps the dependency one-way
-	if err != nil {
-		return emailAnchor{}, false, err
-	}
-	origin := make(map[uuid.UUID]db.EmailSendsByIDsRow, len(sends))
-	for _, s := range sends {
-		origin[s.ID] = s
-	}
-	for _, c := range cands {
-		s, found := origin[c.SendID]
-		if !found || (s.Source != sendlog.SourceCampaign && s.Source != sendlog.SourceFlow) {
+		if c.Source != SourceCampaign && c.Source != SourceFlow {
 			continue
 		}
 		return emailAnchor{
 			eventName: c.EventName, occurredAt: c.OccurredAt, sendID: c.SendID,
-			source: s.Source, campaignID: s.CampaignID, flowID: s.FlowID,
+			source: c.Source, campaignID: c.CampaignID, flowID: c.FlowID,
 		}, true, nil
 	}
 	return emailAnchor{}, false, nil
@@ -383,6 +374,15 @@ func (r *Recorder) Identify(ctx context.Context, anonID string, customerID, chan
 }
 
 func (r *Recorder) record(ctx context.Context, name string, s SendRef, at time.Time, props map[string]any, dedupeKey string) (bool, error) { // false on dedupe
+	if props == nil {
+		props = map[string]any{}
+	}
+	if s.CampaignID != nil {
+		props["campaign_id"] = s.CampaignID.String()
+	}
+	if s.FlowID != nil {
+		props["flow_id"] = s.FlowID.String()
+	}
 	return r.spine.AppendEvent(ctx, SpineEvent{
 		EventName:  name,
 		OccurredAt: at,

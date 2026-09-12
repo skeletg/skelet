@@ -352,11 +352,11 @@ LIMIT sqlc.arg(lim);
 -- name: CustomerEngagementEvents :many
 -- Spine half of the app-side conversion-attribution lookback (recorder's
 -- RecordConversion): every marketing open/click the customer logged since the
--- cutoff, best-first (a click outranks an open; then most-recent). The caller
--- resolves each send's origin from email_sends (commerce) and takes the first
--- from a campaign or flow - the last-touch anchor. The per-customer 7-day set is
--- small, so this is unbounded (the winner is picked app-side, not via LIMIT 1).
-SELECT event_name, occurred_at, send_id
+-- cutoff, best-first (a click outranks an open; then most-recent). The send's
+-- origin rides on the event, so the caller takes the first campaign or flow one
+-- as the last-touch anchor without a second lookup. The per-customer 7-day set
+-- is small, so this is unbounded (the winner is picked app-side, not LIMIT 1).
+SELECT event_name, occurred_at, send_id, source, properties
 FROM analytics_events
 WHERE customer_id = sqlc.arg(customer_id)
   AND event_name IN ('email_opened', 'email_clicked')

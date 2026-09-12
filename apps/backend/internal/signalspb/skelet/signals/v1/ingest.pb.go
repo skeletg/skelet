@@ -27,13 +27,19 @@ const (
 )
 
 // The send an engagement belongs to, reduced to what the spine stores - core keeps the send log itself
+// The origin rides along rather than being looked up later, so an event stays true to the send as it
+// was, and attribution never has to reach back into core's tables
 type EmailSendRef struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
 	SendId     string                 `protobuf:"bytes,1,opt,name=send_id,json=sendId,proto3" json:"send_id,omitempty"`
 	ChannelId  string                 `protobuf:"bytes,2,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
 	CustomerId *string                `protobuf:"bytes,3,opt,name=customer_id,json=customerId,proto3,oneof" json:"customer_id,omitempty"`
 	// campaign | flow | transactional
-	Source        string `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"`
+	Source string `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"`
+	// Set for a campaign send
+	CampaignId *string `protobuf:"bytes,5,opt,name=campaign_id,json=campaignId,proto3,oneof" json:"campaign_id,omitempty"`
+	// Set for a flow send
+	FlowId        *string `protobuf:"bytes,6,opt,name=flow_id,json=flowId,proto3,oneof" json:"flow_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -92,6 +98,20 @@ func (x *EmailSendRef) GetCustomerId() string {
 func (x *EmailSendRef) GetSource() string {
 	if x != nil {
 		return x.Source
+	}
+	return ""
+}
+
+func (x *EmailSendRef) GetCampaignId() string {
+	if x != nil && x.CampaignId != nil {
+		return *x.CampaignId
+	}
+	return ""
+}
+
+func (x *EmailSendRef) GetFlowId() string {
+	if x != nil && x.FlowId != nil {
+		return *x.FlowId
 	}
 	return ""
 }
@@ -752,15 +772,21 @@ var File_skelet_signals_v1_ingest_proto protoreflect.FileDescriptor
 
 const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\n" +
-	"\x1eskelet/signals/v1/ingest.proto\x12\x11skelet.signals.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x94\x01\n" +
+	"\x1eskelet/signals/v1/ingest.proto\x12\x11skelet.signals.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf4\x01\n" +
 	"\fEmailSendRef\x12\x17\n" +
 	"\asend_id\x18\x01 \x01(\tR\x06sendId\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x02 \x01(\tR\tchannelId\x12$\n" +
 	"\vcustomer_id\x18\x03 \x01(\tH\x00R\n" +
 	"customerId\x88\x01\x01\x12\x16\n" +
-	"\x06source\x18\x04 \x01(\tR\x06sourceB\x0e\n" +
-	"\f_customer_id\"\x9f\x01\n" +
+	"\x06source\x18\x04 \x01(\tR\x06source\x12$\n" +
+	"\vcampaign_id\x18\x05 \x01(\tH\x01R\n" +
+	"campaignId\x88\x01\x01\x12\x1c\n" +
+	"\aflow_id\x18\x06 \x01(\tH\x02R\x06flowId\x88\x01\x01B\x0e\n" +
+	"\f_customer_idB\x0e\n" +
+	"\f_campaign_idB\n" +
+	"\n" +
+	"\b_flow_id\"\x9f\x01\n" +
 	"\bEmailHit\x12\x1d\n" +
 	"\n" +
 	"user_agent\x18\x01 \x01(\tR\tuserAgent\x12\x18\n" +

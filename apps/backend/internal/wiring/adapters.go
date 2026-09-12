@@ -1023,6 +1023,7 @@ func (l TransactionalSendLog) RecordTransactional(ctx context.Context, spec mail
 	}
 	return send.ID, l.rec.RecordEmailSent(ctx, signalsclient.SendRef{
 		ID: send.ID, ChannelID: send.ChannelID, CustomerID: send.CustomerID, Source: send.Source,
+		CampaignID: send.CampaignID, FlowID: send.FlowID,
 	})
 }
 

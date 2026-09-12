@@ -98,5 +98,6 @@ func (s *Service) recordSent(ctx context.Context, send sendlog.Send) {
 	}
 	_ = s.spine.RecordEmailSent(ctx, signalsclient.SendRef{
 		ID: send.ID, ChannelID: send.ChannelID, CustomerID: send.CustomerID, Source: send.Source,
+		CampaignID: send.CampaignID, FlowID: send.FlowID,
 	})
 }
