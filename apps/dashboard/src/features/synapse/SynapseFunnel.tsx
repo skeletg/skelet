@@ -12,7 +12,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
-import { SynapseFunnelDocument, SynapseOverviewDocument } from './Synapse.signals.gql'
+import { SynapseFunnelDocument, SynapseOverviewDocument } from './Synapse.gql'
 
 const DEFAULT_STEPS = ['page_view', 'view_item', 'cart_add', 'begin_checkout', 'order_placed']
 const nfmt = (n: number) => n.toLocaleString()

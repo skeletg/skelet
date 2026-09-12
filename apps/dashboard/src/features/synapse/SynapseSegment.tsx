@@ -20,7 +20,7 @@ import {
   SynapseSaveSegmentDocument,
   SynapseOverviewDocument,
   SynapseTrackedAttributesDocument,
-} from './Synapse.signals.gql'
+} from './Synapse.gql'
 import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { SegmentTreeBuilder } from './SegmentTreeBuilder'
 import { definitionToTree, nodeComplete, nodeToInput, summarizeNode, type SegNode, type SummaryNode } from './segment-tree'

@@ -9,7 +9,7 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 
 | Doc | What's in it |
 |---|---|
-| [concepts.md](concepts.md) | The vocabulary: channel, scope, listing, locale, the Signals surfaces. Read first |
+| [concepts.md](concepts.md) | The vocabulary: channel, scope, listing, locale, the Signals suites. Read first |
 | [layout.md](layout.md) | What every directory at the root is for, dotfiles included |
 | [architecture.md](architecture.md) | Where the code lives, the GraphQL surfaces and the Signals wire contract, the shape every domain package follows |
 | [workflow.md](workflow.md) | Daily commands, the Docker setup, what to regenerate after a schema change, which apps run |

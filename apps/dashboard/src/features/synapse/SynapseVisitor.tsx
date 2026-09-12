@@ -11,7 +11,7 @@ import {
 import { useConfigScope } from '@/lib/config-scope'
 import { ActivityProfile } from './ActivityProfile'
 import { VisitorRecordingsSection } from '@/features/lens/SessionList'
-import { VisitorProfileDocument } from './Synapse.signals.gql'
+import { VisitorProfileDocument } from './Synapse.gql'
 
 // SynapseVisitor is the not-yet-identified counterpart of SynapseCustomer: the behavioural profile of one anonymous
 // visitor (the lens_aid cookie), reached from the Synapse overview's "most active visitors" list

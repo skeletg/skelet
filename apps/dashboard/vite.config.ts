@@ -51,10 +51,6 @@ export default defineConfig({
       // VITE_-prefixed on purpose - read here at config time, never
       // surfaced to the browser bundle. ws:true forwards the WebSocket
       // upgrade for GraphQL subscriptions (live notifications).
-      // Ahead of /api because vite matches in order, and the Signals API is its own service (docker compose --profile signals, SIGNALS_PORT 8090)
-      '/api/signals': {
-        target: process.env.SIGNALS_PROXY ?? 'http://localhost:8090',
-      },
       '/api': {
         target: process.env.API_PROXY ?? 'http://localhost:8080',
         ws: true,

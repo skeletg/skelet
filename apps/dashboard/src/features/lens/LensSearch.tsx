@@ -13,7 +13,7 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
-import { type LensSearchAnalyticsQuery, LensSearchAnalyticsDocument } from './Lens.signals.gql'
+import { type LensSearchAnalyticsQuery, LensSearchAnalyticsDocument } from './Lens.gql'
 
 type TermRow = LensSearchAnalyticsQuery['lensSearchAnalytics']['top'][number]
 
