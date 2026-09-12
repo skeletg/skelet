@@ -9,8 +9,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/archivefile"
 	authpkg "github.com/skeletg/skelet/apps/backend/internal/auth"
 	"github.com/skeletg/skelet/apps/backend/internal/backinstock"
+	"github.com/skeletg/skelet/apps/backend/internal/backup"
 	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/internal/cache"
@@ -264,8 +266,20 @@ func newOrderMailService(
 	return ordermail.NewService(orders, ch, tmpl, sender, cfg, OrderMailSendLog{q: q})
 }
 
-// Core owns the send log, but it comes off the stack like the Recorder does - that is where the read pool and archive sink are attached
-func newSendLogStore(s *signalsboot.Stack) *sendlog.Store { return s.SendLog }
+// Core's own - every transactional mail writes it, so it is maintained with the suite off
+func newSendLogStore(rc RootContext, q *db.Queries, rq ReadQueries) *sendlog.Store {
+	store := sendlog.NewStore(q)
+	if rq.Queries != nil {
+		store.SetReadQueries(rq.Queries)
+	}
+	// retention_action=archive writes the aged months out before dropping them - a broken destination only warns, the sweep failing closed without a sink rather than deleting anything
+	if s, prefix, err := backup.ArchiveStorage(rc.Context); err != nil {
+		log.Printf("[sendlog] retention archive destination unavailable: %v", err)
+	} else if s != nil {
+		store.SetArchiveSink(archivefile.NewStorageSink(s, prefix))
+	}
+	return store
+}
 
 // The one recorded sender every direct path shares - tracking is attached in wireMarketing, where the Recorder exists
 func newTransactionalSender(sender email.Sender) *mailsend.Sender { return mailsend.New(sender) }

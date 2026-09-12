@@ -11,7 +11,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/analytics/spinech"
 	dbconn "github.com/skeletg/skelet/apps/backend/internal/db"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
-	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/internal/media"
 )
@@ -76,7 +75,7 @@ func lensServiceWithBlobs(ctx context.Context) (*lens.Service, func(), error) {
 		return nil, nil, fmt.Errorf("init object storage: %w", err)
 	}
 	// Lens tables live on the signals handle - the Recorder still needs its commerce handle for traits/email_sends plus the spine handle for the moved tables
-	svc := lens.NewService(signalsdb.New(sigConn), analytics.NewRecorder(db.New(conn), signalsdb.New(sigConn)), nil)
+	svc := lens.NewService(signalsdb.New(sigConn), analytics.NewRecorder(signalsdb.New(sigConn)), nil)
 	svc.SetBlobStore(storage)
 	return svc, func() { conn.Close(); sigConn.Close() }, nil
 }
@@ -138,8 +137,7 @@ func runLensBackfillRollups(cmd *cobra.Command, args []string) error {
 	}
 	defer sigConn.Close()
 
-	queries := db.New(conn)
-	svc := lens.NewService(signalsdb.New(sigConn), analytics.NewRecorder(queries, signalsdb.New(sigConn)), nil)
+	svc := lens.NewService(signalsdb.New(sigConn), analytics.NewRecorder(signalsdb.New(sigConn)), nil)
 
 	fmt.Println("lens: backfilling hub rollups from raw web events (this can take a while)…")
 	if err := svc.BackfillRollups(context.Background()); err != nil {

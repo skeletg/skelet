@@ -69,7 +69,7 @@ func (r *queryResolver) CustomerSignals(ctx context.Context, customerID string) 
 		})
 	}
 
-	eng, err := r.AnalyticsSvc.CustomerEmailEngagement(ctx, cid)
+	eng, err := r.SendLog.CustomerEngagement(ctx, cid)
 	if err != nil {
 		return nil, fmt.Errorf("email engagement: %w", err)
 	}

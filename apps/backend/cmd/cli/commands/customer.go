@@ -67,7 +67,7 @@ func newCustomerService(ctx context.Context) (*customer.Service, func(), error) 
 		conn.Close()
 		return nil, nil, err
 	}
-	rec := analytics.NewRecorder(queries, signalsdb.New(sigConn))
+	rec := analytics.NewRecorder(signalsdb.New(sigConn))
 	chStore, chCleanup, err := spinech.SelectFromEnv(ctx)
 	if err != nil {
 		valkey.Close()

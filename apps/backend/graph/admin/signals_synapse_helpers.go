@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/skeletg/skelet/apps/backend/graph/admin/model"
-	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/internal/signalspb/skelet/signals/v1"
 )
 
@@ -193,12 +192,13 @@ func segmentNodeProto(in *model.SegmentNodeInput) *signalsv1.SegmentNode {
 	if in == nil {
 		return nil
 	}
+	// The graph's enum maps straight onto the contract's - the engine's own spelling is its business
 	out := &signalsv1.SegmentNode{}
-	switch strings.ToLower(string(in.Kind)) {
-	case behavioralsegment.KindGroup:
+	switch in.Kind {
+	case model.SegmentNodeKindGroup:
 		out.Kind = signalsv1.SegmentNodeKind_SEGMENT_NODE_KIND_GROUP
 		out.Op = signalsv1.SegmentBoolOp_SEGMENT_BOOL_OP_AND
-		if in.Op != nil && strings.EqualFold(string(*in.Op), behavioralsegment.OpOr) {
+		if in.Op != nil && *in.Op == model.SegmentBoolOpOr {
 			out.Op = signalsv1.SegmentBoolOp_SEGMENT_BOOL_OP_OR
 		}
 		for _, c := range in.Children {
@@ -206,7 +206,7 @@ func segmentNodeProto(in *model.SegmentNodeInput) *signalsv1.SegmentNode {
 				out.Children = append(out.Children, child)
 			}
 		}
-	case behavioralsegment.KindEvent:
+	case model.SegmentNodeKindEvent:
 		out.Kind = signalsv1.SegmentNodeKind_SEGMENT_NODE_KIND_EVENT
 		if in.Event != nil {
 			out.Event = *in.Event
@@ -220,10 +220,10 @@ func segmentNodeProto(in *model.SegmentNodeInput) *signalsv1.SegmentNode {
 		if in.Days != nil {
 			out.Days = *in.Days
 		}
-	case behavioralsegment.KindTrait:
+	case model.SegmentNodeKindTrait:
 		out.Kind = signalsv1.SegmentNodeKind_SEGMENT_NODE_KIND_TRAIT
 		out.Trait = segmentTraitProto(in.Trait)
-	case behavioralsegment.KindAffinity:
+	case model.SegmentNodeKindAffinity:
 		out.Kind = signalsv1.SegmentNodeKind_SEGMENT_NODE_KIND_AFFINITY
 		out.Affinity = segmentAffinityProto(in.Affinity)
 	}

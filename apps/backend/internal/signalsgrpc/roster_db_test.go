@@ -32,7 +32,7 @@ func rosterServer(t *testing.T) (signalsv1.IngestServiceClient, *signalsdb.Queri
 
 	qs := signalsdb.New(conn)
 	lis := bufconn.Listen(1 << 20)
-	srv := NewServer(Deps{JWTSecret: testSecret, Analytics: analytics.NewRecorder(nil, qs)})
+	srv := NewServer(Deps{JWTSecret: testSecret, Analytics: analytics.NewRecorder(qs)})
 	go func() { _ = srv.Serve(lis) }()
 	cc, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) { return lis.DialContext(ctx) }),
