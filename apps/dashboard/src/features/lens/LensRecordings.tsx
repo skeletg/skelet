@@ -13,7 +13,7 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
-import { type LensSessionsQuery, LensSessionsDocument } from './Lens.signals.gql'
+import { type LensSessionsQuery, LensSessionsDocument } from './Lens.gql'
 import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNames'
 
 type Row = LensSessionsQuery['lensSessions'][number]

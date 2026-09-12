@@ -6,6 +6,7 @@ package admin
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -54,6 +55,21 @@ func signalsErr(err error) error {
 // signalsScoped gates on the permission here, then hands the caller's token to the suite, which gates again on the channel the data actually belongs to
 func (r *Resolver) signalsScoped(ctx context.Context, perm string) (context.Context, error) {
 	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), perm); err != nil {
+		return nil, err
+	}
+	return signalsCtx(ctx, r)
+}
+
+// signalsChannel adds the channel gate core can make locally, before the suite makes it again on its side
+func (r *Resolver) signalsChannel(ctx context.Context, perm, channelID string) (context.Context, error) {
+	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), perm); err != nil {
+		return nil, err
+	}
+	cid, err := uuid.Parse(channelID)
+	if err != nil {
+		return nil, errInvalidID("channelId", err)
+	}
+	if err := auth.RequireChannelPermission(ctx, auth.GrantCheckerFrom(ctx), perm, cid, nil); err != nil {
 		return nil, err
 	}
 	return signalsCtx(ctx, r)

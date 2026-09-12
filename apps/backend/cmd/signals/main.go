@@ -132,7 +132,6 @@ func run() error {
 	// The suite's own admin API - the dashboard reaches it directly, authenticating with a service token core minted
 	behavioralSvc := behavioralsegment.New(rec, d.Segment)
 	mux.Handle(signalsapi.Path, wiring.SignalsGraphQLHandler(wiring.SignalsAPI{
-		Lens:       lensSvc,
 		Segment:    d.Segment,
 		Analytics:  rec,
 		Behavioral: behavioralSvc,

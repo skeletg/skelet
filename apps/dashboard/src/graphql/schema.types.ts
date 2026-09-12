@@ -630,6 +630,40 @@ export type BlogTagContent = {
   updatedAt: Scalars['Time']['output'];
 };
 
+export type BotAgent = {
+  __typename?: 'BotAgent';
+  category: Scalars['String']['output'];
+  hits: Scalars['Int']['output'];
+  lastSeen: Scalars['Time']['output'];
+  name: Scalars['String']['output'];
+  pages: Scalars['Int']['output'];
+};
+
+export type BotDayPoint = {
+  __typename?: 'BotDayPoint';
+  botHits: Scalars['Int']['output'];
+  day: Scalars['String']['output'];
+  humanViews: Scalars['Int']['output'];
+};
+
+export type BotPage = {
+  __typename?: 'BotPage';
+  bots: Scalars['Int']['output'];
+  hits: Scalars['Int']['output'];
+  pageKey: Scalars['String']['output'];
+};
+
+export type BotTraffic = {
+  __typename?: 'BotTraffic';
+  botCount: Scalars['Int']['output'];
+  botHits: Scalars['Int']['output'];
+  bots: Array<BotAgent>;
+  daily: Array<BotDayPoint>;
+  humanViews: Scalars['Int']['output'];
+  pageCount: Scalars['Int']['output'];
+  topPages: Array<BotPage>;
+};
+
 export type BulkAttributeValueResult = {
   __typename?: 'BulkAttributeValueResult';
   count: Scalars['Int']['output'];
@@ -2725,6 +2759,187 @@ export type KitComponent = {
   quantity: Scalars['Float']['output'];
   sortOrder: Scalars['Int']['output'];
   updatedAt: Scalars['Time']['output'];
+};
+
+export type LensCell = {
+  __typename?: 'LensCell';
+  count: Scalars['Int']['output'];
+  x: Scalars['Int']['output'];
+  y: Scalars['Int']['output'];
+};
+
+export type LensElementClick = {
+  __typename?: 'LensElementClick';
+  count: Scalars['Int']['output'];
+  selector: Scalars['String']['output'];
+  text: Scalars['String']['output'];
+};
+
+export type LensErrorStat = {
+  __typename?: 'LensErrorStat';
+  count: Scalars['Int']['output'];
+  lastSeen: Scalars['Time']['output'];
+  message: Scalars['String']['output'];
+  pages: Scalars['Int']['output'];
+};
+
+export type LensFrustration = {
+  __typename?: 'LensFrustration';
+  deadPages: Array<LensSignalPage>;
+  rageElements: Array<LensRageElement>;
+  ragePages: Array<LensSignalPage>;
+};
+
+export type LensHeatmap = {
+  __typename?: 'LensHeatmap';
+  click: Array<LensCell>;
+  elements: Array<LensElementClick>;
+  height: Scalars['Int']['output'];
+  move: Array<LensCell>;
+  pageKey: Scalars['String']['output'];
+  scroll: Array<LensCell>;
+  snapshotJson: Scalars['String']['output'];
+  state: Scalars['String']['output'];
+  viewport: Scalars['String']['output'];
+  width: Scalars['Int']['output'];
+};
+
+export type LensLabelCount = {
+  __typename?: 'LensLabelCount';
+  label: Scalars['String']['output'];
+  views: Scalars['Int']['output'];
+};
+
+export type LensOverview = {
+  __typename?: 'LensOverview';
+  daily: Array<LensTimePoint>;
+  devices: Array<LensLabelCount>;
+  interactions: Array<LensLabelCount>;
+  referrers: Array<LensLabelCount>;
+  topPages: Array<LensPageStat>;
+  views: Scalars['Int']['output'];
+  visitors: Scalars['Int']['output'];
+};
+
+export type LensPage = {
+  __typename?: 'LensPage';
+  pageKey: Scalars['String']['output'];
+  views: Scalars['Int']['output'];
+};
+
+export type LensPageStat = {
+  __typename?: 'LensPageStat';
+  avgScroll: Scalars['Int']['output'];
+  clicks: Scalars['Int']['output'];
+  pageKey: Scalars['String']['output'];
+  views: Scalars['Int']['output'];
+  visitors: Scalars['Int']['output'];
+};
+
+export type LensPageStats = {
+  __typename?: 'LensPageStats';
+  avgScroll: Scalars['Int']['output'];
+  clicks: Scalars['Int']['output'];
+  clients: Array<LensLabelCount>;
+  devices: Array<LensLabelCount>;
+  referrers: Array<LensLabelCount>;
+  timeline: Array<LensTimePoint>;
+  views: Scalars['Int']['output'];
+  visitors: Scalars['Int']['output'];
+};
+
+export type LensPageVitals = {
+  __typename?: 'LensPageVitals';
+  cls?: Maybe<Scalars['Float']['output']>;
+  inp?: Maybe<Scalars['Float']['output']>;
+  lcp?: Maybe<Scalars['Float']['output']>;
+  pageKey: Scalars['String']['output'];
+  samples: Scalars['Int']['output'];
+  ttfb?: Maybe<Scalars['Float']['output']>;
+};
+
+export type LensRageElement = {
+  __typename?: 'LensRageElement';
+  count: Scalars['Int']['output'];
+  selector: Scalars['String']['output'];
+  text: Scalars['String']['output'];
+};
+
+export type LensSearchAnalytics = {
+  __typename?: 'LensSearchAnalytics';
+  daily: Array<LensSearchDay>;
+  distinctTerms: Scalars['Int']['output'];
+  top: Array<LensSearchTerm>;
+  totalSearches: Scalars['Int']['output'];
+  zeroResult: Array<LensSearchTerm>;
+  zeroResultSearches: Scalars['Int']['output'];
+};
+
+export type LensSearchDay = {
+  __typename?: 'LensSearchDay';
+  date: Scalars['String']['output'];
+  searches: Scalars['Int']['output'];
+  zeroResults: Scalars['Int']['output'];
+};
+
+export type LensSearchTerm = {
+  __typename?: 'LensSearchTerm';
+  count: Scalars['Int']['output'];
+  term: Scalars['String']['output'];
+};
+
+export type LensSession = {
+  __typename?: 'LensSession';
+  anonId: Scalars['String']['output'];
+  customerId?: Maybe<Scalars['ID']['output']>;
+  durationMs: Scalars['Int']['output'];
+  endedAt: Scalars['Time']['output'];
+  entryPage: Scalars['String']['output'];
+  errorCount: Scalars['Int']['output'];
+  eventCount: Scalars['Int']['output'];
+  exitPage: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  rageCount: Scalars['Int']['output'];
+  startedAt: Scalars['Time']['output'];
+  userAgent: Scalars['String']['output'];
+  viewport: Scalars['String']['output'];
+};
+
+export type LensSessionError = {
+  __typename?: 'LensSessionError';
+  at: Scalars['Time']['output'];
+  message: Scalars['String']['output'];
+};
+
+export type LensSessionSignals = {
+  __typename?: 'LensSessionSignals';
+  errors: Array<LensSessionError>;
+  vitals: Array<LensSessionVital>;
+};
+
+export type LensSessionVital = {
+  __typename?: 'LensSessionVital';
+  metric: Scalars['String']['output'];
+  value: Scalars['Float']['output'];
+};
+
+export type LensSignalPage = {
+  __typename?: 'LensSignalPage';
+  count: Scalars['Int']['output'];
+  pageKey: Scalars['String']['output'];
+};
+
+export type LensTimePoint = {
+  __typename?: 'LensTimePoint';
+  date: Scalars['String']['output'];
+  views: Scalars['Int']['output'];
+};
+
+export type LensVital = {
+  __typename?: 'LensVital';
+  metric: Scalars['String']['output'];
+  p75: Scalars['Float']['output'];
+  samples: Scalars['Int']['output'];
 };
 
 export type LibraryEmail = {
@@ -6781,6 +6996,7 @@ export type Query = {
   blogPosts: BlogPostList;
   blogTag?: Maybe<BlogTag>;
   blogTags: Array<BlogTag>;
+  botTraffic: BotTraffic;
   cacheRevalidations: Array<CacheRevalidation>;
   cacheSurfaces: Array<CacheSurface>;
   campaignAudienceEstimate: CampaignAudienceEstimate;
@@ -6866,6 +7082,21 @@ export type Query = {
   inventoryLocations: Array<InventoryLocation>;
   inventoryLocationsCount: Scalars['Int']['output'];
   inventoryMode: InventoryMode;
+  lensCustomerSessions: Array<LensSession>;
+  lensErrors: Array<LensErrorStat>;
+  lensFrustration: LensFrustration;
+  lensHeatmap?: Maybe<LensHeatmap>;
+  lensOverview: LensOverview;
+  lensPageStats: LensPageStats;
+  lensPages: Array<LensPage>;
+  lensPerformance: Array<LensPageVitals>;
+  lensSearchAnalytics: LensSearchAnalytics;
+  lensSessionEvents: Scalars['String']['output'];
+  lensSessionSignals: LensSessionSignals;
+  lensSessions: Array<LensSession>;
+  lensStates: Array<Scalars['String']['output']>;
+  lensVisitorSessions: Array<LensSession>;
+  lensVitalsSummary: Array<LensVital>;
   libraryEmail?: Maybe<LibraryEmail>;
   libraryEmails: Array<LibraryEmail>;
   linkGraph?: Maybe<LinkGraph>;
@@ -7029,6 +7260,13 @@ export type QueryBlogPostsArgs = {
 export type QueryBlogTagArgs = {
   id?: InputMaybe<Scalars['ID']['input']>;
   slug?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type QueryBotTrafficArgs = {
+  bot?: InputMaybe<Scalars['String']['input']>;
+  channelId: Scalars['ID']['input'];
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -7392,6 +7630,97 @@ export type QueryInventoryLocationsArgs = {
 
 export type QueryInventoryLocationsCountArgs = {
   search?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type QueryLensCustomerSessionsArgs = {
+  customerId: Scalars['ID']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryLensErrorsArgs = {
+  channelId: Scalars['ID']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryLensFrustrationArgs = {
+  channelId: Scalars['ID']['input'];
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryLensHeatmapArgs = {
+  channelId: Scalars['ID']['input'];
+  pageKey: Scalars['String']['input'];
+  state?: InputMaybe<Scalars['String']['input']>;
+  viewport: Scalars['String']['input'];
+};
+
+
+export type QueryLensOverviewArgs = {
+  channelId: Scalars['ID']['input'];
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryLensPageStatsArgs = {
+  channelId: Scalars['ID']['input'];
+  pageKey: Scalars['String']['input'];
+};
+
+
+export type QueryLensPagesArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
+export type QueryLensPerformanceArgs = {
+  channelId: Scalars['ID']['input'];
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryLensSearchAnalyticsArgs = {
+  channelId: Scalars['ID']['input'];
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryLensSessionEventsArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryLensSessionSignalsArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryLensSessionsArgs = {
+  channelId: Scalars['ID']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryLensStatesArgs = {
+  channelId: Scalars['ID']['input'];
+  pageKey: Scalars['String']['input'];
+  viewport: Scalars['String']['input'];
+};
+
+
+export type QueryLensVisitorSessionsArgs = {
+  anonId: Scalars['String']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryLensVitalsSummaryArgs = {
+  channelId: Scalars['ID']['input'];
+  sinceDays?: InputMaybe<Scalars['Int']['input']>;
 };
 
 

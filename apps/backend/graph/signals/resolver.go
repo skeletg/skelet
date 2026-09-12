@@ -7,13 +7,11 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
-	"github.com/skeletg/skelet/apps/backend/internal/lens"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
 )
 
 // Resolver is the Signals API's dependency root - suite services only, and permissions are deliberately not a field since they ride the request's token
 type Resolver struct {
-	LensSvc       *lens.Service
 	SegmentSvc    *segment.Service
 	AnalyticsSvc  *analytics.Recorder
 	BehavioralSvc *behavioralsegment.Service
