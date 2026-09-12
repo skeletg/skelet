@@ -197,6 +197,8 @@ services:
     command: go run ./cmd/signals
     ports:
       - "8090:8090"
+      # The wire contract core calls - its own listener, since grpc needs one
+      - "8092:8092"
     volumes:
       - ./apps/backend:/var/www/app
     environment:
