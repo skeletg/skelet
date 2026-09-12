@@ -7,7 +7,9 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -31,6 +33,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/observability"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsapi"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsgrpc"
 	"github.com/skeletg/skelet/apps/backend/internal/wiring"
 )
 
@@ -159,6 +162,29 @@ func run() error {
 		}
 		_, _ = w.Write([]byte("ok"))
 	})
+	// The wire contract, on its own listener - grpc needs one, and keeping it separate means the
+	// GraphQL surface can be retired without touching what serves it
+	grpcAddr := ":" + envDefault("SIGNALS_GRPC_PORT", "8092")
+	grpcSrv := signalsgrpc.NewServer(signalsgrpc.Deps{
+		Experiment: d.Experiment,
+		JWTSecret:  d.Config.JWTSecret,
+		Dev:        d.Config.IsDev(),
+	})
+	grpcLn, err := net.Listen("tcp", grpcAddr)
+	if err != nil {
+		return fmt.Errorf("listen grpc: %w", err)
+	}
+	wg.Go(func() {
+		if err := grpcSrv.Serve(grpcLn); err != nil {
+			slog.Error("signals grpc server", "err", err)
+		}
+	})
+	go func() {
+		<-ctx.Done()
+		grpcSrv.GracefulStop()
+	}()
+	slog.Info("signals grpc listening", "addr", grpcAddr)
+
 	srv := &http.Server{
 		Addr:              ":" + envDefault("SIGNALS_PORT", "8090"),
 		Handler:           httpx.Recover(httpx.RequestID(mux)), // panic -> structured 500 with request_id instead of an aborted connection
