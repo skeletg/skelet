@@ -2,6 +2,7 @@ package signals
 
 import (
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
@@ -19,6 +20,7 @@ type Resolver struct {
 	DestinationSvc *destination.Service
 	SegmentSvc     *segment.Service
 	AnalyticsSvc   *analytics.Recorder
+	BehavioralSvc  *behavioralsegment.Service
 	ChannelSvc     *channel.Service
 	ConfigSvc      *config.Service
 	// The one commerce read this surface makes - which attributes are flagged for affinity tracking

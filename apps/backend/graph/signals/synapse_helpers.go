@@ -2,7 +2,6 @@ package signals
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -10,6 +9,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/graph/signals/model"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
 )
 
@@ -28,31 +28,27 @@ func synapseScope(ctx context.Context, r *Resolver, perm, channelID string) (uui
 	return cid, nil
 }
 
-// Gates on the channel in the segment's stored definition - shared by the detail query and the per-segment mutations so a segment id can never reach another channel's members
-func synapseSegmentScope(ctx context.Context, r *Resolver, segmentID, perm string) (segment.Segment, segmentDef, error) {
+// Gates on the channel in the segment's stored definition, so a segment id can never reach another channel's members
+func synapseSegmentScope(ctx context.Context, r *Resolver, segmentID, perm string) (behavioralsegment.Segment, error) {
 	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), perm); err != nil {
-		return segment.Segment{}, segmentDef{}, err
+		return behavioralsegment.Segment{}, err
 	}
 	sid, err := uuid.Parse(segmentID)
 	if err != nil {
-		return segment.Segment{}, segmentDef{}, errInvalidID("segmentId", err)
+		return behavioralsegment.Segment{}, errInvalidID("segmentId", err)
 	}
-	seg, err := r.SegmentSvc.Get(ctx, sid)
+	seg, err := r.BehavioralSvc.Get(ctx, sid)
 	if err != nil {
-		return segment.Segment{}, segmentDef{}, errNotFound("segment")
+		return behavioralsegment.Segment{}, errNotFound("segment")
 	}
-	def, ok := parseSegmentDef(seg.RefreshSQL)
-	if !ok {
-		return segment.Segment{}, segmentDef{}, fmt.Errorf("not a behavioral segment")
-	}
-	cid, err := uuid.Parse(def.ChannelID)
+	cid, err := seg.Definition.Channel()
 	if err != nil {
-		return segment.Segment{}, segmentDef{}, fmt.Errorf("segment has no valid channel")
+		return behavioralsegment.Segment{}, err
 	}
 	if err := auth.RequireChannelPermission(ctx, auth.GrantCheckerFrom(ctx), perm, cid, nil); err != nil {
-		return segment.Segment{}, segmentDef{}, err
+		return behavioralsegment.Segment{}, err
 	}
-	return seg, def, nil
+	return seg, nil
 }
 
 // The spine queries walk raw events, so an uncapped window is a full-table scan on demand
@@ -67,10 +63,10 @@ func synapseDays(sinceDays *int32, def, max int32) int32 {
 	return days
 }
 
-func condsFromInput(in []*model.SegmentConditionInput) []segCond {
-	out := make([]segCond, 0, len(in))
+func condsFromInput(in []*model.SegmentConditionInput) []behavioralsegment.Condition {
+	out := make([]behavioralsegment.Condition, 0, len(in))
 	for _, c := range in {
-		sc := segCond{Event: c.Event}
+		sc := behavioralsegment.Condition{Event: c.Event}
 		if c.Negate != nil {
 			sc.Negate = *c.Negate
 		}
@@ -85,7 +81,7 @@ func condsFromInput(in []*model.SegmentConditionInput) []segCond {
 	return out
 }
 
-func segmentConditionModels(d segmentDef) []*model.SynapseSegmentCondition {
+func segmentConditionModels(d behavioralsegment.Definition) []*model.SynapseSegmentCondition {
 	out := make([]*model.SynapseSegmentCondition, 0, len(d.Conditions))
 	for _, c := range d.Conditions {
 		cnt := max(c.Count, 1)
@@ -98,39 +94,38 @@ func segmentConditionModels(d segmentDef) []*model.SynapseSegmentCondition {
 	return out
 }
 
-func synapseSegmentModel(seg segment.Segment, memberCount int) *model.SynapseSegment {
-	def, _ := parseSegmentDef(seg.RefreshSQL)
+func synapseSegmentModel(seg behavioralsegment.Segment) *model.SynapseSegment {
 	return &model.SynapseSegment{
 		ID:               seg.ID.String(),
-		ChannelID:        def.ChannelID,
+		ChannelID:        seg.Definition.ChannelID,
 		Name:             seg.Name,
 		Slug:             seg.Slug,
-		MemberCount:      int32(memberCount),
-		Definition:       segNodeModel(def.tree()),
-		Conditions:       segmentConditionModels(def),
-		Trait:            segmentTraitModel(def.Trait),
-		Affinity:         segmentAffinityModel(def.Affinity),
-		LifecycleWindows: segmentLifecycleWindowsModel(seg),
+		MemberCount:      int32(seg.MemberCount),
+		Definition:       segNodeModel(seg.Definition.Tree()),
+		Conditions:       segmentConditionModels(seg.Definition),
+		Trait:            segmentTraitModel(seg.Definition.Trait),
+		Affinity:         segmentAffinityModel(seg.Definition.Affinity),
+		LifecycleWindows: segmentLifecycleWindowsModel(seg.Segment),
 	}
 }
 
 // The tree `root` wins when supplied, else the flat conditions/trait/affinity, all AND'd
-func defFromInputs(channelID string, root *model.SegmentNodeInput, conditions []*model.SegmentConditionInput, trait *model.SegmentTraitInput, affinity *model.SegmentAffinityInput) segmentDef {
+func defFromInputs(channelID string, root *model.SegmentNodeInput, conditions []*model.SegmentConditionInput, trait *model.SegmentTraitInput, affinity *model.SegmentAffinityInput) behavioralsegment.Definition {
 	if root != nil {
-		return segmentDef{ChannelID: channelID, Root: nodeFromInput(root)}
+		return behavioralsegment.Definition{ChannelID: channelID, Root: nodeFromInput(root)}
 	}
-	return segmentDef{ChannelID: channelID, Conditions: condsFromInput(conditions), Trait: traitFromInput(trait), Affinity: affinityFromInput(affinity)}
+	return behavioralsegment.Definition{ChannelID: channelID, Conditions: condsFromInput(conditions), Trait: traitFromInput(trait), Affinity: affinityFromInput(affinity)}
 }
 
 // Unknown/empty kinds yield a node the evaluator rejects
-func nodeFromInput(in *model.SegmentNodeInput) *segNode {
+func nodeFromInput(in *model.SegmentNodeInput) *behavioralsegment.Node {
 	if in == nil {
 		return nil
 	}
-	n := &segNode{Kind: strings.ToLower(string(in.Kind))}
+	n := &behavioralsegment.Node{Kind: strings.ToLower(string(in.Kind))}
 	switch n.Kind {
-	case nodeGroup:
-		n.Op = "and"
+	case behavioralsegment.KindGroup:
+		n.Op = behavioralsegment.OpAnd
 		if in.Op != nil {
 			n.Op = strings.ToLower(string(*in.Op))
 		}
@@ -139,7 +134,7 @@ func nodeFromInput(in *model.SegmentNodeInput) *segNode {
 				n.Children = append(n.Children, *child)
 			}
 		}
-	case nodeEvent:
+	case behavioralsegment.KindEvent:
 		if in.Event != nil {
 			n.Event = *in.Event
 		}
@@ -152,21 +147,21 @@ func nodeFromInput(in *model.SegmentNodeInput) *segNode {
 		if in.Days != nil {
 			n.Days = int(*in.Days)
 		}
-	case nodeTrait:
+	case behavioralsegment.KindTrait:
 		n.Trait = traitFromInput(in.Trait)
-	case nodeAffinity:
+	case behavioralsegment.KindAffinity:
 		n.Affinity = affinityFromInput(in.Affinity)
 	}
 	return n
 }
 
-func segNodeModel(n *segNode) *model.SegmentNode {
+func segNodeModel(n *behavioralsegment.Node) *model.SegmentNode {
 	if n == nil {
 		return nil
 	}
 	out := &model.SegmentNode{Kind: model.SegmentNodeKind(strings.ToUpper(n.Kind))}
 	switch n.Kind {
-	case nodeGroup:
+	case behavioralsegment.KindGroup:
 		op := model.SegmentBoolOp(strings.ToUpper(n.Op))
 		if op != model.SegmentBoolOpOr {
 			op = model.SegmentBoolOpAnd
@@ -175,12 +170,12 @@ func segNodeModel(n *segNode) *model.SegmentNode {
 		for i := range n.Children {
 			out.Children = append(out.Children, segNodeModel(&n.Children[i]))
 		}
-	case nodeEvent:
+	case behavioralsegment.KindEvent:
 		ev, neg, cnt, d := n.Event, n.Negate, int32(n.Count), int32(n.Days)
 		out.Event, out.Negate, out.Count, out.Days = &ev, &neg, &cnt, &d
-	case nodeTrait:
+	case behavioralsegment.KindTrait:
 		out.Trait = segmentTraitModel(n.Trait)
-	case nodeAffinity:
+	case behavioralsegment.KindAffinity:
 		out.Affinity = segmentAffinityModel(n.Affinity)
 	}
 	return out
@@ -198,26 +193,26 @@ func segmentLifecycleWindowsModel(seg segment.Segment) *model.SegmentLifecycleWi
 	}
 }
 
-func segmentAffinityModel(a *segAffinity) *model.SynapseSegmentAffinity {
-	if !a.active() {
+func segmentAffinityModel(a *behavioralsegment.Affinity) *model.SynapseSegmentAffinity {
+	if !a.Active() {
 		return nil
 	}
-	return &model.SynapseSegmentAffinity{Attr: a.Attr, Value: a.Value, Days: int32(a.window()), Auto: a.Auto}
+	return &model.SynapseSegmentAffinity{Attr: a.Attr, Value: a.Value, Days: int32(a.Window()), Auto: a.Auto}
 }
 
-func affinityFromInput(in *model.SegmentAffinityInput) *segAffinity {
+func affinityFromInput(in *model.SegmentAffinityInput) *behavioralsegment.Affinity {
 	if in == nil || strings.TrimSpace(in.Attr) == "" || strings.TrimSpace(in.Value) == "" {
 		return nil
 	}
-	a := &segAffinity{Attr: in.Attr, Value: in.Value}
+	a := &behavioralsegment.Affinity{Attr: in.Attr, Value: in.Value}
 	if in.Days != nil {
 		a.Days = int(*in.Days)
 	}
 	return a
 }
 
-func segmentTraitModel(t *segTrait) *model.SynapseSegmentTrait {
-	if !t.active() {
+func segmentTraitModel(t *behavioralsegment.Trait) *model.SynapseSegmentTrait {
+	if !t.Active() {
 		return nil
 	}
 	return &model.SynapseSegmentTrait{
@@ -226,11 +221,11 @@ func segmentTraitModel(t *segTrait) *model.SynapseSegmentTrait {
 	}
 }
 
-func traitFromInput(in *model.SegmentTraitInput) *segTrait {
+func traitFromInput(in *model.SegmentTraitInput) *behavioralsegment.Trait {
 	if in == nil {
 		return nil
 	}
-	t := &segTrait{Lifecycle: in.Lifecycle}
+	t := &behavioralsegment.Trait{Lifecycle: in.Lifecycle}
 	if in.MinRecencyScore != nil {
 		t.MinRecencyScore = int(*in.MinRecencyScore)
 	}

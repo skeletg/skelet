@@ -20,6 +20,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
 	db "github.com/skeletg/skelet/apps/backend/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/internal/destination"
@@ -37,6 +38,7 @@ type Deps struct {
 	Destination *destination.Service
 	Segment     *segment.Service
 	Analytics   *analytics.Recorder
+	Behavioral  *behavioralsegment.Service
 	// The suite's one commerce read - which attributes are flagged for affinity tracking
 	Commerce *db.Queries
 	// Where a customer's channel comes from, since this service has no customers table
@@ -59,7 +61,7 @@ func NewServer(d Deps) *grpc.Server {
 	signalsv1.RegisterSegmentServiceServer(srv, &segmentServer{svc: d.Segment})
 	signalsv1.RegisterPulseServiceServer(srv, &pulseServer{rec: d.Analytics})
 	signalsv1.RegisterSynapseServiceServer(srv, &synapseServer{
-		rec: d.Analytics, segments: d.Segment, commerce: d.Commerce, roster: d.Roster,
+		rec: d.Analytics, segments: d.Segment, behavioral: d.Behavioral, commerce: d.Commerce, roster: d.Roster,
 	})
 
 	// Load balancers and orchestrators watch this rather than opening a real call

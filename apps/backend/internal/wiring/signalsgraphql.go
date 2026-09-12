@@ -12,6 +12,7 @@ import (
 	graphsignals "github.com/skeletg/skelet/apps/backend/graph/signals"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
+	"github.com/skeletg/skelet/apps/backend/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	signalsdb "github.com/skeletg/skelet/apps/backend/internal/db/signals/sqlc"
@@ -32,6 +33,7 @@ type SignalsAPI struct {
 	Destination *destination.Service
 	Segment     *segment.Service
 	Analytics   *analytics.Recorder
+	Behavioral  *behavioralsegment.Service
 	Channel     *channel.Service
 	Config      *config.Service
 	Roster      *signalsdb.Queries
@@ -48,7 +50,7 @@ func SignalsGraphQLHandler(a SignalsAPI) http.Handler {
 	srv := handler.New(graphsignals.NewExecutableSchema(graphsignals.Config{
 		Resolvers: &graphsignals.Resolver{
 			ExperimentSvc: a.Experiment, LensSvc: a.Lens, DestinationSvc: a.Destination, SegmentSvc: a.Segment,
-			AnalyticsSvc: a.Analytics, ChannelSvc: a.Channel, ConfigSvc: a.Config, Commerce: a.Commerce, Roster: a.Roster,
+			AnalyticsSvc: a.Analytics, BehavioralSvc: a.Behavioral, ChannelSvc: a.Channel, ConfigSvc: a.Config, Commerce: a.Commerce, Roster: a.Roster,
 		},
 	}))
 	srv.AddTransport(transport.Options{})

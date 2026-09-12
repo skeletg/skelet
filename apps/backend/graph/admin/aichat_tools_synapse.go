@@ -5,12 +5,13 @@ package admin
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/skeletg/skelet/apps/backend/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/internal/analytics"
@@ -323,52 +324,56 @@ func toolListSegments(ctx context.Context, r *Resolver) string {
 	return b.String()
 }
 
-// Still in-process - its five reads are folded into GetBehavioralSegment, which answers UNIMPLEMENTED
-// while the segment-definition engine sits in the resolver layer
 func toolSegmentDetail(ctx context.Context, r *Resolver, days int, a toolArgs) string {
 	sid, err := uuid.Parse(strings.TrimSpace(a.SegmentID))
 	if err != nil {
 		return "Provide a valid 'segment_id' (use list_segments)."
 	}
-	// Affinities need the segment's channel (the spine scan is channel-bounded);
-	// behavioral segments carry it in their stored definition.
-	var segChannel uuid.UUID
-	if seg, err := r.SegmentSvc.Get(ctx, sid); err == nil {
-		segChannel = segmentDefChannel(seg.RefreshSQL)
+	authed, err := signalsCall(ctx, r)
+	if err != nil {
+		return signalsUnavailable(err, "the segment")
+	}
+	d, err := r.SignalsAPI.Synapse.GetBehavioralSegment(authed, &signalsv1.GetBehavioralSegmentRequest{Id: sid.String()})
+	if err != nil {
+		if status.Code(err) == codes.FailedPrecondition {
+			return "That segment has no behavioural definition, so there is no detail to show."
+		}
+		return signalsUnavailable(err, "the segment")
 	}
 	var b strings.Builder
-	if orders, rev, err := r.AnalyticsSvc.SegmentMemberStats(ctx, sid); err == nil {
-		fmt.Fprintf(&b, "Members' orders: %d, revenue: %d cents.\n", orders, rev)
-	}
-	if mix, err := r.AnalyticsSvc.SegmentLifecycleMix(ctx, sid); err == nil && len(mix) > 0 {
+	fmt.Fprintf(&b, "Segment %q: %d members, %d orders, revenue %s (AOV %s).\n",
+		d.GetSegment().GetName(), d.GetSegment().GetMemberCount(), d.GetOrders(),
+		fmtMoney(d.GetRevenueCents(), d.GetCurrency()), fmtMoney(d.GetAovCents(), d.GetCurrency()))
+	if mix := d.GetLifecycleMix(); len(mix) > 0 {
 		parts := make([]string, 0, len(mix))
 		for _, m := range mix {
-			parts = append(parts, fmt.Sprintf("%s=%d", m.Stage, m.Count))
+			parts = append(parts, fmt.Sprintf("%s=%d", m.GetStage(), m.GetCount()))
 		}
 		fmt.Fprintf(&b, "Lifecycle mix: %s\n", strings.Join(parts, ", "))
 	}
-	if rfm, err := r.AnalyticsSvc.SegmentRfmDistribution(ctx, sid); err == nil && len(rfm) > 0 {
+	if rfm := d.GetRfmDistribution(); len(rfm) > 0 {
 		parts := make([]string, 0, len(rfm))
 		for _, x := range rfm {
-			parts = append(parts, fmt.Sprintf("%s score %d: %d", x.Dimension, x.Score, x.Count))
+			parts = append(parts, fmt.Sprintf("%s score %d: %d", x.GetDimension(), x.GetScore(), x.GetCount()))
 		}
 		fmt.Fprintf(&b, "RFM distribution: %s\n", strings.Join(parts, "; "))
 	}
-	if aff, err := r.AnalyticsSvc.SegmentTopAffinities(ctx, sid, segChannel, time.Now().AddDate(0, 0, -90), 8); err == nil && len(aff) > 0 {
+	if aff := d.GetTopAffinities(); len(aff) > 0 {
 		parts := make([]string, 0, len(aff))
 		for _, x := range aff {
-			parts = append(parts, fmt.Sprintf("%s=%s (%d)", x.Attr, x.Value, x.Members))
+			parts = append(parts, fmt.Sprintf("%s=%s (%d)", x.GetAttr(), x.GetValue(), x.GetMembers()))
 		}
 		fmt.Fprintf(&b, "Top affinities: %s\n", strings.Join(parts, "; "))
 	}
-	if g, err := r.AnalyticsSvc.SegmentGrowth(ctx, sid, days); err == nil && len(g) > 0 {
+	// The window the tool was asked for, out of the 90 days the service returns
+	if g := d.GetGrowth(); len(g) > 0 {
+		if len(g) > days {
+			g = g[len(g)-days:]
+		}
 		b.WriteString("Member-count growth:\n")
 		for _, pt := range g {
-			fmt.Fprintf(&b, "%s: %d\n", pt.Day.Format("2006-01-02"), pt.Count)
+			fmt.Fprintf(&b, "%s: %d\n", pt.GetDay(), pt.GetCount())
 		}
-	}
-	if b.Len() == 0 {
-		return "No detail for that segment (check the id)."
 	}
 	return b.String()
 }
@@ -632,19 +637,6 @@ func formatProfile(label string, p *signalsv1.Profile) string {
 		fmt.Fprintf(&b, "Searches: %s\n", s)
 	}
 	return b.String()
-}
-
-// The Signals API owns the segment-definition grammar - the digest wants one field out of it, the channel the affinity scan has to be bounded by
-// uuid.Nil on a non-behavioral segment, which the affinity call reads as every channel
-func segmentDefChannel(refreshSQL string) uuid.UUID {
-	var def struct {
-		ChannelID string `json:"channelId"`
-	}
-	if json.Unmarshal([]byte(refreshSQL), &def) != nil {
-		return uuid.Nil
-	}
-	id, _ := uuid.Parse(def.ChannelID)
-	return id
 }
 
 // The vocabulary the breakdown tool offers - a catalog setting on core's own tables, so it reads locally
