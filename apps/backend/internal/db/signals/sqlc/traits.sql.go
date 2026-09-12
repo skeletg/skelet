@@ -7,6 +7,7 @@ package signalsdb
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -743,6 +744,73 @@ func (q *Queries) RfmDistributionForCustomers(ctx context.Context, customerIds [
 		return nil, err
 	}
 	return items, nil
+}
+
+const segmentMemberOrderStats = `-- name: SegmentMemberOrderStats :many
+SELECT customer_id,
+       order_count::int        AS orders,
+       monetary_cents::bigint  AS spend_cents,
+       last_order_at
+FROM customer_order_agg
+WHERE customer_id = ANY($1::uuid[])
+`
+
+type SegmentMemberOrderStatsRow struct {
+	CustomerID  uuid.UUID    `json:"customer_id"`
+	Orders      int32        `json:"orders"`
+	SpendCents  int64        `json:"spend_cents"`
+	LastOrderAt sql.NullTime `json:"last_order_at"`
+}
+
+// The order half of a segment's member panel, off the same projection the RFM scores beside it derive
+// from, so a member's orders and spend agree with their recency/frequency/monetary
+func (q *Queries) SegmentMemberOrderStats(ctx context.Context, customerIds []uuid.UUID) ([]SegmentMemberOrderStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, segmentMemberOrderStats, pq.Array(customerIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SegmentMemberOrderStatsRow{}
+	for rows.Next() {
+		var i SegmentMemberOrderStatsRow
+		if err := rows.Scan(
+			&i.CustomerID,
+			&i.Orders,
+			&i.SpendCents,
+			&i.LastOrderAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const segmentOrderRollup = `-- name: SegmentOrderRollup :one
+SELECT COALESCE(SUM(order_count), 0)::bigint    AS orders,
+       COALESCE(SUM(monetary_cents), 0)::bigint AS revenue_cents
+FROM customer_order_agg
+WHERE customer_id = ANY($1::uuid[])
+`
+
+type SegmentOrderRollupRow struct {
+	Orders       int64 `json:"orders"`
+	RevenueCents int64 `json:"revenue_cents"`
+}
+
+// The same projection summed for a segment's rollup - order_count is already distinct orders per
+// customer, so the sum needs no DISTINCT of its own
+func (q *Queries) SegmentOrderRollup(ctx context.Context, customerIds []uuid.UUID) (SegmentOrderRollupRow, error) {
+	row := q.db.QueryRowContext(ctx, segmentOrderRollup, pq.Array(customerIds))
+	var i SegmentOrderRollupRow
+	err := row.Scan(&i.Orders, &i.RevenueCents)
+	return i, err
 }
 
 const setEngagementWatermark = `-- name: SetEngagementWatermark :exec

@@ -706,13 +706,13 @@ func (r *Recorder) ChannelCustomerIDs(ctx context.Context, channelID uuid.UUID) 
 	return r.read().ChannelCustomerIDs(ctx, channelID)
 }
 
-// Distinct non-cancelled orders and total spend in cents for the detail page - membership is the signals database and orders are commerce, so what was one join is two reads
+// Distinct non-cancelled orders and total spend in cents for the detail page, off the spine projection
 func (r *Recorder) SegmentMemberStats(ctx context.Context, segmentID uuid.UUID) (orders int64, revenueCents int64, err error) {
 	ids, err := r.qs.SegmentMemberCustomerIDs(ctx, segmentID)
 	if err != nil || len(ids) == 0 {
 		return 0, 0, err
 	}
-	row, err := r.read().SegmentOrderRollup(ctx, ids)
+	row, err := r.qs.SegmentOrderRollup(ctx, ids)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -737,8 +737,8 @@ func (r *Recorder) SegmentMembers(ctx context.Context, segmentID uuid.UUID, limi
 	if err != nil || len(ids) == 0 {
 		return nil, err
 	}
-	// Membership and orders are commerce, traits are the signals database - so the join that used to be one query is done here
-	stats, err := r.read().SegmentMemberOrderStats(ctx, ids)
+	// Orders and traits come off the same recompute, so the two halves of a row agree
+	stats, err := r.qs.SegmentMemberOrderStats(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -765,7 +765,9 @@ func (r *Recorder) SegmentMembers(ctx context.Context, segmentID uuid.UUID, limi
 	for _, st := range stats {
 		if i, ok := byID[st.CustomerID]; ok {
 			out[i].Orders, out[i].SpendCents = int(st.Orders), st.SpendCents
-			out[i].LastOrderAt = st.LastOrderAt
+			if st.LastOrderAt.Valid { // the projection holds a row per customer, so one who has never ordered has no date rather than no row
+				out[i].LastOrderAt = st.LastOrderAt.Time
+			}
 		}
 	}
 	// The ordering the single query used to do, now that both halves are in hand
