@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/auth"
 	"github.com/skeletg/skelet/apps/backend/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/internal/customer"
@@ -24,12 +23,20 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/events"
 	"github.com/skeletg/skelet/apps/backend/internal/order"
 	"github.com/skeletg/skelet/apps/backend/internal/review"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/internal/subscription"
 )
 
+// Satisfied by *signalsclient.Client - an interface so the tracker tests without a service
 type activityRecorder interface {
-	RecordActivity(ctx context.Context, a analytics.ActivitySpec) (bool, error)
+	RecordActivity(ctx context.Context, a signalsclient.ActivitySpec) error
 }
+
+// The spine's source column for what this package emits - core writes only these two
+const (
+	sourceCommerce = "commerce"
+	sourceAccount  = "account"
+)
 
 type orderLookup interface {
 	GetByID(ctx context.Context, id uuid.UUID) (order.Order, error)
@@ -40,7 +47,7 @@ type Tracker struct {
 	orders orderLookup
 }
 
-func NewTracker(rec *analytics.Recorder, orders *order.Service) *Tracker {
+func NewTracker(rec *signalsclient.Client, orders *order.Service) *Tracker {
 	return &Tracker{rec: rec, orders: orders}
 }
 
@@ -93,7 +100,7 @@ func (t *Tracker) emitID(ctx context.Context, source, name string, channel uuid.
 	if cust == nil && anon == "" {
 		return
 	}
-	_, _ = t.rec.RecordActivity(ctx, analytics.ActivitySpec{
+	_ = t.rec.RecordActivity(ctx, signalsclient.ActivitySpec{
 		EventName:  name,
 		Source:     source,
 		ChannelID:  channel,
@@ -132,12 +139,12 @@ func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 	if !ok || (ev.CustomerID == nil && ev.AnonID == "") {
 		return nil
 	}
-	t.emitID(ctx, analytics.SourceCommerce, "order_placed", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	t.emitID(ctx, sourceCommerce, "order_placed", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:order_placed:"+ev.OrderID.String(),
 		map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency})
 	// gift-card-as-tender is applied during placement, surface it separately
 	if o, err := t.orders.GetByID(ctx, ev.OrderID); err == nil && o.GiftCardAmount > 0 {
-		t.emitID(ctx, analytics.SourceCommerce, "giftcard_redeemed", ev.ChannelID, ev.CustomerID, ev.AnonID,
+		t.emitID(ctx, sourceCommerce, "giftcard_redeemed", ev.ChannelID, ev.CustomerID, ev.AnonID,
 			"act:gc:"+ev.OrderID.String(),
 			map[string]any{"order_number": ev.OrderNumber, "amount_cents": o.GiftCardAmount, "currency": ev.Currency})
 	}
@@ -153,7 +160,7 @@ func (t *Tracker) onOrderStatusChanged(ctx context.Context, e events.Event) erro
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceCommerce, "order_"+ev.ToStatus, ch, cust,
+	t.emit(ctx, sourceCommerce, "order_"+ev.ToStatus, ch, cust,
 		"act:order_status:"+ev.ToStatus+":"+ev.OrderID.String(),
 		map[string]any{"order_id": ev.OrderID.String(), "order_number": number, "from": ev.FromStatus, "status": ev.ToStatus})
 	return nil
@@ -168,7 +175,7 @@ func (t *Tracker) onOrderPayment(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceCommerce, "order_payment_"+ev.Status, ch, cust,
+	t.emit(ctx, sourceCommerce, "order_payment_"+ev.Status, ch, cust,
 		"act:order_pay:"+ev.Status+":"+ev.OrderID.String()+":"+ev.Reference,
 		map[string]any{"order_number": number, "status": ev.Status, "reference": ev.Reference})
 	return nil
@@ -183,7 +190,7 @@ func (t *Tracker) onOrderShipped(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceCommerce, "order_shipped", ch, cust,
+	t.emit(ctx, sourceCommerce, "order_shipped", ch, cust,
 		"act:order_shipped:"+ev.FulfillmentID.String(),
 		map[string]any{"order_number": number, "fully_shipped": ev.FullyShipped})
 	return nil
@@ -230,7 +237,7 @@ func (t *Tracker) recordReturn(ctx context.Context, name string, orderID, return
 	if !ok {
 		return
 	}
-	t.emit(ctx, analytics.SourceCommerce, name, ch, cust,
+	t.emit(ctx, sourceCommerce, name, ch, cust,
 		"act:"+name+":"+returnID.String(),
 		map[string]any{"order_number": number, "return_id": returnID.String()})
 }
@@ -244,7 +251,7 @@ func (t *Tracker) onOrderEdited(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceCommerce, "order_edited", ch, cust,
+	t.emit(ctx, sourceCommerce, "order_edited", ch, cust,
 		"act:order_edited:"+ev.OrderID.String()+":"+itoa(ev.NewAmountDue),
 		map[string]any{"order_number": number, "new_amount_due": ev.NewAmountDue})
 	return nil
@@ -255,7 +262,7 @@ func (t *Tracker) onCartAdd(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emitID(ctx, analytics.SourceCommerce, "cart_add", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	t.emitID(ctx, sourceCommerce, "cart_add", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:cart_add:"+ev.LineID.String(),
 		map[string]any{"sku": ev.ProductSku, "qty": ev.Quantity, "unit_price": ev.UnitPrice})
 	return nil
@@ -266,7 +273,7 @@ func (t *Tracker) onCartBundleAdd(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emitID(ctx, analytics.SourceCommerce, "cart_add", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	t.emitID(ctx, sourceCommerce, "cart_add", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:cart_add:"+ev.LineID.String(),
 		map[string]any{"sku": ev.ProductSku, "qty": ev.Quantity, "unit_price": ev.UnitPrice, "bundle": true})
 	return nil
@@ -277,7 +284,7 @@ func (t *Tracker) onCartUpdate(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emitID(ctx, analytics.SourceCommerce, "cart_update", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	t.emitID(ctx, sourceCommerce, "cart_update", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:cart_upd:"+ev.LineID.String()+":"+itoa(minuteBucket(ctx)),
 		map[string]any{"line_id": ev.LineID.String(), "qty": ev.Quantity})
 	return nil
@@ -288,7 +295,7 @@ func (t *Tracker) onCartRemove(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emitID(ctx, analytics.SourceCommerce, "cart_remove", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	t.emitID(ctx, sourceCommerce, "cart_remove", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:cart_rm:"+ev.LineID.String()+":"+itoa(minuteBucket(ctx)),
 		map[string]any{"line_id": ev.LineID.String()})
 	return nil
@@ -299,7 +306,7 @@ func (t *Tracker) onCartCleared(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emitID(ctx, analytics.SourceCommerce, "cart_cleared", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	t.emitID(ctx, sourceCommerce, "cart_cleared", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:cart_clear:"+ev.CartID.String()+":"+itoa(minuteBucket(ctx)), nil)
 	return nil
 }
@@ -309,7 +316,7 @@ func (t *Tracker) onCartMerged(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceCommerce, "cart_merged", ev.ChannelID, ref(ev.CustomerID),
+	t.emit(ctx, sourceCommerce, "cart_merged", ev.ChannelID, ref(ev.CustomerID),
 		"act:cart_merged:"+ev.CustomerCartID.String()+":"+ev.GuestCartID.String(),
 		map[string]any{"guest_cart_id": ev.GuestCartID.String()})
 	return nil
@@ -320,7 +327,7 @@ func (t *Tracker) onReviewSubmitted(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceCommerce, "review_submitted", ev.ChannelID, ev.CustomerID,
+	t.emit(ctx, sourceCommerce, "review_submitted", ev.ChannelID, ev.CustomerID,
 		"act:review:"+ev.ReviewID.String(),
 		map[string]any{"product_id": ev.ProductID.String(), "status": string(ev.Status), "review_id": ev.ReviewID.String()})
 	return nil
@@ -332,7 +339,7 @@ func (t *Tracker) onSubLifecycle(ctx context.Context, e events.Event) error {
 		return nil
 	}
 	verb := strings.TrimPrefix(ev.Kind, "subscription.")
-	t.emit(ctx, analytics.SourceCommerce, "subscription_"+verb, ev.ChannelID, ev.CustomerID,
+	t.emit(ctx, sourceCommerce, "subscription_"+verb, ev.ChannelID, ev.CustomerID,
 		"act:sub_"+verb+":"+ev.SubscriptionID.String(),
 		map[string]any{"subscription_id": ev.SubscriptionID.String()})
 	return nil
@@ -343,7 +350,7 @@ func (t *Tracker) onSubInvoiced(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceCommerce, "subscription_invoiced", ev.ChannelID, ev.CustomerID,
+	t.emit(ctx, sourceCommerce, "subscription_invoiced", ev.ChannelID, ev.CustomerID,
 		"act:sub_invoiced:"+ev.SubscriptionID.String()+":"+itoa(int64(ev.Sequence)),
 		map[string]any{"subscription_id": ev.SubscriptionID.String(), "amount_cents": ev.AmountCents, "currency": ev.Currency})
 	return nil
@@ -361,7 +368,7 @@ func (t *Tracker) onDownloadAccessed(ctx context.Context, e events.Event) error 
 			ch, number = o.ChannelID, o.Number
 		}
 	}
-	t.emit(ctx, analytics.SourceCommerce, "download_accessed", ch, ev.CustomerID,
+	t.emit(ctx, sourceCommerce, "download_accessed", ch, ev.CustomerID,
 		"act:dl:"+ev.GrantID.String()+":"+itoa(minuteBucket(ctx)),
 		map[string]any{"name": ev.Title, "order_number": number})
 	return nil
@@ -374,7 +381,7 @@ func (t *Tracker) onRegistered(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceAccount, "registered", ev.ChannelID, ref(ev.CustomerID),
+	t.emit(ctx, sourceAccount, "registered", ev.ChannelID, ref(ev.CustomerID),
 		"act:registered:"+ev.CustomerID.String(),
 		map[string]any{"source": ev.Source})
 	return nil
@@ -385,7 +392,7 @@ func (t *Tracker) onEmailVerified(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceAccount, "email_verified", ev.ChannelID, ref(ev.CustomerID),
+	t.emit(ctx, sourceAccount, "email_verified", ev.ChannelID, ref(ev.CustomerID),
 		"act:email_verified:"+ev.CustomerID.String(), nil)
 	return nil
 }
@@ -395,7 +402,7 @@ func (t *Tracker) onAccountUpdated(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceAccount, "account_updated", ev.ChannelID, ref(ev.CustomerID),
+	t.emit(ctx, sourceAccount, "account_updated", ev.ChannelID, ref(ev.CustomerID),
 		"act:account_updated:"+ev.CustomerID.String()+":"+itoa(secBucket(ctx)),
 		map[string]any{"changed_fields": strings.Join(ev.ChangedFields, ","), "source": ev.Source})
 	return nil
@@ -406,7 +413,7 @@ func (t *Tracker) onProfileUpdated(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceAccount, "profile_updated", ev.ChannelID, ref(ev.CustomerID),
+	t.emit(ctx, sourceAccount, "profile_updated", ev.ChannelID, ref(ev.CustomerID),
 		"act:profile_updated:"+ev.CustomerID.String()+":"+itoa(secBucket(ctx)),
 		map[string]any{"changed_fields": strings.Join(ev.ChangedFields, ",")})
 	return nil
@@ -417,7 +424,7 @@ func (t *Tracker) onPasswordChanged(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceAccount, "password_changed", ev.ChannelID, ref(ev.CustomerID),
+	t.emit(ctx, sourceAccount, "password_changed", ev.ChannelID, ref(ev.CustomerID),
 		"act:pwchg:"+ev.CustomerID.String()+":"+itoa(secBucket(ctx)), nil)
 	return nil
 }
@@ -427,7 +434,7 @@ func (t *Tracker) onAddressChanged(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceAccount, "address_changed", ev.ChannelID, ref(ev.CustomerID),
+	t.emit(ctx, sourceAccount, "address_changed", ev.ChannelID, ref(ev.CustomerID),
 		"act:address:"+ev.AddressID.String()+":"+itoa(secBucket(ctx)),
 		map[string]any{"action": ev.Action})
 	return nil
@@ -440,10 +447,10 @@ func (t *Tracker) onLogin(ctx context.Context, e events.Event) error {
 	}
 	// IP is truncated - full IP + customer linkage is PII we don't need at rest
 	var props map[string]any
-	if ip := analytics.AnonymizeIP(ev.IP); ip != "" {
+	if ip := anonymizeIP(ev.IP); ip != "" {
 		props = map[string]any{"ip": ip}
 	}
-	t.emit(ctx, analytics.SourceAccount, "login", ev.ChannelID, ref(ev.SubjectID),
+	t.emit(ctx, sourceAccount, "login", ev.ChannelID, ref(ev.SubjectID),
 		"act:login:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)), props)
 	return nil
 }
@@ -453,7 +460,7 @@ func (t *Tracker) onLogout(ctx context.Context, e events.Event) error {
 	if !ok || ev.Subject != auth.SubjectCustomer {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceAccount, "logout", uuid.Nil, ref(ev.SubjectID),
+	t.emit(ctx, sourceAccount, "logout", uuid.Nil, ref(ev.SubjectID),
 		"act:logout:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)),
 		map[string]any{"all_devices": ev.AllDevices})
 	return nil
@@ -464,7 +471,7 @@ func (t *Tracker) onPasswordReset(ctx context.Context, e events.Event) error {
 	if !ok || ev.Subject != auth.SubjectCustomer {
 		return nil
 	}
-	t.emit(ctx, analytics.SourceAccount, "password_reset", ev.ChannelID, ref(ev.SubjectID),
+	t.emit(ctx, sourceAccount, "password_reset", ev.ChannelID, ref(ev.SubjectID),
 		"act:pwreset:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)), nil)
 	return nil
 }

@@ -128,6 +128,12 @@ volume justifies columnar storage. `cmd/ingest` is the public beacon endpoint
 that writes into it, and an optional NATS JetStream queue can sit between the
 two for durability under spikes.
 
+Core writes to it too - a placed order, a cart change, an email opened - over
+the contract's `IngestService`. Those calls carry a **system token**: core
+writing as itself rather than for an admin, since the event bus that raises
+them has no caller. It authorizes the writes and nothing else, and an admin
+token does not authorize them.
+
 ## Delivery and extension points
 
 **Event bus** - in-process, not durable. `-ing` events fire pre-commit and can

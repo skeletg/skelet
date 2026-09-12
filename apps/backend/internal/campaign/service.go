@@ -15,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/internal/config"
 	"github.com/skeletg/skelet/apps/backend/internal/consent"
@@ -25,6 +24,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 )
 
 var ErrInvalidToken = errors.New("invalid unsubscribe token")
@@ -41,7 +41,7 @@ type Service struct {
 	channels  *channel.Service
 	config    *config.Service
 	sender    email.Sender
-	recorder  *analytics.Recorder
+	recorder  *signalsclient.Client
 	sends     *sendlog.Store
 	track     *emailtrack.Signer
 	unsubKey  []byte
@@ -56,7 +56,7 @@ type suppressionChecker interface { // the slice of the suppression service the 
 }
 
 // unsubKey signs unsubscribe and tracking links, and recorder persists sends plus open and click events onto the analytics spine
-func NewService(repo Repository, tmpl *emailtemplate.Service, customers *customer.Service, segments *segment.Service, cons *consent.Service, channels *channel.Service, cfg *config.Service, sender email.Sender, recorder *analytics.Recorder, sends *sendlog.Store, unsubKey []byte) *Service {
+func NewService(repo Repository, tmpl *emailtemplate.Service, customers *customer.Service, segments *segment.Service, cons *consent.Service, channels *channel.Service, cfg *config.Service, sender email.Sender, recorder *signalsclient.Client, sends *sendlog.Store, unsubKey []byte) *Service {
 	return &Service{repo: repo, tmpl: tmpl, customers: customers, segments: segments, consent: cons, channels: channels, config: cfg, sender: sender, recorder: recorder, sends: sends, track: emailtrack.NewSigner(unsubKey), unsubKey: unsubKey}
 }
 
@@ -455,7 +455,7 @@ func (s *Service) send(ctx context.Context, c Campaign) error {
 			if serr != nil {
 				return fmt.Errorf("track send: %w", serr) // a signals-db blip is infra, not this recipient's fault - abort like the consent gate does, recipients stay pending and the next tick retries
 			}
-			if err := s.recorder.RecordSent(ctx, send); err != nil {
+			if err := s.recorder.RecordEmailSent(ctx, sendRef(send)); err != nil {
 				log.Printf("[campaign] record sent %s: %v", send.ID, err) // the send still happens - this only costs the analytics row
 			}
 			html = s.injectTracking(html, ch, send.ID)

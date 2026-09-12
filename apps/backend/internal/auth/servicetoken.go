@@ -25,6 +25,7 @@ type serviceJWTClaims struct {
 	Email       string      `json:"email"`
 	IsSuperuser bool        `json:"is_superuser,omitempty"`
 	Grants      []wireGrant `json:"grants,omitempty"`
+	System      bool        `json:"sys,omitempty"`
 	Type        string      `json:"type"`
 	jwt.RegisteredClaims
 }
@@ -36,6 +37,9 @@ type ServiceClaims struct {
 	Email       string
 	IsSuperuser bool
 	Grants      []Grant // empty for a superuser, who bypasses the checks before any grant is read
+	// System marks core's own process rather than an admin it acts for - it carries no grants, so it
+	// passes no permission check, and only the methods that ask for it by name accept it
+	System bool
 }
 
 // Admin returns the identity half, the shape the request guards already work in
@@ -69,6 +73,9 @@ func GenerateServiceToken(c ServiceClaims, audience, secret string, ttl time.Dur
 	if audience == "" {
 		return "", fmt.Errorf("service token needs an audience") // an audience-less token would validate at every service
 	}
+	if c.System && (c.IsSuperuser || len(c.Grants) > 0) {
+		return "", fmt.Errorf("a system token carries no authority of its own") // it would otherwise open the read surface too
+	}
 	wire := make([]wireGrant, len(c.Grants))
 	for i, g := range c.Grants {
 		wire[i] = wireGrant{S: g.Slug, C: g.ChannelID, L: g.Locale}
@@ -76,6 +83,7 @@ func GenerateServiceToken(c ServiceClaims, audience, secret string, ttl time.Dur
 	claims := serviceJWTClaims{
 		AdminID: c.AdminID, SessionID: c.SessionID, Email: c.Email, IsSuperuser: c.IsSuperuser,
 		Grants:    wire,
+		System:    c.System,
 		Type:      "service",
 		Subject:   c.AdminID.String(),
 		Audience:  jwt.ClaimStrings{audience},
@@ -113,6 +121,7 @@ func ValidateServiceToken(tokenStr, audience, secret string) (*ServiceClaims, er
 		grants[i] = Grant{Slug: g.S, ChannelID: g.C, Locale: g.L}
 	}
 	return &ServiceClaims{
-		AdminID: c.AdminID, SessionID: c.SessionID, Email: c.Email, IsSuperuser: c.IsSuperuser, Grants: grants,
+		AdminID: c.AdminID, SessionID: c.SessionID, Email: c.Email, IsSuperuser: c.IsSuperuser,
+		Grants: grants, System: c.System,
 	}, nil
 }

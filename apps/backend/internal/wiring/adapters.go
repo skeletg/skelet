@@ -38,6 +38,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/sdk"
@@ -1009,7 +1010,7 @@ func NewEmailCatalogReader(cat *catalog.Service, ch *channel.Service) EmailCatal
 // Adapts the send log to mailsend.Log so a direct send is recorded like a flow's - the row always lands, the spine event beside it no-ops with Signals off
 type TransactionalSendLog struct {
 	sends *sendlog.Store
-	rec   *analytics.Recorder
+	rec   *signalsclient.Client
 }
 
 func (l TransactionalSendLog) RecordTransactional(ctx context.Context, spec mailsend.Spec) (uuid.UUID, error) {
@@ -1020,7 +1021,9 @@ func (l TransactionalSendLog) RecordTransactional(ctx context.Context, spec mail
 	if err != nil {
 		return uuid.Nil, err
 	}
-	return send.ID, l.rec.RecordSent(ctx, send)
+	return send.ID, l.rec.RecordEmailSent(ctx, signalsclient.SendRef{
+		ID: send.ID, ChannelID: send.ChannelID, CustomerID: send.CustomerID, Source: send.Source,
+	})
 }
 
 // Maps the Recorder's trait projection onto the slice flow's split conditions read, so flow declares the shape rather than importing Synapse for it

@@ -45,6 +45,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/internal/segment"
 	"github.com/skeletg/skelet/apps/backend/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/internal/signalsboot"
+	"github.com/skeletg/skelet/apps/backend/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/internal/sms"
 	"github.com/skeletg/skelet/apps/backend/internal/suppression"
@@ -247,10 +248,10 @@ func newEventOutbox(q *db.Queries, bus *events.Bus) *outbox.Outbox { return outb
 func newCampaignService(
 	q *db.Queries, tmpl *emailtemplate.Service, cust *customer.Service,
 	seg *segment.Service, consentSvc *consent.Service, ch *channel.Service, cfg *config.Service,
-	sender email.Sender, rec *analytics.Recorder, sends *sendlog.Store, wcfg Config,
+	sender email.Sender, sc *signalsclient.Client, sends *sendlog.Store, wcfg Config,
 ) *campaign.Service {
 	return campaign.NewService(
-		campaign.NewRepository(q), tmpl, cust, seg, consentSvc, ch, cfg, sender, rec, sends, []byte(wcfg.JWTSecret),
+		campaign.NewRepository(q), tmpl, cust, seg, consentSvc, ch, cfg, sender, sc, sends, []byte(wcfg.JWTSecret),
 	)
 }
 
@@ -272,12 +273,12 @@ func newTransactionalSender(sender email.Sender) *mailsend.Sender { return mails
 func newFlowService( // marketing automation flows - event-triggered, scheduler-advanced node graphs
 	q *db.Queries, tmpl *emailtemplate.Service, cust *customer.Service,
 	consentSvc *consent.Service, ch *channel.Service, cfg *config.Service,
-	sender email.Sender, texter sms.Sender, rec *analytics.Recorder, sends *sendlog.Store,
+	sender email.Sender, texter sms.Sender, sc *signalsclient.Client, sends *sendlog.Store,
 	allow AllowPrivateTargets, wcfg Config,
 ) *flow.Service {
 	return flow.NewService(
 		flow.NewRepository(q), tmpl, cust, consentSvc, ch, cfg, sender, texter,
-		rec, sends, bool(allow), []byte(wcfg.JWTSecret),
+		sc, sends, bool(allow), []byte(wcfg.JWTSecret),
 	)
 }
 
