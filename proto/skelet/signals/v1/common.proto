@@ -1,7 +1,13 @@
 syntax = "proto3";
 
-// Shapes more than one Signals service returns. Money is always cents plus a currency code, never a
-// float, and a window is always a day count rather than a timestamp pair - the server owns "now"
+// Shapes more than one Signals service returns, and where this package's conventions are written down
+//
+// Money is cents plus a currency code, never a float. A window is a day count, never a timestamp
+// pair, so the server owns "now" and two processes never disagree about it. A day bucket is a
+// YYYY-MM-DD string rather than a Timestamp, since a bucket is not an instant and has no timezone.
+// A lookup by identifier that misses answers NOT_FOUND rather than an empty message, so "absent"
+// always means the field is genuinely optional. A list that grows with the store pages with
+// page_size and page_token; one that is a ranked top-N takes a limit instead, since it has no page 2
 package skelet.signals.v1;
 
 // Money earned in one currency, and how many orders it came from

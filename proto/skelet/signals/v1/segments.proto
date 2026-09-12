@@ -1,0 +1,172 @@
+syntax = "proto3";
+
+// Customer segments - the audiences core offers to promotions, campaigns, flows and CMS blocks, but only while this service runs
+// A member row carries the customer id alone, since Signals has no customers table to name them from and a label is not worth a second copy of the personal data
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service SegmentService {
+  rpc ListSegments(ListSegmentsRequest) returns (ListSegmentsResponse);
+  rpc GetSegment(GetSegmentRequest) returns (GetSegmentResponse);
+  rpc ListMembers(ListMembersRequest) returns (ListMembersResponse);
+  // Active segments reduced to what a targeting picker needs
+  rpc ListSegmentOptions(ListSegmentOptionsRequest) returns (ListSegmentOptionsResponse);
+  rpc CreateSegment(CreateSegmentRequest) returns (CreateSegmentResponse);
+  rpc UpdateSegment(UpdateSegmentRequest) returns (UpdateSegmentResponse);
+  rpc DeleteSegment(DeleteSegmentRequest) returns (DeleteSegmentResponse);
+  rpc AssignCustomers(AssignCustomersRequest) returns (AssignCustomersResponse);
+  rpc RemoveCustomer(RemoveCustomerRequest) returns (RemoveCustomerResponse);
+  rpc ClearMembership(ClearMembershipRequest) returns (ClearMembershipResponse);
+  rpc SetRules(SetRulesRequest) returns (SetRulesResponse);
+  // Recomputes a dynamic segment's membership now, which a scheduled sweep also does
+  rpc RefreshSegment(RefreshSegmentRequest) returns (RefreshSegmentResponse);
+}
+
+message CustomerSegment {
+  string id = 1;
+  string slug = 2;
+  string name = 3;
+  string description = 4;
+  bool is_active = 5;
+  int32 member_count = 6;
+  // The dynamic condition tree as JSON, empty for static membership - compiled to parameterized SQL server-side, since operators never write SQL
+  // Opaque on this side of the wire, so core stores and forwards it without knowing the grammar
+  string rules_json = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// One row of a segment's membership page
+message SegmentMember {
+  string customer_id = 1;
+  google.protobuf.Timestamp joined_at = 2;
+}
+
+// A segment reduced to what a picker needs
+message SegmentOption {
+  string slug = 1;
+  string name = 2;
+}
+
+message ListSegmentsRequest {
+  // 0 takes the server default
+  int32 page_size = 1;
+  // From a previous response, empty for the first page
+  string page_token = 2;
+}
+
+message ListSegmentsResponse {
+  repeated CustomerSegment segments = 1;
+  // Across every page, which is what a pager needs to size itself
+  int32 total_count = 2;
+  // Empty on the last page
+  string next_page_token = 3;
+}
+
+message GetSegmentRequest {
+  string id = 1;
+}
+
+message GetSegmentResponse {
+  CustomerSegment segment = 1;
+}
+
+// Newest-first, and it covers manual and dynamic membership alike
+message ListMembersRequest {
+  string segment_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListMembersResponse {
+  repeated SegmentMember members = 1;
+  string next_page_token = 2;
+}
+
+message ListSegmentOptionsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListSegmentOptionsResponse {
+  repeated SegmentOption options = 1;
+  string next_page_token = 2;
+}
+
+message CreateSegmentRequest {
+  string slug = 1;
+  string name = 2;
+  string description = 3;
+  optional bool is_active = 4;
+}
+
+message CreateSegmentResponse {
+  CustomerSegment segment = 1;
+}
+
+// Every field but the id is optional, and an absent one is left as it stands
+message UpdateSegmentRequest {
+  string id = 1;
+  optional string slug = 2;
+  optional string name = 3;
+  optional string description = 4;
+  optional bool is_active = 5;
+}
+
+message UpdateSegmentResponse {
+  CustomerSegment segment = 1;
+}
+
+message DeleteSegmentRequest {
+  string id = 1;
+}
+
+message DeleteSegmentResponse {
+  bool deleted = 1;
+}
+
+message AssignCustomersRequest {
+  string segment_id = 1;
+  repeated string customer_ids = 2;
+}
+
+message AssignCustomersResponse {
+  bool assigned = 1;
+}
+
+message RemoveCustomerRequest {
+  string segment_id = 1;
+  string customer_id = 2;
+}
+
+message RemoveCustomerResponse {
+  bool removed = 1;
+}
+
+message ClearMembershipRequest {
+  string segment_id = 1;
+}
+
+message ClearMembershipResponse {
+  bool cleared = 1;
+}
+
+// Empty rules_json clears them, turning the segment back into manual membership - validation rejects
+// unknown kinds, fields and operators at save time rather than at refresh
+message SetRulesRequest {
+  string segment_id = 1;
+  string rules_json = 2;
+}
+
+message SetRulesResponse {
+  CustomerSegment segment = 1;
+}
+
+message RefreshSegmentRequest {
+  string segment_id = 1;
+}
+
+message RefreshSegmentResponse {
+  int32 member_count = 1;
+}

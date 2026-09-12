@@ -4,9 +4,8 @@
 // - protoc             (unknown)
 // source: skelet/signals/v1/destinations.proto
 
-// Event destinations: spine events forwarded to external systems, and segment audiences pushed as
-// hashed identifiers. Forwarding runs on a scheduled sweep with a durable per-destination cursor,
-// so delivery is at-least-once in ingest order and last_error stands until a sweep succeeds
+// Event destinations: spine events forwarded to external systems, and segment audiences pushed as hashed identifiers
+// Forwarding runs on a scheduled sweep with a durable per-destination cursor, so delivery is at-least-once in ingest order and last_error stands until a sweep succeeds
 
 package signalsv1
 

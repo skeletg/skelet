@@ -1,0 +1,385 @@
+syntax = "proto3";
+
+// Lens: web behaviour analytics. Page views and traffic read off the event spine; heatmaps, session
+// recordings and UX signals come from Lens's own capture
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+import "skelet/signals/v1/common.proto";
+
+service LensService {
+  rpc GetOverview(GetOverviewRequest) returns (GetOverviewResponse);
+  rpc GetBotTraffic(GetBotTrafficRequest) returns (GetBotTrafficResponse);
+  rpc ListPages(ListPagesRequest) returns (ListPagesResponse);
+  // Captured UI states for a page and viewport, 'default' first
+  rpc ListStates(ListStatesRequest) returns (ListStatesResponse);
+  rpc GetPageStats(GetPageStatsRequest) returns (GetPageStatsResponse);
+  rpc GetHeatmap(GetHeatmapRequest) returns (GetHeatmapResponse);
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  // A customer's recordings, resolved through their identified anon ids
+  rpc ListCustomerSessions(ListCustomerSessionsRequest) returns (ListCustomerSessionsResponse);
+  rpc ListVisitorSessions(ListVisitorSessionsRequest) returns (ListVisitorSessionsResponse);
+  // The rrweb event stream for one recording, streamed because it is the one heavy payload here
+  rpc GetSessionEvents(GetSessionEventsRequest) returns (stream GetSessionEventsResponse);
+  rpc GetSessionSignals(GetSessionSignalsRequest) returns (GetSessionSignalsResponse);
+  rpc GetFrustration(GetFrustrationRequest) returns (GetFrustrationResponse);
+  rpc ListErrors(ListErrorsRequest) returns (ListErrorsResponse);
+  rpc GetPerformance(GetPerformanceRequest) returns (GetPerformanceResponse);
+  rpc GetVitalsSummary(GetVitalsSummaryRequest) returns (GetVitalsSummaryResponse);
+  rpc GetSearchAnalytics(GetSearchAnalyticsRequest) returns (GetSearchAnalyticsResponse);
+}
+
+message LensPageStat {
+  string page_key = 1;
+  int32 views = 2;
+  int32 visitors = 3;
+  // Cumulative across the whole grid, not the window
+  int32 clicks = 4;
+  // 0..100, cumulative
+  int32 avg_scroll = 5;
+}
+
+message LensTimePoint {
+  // YYYY-MM-DD
+  string date = 1;
+  int32 views = 2;
+}
+
+// A page that has a captured snapshot, and the viewport buckets available for it
+message LensPage {
+  string page_key = 1;
+  int32 views = 2;
+  repeated string viewports = 3;
+}
+
+// One density-grid bucket. x and y are cell indices; for scroll, x is 0 and y is depth percent
+message LensCell {
+  int32 x = 1;
+  int32 y = 2;
+  int32 count = 3;
+}
+
+message LensElementClick {
+  string selector = 1;
+  string text = 2;
+  int32 count = 3;
+}
+
+// Bot hits are server-observed crawler requests, captured even for non-JS bots; human views are
+// tracked page views with JS-rendering bots excluded
+message BotAgent {
+  // Canonical agent name
+  string name = 1;
+  // ai | search | social | seo | monitoring | scraper | other
+  string category = 2;
+  int32 hits = 3;
+  // Distinct pages this agent crawled
+  int32 pages = 4;
+  google.protobuf.Timestamp last_seen = 5;
+}
+
+message BotPage {
+  string page_key = 1;
+  int32 hits = 2;
+  // Distinct bots that hit this page
+  int32 bots = 3;
+}
+
+message BotDayPoint {
+  // YYYY-MM-DD
+  string day = 1;
+  int32 bot_hits = 2;
+  int32 human_views = 3;
+}
+
+// Metadata for the recordings list and the profile panels - the event stream is fetched on its own
+message LensSession {
+  string id = 1;
+  string anon_id = 2;
+  // Set once the visitor was identified
+  optional string customer_id = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp ended_at = 5;
+  int32 duration_ms = 6;
+  int32 event_count = 7;
+  string entry_page = 8;
+  string exit_page = 9;
+  string viewport = 10;
+  string user_agent = 11;
+  // Captured during this recording - the frustration badge and filter read these
+  int32 rage_count = 12;
+  int32 error_count = 13;
+}
+
+message LensSignalPage {
+  string page_key = 1;
+  int32 count = 2;
+}
+
+message LensRageElement {
+  string selector = 1;
+  string text = 2;
+  int32 count = 3;
+}
+
+message LensErrorStat {
+  string message = 1;
+  int32 count = 2;
+  // Distinct pages the error fired on
+  int32 pages = 3;
+  google.protobuf.Timestamp last_seen = 4;
+}
+
+// Site-wide p75 for one Core Web Vital
+message LensVital {
+  string metric = 1;
+  double p75 = 2;
+  int32 samples = 3;
+}
+
+// p75 per page, absent where a page has no sample for that metric
+message LensPageVitals {
+  string page_key = 1;
+  optional double lcp = 2;
+  optional double cls = 3;
+  optional double inp = 4;
+  optional double ttfb = 5;
+  int32 samples = 6;
+}
+
+message LensSearchTerm {
+  string term = 1;
+  int32 count = 2;
+}
+
+message LensSearchDay {
+  // YYYY-MM-DD
+  string date = 1;
+  int32 searches = 2;
+  int32 zero_results = 3;
+}
+
+message GetOverviewRequest {
+  string channel_id = 1;
+  // Window in days, 0 for the server default
+  int32 since_days = 2;
+}
+
+message GetOverviewResponse {
+  int32 views = 1;
+  // Distinct anon visitors
+  int32 visitors = 2;
+  // Daily page views across the window
+  repeated LensTimePoint daily = 3;
+  repeated LensPageStat top_pages = 4;
+  repeated LabelCount devices = 5;
+  repeated LabelCount referrers = 6;
+  // Named UI interactions, by count
+  repeated LabelCount interactions = 7;
+}
+
+message GetBotTrafficRequest {
+  string channel_id = 1;
+  int32 since_days = 2;
+  // Filters the crawled-pages list to one agent name, empty for all
+  string bot = 3;
+}
+
+message GetBotTrafficResponse {
+  int32 bot_hits = 1;
+  int32 human_views = 2;
+  // Distinct bot agents seen
+  int32 bot_count = 3;
+  // Distinct pages crawled by bots
+  int32 page_count = 4;
+  repeated BotAgent bots = 5;
+  repeated BotPage top_pages = 6;
+  repeated BotDayPoint daily = 7;
+}
+
+message ListPagesRequest {
+  string channel_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListPagesResponse {
+  repeated LensPage pages = 1;
+  string next_page_token = 2;
+}
+
+message ListStatesRequest {
+  string channel_id = 1;
+  string page_key = 2;
+  string viewport = 3;
+}
+
+message ListStatesResponse {
+  repeated string states = 1;
+}
+
+message GetPageStatsRequest {
+  string channel_id = 1;
+  string page_key = 2;
+}
+
+message GetPageStatsResponse {
+  int32 views = 1;
+  int32 visitors = 2;
+  // Cumulative
+  int32 clicks = 3;
+  // 0..100, cumulative
+  int32 avg_scroll = 4;
+  // Daily views over the last 30 days
+  repeated LensTimePoint timeline = 5;
+  repeated LabelCount referrers = 6;
+  // Browser and client family
+  repeated LabelCount clients = 7;
+  repeated LabelCount devices = 8;
+}
+
+message GetHeatmapRequest {
+  string channel_id = 1;
+  string page_key = 2;
+  string viewport = 3;
+  // Empty means 'default'
+  string state = 4;
+}
+
+// NOT_FOUND when that state has no snapshot captured
+message GetHeatmapResponse {
+  Heatmap heatmap = 1;
+}
+
+message Heatmap {
+  string page_key = 1;
+  string viewport = 2;
+  string state = 3;
+  int32 width = 4;
+  int32 height = 5;
+  string snapshot_json = 6;
+  repeated LensCell click = 7;
+  repeated LensCell move = 8;
+  repeated LensCell scroll = 9;
+  repeated LensElementClick elements = 10;
+}
+
+// Newest-first. Recordings accumulate for as long as retention keeps them, so all three page
+message ListSessionsRequest {
+  string channel_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListCustomerSessionsRequest {
+  string customer_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListVisitorSessionsRequest {
+  string anon_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListSessionsResponse {
+  repeated LensSession sessions = 1;
+  string next_page_token = 2;
+}
+
+// Its own message rather than a shared one, so either list can grow a field without moving the other
+message ListCustomerSessionsResponse {
+  repeated LensSession sessions = 1;
+  string next_page_token = 2;
+}
+
+message ListVisitorSessionsResponse {
+  repeated LensSession sessions = 1;
+  string next_page_token = 2;
+}
+
+message GetSessionEventsRequest {
+  string id = 1;
+}
+
+// Chunks of the rrweb event stream, concatenated by the caller into the JSON array the player takes
+message GetSessionEventsResponse {
+  bytes chunk = 1;
+}
+
+message GetSessionSignalsRequest {
+  string id = 1;
+}
+
+message SessionError {
+  string message = 1;
+  google.protobuf.Timestamp at = 2;
+}
+
+message SessionVital {
+  string metric = 1;
+  double value = 2;
+}
+
+// Captured during one recording, shown beside the replay
+message GetSessionSignalsResponse {
+  repeated SessionError errors = 1;
+  repeated SessionVital vitals = 2;
+}
+
+message GetFrustrationRequest {
+  string channel_id = 1;
+  int32 since_days = 2;
+}
+
+message GetFrustrationResponse {
+  repeated LensSignalPage rage_pages = 1;
+  // Clicks that did nothing
+  repeated LensSignalPage dead_pages = 2;
+  repeated LensRageElement rage_elements = 3;
+}
+
+// A ranked top-N rather than a collection, so it takes a limit and has no page 2
+message ListErrorsRequest {
+  string channel_id = 1;
+  int32 since_days = 2;
+  int32 limit = 3;
+}
+
+message ListErrorsResponse {
+  repeated LensErrorStat errors = 1;
+}
+
+message GetPerformanceRequest {
+  string channel_id = 1;
+  int32 since_days = 2;
+}
+
+message GetPerformanceResponse {
+  repeated LensPageVitals pages = 1;
+}
+
+message GetVitalsSummaryRequest {
+  string channel_id = 1;
+  int32 since_days = 2;
+}
+
+message GetVitalsSummaryResponse {
+  repeated LensVital vitals = 1;
+}
+
+message GetSearchAnalyticsRequest {
+  string channel_id = 1;
+  int32 since_days = 2;
+}
+
+message GetSearchAnalyticsResponse {
+  int32 total_searches = 1;
+  int32 distinct_terms = 2;
+  int32 zero_result_searches = 3;
+  repeated LensSearchTerm top = 4;
+  // Searches that returned nothing, which is where the merchandising gaps are
+  repeated LensSearchTerm zero_result = 5;
+  repeated LensSearchDay daily = 6;
+}
