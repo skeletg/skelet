@@ -34,8 +34,8 @@ diff but breaks every plugin implementing it, and apidiff says so. `sdk/sdktest`
 ships a fake host so a plugin can be tested without booting the app, and it is
 covered by the same gates.
 
-`apps/backend/plugins/example` exercises every registration verb - start there.
-`apps/backend/plugins/plugins.json` decides which plugin directories compile in.
+`apps/backend/core/plugins/example` exercises every registration verb - start there.
+`apps/backend/core/plugins/plugins.json` decides which plugin directories compile in.
 
 The six first-party payment gateways - Stripe, Braintree, PayPal, Klarna, Mollie
 and Affirm - each live in their own repository, named after the plugin slug
@@ -203,7 +203,7 @@ own directory and drives it the way core's own scenarios do:
 ```go
 package myplugin_test
 
-import "github.com/skeletg/skelet/apps/backend/internal/e2ekit"
+import "github.com/skeletg/skelet/apps/backend/core/internal/e2ekit"
 
 // Embedded, so the plugin's own helpers can hang off it
 type harness struct{ *e2ekit.Harness }

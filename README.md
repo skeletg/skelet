@@ -54,25 +54,14 @@ to explain one. Every verb is still a script in `bin/`, unchanged and callable d
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    D["apps/dashboard<br/>React + Vite"]
-    S["apps/channels/*<br/>Next.js"]
-    B["apps/backend - Go, gqlgen, sqlc<br/>/api/admin/graphql · /api/front/graphql<br/>one image, five roles:<br/>server · worker · media · signals · ingest"]
-    PG[("Postgres<br/>commerce")]
-    SG[("Postgres<br/>signals")]
-    VK[("Valkey<br/>tokens")]
-    S3[("S3 / Garage<br/>media")]
-    OS[("OpenSearch<br/>search")]
+![Architecture: frontends over two GraphQL endpoints into core, the optional Signals suite beside it, each with its own Postgres, Valkey and S3 shared](docs/architecture.png)
 
-    D --> B
-    S --> B
-    B --> PG
-    B --> SG
-    B --> VK
-    B --> S3
-    B --> OS
-```
+**Signals is optional.** `SIGNALS_ENABLED=false` runs the commerce process alone: no suite
+containers, no gRPC client, and the dashboard hides the suite's screens. When it is on, core
+never opens the signals database - everything crosses the gRPC contract, and the suite reads
+core back through the storefront API with a service token. The suite shares Valkey and object
+storage with core, keeps its event spine in ClickHouse, and can put NATS JetStream in front of
+ingestion.
 
 **Two GraphQL endpoints, one backend.** Admin and storefront share a process but have
 entirely separate schemas, generated executables and resolver trees - storefront

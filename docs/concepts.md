@@ -104,9 +104,9 @@ differs - currency, tax, pricing - not when only the words do.
 
 ## Signals, and its four surfaces
 
-**Signals** is the built-in analytics stack. It's a separate process
-(`cmd/signals`) writing to a separate database (`signals-db`), never the
-commerce one. It answers over one surface: the gRPC contract in
+**Signals** is the built-in analytics stack. It's a separate Go module
+(`apps/backend/signals`) and a separate process (`cmd/signals` there) writing to a
+separate database (`signals-db`), never the commerce one. It answers over one surface: the gRPC contract in
 `proto/skelet/signals/v1/`, which only core calls. The dashboard talks to core,
 and core relays.
 
@@ -122,11 +122,10 @@ there's no shared subsystem behind them beyond the event spine:
 
 ### The spine
 
-**The spine** is the append-only event log everything above reads from. It's
-pluggable: Postgres by default, ClickHouse behind a compose profile when the
-volume justifies columnar storage. `cmd/ingest` is the public beacon endpoint
-that writes into it, and an optional NATS JetStream queue can sit between the
-two for durability under spikes.
+**The spine** is the append-only event log everything above reads from. It
+lives in ClickHouse, which comes with the suite. `cmd/ingest` is the public
+beacon endpoint that writes into it, and an optional NATS JetStream queue can
+sit between the two for durability under spikes.
 
 Core writes to it too - a placed order, a cart change, an email opened - over
 the contract's `IngestService`. Those calls carry a **system token**: core
@@ -168,7 +167,7 @@ once:
 | Valkey | Redis-compatible store. Refresh tokens and cache |
 | Garage | Self-hosted S3-compatible object storage. Media, in dev and on-prem |
 | OpenSearch | Search index. Optional - the app runs without it |
-| ClickHouse | Columnar DB. Optional, for the Signals spine and for log retention |
+| ClickHouse | Columnar DB. The Signals spine, and log retention under the `logs` profile |
 | NATS JetStream | Durable queue. Optional, in front of beacon ingest |
 | Mailpit | Dev SMTP catcher. Nothing leaves your machine |
 | Vector | Log shipper, container stdout into ClickHouse |

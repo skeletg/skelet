@@ -11,10 +11,10 @@ convention is the one most code comments point at.
   regeneration.
 - Resolver field for the admin service is `AdminSvc` (not `Admin`) to
   avoid shadowing the generated `Admin(id)` query resolver method.
-- Front model autobinds to `apps/backend/graph/admin/model` for shared
+- Front model autobinds to `apps/backend/core/graph/admin/model` for shared
   types (Customer, Product, Order, …); cart-only types live in
-  `apps/backend/graph/front/model`.
-- Migrations in `apps/backend/internal/db/migrations/` - numbered
+  `apps/backend/core/graph/front/model`.
+- Migrations in `apps/backend/core/internal/db/migrations/` - numbered
   sequentially. Each `<n>_<name>.up.sql` paired with
   `<n>_<name>.down.sql`.
 - Both streams apply themselves on `docker compose up`: the `migrate` and

@@ -22,9 +22,9 @@ generated, and the cross-app contracts a change has to keep.
 | `bin/ps` | List running containers |
 | `bin/logs [service] [flags]` | Tail container logs (forwards `--tail`, `--since`, etc.) |
 | `bin/bash` | Shell into the Go app container |
-| `bin/go <args>` | Run go inside the app container (e.g. `bin/go build ./...`) |
+| `bin/go <args>` | Run go inside the app container (e.g. `bin/go build ./...`); `bin/go --signals ...` and `bin/go --sdk ...` target the other two modules |
 | `bin/gqlgen <args>` | Run gqlgen inside the app container |
-| `bin/sqlc <args>` | Run sqlc against `apps/backend/` (one-shot container) |
+| `bin/sqlc <args>` | Run sqlc for both Go modules, core and signals (one-shot container) |
 | `bin/migrate <up\|down> [N]` | Run DB migrations |
 | `bin/cli <args>` | Run the Cobra CLI inside the app container (`-it` only when stdin is a tty, so CI works) |
 | `bin/psql` | psql shell into the dev database |
@@ -57,7 +57,7 @@ up` is enough, no `-f` needed), `docker-compose.small.yml` the one-box tenant an
 edge behind `--profile edge`; leave the profile off to put your own proxy in front.
 
 **Core services**:
-- `app` - Go API, exposes :8080, mounts `./apps/backend` → `/var/www/app`.
+- `app` - Go API, exposes :8080, mounts `./apps/backend` → `/var/www/backend` and works from `core/` under it.
 - `vetrina-demo` - Next.js on `:3000`, `depends_on: app`. Image built from
   `apps/channels/vetrina-demo/Dockerfile`. Each storefront is its own service,
   named after its directory under `apps/channels/`.
@@ -65,6 +65,9 @@ edge behind `--profile edge`; leave the profile off to put your own proxy in fro
 - `valkey` - Redis-compatible KV; JWT refresh tokens + caches.
 
 **Dev sidecars**:
+- `signals` - the Signals process, HTTP on `:8090` and the gRPC contract on `:8092`,
+  started whenever `SIGNALS_ENABLED` is on in `env/go.env`. Core proxies `/t` and
+  `/e` to it; the separate `ingest` tier is a scale-out option, off in dev.
 - `vetrina-demo` - `next dev`, host bind-mount on
   `./apps/channels/vetrina-demo` with named volumes shadowing `node_modules` + `.next`
   (so host-built Windows/macOS artifacts can't poison the Linux/musl
@@ -119,10 +122,10 @@ The generated artifacts must always agree with the source-of-truth
 schemas. A mismatch surfaces as an import error that white-screens the
 dashboard, so treat every schema/query change as "must regenerate":
 
-1. **`*.sql` in `apps/backend/internal/db/query/`** → `bin/sqlc generate`.
-   Manually delete stale `apps/backend/internal/db/sqlc/<old>.sql.go`
+1. **`*.sql` in `apps/backend/core/internal/db/query/`** → `bin/sqlc generate`.
+   Manually delete stale `apps/backend/core/internal/db/sqlc/<old>.sql.go`
    when tables are dropped.
-2. **`*.graphqls` in `apps/backend/graph/schema/<surface>/`** →
+2. **`*.graphqls` in `apps/backend/core/graph/schema/<surface>/`** →
    `bin/gqlgen generate --config gqlgen.<surface>.yml` (or
    `bin/codegen` to do both surfaces). Schema files are paired with
    resolver files by name - `cart.graphqls` ↔ `cart.resolvers.go`.
@@ -177,8 +180,8 @@ found in a template first:
 | Where the frontends run | `.skelet-apps` - empty means the host, which is the default |
 | Deployment target - dev / small / prod | materializes only that target's env files |
 | Suites - Signals, AI | `SIGNALS_ENABLED` / `AI_ENABLED` |
-| Search tier, analytics spine | `OPENSEARCH_URL`, `SIGNALS_ENGINE` in the root `.env` |
-| Payment gateways | `apps/backend/plugins/plugins.json`, then `bin/codegen` if it changed |
+| Search tier | `OPENSEARCH_URL` in the root `.env` |
+| Payment gateways | `apps/backend/core/plugins/plugins.json`, then `bin/codegen` if it changed |
 | Hide the admin API | `ADMIN_API_SLUG` + the matching dashboard URLs |
 
 Secrets are generated, never prompted, and an existing non-placeholder value is left alone -

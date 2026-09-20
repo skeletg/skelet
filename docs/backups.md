@@ -13,15 +13,22 @@ The `db-backup` scheduler job runs nightly at 03:00 and streams `pg_dump`
 straight into the bucket named by `BACKUP_S3_BUCKET`, never to local disk.
 `skelet db backup` runs the same code on demand.
 
-- **Two dumps per run**, sharing one timestamp so a restore can pair them:
-  `db/skelet-<ts>.dump` (commerce) and `db/skelet-signals-<ts>.dump`
-  (analytics). Restore the pair from the same timestamp.
-- **Custom format, zstd-compressed.** `pg_restore` reads it directly.
+- **Three artifacts per run**, sharing one timestamp so a restore can pair
+  them: `db/skelet-<ts>.dump` (commerce), `db/skelet-signals-<ts>.dump` (the
+  Signals database) and `db/signals-clickhouse-<ts>/` (the event spine).
+  Restore all three from the same timestamp.
+- **Custom format, zstd-compressed.** `pg_restore` reads the dumps directly.
 - **Encrypted with age** when `BACKUP_ENCRYPTION_PASSPHRASE` is set, which
   adds a `.age` suffix to the key. Without the passphrase those objects are
   unreadable by anyone, including you.
+- **The spine copy is ClickHouse's own `BACKUP DATABASE`.** The server writes
+  it straight into the bucket, a directory of zstd parts, so `BACKUP_S3_ENDPOINT_URL`
+  has to resolve from the ClickHouse container. It is not age-encrypted: nothing
+  sits between the server and the bucket to encrypt it, so it relies on the
+  bucket's own encryption at rest.
 - **Retention keeps the newest `BACKUP_KEEP` (default 30) per database.**
-  Count, not age: a burst of manual runs prunes older nightlies sooner.
+  Count, not age: a burst of manual runs prunes older nightlies sooner. The
+  spine's directories are pruned by the same count.
 - Analytics retention archives share the bucket under
   `<prefix>archive/`. The dump pruner never touches them.
 
@@ -56,7 +63,7 @@ quietly:
 
 ```bash
 skelet db restore db/skelet-<ts>.dump.age --yes --jobs 4
-skelet db restore db/skelet-signals-<ts>.dump.age --yes --jobs 4
+skelet db restore db/skelet-signals-<ts>.dump.age --yes --jobs 4   # handed to the signals process over the contract
 ```
 
 `--jobs N` parallelizes the data and index phases and is the difference
@@ -64,15 +71,25 @@ between hours and minutes on a large database. The dump spools to a temp
 file first, so point `TMPDIR` at a volume with room for one dump if the
 container filesystem is small.
 
-**4. Migrate.** A dump can predate the code you are deploying, so the
-schema may be behind:
+**4. Restore the spine.** ClickHouse restores from the bucket itself, into an
+empty database, with the same endpoint and credentials the backup used:
+
+```bash
+docker compose -f docker-compose.prod.yml exec clickhouse clickhouse-client --user skelet --password "$CLICKHOUSE_PASSWORD" --multiquery --query "
+DROP DATABASE IF EXISTS signals;
+RESTORE DATABASE signals FROM S3('<BACKUP_S3_ENDPOINT_URL>/<BACKUP_S3_BUCKET>/db/signals-clickhouse-<ts>/', '<BACKUP_S3_ACCESS_KEY_ID>', '<BACKUP_S3_SECRET_ACCESS_KEY>')"
+```
+
+**5. Migrate.** A dump can predate the code you are deploying, so the
+schemas may be behind:
 
 ```bash
 docker compose -f docker-compose.prod.yml run --rm migrate
 docker compose -f docker-compose.prod.yml run --rm signals-migrate
+docker compose -f docker-compose.prod.yml run --rm clickhouse-migrate
 ```
 
-**5. Start the app back up**, then work the checklist below.
+**6. Start the app back up**, then work the checklist below.
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d
