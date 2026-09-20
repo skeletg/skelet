@@ -65,7 +65,7 @@ permissions to `administrator`, so adding a permission needs no migration.
 
 - **Admins**: permissions via roles; `is_superuser = true` bypasses checks.
 - **Integrations**: permissions directly via `integration_permissions`.
-- **Guards** (`internal/auth/guard.go`): `RequireAuth`, `RequireCustomerAuth`,
+- **Guards** (`auth/guard.go`): `RequireAuth`, `RequireCustomerAuth`,
   `RequirePermission(ctx, checker, slug)`, `RequireTokenPermission(ctx, slug)`,
   `RequireChannelPermission(ctx, checker, slug, channelID, locale)` - the last one
   keeps a pre-rename name, but the argument is a channel id.
@@ -217,9 +217,9 @@ enforces per-invoke timeout + payload-keyed response cache + circuit breaker.
 Consumers wire adapters in main.go: shipping `SetRemoteRateSource`, order
 `SetRemoteTax`, `address.RegisterRemoteValidator`,
 `promotion.RegisterRemoteProviderTypes` (remote.condition/remote.action rule
-types), flow `SetRemoteActions` (the `remote_action` node). Admin CRUD gated
+types). Admin CRUD gated
 by `remote_providers.view/manage`; `remoteprovider.MemRepo` for consumer
-tests. SSRF guard shared via `internal/urlguard` - its own package so webhook and
+tests. SSRF guard shared via `urlguard` - its own package so webhook and
 remote providers can both use it without importing each other.
 
 **Admin Actions**: handlers are closures - register after services

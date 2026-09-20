@@ -6,7 +6,7 @@ lives, start here.
 
 ```
 skelet/
-├── apps/          the three applications - everything else supports these
+├── apps/          the applications and the Signals module - everything else supports these
 ├── proto/         the core-to-Signals wire contract, owned by neither side
 ├── bin/           one script per dev operation
 ├── docs/          you are here
@@ -20,11 +20,14 @@ skelet/
 
 ### `apps/`
 
-The three applications, and the only place product code lives.
+The applications, and the only place product code lives.
 
 | | |
 |---|---|
-| `apps/backend/` | The Go GraphQL API. Also the worker, media, signals and ingest processes - one module, several binaries under `cmd/` |
+| `apps/backend/` | Everything server-side, three Go modules side by side and the dev Dockerfile they share |
+| `apps/backend/core/` | The Go GraphQL API. Also the worker and media processes - one module, several binaries under `cmd/` |
+| `apps/backend/signals/` | The Signals suite as its own Go module - the `signals` and `ingest` processes. It requires core by relative path, never the other way round |
+| `apps/backend/sdk/` | The plugin SDK as its own Go module - what plugin repositories build against, beside core's gqlgen model packages for the resolvers they add |
 | `apps/dashboard/` | The React admin panel (Vite) |
 | `apps/channels/` | One directory per shop, each its own Next.js app. `vetrina-demo` is the template that ships in-tree |
 
@@ -32,20 +35,21 @@ Two of these are optional: `bin/setup` asks which apps you want and removes the
 rest from your working tree via sparse-checkout, so a clone that brings its own
 frontend can run headless. The backend always runs.
 
-Inside `apps/backend` you will also find untracked build output - `server`,
-`signals` and `tmp/` are compiled binaries and air's scratch directory, not
-source. What the packages inside each app mean is
+Inside `apps/backend/core` you will also find untracked build output - `server` and
+`tmp/` are a compiled binary and air's scratch directory, not source; the same
+goes for `signals` and `ingest` under `apps/backend/signals`. What the packages inside each app mean is
 [architecture.md](architecture.md).
 
 ### `proto/`
 
 The wire contract between core and Signals, as protobuf. It sits at the root
-rather than inside `apps/backend/` because neither side owns it - core calls it
-and Signals serves it, and when Signals becomes its own module both will import
-the code generated from here.
+rather than inside either module because neither side owns it - core calls it
+and Signals serves it, and both import the code generated from here, which lands
+in core's `signalsapi/v1`, under the hand-written vocabulary, so the contract is
+one directory the Signals module can reach.
 
 `buf.yaml` holds the lint and compatibility rules, `buf.gen.yaml` says which
-plugins run and where the output lands (`apps/backend/internal/signalspb/`,
+plugins run and where the output lands (`apps/backend/core/signalsapi/v1/`,
 never hand-edited). `./skelet gen` regenerates; `./skelet check contracts`
 refuses a change that would break a deployed peer, since the two processes
 deploy separately and an old core will meet a new Signals.
@@ -73,8 +77,8 @@ templates on first run.
 so it is committed as-is. Every variable, which file it belongs in, and the
 tradeoffs behind the optional ones: [env.md](env.md).
 
-Secrets that apply install-wide (`JWT_SECRET`, `CONFIG_ENCRYPTION_KEY`,
-`DB_PASSWORD`) live in the root `.env`, from `.env.example`.
+Secrets that apply install-wide (`JWT_SECRET`, `SIGNALS_SERVICE_SECRET`,
+`CONFIG_ENCRYPTION_KEY`, `DB_PASSWORD`) live in the root `.env`, from `.env.example`.
 
 ### `deploy/`
 
@@ -123,7 +127,7 @@ than written - `permissions.md`, `settings.md` and `webhooks.md` are rebuilt by
 
 **Paths in these pages.** A backticked path starting with `apps/`, `bin/`,
 `deploy/` or `docs/` is from the repo root. A bare `internal/…`, `graph/…` or
-`cmd/…` is relative to `apps/backend`, which is where all three of those live -
+`cmd/…` is relative to `apps/backend/core`, which is where all three of those live -
 the short form keeps Go prose readable, and there is no second `internal/` to
 confuse it with. Write the repo-root form when a page compares apps, the way
 `architecture.md` does for the GraphQL surfaces.

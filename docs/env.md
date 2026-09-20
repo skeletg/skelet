@@ -79,11 +79,12 @@ silent default in production is worse than a refusal to start.
 
 | Var | Notes |
 |---|---|
-| `JWT_SECRET` | `openssl rand -hex 32`, in the root `.env`. Compose hands it to the backend and the storefront, so it's written once. The default value is rejected in production. |
+| `JWT_SECRET` | `openssl rand -hex 32`, in the root `.env`. Compose hands it to the backend, the Signals processes and the storefront, so it's written once. It signs sessions, and nothing else. The default value is rejected in production. |
+| `SIGNALS_SERVICE_SECRET` | A second `openssl rand -hex 32`, in the root `.env`. Core signs every call on the Signals wire contract with it and the suite verifies with the same value. Compose hands it to core and the Signals processes alone: the storefront holds `JWT_SECRET`, and a storefront that could mint service tokens could call the contract as core. Production refuses it empty, short, or equal to `JWT_SECRET`. |
 | `CONFIG_ENCRYPTION_KEY` | `openssl rand -base64 32`, in the root `.env`. Keep it stable - rotating it orphans every stored secret. |
 | `CORS_ALLOWED_ORIGINS` | Storefront + dashboard origins, comma-separated. Empty in dev means localhost defaults. |
 | `DB_PASSWORD` | Commerce Postgres. `DATABASE_URL` derives from it, or set that directly for an external database. |
-| `SIGNALS_DB_PASSWORD` | Signals Postgres, same deal via `SIGNALS_DB_URL`. Required even with Signals switched off - see below. |
+| `SIGNALS_DB_PASSWORD` | Signals Postgres, same deal via `SIGNALS_DB_URL`. Only the Signals processes read it - see below. |
 
 Media storage config (`S3_BUCKET_NAME`, `AWS_REGION`) is also checked at
 boot. The bucket doesn't have to be reachable for the app to start, but
@@ -108,14 +109,12 @@ Pool sizes: `DB_MAX_CONNS` (25) and `ANALYTICS_DB_MAX_CONNS` (8).
 
 ### Signals Postgres
 
-`SIGNALS_DB_URL` holds the event spine, Lens and identities. The commerce
-schema carries none of those tables, so there is no falling back to
-`DATABASE_URL`.
-
-**It's required even with `SIGNALS_ENABLED=false`.** The pool opens either
-way, and retention still has to reach the spine so old data ages out with
-the suite off. Turning Signals off saves the ingest and job load, not the
-database.
+`SIGNALS_DB_URL` holds the event spine, Lens, identities and Pulse - campaigns,
+flows and the email builder. It is the Signals processes' database: `signals`
+and `ingest` open it, and `app` and `worker` never do, not even to dump it -
+they reach everything in it over the wire contract. `SIGNALS_DIRECT_URL` is the
+pooler bypass the `signals` process dumps and restores through, falling back to
+this; the commerce twin is `DATABASE_DIRECT_URL`.
 
 It does not need a separate server. A second database on the commerce
 Postgres instance works exactly the same, which is the usual answer for
@@ -124,11 +123,25 @@ small deployments - a `CREATE DATABASE`, not another container.
 `SIGNALS_GRPC_ADDR` is where `cmd/signals` serves the wire contract core calls
 (`signals:8092` in compose). It is core's only address for Signals, and leaving
 it unset means core makes no calls at all - the admin chat then drops its
-Signals tools rather than offering ones that answer "unreachable".
+Signals tools rather than offering ones that answer "unreachable". With it set,
+`SIGNALS_SERVICE_SECRET` has to be too, or core refuses to boot rather than
+sign calls the suite would reject.
 
-`SIGNALS_REPLICA_URL` is the Signals read pool, bulkheaded off the ingest
+Every call core makes carries a deadline - ten seconds unless the caller set a
+shorter one, thirty minutes for the maintenance calls (a dump, a restore, a
+roster reconcile) - so a hung suite cannot hang the request that asked, a
+password reset most of all. When OpenTelemetry is on (`OTEL_*`), the trace
+started at core's HTTP edge continues into the suite's handler.
+
+`SIGNALS_REPLICA_URL` is the suite's read pool, bulkheaded off the ingest
 writes. Unset means the Signals primary. It is NOT `DATABASE_REPLICA_URL`
 - that's the commerce replica and doesn't hold spine tables.
+
+`CORE_FRONT_API_URL` is where the suite reads core's public storefront API -
+`http://app:8080/api/front/graphql` in compose. The email builder's products
+block prices and links products the way the storefront does, and this is the
+one call the suite makes into core. Unset, the block renders nothing and every
+other email renders as before.
 
 ### Connection pooler
 
@@ -206,32 +219,30 @@ over the derived value.
 `VALKEY_CACHE_URL` is OPTIONAL and points the catalog/CMS read caches at a
 different instance from the one doing rate limits and pub/sub. Leave it empty
 and they share `VALKEY_URL`. Worth splitting when cache eviction pressure
-starts costing you rate-limit counters.
+starts costing you rate-limit counters. The Signals process reads its caches
+off the same variable, and reads the killed-session list core publishes off
+`VALKEY_URL`, so a logout refuses a still-valid service token on the contract
+too. Without a `VALKEY_URL` that check is skipped, as it is on core's own surface.
 
-### ClickHouse (optional spine engine)
+### ClickHouse (the spine)
 
-Unset (or `postgres`) keeps the spine on the Signals Postgres. Set
-`SIGNALS_ENGINE=clickhouse` and point `SIGNALS_CH_URL` at a server for the
-columnar engine on high-volume deployments.
+The event spine, `analytics_events` and `analytics_identities`, lives in
+ClickHouse, and the Lens heatmap grid derives from those raw events. The
+Signals processes refuse to boot without `SIGNALS_CH_URL`. Sessions, replay
+snapshots, rollups and everything Pulse owns stay in the Signals Postgres.
 
-In dev you don't pass `--profile clickhouse` yourself: `bin/_lib` turns that
-profile on whenever the root `.env` sets `SIGNALS_ENGINE=clickhouse`, so the
-server and its schema come up with `bin/dev` and survive `--lean` (the spine
-needs them, they aren't sidecars). `bin/doctor` fails if the engine is set to
-clickhouse and either the container or `signals.analytics_events` is missing.
-`analytics_events` and
-`analytics_identities` move there and the Lens heatmap grid derives from
-raw events, while sessions, snapshots and rollups stay on Postgres - so
-it's additive, not a replacement.
-
-Existing Postgres spine history migrates with `bin/signals-ch-backfill`,
-which is safe to re-run.
+In dev the server and its schema come up inside the `signals` compose profile,
+so `bin/dev` starts them whenever `SIGNALS_ENABLED` is on, and `bin/doctor`
+fails if the suite is on and either the container or `signals.analytics_events`
+is missing.
 
 There are two URLs because the app driver and golang-migrate disagree on
 DSN shape: `SIGNALS_CH_URL` and `SIGNALS_CH_MIGRATE_URL`.
 
 Set `CLICKHOUSE_PASSWORD` in the root `.env`; the server credentials and
-both ClickHouse URLs derive from it.
+both ClickHouse URLs derive from it. The nightly Signals backup runs
+`BACKUP DATABASE` to the same bucket as the Postgres dumps, see
+[backups.md](backups.md).
 
 The server is generic infrastructure, so each consumer gets its own
 database. The compose file creates `signals` at first boot because the
@@ -327,6 +338,10 @@ deployment.
   every backup unreadable. Prod boots warn when backups run unencrypted.
 - `BACKUP_S3_PREFIX` (default `db/`) and `BACKUP_KEEP` (default 30, per
   database - commerce and signals dumps are pruned as separate families).
+  Each process dumps the one database it holds: `app`'s nightly job writes the
+  commerce dump, then asks the `signals` process over the contract to write its
+  own under the same timestamp, so the pair restores together. Set the
+  `BACKUP_*` variables on both - prod compose shares one env file, so they are.
 - `BACKUP_HEARTBEAT_URL` - pinged (GET, 10s timeout) only after a fully
   successful run, dumps uploaded and retention pruned. Point it at
   healthchecks.io or any dead-man's-switch monitor. This is not redundant
@@ -339,13 +354,11 @@ deployment.
   [docs/backups.md](backups.md).
 
 This destination doubles as the analytics retention archive: with the
-`pulse/analytics/retention_action` setting on `archive`, the daily retention
+`signals/analytics/retention_action` setting on `archive`, the daily retention
 jobs export aged spine events and send-log months as identity-stripped
 `.jsonl.gz` files under `<prefix>archive/` before deleting the rows (the
 dump pruner never touches them, and with no `BACKUP_S3_BUCKET` the sweep
-fails closed - it deletes nothing rather than archiving nowhere). Set the
-`BACKUP_*` vars on the cmd/signals worker too when it owns retention via
-`SIGNALS_JOBS_EXTERNAL`.
+fails closed - it deletes nothing rather than archiving nowhere).
 
 The app credential can delete objects (retention pruning), so it cannot
 protect backups from a compromised host - pair it with bucket versioning
@@ -362,13 +375,15 @@ dumps as the portable weekly export.
 
 `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD`. In dev,
 `bin/dev` points these at Mailpit; an unset `SMTP_HOST` prints emails to
-stdout instead.
+stdout instead. Two processes send through them: `app` its own transactional
+mail, and `signals` every campaign and flow mail - both read the same file, so
+one relay serves the install.
 
 `EMAIL_WEBHOOK_TOKEN` is the bearer token for the ESP bounce webhook at
 `POST /webhooks/email/events`. Unset means that route 404s.
 
 Twilio (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`) backs the
-Pulse `send_sms` node. From is E.164.
+Pulse `send_sms` node, read by the `signals` process. From is E.164.
 
 ## AI assistant keys
 
@@ -408,25 +423,37 @@ in one process; splitting buys isolation.
 | Tier | Switch | What it does |
 |---|---|---|
 | `worker` | `JOBS_EXTERNAL=true` | App stops claiming scheduler jobs, webhook deliveries and outbox rows, leaving them to the worker. |
-| `signals` | `SIGNALS_JOBS_EXTERNAL=true` | App defers Signals retention, spine forwarding and trait compute. The same process serves the suite's own admin API on `:8090` and its wire contract on `:8092`. |
-| `ingest` | route `/t/*` | Serves the public tracker surface on `127.0.0.1:8091`. |
+| `signals` | `--profile signals` | Serves the suite's own admin API on `:8090` and its wire contract on `:8092`, and performs the retention, forwarding and trait-compute work core's scheduler asks for. |
+| `ingest` | route `/t/*` and `/e/*` | Serves the public surfaces - the beacons and the mail tracking routes - on `127.0.0.1:8091`. |
 | `media` | route `/media/t/*` | Image resize + focal crop, so decode CPU doesn't land next to checkout. |
 
-Both `JOBS_EXTERNAL` and `SIGNALS_JOBS_EXTERNAL` are read by the app AND
-the worker, so one setting configures both - the worker ignores the flag
-and always runs its layer. It's all DB-claim based, so leaving the flag
-false while a worker runs is safe (both claim, work is partitioned), it
-just doesn't isolate anything. Setting it true with NO worker running
-stops that background work entirely.
+`JOBS_EXTERNAL` is read by the app AND the worker, so one setting
+configures both - the worker ignores the flag and always runs its layer.
+It's all DB-claim based, so leaving the flag false while a worker runs is
+safe (both claim, work is partitioned), it just doesn't isolate anything.
+Setting it true with NO worker running stops that background work entirely.
 
-For the signals worker specifically: set it whenever the worker is
-deployed. The forwarding cursor is guarded against co-running, but two
-sweeps still each post the same batch once.
+The Signals tier needs no such switch: core's scheduler owns the cadence
+of every Signals job and the suite performs the work over the contract, so
+one owner schedules and there is nothing to double-run.
 
 `INGEST_FALLBACK_URL` points the ingest tier back at the app for the two
 routes it can't serve alone - form submissions and back-in-stock signups,
 which need the app's subscriber graph. Leave it unset and those two paths 404,
 which the browser SDKs fail soft on; everything else on `/t/*` is unaffected.
+
+`SIGNALS_INGEST_URL` is where `app` proxies `/t/*`, the beacon surface being the
+suite's to serve - `http://signals:8090` by default. Unset, beacons answer as
+they do with the suite switched off: a silent 204 on the POSTs and a 404 on the
+SDK reads. The commerce beacons (`/t/forms*`, `/t/back-in-stock`) are `app`'s own
+and are unaffected either way.
+
+`SIGNALS_URL` is where `app` proxies `/e/*` - the open pixel and the click
+redirect in every marketing mail, recorded against the send log they name.
+`http://signals:8090` by default. The `ingest` tier serves the same routes, so
+once `/t` points at a scaled-out ingest, `/e` can follow it: the two variables
+are separate only so they need not move together. Unset, opens go unrecorded
+and links in already-sent mail 404.
 
 Two parity notes when `/t` routes to the ingest tier:
 
@@ -438,8 +465,7 @@ Two parity notes when `/t` routes to the ingest tier:
   proxied forms and back-in-stock paths, and its per-IP rate limits
   collapse into one bucket.
 
-The app keeps serving `/t/*` and `/media/t/*` regardless, so both are a
-routing choice rather than a migration.
+`/media/t/*` is served by `app` regardless, so routing it is a scaling choice.
 
 Media tier knobs: `MEDIA_PORT` (8083), `MEDIA_MAX_SOURCE_PIXELS` (~40 MP -
 uploads go straight to object storage via presigned PUT so nothing else
@@ -553,7 +579,7 @@ All default to true.
 
 | Var | Off means |
 |---|---|
-| `SIGNALS_ENABLED` | no Signals suite (Pulse campaigns/flows, Lens, Synapse, Prism, spine ingestion, forwarding). Transactional email keeps sending, and still needs `SIGNALS_DB_URL` to record it. |
+| `SIGNALS_ENABLED` | no Signals suite (Pulse campaigns/flows/the email builder, Lens, Synapse, Prism, spine ingestion, forwarding). Transactional email keeps sending from core's own templates. This is core's switch: it decides whether core dials the suite at all. The Signals processes have none of their own, so a deployed suite is on and cannot quietly drop writes while core keeps sending them. |
 | `AI_ENABLED` | no LLM integrations, including the Settings > AI section |
 
 `GEOIP_DB_PATH` points at a MaxMind GeoLite2 `.mmdb` for geo on web

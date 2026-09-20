@@ -42,7 +42,7 @@ Core sends `POST` to your URL with:
 | `Content-Type` | `application/json` |
 | `User-Agent` | `RemoteProvider/1.0` |
 | `X-Provider-Kind` | the kind, e.g. `tax_provider` |
-| `X-Provider-Contract-Version` | the wire-contract version, e.g. `0.1.0` |
+| `X-Provider-Contract-Version` | the wire-contract version, e.g. `0.2.0` |
 | `X-Provider-Slug` | the slug the merchant registered |
 | `X-Provider-Timestamp` | unix seconds |
 | `X-Provider-Signature-256` | `sha256=<hex>` |
@@ -53,7 +53,7 @@ The body is:
 {
   "kind": "tax_provider",
   "provider": "acme-tax",
-  "contractVersion": "0.1.0",
+  "contractVersion": "0.2.0",
   "timestamp": "2026-08-22T10:31:00Z",
   "config": { "apiKey": "..." },
   "payload": { }
@@ -200,7 +200,7 @@ version bump.
 ## The kinds
 
 Machine-readable schemas and a ready-to-post example for every operation live in
-[`apps/backend/internal/remoteprovider/contract/`](../apps/backend/internal/remoteprovider/contract/)
+[`apps/backend/core/internal/remoteprovider/contract/`](../apps/backend/core/internal/remoteprovider/contract/)
 as `<name>.schema.json` and `<name>.request.json`. They are generated from core's own
 structs by `bin/codegen`, so they cannot drift from what core actually sends.
 
@@ -221,7 +221,6 @@ structs by `bin/codegen`, so they cannot drift from what core actually sends.
 | `reviews` | Review aggregates from an external platform |
 | `search` | Free-text search **and** faceted browse - two operations, one kind |
 | `customer_segments` | Segment slugs a customer belongs to |
-| `flow_action` | Run one node of a marketing flow |
 
 Three notes that cost debugging time:
 
