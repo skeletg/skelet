@@ -1,0 +1,229 @@
+syntax = "proto3";
+
+// The suite's own upkeep, driven from core's scheduler - core owns the cadence and the run history, the suite owns the work and its own windows
+// Authorized by a system token: these run on a schedule, with no admin behind them
+package skelet.signals.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "skelet/signals/v1/synapse.proto";
+
+service MaintenanceService {
+  // Spine hygiene first, then event retention - prune or archive, per the suite's retention_action
+  rpc PruneSpine(PruneSpineRequest) returns (PruneSpineResponse);
+  // Raw web events and aggregates, per-day rollups and replay, each on its own window
+  rpc PruneLens(PruneLensRequest) returns (PruneLensResponse);
+  // The send log: pre-creates the upcoming month partitions, then drops whole months past
+  // send_log_retention_months - archived first under retention_action=archive
+  rpc PruneSendLog(PruneSendLogRequest) returns (PruneSendLogResponse);
+  // Per-customer RFM, lifecycle and engagement, across every channel the roster covers
+  rpc ComputeTraits(ComputeTraitsRequest) returns (ComputeTraitsResponse);
+  // Drains the spine to the configured external destinations, resuming from durable cursors
+  rpc ForwardDestinations(ForwardDestinationsRequest) returns (ForwardDestinationsResponse);
+  // Whether aged data is archived before deletion - core's send-log sweep honours the same operator setting
+  rpc GetRetentionAction(GetRetentionActionRequest) returns (GetRetentionActionResponse);
+  // Everything core's health page reports about the suite, in one round trip - the page renders them together
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
+  // Customers who browsed a product and went quiet - whether they then carted or bought is commerce's to answer
+  rpc ListBrowseAbandoners(ListBrowseAbandonersRequest) returns (ListBrowseAbandonersResponse);
+  // Records that a browse has been chased, so the next sweep leaves it alone
+  rpc MarkBrowseNotified(MarkBrowseNotifiedRequest) returns (MarkBrowseNotifiedResponse);
+  // Re-materializes the rule-based audiences from their stored conditions
+  rpc RefreshDynamicSegments(RefreshDynamicSegmentsRequest) returns (RefreshDynamicSegmentsResponse);
+  // Re-materializes the behavioural ones and keeps the auto affinity segments in step, answering with
+  // who newly joined - core enrols its segment_entered flows from that, the suite having no way to call back
+  rpc RefreshBehavioralSegments(RefreshBehavioralSegmentsRequest) returns (RefreshBehavioralSegmentsResponse);
+  // What Synapse knows about one customer, for the flow conditions and merge tags core renders from it
+  // Both halves in one answer, since a flow run reads them at the same moment for the same customer
+  rpc GetCustomerTraits(GetCustomerTraitsRequest) returns (GetCustomerTraitsResponse);
+  // One tick of the flow engine: claim the runnable runs and walk each through its graph. Core's
+  // scheduler drives it, so the operator's jobs panel keeps the run history and the failures
+  rpc AdvanceFlowRuns(AdvanceFlowRunsRequest) returns (AdvanceFlowRunsResponse);
+  // One tick of the campaign pipeline: materialise the audiences of due campaigns and send the
+  // pending recipients of the ones in flight
+  rpc ProcessDueCampaigns(ProcessDueCampaignsRequest) returns (ProcessDueCampaignsResponse);
+  // A pg_dump of the suite's own database into the BACKUP_* destination, under the stamp core's
+  // nightly job dumped the commerce database with, so a restore pairs the two up
+  rpc BackupDatabase(BackupDatabaseRequest) returns (BackupDatabaseResponse);
+  // pg_restore of one of those dumps over the live database - destructive, and `skelet db restore`
+  // is what calls it, behind its own confirmation flag
+  rpc RestoreDatabase(RestoreDatabaseRequest) returns (RestoreDatabaseResponse);
+}
+
+message PruneSpineRequest {}
+
+message PruneSpineResponse {}
+
+message PruneLensRequest {}
+
+message PruneLensResponse {}
+
+message PruneSendLogRequest {}
+
+message PruneSendLogResponse {}
+
+message ComputeTraitsRequest {}
+
+message ComputeTraitsResponse {}
+
+message ForwardDestinationsRequest {}
+
+message ForwardDestinationsResponse {}
+
+message GetRetentionActionRequest {}
+
+message GetRetentionActionResponse {
+  bool archive = 1;
+}
+
+message GetHealthRequest {}
+
+// Each probe carries its own failure text, so the page can say what broke rather than that something did
+message GetHealthResponse {
+  // Unset - a deployed suite is on. Kept on the wire only
+  bool enabled = 1 [deprecated = true];
+  // postgres | clickhouse
+  string spine_engine = 2;
+  string spine_error = 3;
+  optional google.protobuf.Timestamp spine_oldest = 4;
+  optional google.protobuf.Timestamp spine_newest = 5;
+  int32 pending_erasures = 6;
+  string erasures_error = 7;
+  QueueHealth queue = 8;
+  repeated DestinationHealth destinations = 9;
+  string destinations_error = 10;
+}
+
+// A queue is optional - unconfigured, events are written straight to the engine
+message QueueHealth {
+  bool configured = 1;
+  string error = 2;
+  bool has_consumer = 3;
+  int64 stream_messages = 4;
+  int64 pending = 5;
+  int64 redelivering = 6;
+}
+
+message DestinationHealth {
+  string name = 1;
+  string last_error = 2;
+  optional google.protobuf.Timestamp last_forwarded_at = 3;
+}
+
+message ListBrowseAbandonersRequest {
+  // Browses idle since this, and no older than max_age - a colder one is not worth chasing
+  google.protobuf.Timestamp idle_since = 1;
+  google.protobuf.Timestamp max_age = 2;
+  int32 limit = 3;
+}
+
+message BrowseAbandoner {
+  string customer_id = 1;
+  string channel_id = 2;
+  string page_key = 3;
+  string sku = 4;
+  string product_name = 5;
+  string product_image = 6;
+  google.protobuf.Timestamp last_browse_at = 7;
+}
+
+message ListBrowseAbandonersResponse {
+  repeated BrowseAbandoner abandoners = 1;
+}
+
+message MarkBrowseNotifiedRequest {
+  string channel_id = 1;
+  string customer_id = 2;
+  google.protobuf.Timestamp last_browse_at = 3;
+}
+
+message MarkBrowseNotifiedResponse {}
+
+message RefreshDynamicSegmentsRequest {}
+
+message RefreshDynamicSegmentsResponse {
+  int32 segments = 1;
+  int32 members = 2;
+  // One bad segment is reported rather than failing the sweep, which would only retry the whole of it
+  string error = 3;
+}
+
+// The catalog flag that marks an attribute for auto-segmenting is core's, so core names them
+message RefreshBehavioralSegmentsRequest {
+  repeated AffinityAttribute auto_segment_attributes = 1;
+}
+
+message SegmentEntry {
+  string channel_id = 1;
+  string customer_id = 2;
+  string segment_slug = 3;
+}
+
+message RefreshBehavioralSegmentsResponse {
+  int32 refreshed = 1;
+  // Unset - the suite starts the segment_entered runs itself. Kept on the wire only
+  repeated SegmentEntry entered = 2 [deprecated = true];
+}
+
+message GetCustomerTraitsRequest {
+  string customer_id = 1;
+  // How far back the attribute affinities are read over
+  int32 affinity_window_days = 2;
+}
+
+// computed is false for a customer the recompute has not reached yet, which is not the same as one
+// whose every score is zero - a flow condition must not match on the difference
+message GetCustomerTraitsResponse {
+  bool computed = 1;
+  int32 rfm_recency = 2;
+  int32 rfm_frequency = 3;
+  int32 rfm_monetary = 4;
+  string lifecycle = 5;
+  int32 engagement_score = 6;
+  int32 frequency = 7;
+  int64 monetary_cents = 8;
+  // Attribute slug to the value this customer leans toward, e.g. tire_size -> 205/55R16
+  map<string, string> affinities = 9;
+}
+
+message AdvanceFlowRunsRequest {
+  // How long the tick may keep claiming batches after the first - unset or zero runs one batch, the call's deadline bounds it either way
+  google.protobuf.Duration budget = 1;
+}
+
+message AdvanceFlowRunsResponse {
+  int32 runs_advanced = 1;
+}
+
+message ProcessDueCampaignsRequest {
+  // As above: how long the send passes may go on once every due campaign is materialised
+  google.protobuf.Duration budget = 1;
+}
+
+message ProcessDueCampaignsResponse {
+  // Recipient rows handled - sent, skipped or failed - across every pass of the tick
+  int32 recipients_processed = 1;
+}
+
+message BackupDatabaseRequest {
+  // The moment the run started, which the object key carries - unset means now
+  google.protobuf.Timestamp at = 1;
+}
+
+message BackupDatabaseResponse {
+  string key = 1;
+  int64 bytes = 2;
+  // Older dumps of this database the retention rule removed
+  repeated string pruned = 3;
+  // The spine's copy, a directory ClickHouse wrote under the same stamp - empty without a backup bucket
+  string spine_prefix = 4;
+  repeated string spine_pruned = 5;
+}
+
+message RestoreDatabaseRequest {
+  string key = 1;
+  // Parallel pg_restore workers - 1 runs serially
+  int32 jobs = 2;
+}
+
+message RestoreDatabaseResponse {}

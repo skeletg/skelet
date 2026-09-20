@@ -1,0 +1,39 @@
+# Storefront submission surface for custom forms placed on CMS pages. The form DEFINITION is inlined into the `form` CMS block server-side (see the block resolver), so the client only needs to submit + presign file uploads here. Submissions are rate-limited, honeypot- and CAPTCHA-checked, and re-validated server-side.
+
+input WebFormFileInput {
+  fieldKey:  String!
+  objectKey: String!
+  name:      String!
+  size:      Int
+  mimeType:  String
+}
+
+input SubmitWebFormInput {
+  formId:       ID!
+  values:       JSON!          # answer map keyed by field key
+  files:        [WebFormFileInput!]
+  honeypot:     String         # must be empty (spam trap)
+  captchaToken: String
+}
+
+type WebFormFieldError {
+  field:   String!
+  message: String!
+}
+
+type SubmitWebFormResult {
+  ok:             Boolean!
+  successMessage: String
+  redirectUrl:    String
+  errors:         [WebFormFieldError!]!
+}
+
+type WebFormUploadTicket {
+  url:       String!   # presigned PUT URL
+  objectKey: String!
+}
+
+extend type Mutation {
+  submitWebForm(input: SubmitWebFormInput!): SubmitWebFormResult!
+  presignWebFormUpload(formId: ID!, fieldKey: String!, filename: String!, contentType: String!, sizeBytes: Int!): WebFormUploadTicket!
+}

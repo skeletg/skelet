@@ -1,0 +1,44 @@
+# Gift-card management. Cards are issued automatically when a kind=giftcard product is purchased (see internal/giftcard), or manually here. Balance is tracked by an append-only signed-amount ledger; admins can view, disable (lost/fraud), or adjust (top-up/goodwill) a card.
+
+type GiftCard {
+  id:              ID!
+  code:            String!
+  currencyCode:    String!
+  initialBalance:  Int!
+  balance:         Int!
+  # active | depleted | disabled | expired
+  status:          String!
+  recipientEmail:  String!
+  issuedOrderId:   ID
+  expiresAt:       Time
+  createdAt:       Time!
+  # The card's full ledger, oldest first.
+  transactions:    [GiftCardTransaction!]!
+}
+
+type GiftCardTransaction {
+  id:        ID!
+  # Signed cents: positive = issue/refund/adjust-up, negative = redeem/adjust-down.
+  amount:    Int!
+  # issue | redeem | refund | adjust
+  reason:    String!
+  orderId:   ID
+  note:      String!
+  createdAt: Time!
+}
+
+extend type Query {
+  # Gift cards newest-first (paginated).
+  giftCards(limit: Int, offset: Int): [GiftCard!]!
+  # Look up one card by its code (for the redeem/balance-check admin tool).
+  giftCard(code: String!): GiftCard
+}
+
+extend type Mutation {
+  # Manually issue a card (promo, support goodwill). Amount is the face value.
+  issueGiftCard(currencyCode: String!, amount: Int!, recipientEmail: String, expiresAt: Time): GiftCard!
+  # Disable a card so it can no longer be redeemed.
+  disableGiftCard(id: ID!): GiftCard!
+  # Apply a signed balance correction with an 'adjust' ledger row.
+  adjustGiftCard(id: ID!, amount: Int!, note: String): GiftCard!
+}

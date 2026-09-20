@@ -1,0 +1,283 @@
+type Customer {
+  id:               ID!
+  # Owning channel - customers are per-channel accounts (the same email can exist on multiple channels as separate accounts). The dashboard uses this to gate detail pages against the header channel scope.
+  channelId:        ID!
+  email:            String!
+  firstName:        String!
+  lastName:         String!
+  phone:            String
+  isActive:         Boolean!
+  isEmailVerified:  Boolean!
+  # Internal admin note. Not visible to the customer; only readable by
+  # admins with customers.view.
+  note:             String
+  metadata:         [MetadataItem!]!
+  createdAt:        Time!
+  updatedAt:        Time!
+  addresses:        [Address!]!
+  defaultBillingAddress:  Address
+  defaultShippingAddress: Address
+  group:            CustomerGroup!
+  # Lazy-loaded via a field resolver - pay the cost only when requested.
+  consents:         [CustomerConsent!]!
+  # Tax status. taxExempt zeroes core tax on this customer's orders
+  # (placement, drafts, edits); the note records the certificate/reason.
+  taxExempt:        Boolean!
+  taxExemptionNote: String!
+  # Normalized VAT id + latest VIES verdict:
+  # unverified / valid / invalid / unavailable (VIES itself was down).
+  vatId:            String!
+  vatIdStatus:      String!
+  vatIdCheckedAt:   Time
+}
+
+enum ConsentPurpose { MARKETING TRANSACTIONAL }
+enum ConsentChannel { EMAIL SMS PUSH }
+
+type ConsentDefinition {
+  slug:         String!
+  name:         String!
+  description:  String!
+  purpose:      ConsentPurpose!
+  channel:      ConsentChannel!
+  required:     Boolean!
+  defaultOptIn: Boolean!
+}
+
+type CustomerConsent {
+  kind:       String!
+  definition: ConsentDefinition!
+  optedIn:    Boolean!
+  source:     String!
+  updatedAt:  Time
+  isDefault:  Boolean!
+}
+
+type CustomerGroup {
+  id:          ID!
+  name:        String!
+  slug:        String!
+  description: String!
+  isDefault:   Boolean!
+  memberCount: Int!
+  createdAt:   Time!
+}
+
+input CreateCustomerGroupInput {
+  name:        String!
+  slug:        String!
+  description: String
+}
+
+input UpdateCustomerGroupInput {
+  name:        String
+  description: String
+}
+
+input AdminCreateCustomerInput {
+  # Required: which subsidiary the customer registers on. Customers are not shared across stores; the same email may exist on multiple stores as separate accounts.
+  channelId:       ID!
+  email:             String!
+  password:          String!
+  firstName:         String!
+  lastName:          String!
+  phone:             String
+  isActive:          Boolean
+  isEmailVerified:   Boolean
+  # Empty string or null routes to the default customer group.
+  customerGroupSlug: String
+}
+
+input AdminUpdateCustomerInput {
+  email:             String
+  firstName:         String
+  lastName:          String
+  phone:             String
+  isActive:          Boolean
+  isEmailVerified:   Boolean
+  # null = no change; empty string or non-empty string replaces the stored note.
+  note:              String
+  # null = no change; empty string = reset to default group; non-empty = switch.
+  customerGroupSlug: String
+  # null = no change; [] = clear; non-empty = replace all metadata entries.
+  metadata:                [MetadataInput!]
+  # null = no change; must belong to this customer's address book.
+  defaultBillingAddressId:  ID
+  defaultShippingAddressId: ID
+}
+
+type Address {
+  id:          ID!
+  firstName:   String!
+  lastName:    String!
+  company:     String
+  street1:     String!
+  street2:     String
+  city:        String!
+  state:       String
+  postalCode:  String!
+  countryCode: String!
+  phone:       String
+}
+
+# Shared with the storefront schema, which autobinds to this model - keep the two definitions identical. Tokens are nullable because registration withholds the session while require_email_verification is on.
+type CustomerAuthPayload {
+  accessToken:  String
+  refreshToken: String
+  customer:     Customer!
+  verificationRequired: Boolean!
+}
+
+input CustomerRegisterInput {
+  email:          String!
+  password:       String!
+  firstName:      String!
+  lastName:       String!
+  # Another customer's referral code (storefront register flow); invalid
+  # codes are ignored.
+  referralCode:   String
+  # Optional checkbox state at signup. Null = don't record anything (leave at registry default, opt-out for GDPR). true/false = record explicitly with source=registration.
+  marketingOptIn: Boolean
+}
+
+input CustomerLoginInput {
+  email:    String!
+  password: String!
+}
+
+input AddressInput {
+  firstName:   String!
+  lastName:    String!
+  company:     String
+  street1:     String!
+  street2:     String
+  city:        String!
+  state:       String
+  postalCode:  String!
+  countryCode: String!
+  phone:       String
+}
+
+extend type Query {
+  # channelId scopes the result to customers belonging to that channel -
+  # header-driven scope uses this. Omit for the global list.
+  customers(channelId: ID):  [Customer!]!
+  # Names for a known set of ids, channel-filtered like the list above - lets a service holding ids but not details, such as Lens recordings, label them without copying names into its own database
+  customersByIds(ids: [ID!]!): [Customer!]!
+  # Paged + filtered on the server. search matches email/first/last name.
+  customersPaged(channelId: ID, search: String, groupSlug: String, isActive: Boolean, limit: Int, offset: Int): CustomerPage!
+  customer(id: ID!):           Customer!
+  customerGroups:              [CustomerGroup!]!
+  customerGroup(id: ID!):      CustomerGroup!
+}
+
+extend type Mutation {
+  # Mark a customer tax-exempt (or clear it). note records the exemption
+  # certificate reference / reason. Requires customers.update.
+  setCustomerTaxStatus(customerId: ID!, taxExempt: Boolean!, note: String): Customer!
+  # Store + validate a customer's VAT id against VIES. The id is normalized (DE 123.456.789 -> DE123456789); a VIES outage stores status "unavailable" rather than failing. Empty vatId clears it. Requires customers.update.
+  setCustomerVatId(customerId: ID!, vatId: String!): Customer!
+  createCustomerGroup(input: CreateCustomerGroupInput!):          CustomerGroup!
+  updateCustomerGroup(id: ID!, input: UpdateCustomerGroupInput!): CustomerGroup!
+  deleteCustomerGroup(id: ID!):                                   Boolean!
+  setDefaultCustomerGroup(id: ID!):                               CustomerGroup!
+  setCustomerGroup(customerId: ID!, groupId: ID!):                Customer!
+  adminCreateCustomer(input: AdminCreateCustomerInput!):          Customer!
+  adminUpdateCustomer(id: ID!, input: AdminUpdateCustomerInput!): Customer!
+  adminAddAddress(customerId: ID!, input: AddressInput!):         Address!
+  adminDeleteAddress(id: ID!):                                    Boolean!
+  deleteCustomer(id: ID!):                                        Boolean!
+  setCustomerActive(id: ID!, active: Boolean!):                   Customer!
+  # Records an admin-driven opt-in/opt-out for the given consent kind. Stored with source="admin" so the audit trail distinguishes it from registration/profile/checkout-driven changes. Requires customers.manage.
+  adminSetCustomerConsent(
+    customerId: ID!,
+    kind: String!,
+    optedIn: Boolean!,
+  ): CustomerConsent!
+}
+
+extend type Mutation {
+  # GDPR right-to-erasure: IRREVERSIBLY scrubs every personal field on the customer, deletes addresses/wishlist/analytics identities, and redacts PII on their orders (financial records retained for tax law). The row id survives as an FK anchor. Requires customers.manage.
+  anonymizeCustomer(customerId: ID!): Boolean!
+}
+
+extend type Query {
+  # GDPR data export (DSAR): JSON bundle of the customer's profile,
+  # addresses, and orders. Requires customers.manage.
+  exportCustomerData(customerId: ID!): String!
+}
+
+# --- Store credit --- Per-customer credit ledger spent as a payment tender at checkout. Currency is implied by the customer's channel.
+
+type StoreCreditEntry {
+  id:           ID!
+  amountCents:  Int!
+  currencyCode: String!
+  reason:       String!
+  orderId:      ID
+  createdAt:    Time!
+}
+
+type StoreCreditSummary {
+  balanceCents: Int!
+  currencyCode: String!
+  entries:      [StoreCreditEntry!]!
+}
+
+extend type Query {
+  # Balance + recent ledger for one customer (customers.view).
+  storeCredit(customerId: ID!): StoreCreditSummary!
+}
+
+extend type Mutation {
+  # Signed adjustment: positive grants, negative deducts (capped at the
+  # balance). customers.manage.
+  adjustStoreCredit(customerId: ID!, amountCents: Int!, reason: String!): StoreCreditSummary!
+}
+
+# --- Loyalty points ---
+
+type LoyaltyEntry {
+  id:        ID!
+  points:    Int!
+  reason:    String!
+  orderId:   ID
+  createdAt: Time!
+}
+
+type LoyaltySummary {
+  balancePoints: Int!
+  entries:       [LoyaltyEntry!]!
+}
+
+extend type Query {
+  # Points balance + recent ledger for one customer (customers.view).
+  loyalty(customerId: ID!): LoyaltySummary!
+}
+
+extend type Mutation {
+  # Signed points adjustment: positive grants, negative deducts (capped
+  # at the balance). customers.manage.
+  adjustLoyaltyPoints(customerId: ID!, points: Int!, reason: String!): LoyaltySummary!
+}
+
+# Server-paged customer list. The unpaged `customers` query returns the whole table and is kept only for small internal callers - anything user-facing should page here, since a real catalogue of customers is far too large to filter in the browser.
+type CustomerPage {
+  totalCount: Int!
+  items:      [Customer!]!
+}
+
+# A short-lived storefront session an operator can use to see the store as one customer sees it - their prices, their saved addresses, their order history. The support tool for "it looks wrong on my account", and the sales-rep tool for placing an order on someone's behalf.
+type MasqueradeSession {
+  accessToken: String!
+  # Relative storefront path that installs the session and redirects home.
+  storefrontPath: String!
+  # Absolute link when the customer's channel has a public URL, else "".
+  storefrontUrl: String!
+  expiresInSeconds: Int!
+}
+
+extend type Mutation {
+  # Mint a SHORT-LIVED (15 min) customer session token for a storefront visit as this customer. Scoped on the CUSTOMER's channel, not the caller's, and logged explicitly - this hands an operator the customer's own storefront powers, which the order timeline alone would not record. Open the storefront at /masquerade?token=<accessToken>. customers.manage.
+  masqueradeCustomer(customerId: ID!): MasqueradeSession!
+}

@@ -62,9 +62,7 @@ type Host interface {
 	ReadConfigInt(ctx context.Context, path string) (int64, error)
 }
 
-// Namespace is the key in the plugin_migrations tracking table and must be unique
-// FS holds <NNNN>_<name>.up.sql / .down.sql pairs numbered from 1 with no gaps, applied in version order, each in its own transaction - a failure leaves the namespace at the previous version and the next run retries
-// Core tables always exist by the time these run, but referencing ANOTHER plugin's tables is unsafe - cross-plugin ordering is undefined
+// Namespace is the key in the plugin_migrations tracking table and must be unique FS holds <NNNN>_<name>.up.sql / .down.sql pairs numbered from 1 with no gaps, applied in version order, each in its own transaction - a failure leaves the namespace at the previous version and the next run retries Core tables always exist by the time these run, but referencing ANOTHER plugin's tables is unsafe - cross-plugin ordering is undefined
 type MigrationsRegistration struct {
 	Namespace string
 	FS        fs.FS
@@ -94,7 +92,7 @@ func Install(h Host) {
 	pendingOps = nil
 }
 
-// A handle without RegisterPlugin's side effects - it also registers config fields, and internal/config panics on a duplicate path, so a per-case manifest blows up the second test reusing a slug
+// A handle without RegisterPlugin's side effects - it also registers config fields, and config panics on a duplicate path, so a per-case manifest blows up the second test reusing a slug
 // Never called in production, where identity comes from the manifest
 func NewPluginForTest(slug string) *Plugin {
 	return &Plugin{slug: slug}
@@ -140,9 +138,7 @@ func (pl *Plugin) RegisterPaymentProvider(providerSlug string, p PaymentProvider
 	withHost(func(h Host) error { return h.RegisterPaymentProvider(reg) })
 }
 
-// Admin-facing slugs use dot notation (catalog.view), app-facing scopes a verb prefix (read:products) - both land in the same table, and duplicates panic
-// A method rather than a package function so every registration carries its owner - attribution is
-// what lets uninstall find a plugin's footprint and the host refuse cross-plugin claims
+// Admin-facing slugs use dot notation (catalog.view), app-facing scopes a verb prefix (read:products) - both land in the same table, and duplicates panic A method rather than a package function so every registration carries its owner - attribution is what lets uninstall find a plugin's footprint and the host refuse cross-plugin claims
 func (pl *Plugin) RegisterPermission(group, slug, name string) {
 	withHost(func(h Host) error { return h.RegisterPermission(pl.slug, group, slug, name) })
 }
@@ -158,10 +154,7 @@ func (pl *Plugin) RegisterEvent(name string, kind EventKind) {
 }
 
 // Apply with `bin/cli plugin migrate up <namespace>` - duplicates panic
-//
-//	//go:embed migrations/*.sql
-//	var migrationsFS embed.FS
-//	p.RegisterMigrations(sdk.MigrationsRegistration{Namespace: "acme", FS: migrationsFS})
+// Takes an embed.FS of migrations/*.sql under a namespace of the plugin's own
 func (pl *Plugin) RegisterMigrations(reg MigrationsRegistration) {
 	if reg.Root == "" {
 		reg.Root = "migrations"

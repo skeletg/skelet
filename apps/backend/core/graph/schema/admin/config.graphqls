@@ -1,0 +1,103 @@
+enum ConfigType {
+  STRING
+  TEXTAREA
+  INT
+  BOOL
+  PHONE
+  SELECT
+  MULTISELECT
+  WORKING_HOURS
+  JSON
+  SEARCH_ATTRIBUTES
+  SORT_OPTIONS
+  # A media reference - a plain URL or a serialized media-library asset. The admin UI offers upload / library-picker / URL entry; the value is an opaque string.
+  IMAGE
+  # A CSS hex color ("#rrggbb") or "" when unset. Rendered as a swatch + hex
+  # picker in the admin UI.
+  COLOR
+  # Stored encrypted at rest and never returned by the API: `value` is always
+  # empty for SECRET fields; use `isSet` to tell whether one is configured.
+  SECRET
+}
+
+type ConfigOption {
+  value: String!
+  label: String!
+}
+
+enum ConfigScopeKind {
+  DEFAULT
+  CHANNEL
+}
+
+# How deep a knob's value is honoured. The admin UI only offers these scopes and setConfigValue refuses anything deeper, so an override can never be stored where nothing would read it. Declared per field, group or section in the backend registry; the narrowest declaration wins and an undeclared knob is GLOBAL. Settings are deliberately not a per-locale dimension - a scope carrying a locale is refused for every field.
+enum ConfigScoping {
+  # Platform-wide - read at the default scope only.
+  GLOBAL
+  # Per channel, falling back to the platform default.
+  CHANNEL
+}
+
+type ConfigScope {
+  kind:        ConfigScopeKind!
+  channelId: ID
+  locale:      String
+}
+
+# ConfigValue is a single field within a section/group. Path is always section/group/field - use the `section` / `group` / `field` fields to render nav hierarchy without re-parsing the path on the client.
+type ConfigValue {
+  path:      String!
+  section:   String!        # section slug (first path segment)
+  group:     String!        # group slug (middle path segment)
+  field:     String!        # field slug (last path segment)
+  type:      ConfigType!
+  value:     String!         # always "" for SECRET fields (never returned)
+  label:     String!
+  # What this setting does, rendered as help text under the field. Empty where
+  # no description has been written yet, in which case the label stands alone.
+  description: String!
+  public:    Boolean!
+  isDefault: Boolean!
+  # Which scopes may hold a value for this field.
+  scoping:   ConfigScoping!
+  # For SECRET fields: whether a non-default value is configured. Always false
+  # for non-secret types (use `value`/`isDefault` for those).
+  isSet:     Boolean!
+  scope:     ConfigScope!
+  options:   [ConfigOption!]
+  updatedAt: Time
+}
+
+# ConfigSection is a top-level admin tab. It groups one or more ConfigGroup
+# fieldsets. Label is the human-readable display name.
+type ConfigSection {
+  slug:   String!
+  label:  String!
+  groups: [ConfigGroup!]!
+}
+
+# ConfigGroup is a fieldset rendered inside a ConfigSection. Fields are every
+# ConfigValue whose path starts with section/group.
+type ConfigGroup {
+  slug:   String!
+  label:  String!
+  fields: [ConfigValue!]!
+}
+
+input ConfigScopeInput {
+  kind:        ConfigScopeKind!
+  channelId: ID
+  locale:      String
+}
+
+extend type Query {
+  # Admin. Omitting scope defaults to DEFAULT / 0.
+  config(scope: ConfigScopeInput):                     [ConfigValue!]!
+  configSections(scope: ConfigScopeInput):             [ConfigSection!]!
+  configValue(path: String!, scope: ConfigScopeInput): ConfigValue!
+}
+
+extend type Mutation {
+  setConfigValue(path: String!, value: String!, scope: ConfigScopeInput): ConfigValue!
+  resetConfigValue(path: String!, scope: ConfigScopeInput):               ConfigValue!
+}

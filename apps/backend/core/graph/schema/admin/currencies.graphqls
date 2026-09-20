@@ -1,0 +1,65 @@
+type Currency {
+  # ISO 4217 code, always uppercased on the way in (e.g. "USD", "EUR").
+  code:           String!
+  name:           String!
+  # Display symbol; "" falls back to the code on the storefront.
+  symbol:         String!
+  # 0 (JPY/KRW) … 4 (rare); typically 2. Storefront divides amounts by
+  # 10^decimals to render the canonical price.
+  decimals:       Int!
+  # "prefix" or "suffix"; controls whether the symbol leads or trails.
+  symbolPosition: String!
+  # Soft-disable a currency without deleting. Disabled currencies are
+  # hidden from picker UIs but existing references persist.
+  isActive:       Boolean!
+  sortOrder:      Int!
+  metadata:       [MetadataItem!]!
+  # Units of this currency per one unit of the platform base currency (config general/store_information/currency_list). Refreshed by the currency-rates scheduled job; null = never fetched.
+  exchangeRate:   Float
+  rateUpdatedAt:  Time
+  createdAt:      Time!
+  updatedAt:      Time!
+}
+
+input CreateCurrencyInput {
+  code:           String!
+  name:           String!
+  symbol:         String
+  # Defaults to 2.
+  decimals:       Int
+  # Defaults to "prefix".
+  symbolPosition: String
+  # Defaults to true.
+  isActive:       Boolean
+  sortOrder:      Int
+  metadata:       [MetadataInput!]
+}
+
+# Code is the PK and never updates - to "rename" a currency you delete
+# (only allowed when no references exist) and recreate.
+input UpdateCurrencyInput {
+  code:           String!
+  name:           String
+  symbol:         String
+  decimals:       Int
+  symbolPosition: String
+  isActive:       Boolean
+  # Manual exchange-rate override (units of this currency per one unit of the platform base currency). The currency-rates job overwrites it on its next run unless the code is unknown to the provider.
+  exchangeRate:   Float
+  sortOrder:      Int
+  metadata:       [MetadataInput!]
+}
+
+extend type Query {
+  # activeOnly defaults to false. Pass true for admin pickers and the
+  # storefront price-rendering layer.
+  currencies(activeOnly: Boolean): [Currency!]!  # requires currencies.view
+  currency(code: String!):         Currency!     # requires currencies.view
+}
+
+extend type Mutation {
+  createCurrency(input: CreateCurrencyInput!): Currency!  # requires currencies.manage
+  updateCurrency(input: UpdateCurrencyInput!): Currency!  # requires currencies.manage
+  # Refuses when references exist; admin must resolve first.
+  deleteCurrency(code: String!):               Boolean!   # requires currencies.manage
+}

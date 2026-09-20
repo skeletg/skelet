@@ -81,11 +81,13 @@ message DeleteDestinationResponse {
   bool deleted = 1;
 }
 
-// Pushes a segment's membership as SHA-256 hashed emails, the format Customer Match uploads take -
-// raw addresses never leave the store
+// Pushes a segment's membership as SHA-256 hashed emails, the format Customer Match uploads take - raw addresses never leave the store
+// The caller hashes them, being where the addresses are, and the suite forwards them without ever holding an email of its own
 message SyncAudienceRequest {
   string segment_id = 1;
   string destination_id = 2;
+  // SHA-256 of the trimmed, lowercased email, the recipe Meta and Google Customer Match specify
+  repeated string identifiers = 3;
 }
 
 message SyncAudienceResponse {

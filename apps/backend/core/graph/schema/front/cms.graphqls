@@ -1,0 +1,85 @@
+enum CMSRelationshipTarget {
+  CMS_PAGE
+  BLOG_POST
+  PRODUCT
+  COLLECTION
+  CATEGORY
+}
+
+type CMSPage {
+  id:              ID!
+  pageTypeId:      ID!
+  parentId:        ID
+  slug:            String!
+  urlPath:         String!
+  position:        Int!
+  isPublished:     Boolean!
+  seoNoindex:      Boolean!
+  publishedAt:     Time
+  data:            JSON
+  # Free-form labels (lower-cased), usable for storefront filtering/related lists.
+  tags:            [String!]!
+  content:         CMSPageContent
+  selections:      [CMSPageSelection!]!
+  relationships:   [CMSPageRelationship!]!
+  # A/B testing: the bound Prism experiment key ("" = not under test) and the treatment block bodies for the active locale, keyed by variation. The control body is content.body; the storefront server-assigns a variation and renders the matching body.
+  experimentKey:   String!
+  variants:        [CMSPageVariant!]!
+  # Social-share image: the operator-set seo.ogImage metadata, else the first
+  # image in the page body. Null = none (storefront omits og:image). Resolved.
+  ogImage:         String
+  # rel=canonical override from seo.canonical metadata - null lets the storefront self-canonicalise
+  canonicalUrl:    String
+  # robots nofollow from seo.nofollow metadata - pairs with seoNoindex for the robots meta
+  seoNofollow:     Boolean!
+  # operator-authored JSON-LD from seo.jsonld metadata - null = none, injected as a ld+json script
+  structuredData:  String
+  # JSON builder spec from seo.schema metadata (type + field toggles) - the storefront generates fresh JSON-LD from it at render, so structuredData (raw) wins when both are set
+  structuredDataSpec: String
+}
+
+type CMSPageVariant {
+  variantKey: String!
+  body:       JSON
+}
+
+type CMSPageContent {
+  locale:          String!
+  title:           String!
+  body:            JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+  data:            JSON
+}
+
+type CMSPageSelection {
+  attributeId: ID!
+  valueId:     ID!
+}
+
+type CMSPageRelationship {
+  attributeId: ID!
+  targetType:  CMSRelationshipTarget!
+  targetId:    ID!
+  position:    Int!
+}
+
+input CMSPageFilter {
+  pageTypeId:    ID
+  parentId:      ID
+  onlyPublished: Boolean
+  # When set, return only pages with an active store listing on this store. When omitted, the active storefront's id (resolved from the X-Channel-Id header) is used; both null falls back to global is_published.
+  channelId:   ID
+}
+
+extend type Query {
+  # Locale comes from the `Locale` request header (internal/locale.Middleware).
+  cmsPage(slug: String, id: ID, urlPath: String): CMSPage
+  cmsPages(filter: CMSPageFilter, limit: Int, offset: Int): [CMSPage!]!
+
+  # Renders a CMS page in its current SAVED state regardless of publish / store-listing gating. Authorised by a preview token minted from the admin API (mintCMSPagePreviewToken). Used by the dashboard's side-panel preview iframe at /cms/preview/<id>?token=<token>. Returns null when the token is unknown / expired / malformed. Mirror of previewBlogPost.
+  previewCMSPage(token: String!): CMSPage
+  # The active store's homepage (the CMS page chosen via the cms/storefront/home_page_id setting). Null when unset/unpublished - the storefront then falls back to its built-in homepage.
+  homePage: CMSPage
+}

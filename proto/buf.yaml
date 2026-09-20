@@ -1,6 +1,4 @@
-# The core-to-Signals wire contract. Signals is never called by anything but core, so this is an
-# internal contract rather than a published one - but it crosses a process boundary and will cross a
-# module boundary, so it is versioned and gated like one
+# The core-to-Signals wire contract. Signals is never called by anything but core, so this is an internal contract rather than a published one - but it crosses a process boundary and will cross a module boundary, so it is versioned and gated like one
 version: v2
 modules:
   - path: .
@@ -10,3 +8,9 @@ lint:
 breaking:
   use:
     - FILE
+  # The rollup backfill is gone from the contract - lift this once develop no longer carries the RPC
+  ignore_only:
+    RPC_NO_DELETE:
+      - skelet/signals/v1/maintenance.proto
+    MESSAGE_NO_DELETE:
+      - skelet/signals/v1/maintenance.proto

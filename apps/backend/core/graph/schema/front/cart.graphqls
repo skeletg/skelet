@@ -1,0 +1,217 @@
+type Cart {
+  id:       ID!
+  # Shopper's note-to-merchant (gift message / delivery instructions),
+  # carried to the order at checkout. Empty when unset.
+  note:     String!
+  lines:    [CartLine!]!
+  # Items parked via save-for-later: kept out of totals/checkout, movable
+  # back into the cart. v1 holds simple products only.
+  savedItems: [SavedItem!]!
+  subtotal: Int!
+  # Codes the customer has applied to the cart. The v2 engine supports multiple stackable codes - one per matching rule. Each entry carries its computed contribution against the live subtotal at read time, so the storefront's totals view always matches what PlaceOrder will charge.
+  appliedCodes:  [AppliedPromotionCode!]!
+  # Aggregate discount across every applied code (subtotal-level).
+  totalDiscount: Int!
+}
+
+type AppliedPromotionCode {
+  code:              String!
+  ruleName:          String!
+  publicLabel:   String!
+  subtotalDiscount:  Int!
+  freeShipping:      Boolean!
+  # When the code was applied earlier but is no longer valid for this cart (e.g. max_uses reached after another customer used the last available redemption). UI shows this without failing the rest of the cart.
+  invalidatedReason: String!
+  # False for auto-applied rules (no code entered). The storefront hides the "Remove" affordance for these - auto rules can't be removed from the cart, only invalidated by changing the cart.
+  requiresCode:      Boolean!
+  # Free-gift offers attached to this rule's add_free_gift actions. Each entry tells the storefront which SKU is on offer and whether the customer's cart already contains it; the UI renders the offer as an informational nudge (with a link) when inCart is false, and as an "applied" tile when true.
+  freeGifts:         [PromotionFreeGift!]!
+}
+
+type PromotionFreeGift {
+  # Resolved product id. Null when the SKU doesn't map to any product on the current store - the storefront then shows the offer text but no link.
+  productId:   ID
+  productSku:  String!
+  productName: String!
+  quantity:    Float!
+  # True when the customer's cart already contains the gift SKU.
+  inCart:      Boolean!
+  # Storefront link to the gift product (resolved via the catalog URL rewriter). Null when no listing exists for the product on the current store - UI falls back to no link.
+  href:        String
+}
+
+# Pre-checkout landed-cost estimate for a cart at a destination.
+type CartEstimate {
+  # Post-discount subtotal the estimate is built on.
+  subtotalCents: Int!
+  shippingOptions: [ShippingQuote!]!
+  # Cheapest shipping option's price (0 when none available).
+  cheapestShippingCents: Int!
+  # Estimated tax on the post-discount subtotal at the destination.
+  taxCents: Int!
+  # subtotal + cheapest shipping + tax (tax already included when the store
+  # prices tax-inclusive). A pre-checkout estimate, not the final charge.
+  estimatedTotalCents: Int!
+}
+
+# One shipping option across all enabled carriers. A selection is identified by (carrierSlug, code) - echo both back to placeOrder. carrierName is the display label for grouping options by carrier in the UI. One collect-in-store point. The pickup carrier already returns a $0 shipping option per location, but only as a flattened label - this carries the address and instructions the shopper actually needs, keyed by the same slug the quote's code embeds ("loc-<slug>").
+type PickupLocation {
+  slug:         String!
+  name:         String!
+  line1:        String!
+  city:         String!
+  postalCode:   String!
+  countryCode:  String!
+  instructions: String!
+}
+
+type ShippingQuote {
+  carrierSlug: String!
+  carrierName: String!
+  code:        String!
+  name:        String!
+  priceCents:  Int!
+}
+
+# A save-for-later item parked off the cart. imageUrl is hydrated like a line.
+type SavedItem {
+  id:          ID!
+  productSku:  String!
+  productName: String!
+  imageUrl:    String
+  quantity:    Float!
+}
+
+type CartLine {
+  id:          ID!
+  productName: String!
+  productSku:  String!
+  # Small (w160) thumbnail URL for the line, resolved from the product's thumbnail role (falling back to main role, then first ready image) and served through the /media/t transform ladder. Null when the product has no image. Hydrated alongside the localized name.
+  imageUrl:    String
+  unitPrice:   Int!
+  quantity:    Float!
+  totalPrice:  Int!
+  # Current salable quantity for this line's product (null = untracked or backorderable, i.e. no low-stock warning applies). The storefront warns when this is below the line quantity.
+  availableQuantity: Float
+  # The product's current effective unit price when it DIFFERS from the snapshotted unitPrice above (null = unchanged). Set only for simple lines; bundle/configured lines are snapshot-locked. Lets the cart flag price drift.
+  currentUnitPrice:  Int
+  # Empty for simple-product lines. For bundle lines, one row per picked component - bundle options, quantities, and prices are all snapshotted at the moment of add-to-cart.
+  components:  [CartLineComponent!]!
+  # The customer's product custom-option picks, snapshotted at add time.
+  # Empty for plain and bundle lines.
+  options:     [CartLineOption!]!
+}
+
+# Snapshotted custom-option pick on a cart line. Option/value IDs reference the product's option structure at add time; priceDelta is the cents this pick added to the line's unit price (already included in unitPrice).
+type CartLineOption {
+  id:              ID!
+  productOptionId: ID!
+  optionValueId:   ID
+  inputType:       String!
+  optionTitle:     String!
+  valueLabel:      String!
+  textValue:       String!
+  priceDelta:      Int!
+  quantity:        Float!
+  sortOrder:       Int!
+  # Public URL of the uploaded file for FILE-type options (empty otherwise).
+  # The original filename is carried in textValue.
+  fileUrl:         String!
+}
+
+# One option's picks in an addConfiguredToCart call. valueIds carries the chosen value IDs for select-family options; textValue carries the free text / ISO date for text/date options. For FILE options, fileAssetId references an asset previously uploaded via requestProductOptionFileUpload.
+input ProductOptionSelectionInput {
+  optionId:    ID!
+  valueIds:    [ID!]
+  textValue:   String
+  fileAssetId: ID
+}
+
+input AddConfiguredToCartInput {
+  cartId:     ID!
+  productSku: String!
+  quantity:   Float!
+  options:    [ProductOptionSelectionInput!]!
+}
+
+# Snapshotted component under a bundle cart line. Bundle option and selection IDs reference the bundle's structure at the time of the add; the catalog is free to evolve afterwards without breaking this line.
+type CartLineComponent {
+  id:          ID!
+  optionId:    ID!
+  selectionId: ID!
+  productSku:  String!
+  productName: String!
+  unitPrice:   Int!
+  # Pre-multiplied by the parent line's quantity - this is the final
+  # number of units that will be reserved against inventory.
+  quantity:    Float!
+  sortOrder:   Int!
+}
+
+# One option's picks in an AddBundleToCart call. selectionIds carries at most one ID for radio/dropdown options, zero-or-more for checkbox/ multiselect. Distinct from the admin's AddBundleSelectionInput (which is the admin-side "add a selection to a bundle option" payload) to avoid a model-binding collision in the gqlgen front generator.
+input AddBundleToCartSelectionInput {
+  optionId:     ID!
+  selectionIds: [ID!]!
+}
+
+input AddBundleToCartInput {
+  cartId:     ID!
+  productSku: String!
+  quantity:   Float!
+  selections: [AddBundleToCartSelectionInput!]!
+}
+
+extend type Query {
+  myCart:        Cart!
+  cart(id: ID!): Cart
+  # Returns active shipping methods + their computed prices for the cart's storefront and a destination country. Empty list when no zone covers the country (storefront UI shows "delivery not available"). subtotalCents drives free_above thresholds.
+  shippingQuotes(countryCode: String!): [ShippingQuote!]!
+  # Collect-in-store points, for rendering the pickup options in shippingQuotes as real stores (address + instructions) instead of bare method names. Empty when click-and-collect is switched off.
+  pickupLocations: [PickupLocation!]!
+  # Pre-checkout estimate for a cart at a destination: shipping options + a tax estimate on the post-discount subtotal + an estimated total. Powers the cart's shipping/tax estimator so shoppers see landed cost before checkout.
+  cartEstimate(cartId: ID!, countryCode: String!, regionCode: String): CartEstimate!
+  # Lowest free-shipping spend threshold (cents) offered to a country, or 0 when none applies. The storefront compares it to the cart subtotal to render a "add $X for free shipping" progress nudge.
+  freeShippingThreshold(countryCode: String): Int!
+  # Cross-sell rail for the cart page: CROSSSELL links of the cart's products (also-bought fallback), deduped, excluding items already in the cart. Rendered with channel pricing.
+  cartRecommendations(cartId: ID!): [Product!]!
+}
+
+# Presigned upload envelope for a FILE-type product option. Same shape as the review media upload: client PUTs bytes to uploadUrl, then references the returned assetId via ProductOptionSelectionInput.fileAssetId.
+type ProductOptionFileUpload {
+  assetId:   ID!
+  uploadUrl: String!
+  expiresAt: Time!
+}
+
+extend type Mutation {
+  createGuestCart:                                                                                    Cart!
+  addToCart(cartId: ID!, productName: String!, productSku: String!, unitPrice: Int!, quantity: Float!): Cart!
+  # Bundle equivalent - the server resolves the bundle by SKU, validates the selections against the bundle's option structure, computes the line price from picked components, and stores the cart line + per-component snapshots. Re-adding the same bundle REPLACES the prior selection set.
+  addBundleToCart(input: AddBundleToCartInput!):                                                      Cart!
+  # Add a simple product carrying product custom-option picks. The server resolves the product's options by SKU, validates the picks, prices them server-side (folding deltas into the line unit price), and snapshots them onto the line. Re-adding the same SKU REPLACES the prior config.
+  addConfiguredToCart(input: AddConfiguredToCartInput!):                                               Cart!
+  # Presign an upload for a FILE-type product option. The client PUTs the bytes to uploadUrl (with the exact Content-Type), then passes the returned assetId as fileAssetId in a ProductOptionSelectionInput. The server validates extension/size against the option's constraints at addConfiguredToCart time. productSku + optionId scope the upload directory (product-options/<productId>/...).
+  requestProductOptionFileUpload(
+    productSku: String!
+    optionId:   ID!
+    filename:   String!
+    mimeType:   String!
+    sizeBytes:  Int!
+  ): ProductOptionFileUpload!
+  updateCartLine(cartId: ID!, lineId: ID!, quantity: Float!):                                           Cart!
+  removeFromCart(cartId: ID!, lineId: ID!):                                                           Cart!
+  # Record the email a shopper enters at checkout entry, so an abandoned cart (including a guest cart with no account) can be recovered by the abandoned-cart flow. Idempotent; validates a plausible email.
+  setCartEmail(cartId: ID!, email: String!):                                                         Cart!
+  # Save the shopper's note-to-merchant on the cart. Empty string clears it.
+  setCartNote(cartId: ID!, note: String!):                                                            Cart!
+  # Save-for-later. saveForLater parks a simple line off the cart; moveSavedToCart re-adds it (re-priced, stock-checked) and clears the saved row; removeSavedItem drops it. All return the updated cart.
+  saveForLater(cartId: ID!, lineId: ID!):                                                            Cart!
+  moveSavedToCart(cartId: ID!, savedItemId: ID!):                                                    Cart!
+  removeSavedItem(cartId: ID!, savedItemId: ID!):                                                    Cart!
+  clearCart(cartId: ID!):                                                                             Cart!
+  mergeGuestCart(guestCartId: ID!):                                                                   Cart!
+  # Apply a code to the cart. The v2 engine supports multiple codes; calling applyCoupon adds to the set rather than replacing. Fails with a typed error when the code is unknown / inactive / expired / hits a usage cap.
+  applyCoupon(cartId: ID!, code: String!): Cart!
+  # Remove a specific code from the cart.
+  removeCoupon(cartId: ID!, code: String!): Cart!
+}

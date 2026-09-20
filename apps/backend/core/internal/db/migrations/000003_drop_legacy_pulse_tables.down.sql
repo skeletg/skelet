@@ -1,0 +1,2 @@
+-- Deliberately empty: these tables live in the signals database now, and recreating empty copies
+-- here would give core a second place to look

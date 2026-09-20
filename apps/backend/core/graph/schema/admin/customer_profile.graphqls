@@ -1,0 +1,66 @@
+# The two panels of the Synapse customer profile that core answers - consents, email engagement and flow enrollments are all core's, whatever the Synapse naming suggests
+# Audiences come from the Signals API, since segments live there
+
+# Money by currency - declared here as well as on the Signals API, since the two schemas stand alone
+type AttributedRevenue {
+  currency: String!
+  cents:    Int64!
+  orders:   Int!
+}
+
+# Commerce/CRM summary for a customer - the operational counterpart to the
+# behavioural customerProfile, shown alongside it on the Synapse customer page.
+type CustomerCommerce {
+  orders:              Int!
+  spend:               [AttributedRevenue!]!   # lifetime spend by currency (excludes cancelled/draft)
+  firstOrderAt:        Time
+  lastOrderAt:         Time
+  returns:             Int!
+  activeSubscriptions: Int!
+  marketingOptedIn:    Boolean!
+  group:               String!
+  memberSince:         Time!
+}
+
+# Cross-Signals rollup for one customer - the data the other suites hold about this person, gathered onto the Synapse profile page so it's the single 360° view. Customer-only (an anonymous visitor has no identity to consent or enroll): consents + email are Pulse, flows are Pulse automation. (Audiences are the Signals API's; Prism arms + Lens pages are already on the behavioural profile itself.)
+type CustomerSignals {
+  consents: [SignalConsent!]!
+  email:    SignalEmail!
+  flows:    [SignalFlowRun!]!
+}
+
+# A consent the customer has a recorded (or default) state for.
+type SignalConsent {
+  kind:    String!   # marketing_email | marketing_sms | transactional_email | …
+  name:    String!   # human label
+  channel: String!   # email | sms | push
+  purpose: String!   # marketing | transactional
+  optedIn: Boolean!
+}
+
+# Lifetime Pulse email engagement (from the email_sends projection, bot-filtered).
+type SignalEmail {
+  sent:       Int!
+  opened:     Int!   # distinct emails with a human open
+  clicked:    Int!   # distinct emails with a human click
+  lastSentAt: Time
+  lastOpenAt: Time
+}
+
+# One marketing-automation (flow) enrollment for the customer.
+type SignalFlowRun {
+  flowId:     ID!
+  flowName:   String!
+  trigger:    String!   # order_placed | cart_abandoned | browse_abandoned | …
+  status:     String!   # active | waiting | completed | cancelled | failed
+  enrolledAt: Time!
+  updatedAt:  Time!
+}
+
+extend type Query {
+  # Commerce/CRM summary for a customer (orders, spend, subscriptions, …).
+  customerCommerce(customerId: ID!): CustomerCommerce!
+  # Cross-Signals rollup for a customer (consent, email engagement, flow
+  # enrollments) - the 360° data for the Synapse profile. Gated customers.view.
+  customerSignals(customerId: ID!): CustomerSignals!
+}

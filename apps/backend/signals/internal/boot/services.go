@@ -1,0 +1,180 @@
+package boot
+
+import (
+	"context"
+	"log"
+	"os"
+	"strconv"
+
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/fx"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/backup"
+	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/archivefile"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/experiment"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/geo"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/segment"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/sendlog"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/signalsboot"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/suppression"
+)
+
+type RootContext struct{ context.Context } // supplied by the entrypoint rather than provided, since that's where signal handling lives
+
+// AllowPrivateTargets lets destinations point at private addresses - dev only, or set explicitly
+type AllowPrivateTargets bool
+
+// QueueMode says whether this process wraps its spine writes into the ingest queue or holds the bare engine
+// Producers wrap so appends land in JetStream before the request returns; the consumer must not, or it would feed itself
+type QueueMode bool
+
+const (
+	QueueProducer QueueMode = true
+	QueueConsumer QueueMode = false
+)
+
+// Services is every suite service, constructed from the pools and each other - the entrypoint decides
+// which of them it serves
+var Services = fx.Module("services",
+	fx.Provide(
+		newAllowPrivateTargets,
+		newSettings,
+		config.NewChannelScoped,
+		newStack,
+		newRecorder,
+		newLens,
+		newExperiment,
+		newSegment,
+		newDestination,
+		newChannelRoster,
+		newRollup,
+		newBehavioral,
+		newGeo,
+		newArchive,
+		newSendLog,
+		newSuppression,
+		newBackup,
+		newSpineBackup,
+	),
+)
+
+// The same rule core applies to its webhooks, read here from the same variable so both agree
+func newAllowPrivateTargets() AllowPrivateTargets {
+	if v := os.Getenv("ALLOW_PRIVATE_WEBHOOK_TARGETS"); v != "" {
+		b, err := strconv.ParseBool(v)
+		return AllowPrivateTargets(err == nil && b)
+	}
+	return AllowPrivateTargets(os.Getenv("APP_ENV") == "development")
+}
+
+// The suite's settings service reads and writes its own store alone - every path the suite reads is a
+// Signals path, and core administers them over the contract rather than the other way round
+func newSettings(q Queries, vk *redis.Client) *config.Service {
+	repo := signalsboot.NewSettingsRepository(q.Queries)
+	svc := config.NewService(repo)
+	svc.SetSignalsRepo(repo)
+	if vk != nil {
+		svc.SetCache(cache.New(vk, "config")) // the namespace core's own settings cache uses, so an admin edit there invalidates here too
+	}
+	return svc
+}
+
+// Archive is where the retention sweeps export aged rows before deleting them, and only the consumer runs those sweeps
+// Store is nil when there is no destination
+type Archive struct {
+	Store  archivefile.ObjectStore
+	Prefix string
+}
+
+func newArchive(rc RootContext, mode QueueMode) Archive {
+	if mode != QueueConsumer {
+		return Archive{}
+	}
+	store, prefix := archiveDestination(rc.Context)
+	return Archive{Store: store, Prefix: prefix}
+}
+
+func (a Archive) sink() archivefile.Sink {
+	if a.Store == nil {
+		return nil
+	}
+	return archivefile.NewStorageSink(a.Store, a.Prefix)
+}
+
+func newStack(lc fx.Lifecycle, rc RootContext, mode QueueMode, q Queries, rq ReadQueries, a Archive) (*signalsboot.Stack, error) {
+	opts := signalsboot.Options{
+		Queries: q.Queries, WrapQueue: bool(mode),
+		ArchiveStore: a.Store, ArchivePrefix: a.Prefix,
+	}
+	stack, err := signalsboot.Build(rc.Context, opts)
+	if err != nil {
+		return nil, err
+	}
+	lc.Append(fx.Hook{OnStop: func(context.Context) error { stack.Close(); return nil }})
+	return stack, nil
+}
+
+func newRecorder(s *signalsboot.Stack) *analytics.Recorder { return s.Recorder }
+
+func newLens(q Queries, rec *analytics.Recorder, cfg *config.ChannelScoped) *lens.Service {
+	return lens.NewService(q.Queries, rec, cfg)
+}
+
+func newExperiment(q Queries, rec *analytics.Recorder) *experiment.Service { // after the spine engine is chosen - its repo reads exposures through the Recorder
+	return experiment.NewService(experiment.NewRepository(q.Queries, rec))
+}
+
+func newSegment(q Queries, txMgr *txrunner.Manager) *segment.Service {
+	return segment.NewService(segment.NewRepository(q.Queries), txMgr)
+}
+
+func newDestination(q Queries, rec *analytics.Recorder, allow AllowPrivateTargets) *destination.Service {
+	return destination.NewService(q.Queries, rec, urlGuard{}, bool(allow))
+}
+
+// The beacon surface's copy of core's active channels, which core's push job keeps current
+func newChannelRoster(q Queries) *analytics.ChannelRoster {
+	return analytics.NewChannelRoster(q.Queries)
+}
+
+// Coalesces in memory and flushes aggregates, so busy sites never store a row per hit nor scan raw events
+func newRollup(q Queries) *analytics.TrafficRollup { return analytics.NewTrafficRollup(q.Queries) }
+
+func newBehavioral(rec *analytics.Recorder, segs *segment.Service) *behavioralsegment.Service {
+	return behavioralsegment.New(rec, segs)
+}
+
+// The send log core's campaigns and flows write over the contract, with the same archive destination
+// the spine sweep uses - unset, archive mode fails closed rather than deleting what it could not export
+func newSendLog(q Queries, rq ReadQueries, a Archive) *sendlog.Store {
+	store := sendlog.NewStore(q.Queries)
+	if rq.Queries != nil {
+		store.SetReadQueries(rq.Queries)
+	}
+	if sink := a.sink(); sink != nil {
+		store.SetArchiveSink(sink)
+	}
+	return store
+}
+
+func newSuppression(q Queries) *suppression.Service { return suppression.New(q.Queries) }
+
+// The suite's own nightly dump, into the same BACKUP_* destination core's lands in - core's job asks
+// for it under its stamp, so the two halves of a night pair up on restore
+func newBackup(cfg Config) *backup.Service { return backup.New(backup.FamilySignals, cfg.DirectURL) }
+
+func newGeo() *geo.Resolver { // a bad GEOIP_DB_PATH is logged rather than fatal - geo just stops appearing on profiles
+	resolver, err := geo.Open(os.Getenv("GEOIP_DB_PATH"))
+	if err != nil {
+		log.Printf("[geo] disabled - could not open GEOIP_DB_PATH: %v", err)
+		resolver, _ = geo.Open("")
+	}
+	return resolver
+}
