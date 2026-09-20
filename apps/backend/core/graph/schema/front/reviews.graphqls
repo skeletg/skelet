@@ -1,0 +1,160 @@
+# Reviews - storefront surface.
+
+enum ReviewQuestionInputType {
+  RATING_1_5
+  YES_NO
+  FREE_TEXT
+}
+
+type ReviewQuestion {
+  id:           ID!
+  slug:         String!
+  inputType:    ReviewQuestionInputType!
+  isRequired:   Boolean!
+  allowComment: Boolean!
+  sortOrder:    Int!
+  # Localized for the request's Locale header, with slug fallback so
+  # storefront prompts are never blank.
+  label:        String!
+  helpText:     String!
+}
+
+type ReviewAnswer {
+  question:  ReviewQuestion!
+  rating:    Int
+  boolValue: Boolean
+  text:      String!
+}
+
+type ReviewMedia {
+  id:        ID!
+  url:       String!
+  mimeType:  String!
+  width:     Int
+  height:    Int
+}
+
+type Review {
+  id:                  ID!
+  # Slim author identity. We never expose email or last name in full - the resolver builds "First L." style display names so customer privacy holds up even with a public PDP.
+  customerDisplayName: String!
+  isVerifiedPurchase:  Boolean!
+  title:               String!
+  body:                String!
+  submittedAt:         Time!
+  answers:             [ReviewAnswer!]!
+  media:               [ReviewMedia!]!
+  # Mean of all RATING_1_5 answers on this review; null if the review
+  # only contains free-text or yes/no answers.
+  overallRating:       Float
+  # Helpful / not-helpful vote tallies. Counted from review_votes -
+  # one row per (review, authenticated customer).
+  helpfulCount:        Int!
+  notHelpfulCount:     Int!
+  # The signed-in customer's own vote on this review: 1 helpful, -1 not helpful
+  # 0 means they have not voted, which is also what a signed-out caller gets
+  myVote:              Int!
+  # Merchant's public reply to this review (empty when none).
+  merchantReply:       String!
+  merchantReplyAt:     Time
+}
+
+type ReviewAggregates {
+  count:           Int!
+  overallAverage:  Float
+  # Five integers: count of 1★, 2★, 3★, 4★, 5★ ratings across approved
+  # reviews. Always five entries, zero-filled, in 1→5 order.
+  distribution:    [Int!]!
+  perQuestion:     [ReviewQuestionAverage!]!
+  # Snapshot of the live vote policy so the storefront can decide whether to show vote buttons to logged-out viewers without a separate round-trip.
+  votingPolicy:    ReviewVotingPolicy!
+}
+
+# ReviewVotingPolicy reflects the reviews/votes/* admin toggles. The storefront reads requireAuthentication to choose between the vote buttons and a "sign in to vote" prompt for anonymous visitors.
+type ReviewVotingPolicy {
+  requireAuthentication: Boolean!
+}
+
+type ReviewQuestionAverage {
+  question: ReviewQuestion!
+  average:  Float!
+  count:    Int!
+}
+
+enum ReviewSort {
+  NEWEST
+  OLDEST
+  HIGHEST
+  LOWEST
+}
+
+# Why the customer can or can't submit a review for this product.
+enum ReviewIneligibilityReason {
+  NOT_AUTHENTICATED
+  NOT_PURCHASED
+  ALREADY_REVIEWED
+}
+
+type ReviewEligibility {
+  canReview:        Boolean!
+  reason:           ReviewIneligibilityReason
+  existingReviewId: ID
+}
+
+# Presigned upload envelope. Same shape as the admin media upload - client PUTs bytes to uploadUrl with Content-Type, then includes the returned assetId in the submitProductReview mutation's mediaAssetIds.
+type ReviewMediaUpload {
+  assetId:   ID!
+  uploadUrl: String!
+  expiresAt: Time!
+}
+
+input ReviewAnswerInput {
+  questionId: ID!
+  rating:     Int
+  boolValue:  Boolean
+  text:       String
+}
+
+input SubmitReviewInput {
+  productId:     ID!
+  title:         String
+  body:          String
+  answers:       [ReviewAnswerInput!]!
+  # IDs of media_assets the client has already uploaded via requestReviewMediaUpload + the resulting presigned PUT. Skip the confirm step; this mutation links them into the new review and marks them ready in the same transaction.
+  mediaAssetIds: [ID!]
+  # Guest authors fill these in. Ignored when the request carries a customer JWT (the authenticated customer is always the author). The submission fails if guestName is empty AND no customer is signed in, or if the policy doesn't allow guest submissions.
+  guestName:     String
+  guestEmail:    String
+}
+
+# Product extension - every read path the PDP needs.
+extend type Product {
+  # Localized question list for the storefront review form, taken
+  # from this product's product type's assignments.
+  reviewQuestions:     [ReviewQuestion!]!
+  reviews(
+    limit:          Int = 10
+    offset:         Int = 0
+    sort:           ReviewSort = NEWEST
+    withMediaOnly:  Boolean = false
+  ):                   [Review!]!
+  reviewAggregates:    ReviewAggregates!
+  # Cached AI "what customers say" summary (null when none / too few reviews).
+  # Served verbatim from cache - no AI call at render time.
+  reviewSummary:       String
+  # Tells the storefront whether to render "Write a review", "Sign in to review", "You can review this once you've received your order", or "You've already reviewed this".
+  customerCanReview:   ReviewEligibility!
+}
+
+extend type Mutation {
+  submitProductReview(input: SubmitReviewInput!): Review!
+  # productId scopes the upload directory in the media library (reviews/<productId>/<filename>) so admins can inspect / bulk- clean media per product. Orphaned assets from abandoned or rejected submissions are also easier to find this way.
+  requestReviewMediaUpload(
+    productId:  ID!
+    filename:   String!
+    mimeType:   String!
+    sizeBytes:  Int!
+  ): ReviewMediaUpload!
+  # voteReview records the caller's helpful/not-helpful vote on a review. value: 1 = helpful, -1 = not helpful, 0 = clear the vote. Requires an authenticated customer; the mutation returns the updated review so the storefront can refresh counts in place.
+  voteReview(reviewId: ID!, value: Int!): Review!
+}

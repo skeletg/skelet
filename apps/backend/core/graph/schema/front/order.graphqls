@@ -1,0 +1,280 @@
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  ON_HOLD
+  PROCESSING
+  PARTIALLY_FULFILLED
+  FULFILLED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  AUTHORIZED
+  PAID
+  REFUNDED
+  VOIDED
+}
+
+type Order {
+  id:              ID!
+  number:          String!
+  status:          OrderStatus!
+  paymentStatus:   PaymentStatus!
+  # Provider slug recorded at checkout (e.g. "stripe", "cod", "bank-transfer").
+  # Empty for orders placed with no payment method (gift-card-only / free).
+  paymentProvider: String!
+  # Customer-facing payment instructions when the order is still unpaid and was placed with an offline method (bank details, "pay on pickup", …). Empty once paid or for gateway methods. Lets the order page show "how to pay".
+  paymentInstructions: String
+  # Set ONLY on the placeOrder response when the gateway needs a client-side 3DS/SCA step: run it (stripe.handleNextAction) then call finalizeOrderPayment. Null everywhere else.
+  paymentClientSecret: String
+  billingAddress:  OrderAddress!
+  shippingAddress: OrderAddress!
+  lines:           [OrderLine!]!
+  events:          [OrderEvent!]!
+  subtotal:        Int!
+  shippingAmount:  Int!
+  discountAmount:  Int!
+  taxAmount:       Int!
+  total:           Int!
+  # Cents of `total` covered by gift cards (a tender, not a discount - `total` is unchanged). amountDue is what's still owed to the payment provider: total - giftCardAmount.
+  giftCardAmount:  Int!
+  # Cents covered by the customer's store-credit balance (same tender
+  # semantics as gift cards).
+  storeCreditAmount: Int!
+  # Live carrier tracking URL when the shipping carrier supports tracking lookups (EasyPost etc.). Null for carriers without the capability or before shipment.
+  trackingUrl: String
+  amountDue:       Int!
+  currencyCode:    String!
+  customerNote:    String
+  # Shipment tracking, populated when the order ships. Empty until then - the storefront's order detail surfaces a "track your shipment" link only when both fields are non-empty.
+  carrier:         String!
+  trackingNumber:  String!
+  createdAt:       Time!
+}
+
+type OrderLine {
+  id:          ID!
+  productName: String!
+  productSku:  String!
+  unitPrice:   Int!
+  quantity:    Float!
+  totalPrice:  Int!
+  # A promotion free gift: zero-priced, granted by a rule rather than added by
+  # the customer. Render it as a gift rather than a $0 purchase.
+  isGift:      Boolean!
+  # Custom-option picks the customer configured (engraving, gift wrap, …).
+  options:     [OrderLineOption!]!
+}
+
+# A single product custom-option pick snapshotted onto an order line.
+type OrderLineOption {
+  id:          ID!
+  inputType:   String!
+  optionTitle: String!
+  valueLabel:  String!
+  textValue:   String!
+  priceDelta:  Int!
+  quantity:    Float!
+  # Public URL of the uploaded file for FILE-type options (empty otherwise).
+  # The original filename is carried in textValue.
+  fileUrl:     String!
+}
+
+type OrderAddress {
+  firstName:   String!
+  lastName:    String!
+  company:     String
+  street1:     String!
+  street2:     String
+  city:        String!
+  state:       String
+  postalCode:  String!
+  countryCode: String!
+  phone:       String
+}
+
+type OrderEvent {
+  id:        ID!
+  type:      String!
+  message:   String!
+  createdAt: Time!
+}
+
+# A return / RMA the customer has opened against an order. Status moves requested → approved → received → refunded (or rejected); the customer requests, an operator drives the rest. (Subset of the admin OrderReturn.)
+type OrderReturn {
+  id:           ID!
+  rmaNumber:    String!
+  status:       String!
+  reason:       String!
+  refundTarget: String!
+  refundAmount: Int!
+  # "refund" or "exchange" - exchanges are replaced with new goods
+  # instead of money back.
+  resolution:   String!
+  lines:        [OrderReturnLine!]!
+  createdAt:    Time!
+}
+
+type OrderReturnLine {
+  id:          ID!
+  orderLineId: ID!
+  quantity:    Float!
+  reason:      String!
+}
+
+# Remaining returnable quantity (shipped − already returned) for one order
+# line. The return form caps each line at this amount; 0-remainder lines omitted.
+type ReturnableLine {
+  orderLineId: ID!
+  quantity:    Float!
+}
+
+# A line a reorder couldn't re-add (discontinued SKU, changed option/bundle).
+# The remaining lines still land in the cart.
+type ReorderSkippedLine {
+  productName: String!
+  productSku:  String!
+  reason:      String!
+}
+
+type ReorderResult {
+  cart:    Cart!
+  added:   Int!
+  skipped: [ReorderSkippedLine!]!
+}
+
+input RequestReturnInput {
+  orderId: ID!
+  lines:   [ReturnLineInput!]!
+  reason:  String
+  # "refund" (default) or "exchange" (replacement goods instead of money).
+  resolution: String
+}
+
+input ReturnLineInput {
+  orderLineId: ID!
+  quantity:    Float!
+  reason:      String
+}
+
+extend type Order {
+  # The customer's return requests against this order.
+  returns:         [OrderReturn!]!
+  # Per-line returnable remainder; non-empty only once the order has shipped.
+  returnableLines: [ReturnableLine!]!
+}
+
+type GiftCardBalance {
+  balanceCents: Int!
+  currencyCode: String!
+  active:       Boolean!
+}
+
+extend type Query {
+  # Balance check by full code. Rate-limited per IP - the code alphabet
+  # is unguessable, the limiter just blunts enumeration attempts.
+  giftCardBalance(code: String!): GiftCardBalance
+  myOrders:         [Order!]!
+  myOrder(id: ID!): Order!
+}
+
+extend type Query {
+  # Guest order lookup. (id, email) acts as a bearer credential - anyone who knows both can view the order, no auth required. Customer orders are NOT accessible via this query; they go through myOrder() instead. Returns null when the pair doesn't match a guest order.
+  guestOrder(id: ID!, email: String!): Order
+}
+
+extend type Mutation {
+  # After completing a client-side payment challenge (3DS), asks the gateway whether the order's authorization actually completed and records it. Idempotent; returns true once the payment is authorized. Gateway truth only - calling this without completing the challenge changes nothing.
+  finalizeOrderPayment(orderId: ID!): Boolean!
+  # Re-add a past order's items to the customer's active cart at CURRENT prices (the stale order snapshot price is ignored), then the storefront sends the shopper to the cart. Lines that can't be re-added (discontinued SKU, changed bundle/option) are reported in `skipped`; the rest still add.
+  reorder(orderId: ID!): ReorderResult!
+
+  # Open a return request (RMA) against the customer's own order. Creates it in `requested`; an operator approves / receives / refunds. Lines are capped at each order line's returnableLines remainder.
+  requestReturn(input: RequestReturnInput!): OrderReturn!
+
+  # Unified placement for guest and authenticated checkouts. The auth context (when present) provides the customerId; the email field is always required. Addresses can be supplied inline OR as IDs from the customer's saved address book - at least one path must be set per slot. Inline wins over ID when both are present (lets a logged-in customer ship to a one-off address without polluting their book). The cartId is required for guests (passed via the storefront's cart cookie); for logged-in customers it's optional - the service derives the active cart from (customer, store) when omitted.
+  placeOrder(
+    email: String!
+    cartId: ID
+    customerNote: String
+    # Buyer's PO reference, when they pay by purchase order.
+    poNumber: String
+    # Chosen shipping option from shippingQuotes, named by carrier slug and method code - omit both to let the server pick the cheapest
+    # The price is always re-derived server-side through the carrier, never client-trusted
+    shippingCarrierSlug: String
+    shippingMethodCode: String
+    # Chosen payment method (provider slug from paymentMethods). Optional
+    # during rollout; when set it's validated and recorded on the order.
+    paymentProviderSlug: String
+    # Client-side gateway tokenization handle for the chosen provider - e.g. a Braintree payment_method_nonce produced by its browser SDK. Optional; intent-based providers (Stripe) mint the intent server-side and confirm on the client, so they pass nothing here. Used to authorize at placement.
+    paymentToken: String
+    # Pick one per slot. ID requires auth; inline works for both.
+    billingAddressId: ID
+    shippingAddressId: ID
+    billingAddress: AddressInput
+    shippingAddress: AddressInput
+    # Gift-card codes applied at checkout. Each is redeemed as a tender against the order total during placement; cards cover what they can and the remainder is owed to the payment provider.
+    giftCardCodes: [String!]
+    # Spend the signed-in customer's store-credit balance as a tender
+    # (applied after gift cards). Ignored for guests.
+    useStoreCredit: Boolean
+    # Pay with a previously saved payment method (see myPaymentMethods).
+    # Mutually exclusive with paymentToken; requires a signed-in customer.
+    savedPaymentMethodId: ID
+  ): Order!
+}
+
+# --- Saved payment methods ---
+
+type SavedPaymentMethod {
+  id:           ID!
+  providerSlug: String!
+  brand:        String!
+  last4:        String!
+  expMonth:     Int!
+  expYear:      Int!
+}
+
+extend type Query {
+  # The signed-in customer's saved payment methods.
+  myPaymentMethods: [SavedPaymentMethod!]!
+}
+
+extend type Mutation {
+  # Vault a client-tokenized payment method (Braintree nonce / Stripe
+  # payment-method id) with the provider for future checkouts.
+  savePaymentMethod(providerSlug: String!, token: String!): SavedPaymentMethod!
+  # Remove a saved method (provider vault + local record).
+  deleteMyPaymentMethod(id: ID!): Boolean!
+}
+
+# --- Address validation ---
+
+type AddressValidationResult {
+  valid: Boolean!
+  # Human-readable issues when invalid.
+  messages: [String!]!
+  # Normalized suggestion when the validator cleaned something up
+  # (whitespace, casing, ZIP+4 dash). Null = input was already clean.
+  normalized: AddressInput2
+  # Whether this store BLOCKS placement on invalid addresses (strict
+  # mode) - lets the checkout UI phrase the warning accordingly.
+  strict: Boolean!
+}
+
+# Output mirror of AddressInput (GraphQL input types can't be returned).
+type AddressInput2 {
+  street1:     String!
+  street2:     String!
+  city:        String!
+  state:       String!
+  postalCode:  String!
+  countryCode: String!
+}
+
+extend type Query {
+  # Soft-check a checkout address against the store's configured
+  # validator (format checks by default; pluggable providers).
+  validateAddress(street1: String!, street2: String, city: String!, state: String, postalCode: String!, countryCode: String!): AddressValidationResult!
+}

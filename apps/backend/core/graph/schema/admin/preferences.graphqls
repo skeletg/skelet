@@ -1,0 +1,17 @@
+# Per-admin UI preferences - self-scoped key/value blobs the dashboard owns (table layouts, saved list views, nav pins, home layout). Identity comes from the caller's claims - there is deliberately no admin-id argument, and integration tokens are refused since they have no admin row to attach state to.
+
+type AdminPreference {
+  key:       String!
+  value:     JSON!
+  updatedAt: Time!
+}
+
+extend type Query {
+  # Everything the acting admin has saved - loaded once at dashboard boot
+  myPreferences: [AdminPreference!]!
+}
+
+extend type Mutation {
+  # Upsert one preference for the acting admin - a null value deletes the key
+  setMyPreference(key: String!, value: JSON): Boolean!
+}

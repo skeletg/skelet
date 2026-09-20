@@ -1,0 +1,118 @@
+# Admin-curated navigation menus. Each Menu is a slug-addressable tree of items used by the storefront for header / footer / mobile navigation. A MenuItem points either to a typed entity (PRODUCT/CATEGORY/COLLECTION/BLOG_POST/CMS_PAGE) - whose URL the storefront resolves via the url_rewrites table at render - or to a free-form URL. Never both.
+
+enum MenuItemTargetType {
+  PRODUCT
+  CATEGORY
+  COLLECTION
+  BLOG_POST
+  BLOG_CATEGORY
+  BLOG_TAG
+  BLOG_AUTHOR
+  CMS_PAGE
+}
+
+type Menu {
+  id:           ID!
+  slug:         String!
+  name:         String!
+  itemCount:    Int!
+  items:        [MenuItem!]!
+  # Stores this menu is assigned to. Empty list means the menu is
+  # a draft - no storefront will serve it. Many-to-many.
+  channelIds: [ID!]!
+  createdAt:    Time!
+  updatedAt:    Time!
+}
+
+# Flat representation - clients rebuild the parent→children tree from `parentId`. Items are sorted by sortOrder within each parent bucket; the resolver returns them already-sorted.
+type MenuItem {
+  id:           ID!
+  menuId:       ID!
+  parentId:     ID
+  label:        String!
+  targetType:   MenuItemTargetType
+  targetId:     ID
+  url:          String
+  sortOrder:    Int!
+  # Per-locale label overrides. Empty list means the storefront
+  # falls back to `label` for every locale.
+  translations: [MenuItemTranslation!]!
+  createdAt:    Time!
+  updatedAt:    Time!
+}
+
+type MenuItemTranslation {
+  locale:    String!
+  label:     String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+input CreateMenuInput {
+  slug: String!
+  name: String!
+}
+
+input UpdateMenuInput {
+  id:   ID!
+  slug: String
+  name: String
+}
+
+# Either (targetType + targetId) OR url must be set, not both. The
+# service rejects violations with MENU_TARGET_XOR_URL.
+input CreateMenuItemInput {
+  menuId:     ID!
+  parentId:   ID
+  label:      String!
+  targetType: MenuItemTargetType
+  targetId:   ID
+  url:        String
+  sortOrder:  Int
+}
+
+input UpdateMenuItemInput {
+  id:          ID!
+  label:       String
+  targetType:  MenuItemTargetType
+  targetId:    ID
+  url:         String
+  parentId:    ID
+  # Explicit flag to unset parentId - null in `parentId` means
+  # "no change", which is the standard nullable-update convention.
+  clearParent: Boolean
+  sortOrder:   Int
+}
+
+# One-shot reorder of N items in a menu. Each input row carries the new parentId + sortOrder; the resolver runs them in a loop and revalidates the tree per row.
+input ReorderMenuItemInput {
+  id:        ID!
+  parentId:  ID
+  sortOrder: Int!
+}
+
+extend type Query {
+  menus:                  [Menu!]!
+  menu(id: ID!):          Menu!
+  menuBySlug(slug: String!): Menu
+}
+
+extend type Mutation {
+  createMenu(input: CreateMenuInput!):                Menu!
+  updateMenu(input: UpdateMenuInput!):                Menu!
+  deleteMenu(id: ID!):                                Boolean!
+
+  # Replaces the menu's store-assignment set in one call.
+  # Sending an empty list converts the menu to a draft.
+  setMenuStores(menuId: ID!, channelIds: [ID!]!): Menu!
+
+  createMenuItem(input: CreateMenuItemInput!):        MenuItem!
+  updateMenuItem(input: UpdateMenuItemInput!):        MenuItem!
+  deleteMenuItem(id: ID!):                            Boolean!
+  reorderMenuItems(menuId: ID!, items: [ReorderMenuItemInput!]!): Menu!
+
+  # Upsert a per-locale label for an item. Re-running with the
+  # same (item, locale) updates the label in place.
+  upsertMenuItemTranslation(itemId: ID!, locale: String!, label: String!): MenuItemTranslation!
+  deleteMenuItemTranslation(itemId: ID!, locale: String!): Boolean!
+}

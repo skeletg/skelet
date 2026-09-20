@@ -1,0 +1,126 @@
+# Scheduled jobs: recurring tasks whose schedule (cron expression or @every interval) is admin-configurable. Code jobs are registered in the backend (schedule editable, can be enabled/disabled, run-now); webhook jobs are created here and fire an HTTP call on their schedule.
+type ScheduledJob {
+  id:                   ID!
+  name:                 String!
+  kind:                 String!        # "code" | "webhook"
+  schedule:             String!        # cron expression or "@every 15m"
+  enabled:              Boolean!
+  description:          String!
+  timezone:             String!        # IANA zone for cron specs; "" = server
+  maxAttempts:          Int!           # retry scheduling cap (1 = no retry)
+  retryBackoffSeconds:  Int!           # base backoff; doubles each attempt, capped 6h
+  currentAttempt:       Int!           # 0 when idle; n during a retry run
+  alertAfterFailures:   Int!           # fire the alert webhook after N consecutive failures (0 = off)
+  consecutiveFailures:  Int!           # current failure streak
+  timeoutSeconds:       Int!           # per-run timeout; the handler is cancelled past it (default 300)
+  webhook:              ScheduledJobWebhook   # null for code jobs
+  nextRunAt:            Time
+  lastRunAt:            Time
+  lastStatus:           String!        # "" | "success" | "error"
+  lastError:            String!
+  lastDurationMs:       Int
+  createdAt:            Time!
+  updatedAt:            Time!
+}
+
+# Safe read projection of a webhook job's config - the secret is never echoed.
+type ScheduledJobWebhook {
+  url:       String!
+  method:    String!
+  hasSecret: Boolean!
+}
+
+type HTTPHeader {
+  name:  String!
+  value: String!
+}
+
+# Full webhook config for the edit dialog. Requires scheduler.manage (more than the list's scheduler.view) because headers may carry auth tokens; the signing secret is still never echoed (hasSecret only).
+type WebhookJobConfig {
+  url:       String!
+  method:    String!
+  body:      String!
+  headers:   [HTTPHeader!]!
+  hasSecret: Boolean!
+}
+
+# One execution-history record from scheduled_job_runs.
+type ScheduledJobRun {
+  startedAt:  Time!
+  finishedAt: Time!
+  status:     String!   # "success" | "error"
+  error:      String!
+  durationMs: Int!
+  attempt:    Int!
+}
+
+# Next fire times for a candidate schedule - powers the dialog's live preview.
+type SchedulePreview {
+  valid:    Boolean!
+  error:    String!
+  nextRuns: [Time!]!
+}
+
+input UpdateScheduledJobInput {
+  id:                  ID!
+  schedule:            String!
+  enabled:             Boolean!
+  timezone:            String   # IANA zone; "" or null = server time
+  maxAttempts:         Int      # default 1
+  retryBackoffSeconds: Int      # default 60
+  alertAfterFailures:  Int      # default 0 (off)
+  timeoutSeconds:      Int      # per-run timeout in seconds; default 300
+}
+
+input HTTPHeaderInput {
+  name:  String!
+  value: String!
+}
+
+input CreateWebhookJobInput {
+  name:                String!
+  schedule:            String!
+  description:         String
+  enabled:             Boolean
+  timezone:            String
+  maxAttempts:         Int
+  retryBackoffSeconds: Int
+  alertAfterFailures:  Int
+  url:                 String!
+  method:              String
+  body:                String
+  headers:             [HTTPHeaderInput!]
+  # Signs the body (HMAC-SHA256, header X-Job-Signature-256). Optional.
+  secret:              String
+}
+
+input UpdateWebhookJobInput {
+  id:          ID!
+  description: String
+  url:         String!
+  method:      String
+  body:        String
+  headers:     [HTTPHeaderInput!]
+  # Blank keeps the existing secret; non-blank rotates it.
+  secret:      String
+}
+
+extend type Query {
+  # Requires scheduler.view.
+  scheduledJobs: [ScheduledJob!]!
+  # Recent run history for a job, newest first. Requires scheduler.view.
+  scheduledJobRuns(jobId: ID!, limit: Int): [ScheduledJobRun!]!
+  # Validate a candidate schedule and preview its next fire times. Requires scheduler.view.
+  previewSchedule(schedule: String!, timezone: String, count: Int): SchedulePreview!
+  # Full webhook config for editing (body/headers included; secret never echoed). Requires scheduler.manage.
+  webhookJobConfig(id: ID!): WebhookJobConfig!
+}
+
+extend type Mutation {
+  # All require scheduler.manage.
+  updateScheduledJob(input: UpdateScheduledJobInput!): ScheduledJob!
+  createWebhookJob(input: CreateWebhookJobInput!): ScheduledJob!
+  updateWebhookJob(input: UpdateWebhookJobInput!): ScheduledJob!
+  deleteScheduledJob(id: ID!): Boolean!
+  runScheduledJobNow(id: ID!): ScheduledJob!
+}

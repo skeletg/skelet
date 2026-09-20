@@ -1,0 +1,77 @@
+# golangci-lint configuration (v2 schema).
+version: "2"
+
+run:
+  # Cold-cache runs over the whole module need headroom.
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    # Suggests modern language and library features - promoted out of gopls, so the
+    # findings track the toolchain rather than one project's taste
+    - modernize
+    # Resource leaks that only show up as connection exhaustion in production, which is
+    # the worst way to find them - all three were at or near zero when enabled
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+    # apperr classifies errors by unwrapping to a registered sentinel, so a %v instead of
+    # %w silently drops the class - and an == comparison stops matching once anything wraps
+    - errorlint
+    # The plugin/SDK boundary - plugins compile in the same module, so nothing but this stops one
+    # coupling to core surface with no compatibility contract (sdk/api.json covers the SDK alone)
+    - depguard
+  settings:
+    depguard:
+      rules:
+        # Contract tests are exempt - they legitimately drive the host side
+        plugin-sdk-boundary:
+          files:
+            - "**/plugins/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/skeletg/skelet/apps/backend/core/internal
+              desc: plugins reach core only through the SDK - a SubscribeSync handler needing a domain's event shape is the one sanctioned exception, allow-listed here per package when it happens
+            # lib/ sits outside internal/ for the Signals module, which puts it past the rule above - the SDK
+            # redeclares the slices a plugin legitimately needs
+            - pkg: github.com/skeletg/skelet/apps/backend/core/lib
+              desc: infrastructure the host shares with the Signals module, not with plugins - the SDK is a plugin's whole surface
+        # lib/ is the bottom layer - plumbing that doesn't import the domain. Tests are exempt, a lib package's
+        # database test drives core's store for it
+        lib-is-a-leaf:
+          files:
+            - "**/lib/**"
+            - "!$test"
+          deny:
+            - pkg: github.com/skeletg/skelet/apps/backend/core/internal
+              desc: lib/ is plumbing shared with the Signals module - a package here that needs the domain belongs under internal/, or the piece it needs belongs here
+    modernize:
+      # newexpr rewrites ptr(x) helpers onto Go 1.26's new(expr), which then makes govet's
+      # inline check want every call site rewritten too - a cascade of churn for no behaviour
+      disable:
+        - newexpr
+  exclusions:
+    # Analyze generated files (sqlc, gqlgen) for the usage graph, but don't
+    # report findings in them - we never hand-edit generated code.
+    generated: lax
+    presets:
+      # Drops the universally-benign errcheck cases: deferred Close/Flush, fmt.Fprint* to stdout/stderr, os.Remove, etc.
+      # Keeps errcheck focused on errors that actually matter
+      - std-error-handling
+    rules:
+      # t.Fatal ends the goroutine, so a deref after a nil-guard in a test is unreachable and SA5011 does not model that
+      - linters:
+          - staticcheck
+        text: SA5011
+        path: _test\.go
+      # QF1001 ("apply De Morgan's law") is a quickfix that often hurts readability as much as it helps
+      - linters:
+          - staticcheck
+        text: QF1001
+      # gqlgen writes resolver stubs with interface{} and rewrites them every codegen run, so
+      # fixing these just makes the next bin/codegen fail lint again - the signatures aren't ours
+      - linters:
+          - modernize
+        text: interface\{\} can be replaced by any
+        path: \.resolvers\.go$

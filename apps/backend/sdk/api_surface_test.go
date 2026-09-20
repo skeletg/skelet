@@ -1,20 +1,7 @@
 package sdk
 
-// Two gates guard the plugin-facing surface, and they answer different questions
-//
-// TestAPISurface is the always-on one: api.json records every exported declaration in every public
-// SDK package, and any drift demands a Version bump - it is a checked-in JSON file so a PR touching
-// the SDK shows the surface change in review, and it needs nothing but the working tree
-//
-// TestAPICompatibility is the authoritative one: it runs golang.org/x/exp/apidiff against the SDK as
-// it stood at the last release tag, which knows Go's real compatibility rules where a line diff does
-// not - adding a method to PaymentProvider reads as an addition but breaks every plugin implementing
-// it, and apidiff calls that incompatible so the bump rules demand the breaking bump - it skips while
-// no v* tag exists, so it stays inert until the first release is cut
-//
-// Regenerate after a deliberate change: go test ./sdk -run TestAPISurface -update-sdk-api
-// The updater applies the same bump rules, so the baseline cannot be rewritten under a version
-// that does not admit the change
+// Two gates guard the plugin-facing surface: TestAPISurface records every exported declaration in api.json, so drift shows up in review and demands a Version bump
+// TestAPICompatibility is the authoritative one, running apidiff against the last release tag, which knows Go's real rules where a line diff does not - it skips until a v* tag exists
 
 import (
 	"archive/tar"
@@ -42,12 +29,15 @@ var updateSurface = flag.Bool("update-sdk-api", false, "rewrite api.json with th
 
 const (
 	surfaceFile   = "api.json"
-	regenerateCmd = "go test ./sdk -run TestAPISurface -update-sdk-api"
-	// Every package a plugin author may import, relative to the module root - sdktest is public
-	// contract too (plugins unit-test against the fake host) so it is gated alongside sdk
-	publicPattern = "./sdk/..."
-	archivePrefix = "apps/backend/"
-	// apidiff names symbols by their module-relative package path
+	regenerateCmd = "go test . -run TestAPISurface -update-sdk-api"
+	// Every package a plugin author may import - this module is the SDK, and sdktest is public
+	// contract too (plugins unit-test against the fake host) so it is gated alongside
+	publicPattern = "./..."
+	archivePrefix = "apps/backend/sdk/"
+	// Where the SDK lived while it was a package of core's module - tags from then are compared through it
+	legacyArchivePrefix = "apps/backend/"
+	modulePath          = "github.com/skeletg/skelet/apps/backend/sdk"
+	// apidiff names symbols relative to the path it is handed, which is the module's parent so the root package reads as ./sdk
 	versionConstChange = "./sdk.Version:"
 )
 
@@ -59,7 +49,7 @@ type surface struct {
 }
 
 func TestAPISurface(t *testing.T) {
-	cur := surface{Version: Version, Packages: surfaceOf(loadPackages(t, "..", publicPattern))}
+	cur := surface{Version: Version, Packages: surfaceOf(loadPackages(t, ".", publicPattern))}
 	if *updateSurface {
 		writeSurfaceFile(t, cur)
 		return
@@ -103,13 +93,14 @@ func TestAPICompatibility(t *testing.T) {
 		t.Skipf("no release tag to compare against (%v) - this gate starts enforcing once the first v* tag is cut", err)
 	}
 
-	oldPkgs := loadPackages(t, materializeAt(t, tag), publicPattern)
+	oldDir, oldPattern := materializeAt(t, tag)
+	oldPkgs := loadPackages(t, oldDir, oldPattern)
 	if len(oldPkgs) == 0 {
 		t.Skipf("%s has no %s packages - nothing to compare", tag, publicPattern)
 	}
-	newPkgs := loadPackages(t, "..", publicPattern)
+	newPkgs := loadPackages(t, ".", publicPattern)
 
-	modPath := path.Dir(newPkgs[0].Path())
+	modPath := path.Dir(modulePath)
 	report := apidiff.ModuleChanges(
 		&apidiff.Module{Path: modPath, Packages: oldPkgs},
 		&apidiff.Module{Path: modPath, Packages: newPkgs},
@@ -201,9 +192,7 @@ func writeSurfaceFile(t *testing.T, cur surface) {
 	t.Logf("wrote %s: v%s, %d packages, %d declarations", surfaceFile, Version, len(cur.Packages), n)
 }
 
-// Pre-1.0 the minor carries breaking changes and the patch carries additions - from 1.0 it is the usual
-// major/minor split. bumpWanted and admitsChange are the same rule read two ways, so the checker's advice
-// and the updater's refusal can never disagree
+// Pre-1.0 the minor carries breaking changes and the patch carries additions - from 1.0 it is the usual major/minor split. bumpWanted and admitsChange are the same rule read two ways, so the checker's advice and the updater's refusal can never disagree
 func bumpWanted(old semver, breaking bool) string {
 	switch {
 	case old.Major == 0 && breaking:
@@ -261,16 +250,22 @@ func lastReleaseTag() (string, error) {
 	return tag, nil
 }
 
-// Extracts just enough of the tagged tree to type-check the SDK - go.mod and go.sum so deps resolve
-// from the module cache, plus the sdk tree itself - returns the temp module root
-func materializeAt(t *testing.T, tag string) string {
+// Extracts the tagged SDK with a go.mod beside it so deps resolve from the module cache, and returns the module root and the pattern naming its packages
+// A tag whose SDK sits under core's go.mod is materialized as core's root with the sdk tree under it
+func materializeAt(t *testing.T, tag string) (dir, pattern string) {
 	t.Helper()
-	dir := t.TempDir()
 	root, err := repoRoot()
 	if err != nil {
 		t.Skipf("locate repo root: %v", err)
 	}
-	cmd := exec.Command("git", "-C", root, "archive", "--format=tar", tag, archivePrefix+"go.mod", archivePrefix+"go.sum", archivePrefix+"sdk")
+	prefix, pattern := archivePrefix, publicPattern
+	paths := []string{strings.TrimSuffix(archivePrefix, "/")}
+	if exec.Command("git", "-C", root, "cat-file", "-e", tag+":"+archivePrefix+"go.mod").Run() != nil {
+		prefix, pattern = legacyArchivePrefix, "./sdk/..."
+		paths = []string{prefix + "go.mod", prefix + "go.sum", prefix + "sdk"}
+	}
+	dir = t.TempDir()
+	cmd := exec.Command("git", append([]string{"-C", root, "archive", "--format=tar", tag}, paths...)...)
 	out, err := cmd.Output()
 	if err != nil {
 		if ee, ok := errors.AsType[*exec.ExitError](err); ok {
@@ -288,7 +283,7 @@ func materializeAt(t *testing.T, tag string) string {
 		if err != nil {
 			t.Fatalf("read archive of %s: %v", tag, err)
 		}
-		rel, ok := strings.CutPrefix(h.Name, archivePrefix)
+		rel, ok := strings.CutPrefix(h.Name, prefix)
 		if !ok || rel == "" {
 			continue
 		}
@@ -315,7 +310,7 @@ func materializeAt(t *testing.T, tag string) string {
 			}
 		}
 	}
-	return dir
+	return dir, pattern
 }
 
 func loadPackages(t *testing.T, dir, pattern string) []*types.Package {

@@ -1,15 +1,16 @@
-# Generated into the backend module for now - when Signals becomes its own module this package is
-# what both sides import, and only its import path moves
+# Generated into core next to the hand-written vocabulary, so the contract is one directory and the
+# suite imports both halves from the same place
 version: v2
 managed:
   enabled: true
   override:
-    - file_option: go_package_prefix
-      value: github.com/skeletg/skelet/apps/backend/internal/signalspb
+    - file_option: go_package
+      path: skelet/signals/v1
+      value: github.com/skeletg/skelet/apps/backend/core/signalsapi/v1;signalsv1
 plugins:
   - local: protoc-gen-go
-    out: internal/signalspb
-    opt: paths=source_relative
+    out: .
+    opt: module=github.com/skeletg/skelet/apps/backend/core
   - local: protoc-gen-go-grpc
-    out: internal/signalspb
-    opt: paths=source_relative
+    out: .
+    opt: module=github.com/skeletg/skelet/apps/backend/core

@@ -1,0 +1,72 @@
+# Customer segments, served by the Signals API - audiences are a Signals capability, so core gates promotions and CMS blocks on them only while this service runs
+
+# Customer segments - audiences, which core offers to promotions and CMS blocks only while Signals runs A member row carries the customer id alone, since this service has no customers table to name them from One row of a segment's membership page
+type CustomerSegmentMember {
+  id:       ID!
+  joinedAt: Time!
+}
+
+type CustomerSegment {
+  id:           ID!
+  slug:         String!
+  name:         String!
+  description:  String!
+  isActive:     Boolean!
+  memberCount:  Int!
+  # Newest-first member page - covers manual and dynamic membership alike
+  members(limit: Int = 50, offset: Int = 0): [CustomerSegmentMember!]!
+  # Dynamic-segment condition tree (null = static/manual membership): { logic: "and"|"or", conditions: [{kind: trait|lifecycle|order_count| total_spent_cents|last_order_days|consent|group, ...}] }. Compiled to parameterized SQL server-side - operators never write SQL.
+  rules:        JSON
+  createdAt:    Time!
+  updatedAt:    Time!
+}
+
+type CustomerSegmentList {
+  items:      [CustomerSegment!]!
+  totalCount: Int!
+}
+
+# A segment reduced to what a picker needs - named for Prism, which asked first, and kept so because CMS block visibility calls it too
+type SegmentOption {
+  slug: String!
+  name: String!
+}
+
+input CreateCustomerSegmentInput {
+  slug:        String!
+  name:        String!
+  description: String
+  isActive:    Boolean
+}
+
+input UpdateCustomerSegmentInput {
+  id:          ID!
+  slug:        String
+  name:        String
+  description: String
+  isActive:    Boolean
+}
+
+extend type Query {
+  # Customer segments.
+  customerSegments(limit: Int = 25, offset: Int = 0): CustomerSegmentList!
+  customerSegment(id: ID!): CustomerSegment
+  # Active segments for a targeting picker, which CMS block visibility also calls
+  experimentSegments: [SegmentOption!]!
+}
+
+extend type Mutation {
+  # Customer segments + bulk membership.
+  createCustomerSegment(input: CreateCustomerSegmentInput!): CustomerSegment!
+  updateCustomerSegment(input: UpdateCustomerSegmentInput!): CustomerSegment!
+  deleteCustomerSegment(id: ID!): Boolean!
+  assignCustomersToSegment(segmentId: ID!, customerIds: [ID!]!): Boolean!
+  removeCustomerFromSegment(segmentId: ID!, customerId: ID!): Boolean!
+  clearSegmentMembership(segmentId: ID!): Boolean!
+  # Set (or clear, with null) a segment's dynamic rules; validation
+  # rejects unknown kinds/fields/ops at save time.
+  setSegmentRules(segmentId: ID!, rules: JSON): CustomerSegment!
+  # Recompute a dynamic segment's membership now (also swept by the
+  # 6-hourly synapse-segment-refresh job). Returns the member count.
+  refreshSegment(segmentId: ID!): Int!
+}

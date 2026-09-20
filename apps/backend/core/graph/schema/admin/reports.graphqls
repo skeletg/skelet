@@ -1,0 +1,84 @@
+# Read-only sales / reporting dashboard. Exposes aggregate order data only (no per-order PII); gated by reports.view and scoped to the caller's permitted channels. Money fields are int64 cents via the Int64 scalar - summed revenue overflows the 32-bit Int scalar.
+
+scalar Int64
+
+# Per-currency KPI rollup for the selected range (cancelled orders excluded).
+type SalesSummary {
+  currencyCode:      String!
+  orderCount:        Int!
+  grossRevenue:      Int64!
+  subtotalTotal:     Int64!
+  discountTotal:     Int64!
+  taxTotal:          Int64!
+  shippingTotal:     Int64!
+  uniqueCustomers:   Int!
+  # GrossRevenue / OrderCount, in cents (0 when no orders).
+  averageOrderValue: Int64!
+  # Gateway refunds settled in the range for this currency (succeeded refund
+  # transactions). Independent of the cancelled-order exclusion above.
+  refundedAmount:    Int64!
+  refundCount:       Int!
+  # COGS snapshot totals (unit cost x qty over active lines). Lines placed
+  # before costs existed contribute 0, so treat margin as a floor.
+  costTotal:         Int64!
+  # subtotal - discounts - cost.
+  marginTotal:       Int64!
+}
+
+# One bucket of the revenue/order time series, per currency.
+type SalesTimeseriesPoint {
+  period:       Time!
+  currencyCode: String!
+  orderCount:   Int!
+  revenue:      Int64!
+}
+
+# One row of the top-products-by-revenue ranking.
+# Sales for a single product over a window
+type ProductSales {
+  unitsSold:  Int64!
+  revenue:    Int64!
+  cost:       Int64!
+  margin:     Int64!
+  orderCount: Int!
+  days:       Int!
+}
+
+type TopProduct {
+  sku:        String!
+  name:       String!
+  unitsSold:  Int64!
+  revenue:    Int64!
+  cost:       Int64!
+  margin:     Int64!
+  orderCount: Int!
+}
+
+# Order-count + revenue for one order status (includes cancelled - this is the
+# distribution view, not a revenue figure).
+type SalesStatusBreakdown {
+  status:     String!
+  orderCount: Int!
+  revenue:    Int64!
+}
+
+# Composite payload so the dashboard fetches the whole report in one round-trip.
+type SalesReport {
+  summary:         [SalesSummary!]!
+  timeseries:      [SalesTimeseriesPoint!]!
+  topProducts:     [TopProduct!]!
+  statusBreakdown: [SalesStatusBreakdown!]!
+}
+
+extend type Query {
+  # Aggregate sales report for a date range. channelId restricts to a single channel (must be within the caller's reports.view scope); omit to span all permitted channels. bucket = "day" | "week" | "month" (default "day"). Both date bounds are inclusive; omit for all-time. One product's sales over the last `days` - the top-N report can't answer this, since a product outside the top N looks identical to one that never sold
+  productSales(sku: String!, days: Int = 30, channelId: ID): ProductSales!
+
+  salesReport(
+    channelId: ID
+    startDate: Time
+    endDate: Time
+    bucket: String
+    topProductsLimit: Int = 10
+  ): SalesReport!
+}

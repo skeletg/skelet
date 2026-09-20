@@ -1,0 +1,38 @@
+# Operational health of every subsystem, for the admin panel.
+
+enum HealthStatus {
+  OK
+  WARN
+  BAD
+  # Not configured. A deployment running none of the optional tiers should read as calm rather than broken - OFF is a choice someone made, not a fault, and it never escalates the overall status
+  OFF
+}
+
+type HealthCheck {
+  # Stable across releases - safe to key UI or alerting on, unlike label
+  key:    String!
+  label:  String!
+  status: HealthStatus!
+  # What IS, short and factual: "reachable - 4/25 connections in use"
+  detail: String!
+  # What to DO about it. Empty when there is nothing to do, so the UI can render it
+  # as the exception rather than noise on every healthy row
+  hint:   String
+}
+
+type HealthGroup {
+  key:    String!
+  label:  String!
+  checks: [HealthCheck!]!
+}
+
+type SystemHealth {
+  # Worst status across every check
+  status:    HealthStatus!
+  checkedAt: Time!
+  groups:    [HealthGroup!]!
+}
+
+extend type Query {
+  systemHealth: SystemHealth!
+}
