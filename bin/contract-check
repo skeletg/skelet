@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# The SYNC comments name contracts that span two or three apps, and until now prose
-# was the only thing holding them - this is the mechanical half, so drift fails a build
-#
-# Every check reads the real source. An extractor that quietly matches nothing FAILS
-# rather than passes, because a silent zero is how this kind of gate rots
+# The SYNC comments name contracts that span two or three apps, and until now prose was the only thing holding them - this is the mechanical half, so drift fails a build
 set -uo pipefail
 cd "$(dirname "$(dirname "$0")")"
 
@@ -12,12 +8,12 @@ pass() { printf '  ok    %s\n' "$1"; }
 bad()  { fail=1; printf '  FAIL  %s\n' "$1"; }
 skip() { printf '  --    %s\n' "$1"; }
 
-BLOCKKIT=apps/backend/internal/blockkit/blockkit.go
-RESPONSE_CACHE=apps/backend/internal/wiring/response_cache.go
+BLOCKKIT=apps/backend/core/internal/blockkit/blockkit.go
+RESPONSE_CACHE=apps/backend/core/internal/wiring/response_cache.go
 DASH_BLOCKS=apps/dashboard/src/features/cms/page-blocks.ts
 DASH_LEXICAL=apps/dashboard/src/features/catalog/lexical-blocks
 DASH_OPTVIS=apps/dashboard/src/features/carts/optionVisibility.ts
-SECHEADERS=apps/backend/internal/httpx/securityheaders.go
+SECHEADERS=apps/backend/core/lib/httpx/securityheaders.go
 NGINX_CONF=apps/dashboard/nginx.conf.template
 CADDYFILE=deploy/caddy/Caddyfile
 WIDGET_REGISTRY=apps/dashboard/src/features/promotions/widgets/registry.ts
@@ -28,10 +24,7 @@ RENDERER_GAPS="ref"
 
 # ---------------------------------------------------------------------------
 echo "==> SYNC comments point at paths that exist"
-# A renamed file leaves the comment behind, which is how a contract quietly loses
-# one of its ends - glob and module-relative forms both count as resolved
-# Herestring, not a pipe: grep -q exits on the first match, and under pipefail that
-# SIGPIPEs `git ls-files` and turns a hit into a failure
+# A renamed file leaves the comment behind, which is how a contract quietly loses one of its ends - glob and module-relative forms both count as resolved Herestring, not a pipe: grep -q exits on the first match, and under pipefail that SIGPIPEs `git ls-files` and turns a hit into a failure
 TRACKED=$(git ls-files)
 resolve() {
     local esc
@@ -180,15 +173,8 @@ fi
 
 # ---------------------------------------------------------------------------
 echo "==> security headers match across the copies that must"
-# One policy, up to three files: the Go middleware is the source, and bin/codegen
-# (cmd/secheadgen) rewrites the nginx and Caddy copies from it - this re-checks the
-# equality with plain greps because the CI gates job has no Go toolchain, so a
-# hand-edited copy or a skipped codegen run still fails. The storefront's is
-# deliberately narrower - no gateway SDK runs there - and HSTS is Caddy-only, since
-# asserting it over http would pin a browser
-#
-# Three copies is what let deploy/caddy/Caddyfile stay named in comments for months after
-# it was deleted, so the third one is checked from the day it came back
+# One policy, up to three files: the Go middleware is the source and bin/codegen rewrites the nginx and Caddy copies from it
+# Re-checked here with plain greps because the CI gates job has no Go toolchain, so a hand-edited copy or a skipped codegen run still fails
 go_csp() {
     awk '/^const ContentSecurityPolicy =/{f=1} f{print; if ($0 !~ /\+$/) exit}' "$SECHEADERS" \
         | sed -E 's/^const ContentSecurityPolicy = //; s/\+$//' | tr -d '"' | tr -s '[:space:]' ' ' | sed -E 's/^ +| +$//g'
@@ -224,10 +210,7 @@ compare_header() { # compare_header <label> <where> <backend value> <other value
 }
 compare_header "Content-Security-Policy" "$NGINX_CONF" "$(go_csp)" "$(nginx_csp)"
 compare_header "Permissions-Policy" "$NGINX_CONF" "$(go_pp)" "$(nginx_pp)"
-# A fork that brings its own proxy may delete the bundled Caddyfile, so a genuine absence skips.
-# A STALE path must not: the file is tracked and sparse-checkout never touches deploy/, so
-# "missing" almost always means CADDYFILE points somewhere that moved - and skipping there quietly
-# drops the third copy of the security headers while still reporting the gate green
+# A fork that brings its own proxy may delete the bundled Caddyfile, so a genuine absence skips. A STALE path must not: the file is tracked and sparse-checkout never touches deploy/, so "missing" almost always means CADDYFILE points somewhere that moved - and skipping there quietly drops the third copy of the security headers while still reporting the gate green
 if [ -f "$CADDYFILE" ]; then
     compare_header "Content-Security-Policy" "$CADDYFILE" "$(go_csp)" "$(caddy_csp)"
     compare_header "Permissions-Policy" "$CADDYFILE" "$(go_pp)" "$(caddy_pp)"
@@ -239,12 +222,9 @@ fi
 
 # ---------------------------------------------------------------------------
 echo "==> every x-widget a Go params schema asks for is registered in the dashboard"
-# The rule/condition builders render params from a JSON Schema the backend owns, and an
-# "x-widget" hint picks a rich control. SchemaForm silently falls back to a plain text box when
-# the key is missing, so a backend asking for a widget nobody registered LOOKS fine and quietly
-# makes the operator type slugs - which is exactly how segment-picker went unnoticed
+# The rule/condition builders render params from a JSON Schema the backend owns, and an "x-widget" hint picks a rich control. SchemaForm silently falls back to a plain text box when the key is missing, so a backend asking for a widget nobody registered LOOKS fine and quietly makes the operator type slugs - which is exactly how segment-picker went unnoticed
 go_widgets() {
-    git grep -ho '"x-widget": *"[a-z-]*"' -- 'apps/backend/internal/**/*.go' \
+    git grep -ho '"x-widget": *"[a-z-]*"' -- 'apps/backend/core/internal/**/*.go' \
         | sed -E 's/.*"x-widget": *"([a-z-]*)".*/\1/' | sort -u
 }
 registered_widgets() {

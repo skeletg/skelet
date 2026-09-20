@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # The front door - every dev command, grouped by intent instead of by filename
-#
-# Verbs route onto bin/*, which keep working directly and unchanged. Nothing here
-# alters behaviour, so a command that worked yesterday works the same through this
+# Verbs route onto bin/*, which keep working directly and unchanged, so a command that worked yesterday works the same through this
 set -e
 
 # Follow symlinks by hand so a PATH install works - macOS has no readlink -f. Bounded because
@@ -19,9 +17,7 @@ while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
 done
 root="$(cd "$(dirname "$self")" && pwd)"
 
-# Standing inside a checkout wins over the one $0 came from, so a PATH install acts on the
-# repo you're in rather than whichever clone got symlinked. $0 can't tell us how we were
-# called - the shell expands a PATH hit to a full path before exec
+# Standing inside a checkout wins over the one $0 came from, so a PATH install acts on the repo you're in rather than whichever clone got symlinked. $0 can't tell us how we were called - the shell expands a PATH hit to a full path before exec
 d="$PWD"
 while [ "$d" != / ]; do
     [ -f "$d/bin/_lib" ] && [ -f "$d/skelet" ] && { root="$d"; break; }
@@ -69,7 +65,6 @@ subs_for() {
         check)   echo '(all) | pins | structure | contracts | codegen' ;;
         test)    echo '(all) | e2e' ;;
         logs)    echo '[service] | query "<where>"' ;;
-        signals) echo 'backfill-ch' ;;
         npm)     echo '<app> <npm args>' ;;
         new)     echo 'channel <name> [--from <storefront>] [--tracked]' ;;
         rm)      echo 'channel <name> [-y] [--volumes]' ;;
@@ -208,12 +203,6 @@ case "$cmd" in
     test)
         [ "${1:-}" = e2e ] && { shift; run test-e2e "$@"; }
         run test "$@" ;;
-
-    signals)
-        case "${1:-}" in
-            backfill-ch) shift; run signals-ch-backfill "$@" ;;
-            *)           die "skelet signals $(subs_for signals)" ;;
-        esac ;;
 
     *)
         script="$(script_for "$cmd" || true)"

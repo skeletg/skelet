@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fire up the dev stack - safe to re-run. --lean skips opensearch/jaeger - URLs in docs/scripts.md
+# Fire up the dev stack - safe to re-run. --lean skips the sidecars (opensearch, jaeger, the Signals process) - URLs in docs/scripts.md
 set -e
 cd "$(dirname "$(dirname "$0")")"
 
@@ -10,9 +10,7 @@ fi
 
 . bin/_lib
 
-# The dev compose file env_files env/go.env and env/db.env, which only the `dev` target writes.
-# Without this, a clone set up for small/prod fails with a raw "env file ... not found" from
-# compose, which says nothing about the target being the reason
+# The dev compose file env_files env/go.env and env/db.env, which only the `dev` target writes. Without this, a clone set up for small/prod fails with a raw "env file ... not found" from compose, which says nothing about the target being the reason
 missing=()
 for f in env/go.env env/db.env; do [ -f "$f" ] || missing+=("$f"); done
 if [ ${#missing[@]} -gt 0 ]; then
@@ -40,10 +38,8 @@ if [ -z "$SKELET_APPS" ] && [ $# -eq 0 ]; then
         echo "    ./skelet serve $(basename "$(dirname "$_sf")")     → http://localhost:3000"
     done
     echo "To run them in Docker instead, put their names in .skelet-apps (bin/setup --apps ... --keep-code)"
-    # Reconcile rather than just warn - a leftover container keeps the port, which reads as "my host
-    # dev server won't start", and compose has started these back up on its own more than once
-    # Every frontend this checkout could run, not the demo by name - a shop added by bin/new
-    # leaves a leftover container holding its port exactly the same way
+    # Reconcile rather than just warn - a leftover container keeps the port, which reads as "my host dev server won't start"
+    # Every frontend this checkout could run, not the demo by name, since a shop added by bin/new leaves a leftover container holding its port the same way
     _fronts="dashboard"
     for _sf in apps/channels/*/; do
         [ -d "$_sf" ] && _fronts="$_fronts $(basename "$_sf")"

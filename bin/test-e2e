@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
-# Run the e2e suite against dedicated disposable databases (skelet_e2e /
-# skelet_e2e_signals) so the dev DB never accumulates test rows - the suite
-# writes real orders/customers and never cleans up, so it gets its own throwaway
-# home instead of the dev commerce DB
-#   bin/test-e2e                 run the whole suite (extra args pass to go test)
-#   bin/test-e2e --fresh         drop and recreate the e2e databases first
-#   bin/test-e2e -run TestFoo    forward flags to go test
+# Run the e2e suite against disposable databases (skelet_e2e / skelet_e2e_signals), since it writes real orders and never cleans up
+# Fresh by default, because a kept database grows every run - --keep reuses it, and any other flag is forwarded to go test
 set -euo pipefail
 cd "$(dirname "$(dirname "$0")")"
 . bin/_lib
@@ -14,11 +9,17 @@ E2E_DB="skelet_e2e"
 E2E_SIG_DB="skelet_e2e_signals"
 E2E_DB_URL="postgres://skelet:skelet@db:5432/${E2E_DB}?sslmode=disable"
 E2E_SIG_URL="postgres://skelet:skelet@signals-db:5432/${E2E_SIG_DB}?sslmode=disable"
+# The spine gets its own ClickHouse database too, so a run never reads the dev stack's events
+E2E_CH_URL="clickhouse://skelet:skelet@clickhouse:9000/${E2E_SIG_DB}"
+E2E_CH_MIGRATE_URL="clickhouse://clickhouse:9000?username=skelet&password=skelet&database=${E2E_SIG_DB}&x-multi-statement=true"
 
-fresh=false
-if [ "${1:-}" = "--fresh" ]; then fresh=true; shift; fi
+fresh=true
+case "${1:-}" in
+    --keep) fresh=false; shift ;;
+    --fresh) shift ;; # the default now, accepted so an old invocation still works
+esac
 
-# The dev stack has to be up - migrate and go test run inside the app container
+# The dev stack has to be up - migrate, the Signals process and go test all run inside the app container
 if ! docker compose ps --status running | grep -q "skelet-app"; then
     echo "dev stack not running - start it with bin/dev" >&2
     exit 1
@@ -47,9 +48,17 @@ ensure_db() { # <service> <dbname>
     admin_sql "$1" "ALTER DATABASE $2 SET skelet.e2e = 'allowed'" >/dev/null
 }
 
+ch_sql() { docker compose exec -T clickhouse clickhouse-client --user=skelet --password=skelet --query "$1"; }
+ensure_ch_db() {
+    if $fresh; then
+        ch_sql "DROP DATABASE IF EXISTS $1" >/dev/null
+    fi
+    ch_sql "CREATE DATABASE IF NOT EXISTS $1" >/dev/null
+}
 echo "==> preparing disposable e2e databases"
 ensure_db db "$E2E_DB"
 ensure_db signals-db "$E2E_SIG_DB"
+ensure_ch_db "$E2E_SIG_DB"
 
 # Keep the dev DBs unmarked so a stray `go test ./internal/e2e/...` against dev
 # refuses instead of writing test orders
@@ -59,17 +68,58 @@ admin_sql signals-db "ALTER DATABASE skelet_signals RESET skelet.e2e" >/dev/null
 echo "==> migrating commerce ($E2E_DB)"
 docker compose exec -T app migrate -path internal/db/migrations -database "$E2E_DB_URL" up
 echo "==> migrating signals ($E2E_SIG_DB)"
-docker compose exec -T app migrate -path internal/db/signals/migrations -database "$E2E_SIG_URL" up
+docker compose exec -T app migrate -path /var/www/backend/signals/internal/db/migrations -database "$E2E_SIG_URL" up
+echo "==> migrating the spine (clickhouse $E2E_SIG_DB)"
+docker compose exec -T app migrate -path /var/www/backend/signals/internal/analytics/spinech/migrations -database "$E2E_CH_MIGRATE_URL" up
 # Plugin-owned tables are not in internal/db/migrations - a plugin ships its own, applied through the
 # CLI, and without this any suite touching a plugin's data fails on a missing relation
 echo "==> migrating enabled plugins ($E2E_DB)"
 docker compose exec -T -e DATABASE_URL="$E2E_DB_URL" app go run ./cmd/cli plugin migrate up
 
-# plugins/... as well as internal/e2e: a plugin owning part of the money path carries its own
-# scenarios against internal/e2ekit, and those are e2e tests wherever the file happens to live.
-# A plugin's cheaper contract tests come along and cost nothing
-echo "==> running e2e suite"
+# Core reaches the suite over the contract even in a test, so a Signals process for the e2e database runs beside the scenarios
+# Built and run in the app container on ports the dev stack's own suite does not use, and torn down however this script ends
+SIG_GRPC_PORT=18092
+SIG_HTTP_PORT=18090
+SIG_BIN=/tmp/skelet-e2e-signals
+cleanup() {
+    docker compose exec -T app sh -c "pkill -f $SIG_BIN" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+echo "==> building the Signals process"
+docker compose exec -T "${USER_FLAG[@]}" -w /var/www/backend/signals app go build -o "$SIG_BIN" ./cmd/signals
+# The contract's secret - one value for core's tests and the Signals process, whatever the container env carries
+E2E_SERVICE_SECRET="${SIGNALS_SERVICE_SECRET:-e2e-service-secret}"
+echo "==> starting it against $E2E_SIG_DB"
+docker compose exec -T -d "${USER_FLAG[@]}" \
+    -e SIGNALS_DB_URL="$E2E_SIG_URL" -e SIGNALS_CH_URL="$E2E_CH_URL" \
+    -e SIGNALS_SERVICE_SECRET="$E2E_SERVICE_SECRET" \
+    -e SIGNALS_GRPC_PORT="$SIG_GRPC_PORT" -e SIGNALS_PORT="$SIG_HTTP_PORT" \
+    app sh -c "exec $SIG_BIN > /tmp/skelet-e2e-signals.log 2>&1"
+for i in $(seq 1 60); do
+    if docker compose exec -T app curl -sf "http://localhost:$SIG_HTTP_PORT/healthz" >/dev/null 2>&1; then
+        break
+    fi
+    if [ "$i" = 60 ]; then
+        docker compose exec -T app cat /tmp/skelet-e2e-signals.log >&2 || true
+        echo "the Signals process never answered /healthz" >&2
+        exit 1
+    fi
+    sleep 1
+done
+
+# plugins/... as well as internal/e2e: a plugin owning part of the money path carries its own scenarios against internal/e2ekit, and those are e2e tests wherever the file happens to live. A plugin's cheaper contract tests come along and cost nothing
+echo "==> running core's e2e suite"
+# -timeout past go's 10m default - fresh databases are a minute's work, but --keep on a grown one is not
+# Core opens no signals database - the disposable one is the Signals process's, reached over the contract
 docker compose exec -T "${USER_FLAG[@]}" \
     -e DATABASE_URL="$E2E_DB_URL" \
-    -e SIGNALS_DB_URL="$E2E_SIG_URL" \
-    app go test ./internal/e2e/... ./plugins/... -count=1 "$@"
+    -e SIGNALS_DB_URL= \
+    -e SIGNALS_GRPC_ADDR="127.0.0.1:$SIG_GRPC_PORT" \
+    -e SIGNALS_SERVICE_SECRET="$E2E_SERVICE_SECRET" \
+    app go test ./internal/e2e/... ./plugins/... -count=1 -timeout 40m "$@"
+
+# The suite's own scenarios - the beacon surface against the same disposable signals database
+echo "==> running the Signals module's e2e suite"
+docker compose exec -T "${USER_FLAG[@]}" -w /var/www/backend/signals \
+    -e SIGNALS_DB_URL="$E2E_SIG_URL" -e SIGNALS_CH_URL="$E2E_CH_URL" \
+    app go test ./internal/e2e/... -count=1 -timeout 40m "$@"

@@ -6,9 +6,7 @@ export LC_ALL=C.UTF-8 LANG=C.UTF-8
 # docker-compose.override.yml, where your own git-ignored services live
 _skelet_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Which apps run IN DOCKER - .skelet-apps if there is one, else NONE
-# The frontends default to the host, where the dev server and the gates share one node_modules -
-# two installs from one lockfile drift silently, and the container adds nothing Node needs
+# Which apps run IN DOCKER - .skelet-apps if there is one, else NONE The frontends default to the host, where the dev server and the gates share one node_modules - two installs from one lockfile drift silently, and the container adds nothing Node needs
 if [ -f "$_skelet_root/.skelet-apps" ]; then
     SKELET_APPS="$(tr -d '[:space:]' < "$_skelet_root/.skelet-apps")"
 else
@@ -22,11 +20,10 @@ if [ -n "$SKELET_APPS" ]; then
     _skelet_profiles="${_skelet_profiles:+$_skelet_profiles,}$SKELET_APPS"
 fi
 
-# On the ClickHouse spine the server is a datastore, not a sidecar - so it follows
-# SIGNALS_ENGINE (the var the backend itself reads, per spinech/select.go) rather than the
-# sidecar list, and --lean can't strip the thing the spine writes to
-if grep -qiE '^[[:space:]]*SIGNALS_ENGINE[[:space:]]*=[[:space:]]*clickhouse' "$_skelet_root/.env" 2>/dev/null; then
-    _skelet_profiles="${_skelet_profiles:+$_skelet_profiles,}clickhouse"
+# The Signals process follows core's switch - SIGNALS_ENABLED lives in the backend env and unset
+# means on, as the backend reads it. A sidecar, so --lean drops it with the others
+if [ -n "$_skelet_sidecars" ] && ! grep -qiE '^[[:space:]]*SIGNALS_ENABLED[[:space:]]*=[[:space:]]*(false|0|f|no|off)[[:space:]]*$' "$_skelet_root/env/go.env" 2>/dev/null; then
+    _skelet_profiles="${_skelet_profiles:+$_skelet_profiles,}signals"
 fi
 
 export COMPOSE_PROFILES="${COMPOSE_PROFILES-$_skelet_profiles}"
