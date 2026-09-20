@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# golang-migrate on the SIGNALS dev DB (SIGNALS_DB_URL): up | down 1 | force <v> | version The signals-migrate one-shot
-# already applies the stream on `compose up` - this is for everything else
+# golang-migrate on the SIGNALS dev DB (SIGNALS_DB_URL): up | down 1 | force <v> | version
+# Runs in the signals container, the one dev process holding the suite's database address - `compose up` already applies the stream
 set -e
 cd "$(dirname "$(dirname "$0")")"
 
-docker compose exec app sh -c \
+docker compose exec signals sh -c \
     'test -n "$SIGNALS_DB_URL" || { echo "SIGNALS_DB_URL unset - required, check docker-compose.yml" >&2; exit 1; }
-     migrate -path internal/db/signals/migrations -database "$SIGNALS_DB_URL" "$@"' \
+     migrate -path /var/www/backend/signals/internal/db/migrations -database "$SIGNALS_DB_URL" "$@"' \
     -- "$@"

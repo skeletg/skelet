@@ -26,11 +26,9 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     done < <(git ls-tree -d --name-only HEAD apps/channels/ 2>/dev/null)
 fi
 
-# The payment gateways this tree actually carries. plugins.json naming a slug with no
-# plugins/<slug> directory fails cmd/plugingen outright, so the picker only ever offers what
-# can compile - and one installed from its own repo shows up here without editing this script
+# The payment gateways this tree actually carries. plugins.json naming a slug with no plugins/<slug> directory fails cmd/plugingen outright, so the picker only ever offers what can compile - and one installed from its own repo shows up here without editing this script
 gateways=()
-for d in apps/backend/plugins/payment-*/; do
+for d in apps/backend/core/plugins/payment-*/; do
     [ -d "$d" ] && gateways+=("$(basename "$d")")
 done
 
@@ -45,9 +43,8 @@ valid_app() {
 
 apps=""
 apps_set=0
-# Which of the selected apps run in a container. Empty means all of them run on the host, which
-# is the default: there the dev server and the gates share one node_modules, so `bin/dash run
-# lint` checks the tree vite is actually serving. In Docker those are two trees that drift apart
+# Which of the selected apps run in a container. Empty means all of them run on the host, which is the default
+# There the dev server and the gates share one node_modules, so the linter checks the tree vite is actually serving; in Docker those are two trees that drift apart
 docker_apps=""
 docker_apps_set=0
 keep_code=0
@@ -86,7 +83,7 @@ done
 
 # Last run's answers become this run's defaults, so re-running is not an interrogation
 SKELET_TARGET=dev SKELET_SIGNALS=true SKELET_AI=true
-SKELET_SEARCH=opensearch SKELET_SPINE=postgres SKELET_ADMIN_SLUG=0
+SKELET_SEARCH=opensearch SKELET_ADMIN_SLUG=0
 SKELET_GATEWAYS="$(IFS=,; printf '%s' "${gateways[*]-}")"
 # shellcheck disable=SC1090
 [ -f "$PROFILE" ] && . "$PROFILE"
@@ -248,9 +245,6 @@ if [ "$interactive" = 1 ]; then
 
     echo "==> Engines"
     SKELET_SEARCH=$(ask_choice s "Product search" "$SKELET_SEARCH" opensearch postgres)
-    if [ "$SKELET_SIGNALS" = true ]; then
-        SKELET_SPINE=$(ask_choice e "Analytics spine (postgres is fine until you outgrow it)" "$SKELET_SPINE" postgres clickhouse)
-    fi
 
     if [ ${#gateways[@]} -eq 0 ]; then
         echo "==> Payment gateways - none in this tree (add one with \`skelet cli plugin install\`)"
@@ -280,7 +274,6 @@ SKELET_TARGET=$SKELET_TARGET
 SKELET_SIGNALS=$SKELET_SIGNALS
 SKELET_AI=$SKELET_AI
 SKELET_SEARCH=$SKELET_SEARCH
-SKELET_SPINE=$SKELET_SPINE
 SKELET_GATEWAYS=$SKELET_GATEWAYS
 SKELET_ADMIN_SLUG=$SKELET_ADMIN_SLUG
 SKELET_APPS_SELECTED=$apps
@@ -294,9 +287,8 @@ case "$SKELET_TARGET" in
     small) backend_env=env/small.env; want=(env/small.env) ;;
     prod)  backend_env=env/prod.env;  want=(env/prod.env) ;;
 esac
-# Every other env file that target's compose file names, rather than a list kept here: a shop
-# added by bin/new gets set up like the one it was forked from instead of being skipped, and
-# what compose demands and what this writes cannot drift apart
+# Every other env file that target's compose file names, rather than a list kept here
+# A shop added by bin/new gets set up like the one it was forked from, and what compose demands cannot drift from what this writes
 if [ "$SKELET_TARGET" != dev ]; then
     while IFS= read -r f; do
         case " ${want[*]} " in *" $f "*) continue ;; esac
@@ -336,12 +328,10 @@ if [ "$SKELET_TARGET" != dev ]; then
         echo "    BACKUP_ENCRYPTION_PASSPHRASE generated - store it somewhere you can restore from"
     fi
 
-    # The root .env is the ONLY file compose interpolates, and the small/prod files build their
-    # datastore URLs out of these - a secret that only reaches the container through env_file is
-    # invisible to ${VAR:?} and the stack refuses to start. Datastore passwords are generated here
-    # too, since nothing else writes them and an empty one silently becomes a blank password
+    # The root .env is the ONLY file compose interpolates, and the small and prod files build their datastore URLs out of these
+    # A secret reaching the container only through env_file is invisible to ${VAR:?}, and datastore passwords are generated here since an empty one silently becomes a blank password
     touch .env
-    for key in JWT_SECRET CONFIG_ENCRYPTION_KEY DB_PASSWORD SIGNALS_DB_PASSWORD VALKEY_PASSWORD; do
+    for key in JWT_SECRET CONFIG_ENCRYPTION_KEY SIGNALS_SERVICE_SECRET DB_PASSWORD SIGNALS_DB_PASSWORD VALKEY_PASSWORD CLICKHOUSE_PASSWORD; do
         cur="$(get_env .env "$key")"
         placeholder "$cur" || { echo "    .env $key already set, left alone"; continue; }
         # the two the backend also reads must MATCH there, not be generated twice
@@ -358,9 +348,7 @@ fi
 # ---------------------------------------------------------------- root .env
 touch .env
 echo "==> Compose knobs (.env)"
-# Both knobs are written on EVERY run, not just when they leave the default. A one-way write
-# means re-running and changing your answer back silently does nothing, and re-running with
-# different answers is the whole point of the profile defaults above
+# Both knobs are written on EVERY run, not just when they leave the default. A one-way write means re-running and changing your answer back silently does nothing, and re-running with different answers is the whole point of the profile defaults above
 if [ "$SKELET_SEARCH" = postgres ]; then
     set_env .env OPENSEARCH_URL ""
     echo "    search pinned to the Postgres tier"
@@ -369,13 +357,6 @@ else
     # the bundled cluster while set-but-empty is what pins search to Postgres
     del_env .env OPENSEARCH_URL
     echo "    search on the bundled OpenSearch"
-fi
-if [ "$SKELET_SIGNALS" = true ] && [ "$SKELET_SPINE" = clickhouse ]; then
-    set_env .env SIGNALS_ENGINE clickhouse
-    echo "    analytics spine on ClickHouse"
-else
-    set_env .env SIGNALS_ENGINE postgres
-    echo "    analytics spine on Postgres"
 fi
 if [ "$SKELET_ADMIN_SLUG" = 1 ]; then
     slug="$(grep -E '^ADMIN_API_SLUG=.+' .env 2>/dev/null | cut -d= -f2- || true)"
@@ -397,13 +378,11 @@ else
 fi
 
 # ---------------------------------------------------------------- plugins
-plugins_json=apps/backend/plugins/plugins.json
+plugins_json=apps/backend/core/plugins/plugins.json
 before="$(cat "$plugins_json" 2>/dev/null || true)"
 
-# MERGED, never rewritten from a list held here. plugins.json is the decision file that
-# `skelet cli plugin enable|disable` and `plugin install` write too, so a slug this script
-# knows nothing about - a language pack, a gateway living in its own repo - has to survive a
-# re-run untouched. Only the gateways just picked change value
+# MERGED, never rewritten from a list held here - plugins.json is the decision file that `plugin enable|disable` and `plugin install` write too
+# So a slug this script knows nothing about survives a re-run untouched, and only the gateways just picked change value
 pairs=()
 has_pair() { case " ${pairs[*]-} " in *" $1:"*) return 0 ;; esac; return 1; }
 
@@ -421,7 +400,7 @@ done < <(sed -n 's/^[[:space:]]*"\([^"]*\)"[[:space:]]*:[[:space:]]*\([01]\).*/\
 
 # Then any plugin directory the file doesn't name yet - plugingen refuses to run while one
 # has no decision recorded, so leave none behind. Off unless it was just picked
-for d in apps/backend/plugins/*/; do
+for d in apps/backend/core/plugins/*/; do
     [ -d "$d" ] || continue
     slug="$(basename "$d")"
     [ "$slug" = firstparty ] && continue
@@ -470,10 +449,9 @@ docker compose exec db sh -c 'until pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
 echo "==> Running migrations..."
 bin/migrate up
 
-# The clickhouse profile came up with the stack (bin/_lib derives it from SIGNALS_ENGINE), but
-# no backend role can depend_on its one-shot - a depends_on across a profile boundary makes the
-# whole project invalid when that profile is off - so confirm the schema landed here instead
-if [ "$SKELET_SIGNALS" = true ] && [ "$SKELET_SPINE" = clickhouse ]; then
+# ClickHouse came up inside the signals profile and the Signals process waits on its one-shot, so
+# this only confirms the spine schema landed before the first beacon
+if [ "$SKELET_SIGNALS" = true ]; then
     echo "==> Waiting for the ClickHouse spine schema..."
     ch_ready=0
     tries=0
@@ -498,9 +476,7 @@ if [ "$regen_plugins" = 1 ]; then
     bin/codegen || echo "    codegen failed - run bin/codegen once the stack is warm"
 fi
 
-# POPULATED, not merely present - the containers started above mount a named volume at
-# node_modules, and because the parent is a bind mount that leaves an EMPTY directory on the
-# host. Testing -d here would see the directory this script just caused and skip its own install
+# POPULATED, not merely present - the containers started above mount a named volume at node_modules, and because the parent is a bind mount that leaves an EMPTY directory on the host. Testing -d here would see the directory this script just caused and skip its own install
 needs_install() { [ -z "$(ls -A "$1/node_modules" 2>/dev/null)" ]; }
 
 # Into whichever tree the app will actually run from - a host app installed into the container's
