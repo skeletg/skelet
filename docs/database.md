@@ -56,7 +56,7 @@ uninstall can find them.
 ## Adding a migration
 
 Write `000003_<what>.up.sql` and its `.down.sql` by hand and leave the baselines
-alone. `bin/migrate up` applies it, `bin/codegen` regenerates sqlc from it.
+alone. `./skelet db migrate up` applies it, `./skelet gen` regenerates sqlc from it.
 Qualify your table names with `public.` or rely on the search path being intact -
 see the guard below for why that is not guaranteed.
 
@@ -77,12 +77,12 @@ everyone with an existing database has to re-pin afterwards.
    fails if a regenerated dump brings it back
 5. Rebuild a second scratch database from the new files and diff a full
    `pg_dump` of both - they must be byte-identical
-6. `bin/sqlc generate` must produce no drift, since `sqlc.yaml` reads the
+6. `./skelet gen sqlc generate` must produce no drift, since `sqlc.yaml` reads the
    migration directories as its schema source
 7. Re-pin every existing database with `migrate force <the last SQUASHED version>` -
    the baseline pair, not the stream's latest, or `migrate up` skips whatever sits on
    top of it. Then run `migrate up` to apply those. Drop the e2e databases so
-   `bin/test-e2e --fresh` rebuilds them
+   `./skelet test e2e --fresh` rebuilds them
 
 The signals stream needs one extra step. `email_sends` is RANGE-partitioned by
 month, so a dump freezes whichever months existed when it was taken. Drop every
