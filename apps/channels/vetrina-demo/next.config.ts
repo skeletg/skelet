@@ -6,12 +6,8 @@ import { DASHBOARD_ORIGIN } from "@/app/lib/dashboard-origin";
 // Proxies the backend's token-gated links the browser can't reach directly (app:8080 is
 // in-network): /download/:token, /unsubscribe/:token, /e/* pixels and click redirects
 
-// App-layer security headers so the storefront ships a CSP even off the prod edge
-// Static policy (no per-request nonce) so it caches across all paths. No HSTS - that's
-// the edge's concern, and asserting it over local http would wrongly pin the browser
-//
-// SYNC - narrower on purpose than apps/backend/internal/httpx/securityheaders.go and
-// apps/dashboard/nginx.conf.template: no gateway SDK runs here, so no host earns a slot
+// App-layer security headers so the storefront ships a CSP even off the prod edge - static, so it caches across all paths, and no HSTS, which is the edge's concern
+// SYNC - narrower on purpose than core's securityheaders.go and the dashboard's nginx template: no gateway SDK runs here, so no host earns a slot
 
 // Dev media is plain http on localhost which `https:` won't cover - prod media is https
 const imgSrc =

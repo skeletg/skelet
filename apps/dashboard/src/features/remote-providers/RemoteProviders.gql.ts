@@ -25,7 +25,6 @@ export type RemoteProviderKind =
   | 'ADDRESS_VALIDATOR'
   | 'CURRENCY_RATE'
   | 'CUSTOMER_SEGMENTS'
-  | 'FLOW_ACTION'
   | 'FRAUD_RISK'
   | 'INVENTORY_AVAILABILITY'
   | 'PRICING'

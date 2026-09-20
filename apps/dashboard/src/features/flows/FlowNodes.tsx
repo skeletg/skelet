@@ -7,7 +7,6 @@ import {
   GitBranchIcon,
   TagIcon,
   WebhookIcon,
-  SatelliteDishIcon,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -21,7 +20,6 @@ const ICONS: Record<string, LucideIcon> = {
   split: GitBranchIcon,
   add_segment: TagIcon,
   webhook: WebhookIcon,
-  remote_action: SatelliteDishIcon,
 }
 
 function Box({
@@ -86,9 +84,6 @@ export function SegmentNode({ data, selected }: NodeProps) {
 }
 export function WebhookNode({ data, selected }: NodeProps) {
   return <LeafBody type="webhook" data={data} selected={selected} />
-}
-export function RemoteActionNode({ data, selected }: NodeProps) {
-  return <LeafBody type="remote_action" data={data} selected={selected} />
 }
 
 export function SplitNode({ data, selected }: NodeProps) {
