@@ -25,7 +25,7 @@ cards, loyalty, a blog and a block-based CMS. Plus **Signals**, a built-in
 analytics stack with four surfaces - Lens for web, Synapse for customers, Pulse for
 email, Prism for experiments - writing to its own database.
 
-The rest is plugins: Go compiled into the binary, added with `bin/cli plugin add`,
+The rest is plugins: Go compiled into the binary, added with `./skelet cli plugin add`,
 each one its own versioned module. Payment gateways ship that way, and so does B2B -
 company accounts, credit lines, contract pricing and quotes. See
 [docs/plugins.md](docs/plugins.md).
@@ -50,7 +50,7 @@ Open <http://localhost:5173> and sign in. GraphQL playgrounds are at
 `:8080/playground/{admin,front}`.
 
 `./skelet` is the front door - run it bare to list every command, `./skelet help <command>`
-to explain one. Every verb is still a script in `bin/`, unchanged and callable directly.
+to explain one. The scripts under `bin/` are what it runs.
 
 ## Architecture
 

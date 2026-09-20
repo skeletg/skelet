@@ -15,7 +15,7 @@ A new doc gets a row here rather than a link buried in a section, or nobody find
 | [workflow.md](workflow.md) | Daily commands, the Docker setup, what to regenerate after a schema change, which apps run |
 | [conventions.md](conventions.md) | House rules per app - the dashboard's staged-save convention most of all |
 | [commerce-model.md](commerce-model.md) | Per-domain engineering notes and footguns |
-| [scripts.md](scripts.md) | Every script in `bin/`, what it does and when to reach for it |
+| [scripts.md](scripts.md) | Every command, what it does and when to reach for it |
 | [plugins.md](plugins.md) | Extending the backend: Go plugins compiled in, or remote providers over HTTP |
 | [env.md](env.md) | Every environment variable, which file it belongs in, and the tradeoffs behind the optional ones |
 | [database.md](database.md) | The three migration streams, what the generated baselines are, and how to add to or regenerate one |

@@ -87,6 +87,7 @@ skelet - the dev commands for this repo
 Common
   setup      configure this clone (run this first)
   up         start the dev stack          [--lean skips OpenSearch + Jaeger]
+  serve      a frontend on the host       [skelet serve dashboard]
   down       stop and remove containers
   logs       tail service logs            [skelet logs app]
   check      every gate that can fail a commit
@@ -114,10 +115,10 @@ Scaffold
   rm         $(subs_for rm)
 
 Rarely
-  ps, stop, restart, search, signals, release, fixperms, hooks, provider
+  ps, stop, restart, search, release, fixperms, hooks, provider
 
   skelet help <command>   detail on one command
-  bin/<script>            every verb is still a script in bin/, unchanged
+  bin/<script>            the script a verb runs, if you need the source
 EOF
 }
 

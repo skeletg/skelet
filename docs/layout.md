@@ -31,7 +31,7 @@ The applications, and the only place product code lives.
 | `apps/dashboard/` | The React admin panel (Vite) |
 | `apps/channels/` | One directory per shop, each its own Next.js app. `vetrina-demo` is the template that ships in-tree |
 
-Two of these are optional: `bin/setup` asks which apps you want and removes the
+Two of these are optional: `./skelet setup` asks which apps you want and removes the
 rest from your working tree via sparse-checkout, so a clone that brings its own
 frontend can run headless. The backend always runs.
 
@@ -58,10 +58,11 @@ deploy separately and an old core will meet a new Signals.
 
 A wrapper for every operation you would otherwise run by hand: starting the
 stack, opening a shell in a container, migrations, codegen, the commit gates.
-They all `cd` to the repo root themselves, so they work from anywhere.
+You reach them through `./skelet` rather than by filename. They all `cd` to the
+repo root themselves, so they work from anywhere.
 
 `bin/_lib` is the odd one out - it is sourced by the others rather than run, and
-holds the shared compose and uid setup. Full per-script reference:
+holds the shared compose and uid setup. Full command reference:
 [scripts.md](scripts.md).
 
 ## The ones that hold configuration
@@ -70,7 +71,7 @@ holds the shared compose and uid setup. Full per-script reference:
 
 Environment variables, split per service rather than one giant file. The rule is
 visible in the directory listing: `*.env.example` is committed, the matching
-`*.env` is git-ignored and is what actually gets read. `bin/setup` copies the
+`*.env` is git-ignored and is what actually gets read. `./skelet setup` copies the
 templates on first run.
 
 `garage.toml` is the exception - object storage config that carries no secrets,
@@ -96,7 +97,7 @@ sibling directories answering two different questions.
 | `vector/` | Ships container stdout into ClickHouse so log history outlives the 10 MB json-file cap. Dev (`logs` profile) and prod |
 | `postgres/` | Creates the second database by hand, since the one-container profile collapses both onto a single cluster. Small only |
 
-`bin/contract-check` reads the Caddyfile directly - it holds one of the three
+`./skelet check contracts` reads the Caddyfile directly - it holds one of the three
 copies of the security headers that have to agree.
 
 The vhost map in the Caddyfile is meant to be edited - it names the demo
@@ -123,7 +124,7 @@ of your own belongs, so pulling from upstream stays conflict-free.
 One file per question you might be asking, and the index that decides which is
 which lives in the README rather than here. Some of these are generated rather
 than written - `permissions.md`, `settings.md` and `webhooks.md` are rebuilt by
-`bin/codegen` from the code that defines them, so edit the source, not the page.
+`./skelet gen` from the code that defines them, so edit the source, not the page.
 
 **Paths in these pages.** A backticked path starting with `apps/`, `bin/`,
 `deploy/` or `docs/` is from the repo root. A bare `internal/…`, `graph/…` or
@@ -137,7 +138,7 @@ confuse it with. Write the repo-root form when a page compares apps, the way
 Standalone programs that demonstrate a published contract, kept outside `apps/`
 because nothing in the platform imports them. Today that is a reference remote
 tax provider in Go, written against [remote-providers.md](remote-providers.md)
-and testable with `bin/provider-check`.
+and testable with `./skelet provider`.
 
 ### `.github/`
 

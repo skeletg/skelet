@@ -39,7 +39,7 @@ restored), media objects (they live in the media bucket), and Valkey
 ## Restore
 
 The commands below run inside the app container, which already has the
-credentials and `pg_restore`. `bin/cli` is the dev wrapper; in prod use
+credentials and `pg_restore`. `./skelet cli` is the dev wrapper; in prod use
 `docker compose -f docker-compose.prod.yml exec app skelet ...`.
 
 **1. Pick a dump.** Oldest first, so the newest pair is at the bottom:
@@ -171,6 +171,6 @@ snapshots) as primary and these dumps as the portable weekly export. See
 
 ## Dev
 
-Local snapshots are a different tool, deliberately: `bin/db-export`
-dumps the dev database into the gitignored `backups/`, and `bin/db-import`
+Local snapshots are a different tool, deliberately: `./skelet db export`
+dumps the dev database into the gitignored `backups/`, and `./skelet db import`
 restores one over it after prompting. Neither touches the backup bucket.

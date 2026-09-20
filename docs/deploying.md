@@ -23,7 +23,7 @@ docker compose -f docker-compose.small.yml up -d
 `docker-compose.prod.yml` is the full shape: the tiers split into their own
 containers (worker, media, signals, ingest), pgbouncer per database, the split
 Valkey pair, ClickHouse for the spine, and the optional NATS profile. Same env contract -
-secrets in the root `.env`, everything else in `env/prod.env`. `bin/push-images`
+secrets in the root `.env`, everything else in `env/prod.env`. `./skelet release`
 builds and pushes the four images it reads: the backend (`APP_IMAGE`, also the
 worker and media tiers), the Signals module (`SIGNALS_IMAGE`, the signals and
 ingest tiers plus the ClickHouse schema), the dashboard and each storefront.
@@ -90,7 +90,7 @@ the hop once that tier is scaled out, and `/media/t/*` at `media:8083` likewise.
 HSTS belongs here and nowhere else. The backend and the dashboard's nginx each
 ship their own copy of the CSP and Permissions-Policy so a deployment without an
 edge still gets them, but they deliberately omit HSTS - asserting it over plain
-HTTP would pin a browser to HTTPS for a year. `bin/contract-check` fails when
+HTTP would pin a browser to HTTPS for a year. `./skelet check contracts` fails when
 those copies drift apart.
 
 **The bundled option.** `deploy/caddy/Caddyfile` has all of the above plus
@@ -132,4 +132,4 @@ the box.
 
 **Logs.** Container stdout is capped at 10 MB x 3 per service. For durable,
 searchable history the `logs` profile ships stdout through Vector
-(`deploy/vector/`) into ClickHouse - query it with `bin/logs-query`.
+(`deploy/vector/`) into ClickHouse - query it with `./skelet logs query`.

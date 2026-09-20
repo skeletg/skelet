@@ -1,6 +1,6 @@
 # Environment variables
 
-**You should not need to read this to get started.** `bin/setup` asks what you
+**You should not need to read this to get started.** `./skelet setup` asks what you
 want and writes these files for you, secrets included - see
 [docs/workflow.md](workflow.md#first-run). Come here when you want to
 change something afterwards, or to understand a variable the wizard did not ask
@@ -232,7 +232,7 @@ Signals processes refuse to boot without `SIGNALS_CH_URL`. Sessions, replay
 snapshots, rollups and everything Pulse owns stay in the Signals Postgres.
 
 In dev the server and its schema come up inside the `signals` compose profile,
-so `bin/dev` starts them whenever `SIGNALS_ENABLED` is on, and `bin/doctor`
+so `./skelet up` starts them whenever `SIGNALS_ENABLED` is on, and `./skelet doctor`
 fails if the suite is on and either the container or `signals.analytics_events`
 is missing.
 
@@ -302,7 +302,7 @@ Two shapes:
 `S3_PRESIGN_ENDPOINT_URL` is the browser-facing presign endpoint and falls
 back to `S3_ENDPOINT_URL`. `S3_MAX_UPLOAD_BYTES` defaults to 10 MB.
 
-In dev, `bin/dev` points all of it at the Garage sidecar, so leave it
+In dev, `./skelet up` points all of it at the Garage sidecar, so leave it
 blank in `go.env`.
 
 Self-hosting object storage on the same box is fine for small single-server
@@ -374,7 +374,7 @@ dumps as the portable weekly export.
 ## Email and SMS
 
 `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD`. In dev,
-`bin/dev` points these at Mailpit; an unset `SMTP_HOST` prints emails to
+`./skelet up` points these at Mailpit; an unset `SMTP_HOST` prints emails to
 stdout instead. Two processes send through them: `app` its own transactional
 mail, and `signals` every campaign and flow mail - both read the same file, so
 one relay serves the install.
@@ -591,7 +591,7 @@ events. A bad path is logged, not fatal - geo just doesn't appear.
 
 `APP_IMAGE`, `DASHBOARD_IMAGE` and `VETRINA_DEMO_IMAGE` are set in the
 SHELL, not in an env file - compose interpolates them from the process
-env. `bin/push-images` prints the values after a push.
+env. `./skelet release` prints the values after a push.
 
 ---
 

@@ -117,7 +117,7 @@ go through `consent.Service.IsOptedIn`** - raw `repo.Get` treats nil as
 **Email**: `LogSender` (dev, no SMTP) / `SMTPSender` (env:
 `SMTP_HOST/PORT/USERNAME/PASSWORD`). `SMTP_USERNAME` empty = skip auth.
 Non-dev with no SMTP → error-sender that fails every Send loudly.
-Mailpit sidecar via `bin/dev`: catches mail at `:1025`, UI at
+Mailpit sidecar via `./skelet up`: catches mail at `:1025`, UI at
 <http://localhost:8025>. Token stores: `VerificationStore` (24h, prefix
 `verify:customer`) + `PasswordResetStore` (30m, prefix `reset:customer`).
 `resetPassword` calls `RefreshStore.RevokeAll`. `STOREFRONT_URL` env
@@ -207,8 +207,8 @@ events. 16 kinds, `AllKinds` in `domain.go` is the list (no payment kind, on
 purpose - PCI scope; gateways are Tier 1 plugins). Integrator-facing contract
 is `docs/remote-providers.md`; per-kind JSON Schemas + example payloads are
 GENERATED from the adapter structs into `internal/remoteprovider/contract/` by
-`cmd/providerschema` (runs in `bin/codegen`, so a renamed payload type fails
-the run rather than leaving a stale published schema). `bin/provider-check`
+`cmd/providerschema` (runs in `./skelet gen`, so a renamed payload type fails
+the run rather than leaving a stale published schema). `./skelet provider`
 conformance-tests an endpoint. The `remote_providers` table carries
 kind+slug identity, config JSON, timeout, cache TTL, failure policy,
 channel scope and an `rpsec_` secret. The `Invoker` signs a

@@ -20,7 +20,7 @@ convention is the one most code comments point at.
 - Both streams apply themselves on `docker compose up`: the `migrate` and
   `signals-migrate` one-shots run `up` and gate app/worker/media/signals/ingest
   on completing successfully, so nothing boots against a stale schema. Adding a
-  migration means restarting the stack, not remembering to run `bin/migrate`.
+  migration means restarting the stack, not remembering to run `./skelet db migrate`.
 
 ## Dashboard hygiene
 
