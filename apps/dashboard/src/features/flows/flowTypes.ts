@@ -18,8 +18,6 @@ export type FlowNodeData = {
   segmentId?: string
   // webhook
   url?: string
-  // remote_action - remote provider (kind flow_action) slug
-  provider?: string
 }
 
 // FlowCondition mirrors internal/flow.Condition - the test used by split nodes
@@ -95,11 +93,10 @@ export const NODE_LABELS: Record<string, string> = {
   split: 'Conditional split',
   add_segment: 'Add to segment',
   webhook: 'Webhook',
-  remote_action: 'Remote action',
 }
 
 // Node types an operator can add (the trigger is auto-created, one per flow)
-export const ADDABLE_NODES = ['send_email', 'send_sms', 'wait', 'split', 'add_segment', 'webhook', 'remote_action'] as const
+export const ADDABLE_NODES = ['send_email', 'send_sms', 'wait', 'split', 'add_segment', 'webhook'] as const
 
 export function defaultNodeData(type: string): FlowNodeData {
   switch (type) {
@@ -115,8 +112,6 @@ export function defaultNodeData(type: string): FlowNodeData {
       return { segmentId: '' }
     case 'webhook':
       return { url: '' }
-    case 'remote_action':
-      return { provider: '' }
     default:
       return {}
   }
@@ -169,8 +164,6 @@ export function nodeSummary(type: string, data: FlowNodeData): string {
       return data.segmentId ? 'segment set' : '(pick a segment)'
     case 'webhook':
       return data.url || '(no URL)'
-    case 'remote_action':
-      return data.provider ? `provider: ${data.provider}` : '(pick a provider)'
     default:
       return ''
   }

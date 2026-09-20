@@ -1,8 +1,5 @@
-// Client-side twin of the Go visibility evaluator
-// (apps/backend/internal/webform/domain.go: evalGroup/evalRule) - Used by the
-// builder preview and the storefront form to show/hide fields reactively - The
-// server re-evaluates the same logic authoritatively on submit - this is only
-// for UX
+// Client-side twin of the Go visibility evaluator in webform/domain.go, for the builder preview and the storefront form
+// The server re-evaluates the same logic on submit, so this is only for UX
 
 import type { AnswerValue, ConditionGroup, Field, Rule } from './types'
 import { isLayout } from './types'
