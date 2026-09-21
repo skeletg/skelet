@@ -1,0 +1,152 @@
+enum ShippingCalcType {
+  FLAT
+  FREE
+  FREE_ABOVE
+}
+
+type ShippingZone {
+  id:          ID!
+  channelId: ID!
+  code:        String!
+  name:        String!
+  sortOrder:   Int!
+  isActive:    Boolean!
+  countries:   [String!]!
+  methods:     [ShippingMethod!]!
+  createdAt:   Time!
+  updatedAt:   Time!
+}
+
+type ShippingMethod {
+  id:             ID!
+  zoneId:         ID!
+  code:           String!
+  name:           String!
+  calcType:       ShippingCalcType!
+  flatCents:      Int!
+  freeAboveCents: Int!
+  sortOrder:      Int!
+  isActive:       Boolean!
+  # "all" (offered to every country the zone covers) or "specific"
+  # (only allowedCountries). Layered on top of the zone.
+  countryMode:      String!
+  allowedCountries: [String!]!
+  createdAt:      Time!
+  updatedAt:      Time!
+}
+
+input CreateShippingZoneInput {
+  channelId: ID!
+  code:        String!
+  name:        String
+  sortOrder:   Int
+  isActive:    Boolean
+  countries:   [String!]
+}
+
+input UpdateShippingZoneInput {
+  id:        ID!
+  code:      String
+  name:      String
+  sortOrder: Int
+  isActive:  Boolean
+  countries: [String!]
+}
+
+input CreateShippingMethodInput {
+  zoneId:         ID!
+  code:           String!
+  name:           String
+  calcType:       ShippingCalcType!
+  flatCents:      Int
+  freeAboveCents: Int
+  sortOrder:      Int
+  isActive:       Boolean
+  countryMode:      String
+  allowedCountries: [String!]
+}
+
+input UpdateShippingMethodInput {
+  id:             ID!
+  code:           String
+  name:           String
+  calcType:       ShippingCalcType
+  flatCents:      Int
+  freeAboveCents: Int
+  sortOrder:      Int
+  isActive:       Boolean
+  countryMode:      String
+  allowedCountries: [String!]
+}
+
+# A registered shipping carrier with its per-channel config. The built-in zones/methods engine is the "builtin" carrier; plugin carriers register additional slugs. carrierSlug + the (carrierSlug, methodCode) selection at checkout identify a carrier. Credentials (API keys) are edited via Settings → Shipping → <carrier>, not here.
+type ShippingCarrierAdmin {
+  carrierSlug:      String!
+  displayName:      String!
+  isEnabled:        Boolean!
+  sortOrder:        Int!
+  # "all" (ships everywhere) or "specific" (only allowedCountries).
+  countryMode:      String!
+  allowedCountries: [String!]!
+  # Capability flags from the carrier's interface implementation.
+  supportsTracking: Boolean!
+  supportsLabels:   Boolean!
+}
+
+# An admin-defined carton for cartonization. The packer bins cart/order items into these boxes so weight/dimension-based carriers rate real multi-parcel shipments. maxWeightGrams is the GROSS limit (contents + boxWeightGrams tare); 0 = unlimited.
+type ShippingBox {
+  id:             ID!
+  channelId:      ID!
+  code:           String!
+  name:           String!
+  innerLengthMm:  Int!
+  innerWidthMm:   Int!
+  innerHeightMm:  Int!
+  maxWeightGrams: Int!
+  boxWeightGrams: Int!
+  isActive:       Boolean!
+  sortOrder:      Int!
+  createdAt:      Time!
+  updatedAt:      Time!
+}
+
+input ShippingBoxInput {
+  channelId:      ID!
+  code:           String!
+  name:           String
+  innerLengthMm:  Int!
+  innerWidthMm:   Int!
+  innerHeightMm:  Int!
+  maxWeightGrams: Int
+  boxWeightGrams: Int
+  isActive:       Boolean
+  sortOrder:      Int
+}
+
+extend type Query {
+  shippingZones(channelId: ID!): [ShippingZone!]!
+  shippingZone(id: ID!): ShippingZone
+  # Every registered carrier with its per-channel enable/sort/country config.
+  # A carrier not yet synced reports isEnabled=false (except builtin), countryMode="all".
+  shippingCarriers(channelId: ID!): [ShippingCarrierAdmin!]!
+  # The channel's cartons (active + inactive). Empty = cartonization off.
+  shippingBoxes(channelId: ID!): [ShippingBox!]!
+}
+
+extend type Mutation {
+  createShippingZone(input: CreateShippingZoneInput!): ShippingZone!
+  updateShippingZone(input: UpdateShippingZoneInput!): ShippingZone!
+  deleteShippingZone(id: ID!): Boolean!
+
+  createShippingMethod(input: CreateShippingMethodInput!): ShippingMethod!
+  updateShippingMethod(input: UpdateShippingMethodInput!): ShippingMethod!
+  deleteShippingMethod(id: ID!): Boolean!
+
+  # Create or update a carton (keyed on channel + code).
+  upsertShippingBox(input: ShippingBoxInput!): ShippingBox!
+  deleteShippingBox(id: ID!): Boolean!
+
+  setShippingCarrierEnabled(channelId: ID!, carrierSlug: String!, enabled: Boolean!): ShippingCarrierAdmin!
+  # mode is "all" or "specific"; countries is the allow-list (ignored when "all").
+  setShippingCarrierCountries(channelId: ID!, carrierSlug: String!, mode: String!, countries: [String!]!): ShippingCarrierAdmin!
+}

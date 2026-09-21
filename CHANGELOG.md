@@ -9,6 +9,245 @@ The release process, and which version number means what, is in
 
 ## [Unreleased]
 
+### Changed
+
+- **The Signals suite is its own Go module.** `apps/backend/signals` holds the event spine and its engines,
+  Lens, Synapse's traits and segments, Prism, the event destinations, the beacon surface and the wire
+  contract's server, with a `go.mod` that requires core's by relative path. Core cannot import it
+  back: the dependency points one way, and Go's `internal/` rule now enforces it at compile time.
+  What the suite needs of core sits beside `internal/` - `txrunner`, `cache`, `secrets`, `urlguard` and
+  `otelx` moved up whole, and two leaves were split out for it: `dbconn` (pool opening, out of
+  `internal/db`) and `objstore` (the S3 client, out of `internal/media`); what only the suite uses -
+  `geo`, `uaclass` and the `archivefile` writer - moved into the suite with it. The
+  suite's settings are declared in core's `config` package beside the sections that already were, so
+  both processes compile one definition of each. The suite process opens no commerce database any
+  more: `DATABASE_URL` is not read and `/healthz` pings the signals database alone. Deploys get a
+  second image, `skelet-signals:prod` (`SIGNALS_IMAGE`), which the `signals`, `ingest` and
+  `clickhouse-migrate` services run; the backend image no longer carries those binaries or the
+  ClickHouse schema. Two behaviours moved with the boundary. A merchant's CDP audiences are unioned
+  into a customer's segments by core, where the provider rows are, so the beacon surface's
+  segment-targeted experiments now see the suite's native audiences only. And the GDPR scrub of the
+  send log runs in core beside the identity erasure - it had silently stopped running once the suite
+  ran as its own process, since that process was never handed the send log. The `segment.refreshed`
+  webhook event is gone; nothing had published it since segments moved onto the suite. `bin/go
+  --signals`, `bin/test` and `bin/lint` cover the second module, and `bin/test-e2e` starts a Signals
+  process beside core's scenarios and runs the suite's own.
+
+- **The email send log and the suppression list are the suite's, and core reaches them over the
+  contract.** Campaigns and flows report a send with the id core mints, so the tracking token names a
+  record the suite already holds; the open pixel and click redirect hand the suite the id and get the
+  record back, classified against when the send went out, so the "human open" decision moved with the
+  log. The suppression list is a `SuppressionService` on the contract: the send loops, back-in-stock,
+  the bounce webhook and the deliverability screen all call it as core, and a read fails open so a
+  suite blip never stalls a send. The send-log retention sweep is the suite's `PruneSendLog`, still
+  on core's schedule, and `signals/analytics/send_log_retention_months` moved into the suite's
+  settings store with it - a customised value on core's side reads as the default until set again. A
+  flow's `email_activity` condition and a campaign's A/B winner read the suite's tallies over the
+  contract too. Core opens no query against `email_sends` or `email_suppressions` any more.
+
+- **Pulse - the email builder, automation flows and campaigns - runs in the Signals suite, and core
+  opens no signals database at all.** The three engines moved into `apps/backend/signals` whole, with the
+  send tracker, the SMS gateway and their queries, and the signals migration stream moved with them
+  to `apps/backend/signals/internal/db/migrations`. Core's `SIGNALS_DB_URL` pool, read pool and generated
+  `signalsdb` package are gone; the one place core still names that database is the nightly
+  `pg_dump`, which is a DSN and not a query. Everything the dashboard does in Pulse now relays over
+  three new contract services (`FlowService`, `CampaignService`, `EmailBuilderService`) with the
+  caller's own grants, and the GraphQL surface is unchanged. Core raises the moments a flow can start
+  on - an order placed or shipped, a password reset, a form submitted, a product back in stock, a cart
+  or a browse abandoned, a segment entered - through `Enroll`, and sends its own transactional mail
+  when no flow takes one, exactly as before. The engine ticks are two maintenance calls
+  (`AdvanceFlowRuns`, `ProcessDueCampaigns`) that core's scheduler still drives, so the jobs panel
+  keeps their history. The open pixel and click redirect (`/e/o`, `/e/c`) are served by `cmd/signals`
+  beside the send log they name and proxied there by `app` per the new `SIGNALS_URL`; the
+  unsubscribe link stays in core, where consent lives, verified with the same shared token. Who a
+  customer is and what shop a channel is come off the rosters core pushes - the channel roster now
+  carries the customer-facing store name from `general/branding/store_name` - so the engines read no
+  settings of core's; the deliverability switches moved into the suite's settings store with them.
+  Two seams reshaped with the move. The builder's products block reads live catalog data over core's
+  public storefront API (`CORE_FRONT_API_URL`, a new `productsBySkus` query beside `productsByIds`),
+  and renders nothing when that is unset. And the `remote_action` flow node is gone, with the
+  `flow_action` remote-provider kind (wire contract `0.2.0`): the engine can no longer reach core's
+  provider rows, and a node that waits on an external decision belongs in a suite that can. Saved
+  flows carrying one skip the node. The `email` and `emailtrack` packages moved beside `internal/` for
+  the suite to import, and the `flows`, `campaigns` and `emails` permission groups are registered in
+  core's defaults rather than by the packages that left.
+
+- **Each process backs up the database it holds.** The nightly `db-backup` job dumps the commerce
+  database from `app`, then asks the `signals` process over the contract (`BackupDatabase`) to dump
+  its own under the same timestamp, so the pair still restores together; `skelet db backup` does the
+  same by hand, and `skelet db restore` hands a `skelet-signals-*` key to the suite (`RestoreDatabase`)
+  rather than opening that database itself. The `backup` package moved beside `internal/` for the
+  suite to import, the Signals image carries `postgresql18-client`, and `SIGNALS_DIRECT_URL` is read
+  by the `signals` process now - core reads no signals database variable at all, and `app` and
+  `worker` no longer carry the suite's environment in the dev compose. Set the `BACKUP_*` variables
+  on both processes; the shared prod env file already does.
+
+- **The commerce schema baseline is regenerated without the Pulse tables**, which its first version
+  created only for later migrations to drop. The stream is `000001_schema`, `000002_reference_data`
+  and `000003_drop_legacy_pulse_tables` - a no-op on a fresh install, and the drop for a database
+  built from the earlier baseline. A development database on the old stream needs
+  `bin/migrate force 3`; `bin/test-e2e` rebuilds its own. The `graphqlx` error surface for a Signals
+  GraphQL API that was never served is gone, and core's roster source queries live in `roster.sql`.
+
+- **The hand-off to the suite survives the suite being slow or down.** Every call core makes on the
+  contract carries a deadline - ten seconds unless the caller set one, thirty minutes for the
+  maintenance calls - so a hung suite cannot hang a password reset. `Enroll` names the moment it
+  raises (`idempotency_key`: the order, the one-time link, the cart's episode, the registration) and
+  the suite keeps that key on the run under a unique index, so the same moment asked twice starts one
+  run per flow and answers the same count; core asks a second time before reading an unreachable
+  suite as "no flow took it", and the suite finishes an account mail's inline send even when the
+  caller's deadline has passed. The customer events that keep the suite's roster current -
+  registered, updated, profile updated, deleted - and every consent change ride the outbox rather
+  than the fire-and-forget bus, so a suite that was down gets the push, and the welcome flow, on the
+  relay's next pass. The abandoned-cart and browse-abandonment jobs stamp a customer as told only
+  once the suite has answered for them, instead of on the way past. With OpenTelemetry on, a trace
+  that began at core's HTTP edge continues into the suite's handler.
+
+- **The engines drain instead of ticking once.** A scheduler tick used to advance one batch of a
+  hundred flow runs and send five hundred recipients per campaign, whatever the minute had left -
+  thirty thousand marketing mails an hour at best. `AdvanceFlowRuns` and `ProcessDueCampaigns` now
+  take a budget, and the suite keeps claiming batches and sending passes until nothing is pending or
+  the budget is spent; core's ticks grant forty-five seconds of their minute. Throughput follows the
+  relay and the database rather than a batch size.
+
+- **The builder's products block is resolved once per send, not once per recipient.** The suite keeps
+  a block's cards for five minutes, so a campaign of fifty thousand with a product row makes a handful
+  of storefront requests instead of fifty thousand, and it signs those requests with the service
+  secret - core's per-IP limiter on the storefront API no longer counts the suite as a flood.
+
+- **Whoever enters a segment starts their flow in the suite.** The segment refresh used to hand the
+  new members back to core so core could enrol them over the contract again. The engine is in the
+  suite, so it enrols them there and then; the response's `entered` list is deprecated and empty.
+
+- **Starter content is an admin action.** The emails hub has an "Add starter content" button: it
+  creates an editable email for every transactional slot, an active flow per transactional trigger
+  that sends it, and the reusable blocks, and leaves anything the channel already has alone. Nothing
+  seeds a channel on its own, since an active order_placed flow moves the receipt out of core's
+  templates - that is the operator's call. `seedPulseStarterContent` on the admin API,
+  `FlowService.SeedStarterContent` on the contract.
+
+- **The ingest tier serves `/e` beside `/t`.** The open pixel and click redirect are mounted on
+  `cmd/ingest` too, so once beacons route to a scaled-out ingest the tracking routes can follow.
+
+- **`apps/backend/` is the server-side umbrella, with three Go modules side by side.** Core moved to
+  `apps/backend/core` (module `github.com/skeletg/skelet/apps/backend/core`), the suite to
+  `apps/backend/signals`, and the plugin SDK is its own module at `apps/backend/sdk`, where it already
+  was, so its import path and every plugin repository's `require` are unchanged. Core requires the SDK
+  through a relative `replace`, the suite requires both the same way, and each production image builds
+  with `apps/backend` as its context. The dev containers mount `apps/backend` at `/var/www/backend` and
+  work from `core/` or `signals/` under it; `bin/go`, `bin/lint`, `bin/sqlc`, CI and the plugin
+  workspace follow. The SDK's API gate runs from its own module and still compares against tags from
+  before the split.
+- **The wire contract is one directory.** The code buf generates from `proto/` now lands in
+  `core/signalsapi/v1`, under the hand-written vocabulary, and the `signalspb` directory is gone.
+- **The event spine lives in ClickHouse, full stop.** The Postgres spine driver is gone with its
+  `SIGNALS_ENGINE` switch: `analytics_events`, `analytics_identities` and the Lens heatmap grid
+  leave the Signals database, every analytics read has one implementation, and the suite refuses
+  to boot without `SIGNALS_CH_URL`. ClickHouse comes with the `signals` compose profile in dev and
+  is a fixed part of the prod stack, with `CLICKHOUSE_PASSWORD` generated by `bin/setup`; the small
+  stack gains an opt-in `signals` profile that brings the process and its ClickHouse. The nightly
+  Signals backup now also runs `BACKUP DATABASE` into the shared bucket, pruned by the same
+  `BACKUP_KEEP`, and `skelet db backup` reports the copy. Gone with the second engine: the
+  `BackfillLensRollups` RPC and `skelet lens backfill-rollups`, the Postgres-to-ClickHouse backfill
+  script, and the setup question about the spine.
+- **Review pass over the branch.** A per-customer read on the contract gained the channel gate its
+  neighbours have, and a second stopped skipping that gate when the roster lookup failed. The suite's
+  retention and segment jobs now register only where there is a suite to ask, instead of failing every
+  tick with it switched off, and the `/t` and `/e` proxies follow the same switch rather than their
+  URLs alone. Transactional sends carry their recipient, message key and order id to the spine again;
+  a consent change and the event carrying it now commit together; a deleted customer no longer poisons
+  the roster outbox; suite-backed settings read as their registered defaults when the suite is
+  unreachable instead of failing the whole settings page; a disabled suite reports as off rather than
+  red on the health page; browse candidates the commerce check excludes are marked told; the abandoned
+  roster stream releases its context; and the storefront catalog cache evicts expired entries first.
+
+- **The spine's ClickHouse starts with whatever needs it.** In dev it rides the `signals`, `ingest`
+  and `logs` profiles rather than the suite's alone, so a beacon tier or a log search brings its own
+  server up; in production it joins the `bundled` datastores beside Postgres and Valkey, so pointing
+  `SIGNALS_CH_URL` at a managed instance drops the container the way the others do. The small stack's
+  suite profile now also tells core where to dial it.
+
+- **The production app tier carries `JOBS_EXTERNAL` itself.** The stack always runs a worker, so the
+  compose file sets it inline on `app` rather than depending on someone remembering it in
+  `env/prod.env`. Every background loop leases what it claims, so an app that also polled was wasted
+  connections rather than duplicated work, and the template said otherwise.
+
+- **Session replays and page snapshots live in object storage only.** The `signals/lens/blob_storage`
+  setting is gone with the `bytea` columns behind it: a replay chunk and a DOM snapshot are an object
+  and a key, which is what the retention sweep already deleted them as. Gone with the second home: the
+  `MigrateLensBlobs` and `GetLensBlobStatus` contract methods, `skelet lens migrate-blobs` and
+  `skelet lens blob-status` (which leaves the `lens` command group empty, so it goes too). Without
+  `S3_BUCKET_NAME` the suite still boots and every other Lens surface works, but recordings and
+  heatmap snapshots are dropped at ingest and it says so at boot.
+
+- **Core's shared infrastructure lives under `apps/backend/core/lib/`.** The packages core keeps outside
+  `internal/` so the Signals module can import them - `apperr`, `auth`, `config`, `applog`, `envcheck`,
+  `httpx`, `observability`, `ratelimit`, `testdb`, `tx`, `cache`, `secrets`, `urlguard`, `otelx`,
+  `pgconn`, `objstore`, `email`, `emailtrack` and `backup` - moved
+  from the module root into one directory, so the root is back to the entrypoints, the domain, the
+  surfaces, the plugins, the SDK and the wire contract. `lib/` is plumbing with no commerce knowledge,
+  and a lint rule keeps it that way by refusing imports of `internal/` from it, with no exceptions:
+  core's settings store became `internal/configstore` behind `config.Repository`, its token and
+  refresh persistence and the admin session log became `internal/authstore` behind the `auth`
+  interfaces (`RefreshStore` takes a `SessionLog` and a `Publisher` now, and lists `auth.AdminSession`
+  rows), the customer guards that read the resolved store moved to `internal/channel`, the Tools-page
+  registrations for config and the cache moved to `wiring`, Sentry's wiring folded into
+  `observability`, and `graphqlx` stays in `internal/` as the gqlgen surface only core serves. The
+  suite has a test that pins its doors into core to `lib/`, `sdk/`
+  and the contract. Import paths change accordingly; the SDK's did not, so plugin repositories are
+  untouched.
+
+- **The signals migration stream is squashed to a baseline**, the way commerce was: `000001_schema`
+  and `000002_reference_data` (the two system email groups), generated from a fully migrated database
+  and proven identical to the fourteen-file stream by dumping both. The dated send-log partitions
+  are left out of the dump and created relative to the install date instead. A development database
+  on the old stream needs `bin/migrate-signals force 2`; `bin/test-e2e` rebuilds its own.
+
+- **The Signals processes have no switch of their own.** `SIGNALS_ENABLED` is core's, deciding whether
+  core dials the suite; the suite's copy of it could leave a deployed suite silently dropping every
+  write while core kept sending them. The recorder, the flow engine, the segment reads and the
+  beacon surface no longer carry a disabled state, and the health probe reports reachability.
+
+### Removed
+
+- **Database backups.** skelet no longer takes them: gone are the `lib/backup` package, the nightly
+  `db-backup` scheduled job, the `skelet cli db backup|backups|restore` commands, the backups health
+  group, the ClickHouse spine's `BACKUP DATABASE` job, and the contract's `BackupDatabase` and
+  `RestoreDatabase` RPCs. A logical `pg_dump` taken from inside the application is right for a small
+  store and quietly stops being right as one grows - it slows down, holds a snapshot against vacuum
+  for the length of the run, and restores by rebuilding every index - and the job's own 30-minute
+  timeout made that a 3am failure rather than a warning. Backups belong to the infrastructure now:
+  point-in-time recovery on managed Postgres, or pgBackRest or wal-g against the bundled containers,
+  with the spine taking its own `BACKUP DATABASE`. [docs/backups.md](docs/backups.md) says what needs
+  covering. `BACKUP_ENCRYPTION_PASSPHRASE` and `BACKUP_HEARTBEAT_URL` are gone; the rest of the
+  `BACKUP_S3_*` variables stay, because the analytics retention archive writes to that bucket.
+  `./skelet db export` and `db import` are untouched - they were always local dev snapshots.
+
+- Code nothing reached any more, found by a reachability pass over both modules with every entrypoint
+  as a root: the suite's pre-contract trigger vocabulary (`flow.IsAuthTrigger`, `TransactionalTriggers`,
+  `IsDefaultTransactional`, `WiredTriggerTypes`) and `campaign.CampaignMergeTags`, which `signalsapi`
+  replaced; core's `signalsclient.NewSendID`, since the suite mints send ids; the HTTP half of service
+  auth (`auth.ServiceMiddleware`, `auth.ServiceSessionGuard`) that the gRPC interceptors replaced;
+  `backup.ArchiveStorage`; the `apperr` class predicates other than `IsNotFound`, in favour of
+  `ClassOf`; `config.FindSection` and `FindGroup`; the tax rate-table CSV parser and the two tax
+  registry helpers; `payment.RegisteredSlugs`; `pluginmigrate.Runner.Up`; `review.SignVoterToken`
+  (the storefront mints, core only verifies - the tests keep a copy); and the action argument readers
+  `Args.Int` and `Args.Bool`.
+
+### Security
+
+- **Logging out logs out of the suite too.** The wire contract's interceptor now consults the list of
+  killed admin sessions that core publishes on logout, "log out other devices" and session deletion, so
+  a service token minted just before is refused for the rest of its two minutes instead of honoured.
+  The suite reads the list off the primary Valkey (`VALKEY_URL`), where core writes it; without one the
+  check is skipped, as it is on core's own surface.
+
+- **The wire contract has its own secret.** Core signs its calls with `SIGNALS_SERVICE_SECRET` and the
+  suite verifies with the same value; `JWT_SECRET` signs sessions and nothing else. Until now one
+  secret did both, and compose hands `JWT_SECRET` to the storefront too, so a storefront that held it
+  could mint a service token and call the contract as core. Production refuses the new secret empty,
+  short, or equal to `JWT_SECRET`, and core refuses to boot with a suite address and no secret. The
+  root `.env`, both compose files and `bin/test-e2e` carry it.
 
 ### Fixed
 

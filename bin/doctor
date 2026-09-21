@@ -58,7 +58,7 @@ fi
 
 echo "==> shape"
 if [ -f .skelet-profile ]; then
-    pass "target=$SKELET_TARGET signals=$SKELET_SIGNALS ai=$SKELET_AI search=$SKELET_SEARCH spine=$SKELET_SPINE"
+    pass "target=$SKELET_TARGET signals=$SKELET_SIGNALS ai=$SKELET_AI search=$SKELET_SEARCH"
     pass "gateways: ${SKELET_GATEWAYS:-none}"
     # The env file is the truth the backend reads - a profile that disagrees with it is the
     # confusing state, since the dashboard shows one shape and the API serves another
@@ -100,9 +100,8 @@ else
     note "nothing running - start with bin/dev"
 fi
 
-# The ClickHouse spine is the one engine choice needing a container the default stack doesn't
-# run - a config saying clickhouse with nothing listening writes analytics into a hole
-if grep -qiE '^[[:space:]]*SIGNALS_ENGINE[[:space:]]*=[[:space:]]*clickhouse' .env 2>/dev/null; then
+# The spine lives in ClickHouse - with the suite on, a missing server or schema means the beacons write into a hole
+if [ -n "$running" ] && ! grep -qiE '^[[:space:]]*SIGNALS_ENABLED[[:space:]]*=[[:space:]]*(false|0|f|no|off)[[:space:]]*$' env/go.env 2>/dev/null; then
     # Exact element match - `grep -w clickhouse` also accepts clickhouse-migrate, since a
     # hyphen counts as a word boundary, and that one-shot exits while the server may not exist
     case " $running " in
@@ -114,7 +113,16 @@ if grep -qiE '^[[:space:]]*SIGNALS_ENGINE[[:space:]]*=[[:space:]]*clickhouse' .e
             else
                 bad "clickhouse is up but signals.analytics_events is missing - see bin/logs clickhouse-migrate"
             fi ;;
-        *)  bad "SIGNALS_ENGINE=clickhouse but no clickhouse container - the spine has nowhere to write (bin/dev)" ;;
+        *)  bad "SIGNALS_ENABLED is on but no clickhouse container - the spine has nowhere to write (bin/dev)" ;;
+    esac
+fi
+
+# The suite is its own process, and core dials it whenever the switch is on - a stack without it
+# answers every Pulse, Lens, Synapse and Prism screen with "out of reach"
+if [ -n "$running" ] && ! grep -qiE '^[[:space:]]*SIGNALS_ENABLED[[:space:]]*=[[:space:]]*(false|0|f|no|off)[[:space:]]*$' env/go.env 2>/dev/null; then
+    case " $running " in
+        *" signals "*) pass "signals process up" ;;
+        *) bad "SIGNALS_ENABLED is on but no signals container - core has nowhere to dial (bin/dev starts it)" ;;
     esac
 fi
 
@@ -136,9 +144,7 @@ for d in apps/channels/*/; do
         fi
     fi
 done
-# Ports this project actually publishes. Probing localhost alone can't tell our stack from a
-# second checkout of the same repo - and reporting another install's services as healthy is worse
-# than reporting nothing, since it hides that this one never came up
+# Ports this project actually publishes. Probing localhost alone can't tell our stack from a second checkout of the same repo - and reporting another install's services as healthy is worse than reporting nothing, since it hides that this one never came up
 ours="$(docker compose ps --format '{{.Publishers}}' 2>/dev/null | grep -oE '[0-9]+' | sort -un | tr '\n' ' ')"
 for spec in "${specs[@]}"; do
     port="${spec%%:*}"; name="${spec#*:}"

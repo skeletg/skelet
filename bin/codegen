@@ -18,16 +18,17 @@ done
 
 # What --check diffs - files mixing hand-written code (*.resolvers.go *.gql.ts) stay out
 GENERATED_PATHS=(
-    'apps/backend/plugins/firstparty/'
-    'apps/backend/graph/admin/plugin_resolvers.go'
-    'apps/backend/graph/front/plugin_resolvers.go'
-    'apps/backend/internal/db/sqlc/'
-    'apps/backend/internal/signalspb/'
-    'apps/backend/graph/admin/generated.go'
-    'apps/backend/graph/admin/model/'
-    'apps/backend/graph/front/generated.go'
-    'apps/backend/graph/front/model/'
-    'apps/backend/internal/remoteprovider/contract/'
+    'apps/backend/core/plugins/firstparty/'
+    'apps/backend/core/graph/admin/plugin_resolvers.go'
+    'apps/backend/core/graph/front/plugin_resolvers.go'
+    'apps/backend/core/internal/db/sqlc/'
+    'apps/backend/signals/internal/db/sqlc/'
+    'apps/backend/core/signalsapi/v1/'
+    'apps/backend/core/graph/admin/generated.go'
+    'apps/backend/core/graph/admin/model/'
+    'apps/backend/core/graph/front/generated.go'
+    'apps/backend/core/graph/front/model/'
+    'apps/backend/core/internal/remoteprovider/contract/'
     'apps/dashboard/nginx.conf.template'
     'deploy/caddy/Caddyfile'
     'docs/permissions.md'
@@ -51,17 +52,14 @@ bin/buf generate --template /var/www/proto/buf.gen.yaml /var/www/proto
 # Before gqlgen: the enabled set in plugins/plugins.json decides which plugins compile in, and is where the
 # SDL list should be driven from too, instead of gqlgen globbing every directory under plugins/
 echo "==> plugin set"
-(cd apps/backend && go run ./cmd/plugingen)
+(cd apps/backend/core && go run ./cmd/plugingen)
 
 echo "==> sqlc generate"
 bin/sqlc generate
 
-# Prune pass BEFORE gqlgen: a removed or disabled plugin leaves delegation files referencing model
-# types its SDL took with it, and gqlgen type-checks the graph package before plugingraph would clean
-# them - plugingraph itself only parses syntax, so it can run against the stale tree; the post-gqlgen
-# run below then regenerates everything from the fresh schema
+# Prune pass BEFORE gqlgen: a removed or disabled plugin leaves delegation files referencing model types its SDL took with it, and gqlgen type-checks the graph package before plugingraph would clean them - plugingraph itself only parses syntax, so it can run against the stale tree; the post-gqlgen run below then regenerates everything from the fresh schema
 echo "==> plugin graph (prune)"
-(cd apps/backend && go run ./cmd/plugingraph)
+(cd apps/backend/core && go run ./cmd/plugingraph)
 
 echo "==> gqlgen admin"
 bin/gqlgen generate --config gqlgen.admin.yml
@@ -69,27 +67,24 @@ bin/gqlgen generate --config gqlgen.admin.yml
 echo "==> gqlgen front"
 bin/gqlgen generate --config gqlgen.front.yml
 
-# Plugin SDL is merged by the globs in both gqlgen configs above. gqlgen stubs each plugin field; this
-# turns those stubs into delegation through the runtime registry and writes the matching interfaces, so a
-# plugin author writes SDL and a resolver in their own package and touches no core Go at all
+# Plugin SDL is merged by the globs in both gqlgen configs above. gqlgen stubs each plugin field; this turns those stubs into delegation through the runtime registry and writes the matching interfaces, so a plugin author writes SDL and a resolver in their own package and touches no core Go at all
 echo "==> plugin graph"
-(cd apps/backend && go run ./cmd/plugingraph)
+(cd apps/backend/core && go run ./cmd/plugingraph)
 
 # The published remote-provider contract, read out of the adapter structs themselves - a
 # renamed payload type fails here instead of silently leaving integrators a stale schema
 echo "==> remote provider contract"
-(cd apps/backend && go run ./cmd/providerschema)
+(cd apps/backend/core && go run ./cmd/providerschema)
 
 # The generated reference tables in docs/ - permissions, webhook events, settings - read back out of the code-defined
 # registries after every domain init() has run, so each published list is whatever the server actually honours
 echo "==> docs reference tables"
-(cd apps/backend && go run ./cmd/docsref)
+(cd apps/backend/core && go run ./cmd/docsref)
 
-# The nginx and Caddy copies of the CSP + Permissions-Policy, rewritten from the constants in
-# internal/httpx/securityheaders.go - bin/contract-check re-verifies the same equality with plain
-# greps, so a hand-edited copy still fails CI's toolchain-free gates job
+# The nginx and Caddy copies of the CSP and Permissions-Policy, rewritten from the constants in lib/httpx/securityheaders.go
+# bin/contract-check re-verifies the same equality with plain greps, so a hand-edited copy still fails CI's toolchain-free gate
 echo "==> security headers"
-(cd apps/backend && go run ./cmd/secheadgen)
+(cd apps/backend/core && go run ./cmd/secheadgen)
 
 # The TS steps introspect a running server, so CI stops here - everything above needs
 # nothing but Go and a container, which is the half that can gate every push

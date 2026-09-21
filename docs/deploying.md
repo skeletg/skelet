@@ -7,25 +7,29 @@ service to loopback, so something has to sit in front and terminate TLS.
 
 `docker-compose.small.yml` is the minimum deployable tenant: one app container
 running every backend role (API, WS, media transforms, scheduler, webhook
-delivery, outbox relay, Signals jobs) and one Postgres holding both schemas as
-two databases. No Valkey, no NATS, no ClickHouse, no OpenSearch. Its ports are
-offset (18080/18081/13000/15432) so it runs beside the dev stack.
+delivery, outbox relay) and one Postgres. No Valkey, no NATS, no OpenSearch, and
+Signals off. `--profile signals` adds the suite: its process, ClickHouse for the
+event spine, and the two migrations, with `SIGNALS_ENABLED=true` in
+`env/small.env`. Its ports are offset (18080/18081/13000/15432) so it runs
+beside the dev stack.
 
 ```bash
 cp env/small.env.example env/small.env
 cp env/small-vetrina-demo.env.example env/small-vetrina-demo.env
-cp .env.example .env    # JWT_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD
+cp .env.example .env    # JWT_SECRET, SIGNALS_SERVICE_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD
 docker compose -f docker-compose.small.yml up -d
 ```
 
 `docker-compose.prod.yml` is the full shape: the tiers split into their own
 containers (worker, media, signals, ingest), pgbouncer per database, the split
-Valkey pair, and the optional ClickHouse and NATS profiles. Same env contract -
-secrets in the root `.env`, everything else in `env/prod.env`. `bin/push-images`
-builds and pushes the three images it reads.
+Valkey pair, ClickHouse for the spine, and the optional NATS profile. Same env contract -
+secrets in the root `.env`, everything else in `env/prod.env`. `./skelet release`
+builds and pushes the four images it reads: the backend (`APP_IMAGE`, also the
+worker and media tiers), the Signals module (`SIGNALS_IMAGE`, the signals and
+ingest tiers plus the ClickHouse schema), the dashboard and each storefront.
 
 Scaling from one to the other is that env changing: set `VALKEY_URL` for
-multi-replica, then `JOBS_EXTERNAL` / `SIGNALS_JOBS_EXTERNAL` to split the
+multi-replica, then `JOBS_EXTERNAL` to split the
 background tiers back out.
 
 The root `.env` is the only file docker compose interpolates, which is why the
@@ -79,14 +83,14 @@ beside the dev stack, but the in-network ports don't move):
 | `admin.` | `dashboard:8080` | the admin SPA - its own nginx proxies `/api/*` to the backend in-network, so it needs no API host |
 | `api.` | `app:8080` | **inbound payment webhooks.** Providers POST to `/api/v1/payments/webhook/<provider>`, which is the URL you register with Stripe/Braintree. Skip this host and captures never settle |
 
-Optional, and only if you've enabled those tiers: route `/media/t/*` at
-`media:8083` and `/t/*` at `ingest:8091`. Both paths are served by `app` either
-way, so routing them is a scaling choice, not a requirement.
+`/t/*` is the Signals tier's, and `app` proxies it there per `SIGNALS_INGEST_URL`
+- one public entry point, no routing needed. Route `/t/*` at `ingest:8091` to skip
+the hop once that tier is scaled out, and `/media/t/*` at `media:8083` likewise.
 
 HSTS belongs here and nowhere else. The backend and the dashboard's nginx each
 ship their own copy of the CSP and Permissions-Policy so a deployment without an
 edge still gets them, but they deliberately omit HSTS - asserting it over plain
-HTTP would pin a browser to HTTPS for a year. `bin/contract-check` fails when
+HTTP would pin a browser to HTTPS for a year. `./skelet check contracts` fails when
 those copies drift apart.
 
 **The bundled option.** `deploy/caddy/Caddyfile` has all of the above plus
@@ -110,15 +114,11 @@ deriving your shop's.
 ingest tiers each serve `/healthz`. The compose healthchecks already point at all
 of these.
 
-**Backups.** The `db-backup` scheduled job streams a nightly `pg_dump` of both
-databases (03:00) to a dedicated S3-compatible bucket, encrypted with age when
-`BACKUP_ENCRYPTION_PASSPHRASE` is set. Configured ONLY via the `BACKUP_S3_*`
-environment variables, deliberately not admin config, so no admin role can
-redirect dumps; setting `BACKUP_S3_BUCKET` turns it on. `skelet db backup` runs
-one on demand, `skelet db backups` lists them, `skelet db restore <key> --yes`
-restores one. Set `BACKUP_HEARTBEAT_URL` so a dead-man's-switch monitor catches
-the job never running, which failure alerting structurally can't. The restore
-procedure and what isn't in a dump: [backups.md](backups.md).
+**Backups.** skelet takes none - that belongs to your infrastructure. Turn on
+point-in-time recovery if you're on managed Postgres, or run pgBackRest or wal-g
+against the bundled containers, and back the ClickHouse spine up with its own
+`BACKUP DATABASE`. What needs covering and what doesn't:
+[backups.md](backups.md).
 
 **Tracing and metrics.** OpenTelemetry, opt-in - nothing is exported until you
 set the `OTEL_*` vars. Sentry activates when a DSN is set. In dev, `docker
@@ -127,4 +127,4 @@ the box.
 
 **Logs.** Container stdout is capped at 10 MB x 3 per service. For durable,
 searchable history the `logs` profile ships stdout through Vector
-(`deploy/vector/`) into ClickHouse - query it with `bin/logs-query`.
+(`deploy/vector/`) into ClickHouse - query it with `./skelet logs query`.

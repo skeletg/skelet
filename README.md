@@ -25,7 +25,7 @@ cards, loyalty, a blog and a block-based CMS. Plus **Signals**, a built-in
 analytics stack with four surfaces - Lens for web, Synapse for customers, Pulse for
 email, Prism for experiments - writing to its own database.
 
-The rest is plugins: Go compiled into the binary, added with `bin/cli plugin add`,
+The rest is plugins: Go compiled into the binary, added with `./skelet cli plugin add`,
 each one its own versioned module. Payment gateways ship that way, and so does B2B -
 company accounts, credit lines, contract pricing and quotes. See
 [docs/plugins.md](docs/plugins.md).
@@ -50,29 +50,18 @@ Open <http://localhost:5173> and sign in. GraphQL playgrounds are at
 `:8080/playground/{admin,front}`.
 
 `./skelet` is the front door - run it bare to list every command, `./skelet help <command>`
-to explain one. Every verb is still a script in `bin/`, unchanged and callable directly.
+to explain one. The scripts under `bin/` are what it runs.
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    D["apps/dashboard<br/>React + Vite"]
-    S["apps/channels/*<br/>Next.js"]
-    B["apps/backend - Go, gqlgen, sqlc<br/>/api/admin/graphql · /api/front/graphql<br/>one image, five roles:<br/>server · worker · media · signals · ingest"]
-    PG[("Postgres<br/>commerce")]
-    SG[("Postgres<br/>signals")]
-    VK[("Valkey<br/>tokens")]
-    S3[("S3 / Garage<br/>media")]
-    OS[("OpenSearch<br/>search")]
+![Architecture: frontends over two GraphQL endpoints into core, the optional Signals suite beside it, each with its own Postgres, Valkey and S3 shared](docs/architecture.png)
 
-    D --> B
-    S --> B
-    B --> PG
-    B --> SG
-    B --> VK
-    B --> S3
-    B --> OS
-```
+**Signals is optional.** `SIGNALS_ENABLED=false` runs the commerce process alone: no suite
+containers, no gRPC client, and the dashboard hides the suite's screens. When it is on, core
+never opens the signals database - everything crosses the gRPC contract, and the suite reads
+core back through the storefront API with a service token. The suite shares Valkey and object
+storage with core, keeps its event spine in ClickHouse, and can put NATS JetStream in front of
+ingestion.
 
 **Two GraphQL endpoints, one backend.** Admin and storefront share a process but have
 entirely separate schemas, generated executables and resolver trees - storefront

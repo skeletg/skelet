@@ -1,0 +1,16 @@
+# Flavor of a configurable product: ATTRIBUTE means variants differ by at least one configurable-option attribute whose value is unique per child
+# LIST means no option attribute at all - the children are a curated list the storefront lets the shopper pick from directly
+enum VariantMode {
+  ATTRIBUTE
+  LIST
+}
+
+extend type Product {
+  # The configurable flavor. Null for non-configurable products.
+  variantMode: VariantMode
+}
+
+extend type Mutation {
+  # Switch a configurable between attribute-driven and list variants. LIST mode requires the product to have no configurable options (remove them first); ATTRIBUTE mode then requires >=1 option before children can be linked.
+  setProductVariantMode(productId: ID!, mode: VariantMode!): Product!
+}

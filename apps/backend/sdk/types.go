@@ -9,8 +9,7 @@ import (
 )
 
 // Auto-prefixes keys with the plugin's own namespace, so a Stripe plugin asks for "api_key" and gets "payment/stripe/api_key"
-// That's ergonomics, NOT a boundary: PluginConfig reads any path, decrypted secrets included, and a Tier 1 plugin is compiled into the process with full privileges regardless - see Manifest.Capabilities for what isolation does and doesn't mean at this tier
-// A channel read falls through to default scope when unset, mirroring internal/config - pass uuid.Nil for default-only
+// Ergonomics, not a boundary: PluginConfig reads any path, decrypted secrets included, and a channel read falls through to default scope when unset
 type ConfigReader interface {
 	Get(ctx context.Context, key string, channelID uuid.UUID) (string, error)
 }
@@ -167,9 +166,7 @@ type WebhookResult struct {
 	// Empty means nothing to publish, and the core returns 204 without touching the order
 	EventName         string
 	ProviderReference string // upstream record id, so subscribers can correlate
-	// Optional movement amount in minor units - set it on captured/refunded events so a PARTIAL capture or refund
-	// settles by amount instead of blindly flipping the whole order's payment status; 0 means the event carries no
-	// amount and the order bridge falls back to name mapping
+	// Optional movement amount in minor units - set it on captured/refunded events so a PARTIAL capture or refund settles by amount instead of blindly flipping the whole order's payment status; 0 means the event carries no amount and the order bridge falls back to name mapping
 	AmountCents  int64
 	CurrencyCode string // ISO 4217, set when AmountCents is
 }
@@ -178,9 +175,7 @@ type WebhookResult struct {
 type WebhookRequest struct {
 	HTTPRequest *http.Request
 	Config      ConfigReader
-	// The channel the push belongs to, when the registered webhook URL carries ?channel=<uuid> -
-	// uuid.Nil otherwise, and config reads then resolve at default scope. Merchants with per-channel
-	// credentials register one URL per channel with the gateway, channel param included
+	// The channel the push belongs to, when the registered webhook URL carries ?channel=<uuid> - uuid.Nil otherwise, and config reads then resolve at default scope. Merchants with per-channel credentials register one URL per channel with the gateway, channel param included
 	ChannelID uuid.UUID
 }
 
@@ -213,11 +208,7 @@ type SyncPaymentResult struct {
 	RawResponse     []byte
 }
 
-// Lets core ASK a gateway where a payment stands rather than only learning from webhooks it may
-// never receive - a redirect or BNPL customer who closes the tab leaves an order that no
-// notification will ever settle
-// Implementing it also collapses the re-fetch each async provider already does by hand inside
-// HandleWebhook and VerifyAuthorization onto one method
+// Lets core ASK a gateway where a payment stands rather than only learning from webhooks it may never receive - a redirect or BNPL customer who closes the tab leaves an order that no notification will ever settle Implementing it also collapses the re-fetch each async provider already does by hand inside HandleWebhook and VerifyAuthorization onto one method
 type PaymentSynchronizer interface {
 	SyncPayment(ctx context.Context, req SyncPaymentRequest) (SyncPaymentResult, error)
 }
@@ -258,7 +249,7 @@ func WithOffline() ProviderOption {
 	}
 }
 
-// Mirrors internal/config, redeclared so plugins don't import internal/* - the host adapter keeps the two in sync by hand
+// Mirrors config, redeclared so plugins don't import internal/* - the host adapter keeps the two in sync by hand
 type ConfigFieldType string
 
 const (
@@ -269,7 +260,7 @@ const (
 	TypeJSON   ConfigFieldType = "json"
 )
 
-// Path is internal/config's "section/group/field" form
+// Path is config's "section/group/field" form
 type ConfigField struct {
 	// Required - an empty or unrecognised value fails boot rather than defaulting to string, since a mistyped TypeSecret would store an API key in plaintext and hand it back through the admin API
 	Type         ConfigFieldType

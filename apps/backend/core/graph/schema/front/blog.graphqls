@@ -1,0 +1,128 @@
+enum BlogPostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+type BlogAuthor {
+  id:           ID!
+  slug:         String!
+  displayName:  String!
+  email:        String
+  content:      BlogAuthorContent
+}
+
+type BlogAuthorContent {
+  locale: String!
+  name:   String!
+  bio:    JSON
+}
+
+type BlogCategory {
+  id:          ID!
+  parent:      BlogCategory
+  slug:        String!
+  urlPath:     String!
+  position:    Int!
+  isPublished: Boolean!
+  seoNoindex:  Boolean!
+  content:     BlogCategoryContent
+  children:    [BlogCategory!]!
+}
+
+type BlogCategoryContent {
+  locale:          String!
+  name:            String!
+  description:     JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+}
+
+type BlogTag {
+  id:          ID!
+  slug:        String!
+  isPublished: Boolean!
+  content:     BlogTagContent
+}
+
+type BlogTagContent {
+  locale:          String!
+  name:            String!
+  description:     JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+}
+
+type BlogPost {
+  id:                 ID!
+  slug:               String!
+  status:             BlogPostStatus!
+  publishedAt:        Time
+  seoNoindex:         Boolean!
+  readingTimeMinutes: Int
+  author:             BlogAuthor
+  content:            BlogPostContent
+  categories:         [BlogCategory!]!
+  tags:               [BlogTag!]!
+  createdAt:          Time!
+}
+
+type BlogPostContent {
+  locale:           String!
+  title:            String!
+  excerpt:          JSON
+  body:             JSON
+  metaTitle:        String
+  metaDescription:  String
+  metaKeywords:     String
+}
+
+type BlogPostList {
+  items:      [BlogPost!]!
+  totalCount: Int
+}
+
+input BlogPostFilter {
+  categorySlug: String
+  tagSlug:      String
+  authorSlug:   String
+  channelId:  ID
+}
+
+extend type Query {
+  # Locale comes from the `Locale` request header (internal/locale.Middleware).
+  blogPost(slug: String, id: ID): BlogPost
+  blogPosts(filter: BlogPostFilter, limit: Int, offset: Int): BlogPostList!
+
+  # Renders a blog post in its current draft state regardless of publish status. Authorised by a preview token minted from the admin API (mintBlogPostPreviewToken). Used by the dashboard's side-panel preview iframe at /blog/preview/<id>?token=<token>. Returns null when the token is unknown / expired / malformed.
+  previewBlogPost(token: String!): BlogPost
+
+  blogCategory(slug: String, id: ID): BlogCategory
+  blogCategories(parentId: ID): [BlogCategory!]!
+
+  blogTag(slug: String, id: ID): BlogTag
+  blogTags: [BlogTag!]!
+
+  blogAuthor(slug: String, id: ID): BlogAuthor
+  blogAuthors: [BlogAuthor!]!
+
+  # Full-text search across blog posts, scoped to the resolved store view and the request locale. Only returns hits whose listing is published on the current store.
+  searchBlogPosts(query: String!, limit: Int, offset: Int): BlogPostSearchResult!
+}
+
+type BlogPostSearchHit {
+  id:          ID!
+  slug:        String!
+  title:       String
+  excerpt:     String
+  publishedAt: Time
+  authorName:  String
+}
+
+type BlogPostSearchResult {
+  items:      [BlogPostSearchHit!]!
+  totalCount: Int!
+}

@@ -10,6 +10,9 @@ service SegmentService {
   rpc ListSegments(ListSegmentsRequest) returns (ListSegmentsResponse);
   rpc GetSegment(GetSegmentRequest) returns (GetSegmentResponse);
   rpc ListMembers(ListMembersRequest) returns (ListMembersResponse);
+  // The audiences one shopper is in, native unioned with any external CDP's - core asks while pricing a cart, testing a flow condition or rendering a gated block
+  // There is no admin to act for, so it takes a token naming that customer and answers about nobody else
+  rpc ListCustomerSegments(ListCustomerSegmentsRequest) returns (ListCustomerSegmentsResponse);
   // Active segments reduced to what a targeting picker needs
   rpc ListSegmentOptions(ListSegmentOptionsRequest) returns (ListSegmentOptionsResponse);
   rpc CreateSegment(CreateSegmentRequest) returns (CreateSegmentResponse);
@@ -169,4 +172,19 @@ message RefreshSegmentRequest {
 
 message RefreshSegmentResponse {
   int32 member_count = 1;
+}
+
+message ListCustomerSegmentsRequest {
+  string customer_id = 1;
+}
+
+// Slug and id both: a promotion gates on the slug an operator typed, a saved flow on the id it stored
+message CustomerSegmentRef {
+  string id = 1;
+  string slug = 2;
+}
+
+// An audience from an external CDP has a slug but no id of ours
+message ListCustomerSegmentsResponse {
+  repeated CustomerSegmentRef segments = 1;
 }

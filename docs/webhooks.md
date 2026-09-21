@@ -127,8 +127,8 @@ The event picker in Settings shows what your install actually has.
 | `auth.login.succeeded` | async | Fires after a successful login. Payload includes the actor + IP; no credentials. |
 | `auth.logout` | async | Fires after a user (admin or customer) logs out a single session. Payload includes subject, subjectId, and allDevices (false for a single-device logout). |
 | `auth.password.reset.completed` | async | Fires after a password is successfully changed via the reset-token flow (distinct from customer.password_changed, the logged-in self-service change). Payload includes the subject, subjectId, email, and channelId. Subscribe to send a 'your password was changed' notice or revoke downstream sessions. |
-| `auth.password.reset.requesting` | sync | Fires before a password-reset token is minted. Reject to refuse the reset (e.g. SSO-only accounts that must not reset via email). A rejection is applied silently — the caller sees the same response as an unknown email — to preserve the enumeration defense. Response schema: {"reject": bool, "reason": string}. |
-| `auth.refresh.issued` | async | Fires when a refresh token is minted — on login and on every refresh rotation, for both admin and customer. Payload includes subject, subjectId, sessionId (admin only), ip, userAgent. Chatty; subscribe for session-count metrics or concurrent-session caps. |
+| `auth.password.reset.requesting` | sync | Fires before a password-reset token is minted. Reject to refuse the reset (e.g. SSO-only accounts that must not reset via email). A rejection is applied silently - the caller sees the same response as an unknown email - to preserve the enumeration defense. Response schema: {"reject": bool, "reason": string}. |
+| `auth.refresh.issued` | async | Fires when a refresh token is minted - on login and on every refresh rotation, for both admin and customer. Payload includes subject, subjectId, sessionId (admin only), ip, userAgent. Chatty; subscribe for session-count metrics or concurrent-session caps. |
 | `auth.refresh.revoked` | async | Fires when a refresh token is revoked. Payload includes subject, subjectId, and reason (rotation \| logout \| logout_other_devices \| revoke_all). Subscribe to cascade session revocation to dependent systems. |
 
 ### backinstock
@@ -212,6 +212,12 @@ The event picker in Settings shows what your install actually has.
 | `collection.products.changed` | async | Fires when the set of products in a collection changes (manual collections). Payload includes the collection id. |
 | `collection.updated` | async | Fires after a collection is updated. |
 
+### consent
+
+| Event | Kind | What it means |
+|---|---|---|
+| `consent.changed` | async | Fires after a customer opts in or out of a consent kind - marketing_email, marketing_sms and so on. Payload: CustomerID, Kind, OptedIn, Source. Account-global, so per-channel webhooks never match it. |
+
 ### customer
 
 | Event | Kind | What it means |
@@ -238,7 +244,7 @@ The event picker in Settings shows what your install actually has.
 | Event | Kind | What it means |
 |---|---|---|
 | `giftcard.adjusted` | async | Fires after an admin balance correction (top-up, goodwill, chargeback). Payload includes giftCardId, signed delta, new balance, and note. |
-| `giftcard.issued` | async | Fires after a gift card is minted — an admin issue, or one card per gift-card line on a placed order. Payload includes giftCardId, code, currency, amount (opening balance, cents), customerId, and orderId (set when issued from a purchase). |
+| `giftcard.issued` | async | Fires after a gift card is minted - an admin issue, or one card per gift-card line on a placed order. Payload includes giftCardId, code, currency, amount (opening balance, cents), customerId, and orderId (set when issued from a purchase). |
 | `giftcard.redeemed` | async | Fires after a gift card is spent via the standalone redeem path. Payload includes giftCardId, code, amount applied, and remaining balance. (Checkout-tender redemption applied inside the order transaction is not emitted here.) |
 
 ### inventory
@@ -318,12 +324,6 @@ The event picker in Settings shows what your install actually has.
 | `review.rejected` | async | Fires after a review is rejected in moderation. |
 | `review.submitted` | async | Fires after a customer submits a product review (pre-moderation). Payload includes productId, rating, and the author. |
 | `review.submitting` | sync | Fires before a product review is stored. Reject to refuse the submission. Response schema: {"reject": bool, "reason": string, "status": "approved"\|"rejected"\|"pending", "tags": [string]}. status short-circuits manual moderation (external spam services); tags append and survive onto review.submitted. String literal to avoid a webhook→review→ai import cycle; mirrors review/events.go. |
-
-### segment
-
-| Event | Kind | What it means |
-|---|---|---|
-| `segment.refreshed` | async | Fires after a dynamic (rule-based) segment recomputes its membership. Payload: SegmentID, Slug, Matched (member count). One event per refresh - bulk sweeps stay webhook-safe. |
 
 ### subscription
 

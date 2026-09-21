@@ -1638,6 +1638,7 @@ export type Query = {
   productQuestions: Array<ProductQuestion>;
   productSortOptions: Array<ProductSortOption>;
   productsByIds: Array<Product>;
+  productsBySkus: Array<Product>;
   publicConfig: Array<ConfigValue>;
   publicConfigSections: Array<ConfigSection>;
   regions: Array<Region>;
@@ -1839,6 +1840,11 @@ export type QueryProductQuestionsArgs = {
 
 export type QueryProductsByIdsArgs = {
   ids: Array<Scalars['ID']['input']>;
+};
+
+
+export type QueryProductsBySkusArgs = {
+  skus: Array<Scalars['String']['input']>;
 };
 
 

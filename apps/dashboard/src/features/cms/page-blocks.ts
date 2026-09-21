@@ -1,19 +1,5 @@
-// CMS component-based page builder - the typed block model + the editor's
-// palette/inspector descriptors - This is the dashboard third of a contract
-// shared THREE ways and MUST stay in lockstep:
-//
-// SYNC SENTINEL:
-//   - backend validator      → apps/backend/internal/blockkit (Block / Document /
-//                              BuiltinTypes - the authoritative type list)
-//   - storefront renderer     → apps/channels/vetrina-demo/app/components/cms (parseDocument
-//                              + the CmsBlocks registry in Section.tsx)
-//   - dashboard builder        → THIS FILE (CMS_BLOCK_TYPES) + PageBlockCanvas
-//   - enforced by             → bin/contract-check (all three lists, every CI run)
-//
-// A page body that parses to a `{ version, blocks }` Document is a block-built
-// page; anything else (Lexical or plain rich text) is left untouched by the
-// builder - Mirrors the email-template block model (features/email/blocks.ts)
-// but FLAT - an ordered list of blocks, no nested containers or columns
+// SYNC SENTINEL - the dashboard third of a three-way contract, with core's internal/blockkit and the storefront's components/cms, enforced by bin/contract-check
+// A page body parsing to a `{ version, blocks }` Document is block-built; anything else is left to Lexical or plain rich text
 
 import {
   HeadingIcon,
@@ -47,10 +33,7 @@ import {
 } from 'lucide-react'
 import { randomId } from '@/lib/random-id'
 
-// One node in a page layout. `props` are type-specific (rendered per type;
-// stored/transported as-is). `blocks` are children for container types - kept
-// optional so a nested tree round-trips without loss, but unused in v1 (flat)
-// Mirrors blockkit.Block and the storefront Block type exactly
+// One node in a page layout. `props` are type-specific (rendered per type; stored/transported as-is). `blocks` are children for container types - kept optional so a nested tree round-trips without loss, but unused in v1 (flat) Mirrors blockkit.Block and the storefront Block type exactly
 export type CmsBlock = {
   id: string
   type: string
@@ -612,12 +595,8 @@ const BY_TYPE: Record<string, CmsBlockDescriptor> = Object.fromEntries(
   CMS_BLOCK_TYPES.map((b) => [b.type, b]),
 )
 
-// ---- Admin-defined custom block types (cmsBlockTypes) ----
-// Custom types are the escape hatch that skips the SYNC SENTINEL trio: the
-// backend validates them against the block-type table and the storefront
-// renders them server-side by interpolating props into the type's HTML
-// template - The canvas registers them at runtime so palette + inspector
-// treat them like builtins
+// ---- Admin-defined custom block types (cmsBlockTypes) ---- Custom types are the escape hatch that skips the SYNC SENTINEL trio: the backend validates them against the block-type table and the storefront renders them server-side by interpolating props into the type's HTML template
+// The canvas registers them at runtime so palette + inspector treat them like builtins
 
 // Field kinds whose values interpolate cleanly into an HTML template
 export const CUSTOM_FIELD_KINDS = ['text', 'textarea', 'url', 'number', 'select'] as const
@@ -737,11 +716,8 @@ export function blockCategory(type: string): BlockCategory {
   return BLOCK_CATEGORY[type] ?? 'Advanced'
 }
 
-// Pickable "looks", grouped into named registries (a variant field names which
-// one it draws from via `field.registry`) - Keep the ids in lockstep with the
-// storefront registries (apps/channels/vetrina-demo/app/components/cms/variants.tsx) - Add a
-// look by appending here + registering the matching component on the storefront
-// - no core edit - The first entry in a registry is its default
+// Pickable "looks", grouped into named registries that a variant field names through `field.registry` - the first entry in a registry is its default
+// Keep the ids in lockstep with the storefront registries in components/cms/variants.tsx: add a look here and register the matching component there, with no core edit
 export type BlockVariantDef = { id: string; label: string; description?: string }
 
 export const BLOCK_REGISTRIES: Record<string, BlockVariantDef[]> = {
@@ -853,10 +829,7 @@ function isCmsBlock(value: unknown): value is CmsBlock {
   return typeof b.id === 'string' && typeof b.type === 'string'
 }
 
-// parseDocument decodes a page body (the JSON `body` scalar) into a block
-// Document, or null when the body is absent or freeform - matching
-// blockkit.ParseDocument's ok=false branch and the storefront parseDocument
-// A block document is identified by the presence of a `blocks` array
+// parseDocument decodes a page body (the JSON `body` scalar) into a block Document, or null when the body is absent or freeform - matching blockkit.ParseDocument's ok=false branch and the storefront parseDocument A block document is identified by the presence of a `blocks` array
 export function parseDocument(body: unknown): CmsDocument | null {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return null
   const obj = body as Record<string, unknown>

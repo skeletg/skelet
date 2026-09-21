@@ -1,0 +1,61 @@
+# Abstract storefront cache admin. Surfaces are code-registered (CMS now;
+# products/categories later) so this surface-list grows without schema changes.
+
+type CacheSurface {
+  key:        String!
+  label:      String!
+  enabled:    Boolean!
+  ttlSeconds: Int!
+  # False = this surface can only be invalidated per-item (no catalog-wide bust),
+  # e.g. products. Such surfaces are excluded from "invalidate everything".
+  bulkInvalidatable: Boolean!
+}
+
+type CacheRevalidation {
+  id:        ID!
+  surface:   String!
+  tags:      [String!]!
+  paths:     [String!]!
+  reason:    String!
+  actorId:   ID
+  createdAt: Time!
+}
+
+type RebuildTask {
+  id:        ID!
+  surface:   String!
+  path:      String!
+  status:    String!
+  attempts:  Int!
+  lastError: String!
+  reason:    String!
+  updatedAt: Time!
+}
+
+type RebuildQueueStatus {
+  pending: Int!
+  running: Int!
+  done:    Int!
+  failed:  Int!
+  recent:  [RebuildTask!]!
+}
+
+extend type Query {
+  # Registered cacheable surfaces with their current enabled/TTL config.
+  cacheSurfaces: [CacheSurface!]!
+  # Recent cache purges (newest first) for the activity log.
+  cacheRevalidations(limit: Int): [CacheRevalidation!]!
+  # Background rebuild-queue status (counts + recent tasks).
+  rebuildQueue(recentLimit: Int): RebuildQueueStatus!
+}
+
+extend type Mutation {
+  # Purge the storefront cache: a whole surface (surfaceKey), specific
+  # tags/paths, or - when all args are empty - everything.
+  purgeCache(surfaceKey: String, tags: [String!], paths: [String!]): Boolean!
+  # Rebuild on demand (SYNCHRONOUS): invalidate the given paths AND immediately re-render them so they're warm now. For a few paths (≤25); larger sets must use enqueueRebuild. Returns once warmed.
+  rebuildCache(paths: [String!]!): Boolean!
+  # Queue paths for BACKGROUND rebuild (coalesced + paced by the cache-rebuild
+  # worker). Returns instantly with the number submitted - use this for bulk.
+  enqueueRebuild(paths: [String!]!): Int!
+}

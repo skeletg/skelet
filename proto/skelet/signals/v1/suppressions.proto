@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+// The email suppression list - addresses that must not receive mail regardless of consent, a deliverability guard in front of every send
+// Core's send loops, bounce webhook and admin screens all reach it on the system token, the admin gate having run in core's own resolver
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service SuppressionService {
+  rpc IsSuppressed(IsSuppressedRequest) returns (IsSuppressedResponse);
+  // The subset of the given addresses that is suppressed, so a send batch checks its whole recipient
+  // page in one call rather than one per address
+  rpc ListSuppressed(ListSuppressedRequest) returns (ListSuppressedResponse);
+  // Immediate - hard bounce, complaint, manual, unsubscribe. Idempotent: re-suppressing refreshes the reason
+  rpc Suppress(SuppressRequest) returns (SuppressResponse);
+  // Accumulates a soft bounce and suppresses once the tally reaches the caller's threshold
+  rpc RecordSoftBounce(RecordSoftBounceRequest) returns (RecordSoftBounceResponse);
+  // An operator clears a suppression - the soft-bounce tally starts fresh
+  rpc Unsuppress(UnsuppressRequest) returns (UnsuppressResponse);
+  rpc ListSuppressions(ListSuppressionsRequest) returns (ListSuppressionsResponse);
+}
+
+message IsSuppressedRequest {
+  string email = 1;
+}
+
+message IsSuppressedResponse {
+  bool suppressed = 1;
+}
+
+message ListSuppressedRequest {
+  repeated string emails = 1;
+}
+
+// Normalized - lowercased and trimmed - so a caller maps them back onto the forms it passed in
+message ListSuppressedResponse {
+  repeated string emails = 1;
+}
+
+message SuppressRequest {
+  string email = 1;
+  // hard_bounce | complaint | manual | unsubscribe
+  string reason = 2;
+  string detail = 3;
+}
+
+message SuppressResponse {}
+
+message RecordSoftBounceRequest {
+  string email = 1;
+  string detail = 2;
+  int32 threshold = 3;
+}
+
+// suppressed is true on the bounce that trips suppression, and on any bounce while already
+// suppressed - so a caller notifying on it does so exactly once
+message RecordSoftBounceResponse {
+  bool suppressed = 1;
+  int32 soft_bounces = 2;
+}
+
+message UnsuppressRequest {
+  string email = 1;
+}
+
+message UnsuppressResponse {}
+
+// reason empty lists every active suppression
+message ListSuppressionsRequest {
+  string reason = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message Suppression {
+  string id = 1;
+  string email = 2;
+  string reason = 3;
+  string detail = 4;
+  int32 soft_bounces = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message ListSuppressionsResponse {
+  repeated Suppression suppressions = 1;
+  int32 total = 2;
+}

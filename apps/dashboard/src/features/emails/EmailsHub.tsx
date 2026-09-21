@@ -1,5 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom'
-import { PlusIcon } from 'lucide-react'
+import { useMutation } from '@apollo/client/react'
+import { PlusIcon, SparklesIcon } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -10,9 +12,11 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { EmailBlocksDocument } from '@/features/email/Email.gql'
 import { EmailsTab } from './EmailsTab'
 import { BlocksTab } from './BlocksTab'
 import { SlotsTab } from './SlotsTab'
+import { LibraryEmailsDocument, SeedPulseStarterContentDocument, TransactionalSlotsDocument } from './Emails.gql'
 
 const TABS = ['emails', 'blocks', 'slots'] as const
 type TabValue = (typeof TABS)[number]
@@ -43,23 +47,60 @@ export function EmailsHub() {
     setSearchParams(params, { replace: true })
   }
 
-  // The primary action lives in the page header (like Flows / Campaigns) and follows the active tab Slots has nothing
-  // to create - you bind existing emails there
-  const actions =
-    isChannel && canManage && tab !== 'slots' ? (
-      tab === 'blocks' ? (
-        <Button asChild size="sm">
-          <Link to="/emails/blocks/new">
-            <PlusIcon className="size-4" /> New block
-          </Link>
-        </Button>
-      ) : (
-        <Button asChild size="sm">
-          <Link to="/emails/new">
-            <PlusIcon className="size-4" /> New email
-          </Link>
-        </Button>
+  // Starter content is asked for, never automatic - an active order_placed flow moves receipts into the builder's emails
+  // Idempotent, asking again adds only what is missing
+  const [seedStarter, { loading: seeding }] = useMutation(SeedPulseStarterContentDocument, {
+    refetchQueries: [
+      { query: LibraryEmailsDocument, variables: { channelId, groupSlug: null } },
+      { query: EmailBlocksDocument, variables: { channelId } },
+      { query: TransactionalSlotsDocument, variables: { channelId } },
+    ],
+    onCompleted: (data) => {
+      const r = data.seedPulseStarterContent
+      const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+      toast.success(
+        r.blocks + r.emails + r.flows === 0
+          ? 'This channel already has the starter content'
+          : `Added ${plural(r.emails, 'email')}, ${plural(r.flows, 'flow')} and ${plural(r.blocks, 'block')}`,
       )
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
+  // The primary action lives in the page header and follows the active tab - Slots has nothing to create
+  const actions =
+    isChannel && canManage ? (
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={seeding}
+          onClick={() => {
+            if (
+              window.confirm(
+                'Add the starter content to this channel? It creates an editable email for every transactional slot and an active flow that sends it, so receipts and account mail go out from these emails instead of the built-in templates. Anything the channel already has is left alone.',
+              )
+            ) {
+              void seedStarter({ variables: { channelId } })
+            }
+          }}
+        >
+          <SparklesIcon className="size-4" /> Add starter content
+        </Button>
+        {tab === 'blocks' ? (
+          <Button asChild size="sm">
+            <Link to="/emails/blocks/new">
+              <PlusIcon className="size-4" /> New block
+            </Link>
+          </Button>
+        ) : tab === 'emails' ? (
+          <Button asChild size="sm">
+            <Link to="/emails/new">
+              <PlusIcon className="size-4" /> New email
+            </Link>
+          </Button>
+        ) : null}
+      </div>
     ) : undefined
 
   return (

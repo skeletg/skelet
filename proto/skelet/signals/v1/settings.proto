@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+// The suite's settings, which live in its database because its own processes read them on hot paths
+// Core administers them, so these take core's system token and the admin gate happens there
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service SettingsService {
+  // What the suite declares - labels, types, defaults and options, so core's settings page can render
+  // settings whose code it no longer compiles
+  rpc ListDefinitions(ListDefinitionsRequest) returns (ListDefinitionsResponse);
+  // Every row that could satisfy a scope: the exact one and the platform default, for core to pick between
+  rpc GetCandidates(GetCandidatesRequest) returns (GetCandidatesResponse);
+  rpc ListInScopes(ListInScopesRequest) returns (ListInScopesResponse);
+  // The whole table, for the orphan sweep
+  rpc ListAll(ListAllRequest) returns (ListAllResponse);
+  rpc UpsertValue(UpsertValueRequest) returns (UpsertValueResponse);
+  rpc DeleteValue(DeleteValueRequest) returns (DeleteValueResponse);
+}
+
+// default | channel - the suite's settings are not per-locale, translated content belonging to the
+// entities that own it
+message SettingScope {
+  string kind = 1;
+  optional string channel_id = 2;
+}
+
+message SettingValue {
+  SettingScope scope = 1;
+  string path = 2;
+  string value = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message SettingOption {
+  string value = 1;
+  string label = 2;
+}
+
+// The registry entry, as core's settings page needs to render and validate it
+message SettingDefinition {
+  string path = 1;
+  string type = 2;
+  string default = 3;
+  string label = 4;
+  string description = 5;
+  bool public = 6;
+  repeated SettingOption options = 7;
+  // global | channel, unset inheriting the group then the section
+  string scoping = 8;
+}
+
+message ListDefinitionsRequest {}
+
+message ListDefinitionsResponse {
+  repeated SettingDefinition definitions = 1;
+}
+
+message GetCandidatesRequest {
+  string path = 1;
+  SettingScope scope = 2;
+}
+
+message GetCandidatesResponse {
+  repeated SettingValue values = 1;
+}
+
+message ListInScopesRequest {
+  SettingScope scope = 1;
+}
+
+message ListInScopesResponse {
+  repeated SettingValue values = 1;
+}
+
+message ListAllRequest {}
+
+message ListAllResponse {
+  repeated SettingValue values = 1;
+}
+
+message UpsertValueRequest {
+  SettingScope scope = 1;
+  string path = 2;
+  string value = 3;
+}
+
+message UpsertValueResponse {
+  SettingValue value = 1;
+}
+
+message DeleteValueRequest {
+  SettingScope scope = 1;
+  string path = 2;
+}
+
+message DeleteValueResponse {}

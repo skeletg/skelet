@@ -14,10 +14,10 @@
 }
 
 # Shared response headers. HSTS lives HERE and only here - the app-layer copies
-# (internal/httpx/securityheaders.go, apps/dashboard/nginx.conf.template) deliberately
+# (apps/backend/core/lib/httpx/securityheaders.go, apps/dashboard/nginx.conf.template) deliberately
 # omit it, since asserting it over plain http would wrongly pin a browser for a year
 #
-# The CSP and Permissions-Policy lines are GENERATED from internal/httpx/securityheaders.go
+# The CSP and Permissions-Policy lines are GENERATED from apps/backend/core/lib/httpx/securityheaders.go
 # by bin/codegen (cmd/secheadgen) and gated by bin/contract-check, so edit them there.
 # Payment SDK hosts (Stripe/Braintree/PayPal) need their script + frame origins; inline
 # styles/scripts stay allowed because Next and Vite inject them
