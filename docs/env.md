@@ -111,10 +111,8 @@ Pool sizes: `DB_MAX_CONNS` (25) and `ANALYTICS_DB_MAX_CONNS` (8).
 
 `SIGNALS_DB_URL` holds the event spine, Lens, identities and Pulse - campaigns,
 flows and the email builder. It is the Signals processes' database: `signals`
-and `ingest` open it, and `app` and `worker` never do, not even to dump it -
-they reach everything in it over the wire contract. `SIGNALS_DIRECT_URL` is the
-pooler bypass the `signals` process dumps and restores through, falling back to
-this; the commerce twin is `DATABASE_DIRECT_URL`.
+and `ingest` open it, and `app` and `worker` never do - they reach everything in
+it over the wire contract.
 
 It does not need a separate server. A second database on the commerce
 Postgres instance works exactly the same, which is the usual answer for
@@ -164,10 +162,6 @@ consequences worth knowing:
 - **Migrations bypass it.** golang-migrate holds a session-level advisory
   lock for the whole run, so `migrate` and `signals-migrate` keep the
   direct DSNs.
-- **Backups bypass it.** `pg_dump` needs a session its snapshot and `SET`s
-  can outlive. The app reads `DATABASE_DIRECT_URL` /
-  `SIGNALS_DIRECT_URL` for that, and falls back to the pooled URL when
-  they're unset - which is correct when there's no pooler at all.
 - **Server-side prepared statements are off.** The pooled DSNs carry
   `default_query_exec_mode=exec`, because a `PREPARE` lands on whichever
   server connection is free and the next `EXECUTE` may not find it.
@@ -240,9 +234,8 @@ There are two URLs because the app driver and golang-migrate disagree on
 DSN shape: `SIGNALS_CH_URL` and `SIGNALS_CH_MIGRATE_URL`.
 
 Set `CLICKHOUSE_PASSWORD` in the root `.env`; the server credentials and
-both ClickHouse URLs derive from it. The nightly Signals backup runs
-`BACKUP DATABASE` to the same bucket as the Postgres dumps, see
-[backups.md](backups.md).
+both ClickHouse URLs derive from it. Backing the spine up is
+`BACKUP DATABASE` on a schedule of your own, see [backups.md](backups.md).
 
 The server is generic infrastructure, so each consumer gets its own
 database. The compose file creates `signals` at first boot because the
@@ -326,50 +319,20 @@ they control, past every permission scope. So there is no admin config for
 this - only `BACKUP_*` env vars, readable solely by whoever controls the
 deployment.
 
-- `BACKUP_S3_BUCKET` - setting it enables the nightly `db-backup` job (and
-  `skelet db backup` / `db backups` / `db restore <key> --yes`). Use a
-  DEDICATED bucket and credential, not the media ones.
+- `BACKUP_S3_BUCKET` - the analytics retention archive's destination, not a
+  database backup. skelet takes no backups; see [backups.md](backups.md) for
+  how to set those up at the infrastructure level. Use a DEDICATED bucket and
+  credential, not the media ones.
 - `BACKUP_S3_ENDPOINT_URL`, `BACKUP_S3_REGION`, `BACKUP_S3_PATH_STYLE`,
-  `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY` - same shape
-  rules as the media store above.
-- `BACKUP_ENCRYPTION_PASSPHRASE` - encrypts every dump with age before it
-  leaves the process. Strongly recommended: dumps carry all customer PII.
-  Keep the passphrase somewhere durable OFF the host - losing it makes
-  every backup unreadable. Prod boots warn when backups run unencrypted.
-- `BACKUP_S3_PREFIX` (default `db/`) and `BACKUP_KEEP` (default 30, per
-  database - commerce and signals dumps are pruned as separate families).
-  Each process dumps the one database it holds: `app`'s nightly job writes the
-  commerce dump, then asks the `signals` process over the contract to write its
-  own under the same timestamp, so the pair restores together. Set the
-  `BACKUP_*` variables on both - prod compose shares one env file, so they are.
-- `BACKUP_HEARTBEAT_URL` - pinged (GET, 10s timeout) only after a fully
-  successful run, dumps uploaded and retention pruned. Point it at
-  healthchecks.io or any dead-man's-switch monitor. This is not redundant
-  with the scheduler's failure alerting: that fires when the job *fails*,
-  so the one thing it cannot report is the job never running - the app
-  being down, or nothing ever claiming it. A monitor that alerts when
-  pings stop covers exactly that hole. A failed ping is logged as a
-  warning and never fails the backup, since the dump is already uploaded
-  by then. Restore procedure and the post-restore checklist:
-  [docs/backups.md](backups.md).
+  `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, `BACKUP_S3_PREFIX`
+  (default `db/`) - same shape rules as the media store above.
 
-This destination doubles as the analytics retention archive: with the
+What lands there: with the
 `signals/analytics/retention_action` setting on `archive`, the daily retention
 jobs export aged spine events and send-log months as identity-stripped
-`.jsonl.gz` files under `<prefix>archive/` before deleting the rows (the
-dump pruner never touches them, and with no `BACKUP_S3_BUCKET` the sweep
-fails closed - it deletes nothing rather than archiving nowhere).
-
-The app credential can delete objects (retention pruning), so it cannot
-protect backups from a compromised host - pair it with bucket versioning
-or object lock if you need that.
-
-At 100GB-class sizes: raise the db-backup job timeout in the scheduler UI
-(a big dump outgrows the 30m default), restore with `--jobs N` for parallel
-pg_restore, and set `TMPDIR` to a mounted volume - restore spools the dump
-to a temp file first. Past that scale, run physical/PITR backups
-(pgBackRest, WAL-G, or managed snapshots) as the primary and treat these
-dumps as the portable weekly export.
+`.jsonl.gz` files under `<prefix>archive/` before deleting the rows. With no
+`BACKUP_S3_BUCKET` the sweep fails closed - it deletes nothing rather than
+archiving nowhere.
 
 ## Email and SMS
 

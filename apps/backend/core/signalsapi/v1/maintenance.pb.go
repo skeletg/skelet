@@ -1663,218 +1663,6 @@ func (x *ProcessDueCampaignsResponse) GetRecipientsProcessed() int32 {
 	return 0
 }
 
-type BackupDatabaseRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The moment the run started, which the object key carries - unset means now
-	At            *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=at,proto3" json:"at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BackupDatabaseRequest) Reset() {
-	*x = BackupDatabaseRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[32]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BackupDatabaseRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BackupDatabaseRequest) ProtoMessage() {}
-
-func (x *BackupDatabaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[32]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BackupDatabaseRequest.ProtoReflect.Descriptor instead.
-func (*BackupDatabaseRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{32}
-}
-
-func (x *BackupDatabaseRequest) GetAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.At
-	}
-	return nil
-}
-
-type BackupDatabaseResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Key   string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Bytes int64                  `protobuf:"varint,2,opt,name=bytes,proto3" json:"bytes,omitempty"`
-	// Older dumps of this database the retention rule removed
-	Pruned []string `protobuf:"bytes,3,rep,name=pruned,proto3" json:"pruned,omitempty"`
-	// The spine's copy, a directory ClickHouse wrote under the same stamp - empty without a backup bucket
-	SpinePrefix   string   `protobuf:"bytes,4,opt,name=spine_prefix,json=spinePrefix,proto3" json:"spine_prefix,omitempty"`
-	SpinePruned   []string `protobuf:"bytes,5,rep,name=spine_pruned,json=spinePruned,proto3" json:"spine_pruned,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BackupDatabaseResponse) Reset() {
-	*x = BackupDatabaseResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[33]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BackupDatabaseResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BackupDatabaseResponse) ProtoMessage() {}
-
-func (x *BackupDatabaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[33]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BackupDatabaseResponse.ProtoReflect.Descriptor instead.
-func (*BackupDatabaseResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{33}
-}
-
-func (x *BackupDatabaseResponse) GetKey() string {
-	if x != nil {
-		return x.Key
-	}
-	return ""
-}
-
-func (x *BackupDatabaseResponse) GetBytes() int64 {
-	if x != nil {
-		return x.Bytes
-	}
-	return 0
-}
-
-func (x *BackupDatabaseResponse) GetPruned() []string {
-	if x != nil {
-		return x.Pruned
-	}
-	return nil
-}
-
-func (x *BackupDatabaseResponse) GetSpinePrefix() string {
-	if x != nil {
-		return x.SpinePrefix
-	}
-	return ""
-}
-
-func (x *BackupDatabaseResponse) GetSpinePruned() []string {
-	if x != nil {
-		return x.SpinePruned
-	}
-	return nil
-}
-
-type RestoreDatabaseRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Key   string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	// Parallel pg_restore workers - 1 runs serially
-	Jobs          int32 `protobuf:"varint,2,opt,name=jobs,proto3" json:"jobs,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RestoreDatabaseRequest) Reset() {
-	*x = RestoreDatabaseRequest{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[34]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RestoreDatabaseRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RestoreDatabaseRequest) ProtoMessage() {}
-
-func (x *RestoreDatabaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[34]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RestoreDatabaseRequest.ProtoReflect.Descriptor instead.
-func (*RestoreDatabaseRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{34}
-}
-
-func (x *RestoreDatabaseRequest) GetKey() string {
-	if x != nil {
-		return x.Key
-	}
-	return ""
-}
-
-func (x *RestoreDatabaseRequest) GetJobs() int32 {
-	if x != nil {
-		return x.Jobs
-	}
-	return 0
-}
-
-type RestoreDatabaseResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RestoreDatabaseResponse) Reset() {
-	*x = RestoreDatabaseResponse{}
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[35]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RestoreDatabaseResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RestoreDatabaseResponse) ProtoMessage() {}
-
-func (x *RestoreDatabaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_maintenance_proto_msgTypes[35]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RestoreDatabaseResponse.ProtoReflect.Descriptor instead.
-func (*RestoreDatabaseResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_maintenance_proto_rawDescGZIP(), []int{35}
-}
-
 var File_skelet_signals_v1_maintenance_proto protoreflect.FileDescriptor
 
 const file_skelet_signals_v1_maintenance_proto_rawDesc = "" +
@@ -1993,19 +1781,7 @@ const file_skelet_signals_v1_maintenance_proto_rawDesc = "" +
 	"\x1aProcessDueCampaignsRequest\x121\n" +
 	"\x06budget\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\x06budget\"P\n" +
 	"\x1bProcessDueCampaignsResponse\x121\n" +
-	"\x14recipients_processed\x18\x01 \x01(\x05R\x13recipientsProcessed\"C\n" +
-	"\x15BackupDatabaseRequest\x12*\n" +
-	"\x02at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x02at\"\x9e\x01\n" +
-	"\x16BackupDatabaseResponse\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05bytes\x18\x02 \x01(\x03R\x05bytes\x12\x16\n" +
-	"\x06pruned\x18\x03 \x03(\tR\x06pruned\x12!\n" +
-	"\fspine_prefix\x18\x04 \x01(\tR\vspinePrefix\x12!\n" +
-	"\fspine_pruned\x18\x05 \x03(\tR\vspinePruned\">\n" +
-	"\x16RestoreDatabaseRequest\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x12\n" +
-	"\x04jobs\x18\x02 \x01(\x05R\x04jobs\"\x19\n" +
-	"\x17RestoreDatabaseResponse2\xe2\r\n" +
+	"\x14recipients_processed\x18\x01 \x01(\x05R\x13recipientsProcessed2\x91\f\n" +
 	"\x12MaintenanceService\x12Y\n" +
 	"\n" +
 	"PruneSpine\x12$.skelet.signals.v1.PruneSpineRequest\x1a%.skelet.signals.v1.PruneSpineResponse\x12V\n" +
@@ -2021,9 +1797,7 @@ const file_skelet_signals_v1_maintenance_proto_rawDesc = "" +
 	"\x19RefreshBehavioralSegments\x123.skelet.signals.v1.RefreshBehavioralSegmentsRequest\x1a4.skelet.signals.v1.RefreshBehavioralSegmentsResponse\x12n\n" +
 	"\x11GetCustomerTraits\x12+.skelet.signals.v1.GetCustomerTraitsRequest\x1a,.skelet.signals.v1.GetCustomerTraitsResponse\x12h\n" +
 	"\x0fAdvanceFlowRuns\x12).skelet.signals.v1.AdvanceFlowRunsRequest\x1a*.skelet.signals.v1.AdvanceFlowRunsResponse\x12t\n" +
-	"\x13ProcessDueCampaigns\x12-.skelet.signals.v1.ProcessDueCampaignsRequest\x1a..skelet.signals.v1.ProcessDueCampaignsResponse\x12e\n" +
-	"\x0eBackupDatabase\x12(.skelet.signals.v1.BackupDatabaseRequest\x1a).skelet.signals.v1.BackupDatabaseResponse\x12h\n" +
-	"\x0fRestoreDatabase\x12).skelet.signals.v1.RestoreDatabaseRequest\x1a*.skelet.signals.v1.RestoreDatabaseResponseB\xd4\x01\n" +
+	"\x13ProcessDueCampaigns\x12-.skelet.signals.v1.ProcessDueCampaignsRequest\x1a..skelet.signals.v1.ProcessDueCampaignsResponseB\xd4\x01\n" +
 	"\x15com.skelet.signals.v1B\x10MaintenanceProtoP\x01ZCgithub.com/skeletg/skelet/apps/backend/core/signalsapi/v1;signalsv1\xa2\x02\x03SSX\xaa\x02\x11Skelet.Signals.V1\xca\x02\x11Skelet\\Signals\\V1\xe2\x02\x1dSkelet\\Signals\\V1\\GPBMetadata\xea\x02\x13Skelet::Signals::V1b\x06proto3"
 
 var (
@@ -2038,7 +1812,7 @@ func file_skelet_signals_v1_maintenance_proto_rawDescGZIP() []byte {
 	return file_skelet_signals_v1_maintenance_proto_rawDescData
 }
 
-var file_skelet_signals_v1_maintenance_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_skelet_signals_v1_maintenance_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_skelet_signals_v1_maintenance_proto_goTypes = []any{
 	(*PruneSpineRequest)(nil),                 // 0: skelet.signals.v1.PruneSpineRequest
 	(*PruneSpineResponse)(nil),                // 1: skelet.signals.v1.PruneSpineResponse
@@ -2072,69 +1846,60 @@ var file_skelet_signals_v1_maintenance_proto_goTypes = []any{
 	(*AdvanceFlowRunsResponse)(nil),           // 29: skelet.signals.v1.AdvanceFlowRunsResponse
 	(*ProcessDueCampaignsRequest)(nil),        // 30: skelet.signals.v1.ProcessDueCampaignsRequest
 	(*ProcessDueCampaignsResponse)(nil),       // 31: skelet.signals.v1.ProcessDueCampaignsResponse
-	(*BackupDatabaseRequest)(nil),             // 32: skelet.signals.v1.BackupDatabaseRequest
-	(*BackupDatabaseResponse)(nil),            // 33: skelet.signals.v1.BackupDatabaseResponse
-	(*RestoreDatabaseRequest)(nil),            // 34: skelet.signals.v1.RestoreDatabaseRequest
-	(*RestoreDatabaseResponse)(nil),           // 35: skelet.signals.v1.RestoreDatabaseResponse
-	nil,                                       // 36: skelet.signals.v1.GetCustomerTraitsResponse.AffinitiesEntry
-	(*timestamppb.Timestamp)(nil),             // 37: google.protobuf.Timestamp
-	(*AffinityAttribute)(nil),                 // 38: skelet.signals.v1.AffinityAttribute
-	(*durationpb.Duration)(nil),               // 39: google.protobuf.Duration
+	nil,                                       // 32: skelet.signals.v1.GetCustomerTraitsResponse.AffinitiesEntry
+	(*timestamppb.Timestamp)(nil),             // 33: google.protobuf.Timestamp
+	(*AffinityAttribute)(nil),                 // 34: skelet.signals.v1.AffinityAttribute
+	(*durationpb.Duration)(nil),               // 35: google.protobuf.Duration
 }
 var file_skelet_signals_v1_maintenance_proto_depIdxs = []int32{
-	37, // 0: skelet.signals.v1.GetHealthResponse.spine_oldest:type_name -> google.protobuf.Timestamp
-	37, // 1: skelet.signals.v1.GetHealthResponse.spine_newest:type_name -> google.protobuf.Timestamp
+	33, // 0: skelet.signals.v1.GetHealthResponse.spine_oldest:type_name -> google.protobuf.Timestamp
+	33, // 1: skelet.signals.v1.GetHealthResponse.spine_newest:type_name -> google.protobuf.Timestamp
 	14, // 2: skelet.signals.v1.GetHealthResponse.queue:type_name -> skelet.signals.v1.QueueHealth
 	15, // 3: skelet.signals.v1.GetHealthResponse.destinations:type_name -> skelet.signals.v1.DestinationHealth
-	37, // 4: skelet.signals.v1.DestinationHealth.last_forwarded_at:type_name -> google.protobuf.Timestamp
-	37, // 5: skelet.signals.v1.ListBrowseAbandonersRequest.idle_since:type_name -> google.protobuf.Timestamp
-	37, // 6: skelet.signals.v1.ListBrowseAbandonersRequest.max_age:type_name -> google.protobuf.Timestamp
-	37, // 7: skelet.signals.v1.BrowseAbandoner.last_browse_at:type_name -> google.protobuf.Timestamp
+	33, // 4: skelet.signals.v1.DestinationHealth.last_forwarded_at:type_name -> google.protobuf.Timestamp
+	33, // 5: skelet.signals.v1.ListBrowseAbandonersRequest.idle_since:type_name -> google.protobuf.Timestamp
+	33, // 6: skelet.signals.v1.ListBrowseAbandonersRequest.max_age:type_name -> google.protobuf.Timestamp
+	33, // 7: skelet.signals.v1.BrowseAbandoner.last_browse_at:type_name -> google.protobuf.Timestamp
 	17, // 8: skelet.signals.v1.ListBrowseAbandonersResponse.abandoners:type_name -> skelet.signals.v1.BrowseAbandoner
-	37, // 9: skelet.signals.v1.MarkBrowseNotifiedRequest.last_browse_at:type_name -> google.protobuf.Timestamp
-	38, // 10: skelet.signals.v1.RefreshBehavioralSegmentsRequest.auto_segment_attributes:type_name -> skelet.signals.v1.AffinityAttribute
+	33, // 9: skelet.signals.v1.MarkBrowseNotifiedRequest.last_browse_at:type_name -> google.protobuf.Timestamp
+	34, // 10: skelet.signals.v1.RefreshBehavioralSegmentsRequest.auto_segment_attributes:type_name -> skelet.signals.v1.AffinityAttribute
 	24, // 11: skelet.signals.v1.RefreshBehavioralSegmentsResponse.entered:type_name -> skelet.signals.v1.SegmentEntry
-	36, // 12: skelet.signals.v1.GetCustomerTraitsResponse.affinities:type_name -> skelet.signals.v1.GetCustomerTraitsResponse.AffinitiesEntry
-	39, // 13: skelet.signals.v1.AdvanceFlowRunsRequest.budget:type_name -> google.protobuf.Duration
-	39, // 14: skelet.signals.v1.ProcessDueCampaignsRequest.budget:type_name -> google.protobuf.Duration
-	37, // 15: skelet.signals.v1.BackupDatabaseRequest.at:type_name -> google.protobuf.Timestamp
-	0,  // 16: skelet.signals.v1.MaintenanceService.PruneSpine:input_type -> skelet.signals.v1.PruneSpineRequest
-	2,  // 17: skelet.signals.v1.MaintenanceService.PruneLens:input_type -> skelet.signals.v1.PruneLensRequest
-	4,  // 18: skelet.signals.v1.MaintenanceService.PruneSendLog:input_type -> skelet.signals.v1.PruneSendLogRequest
-	6,  // 19: skelet.signals.v1.MaintenanceService.ComputeTraits:input_type -> skelet.signals.v1.ComputeTraitsRequest
-	8,  // 20: skelet.signals.v1.MaintenanceService.ForwardDestinations:input_type -> skelet.signals.v1.ForwardDestinationsRequest
-	10, // 21: skelet.signals.v1.MaintenanceService.GetRetentionAction:input_type -> skelet.signals.v1.GetRetentionActionRequest
-	12, // 22: skelet.signals.v1.MaintenanceService.GetHealth:input_type -> skelet.signals.v1.GetHealthRequest
-	16, // 23: skelet.signals.v1.MaintenanceService.ListBrowseAbandoners:input_type -> skelet.signals.v1.ListBrowseAbandonersRequest
-	19, // 24: skelet.signals.v1.MaintenanceService.MarkBrowseNotified:input_type -> skelet.signals.v1.MarkBrowseNotifiedRequest
-	21, // 25: skelet.signals.v1.MaintenanceService.RefreshDynamicSegments:input_type -> skelet.signals.v1.RefreshDynamicSegmentsRequest
-	23, // 26: skelet.signals.v1.MaintenanceService.RefreshBehavioralSegments:input_type -> skelet.signals.v1.RefreshBehavioralSegmentsRequest
-	26, // 27: skelet.signals.v1.MaintenanceService.GetCustomerTraits:input_type -> skelet.signals.v1.GetCustomerTraitsRequest
-	28, // 28: skelet.signals.v1.MaintenanceService.AdvanceFlowRuns:input_type -> skelet.signals.v1.AdvanceFlowRunsRequest
-	30, // 29: skelet.signals.v1.MaintenanceService.ProcessDueCampaigns:input_type -> skelet.signals.v1.ProcessDueCampaignsRequest
-	32, // 30: skelet.signals.v1.MaintenanceService.BackupDatabase:input_type -> skelet.signals.v1.BackupDatabaseRequest
-	34, // 31: skelet.signals.v1.MaintenanceService.RestoreDatabase:input_type -> skelet.signals.v1.RestoreDatabaseRequest
-	1,  // 32: skelet.signals.v1.MaintenanceService.PruneSpine:output_type -> skelet.signals.v1.PruneSpineResponse
-	3,  // 33: skelet.signals.v1.MaintenanceService.PruneLens:output_type -> skelet.signals.v1.PruneLensResponse
-	5,  // 34: skelet.signals.v1.MaintenanceService.PruneSendLog:output_type -> skelet.signals.v1.PruneSendLogResponse
-	7,  // 35: skelet.signals.v1.MaintenanceService.ComputeTraits:output_type -> skelet.signals.v1.ComputeTraitsResponse
-	9,  // 36: skelet.signals.v1.MaintenanceService.ForwardDestinations:output_type -> skelet.signals.v1.ForwardDestinationsResponse
-	11, // 37: skelet.signals.v1.MaintenanceService.GetRetentionAction:output_type -> skelet.signals.v1.GetRetentionActionResponse
-	13, // 38: skelet.signals.v1.MaintenanceService.GetHealth:output_type -> skelet.signals.v1.GetHealthResponse
-	18, // 39: skelet.signals.v1.MaintenanceService.ListBrowseAbandoners:output_type -> skelet.signals.v1.ListBrowseAbandonersResponse
-	20, // 40: skelet.signals.v1.MaintenanceService.MarkBrowseNotified:output_type -> skelet.signals.v1.MarkBrowseNotifiedResponse
-	22, // 41: skelet.signals.v1.MaintenanceService.RefreshDynamicSegments:output_type -> skelet.signals.v1.RefreshDynamicSegmentsResponse
-	25, // 42: skelet.signals.v1.MaintenanceService.RefreshBehavioralSegments:output_type -> skelet.signals.v1.RefreshBehavioralSegmentsResponse
-	27, // 43: skelet.signals.v1.MaintenanceService.GetCustomerTraits:output_type -> skelet.signals.v1.GetCustomerTraitsResponse
-	29, // 44: skelet.signals.v1.MaintenanceService.AdvanceFlowRuns:output_type -> skelet.signals.v1.AdvanceFlowRunsResponse
-	31, // 45: skelet.signals.v1.MaintenanceService.ProcessDueCampaigns:output_type -> skelet.signals.v1.ProcessDueCampaignsResponse
-	33, // 46: skelet.signals.v1.MaintenanceService.BackupDatabase:output_type -> skelet.signals.v1.BackupDatabaseResponse
-	35, // 47: skelet.signals.v1.MaintenanceService.RestoreDatabase:output_type -> skelet.signals.v1.RestoreDatabaseResponse
-	32, // [32:48] is the sub-list for method output_type
-	16, // [16:32] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	32, // 12: skelet.signals.v1.GetCustomerTraitsResponse.affinities:type_name -> skelet.signals.v1.GetCustomerTraitsResponse.AffinitiesEntry
+	35, // 13: skelet.signals.v1.AdvanceFlowRunsRequest.budget:type_name -> google.protobuf.Duration
+	35, // 14: skelet.signals.v1.ProcessDueCampaignsRequest.budget:type_name -> google.protobuf.Duration
+	0,  // 15: skelet.signals.v1.MaintenanceService.PruneSpine:input_type -> skelet.signals.v1.PruneSpineRequest
+	2,  // 16: skelet.signals.v1.MaintenanceService.PruneLens:input_type -> skelet.signals.v1.PruneLensRequest
+	4,  // 17: skelet.signals.v1.MaintenanceService.PruneSendLog:input_type -> skelet.signals.v1.PruneSendLogRequest
+	6,  // 18: skelet.signals.v1.MaintenanceService.ComputeTraits:input_type -> skelet.signals.v1.ComputeTraitsRequest
+	8,  // 19: skelet.signals.v1.MaintenanceService.ForwardDestinations:input_type -> skelet.signals.v1.ForwardDestinationsRequest
+	10, // 20: skelet.signals.v1.MaintenanceService.GetRetentionAction:input_type -> skelet.signals.v1.GetRetentionActionRequest
+	12, // 21: skelet.signals.v1.MaintenanceService.GetHealth:input_type -> skelet.signals.v1.GetHealthRequest
+	16, // 22: skelet.signals.v1.MaintenanceService.ListBrowseAbandoners:input_type -> skelet.signals.v1.ListBrowseAbandonersRequest
+	19, // 23: skelet.signals.v1.MaintenanceService.MarkBrowseNotified:input_type -> skelet.signals.v1.MarkBrowseNotifiedRequest
+	21, // 24: skelet.signals.v1.MaintenanceService.RefreshDynamicSegments:input_type -> skelet.signals.v1.RefreshDynamicSegmentsRequest
+	23, // 25: skelet.signals.v1.MaintenanceService.RefreshBehavioralSegments:input_type -> skelet.signals.v1.RefreshBehavioralSegmentsRequest
+	26, // 26: skelet.signals.v1.MaintenanceService.GetCustomerTraits:input_type -> skelet.signals.v1.GetCustomerTraitsRequest
+	28, // 27: skelet.signals.v1.MaintenanceService.AdvanceFlowRuns:input_type -> skelet.signals.v1.AdvanceFlowRunsRequest
+	30, // 28: skelet.signals.v1.MaintenanceService.ProcessDueCampaigns:input_type -> skelet.signals.v1.ProcessDueCampaignsRequest
+	1,  // 29: skelet.signals.v1.MaintenanceService.PruneSpine:output_type -> skelet.signals.v1.PruneSpineResponse
+	3,  // 30: skelet.signals.v1.MaintenanceService.PruneLens:output_type -> skelet.signals.v1.PruneLensResponse
+	5,  // 31: skelet.signals.v1.MaintenanceService.PruneSendLog:output_type -> skelet.signals.v1.PruneSendLogResponse
+	7,  // 32: skelet.signals.v1.MaintenanceService.ComputeTraits:output_type -> skelet.signals.v1.ComputeTraitsResponse
+	9,  // 33: skelet.signals.v1.MaintenanceService.ForwardDestinations:output_type -> skelet.signals.v1.ForwardDestinationsResponse
+	11, // 34: skelet.signals.v1.MaintenanceService.GetRetentionAction:output_type -> skelet.signals.v1.GetRetentionActionResponse
+	13, // 35: skelet.signals.v1.MaintenanceService.GetHealth:output_type -> skelet.signals.v1.GetHealthResponse
+	18, // 36: skelet.signals.v1.MaintenanceService.ListBrowseAbandoners:output_type -> skelet.signals.v1.ListBrowseAbandonersResponse
+	20, // 37: skelet.signals.v1.MaintenanceService.MarkBrowseNotified:output_type -> skelet.signals.v1.MarkBrowseNotifiedResponse
+	22, // 38: skelet.signals.v1.MaintenanceService.RefreshDynamicSegments:output_type -> skelet.signals.v1.RefreshDynamicSegmentsResponse
+	25, // 39: skelet.signals.v1.MaintenanceService.RefreshBehavioralSegments:output_type -> skelet.signals.v1.RefreshBehavioralSegmentsResponse
+	27, // 40: skelet.signals.v1.MaintenanceService.GetCustomerTraits:output_type -> skelet.signals.v1.GetCustomerTraitsResponse
+	29, // 41: skelet.signals.v1.MaintenanceService.AdvanceFlowRuns:output_type -> skelet.signals.v1.AdvanceFlowRunsResponse
+	31, // 42: skelet.signals.v1.MaintenanceService.ProcessDueCampaigns:output_type -> skelet.signals.v1.ProcessDueCampaignsResponse
+	29, // [29:43] is the sub-list for method output_type
+	15, // [15:29] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_skelet_signals_v1_maintenance_proto_init() }
@@ -2151,7 +1916,7 @@ func file_skelet_signals_v1_maintenance_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_skelet_signals_v1_maintenance_proto_rawDesc), len(file_skelet_signals_v1_maintenance_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   37,
+			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

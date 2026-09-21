@@ -15,7 +15,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/scheduler"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
-	"github.com/skeletg/skelet/apps/backend/core/lib/backup"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
 )
@@ -32,7 +31,6 @@ type healthDeps struct {
 	MediaStorage  *objstore.Storage
 	Scheduler     *scheduler.Service
 	Webhook       *webhook.Service
-	Backup        *backup.Service
 	SignalsClient *signalsclient.Client
 	SignalsOn     SignalsEnabled
 	Config        *config.Service
@@ -46,7 +44,6 @@ func newHealthRegistry(d healthDeps) *health.Registry {
 	registerDeliveryChecks(r, d)
 	registerSignalsChecks(r, d)
 	registerPluginChecks(r)
-	registerBackupChecks(r, d)
 	return r
 }
 
@@ -441,61 +438,6 @@ func registerPluginChecks(r *health.Registry) {
 				return health.OK(fmt.Sprintf("%d of %d configured", ready, len(probes)))
 			}
 			return health.OK(fmt.Sprintf("%d probes ready", ready))
-		}})
-}
-
-func registerBackupChecks(r *health.Registry, d healthDeps) {
-	r.RegisterGroup(health.Group{Key: "backups", Label: "Backups", Order: 7})
-
-	r.Register(health.Check{Group: "backups", Key: "last", Label: "Last backup", Order: 1,
-		Run: func(ctx context.Context) health.Result {
-			if !d.Backup.Enabled() {
-				return health.Off("not configured", "BACKUP_S3_BUCKET is unset - nothing is being backed up")
-			}
-			keys, err := d.Backup.List(ctx)
-			if err != nil {
-				return health.Bad("unreadable", err.Error())
-			}
-			if len(keys) == 0 {
-				return health.Bad("never run", "The destination is configured but holds no dump")
-			}
-			// One run writes a commerce dump AND a signals one under one stamp, so count stamps not objects - else "keeping 7" reads 14
-			var newest *time.Time
-			stamps := map[time.Time]struct{}{}
-			for _, k := range keys {
-				at, ok := backup.KeyTimestamp(k)
-				if !ok {
-					continue
-				}
-				stamps[at] = struct{}{}
-				if newest == nil || at.After(*newest) {
-					at := at
-					newest = &at
-				}
-			}
-			if newest == nil {
-				return health.OK(fmt.Sprintf("%d dumps stored", len(keys)))
-			}
-			detail := fmt.Sprintf("%s (%d kept)", agoText(newest), len(stamps))
-			switch {
-			case hoursSince(newest) > 48:
-				return health.Bad(detail, "No dump in over two days - check the backup job in Scheduled jobs")
-			case hoursSince(newest) > 26:
-				return health.Warn(detail, "The daily backup looks like it missed a run")
-			}
-			return health.OK(detail)
-		}})
-
-	r.Register(health.Check{Group: "backups", Key: "encryption", Label: "Encryption at rest", Order: 2,
-		Run: func(ctx context.Context) health.Result {
-			if !d.Backup.Enabled() {
-				return health.Off("not configured", "")
-			}
-			if !d.Backup.Encrypted() {
-				return health.Warn("dumps are unencrypted",
-					"A dump is a full copy of every customer record. Set BACKUP_AGE_RECIPIENT to encrypt them at rest")
-			}
-			return health.OK("age-encrypted")
 		}})
 }
 

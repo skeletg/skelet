@@ -176,7 +176,7 @@ func (s *Storage) PutBytes(ctx context.Context, key string, data []byte, content
 	return nil
 }
 
-// Streams an object of unknown length, multipart under the hood - used for DB backups, where dumps go straight from pg_dump into the bucket and must never touch local disk
+// Streams an object of unknown length, multipart under the hood - the writer never has to know the size or buffer it
 func (s *Storage) UploadStream(ctx context.Context, key, contentType string, body io.Reader) error {
 	if contentType == "" {
 		contentType = "application/octet-stream"
@@ -200,8 +200,7 @@ func (s *Storage) UploadStream(ctx context.Context, key, contentType string, bod
 	return nil
 }
 
-// The caller owns the ReadCloser - for restores, where a multi-GB dump must stream into
-// pg_restore without ever being buffered in memory
+// The caller owns the ReadCloser, so a large object streams through rather than being buffered in memory
 func (s *Storage) GetStream(ctx context.Context, key string) (io.ReadCloser, error) {
 	out, err := s.internalClient.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.cfg.Bucket),

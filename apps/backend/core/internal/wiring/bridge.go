@@ -62,7 +62,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
-	"github.com/skeletg/skelet/apps/backend/core/lib/backup"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
@@ -139,7 +138,6 @@ type Svcs struct {
 	Chat         *chat.Service
 	Action       *action.Service
 	DataJob      *datajob.Service
-	Backup       *backup.Service
 	Payment      *payment.Service
 	PaymentVault *paymentvault.Service
 	NotifHub     *notification.Hub

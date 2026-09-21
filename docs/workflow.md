@@ -47,7 +47,6 @@ Full documentation for every command: [scripts.md](scripts.md).
 | `./skelet cli integration list` | List API integrations |
 | `./skelet cli config list/get/set/reset/orphans/prune` | Config registry management |
 | `./skelet cli customer group list` | List customer groups |
-| `./skelet cli db backup` / `db backups` | Stream a pg_dump to the configured dedicated storage (Settings → System → Database backups) / list bucket contents |
 
 ## Docker setup
 

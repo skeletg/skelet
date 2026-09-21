@@ -161,7 +161,7 @@ func (s *Service) RegisterDisabled(name, defaultSchedule, description string, ha
 }
 
 // RegisterWithTimeout is Register with an explicit per-job run timeout, for jobs that
-// legitimately run longer than the 5-minute default - a full backup, a large reindex
+// legitimately run longer than the 5-minute default - a large reindex, a bulk export
 func (s *Service) RegisterWithTimeout(name, defaultSchedule, description string, timeout time.Duration, handler HandlerFunc) {
 	s.register(name, defaultSchedule, description, timeout, true, handler)
 }
@@ -216,7 +216,7 @@ func (s *Service) Run(ctx context.Context) {
 	}
 }
 
-// Claims at most as many rows as there are free worker slots and returns WITHOUT waiting for the runs - a 30-minute backup keeps its one
+// Claims at most as many rows as there are free worker slots and returns WITHOUT waiting for the runs - a long job keeps its one
 // slot while everything else claims and runs on subsequent polls; waiting for the whole batch would freeze every job behind it
 func (s *Service) tick(ctx context.Context) {
 	// Global pause switch - skip claiming entirely while disabled, so due jobs just wait with next_run_at in the past and fire once re-enabled

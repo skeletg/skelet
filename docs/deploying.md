@@ -114,16 +114,11 @@ deriving your shop's.
 ingest tiers each serve `/healthz`. The compose healthchecks already point at all
 of these.
 
-**Backups.** The `db-backup` scheduled job streams a nightly `pg_dump` of both
-databases (03:00) to a dedicated S3-compatible bucket, encrypted with age when
-`BACKUP_ENCRYPTION_PASSPHRASE` is set - the commerce dump from `app`, the signals
-dump by the `signals` process on `app`'s request, under one timestamp. Configured ONLY via the `BACKUP_S3_*`
-environment variables, deliberately not admin config, so no admin role can
-redirect dumps; setting `BACKUP_S3_BUCKET` turns it on. `skelet db backup` runs
-one on demand, `skelet db backups` lists them, `skelet db restore <key> --yes`
-restores one. Set `BACKUP_HEARTBEAT_URL` so a dead-man's-switch monitor catches
-the job never running, which failure alerting structurally can't. The restore
-procedure and what isn't in a dump: [backups.md](backups.md).
+**Backups.** skelet takes none - that belongs to your infrastructure. Turn on
+point-in-time recovery if you're on managed Postgres, or run pgBackRest or wal-g
+against the bundled containers, and back the ClickHouse spine up with its own
+`BACKUP DATABASE`. What needs covering and what doesn't:
+[backups.md](backups.md).
 
 **Tracing and metrics.** OpenTelemetry, opt-in - nothing is exported until you
 set the `OTEL_*` vars. Sentry activates when a DSN is set. In dev, `docker

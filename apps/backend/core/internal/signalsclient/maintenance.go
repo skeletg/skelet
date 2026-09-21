@@ -78,41 +78,6 @@ func (c *Client) ProcessDueCampaigns(ctx context.Context, budget time.Duration) 
 	return int(res.GetRecipientsProcessed()), nil
 }
 
-// What a night's Signals backup produced: the database dump and, when a bucket is configured, the spine's copy beside it
-type SignalsBackup struct {
-	Key         string
-	Bytes       int64
-	Pruned      []string
-	SpinePrefix string
-	SpinePruned []string
-}
-
-// BackupDatabase asks the suite to back itself up into the shared BACKUP_* destination under the night's stamp
-func (c *Client) BackupDatabase(ctx context.Context, at time.Time) (SignalsBackup, error) {
-	sys, err := c.System(ctx)
-	if err != nil {
-		return SignalsBackup{}, err
-	}
-	res, err := c.Maintenance.BackupDatabase(sys, &signalsv1.BackupDatabaseRequest{At: timestamppb.New(at)})
-	if err != nil {
-		return SignalsBackup{}, err
-	}
-	return SignalsBackup{
-		Key: res.GetKey(), Bytes: res.GetBytes(), Pruned: res.GetPruned(),
-		SpinePrefix: res.GetSpinePrefix(), SpinePruned: res.GetSpinePruned(),
-	}, nil
-}
-
-// RestoreDatabase is the destructive half, for `skelet db restore` handing a signals dump to the process that holds that database
-func (c *Client) RestoreDatabase(ctx context.Context, key string, jobs int) error {
-	sys, err := c.System(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = c.Maintenance.RestoreDatabase(sys, &signalsv1.RestoreDatabaseRequest{Key: key, Jobs: int32(jobs)})
-	return err
-}
-
 // PruneSendLog is the send-log sweep - partitions ahead, whole months behind the window dropped, archived first under retention_action=archive
 func (c *Client) PruneSendLog(ctx context.Context) error {
 	sys, err := c.System(ctx)

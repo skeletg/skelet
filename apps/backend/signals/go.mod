@@ -21,8 +21,6 @@ require (
 )
 
 require (
-	filippo.io/age v1.3.1 // indirect
-	filippo.io/hpke v0.4.0 // indirect
 	github.com/ClickHouse/ch-go v0.74.0 // indirect
 	github.com/andybalholm/brotli v1.2.2 // indirect
 	github.com/antithesishq/antithesis-sdk-go v0.7.2-default-no-op // indirect

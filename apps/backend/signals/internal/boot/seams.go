@@ -10,10 +10,8 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
 	"github.com/skeletg/skelet/apps/backend/core/lib/urlguard"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinech"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/archivefile"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/signalsboot"
 )
 
 // The seams the suite packages declare, filled from core's public leaves
@@ -30,7 +28,7 @@ func (urlGuard) SafeTransport(allowPrivate bool) *http.Transport {
 	return urlguard.SafeTransport(allowPrivate)
 }
 
-// The BACKUP_* destination the retention sweeps archive to before deleting, the same bucket core's dumps land in
+// The BACKUP_* destination the retention sweeps archive to before deleting
 // A broken one only warns: the sweep fails closed without a sink rather than deleting what it could not archive
 func archiveDestination(ctx context.Context) (archivefile.ObjectStore, string) {
 	store, prefix := backupBucket(ctx)
@@ -40,7 +38,7 @@ func archiveDestination(ctx context.Context) (archivefile.ObjectStore, string) {
 	return store, prefix + "archive/"
 }
 
-// The BACKUP_* bucket and the prefix the dumps share - nil when backups are not configured
+// The BACKUP_* bucket and prefix the retention archive writes under - nil when it is not configured
 func backupBucket(ctx context.Context) (*objstore.Storage, string) {
 	bucket := strings.TrimSpace(os.Getenv("BACKUP_S3_BUCKET"))
 	if bucket == "" {
@@ -67,26 +65,6 @@ func backupBucket(ctx context.Context) (*objstore.Storage, string) {
 		prefix = "db/"
 	}
 	return store, prefix
-}
-
-// The spine's copy of the nightly backup - ClickHouse uploads it itself, so it takes the raw endpoint and credentials
-func newSpineBackup(rc RootContext, s *signalsboot.Stack) *spinech.BackupJob {
-	store, prefix := backupBucket(rc.Context)
-	if store == nil {
-		return nil
-	}
-	return &spinech.BackupJob{
-		Store:   s.Spine,
-		Objects: store,
-		Dest: spinech.BackupDestination{
-			Endpoint:  strings.TrimSpace(os.Getenv("BACKUP_S3_ENDPOINT_URL")),
-			Bucket:    store.Bucket(),
-			Prefix:    prefix,
-			AccessKey: os.Getenv("BACKUP_S3_ACCESS_KEY_ID"),
-			SecretKey: os.Getenv("BACKUP_S3_SECRET_ACCESS_KEY"),
-			Keep:      EnvInt("BACKUP_KEEP", 30),
-		},
-	}
 }
 
 // Lens keeps replay chunks and DOM snapshots in the store's own bucket - the same S3_* variables core's

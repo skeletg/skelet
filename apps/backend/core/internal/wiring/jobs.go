@@ -38,7 +38,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
-	"github.com/skeletg/skelet/apps/backend/core/lib/backup"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
@@ -74,7 +73,6 @@ type jobDeps struct {
 	Blog          *blog.Service
 	Currency      *currency.Service
 	DataJob       *datajob.Service
-	Backup        *backup.Service
 	SignalsClient *signalsclient.Client
 	Order         *order.Service
 	Payment       *paymentpkg.Service
@@ -313,39 +311,6 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 			}
 			return nil
 		})
-	// DB backups: pg_dump streamed straight to the bucket named by the BACKUP_S3_* env (deliberately env-pinned, not admin config - a runtime-editable destination is a full-database exfiltration channel), never to local disk - `skelet db backup` uses the same env - direct DATABASE_URL since pg_dump must not go through PgBouncer txn pooling, and a full dump + upload can easily outlast the 5-minute default
-	jobScheduler.RegisterWithTimeout("db-backup", "0 3 * * *", "Stream a pg_dump of the databases to the object storage named by the BACKUP_S3_* environment.", 30*time.Minute,
-		func(ctx context.Context) error {
-			if !d.Backup.Enabled() {
-				return nil // not configured - a quiet no-op, not a failure
-			}
-			// One stamp for both halves, so a restore pairs them up - commerce here, the signals database
-			// by the process that holds it. With the suite switched off there is no second half to ask for
-			at := time.Now()
-			res, err := d.Backup.Run(ctx, at)
-			if err != nil {
-				return err
-			}
-			slog.Info("db-backup: uploaded", "key", res.Key, "bytes", res.Bytes, "pruned", len(res.Pruned))
-			if d.SignalsClient != nil {
-				sig, err := d.SignalsClient.BackupDatabase(ctx, at)
-				if err != nil {
-					return fmt.Errorf("commerce dump uploaded but the signals backup failed: %w", err)
-				}
-				slog.Info("db-backup: signals uploaded", "key", sig.Key, "bytes", sig.Bytes, "pruned", len(sig.Pruned), "spine", sig.SpinePrefix)
-			}
-			d.Backup.Heartbeat(ctx)
-			return nil
-		})
-	// The unconfigured job no-ops as "success", so nothing downstream would ever flag a prod store running with no backups - say it loudly once at boot instead
-	if d.Wcfg.Env == "production" {
-		switch {
-		case !d.Backup.Enabled():
-			slog.Warn("db-backup: backups are NOT CONFIGURED - set the BACKUP_S3_* environment variables")
-		case !d.Backup.Encrypted():
-			slog.Warn("db-backup: dumps upload UNENCRYPTED - set BACKUP_ENCRYPTION_PASSPHRASE (and keep it safe: losing it loses the backups)")
-		}
-	}
 	// Postgres has no TTL, so the auth-token fallback tables need sweeping - always registered - expiry is enforced on read anyway, this just reclaims space and no-ops when Valkey holds the tokens (tables stay empty)
 	jobScheduler.Register("auth-token-prune", "@every 1h", "Delete expired rows from the Postgres auth-token fallback tables (no-op when Valkey is configured).",
 		func(ctx context.Context) error {

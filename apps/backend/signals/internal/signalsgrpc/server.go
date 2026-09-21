@@ -17,13 +17,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
-	"github.com/skeletg/skelet/apps/backend/core/lib/backup"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/otelx"
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinech"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinequeue"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
@@ -57,10 +55,6 @@ type Deps struct {
 	// The send log and the suppression list - the engines here and core's transactional sends write and read them
 	SendLog     *sendlog.Store
 	Suppression *suppression.Service
-	// The suite's own database dump and restore - nil in a test server
-	Backup *backup.Service
-	// The spine's copy, run right after the dump - nil without a backup bucket
-	SpineBackup *spinech.BackupJob
 	// Pulse: the flow engine, the campaign pipeline and the email builder they render from - nil in a
 	// test server without them, and the services then go unregistered
 	Flows     *flow.Service
@@ -105,12 +99,6 @@ func NewServer(d Deps) *grpc.Server {
 	maint := &maintenanceServer{
 		rec: d.Analytics, lens: d.Lens, destination: d.Destination, settings: d.Settings,
 		segments: d.Segment, behavioral: d.Behavioral, queue: queueOrNil(d.Queue), sends: sendLogOrNil(d.SendLog),
-	}
-	if d.Backup != nil {
-		maint.backups = d.Backup
-	}
-	if d.SpineBackup != nil {
-		maint.spineBackup = d.SpineBackup
 	}
 	if d.Flows != nil {
 		maint.flows = d.Flows
