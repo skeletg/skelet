@@ -37,7 +37,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
-	"github.com/skeletg/skelet/apps/backend/core/lib/backup"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
@@ -68,7 +67,6 @@ var Services = fx.Module("services",
 		newMenuService,
 		newChatService,
 		newActionService,
-		newBackupService,
 		newPaymentService,
 		newPaymentVaultService,
 		newNotificationHub,
@@ -169,8 +167,4 @@ func newAdminPrefsService(q *db.Queries) *adminprefs.Service {
 
 func newNotificationService(q *db.Queries, hub *notification.Hub) *notification.Service {
 	return notification.New(q, hub)
-}
-
-func newBackupService(wcfg Config) *backup.Service { // the DIRECT DSNs - pg_dump wants a session, not a pooled statement slot, and behind transaction pooling its snapshot and SETs don't survive; without a pooler these are the same URLs
-	return backup.New(backup.FamilyCommerce, wcfg.DirectDatabaseURL) // the signals database is dumped by the process that holds it, on the same job's tick
 }

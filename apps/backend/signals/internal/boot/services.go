@@ -9,7 +9,6 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/apps/backend/core/lib/backup"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
@@ -60,8 +59,6 @@ var Services = fx.Module("services",
 		newArchive,
 		newSendLog,
 		newSuppression,
-		newBackup,
-		newSpineBackup,
 	),
 )
 
@@ -165,10 +162,6 @@ func newSendLog(q Queries, rq ReadQueries, a Archive) *sendlog.Store {
 }
 
 func newSuppression(q Queries) *suppression.Service { return suppression.New(q.Queries) }
-
-// The suite's own nightly dump, into the same BACKUP_* destination core's lands in - core's job asks
-// for it under its stamp, so the two halves of a night pair up on restore
-func newBackup(cfg Config) *backup.Service { return backup.New(backup.FamilySignals, cfg.DirectURL) }
 
 func newGeo() *geo.Resolver { // a bad GEOIP_DB_PATH is logged rather than fatal - geo just stops appearing on profiles
 	resolver, err := geo.Open(os.Getenv("GEOIP_DB_PATH"))

@@ -41,8 +41,6 @@ type Config struct {
 	ValkeyURL      string
 	ValkeyCacheURL string // evictable Valkey for caches/limiters/APQ - empty falls back to ValkeyURL for a single instance - prod points it at a second instance with an eviction policy so a cache flood can't fill the noeviction primary and take auth-token writes down with it
 
-	DirectDatabaseURL string // pooler bypass for pg_dump, whose snapshot and SETs need a session a transaction pooler won't hold - unset means there is no pooler and the pooled URL IS direct
-
 	MaxConns          int
 	AnalyticsMaxConns int
 }
@@ -86,9 +84,8 @@ func loadBase() (Config, error) {
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		ReplicaURL:  os.Getenv("DATABASE_REPLICA_URL"),
 
-		DirectDatabaseURL: EnvOr("DATABASE_DIRECT_URL", os.Getenv("DATABASE_URL")),
-		ValkeyURL:         strings.TrimSpace(os.Getenv("VALKEY_URL")),
-		ValkeyCacheURL:    strings.TrimSpace(os.Getenv("VALKEY_CACHE_URL")),
+		ValkeyURL:      strings.TrimSpace(os.Getenv("VALKEY_URL")),
+		ValkeyCacheURL: strings.TrimSpace(os.Getenv("VALKEY_CACHE_URL")),
 
 		MaxConns:          EnvInt("DB_MAX_CONNS", 25),
 		AnalyticsMaxConns: EnvInt("ANALYTICS_DB_MAX_CONNS", 8),

@@ -15,8 +15,8 @@ The release process, and which version number means what, is in
   Lens, Synapse's traits and segments, Prism, the event destinations, the beacon surface and the wire
   contract's server, with a `go.mod` that requires core's by relative path. Core cannot import it
   back: the dependency points one way, and Go's `internal/` rule now enforces it at compile time.
-  What the suite needs of core sits beside `internal/` - `tx`, `cache`, `secrets`, `urlguard` and
-  `otelx` moved up whole, and two leaves were split out for it: `pgconn` (pool opening, out of
+  What the suite needs of core sits beside `internal/` - `txrunner`, `cache`, `secrets`, `urlguard` and
+  `otelx` moved up whole, and two leaves were split out for it: `dbconn` (pool opening, out of
   `internal/db`) and `objstore` (the S3 client, out of `internal/media`); what only the suite uses -
   `geo`, `uaclass` and the `archivefile` writer - moved into the suite with it. The
   suite's settings are declared in core's `config` package beside the sections that already were, so
@@ -209,6 +209,19 @@ The release process, and which version number means what, is in
   beacon surface no longer carry a disabled state, and the health probe reports reachability.
 
 ### Removed
+
+- **Database backups.** skelet no longer takes them: gone are the `lib/backup` package, the nightly
+  `db-backup` scheduled job, the `skelet cli db backup|backups|restore` commands, the backups health
+  group, the ClickHouse spine's `BACKUP DATABASE` job, and the contract's `BackupDatabase` and
+  `RestoreDatabase` RPCs. A logical `pg_dump` taken from inside the application is right for a small
+  store and quietly stops being right as one grows - it slows down, holds a snapshot against vacuum
+  for the length of the run, and restores by rebuilding every index - and the job's own 30-minute
+  timeout made that a 3am failure rather than a warning. Backups belong to the infrastructure now:
+  point-in-time recovery on managed Postgres, or pgBackRest or wal-g against the bundled containers,
+  with the spine taking its own `BACKUP DATABASE`. [docs/backups.md](docs/backups.md) says what needs
+  covering. `BACKUP_ENCRYPTION_PASSPHRASE` and `BACKUP_HEARTBEAT_URL` are gone; the rest of the
+  `BACKUP_S3_*` variables stay, because the analytics retention archive writes to that bucket.
+  `./skelet db export` and `db import` are untouched - they were always local dev snapshots.
 
 - Code nothing reached any more, found by a reachability pass over both modules with every entrypoint
   as a root: the suite's pre-contract trigger vocabulary (`flow.IsAuthTrigger`, `TransactionalTriggers`,

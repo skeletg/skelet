@@ -34,11 +34,9 @@ x-signals-secrets: &signals-secrets
 # default_query_exec_mode=exec turns OFF pgx's prepared statements, which transaction pooling loses track of between PREPARE and EXECUTE
 x-core-db: &core-db
   DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:?set DB_PASSWORD in the root .env}@pgbouncer:6432/skelet?sslmode=disable&default_query_exec_mode=exec}
-  DATABASE_DIRECT_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD}@db:5432/skelet?sslmode=disable}
 
 x-signals-db: &signals-db
   SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:?set SIGNALS_DB_PASSWORD in the root .env}@pgbouncer-signals:6432/skelet_signals?sslmode=disable&default_query_exec_mode=exec}
-  SIGNALS_DIRECT_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD}@signals-db:5432/skelet_signals?sslmode=disable}
 
 # The migration one-shots bypass the pooler, whose transaction pooling loses golang-migrate's advisory lock between statements
 x-core-db-direct: &core-db-direct

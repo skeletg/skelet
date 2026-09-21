@@ -5,10 +5,8 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
-	"github.com/skeletg/skelet/apps/backend/core/lib/backup"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinech"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
@@ -44,8 +42,6 @@ type contractDeps struct {
 	Destination   *destination.Service
 	SendLog       *sendlog.Store
 	Suppression   *suppression.Service
-	Backup        *backup.Service
-	SpineBackup   *spinech.BackupJob // nil without a BACKUP_* bucket
 	Flow          *flow.Service
 	Campaign      *campaign.Service
 	Builder       *emailtemplate.Service
@@ -68,8 +64,6 @@ func newGRPCServer(d contractDeps) *grpc.Server {
 		SettingsRepo:  signalsboot.NewSettingsRepository(d.Queries.Queries),
 		SendLog:       d.SendLog,
 		Suppression:   d.Suppression,
-		Backup:        d.Backup,
-		SpineBackup:   d.SpineBackup,
 		Flows:         d.Flow,
 		Campaigns:     d.Campaign,
 		Builder:       d.Builder,

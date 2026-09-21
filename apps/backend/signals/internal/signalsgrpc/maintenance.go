@@ -6,21 +6,16 @@ package signalsgrpc
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/lib/backup"
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
-	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinech"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinequeue"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/behavioralsegment"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/destination"
@@ -41,20 +36,6 @@ type maintenanceServer struct {
 	sends       sendLogMaintainer // nil in a test server without a log
 	flows       flowEngine        // nil in a test server without Pulse
 	campaigns   campaignPipeline
-	backups     databaseBackup // nil in a test server
-	spineBackup spineBackup    // nil without a backup bucket
-}
-
-// The spine's copy of a nightly run - ClickHouse writes it to the bucket itself
-type spineBackup interface {
-	Run(ctx context.Context, stamp string) (spinech.BackupResult, error)
-}
-
-// The suite's own dump and restore, into the BACKUP_* destination core's lands in
-type databaseBackup interface {
-	Enabled() bool
-	Run(ctx context.Context, at time.Time) (backup.Result, error)
-	Restore(ctx context.Context, key string, jobs int) error
 }
 
 // The engine ticks core's scheduler drives - one advance of the runnable runs, one pass over the due campaigns
@@ -155,48 +136,6 @@ func (s *maintenanceServer) ProcessDueCampaigns(ctx context.Context, req *signal
 		return nil, err
 	}
 	return &signalsv1.ProcessDueCampaignsResponse{RecipientsProcessed: int32(n)}, nil
-}
-
-func (s *maintenanceServer) BackupDatabase(ctx context.Context, req *signalsv1.BackupDatabaseRequest) (*signalsv1.BackupDatabaseResponse, error) {
-	if err := requireSystem(ctx); err != nil {
-		return nil, err
-	}
-	if s.backups == nil || !s.backups.Enabled() {
-		return nil, status.Error(codes.FailedPrecondition, "backups are not configured on the Signals process - set the BACKUP_S3_* variables there too")
-	}
-	at := time.Now()
-	if req.GetAt() != nil {
-		at = req.GetAt().AsTime()
-	}
-	res, err := s.backups.Run(ctx, at)
-	if err != nil {
-		return nil, err
-	}
-	out := &signalsv1.BackupDatabaseResponse{Key: res.Key, Bytes: res.Bytes, Pruned: res.Pruned}
-	if s.spineBackup != nil {
-		sb, err := s.spineBackup.Run(ctx, backup.Stamp(at))
-		if err != nil {
-			return nil, fmt.Errorf("signals dump uploaded as %s but the spine backup failed: %w", res.Key, err)
-		}
-		out.SpinePrefix, out.SpinePruned = sb.Prefix, sb.Pruned
-	}
-	return out, nil
-}
-
-func (s *maintenanceServer) RestoreDatabase(ctx context.Context, req *signalsv1.RestoreDatabaseRequest) (*signalsv1.RestoreDatabaseResponse, error) {
-	if err := requireSystem(ctx); err != nil {
-		return nil, err
-	}
-	if s.backups == nil || !s.backups.Enabled() {
-		return nil, status.Error(codes.FailedPrecondition, "backups are not configured on the Signals process - set the BACKUP_S3_* variables there too")
-	}
-	if req.GetKey() == "" {
-		return nil, invalidArgument("key is required")
-	}
-	if err := s.backups.Restore(ctx, req.GetKey(), int(req.GetJobs())); err != nil {
-		return nil, err
-	}
-	return &signalsv1.RestoreDatabaseResponse{}, nil
 }
 
 func (s *maintenanceServer) ComputeTraits(ctx context.Context, _ *signalsv1.ComputeTraitsRequest) (*signalsv1.ComputeTraitsResponse, error) {

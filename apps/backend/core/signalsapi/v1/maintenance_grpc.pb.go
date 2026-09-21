@@ -36,8 +36,6 @@ const (
 	MaintenanceService_GetCustomerTraits_FullMethodName         = "/skelet.signals.v1.MaintenanceService/GetCustomerTraits"
 	MaintenanceService_AdvanceFlowRuns_FullMethodName           = "/skelet.signals.v1.MaintenanceService/AdvanceFlowRuns"
 	MaintenanceService_ProcessDueCampaigns_FullMethodName       = "/skelet.signals.v1.MaintenanceService/ProcessDueCampaigns"
-	MaintenanceService_BackupDatabase_FullMethodName            = "/skelet.signals.v1.MaintenanceService/BackupDatabase"
-	MaintenanceService_RestoreDatabase_FullMethodName           = "/skelet.signals.v1.MaintenanceService/RestoreDatabase"
 )
 
 // MaintenanceServiceClient is the client API for MaintenanceService service.
@@ -77,12 +75,6 @@ type MaintenanceServiceClient interface {
 	// One tick of the campaign pipeline: materialise the audiences of due campaigns and send the
 	// pending recipients of the ones in flight
 	ProcessDueCampaigns(ctx context.Context, in *ProcessDueCampaignsRequest, opts ...grpc.CallOption) (*ProcessDueCampaignsResponse, error)
-	// A pg_dump of the suite's own database into the BACKUP_* destination, under the stamp core's
-	// nightly job dumped the commerce database with, so a restore pairs the two up
-	BackupDatabase(ctx context.Context, in *BackupDatabaseRequest, opts ...grpc.CallOption) (*BackupDatabaseResponse, error)
-	// pg_restore of one of those dumps over the live database - destructive, and `skelet db restore`
-	// is what calls it, behind its own confirmation flag
-	RestoreDatabase(ctx context.Context, in *RestoreDatabaseRequest, opts ...grpc.CallOption) (*RestoreDatabaseResponse, error)
 }
 
 type maintenanceServiceClient struct {
@@ -233,26 +225,6 @@ func (c *maintenanceServiceClient) ProcessDueCampaigns(ctx context.Context, in *
 	return out, nil
 }
 
-func (c *maintenanceServiceClient) BackupDatabase(ctx context.Context, in *BackupDatabaseRequest, opts ...grpc.CallOption) (*BackupDatabaseResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BackupDatabaseResponse)
-	err := c.cc.Invoke(ctx, MaintenanceService_BackupDatabase_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *maintenanceServiceClient) RestoreDatabase(ctx context.Context, in *RestoreDatabaseRequest, opts ...grpc.CallOption) (*RestoreDatabaseResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RestoreDatabaseResponse)
-	err := c.cc.Invoke(ctx, MaintenanceService_RestoreDatabase_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // MaintenanceServiceServer is the server API for MaintenanceService service.
 // All implementations must embed UnimplementedMaintenanceServiceServer
 // for forward compatibility.
@@ -290,12 +262,6 @@ type MaintenanceServiceServer interface {
 	// One tick of the campaign pipeline: materialise the audiences of due campaigns and send the
 	// pending recipients of the ones in flight
 	ProcessDueCampaigns(context.Context, *ProcessDueCampaignsRequest) (*ProcessDueCampaignsResponse, error)
-	// A pg_dump of the suite's own database into the BACKUP_* destination, under the stamp core's
-	// nightly job dumped the commerce database with, so a restore pairs the two up
-	BackupDatabase(context.Context, *BackupDatabaseRequest) (*BackupDatabaseResponse, error)
-	// pg_restore of one of those dumps over the live database - destructive, and `skelet db restore`
-	// is what calls it, behind its own confirmation flag
-	RestoreDatabase(context.Context, *RestoreDatabaseRequest) (*RestoreDatabaseResponse, error)
 	mustEmbedUnimplementedMaintenanceServiceServer()
 }
 
@@ -347,12 +313,6 @@ func (UnimplementedMaintenanceServiceServer) AdvanceFlowRuns(context.Context, *A
 }
 func (UnimplementedMaintenanceServiceServer) ProcessDueCampaigns(context.Context, *ProcessDueCampaignsRequest) (*ProcessDueCampaignsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ProcessDueCampaigns not implemented")
-}
-func (UnimplementedMaintenanceServiceServer) BackupDatabase(context.Context, *BackupDatabaseRequest) (*BackupDatabaseResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method BackupDatabase not implemented")
-}
-func (UnimplementedMaintenanceServiceServer) RestoreDatabase(context.Context, *RestoreDatabaseRequest) (*RestoreDatabaseResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method RestoreDatabase not implemented")
 }
 func (UnimplementedMaintenanceServiceServer) mustEmbedUnimplementedMaintenanceServiceServer() {}
 func (UnimplementedMaintenanceServiceServer) testEmbeddedByValue()                            {}
@@ -627,42 +587,6 @@ func _MaintenanceService_ProcessDueCampaigns_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MaintenanceService_BackupDatabase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BackupDatabaseRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MaintenanceServiceServer).BackupDatabase(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MaintenanceService_BackupDatabase_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MaintenanceServiceServer).BackupDatabase(ctx, req.(*BackupDatabaseRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _MaintenanceService_RestoreDatabase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RestoreDatabaseRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MaintenanceServiceServer).RestoreDatabase(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MaintenanceService_RestoreDatabase_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MaintenanceServiceServer).RestoreDatabase(ctx, req.(*RestoreDatabaseRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // MaintenanceService_ServiceDesc is the grpc.ServiceDesc for MaintenanceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -725,14 +649,6 @@ var MaintenanceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ProcessDueCampaigns",
 			Handler:    _MaintenanceService_ProcessDueCampaigns_Handler,
-		},
-		{
-			MethodName: "BackupDatabase",
-			Handler:    _MaintenanceService_BackupDatabase_Handler,
-		},
-		{
-			MethodName: "RestoreDatabase",
-			Handler:    _MaintenanceService_RestoreDatabase_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

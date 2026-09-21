@@ -38,7 +38,7 @@ type Options struct {
 
 type Stack struct {
 	Recorder *analytics.Recorder
-	Spine    *spinech.Store              // the engine itself, for the backup job
+	Spine    *spinech.Store              // the engine itself, under whatever the recorder wraps it in
 	Queue    *spinequeue.Queue           // non-nil when SIGNALS_QUEUE_URL is set
 	CHPing   func(context.Context) error // the spine's liveness, for health endpoints
 	cleanups []func()

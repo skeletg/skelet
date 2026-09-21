@@ -21,9 +21,6 @@ type Config struct {
 
 	SignalsURL     string
 	SignalsReadURL string
-	// The pooler bypass pg_dump and pg_restore need - a real session, which a transaction pooler
-	// won't hold. Unset means there is no pooler and the pooled URL IS direct
-	DirectURL string
 	// The evictable Valkey the rate limiter and the settings cache ride - optional, both fail open without it
 	ValkeyURL string
 	// The primary Valkey, where core publishes killed admin sessions - optional, without it revoked tokens live out their two minutes
@@ -60,7 +57,6 @@ func load(maxConns int) (Config, error) {
 		ServiceSecret:       strings.TrimSpace(os.Getenv("SIGNALS_SERVICE_SECRET")),
 		SignalsURL:          os.Getenv("SIGNALS_DB_URL"),
 		SignalsReadURL:      os.Getenv("SIGNALS_REPLICA_URL"),
-		DirectURL:           EnvOr("SIGNALS_DIRECT_URL", os.Getenv("SIGNALS_DB_URL")),
 		ValkeyURL:           EnvOr("VALKEY_CACHE_URL", strings.TrimSpace(os.Getenv("VALKEY_URL"))),
 		PrimaryValkeyURL:    strings.TrimSpace(os.Getenv("VALKEY_URL")),
 		SignalsMaxConns:     maxConns,

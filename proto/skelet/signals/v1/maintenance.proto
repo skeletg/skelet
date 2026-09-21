@@ -42,12 +42,6 @@ service MaintenanceService {
   // One tick of the campaign pipeline: materialise the audiences of due campaigns and send the
   // pending recipients of the ones in flight
   rpc ProcessDueCampaigns(ProcessDueCampaignsRequest) returns (ProcessDueCampaignsResponse);
-  // A pg_dump of the suite's own database into the BACKUP_* destination, under the stamp core's
-  // nightly job dumped the commerce database with, so a restore pairs the two up
-  rpc BackupDatabase(BackupDatabaseRequest) returns (BackupDatabaseResponse);
-  // pg_restore of one of those dumps over the live database - destructive, and `skelet db restore`
-  // is what calls it, behind its own confirmation flag
-  rpc RestoreDatabase(RestoreDatabaseRequest) returns (RestoreDatabaseResponse);
 }
 
 message PruneSpineRequest {}
@@ -204,26 +198,3 @@ message ProcessDueCampaignsResponse {
   // Recipient rows handled - sent, skipped or failed - across every pass of the tick
   int32 recipients_processed = 1;
 }
-
-message BackupDatabaseRequest {
-  // The moment the run started, which the object key carries - unset means now
-  google.protobuf.Timestamp at = 1;
-}
-
-message BackupDatabaseResponse {
-  string key = 1;
-  int64 bytes = 2;
-  // Older dumps of this database the retention rule removed
-  repeated string pruned = 3;
-  // The spine's copy, a directory ClickHouse wrote under the same stamp - empty without a backup bucket
-  string spine_prefix = 4;
-  repeated string spine_pruned = 5;
-}
-
-message RestoreDatabaseRequest {
-  string key = 1;
-  // Parallel pg_restore workers - 1 runs serially
-  int32 jobs = 2;
-}
-
-message RestoreDatabaseResponse {}
