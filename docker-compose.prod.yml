@@ -10,34 +10,42 @@ x-logging: &logging
     max-file: "3"
 
 # Datastore containers and the DSNs that reach them derive from one variable each, so a password can't drift out of sync with the URL that uses it - these come from the root .env, NOT env/prod.env - compose interpolates only the former - setting a URL outright wins over the derived one, which is how you point at a managed datastore - see .env.example
-x-backend-secrets: &backend-secrets
+# Split by tier - each backend gets its own datastore credentials and none of the other's, the same boundary the Go modules draw
+x-shared-secrets: &shared-secrets
   JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in the root .env (openssl rand -hex 32)}
   # The contract's own secret - core signs with it, the suite verifies, the storefront never gets it
   SIGNALS_SERVICE_SECRET: ${SIGNALS_SERVICE_SECRET:?set SIGNALS_SERVICE_SECRET in the root .env (openssl rand -hex 32, distinct from JWT_SECRET)}
-  CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}
   VALKEY_URL: ${VALKEY_URL-redis://:${VALKEY_PASSWORD:?set VALKEY_PASSWORD in the root .env, or set VALKEY_URL= to run Postgres-only}@valkey:6379}
   # The evictable half of the split - caches, rate-limit counters and persisted queries live here on an allkeys-lru instance, so an anonymous cache flood is reclaimed instead of filling the noeviction primary and taking auth-token writes down with it - auto-points at valkey-cache when a password exists, unset with no password (Postgres-only) leaves it empty so everything shares the primary (nil) - set it outright to point caches at a managed instance
   VALKEY_CACHE_URL: ${VALKEY_CACHE_URL-${VALKEY_PASSWORD:+redis://:${VALKEY_PASSWORD}@valkey-cache:6379}}
+
+# Core's alone - the suite administers its own settings over the contract and renders no storefront
+x-core-secrets: &core-secrets
+  CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}
   STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
+
+# The suite's alone - core reaches the spine and the queue over the contract, never by opening them
+x-signals-secrets: &signals-secrets
   # Profile-gated: empty unless the password is set, so `queue` stays off by default without a second switch
   SIGNALS_QUEUE_URL: ${SIGNALS_QUEUE_URL-${NATS_PASSWORD:+nats://skelet:${NATS_PASSWORD}@nats:4222}}
-  # The event spine - two URLs because the driver and golang-migrate disagree on DSN shape
   SIGNALS_CH_URL: ${SIGNALS_CH_URL-clickhouse://skelet:${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in the root .env (openssl rand -hex 32)}@clickhouse:9000/signals}
-  SIGNALS_CH_MIGRATE_URL: ${SIGNALS_CH_MIGRATE_URL-clickhouse://clickhouse:9000?username=skelet&password=${CLICKHOUSE_PASSWORD}&database=signals&x-multi-statement=true}
 
-# Postgres reached two ways - setting DATABASE_URL / SIGNALS_DB_URL outright still wins over both, which is how you point at a managed datastore
-# the pooler then has nothing to do, and you drop its two services
-x-direct-db: &direct-db
-  DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:?set DB_PASSWORD in the root .env}@db:5432/skelet?sslmode=disable}
-  SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:?set SIGNALS_DB_PASSWORD in the root .env}@signals-db:5432/skelet_signals?sslmode=disable}
-
-# POOLED is what every long-running tier talks to, so replica count stops dividing max_connections - the two backends stay bulkheaded as their databases are
+# POOLED is what every long-running tier talks to, so replica count stops dividing max_connections
 # default_query_exec_mode=exec turns OFF pgx's prepared statements, which transaction pooling loses track of between PREPARE and EXECUTE
-x-pooled-db: &pooled-db
+x-core-db: &core-db
   DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:?set DB_PASSWORD in the root .env}@pgbouncer:6432/skelet?sslmode=disable&default_query_exec_mode=exec}
-  SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:?set SIGNALS_DB_PASSWORD in the root .env}@pgbouncer-signals:6432/skelet_signals?sslmode=disable&default_query_exec_mode=exec}
   DATABASE_DIRECT_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD}@db:5432/skelet?sslmode=disable}
+
+x-signals-db: &signals-db
+  SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:?set SIGNALS_DB_PASSWORD in the root .env}@pgbouncer-signals:6432/skelet_signals?sslmode=disable&default_query_exec_mode=exec}
   SIGNALS_DIRECT_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD}@signals-db:5432/skelet_signals?sslmode=disable}
+
+# The migration one-shots bypass the pooler, whose transaction pooling loses golang-migrate's advisory lock between statements
+x-core-db-direct: &core-db-direct
+  DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:?set DB_PASSWORD in the root .env}@db:5432/skelet?sslmode=disable}
+
+x-signals-db-direct: &signals-db-direct
+  SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:?set SIGNALS_DB_PASSWORD in the root .env}@signals-db:5432/skelet_signals?sslmode=disable}
 
 # The bundled datastores sit behind the `bundled` profile so a managed deployment can drop them - point DATABASE_URL / SIGNALS_DB_URL / VALKEY_URL at the managed instances and they never start - .env sets COMPOSE_PROFILES=bundled, so a self-hosted box gets them by default Every depends_on on them carries `required: false`, without which compose rejects the whole file the moment the profile is off
 services:
@@ -50,7 +58,7 @@ services:
     # Inline, so the shape that runs a worker carries the value rather than env/prod.env having to
     # remember it - this stack always runs one, so the request tier never claims background work
     environment:
-      <<: [*backend-secrets, *pooled-db]
+      <<: [*shared-secrets, *core-secrets, *core-db]
       JOBS_EXTERNAL: "true"
     # Loopback only - your proxy terminates TLS and forwards here
     ports: ["127.0.0.1:8080:8080"]
@@ -93,7 +101,7 @@ services:
     # Inline, not in env/prod.env: `app` shares that file and must stay a
     # server - WORKER_PORT defaults to 8081 (what the healthcheck below curls)
     environment:
-      <<: [*backend-secrets, *pooled-db]
+      <<: [*shared-secrets, *core-secrets, *core-db]
       SKELET_ROLE: worker
       OTEL_SERVICE_NAME: skelet-worker
     depends_on:
@@ -130,7 +138,7 @@ services:
       dockerfile: core/Dockerfile.prod
     env_file: [env/prod.env]
     environment:
-      <<: [*backend-secrets, *pooled-db]
+      <<: *core-db
       OTEL_SERVICE_NAME: skelet-media
     command: ["/app/media"]
     ports: ["127.0.0.1:8083:8083"]
@@ -165,7 +173,7 @@ services:
     # Inline (beats env_file) so a distinct trace identity doesn't leak into
     # `app`, which shares env/prod.env - OTEL endpoint/exporter come from the file
     environment:
-      <<: [*backend-secrets, *pooled-db]
+      <<: [*shared-secrets, *signals-secrets, *signals-db]
       OTEL_SERVICE_NAME: skelet-signals
     command: ["/app/signals"]
     depends_on:
@@ -202,7 +210,7 @@ services:
       dockerfile: signals/Dockerfile.prod
     env_file: [env/prod.env]
     environment:
-      <<: [*backend-secrets, *pooled-db]
+      <<: [*shared-secrets, *signals-secrets, *signals-db]
       OTEL_SERVICE_NAME: skelet-ingest
       INGEST_FALLBACK_URL: http://app:8080
     command: ["/app/ingest"]
@@ -242,7 +250,7 @@ services:
       dockerfile: core/Dockerfile.prod
     env_file: [env/prod.env]
     environment:
-      <<: [*backend-secrets, *direct-db]
+      <<: [*shared-secrets, *core-secrets, *core-db-direct]
     depends_on:
       db: { condition: service_healthy, required: false }
     # $$ so the container's shell expands DATABASE_URL, not compose
@@ -259,7 +267,7 @@ services:
       dockerfile: signals/Dockerfile.prod
     env_file: [env/prod.env]
     environment:
-      <<: [*backend-secrets, *direct-db]
+      <<: *signals-db-direct
     depends_on:
       signals-db: { condition: service_healthy, required: false }
     command: ["sh", "-c", "migrate -path /app/signals-migrations -database \"$$SIGNALS_DB_URL\" up"]
@@ -548,7 +556,7 @@ services:
       dockerfile: signals/Dockerfile.prod
     env_file: [env/prod.env]
     environment:
-      <<: *backend-secrets
+      SIGNALS_CH_MIGRATE_URL: ${SIGNALS_CH_MIGRATE_URL-clickhouse://clickhouse:9000?username=skelet&password=${CLICKHOUSE_PASSWORD}&database=signals&x-multi-statement=true}
     depends_on:
       clickhouse: { condition: service_healthy, required: false }
     # $$ so the container's shell expands the vars, not compose
