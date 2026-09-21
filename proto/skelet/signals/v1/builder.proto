@@ -1,0 +1,250 @@
+syntax = "proto3";
+
+// The email builder: the library of saved emails, their groups, the transactional slots one can be bound to, version history and a channel's reusable blocks
+// Campaigns and flows render from it, and the dashboard edits it through core, which relays these
+package skelet.signals.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service EmailBuilderService {
+  rpc ListLibraryEmails(ListLibraryEmailsRequest) returns (ListLibraryEmailsResponse);
+  rpc GetLibraryEmail(GetLibraryEmailRequest) returns (GetLibraryEmailResponse);
+  // Creates when the id is empty, updates otherwise - either way the saved state is snapshotted into
+  // the email's history under the calling admin
+  rpc SaveLibraryEmail(SaveLibraryEmailRequest) returns (SaveLibraryEmailResponse);
+  rpc DeleteLibraryEmail(DeleteLibraryEmailRequest) returns (DeleteLibraryEmailResponse);
+  rpc ListEmailGroups(ListEmailGroupsRequest) returns (ListEmailGroupsResponse);
+  rpc CreateEmailGroup(CreateEmailGroupRequest) returns (CreateEmailGroupResponse);
+  rpc RenameEmailGroup(RenameEmailGroupRequest) returns (RenameEmailGroupResponse);
+  // Emails in the group stay, untagged
+  rpc DeleteEmailGroup(DeleteEmailGroupRequest) returns (DeleteEmailGroupResponse);
+  // The transactional send slots and which saved email, if any, each is bound to for the channel
+  rpc ListTransactionalSlots(ListTransactionalSlotsRequest) returns (ListTransactionalSlotsResponse);
+  // An empty slot unbinds the email
+  rpc AssignEmailSlot(AssignEmailSlotRequest) returns (AssignEmailSlotResponse);
+  // The pre-send checklist over a saved email's content
+  rpc PreflightEmail(PreflightEmailRequest) returns (PreflightEmailResponse);
+  rpc ListEmailRevisions(ListEmailRevisionsRequest) returns (ListEmailRevisionsResponse);
+  rpc RestoreEmailRevision(RestoreEmailRevisionRequest) returns (RestoreEmailRevisionResponse);
+  // Unsaved content rendered for the editor - with a customer, their real data fills the tags,
+  // otherwise representative sample data does
+  rpc RenderLibraryPreview(RenderLibraryPreviewRequest) returns (RenderLibraryPreviewResponse);
+  rpc ListEmailBlocks(ListEmailBlocksRequest) returns (ListEmailBlocksResponse);
+  rpc SaveEmailBlock(SaveEmailBlockRequest) returns (SaveEmailBlockResponse);
+  rpc DeleteEmailBlock(DeleteEmailBlockRequest) returns (DeleteEmailBlockResponse);
+}
+
+message LibraryEmail {
+  string id = 1;
+  string channel_id = 2;
+  string name = 3;
+  string subject = 4;
+  // The inbox-preview snippet shown after the subject
+  string preheader = 5;
+  string blocks_json = 6;
+  string styles_json = 7;
+  optional string group_id = 8;
+  // Empty when not bound to a transactional slot
+  string slot = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message LibraryEmailInput {
+  // Empty creates
+  string id = 1;
+  string channel_id = 2;
+  string name = 3;
+  string subject = 4;
+  string preheader = 5;
+  string blocks_json = 6;
+  string styles_json = 7;
+  optional string group_id = 8;
+}
+
+message EmailGroup {
+  string id = 1;
+  string slug = 2;
+  string name = 3;
+  // The seeded transactional and marketing groups - renamable, not deletable from the dashboard
+  bool is_system = 4;
+  int32 email_count = 5;
+}
+
+message TransactionalSlot {
+  string slot = 1;
+  string label = 2;
+  // Unset means the slot renders core's own built-in
+  optional string email_id = 3;
+  string email_name = 4;
+}
+
+message EmailWarning {
+  // warn | info
+  string severity = 1;
+  string message = 2;
+}
+
+message EmailRevision {
+  string id = 1;
+  string name = 2;
+  string subject = 3;
+  string preheader = 4;
+  string blocks_json = 5;
+  string styles_json = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// A reusable block a channel defines - a composed body or an admin-authored HTML template, with an
+// optional field schema its instances fill in
+message EmailBlock {
+  string channel_id = 1;
+  string slug = 2;
+  string name = 3;
+  string icon = 4;
+  string fields_json = 5;
+  string blocks_json = 6;
+  string html_template = 7;
+  string text_template = 8;
+  string css = 9;
+  // The HTML body renders through Liquid rather than plain tag interpolation
+  bool scripted = 10;
+}
+
+message ListLibraryEmailsRequest {
+  string channel_id = 1;
+  // Empty lists every group
+  string group_slug = 2;
+}
+
+message ListLibraryEmailsResponse {
+  repeated LibraryEmail emails = 1;
+}
+
+message GetLibraryEmailRequest {
+  string id = 1;
+}
+
+message GetLibraryEmailResponse {
+  LibraryEmail email = 1;
+}
+
+message SaveLibraryEmailRequest {
+  LibraryEmailInput email = 1;
+}
+
+message SaveLibraryEmailResponse {
+  LibraryEmail email = 1;
+}
+
+message DeleteLibraryEmailRequest {
+  string id = 1;
+}
+
+message DeleteLibraryEmailResponse {}
+
+message ListEmailGroupsRequest {}
+
+message ListEmailGroupsResponse {
+  repeated EmailGroup groups = 1;
+}
+
+message CreateEmailGroupRequest {
+  string name = 1;
+}
+
+message CreateEmailGroupResponse {
+  EmailGroup group = 1;
+}
+
+message RenameEmailGroupRequest {
+  string id = 1;
+  string name = 2;
+}
+
+message RenameEmailGroupResponse {
+  EmailGroup group = 1;
+}
+
+message DeleteEmailGroupRequest {
+  string id = 1;
+}
+
+message DeleteEmailGroupResponse {}
+
+message ListTransactionalSlotsRequest {
+  string channel_id = 1;
+}
+
+message ListTransactionalSlotsResponse {
+  repeated TransactionalSlot slots = 1;
+}
+
+message AssignEmailSlotRequest {
+  string email_id = 1;
+  string slot = 2;
+}
+
+message AssignEmailSlotResponse {}
+
+message PreflightEmailRequest {
+  string id = 1;
+}
+
+message PreflightEmailResponse {
+  repeated EmailWarning warnings = 1;
+}
+
+message ListEmailRevisionsRequest {
+  string id = 1;
+  int32 limit = 2;
+}
+
+message ListEmailRevisionsResponse {
+  repeated EmailRevision revisions = 1;
+}
+
+message RestoreEmailRevisionRequest {
+  string revision_id = 1;
+}
+
+message RestoreEmailRevisionResponse {
+  LibraryEmail email = 1;
+}
+
+message RenderLibraryPreviewRequest {
+  string channel_id = 1;
+  optional string customer_id = 2;
+  string subject = 3;
+  string preheader = 4;
+  string blocks_json = 5;
+  string styles_json = 6;
+}
+
+message RenderLibraryPreviewResponse {
+  string subject = 1;
+  string html = 2;
+}
+
+message ListEmailBlocksRequest {
+  string channel_id = 1;
+}
+
+message ListEmailBlocksResponse {
+  repeated EmailBlock blocks = 1;
+}
+
+message SaveEmailBlockRequest {
+  EmailBlock block = 1;
+}
+
+message SaveEmailBlockResponse {
+  EmailBlock block = 1;
+}
+
+message DeleteEmailBlockRequest {
+  string channel_id = 1;
+  string slug = 2;
+}
+
+message DeleteEmailBlockResponse {}

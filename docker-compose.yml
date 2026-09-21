@@ -19,19 +19,13 @@ x-backend-base: &backend-base
   # those ports are published in dev - go1.27's goroutineleak profile is served there too
   PPROF_ENABLED: "${PPROF_ENABLED:-}"
 
-# Everything that talks to the spine - not media, it only resizes images - and all four have to agree on the engine: analytics-prune runs through
-# the spine driver, so a worker pruning Postgres while the app writes ClickHouse is a silent data-loss bug rather than an error
+# The Signals processes' own environment - signals, ingest and the signals-migrate one-shot
 x-signals-env: &signals-env
-  # Signals' own database (signals-db below) - required even with SIGNALS_ENABLED=false, since the
-  # spine and Lens tables live here and the pool opens either way
+  # Signals' own database (signals-db below) - only the suite's processes open it; app and worker
+  # reach everything in it over the contract
   SIGNALS_DB_URL: "postgres://skelet:skelet@signals-db:5432/skelet_signals?sslmode=disable"
-  # Spine engine: empty = Postgres (default) - SIGNALS_ENGINE=clickhouse switches to the columnar
-  # one, and bin/_lib turns the clickhouse profile on from that same value
-  #
-  # The URL derives from the bundled container the way DATABASE_URL and SIGNALS_DB_URL do, because
-  # setting the engine without it leaves the backend refusing to boot on an empty DSN - override it
-  # to point the spine at a managed ClickHouse instead
-  SIGNALS_ENGINE: "${SIGNALS_ENGINE:-}"
+  # The event spine - derived from the bundled server the way SIGNALS_DB_URL is, override it to
+  # point at a managed ClickHouse
   SIGNALS_CH_URL: "${SIGNALS_CH_URL:-clickhouse://skelet:skelet@clickhouse:9000/signals}"
   SIGNALS_QUEUE_URL: "${SIGNALS_QUEUE_URL:-}"
 
@@ -50,7 +44,9 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./apps/backend:/var/www/app
+      # The three Go modules together, so the relative replaces between them resolve - bin/go --signals
+      # and bin/test-e2e build the suite in this container
+      - ./apps/backend:/var/www/backend
       - ./.git:/var/www/.git:ro
       # The core-to-Signals wire contract, owned by neither side - buf runs in here and generates into the backend
       - ./proto:/var/www/proto
@@ -59,16 +55,10 @@ services:
       GIT_CONFIG_COUNT: "1"
       GIT_CONFIG_KEY_0: safe.directory
       GIT_CONFIG_VALUE_0: "/var/www"
-      <<: [*backend-base, *signals-env]
-      # true -> app stops running the Signals retention/forward jobs (the `signals` profile service runs them instead) -
-      # safe either way; the jobs are idempotent - enable together: SIGNALS_JOBS_EXTERNAL=true + --profile signals
-      SIGNALS_JOBS_EXTERNAL: "${SIGNALS_JOBS_EXTERNAL:-false}"
-      # true -> app stops claiming scheduler jobs / webhook-queue items / outbox rows; the `worker` profile service owns
-      # them - claim-based, so safe either way - enable together: JOBS_EXTERNAL=true + --profile worker
+      <<: *backend-base
+      # true -> app stops running the Signals retention/forward jobs (the `signals` profile service runs them instead) - true -> app stops claiming scheduler jobs / webhook-queue items / outbox rows; the `worker` profile service owns them - claim-based, so safe either way - enable together: JOBS_EXTERNAL=true + --profile worker
       JOBS_EXTERNAL: "${JOBS_EXTERNAL:-false}"
-      # Soft dependency - when it's down discovery falls back to the Postgres tier
-      # Empty disables the cluster entirely and pins everything to that tier - the bare `-`
-      # default is deliberate, so an explicitly empty value stays empty instead of rebounding
+      # Soft dependency - when it's down discovery falls back to the Postgres tier Empty disables the cluster entirely and pins everything to that tier - the bare `-` default is deliberate, so an explicitly empty value stays empty instead of rebounding
       OPENSEARCH_URL: "${OPENSEARCH_URL-http://opensearch:9200}"
       # Moves a GraphQL endpoint behind an unguessable path segment - empty keeps /api/<surface>/graphql
       # Set ADMIN_API_SLUG and the dashboard's VITE_GRAPHQL_URL together, or the SPA loses its API
@@ -96,9 +86,7 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Same binary in worker role - scheduler jobs, webhook queue and outbox relay,
-  # off checkout's CPU and pool slots - DB-claim based, so running it beside a
-  # still-claiming app is safe; JOBS_EXTERNAL=true is what moves the work
+  # Same binary in worker role - scheduler jobs, webhook queue and outbox relay, off checkout's CPU and pool slots - DB-claim based, so running it beside a still-claiming app is safe; JOBS_EXTERNAL=true is what moves the work
   #   JOBS_EXTERNAL=true docker compose --profile worker up
   worker:
     profiles: ["worker"]
@@ -114,14 +102,13 @@ services:
       # 8082, not the code's 8081 default - webhook-tester holds 8081 in dev
       - "8082:8082"
     volumes:
-      - ./apps/backend:/var/www/app
+      - ./apps/backend:/var/www/backend
     environment:
-      <<: [*backend-base, *signals-env]
+      <<: *backend-base
       SKELET_ROLE: "worker"
       WORKER_PORT: "8082"
       # Follows the same switch as app - when the signals profile owns them,
       # neither the app nor this worker should register them
-      SIGNALS_JOBS_EXTERNAL: "${SIGNALS_JOBS_EXTERNAL:-false}"
       OPENSEARCH_URL: "http://opensearch:9200"
       OTEL_SERVICE_NAME: "skelet-worker"
     env_file:
@@ -146,10 +133,8 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Image-transform tier: /media/t/* served by cmd/media, so image decode +
-  # resample (the only CPU-heavy work here) can't compete with checkout
-  # Opt-in: `docker compose --profile media up` - the app keeps serving the same
-  # route, so this is additive - point your proxy at :8083 to actually use it
+  # Image-transform tier: /media/t/* served by cmd/media, so image decode and resample cannot compete with checkout
+  # Opt-in with `docker compose --profile media up` - additive, since the app keeps serving the same route, so point your proxy at :8083 to actually use it
   media:
     profiles: ["media"]
     build:
@@ -161,7 +146,7 @@ services:
     ports:
       - "8083:8083"
     volumes:
-      - ./apps/backend:/var/www/app
+      - ./apps/backend:/var/www/backend
     environment:
       <<: *backend-base
       MEDIA_PORT: "8083"
@@ -182,11 +167,8 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Signals worker (Pulse/Lens/Synapse/Prism) as its own process - owns
-  # retention pruning, spine forwarding, trait compute and the ingest-queue
-  # consumer, isolated from the commerce engine
-  # Opt-in: `docker compose --profile signals up` - reuses the app image + source
-  # mount; pair with SIGNALS_JOBS_EXTERNAL=true so the app defers the same jobs
+  # The Signals suite as its own process from its own Go module - the wire contract core calls, the /t surface core proxies here, and the upkeep core's scheduler asks for
+  # Reuses the dev image with both modules mounted, where the suite's replace directive resolves
   signals:
     profiles: ["signals"]
     build:
@@ -194,13 +176,14 @@ services:
       dockerfile: apps/backend/Dockerfile
     user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
     init: true
+    working_dir: /var/www/backend/signals
     command: go run ./cmd/signals
     ports:
       - "8090:8090"
       # The wire contract core calls - its own listener, since grpc needs one
       - "8092:8092"
     volumes:
-      - ./apps/backend:/var/www/app
+      - ./apps/backend:/var/www/backend
     environment:
       <<: [*backend-base, *signals-env]
       SIGNALS_PORT: "8090"
@@ -216,6 +199,10 @@ services:
         condition: service_healthy
       signals-migrate:
         condition: service_completed_successfully
+      clickhouse:
+        condition: service_healthy
+      clickhouse-migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/healthz"]
       interval: 15s
@@ -225,10 +212,8 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Web-ingest tier: the public /t surface (tracker beacons + SDK reads) as its
-  # own process, so beacon spikes can't touch checkout - additive - the app keeps
-  # serving /t/*, this exists to take the traffic when the proxy points here
-  # Opt-in: `docker compose --profile ingest up`
+  # Web-ingest tier: the public /t surface as its own process, so beacon spikes cannot touch checkout
+  # Opt-in with `docker compose --profile ingest up` - additive, since the app keeps serving /t/*, and this takes the traffic when the proxy points here
   ingest:
     profiles: ["ingest"]
     build:
@@ -236,11 +221,12 @@ services:
       dockerfile: apps/backend/Dockerfile
     user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
     init: true
+    working_dir: /var/www/backend/signals
     command: go run ./cmd/ingest
     ports:
       - "8091:8091"
     volumes:
-      - ./apps/backend:/var/www/app
+      - ./apps/backend:/var/www/backend
     environment:
       <<: [*backend-base, *signals-env]
       INGEST_PORT: "8091"
@@ -257,6 +243,10 @@ services:
       signals-db:
         condition: service_healthy
       signals-migrate:
+        condition: service_completed_successfully
+      clickhouse:
+        condition: service_healthy
+      clickhouse-migrate:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8091/healthz"]
@@ -283,7 +273,6 @@ services:
       # musl install isn't shadowed by whatever the host built
       - ./apps/dashboard:/var/www/dashboard
       # The Signals GraphQL schema, read-only - codegen.signals.ts validates against these files, and ../backend/... resolves the same here as on the host
-      - ./apps/backend/graph/schema/signals:/var/www/backend/graph/schema/signals:ro
       - dashboard-node-modules:/var/www/dashboard/node_modules
       - dashboard-vite-cache:/var/www/dashboard/node_modules/.vite
     environment:
@@ -324,9 +313,7 @@ services:
       # Server-side fetches use the in-network URL, the browser can't reach it -
       # client code falls back to NEXT_PUBLIC_BACKEND_URL (host port)
       - BACKEND_INTERNAL_URL=http://app:8080
-      # In-network for codegen inside the container - the config defaults to the host port
-      # Its OWN variable: the root .env sets GRAPHQL_CODEGEN_URL to the admin endpoint when
-      # ADMIN_API_SLUG moves it, which would otherwise point this front-surface codegen at the admin schema
+      # In-network for codegen inside the container - the config defaults to the host port Its OWN variable: the root .env sets GRAPHQL_CODEGEN_URL to the admin endpoint when ADMIN_API_SLUG moves it, which would otherwise point this front-surface codegen at the admin schema
       - GRAPHQL_CODEGEN_URL=${FRONT_GRAPHQL_CODEGEN_URL:-http://app:8080/api/front/graphql}
       # The dashboard's origin, named in this storefront's frame-ancestors CSP and checked on every
       # preview postMessage - pairs with the dashboard's VITE_STOREFRONT_ORIGIN
@@ -347,10 +334,7 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Datastores publish on 127.0.0.1 only - dev credentials are trivial (skelet/
-  # skelet) and valkey/opensearch/clickhouse run unauthenticated, so binding
-  # them to every interface put a live database on whatever network you were
-  # on - WSL2 still forwards localhost, so Windows-side tools keep working
+  # Datastores publish on 127.0.0.1 only - dev credentials are trivial (skelet/ skelet) and valkey/opensearch/clickhouse run unauthenticated, so binding them to every interface put a live database on whatever network you were on - WSL2 still forwards localhost, so Windows-side tools keep working
   db:
     image: postgres:18-alpine
     env_file:
@@ -367,17 +351,14 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # One-shot: bring the commerce database up to date, then exit - gates every backend
-  # role so none boots against an un-migrated schema ($$ = the container's shell)
-  # Schema first, then the run-once data patches that need Go the schema can't express -
-  # a plugin's patch reaches the database here, and nowhere else
+  # One-shot: bring the commerce database up to date, then exit - gates every backend role so none boots against an un-migrated schema ($$ = the container's shell) Schema first, then the run-once data patches that need Go the schema can't express - a plugin's patch reaches the database here, and nowhere else
   migrate:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
     user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
     volumes:
-      - ./apps/backend:/var/www/app
+      - ./apps/backend:/var/www/backend
     environment:
       <<: *backend-base
     # DATABASE_URL comes from here, so this migrates whatever db the backend
@@ -411,30 +392,29 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # The same one-shot for the signals stream - gates app, worker, signals and
-  # ingest, and reuses the app image for the migrate CLI + the source mount
+  # The same one-shot for the signals stream - gates app, worker, signals and ingest
+  # Reuses the app image for the migrate CLI with the Signals module mounted, since the stream is the suite's
   signals-migrate:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
     user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
     volumes:
-      - ./apps/backend:/var/www/app
+      - ./apps/backend/signals:/var/www/backend/signals
     environment:
       <<: *signals-env
       HOME: "/tmp"
-    command: sh -c 'migrate -path internal/db/signals/migrations -database "$$SIGNALS_DB_URL" up'
+    command: sh -c 'migrate -path /var/www/backend/signals/internal/db/migrations -database "$$SIGNALS_DB_URL" up'
     depends_on:
       signals-db:
         condition: service_healthy
     restart: "no"
     logging: *logging
 
-  # Generic columnar server, not a Signals component - consumers get their own
-  # database on it - behind a profile so the default stack stays Postgres-only
-  #   docker compose --profile clickhouse up
+  # The event spine's server, up with the suite - other consumers (the logs profile) get their own database on it
   clickhouse:
-    profiles: ["clickhouse"]
+    # Every profile that needs it starts it: the suite and the beacon tier write the spine, `logs` keeps its own database here
+    profiles: ["signals", "ingest", "logs"]
     image: clickhouse/clickhouse-server:26.7.5
     environment:
       - CLICKHOUSE_DB=signals
@@ -457,11 +437,9 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # JetStream - the optional durable ingest queue (SIGNALS_QUEUE_URL) - behind a
-  # profile so the default stack keeps the direct spine path - needs the signals
-  # worker consuming, or the stream just accrues to its MaxAge:
-  #   SIGNALS_QUEUE_URL=nats://nats:4222 SIGNALS_JOBS_EXTERNAL=true \
-  #     docker compose --profile queue --profile signals up
+  # JetStream - the optional durable ingest queue (SIGNALS_QUEUE_URL), behind a profile so the default stack keeps the direct spine path
+  # Needs the signals worker consuming, or the stream just accrues to its MaxAge:
+  #   SIGNALS_QUEUE_URL=nats://nats:4222 docker compose --profile queue --profile signals up
   nats:
     profiles: ["queue"]
     image: nats:2.14-alpine
@@ -478,18 +456,14 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # The SIGNALS consumer's schema (one database on the server above), applied the same way prod does so there's one
-  # mechanism and editing a migration takes effect on the next up rather than only on a fresh volume
-  #
-  # Deliberately has no dependents, unlike the other two migrate one-shots: a depends_on reaching
-  # across a profile boundary makes the WHOLE project invalid whenever that profile is off
-  # ("depends on undefined service") - the race is self-healing instead - spinech waits 30s for a
-  # ping and a missing table just restarts the container - and bin/setup + bin/doctor check it
+  # The spine schema on the server above, applied the same way prod does so there's one mechanism and
+  # editing a migration takes effect on the next up rather than only on a fresh volume
   clickhouse-migrate:
-    profiles: ["clickhouse"]
+    # Not under `logs` - that profile shares the server, not the spine schema
+    profiles: ["signals", "ingest"]
     image: migrate/migrate:v4.19.1
     volumes:
-      - ./apps/backend/internal/analytics/spinech/migrations:/m:ro
+      - ./apps/backend/signals/internal/analytics/spinech/migrations:/m:ro
     depends_on:
       clickhouse: { condition: service_healthy }
     command:
@@ -501,10 +475,8 @@ services:
     restart: "no"
     logging: *logging
 
-  # Log search - Vector tails container stdout into ClickHouse so the rotation cap
-  # stops being the retention policy - its own `logs` database, so it needs the
-  # clickhouse profile too - query with bin/logs-query "level = 'error'"
-  #   docker compose --profile clickhouse --profile logs up
+  # Log search - Vector tails container stdout into ClickHouse so the rotation cap stops being the retention policy
+  # Its own `logs` database on the spine's server - query with bin/logs-query "level = 'error'", and start it with --profile signals --profile logs
   logs-schema:
     profiles: ["logs"]
     image: clickhouse/clickhouse-server:26.7.5

@@ -1,0 +1,70 @@
+type Country {
+  # ISO 3166-1 alpha-2, always uppercased on the way in (e.g. "US", "FR").
+  code:                  String!
+  name:                  String!
+  nativeName:            String!
+  emojiFlag:             String!
+  phoneCode:             String!
+  # FK to currencies(code) with ON DELETE SET NULL. Empty string when unset. Storefront uses this to default the currency on a new checkout when only the country is known.
+  defaultCurrencyCode:   String!
+  # Resolved Currency (nullable when defaultCurrencyCode is empty or
+  # the currency has been deleted/disabled).
+  defaultCurrency:       Currency
+  # ISO 3166-1 alpha-3 (e.g. "USA") and numeric-3 (e.g. "840"), for
+  # integration interop. Empty until enriched. Alpha-2 `code` is the key.
+  iso3Code:              String!
+  numericCode:           String!
+  isActive:              Boolean!
+  sortOrder:             Int!
+  metadata:              [MetadataItem!]!
+  # ISO 3166-2 subdivisions (states/provinces) seeded for this country. Empty for countries that use free-text regions. Field resolver - only fetched when requested (e.g. the country detail page).
+  regions:               [Region!]!
+  createdAt:             Time!
+  updatedAt:             Time!
+}
+
+# An ISO 3166-2 subdivision. `code` is the subdivision part only
+# (e.g. "CA", "ON"); the full ISO code is country code + "-" + code.
+type Region {
+  code:      String!
+  name:      String!
+  isActive:  Boolean!
+  sortOrder: Int!
+}
+
+input CreateCountryInput {
+  code:                  String!
+  name:                  String!
+  nativeName:            String
+  emojiFlag:             String
+  phoneCode:             String
+  defaultCurrencyCode:   String
+  isActive:              Boolean
+  sortOrder:             Int
+  metadata:              [MetadataInput!]
+}
+
+# Code is the PK and never updates - to "rename" a country you delete
+# (only allowed when no references exist) and recreate.
+input UpdateCountryInput {
+  code:                  String!
+  name:                  String
+  nativeName:            String
+  emojiFlag:             String
+  phoneCode:             String
+  defaultCurrencyCode:   String
+  isActive:              Boolean
+  sortOrder:             Int
+  metadata:              [MetadataInput!]
+}
+
+extend type Query {
+  countries(activeOnly: Boolean): [Country!]!  # requires countries.view
+  country(code: String!):         Country!     # requires countries.view
+}
+
+extend type Mutation {
+  createCountry(input: CreateCountryInput!): Country!  # requires countries.manage
+  updateCountry(input: UpdateCountryInput!): Country!  # requires countries.manage
+  deleteCountry(code: String!):              Boolean!  # requires countries.manage
+}

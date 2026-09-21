@@ -153,3 +153,11 @@ mutation SuggestEmailSubjects($context: String!, $count: Int) {
 mutation RewriteEmailText($text: String!, $instruction: String) {
   rewriteEmailText(text: $text, instruction: $instruction)
 }
+
+mutation SeedPulseStarterContent($channelId: ID!) {
+  seedPulseStarterContent(channelId: $channelId) {
+    blocks
+    emails
+    flows
+  }
+}

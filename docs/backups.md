@@ -1,159 +1,81 @@
-# Backups and restore
+# Backups
 
-The runbook for turning a bucket full of dumps back into a running shop.
-Read it before you need it; better yet, rehearse it once. A backup you
-have never restored is a hope, not a backup.
+skelet doesn't take database backups. That's your infrastructure's job, and
+this page is about setting it up.
 
-Every variable named here is documented in
-[env.md](env.md#database-backups).
+The reasoning is short: a logical `pg_dump` from inside the application works
+fine for a small store and quietly stops working as one grows, because the dump
+gets slower, holds a snapshot open against vacuum for its whole run, and leaves
+you with a restore that rebuilds every index. You find out it outgrew you at
+3am. Magento shipped exactly that feature, then deprecated it for the same
+reason. So skelet leaves it to tools built for the job.
 
-## What the backups are
+## What has to be backed up
 
-The `db-backup` scheduler job runs nightly at 03:00 and streams `pg_dump`
-straight into the bucket named by `BACKUP_S3_BUCKET`, never to local disk.
-`skelet db backup` runs the same code on demand.
+| | What it holds | How |
+|---|---|---|
+| Commerce Postgres | Orders, customers, catalog, everything that matters | PITR, below |
+| Signals Postgres | Campaigns, flows, segments, the send log | PITR, below |
+| ClickHouse spine | Raw analytics events, Lens sessions | `BACKUP DATABASE`, below |
+| Object storage | Media, and Lens replay blobs | Bucket replication or versioning |
 
-- **Two dumps per run**, sharing one timestamp so a restore can pair them:
-  `db/skelet-<ts>.dump` (commerce) and `db/skelet-signals-<ts>.dump`
-  (analytics). Restore the pair from the same timestamp.
-- **Custom format, zstd-compressed.** `pg_restore` reads it directly.
-- **Encrypted with age** when `BACKUP_ENCRYPTION_PASSPHRASE` is set, which
-  adds a `.age` suffix to the key. Without the passphrase those objects are
-  unreadable by anyone, including you.
-- **Retention keeps the newest `BACKUP_KEEP` (default 30) per database.**
-  Count, not age: a burst of manual runs prunes older nightlies sooner.
-- Analytics retention archives share the bucket under
-  `<prefix>archive/`. The dump pruner never touches them.
+What you don't need to back up: OpenSearch, which is rebuilt from Postgres with
+`./skelet cli search reindex`, and Valkey, which is caches and sessions.
 
-What is **not** in a dump: the search index (OpenSearch is rebuilt, not
-restored), media objects (they live in the media bucket), and Valkey
-(caches and sessions, all disposable).
+## Postgres
 
-## Restore
+**On managed Postgres** - DigitalOcean, RDS, Cloud SQL, Neon, Supabase - point-in-time
+recovery is a checkbox. Turn it on, set the retention window, and you're done.
+This is the easy path and it's the one to take if you're on a provider that offers it.
 
-The commands below run inside the app container, which already has the
-credentials and `pg_restore`. `bin/cli` is the dev wrapper; in prod use
-`docker compose -f docker-compose.prod.yml exec app skelet ...`.
+**Self-hosting Postgres** in the compose stack, use [pgBackRest](https://pgbackrest.org/)
+or [wal-g](https://github.com/wal-g/wal-g). Both take a physical base backup and
+then continuously archive the write-ahead log, which is what lets you restore to
+any moment rather than to last night. pgBackRest is the more capable one;
+wal-g is a single binary configured by environment variables and is the quicker
+start.
 
-**1. Pick a dump.** Oldest first, so the newest pair is at the bottom:
+Either way you want `archive_mode = on` and an `archive_command` on the Postgres
+container, and a destination the database host can't delete from.
 
-```bash
-skelet db backups
-```
+Two things to know. Physical backups restore only into the same Postgres major
+version and architecture, so keep an occasional `pg_dump` for version upgrades and
+for moving hosts. And they work per cluster, not per database: in the split prod
+topology commerce and signals are separate containers so they archive independently,
+but in the single-container small tier they share one cluster and rewind together.
 
-**2. Stop the writers.** Leave the database up, take the app down, or the
-restore fights live traffic:
+## ClickHouse
 
-```bash
-docker compose -f docker-compose.prod.yml stop app worker media signals ingest
-```
+ClickHouse backs itself up with `BACKUP DATABASE signals TO S3(...)`, run on a
+schedule of your choosing. It writes a directory of compressed parts straight to
+the bucket. Restore is `RESTORE DATABASE signals FROM S3(...)`.
 
-**3. Restore both dumps of one timestamp.** This is destructive:
-`pg_restore --clean --if-exists` drops and recreates objects, which is why
-it demands `--yes`. Encrypted dumps decrypt in flight, and age
-authenticates them, so a tampered object fails here instead of restoring
-quietly:
+The spine is append-only event data, so losing a day of it costs you analytics
+history rather than money. Back it up, but it doesn't need the same RPO as the
+commerce database.
 
-```bash
-skelet db restore db/skelet-<ts>.dump.age --yes --jobs 4
-skelet db restore db/skelet-signals-<ts>.dump.age --yes --jobs 4
-```
+## Restore ordering
 
-`--jobs N` parallelizes the data and index phases and is the difference
-between hours and minutes on a large database. The dump spools to a temp
-file first, so point `TMPDIR` at a volume with room for one dump if the
-container filesystem is small.
+If you restore both Postgres databases, take them from the same point in time.
+Signals holds a pushed copy of core's channels and customers; a suite restored
+from further back will have a stale roster, which core's roster-push job repairs
+on its next tick. A suite restored from further *forward* than core can reference
+customers core no longer has, which is the direction to avoid.
 
-**4. Migrate.** A dump can predate the code you are deploying, so the
-schema may be behind:
+After any restore: `./skelet cli search reindex` to rebuild OpenSearch, and check
+that scheduled jobs aren't all overdue on the health page.
 
-```bash
-docker compose -f docker-compose.prod.yml run --rm migrate
-docker compose -f docker-compose.prod.yml run --rm signals-migrate
-```
+## Local snapshots
 
-**5. Start the app back up**, then work the checklist below.
+For development, `./skelet db export` dumps to the gitignored `backups/`
+directory and `./skelet db import` restores one. These write local files and
+touch no bucket. They're a dev convenience, not a backup strategy.
 
-```bash
-docker compose -f docker-compose.prod.yml up -d
-```
+## The BACKUP_* variables
 
-## Post-restore checklist
-
-Do not skip the reindex. It is the one step whose absence looks like
-success: pages load, orders are there, and search quietly serves nothing.
-
-- [ ] `/health` returns ok, and `/readyz` is happy
-- [ ] **Rebuild the search indexes** - they are not in the dump:
-      `skelet search reindex all` (targets: `products`, `blog`, `all`; it
-      builds into a fresh index and flips an alias, so the store keeps
-      serving throughout, and `--timeout` defaults to an hour)
-- [ ] If media was lost too, restore it **before** reindexing, so
-      thumbnails resolve
-- [ ] Spot-check across the money path: open a product page, an order in
-      the admin, and log in as an admin and as a customer
-- [ ] Check the scheduler's run history for jobs that fired against the
-      half-restored database and want a manual re-run
-- [ ] Rotate anything the incident exposed. A dump holds every secret the
-      config registry encrypts, and it decrypts with
-      `CONFIG_ENCRYPTION_KEY`
-
-## Media
-
-Media objects are not in the dump. The database holds the keys, so a lost
-media bucket means intact orders pointing at missing images.
-
-There is no media mirror in the app, on purpose: bucket-to-bucket
-replication is something S3, Garage and every managed provider do better,
-with credentials the commerce process never holds. Configure it at the
-storage layer:
-
-- **Versioning** on the media bucket, so an overwrite or delete is
-  recoverable.
-- **Replication** to a second bucket or region, ideally append-only so a
-  ransacked source cannot propagate deletions.
-- To move objects between buckets after the fact, `skelet media-migrate`
-  rewrites the stored keys as it copies.
-
-## Verifying that any of this works
-
-Two things, and the second is the one people skip.
-
-**Watch for silence, not just failures.** The scheduler alerts when the
-job fails. It cannot alert when the job never ran, because a process that
-is down raises nothing. Set `BACKUP_HEARTBEAT_URL` to a dead-man's-switch
-monitor: it is pinged only after a fully successful run, so the monitor
-alerting on missing pings is what catches a box that stopped backing up
-rather than one that failed loudly.
-
-**Fire-drill, quarterly.** Restore into a throwaway container and confirm
-the archive loads end to end:
-
-```bash
-docker run -d --name restore-drill -e POSTGRES_PASSWORD=drill postgres:18-alpine
-docker exec -i restore-drill sh -c 'until pg_isready -U postgres; do sleep 1; done'
-# .age dumps: decrypt with `age -d` first, or restore into a scratch
-# database with `skelet db restore` and point DATABASE_URL at it
-docker exec -i restore-drill pg_restore -U postgres -d postgres --no-owner < /tmp/skelet-<ts>.dump
-docker rm -f restore-drill
-```
-
-Exit zero means the chain works: dump, upload, encryption, download,
-restore.
-
-## Managed Postgres
-
-Use the provider's point-in-time restore as the primary. It beats nightly
-dumps on both recovery point and recovery time. These dumps still earn
-their place as the provider-independent copy, for account lockout,
-provider migration, or losing a region.
-
-Past roughly 100GB, treat physical backups (pgBackRest, WAL-G, or managed
-snapshots) as primary and these dumps as the portable weekly export. See
-[env.md](env.md) for the job timeout and `--jobs` guidance at that size.
-
-## Dev
-
-Local snapshots are a different tool, deliberately: `bin/db-export`
-dumps the dev database into the gitignored `backups/`, and `bin/db-import`
-restores one over it after prompting. Neither touches the backup bucket.
+`BACKUP_S3_BUCKET` and its siblings are **not** database backups, despite the
+name. They're the destination for the analytics retention archive: with
+`signals/analytics/retention_action` set to `archive`, the retention jobs export
+aged spine events and send-log months as identity-stripped `.jsonl.gz` files under
+`<prefix>archive/` before deleting the rows. With no destination configured that
+sweep fails closed and deletes nothing.

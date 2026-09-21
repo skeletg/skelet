@@ -1,0 +1,21 @@
+# Product Q&A: published (staff-answered) questions on the PDP + shopper
+# submissions (moderated - pending until answered).
+
+type ProductQuestion {
+  id:         ID!
+  authorName: String!
+  question:   String!
+  answer:     String!
+  answeredAt: Time
+  createdAt:  Time!
+}
+
+extend type Query {
+  # Published questions for one product, newest answers first.
+  productQuestions(productId: ID!, limit: Int): [ProductQuestion!]!
+}
+
+extend type Mutation {
+  # Ask a question. Signed-in customers are attributed automatically; guests supply a display name. Questions publish only once staff answer them.
+  submitProductQuestion(productId: ID!, question: String!, authorName: String, authorEmail: String): Boolean!
+}

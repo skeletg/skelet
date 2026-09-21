@@ -1,27 +1,5 @@
-# Small profile - the minimum deployable Skelet tenant
-#
-# One app container runs every backend role (API, WS, /media/t/*, scheduler,
-# webhook delivery, outbox relay, Signals retention/forwarding/trait-compute)
-# One Postgres holds both schemas as two databases - no Valkey, no NATS, no
-# ClickHouse, no OpenSearch, no Vector, no split-out tiers
-#
-# Same images as docker-compose.prod.yml - the difference is env, not a build
-# Scaling up is this file's env changing: set VALKEY_URL for multi-replica, then
-# JOBS_EXTERNAL / SIGNALS_JOBS_EXTERNAL to split the tiers back out
-#
-#   cp env/small.env.example env/small.env
-#   cp env/small-vetrina-demo.env.example env/small-vetrina-demo.env
-#   cp .env.example .env   # JWT_SECRET, CONFIG_ENCRYPTION_KEY, DB_PASSWORD
-#   docker compose -f docker-compose.small.yml up -d
-#
-# Add --profile edge for TLS and automatic certs via deploy/caddy/Caddyfile (needs
-# env/prod-caddy.env too) - without it nothing terminates https and cards can't be taken
-#
-# Ports are offset (18080/18081/13000/15432) so this runs beside the dev stack
-#
-# The single-node degrade paths this leans on are deliberate - see
-# wiring/graphql.go (per-process rate limiting) and notification/hub.go (local
-# WS fanout) - both are correct for exactly one replica and no more
+# Small profile - the minimum deployable tenant: one app container runs every backend role, one Postgres holds both schemas, and the ports are offset to run beside the dev stack
+# Same images as the prod stack, so scaling up is this file's env changing - see docs/deploying.md for the env files to copy and for --profile edge
 name: skelet-small
 
 x-logging: &logging
@@ -34,6 +12,8 @@ x-logging: &logging
 # interpolates), everything else in env/small.env - see .env.example and docs/env.md
 x-secrets: &secrets
   JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in the root .env (openssl rand -hex 32)}
+  # Core and the suite share this one alone - the storefront below gets JWT_SECRET, never this
+  SIGNALS_SERVICE_SECRET: ${SIGNALS_SERVICE_SECRET:?set SIGNALS_SERVICE_SECRET in the root .env (openssl rand -hex 32, distinct from JWT_SECRET)}
   CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?set CONFIG_ENCRYPTION_KEY in the root .env (openssl rand -base64 32)}
   STOREFRONT_REVALIDATE_SECRET: ${STOREFRONT_REVALIDATE_SECRET:-}
 
@@ -42,6 +22,9 @@ x-secrets: &secrets
 x-db-urls: &db-urls
   DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:?set DB_PASSWORD in the root .env}@db:5432/skelet?sslmode=disable}
   SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${DB_PASSWORD:?set DB_PASSWORD in the root .env}@db:5432/skelet_signals?sslmode=disable}
+  # The spine, only with --profile signals - one password for the box, so ClickHouse reuses DB_PASSWORD unless told otherwise
+  SIGNALS_CH_URL: ${SIGNALS_CH_URL-clickhouse://skelet:${CLICKHOUSE_PASSWORD:-${DB_PASSWORD}}@clickhouse:9000/signals}
+  SIGNALS_CH_MIGRATE_URL: ${SIGNALS_CH_MIGRATE_URL-clickhouse://clickhouse:9000?username=skelet&password=${CLICKHOUSE_PASSWORD:-${DB_PASSWORD}}&database=signals&x-multi-statement=true}
 
 services:
   app:
@@ -56,7 +39,6 @@ services:
     depends_on:
       db: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
-      signals-migrate: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
       interval: 15s
@@ -79,14 +61,65 @@ services:
     restart: "no"
     logging: *logging
 
+  # ---- The Signals suite, behind --profile signals - set SIGNALS_ENABLED=true in env/small.env with it ----
   signals-migrate:
-    image: ${APP_IMAGE:-skelet-app:prod}
+    profiles: ["signals"]
+    image: ${SIGNALS_IMAGE:-skelet-signals:prod}
     env_file: [env/small.env]
     environment: *db-urls
     depends_on:
       db: { condition: service_healthy }
     command: ["sh", "-c", "migrate -path /app/signals-migrations -database \"$$SIGNALS_DB_URL\" up"]
     restart: "no"
+    logging: *logging
+  clickhouse:
+    profiles: ["signals"]
+    image: clickhouse/clickhouse-server:26.7.5
+    environment:
+      CLICKHOUSE_DB: signals
+      CLICKHOUSE_USER: skelet
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-${DB_PASSWORD}}
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user=\"$$CLICKHOUSE_USER\" --password=\"$$CLICKHOUSE_PASSWORD\" --query='SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+    logging: *logging
+  clickhouse-migrate:
+    profiles: ["signals"]
+    image: ${SIGNALS_IMAGE:-skelet-signals:prod}
+    env_file: [env/small.env]
+    environment: *db-urls
+    depends_on:
+      clickhouse: { condition: service_healthy }
+    command: ["sh", "-c", "migrate -path /app/clickhouse-migrations -database \"$$SIGNALS_CH_MIGRATE_URL\" up"]
+    restart: "no"
+    logging: *logging
+  signals:
+    profiles: ["signals"]
+    image: ${SIGNALS_IMAGE:-skelet-signals:prod}
+    env_file: [env/small.env]
+    environment:
+      <<: [*secrets, *db-urls]
+    command: ["/app/signals"]
+    depends_on:
+      db: { condition: service_healthy }
+      signals-migrate: { condition: service_completed_successfully }
+      clickhouse: { condition: service_healthy }
+      clickhouse-migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8090/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    stop_grace_period: 40s
     logging: *logging
 
   # Tenant-agnostic image - the SPA calls the relative /api and nginx envsubsts
@@ -150,11 +183,7 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Opt-in TLS edge - `--profile edge` - this is the profile that needs it most: one
-  # box, no proxy in front, and card payments can't happen over plain http
-  #
-  # Shares deploy/caddy/Caddyfile and env/prod-caddy.env with the prod stack - same three
-  # vhosts, same upstream ports, so moving up is env changing rather than a rewrite
+  # Opt-in TLS edge - `--profile edge` - this is the profile that needs it most: one box, no proxy in front, and card payments can't happen over plain http
   caddy:
     profiles: ["edge"]
     image: caddy:2-alpine
@@ -181,5 +210,6 @@ services:
 
 volumes:
   db-data:
+  clickhouse-data:
   caddy-data:
   caddy-config:

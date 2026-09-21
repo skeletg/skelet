@@ -34,8 +34,8 @@ diff but breaks every plugin implementing it, and apidiff says so. `sdk/sdktest`
 ships a fake host so a plugin can be tested without booting the app, and it is
 covered by the same gates.
 
-`apps/backend/plugins/example` exercises every registration verb - start there.
-`apps/backend/plugins/plugins.json` decides which plugin directories compile in.
+`apps/backend/core/plugins/example` exercises every registration verb - start there.
+`apps/backend/core/plugins/plugins.json` decides which plugin directories compile in.
 
 The six first-party payment gateways - Stripe, Braintree, PayPal, Klarna, Mollie
 and Affirm - each live in their own repository, named after the plugin slug
@@ -44,7 +44,7 @@ what makes the install need no flags. A deployment that takes card payment
 installs the ones it needs:
 
 ```
-bin/cli plugin add github.com/skeletg/payment-stripe@<version>
+./skelet cli plugin add github.com/skeletg/payment-stripe@<version>
 ```
 
 A fresh build therefore ships with NO gateway compiled in - offline payment
@@ -60,8 +60,8 @@ to reach for.
 **`plugin add` - a Go module dependency.** Nothing is copied into this repo:
 
 ```
-bin/cli plugin add github.com/acme/skelet-plugin-fraud@v1.2.0
-bin/cli plugin add github.com/acme/skelet-plugin-fraud        # latest
+./skelet cli plugin add github.com/acme/skelet-plugin-fraud@v1.2.0
+./skelet cli plugin add github.com/acme/skelet-plugin-fraud        # latest
 ```
 
 `go get` fetches it, `plugins/plugins.json` records the module path, and
@@ -69,7 +69,7 @@ bin/cli plugin add github.com/acme/skelet-plugin-fraud        # latest
 `go.sum`, one copy instead of two, and `go get -u` as the upgrade path.
 
 A module plugin's GraphQL SDL lives read-only in the module cache at a path that carries
-its version and differs per machine, so `bin/codegen` copies it into `plugins/.modules/`
+its version and differs per machine, so `./skelet gen` copies it into `plugins/.modules/`
 first (git-ignored, rebuilt every run) and points gqlgen there. That directory is derived
 output - delete it whenever.
 
@@ -81,8 +81,8 @@ module cache or in-tree, never behind a `replace` pointing at a checkout elsewhe
 no `go.mod`, or no repo you can fetch from.
 
 ```
-bin/cli plugin install https://github.com/acme/skelet-plugin-fraud@v1.2.0
-bin/cli plugin install ../my-plugin --slug my-plugin
+./skelet cli plugin install https://github.com/acme/skelet-plugin-fraud@v1.2.0
+./skelet cli plugin install ../my-plugin --slug my-plugin
 ```
 
 The source is copied to `plugins/<slug>/` with its `.git`, `go.mod`, `go.sum` and
@@ -105,7 +105,7 @@ platform needs (quoting tax, rating a shipment) rather than observing an event.
 No Go, no rebuild, any language.
 
 Full contract, the signed envelope and the per-kind schemas:
-[remote-providers.md](remote-providers.md). `bin/provider-check` conformance-tests
+[remote-providers.md](remote-providers.md). `./skelet provider` conformance-tests
 an endpoint against it.
 
 ## What the SDK gives a gateway author
@@ -123,7 +123,7 @@ an endpoint against it.
   exact footprint and a second plugin claiming the same key fails at boot naming both.
 - **`Manifest.SecurityOrigins`** - the browser-side origins your integration needs
   (script/connect/frame/form-action/payment). `cmd/secheadgen` composes them into the
-  CSP and Permissions-Policy during `bin/codegen`, so installing a gateway never means
+  CSP and Permissions-Policy during `./skelet gen`, so installing a gateway never means
   editing core's security headers.
 - **Channel-scoped webhooks** - register the gateway push URL with `?channel=<uuid>`
   and `WebhookRequest.ChannelID` carries it; config reads and the kill switch then
@@ -203,7 +203,7 @@ own directory and drives it the way core's own scenarios do:
 ```go
 package myplugin_test
 
-import "github.com/skeletg/skelet/apps/backend/internal/e2ekit"
+import "github.com/skeletg/skelet/apps/backend/core/internal/e2ekit"
 
 // Embedded, so the plugin's own helpers can hang off it
 type harness struct{ *e2ekit.Harness }
@@ -218,7 +218,7 @@ func TestCreditIsReservedInThePlacementTx(t *testing.T) {
 }
 ```
 
-`bin/test-e2e` runs `./plugins/...` alongside `./internal/e2e/...`, so these go green with
+`./skelet test e2e` runs `./plugins/...` alongside `./internal/e2e/...`, so these go green with
 core's suite and need no copying into it. The depguard rule that bars `plugins/**` from
 importing `internal/` carries `"!$test"`, which is what makes the import above legal.
 

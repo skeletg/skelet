@@ -5,9 +5,9 @@ Three separate schemas, three separate streams. Each is applied by its own
 
 | Stream | Files | Applied to |
 |---|---|---|
-| Commerce | `apps/backend/internal/db/migrations` | `DATABASE_URL` |
-| Signals | `apps/backend/internal/db/signals/migrations` | `SIGNALS_DB_URL` |
-| ClickHouse spine | `apps/backend/internal/analytics/spinech/migrations` | `SIGNALS_CH_MIGRATE_URL`, only under the `clickhouse` profile |
+| Commerce | `apps/backend/core/internal/db/migrations` | `DATABASE_URL` |
+| Signals | `apps/backend/signals/internal/db/migrations` - the suite's, holding Pulse (campaigns, flows, the email builder) beside the spine | `SIGNALS_DB_URL` |
+| ClickHouse spine | `apps/backend/signals/internal/analytics/spinech/migrations` | `SIGNALS_CH_MIGRATE_URL`, applied by the `clickhouse-migrate` one-shot wherever the suite runs |
 
 ## What the files are
 
@@ -17,11 +17,16 @@ structure and the rows that fill it:
 - `000001_schema` is every table, constraint, index, type and extension
 - `000002_reference_data` is the rows a fresh install starts with - currencies,
   countries, the admin roles and their permission scopes, the default channel and
-  locale, customer groups, email groups, the review taxonomy and the built-in
-  shipping carrier
+  locale, customer groups, the review taxonomy and the built-in shipping carrier
+- `000003_drop_legacy_pulse_tables` is a no-op on a fresh install; a database built
+  from the earlier baseline still carries the Pulse tables that moved to the signals
+  database, and this is where they go
 
-Signals starts from `000001_baseline` and seeds nothing. The ClickHouse spine
-starts from `000001_spine`.
+Signals is split the same way: `000001_schema` is the suite's whole schema - the spine,
+Lens, the rosters, segments, experiments, the send log and Pulse - and
+`000002_reference_data` is the two system email groups the builder files emails under.
+Nothing else is seeded; the starter content is the operator's to ask for from the
+emails hub. The ClickHouse spine starts from `000001_spine`.
 
 Both Postgres baselines are generated, not hand-written. Don't edit them - change
 the schema with a new migration on top, or regenerate as below. The file you read
@@ -51,7 +56,7 @@ uninstall can find them.
 ## Adding a migration
 
 Write `000003_<what>.up.sql` and its `.down.sql` by hand and leave the baselines
-alone. `bin/migrate up` applies it, `bin/codegen` regenerates sqlc from it.
+alone. `./skelet db migrate up` applies it, `./skelet gen` regenerates sqlc from it.
 Qualify your table names with `public.` or rely on the search path being intact -
 see the guard below for why that is not guaranteed.
 
@@ -72,17 +77,20 @@ everyone with an existing database has to re-pin afterwards.
    fails if a regenerated dump brings it back
 5. Rebuild a second scratch database from the new files and diff a full
    `pg_dump` of both - they must be byte-identical
-6. `bin/sqlc generate` must produce no drift, since `sqlc.yaml` reads the
+6. `./skelet gen sqlc generate` must produce no drift, since `sqlc.yaml` reads the
    migration directories as its schema source
-7. Re-pin every existing database with `migrate force <new latest version>`,
-   and drop the e2e databases so `bin/test-e2e --fresh` rebuilds them
+7. Re-pin every existing database with `migrate force <the last SQUASHED version>` -
+   the baseline pair, not the stream's latest, or `migrate up` skips whatever sits on
+   top of it. Then run `migrate up` to apply those. Drop the e2e databases so
+   `./skelet test e2e --fresh` rebuilds them
 
-The commerce baseline needs one extra step. `email_sends` is RANGE-partitioned by
+The signals stream needs one extra step. `email_sends` is RANGE-partitioned by
 month, so a dump freezes whichever months existed when it was taken. Drop every
-`email_sends_YYYYMM` block from the dump and end the file with
+`email_sends_YYYYMM` block from the dump - the tables, their constraints and indexes,
+and the `ATTACH PARTITION` statements for each - and end the file with
 `SELECT public.ensure_email_send_partitions(3);` instead, so a fresh install gets
-months relative to its own install date. The daily analytics prune calls the same
-function to keep running ahead of the data.
+months relative to its own install date. The send-log retention sweep calls the
+same function to keep running ahead of the data.
 
 ClickHouse migrations are hand-written, not dumped. The driver splits
 multi-statement files on `;` without parsing comments, so a semicolon inside a

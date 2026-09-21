@@ -412,6 +412,8 @@ message GetInsightsResponse {
 message GetCustomerProfileRequest {
   string customer_id = 1;
   int32 since_days = 2;
+  // Empty leaves the affinities off the profile, which is what a caller that does not want them sends
+  repeated AffinityAttribute attributes = 3;
 }
 
 message GetCustomerProfileResponse {
@@ -422,6 +424,7 @@ message GetVisitorProfileRequest {
   string channel_id = 1;
   string anon_id = 2;
   int32 since_days = 3;
+  repeated AffinityAttribute attributes = 4;
 }
 
 message GetVisitorProfileResponse {
@@ -451,8 +454,16 @@ message TrackedAttribute {
   repeated string values = 3;
 }
 
+// An attribute to compute affinities for. The catalog flag that marks one is core's, so core names
+// them and the suite supplies what it has seen of each
+message AffinityAttribute {
+  string slug = 1;
+  string name = 2;
+}
+
 message ListTrackedAttributesRequest {
   string channel_id = 1;
+  repeated AffinityAttribute attributes = 2;
 }
 
 message ListTrackedAttributesResponse {
@@ -537,7 +548,7 @@ message GetBehavioralSegmentRequest {
 // Money is in the channel's own currency - members' cross-currency orders sum naively, which is exact for the single-currency channels that are the norm
 message GetBehavioralSegmentResponse {
   BehavioralSegment segment = 1;
-  // ISO 4217
+  // ISO 4217, left empty here - the money is cents, and the caller's channel knows its own currency
   string currency = 2;
   // Total non-cancelled order revenue of members
   int64 revenue_cents = 3;

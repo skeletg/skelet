@@ -3624,6 +3624,7 @@ export type Mutation = {
   scheduleBlogPost: BlogPost;
   scheduleCMSPage: CmsPage;
   scheduleEmailCampaign: EmailCampaign;
+  seedPulseStarterContent: PulseStarterContent;
   sendCampaignTest: Scalars['Boolean']['output'];
   setAttributeDescription: AttributeContent;
   setAttributeIndexable: CascadeAttributeIndexableResult;
@@ -5419,6 +5420,11 @@ export type MutationScheduleEmailCampaignArgs = {
 };
 
 
+export type MutationSeedPulseStarterContentArgs = {
+  channelId: Scalars['ID']['input'];
+};
+
+
 export type MutationSendCampaignTestArgs = {
   id: Scalars['ID']['input'];
   to: Scalars['String']['input'];
@@ -7118,6 +7124,13 @@ export type PulseEngagement = {
   topLinks: Array<LinkClicks>;
 };
 
+export type PulseStarterContent = {
+  __typename?: 'PulseStarterContent';
+  blocks: Scalars['Int']['output'];
+  emails: Scalars['Int']['output'];
+  flows: Scalars['Int']['output'];
+};
+
 export type Query = {
   __typename?: 'Query';
   admin: AdminUser;
@@ -8528,7 +8541,6 @@ export type RemoteProviderKind =
   | 'ADDRESS_VALIDATOR'
   | 'CURRENCY_RATE'
   | 'CUSTOMER_SEGMENTS'
-  | 'FLOW_ACTION'
   | 'FRAUD_RISK'
   | 'INVENTORY_AVAILABILITY'
   | 'PRICING'

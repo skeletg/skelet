@@ -10,32 +10,57 @@ are shaped.
 skelet/
 ├── proto/skelet/signals/v1/         ← the core-to-Signals wire contract
 ├── apps/
-│   ├── backend/                     ← Go (go.mod lives here)
-│   │   ├── cmd/                     ← one module, several binaries
-│   │   │   ├── server/              ← the HTTP server
-│   │   │   ├── cli/                 ← the `skelet` CLI (Cobra)
-│   │   │   ├── signals/, ingest/, media/  ← the tiers you can split out
-│   │   │   └── docsref/, plugingen/, …    ← codegen and check tools
-│   │   ├── graph/
-│   │   │   ├── schema/admin/*.graphqls   ← admin surface
-│   │   │   ├── schema/front/*.graphqls   ← storefront surface
-│   │   │   ├── admin/                    ← admin gqlgen output + resolvers
-│   │   │   │   ├── generated.go          ← DO NOT EDIT
-│   │   │   │   ├── model/models_gen.go   ← DO NOT EDIT
-│   │   │   │   ├── helpers.go            ← shared admin mappers
-│   │   │   │   ├── *_helpers.go          ← per-domain helpers
-│   │   │   │   └── *.resolvers.go        ← edit resolver bodies here
-│   │   │   └── front/                    ← storefront gqlgen output + resolvers
-│   │   ├── gqlgen.admin.yml         ← admin pipeline config
-│   │   ├── gqlgen.front.yml         ← storefront pipeline config
-│   │   └── internal/                ← ~110 domain packages, see the table below
-│   │       ├── db/
-│   │       │   ├── migrations/      ← the generated baselines - see database.md
-│   │       │   ├── query/*.sql      ← sqlc input
-│   │       │   ├── sqlc/            ← sqlc output (DO NOT EDIT)
-│   │       │   └── signals/         ← the same three, for the Signals database
-│   │       ├── signalspb/           ← protoc output (DO NOT EDIT)
-│   │       └── signalsgrpc/         ← the wire contract's handlers
+│   ├── backend/                     ← everything server-side: three Go modules side by side
+│   │   ├── Dockerfile               ← the shared dev image
+│   │   ├── core/                    ← core - go.mod github.com/skeletg/skelet/apps/backend/core
+│   │   │   ├── cmd/                 ← one module, several binaries
+│   │   │   │   ├── server/          ← the HTTP server
+│   │   │   │   ├── cli/             ← the `skelet` CLI (Cobra)
+│   │   │   │   ├── media/           ← the image tier you can split out
+│   │   │   │   └── docsref/, plugingen/, …    ← codegen and check tools
+│   │   │   ├── graph/
+│   │   │   │   ├── schema/admin/*.graphqls   ← admin surface
+│   │   │   │   ├── schema/front/*.graphqls   ← storefront surface
+│   │   │   │   ├── admin/                    ← admin gqlgen output + resolvers
+│   │   │   │   │   ├── generated.go          ← DO NOT EDIT
+│   │   │   │   │   ├── model/models_gen.go   ← DO NOT EDIT
+│   │   │   │   │   ├── helpers.go            ← shared admin mappers
+│   │   │   │   │   ├── *_helpers.go          ← per-domain helpers
+│   │   │   │   │   └── *.resolvers.go        ← edit resolver bodies here
+│   │   │   │   └── front/                    ← storefront gqlgen output + resolvers
+│   │   │   ├── gqlgen.admin.yml     ← admin pipeline config
+│   │   │   ├── gqlgen.front.yml     ← storefront pipeline config
+│   │   │   ├── internal/            ← ~110 domain packages, see the table below
+│   │   │   │   ├── db/
+│   │   │   │   │   ├── migrations/  ← the generated baselines - see database.md
+│   │   │   │   │   ├── query/*.sql  ← sqlc input
+│   │   │   │   │   └── sqlc/        ← sqlc output (DO NOT EDIT)
+│   │   │   │   └── signalsclient/   ← core's plug into the suite, over the wire contract
+│   │   │   ├── lib/                 ← the infrastructure the Signals module builds on - see below
+│   │   │   │   ├── apperr/, auth/, config/, applog/, envcheck/, httpx/, observability/,
+│   │   │   │   │   ratelimit/, testdb/
+│   │   │   │   └── tx/, cache/, secrets/, urlguard/, otelx/, pgconn/, objstore/, email/,
+│   │   │   │       emailtrack/, backup/
+│   │   │   └── signalsapi/          ← the wire contract's vocabulary, its generated code under v1/
+│   │   ├── sdk/                     ← the plugin SDK - go.mod github.com/skeletg/skelet/apps/backend/sdk
+│   │   │   └── sdktest/, httpx/, api.json
+│   │   └── signals/                 ← the Signals suite - go.mod github.com/skeletg/skelet/apps/backend/signals
+│   │       ├── sqlc.yaml            ← the suite's queries against its own schema
+│   │       ├── cmd/
+│   │       │   ├── signals/         ← the contract server, the beacon surface, the scheduled upkeep
+│   │       │   └── ingest/          ← the public tier alone, scaled out
+│   │       └── internal/
+│   │           ├── boot/            ← the suite's composition root
+│   │           ├── analytics/       ← the event spine, its engines, traits, rosters
+│   │           ├── geo/, uaclass/, archivefile/  ← IP country, device class, retention exports
+│   │           ├── lens/, segment/, experiment/, destination/, behavioralsegment/
+│   │           ├── sendlog/, suppression/  ← the email send log and the suppression list
+│   │           ├── emailtemplate/, flow/, campaign/  ← Pulse: the email builder, the flow engine, broadcasts
+│   │           ├── engagement/, sms/, corefront/     ← the send tracker, the text gateway, core's storefront API
+│   │           ├── ingesthttp/, pulsehttp/  ← /t and /e
+│   │           ├── signalsgrpc/     ← the wire contract's handlers
+│   │           ├── signalsboot/     ← spine + queue + engine assembly
+│   │           └── db/              ← migrations/, query/*.sql and sqlc/ (DO NOT EDIT)
 │   ├── dashboard/                   ← React + Vite admin UI
 │   │   ├── src/
 │   │   │   ├── components/          ← shared UI primitives (shadcn)
@@ -85,34 +110,97 @@ skelet/
 ### What's in `internal/`
 
 Around 110 packages, so here is the shape rather than the inventory - `ls
-apps/backend/internal` is the list, and each package's `domain.go` is its
-contract. Everything below is `apps/backend/internal/<name>`.
+apps/backend/core/internal` is the list, and each package's `domain.go` is its
+contract. Everything below is `apps/backend/core/internal/<name>`.
 
 | Area | Packages |
 |---|---|
-| Selling | `catalog`, `pricing`, `promotion`, `cart`, `order`, `payment`, `shipping`, `tax`, `inventory`, `subscription`, `giftcard`, `storecredit` |
-| Customers | `customer`, `address`, `loyalty`, `referral`, `review`, `qna`, `wishlist`, `segment` |
+| Selling | `catalog`, `pricing`, `promotion`, `cart`, `order`, `ordercapture`, `payment`, `paymentvault`, `shipping`, `tax`, `inventory`, `subscription`, `giftcard`, `storecredit`, `download`, `sales` |
+| Customers | `customer`, `address`, `loyalty`, `referral`, `review`, `qna`, `wishlist`, `customerio` |
 | Content | `cms`, `blog`, `blockkit`, `content`, `menu`, `form`, `webform`, `medialibrary`, `documents` |
 | Merchandising | `search`, `searchmerch`, `urlrewrite`, `sitecrawl`, `linkgraph` |
-| Marketing | `campaign`, `flow`, `emailtemplate`, `emailtrack`, `suppression`, `backinstock`, `experiment` |
-| Signals | `analytics`, `lens`, `behavioralsegment`, `signalsboot`, `ingesthttp`, `destination`, `signalsgrpc`, `signalspb` |
-| Platform | `admin`, `auth`, `permission`, `channel`, `config`, `consent`, `integration`, `audit`, `activity`, `notification`, `adminprefs`, `ai`, `chat` |
+| Marketing | `backinstock`, `ordermail`, `mailsend` - core's own transactional mail; campaigns, flows and the email builder are the suite's, and core hands them the moments a flow can start on over the contract |
+| Signals (core's side) | `signalsclient` - the wire contract's client; the suite itself is `apps/backend/signals`, see below |
+| Platform | `admin`, `authstore`, `permission`, `channel`, `country`, `currency`, `locale`, `consent`, `integration`, `audit`, `activity`, `notification`, `adminprefs`, `ai`, `chat` |
 | Extension | `plugin`, `pluginset`, `pluginmigrate`, `remoteprovider`, `action` |
-| Data movement | `dataio`, `datajob`, `datapatch`, `catalogio`, `backup` |
-| Infrastructure | `db`, `tx`, `events`, `outbox`, `webhook`, `scheduler`, `cache`, `ratelimit`, `secrets`, `media`, `email`, `sms`, `geo`, `httpx`, `graphqlx`, `apperr`, `applog`, `observability`, `health`, `wiring` |
+| Data movement | `dataio`, `datajob`, `datapatch`, `catalogio` |
+| Infrastructure | `db`, `events`, `outbox`, `webhook`, `scheduler`, `media`, `mediahttp`, `configstore`, `cacheinvalidate`, `revalidate`, `circuit`, `graphqlx`, `health`, `wiring` |
 
 `wiring` is the composition root: every service is constructed there, so it is
 the fastest way to see what depends on what.
 
-All three apps run in containers via `bin/dev` (Go + Postgres + Valkey
+### What sits beside `internal/`
+
+Go only lets `apps/backend/core/internal/*` be imported from within `apps/backend/`, so
+anything a second module reaches has to sit outside it. Three kinds do, and the
+layout keeps them apart because they carry different promises:
+
+- `sdk/` is what plugin authors build against, its own module with a surface gate
+  (`sdk/api.json`) and a version. A plugin that adds GraphQL resolvers also imports
+  core's gqlgen model packages, which is the one other door.
+- `signalsapi/` is the wire contract: the vocabulary both modules share, with the
+  code generated from `proto/` under `signalsapi/v1/`, checked for breaking changes
+  against `develop`.
+- `lib/` is the infrastructure the Signals module builds on: `apperr`, `auth`,
+  `config`, `applog`, `envcheck`, `httpx`, `observability` (Sentry and the telemetry
+  facade), `ratelimit`, `testdb`, `tx`, `cache`, `secrets`, `urlguard`, `otelx`, `pgconn`
+  for opening a pool, `objstore` for the S3 client, `email` for the SMTP sender and
+  the order snapshot a flow renders from, `emailtrack` for the tracking and
+  unsubscribe tokens the suite signs and core verifies, `backup` for the pg_dump each
+  process streams of its own database. Public to the compiler, internal in intent: it
+  is the suite's slice of core, not an API for plugins or anyone else, and it is
+  plumbing with no commerce knowledge.
+
+`lib/` stays a bottom layer by rule: a package there may not import `internal/`,
+and `depguard` refuses it with no exceptions. What needed the domain moved out or
+turned into a seam: core's settings store is `internal/configstore` behind the
+`config.Repository` interface, core's token and refresh persistence and the admin
+session log are `internal/authstore` behind `auth.TokenBackend`, `auth.RefreshBackend`
+and `auth.SessionLog`, the customer guards that read the resolved store live in
+`internal/channel`, the admin Tools registrations for config and the cache live in
+`wiring`. Only what both processes use lives in `lib/`: `graphqlx` is gqlgen wiring
+core alone serves, so it stays in `internal/`, and what only the suite uses - `geo`,
+`uaclass`, the `archivefile` writer - lives in the suite.
+Plugins are denied all of `lib/` by the same linter, since the blanket `internal/*`
+rule does not reach it, and the suite pins its own doors into core - `lib/`, `sdk/`
+and the contract - with a test.
+
+### The Signals module
+
+`apps/backend/signals` is the suite as its own Go module. Its `go.mod` requires core's by
+relative path (`replace ../backend`), and the dependency only ever points that
+way: core reaches the suite over the wire contract through `signalsclient`, and
+the compiler refuses the reverse, since nothing under `apps/backend/core/internal/`
+is importable from another module. What the suite needs *of* core is pushed
+across or asked for over the contract - channels, customers, settings. What it
+needs *from* core's code is the public slice above.
+
+The signals database is the suite's alone. Its migration stream lives in
+`apps/backend/signals/internal/db/migrations` beside the queries against it, and core opens
+no pool on it: Pulse - campaigns, flows and the email builder - runs in the suite,
+answering the dashboard through core's relaying resolvers, sending through the same
+SMTP relay, and reading who a customer is and what shop a channel is off the rosters
+core pushes. Core raises the moments a flow can start on (an order placed, a
+password reset, a product back in stock) through `Enroll`, and sends its own
+transactional mail when no flow takes one. Each moment is keyed by what it
+happened to, so a retried or replayed call starts one run and answers the same
+count, and the customer and consent events that keep the roster current ride
+core's outbox, so a suite that was down gets them on the relay's next pass. Core
+signs every call with `SIGNALS_SERVICE_SECRET`, a secret the storefront never
+holds, and every call carries a deadline. The one thing the suite still asks core
+for is live catalog data for the builder's products block, over core's public
+storefront API. `internal/boot` is the suite's composition root, the way `wiring`
+is core's.
+
+All three apps run in containers via `./skelet up` (Go + Postgres + Valkey
 + Garage + Mailpit + Vite + Next.js). The dashboard container's Vite
 dev server proxies `/api/*` to the in-network backend
 (`API_PROXY=http://app:8080`); host `apps/dashboard/node_modules` is
-still installed for host-side tooling (`bin/test`'s tsc, ESLint, the
+still installed for host-side tooling (`./skelet test`'s tsc, ESLint, the
 IDE). Codegen flows backend → frontends: editing `*.graphqls`
-or any `*.graphql` doc requires `bin/codegen` so dashboard TS bindings
+or any `*.graphql` doc requires `./skelet gen` so dashboard TS bindings
 stay in sync; the storefront has its own codegen step
-(`bin/channel run codegen`).
+(`./skelet npm <name> run codegen`).
 
 ## Stack
 
@@ -140,7 +228,7 @@ stay in sync; the storefront has its own codegen step
 | Layer | What |
 |---|---|
 | Commerce DB | Postgres + sqlc |
-| Analytics DB | A second Postgres (`signals-db`); the spine engine is pluggable, ClickHouse optional |
+| Analytics DB | A second Postgres (`signals-db`) for the suite, ClickHouse for the event spine |
 | Refresh tokens, cache | Valkey (Redis-compatible) |
 | Async / durable delivery | Transactional outbox (Postgres); optional NATS JetStream queue for beacon ingest |
 | Search | OpenSearch (optional sidecar - the app runs without it) |
@@ -157,8 +245,8 @@ not the GraphQL layer.
 
 | Endpoint | Schema | Resolver |
 |---|---|---|
-| `POST /api/admin/graphql` | `apps/backend/graph/schema/admin/*.graphqls` | `apps/backend/graph/admin/*.resolvers.go` |
-| `POST /api/front/graphql` | `apps/backend/graph/schema/front/*.graphqls` | `apps/backend/graph/front/*.resolvers.go` |
+| `POST /api/admin/graphql` | `apps/backend/core/graph/schema/admin/*.graphqls` | `apps/backend/core/graph/admin/*.resolvers.go` |
+| `POST /api/front/graphql` | `apps/backend/core/graph/schema/front/*.graphqls` | `apps/backend/core/graph/front/*.resolvers.go` |
 
 Storefront introspection cannot see admin operations. The dashboard at
 `apps/dashboard/` talks to admin only; the storefront at
@@ -177,7 +265,7 @@ struct into ctx.
 `domain.go` (types + Repository interface) → `repository.go` (postgres
 impl) → `service.go` (business logic).
 
-**Transactions**: use `internal/tx.Manager`. Repos expose
+**Transactions**: use `tx.Manager` (a public package, since the Signals module opens transactions through it too). Repos expose
 `WithTx(*sql.Tx) Repository`. Inside a `txMgr.InTransaction(ctx, fn)` closure,
 **always** shadow the outer repo with the tx-bound one - a typo reaching
 `s.repo` silently drops atomicity.

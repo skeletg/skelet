@@ -1,7 +1,5 @@
-// Field-schema types for the custom form builder - These mirror the Go domain
-// (apps/backend/internal/webform/domain.go) exactly - the `fields` and
-// `settings` JSON scalars round-trip through this shape - The backend
-// re-validates everything; this type is the authoring contract
+// Field-schema types for the custom form builder, mirroring the Go domain in apps/backend/core/internal/webform/domain.go
+// The backend re-validates everything; this is the authoring contract
 
 export type FieldType =
   | 'text'

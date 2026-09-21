@@ -65,7 +65,7 @@ permissions to `administrator`, so adding a permission needs no migration.
 
 - **Admins**: permissions via roles; `is_superuser = true` bypasses checks.
 - **Integrations**: permissions directly via `integration_permissions`.
-- **Guards** (`internal/auth/guard.go`): `RequireAuth`, `RequireCustomerAuth`,
+- **Guards** (`auth/guard.go`): `RequireAuth`, `RequireCustomerAuth`,
   `RequirePermission(ctx, checker, slug)`, `RequireTokenPermission(ctx, slug)`,
   `RequireChannelPermission(ctx, checker, slug, channelID, locale)` - the last one
   keeps a pre-rename name, but the argument is a channel id.
@@ -117,7 +117,7 @@ go through `consent.Service.IsOptedIn`** - raw `repo.Get` treats nil as
 **Email**: `LogSender` (dev, no SMTP) / `SMTPSender` (env:
 `SMTP_HOST/PORT/USERNAME/PASSWORD`). `SMTP_USERNAME` empty = skip auth.
 Non-dev with no SMTP → error-sender that fails every Send loudly.
-Mailpit sidecar via `bin/dev`: catches mail at `:1025`, UI at
+Mailpit sidecar via `./skelet up`: catches mail at `:1025`, UI at
 <http://localhost:8025>. Token stores: `VerificationStore` (24h, prefix
 `verify:customer`) + `PasswordResetStore` (30m, prefix `reset:customer`).
 `resetPassword` calls `RefreshStore.RevokeAll`. `STOREFRONT_URL` env
@@ -207,8 +207,8 @@ events. 16 kinds, `AllKinds` in `domain.go` is the list (no payment kind, on
 purpose - PCI scope; gateways are Tier 1 plugins). Integrator-facing contract
 is `docs/remote-providers.md`; per-kind JSON Schemas + example payloads are
 GENERATED from the adapter structs into `internal/remoteprovider/contract/` by
-`cmd/providerschema` (runs in `bin/codegen`, so a renamed payload type fails
-the run rather than leaving a stale published schema). `bin/provider-check`
+`cmd/providerschema` (runs in `./skelet gen`, so a renamed payload type fails
+the run rather than leaving a stale published schema). `./skelet provider`
 conformance-tests an endpoint. The `remote_providers` table carries
 kind+slug identity, config JSON, timeout, cache TTL, failure policy,
 channel scope and an `rpsec_` secret. The `Invoker` signs a
@@ -217,9 +217,9 @@ enforces per-invoke timeout + payload-keyed response cache + circuit breaker.
 Consumers wire adapters in main.go: shipping `SetRemoteRateSource`, order
 `SetRemoteTax`, `address.RegisterRemoteValidator`,
 `promotion.RegisterRemoteProviderTypes` (remote.condition/remote.action rule
-types), flow `SetRemoteActions` (the `remote_action` node). Admin CRUD gated
+types). Admin CRUD gated
 by `remote_providers.view/manage`; `remoteprovider.MemRepo` for consumer
-tests. SSRF guard shared via `internal/urlguard` - its own package so webhook and
+tests. SSRF guard shared via `urlguard` - its own package so webhook and
 remote providers can both use it without importing each other.
 
 **Admin Actions**: handlers are closures - register after services

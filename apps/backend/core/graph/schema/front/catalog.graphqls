@@ -1,0 +1,456 @@
+enum AttributeInputType {
+  PLAIN_TEXT
+  NUMERIC
+  BOOLEAN
+  DATE
+  DATE_TIME
+  DROPDOWN
+  MULTISELECT
+  SWATCH
+  # Value points at another catalog entity (see AttributeReferenceTarget).
+  REFERENCE
+}
+
+# The entity type a REFERENCE attribute's values point at.
+enum AttributeReferenceTarget {
+  PRODUCT
+  CATEGORY
+  COLLECTION
+}
+
+type AttributeValue {
+  id:        ID!
+  slug:      String!
+  name:      String!
+  value:     String!
+  sortOrder: Int!
+}
+
+type Attribute {
+  id:                ID!
+  slug:              String!
+  name:              String!
+  inputType:         AttributeInputType!
+  # Set only for REFERENCE attributes.
+  relationshipTarget: AttributeReferenceTarget
+  unit:              String!
+  filterable:        Boolean!
+  searchable:        Boolean!
+  # Server-enforced: this API only returns public attributes, so this reads true
+  # everywhere except a configurable axis kept visible for the variant picker.
+  isPublic: Boolean!
+  synapseTrack:      Boolean!   # record affinity for this attribute's values on the Synapse profile
+  sortOrder:         Int!
+  values:            [AttributeValue!]!
+}
+
+type ProductType {
+  id:                 ID!
+  slug:               String!
+  name:               String!
+  isDigital:          Boolean!
+  isShippingRequired: Boolean!
+}
+
+type ProductAttributeValue {
+  attribute:      Attribute!
+  selectedValues: [AttributeValue!]!
+  scalarValue:    JSON
+  # Populated for REFERENCE attributes: the resolved target entities, in order.
+  references:     [ProductAttributeReference!]!
+}
+
+# One resolved reference value: a pointer to another entity plus its display label and canonical storefront path. Targets not visible on the active store are omitted.
+type ProductAttributeReference {
+  targetType: AttributeReferenceTarget!
+  targetId:   ID!
+  label:      String!
+  url:        String!
+}
+
+type ProductContent {
+  locale:              String!
+  name:                String!
+  shortDescription:    JSON
+  description:         JSON
+  descriptionRichText: JSON
+  metaTitle:           String
+  metaDescription:     String
+  metaKeywords:        String
+}
+
+enum ProductKind {
+  SIMPLE
+  CONFIGURABLE
+  BUNDLE
+  GROUPED
+  KIT
+  GIFTCARD
+  SUBSCRIPTION
+}
+
+type Product {
+  id:                  ID!
+  productType:         ProductType!
+  # Structural kind. SIMPLE and CONFIGURABLE are the values you'll see
+  # from this storefront today.
+  kind:                ProductKind!
+  sku:                 String!
+  seoNoindex:          Boolean!
+  canonicalUrl:        String
+  url:                 String!
+  inStock(channelId: ID): Boolean!
+  salableQuantity(channelId: ID): Float
+  # Decimal-quantity knobs. Storefront uses these to format the
+  # add-to-cart quantity input and any cart-line labels.
+  quantityDecimals:    Int!
+  quantityStep:        Float!
+  # Order quantity bounds per cart line; null = unbounded. The add-to-cart
+  # mutation enforces these server-side.
+  minOrderQty:         Float
+  maxOrderQty:         Float
+  # Catalog-level price (minor units, e.g. cents). For store-specific pricing, the cart resolves a per-listing override server-side; this is the parent's headline number that the storefront displays.
+  defaultPrice:        Int!
+  defaultCurrencyCode: String!
+  # Effective sell price for the active channel right now: channel listing override folded with any active scheduled special. This is what the cart will charge - prefer it over defaultPrice for display.
+  price:               Int!
+  # Strike-through "was" price when there is a meaningful saving to show
+  # (explicit compare-at, or the base price while a special is active).
+  compareAtPrice:      Int
+  # True while a scheduled special (sale) price is active.
+  onSale:              Boolean!
+  # Quantity-break prices visible to the CURRENT caller (already filtered
+  # to the active channel + the customer's group). "Buy minQty+ for price".
+  tierPrices:          [TierPrice!]!
+  # Operator-curated product links, channel-filtered + rendered.
+  linkedProducts(kind: ProductLinkKind!): [Product!]!
+  # "Customers also bought" co-occurrence recommendations (batch-built
+  # nightly from order history). Empty until orders accumulate.
+  alsoBought(limit: Int): [Product!]!
+  name:                String
+  shortDescription:    JSON
+  description:         JSON
+  descriptionRichText: JSON
+  metaTitle:           String
+  metaDescription:     String
+  metaKeywords:        String
+  attributeValues:     [ProductAttributeValue!]!
+  # True when the product can be ordered while out of stock (ships when
+  # restocked). Pair with inStock for PDP messaging.
+  backorderable:       Boolean!
+  children:            [Product!]!
+  configurableOptions: [Attribute!]!
+  # Empty unless kind == BUNDLE.
+  bundleOptions:       [BundleOption!]!
+  # Empty unless kind == GROUPED.
+  groupedMembers:      [GroupedMember!]!
+  # Customer-facing custom options (engraving, gift wrap, add-ons, …).
+  # Pass the customer's picks to addConfiguredToCart. Empty when none.
+  options:             [ProductCustomOption!]!
+  # Recurring billing terms when kind=SUBSCRIPTION (null otherwise). Lets the
+  # PDP render the price as "$X / month" and show any trial.
+  subscriptionTerms:   SubscriptionTerms
+  media:               [ProductMedia!]!
+  mainImage:           ProductMedia
+  thumbnail:           ProductMedia
+  ogImage:             ProductMedia
+  categories:          [Category!]!
+  primaryCategory:     Category
+  collections:         [Collection!]!
+  # Promotional creative whose product-level conditions match this product. Sorted priority asc. PLP renders the first entry's labelMedia as a corner sticker; PDP stacks every entry's bannerMedia. Display is informational - cart-level conditions (subtotal, customer group) are NOT evaluated here.
+  promotionalDisplays: [PromotionalDisplay!]!
+}
+
+# One advertised promotion targeting this product. labelMedia and bannerMedia are nullable independently - a rule with only a bannerMedia appears on PDP but not PLP. pillText/pillTextColor/ pillBgColor describe an optional text badge that the storefront renders when there's no labelMedia.
+type PromotionalDisplay {
+  ruleId:          ID!
+  ruleSlug:        String!
+  publicLabel: String!
+  labelMedia:      ProductMedia
+  bannerMedia:     ProductMedia
+  # Pill (text badge) configuration. Empty pillText = no pill. Colour strings are CSS values (typically `#RRGGBB`); empty means "use the storefront's default palette".
+  pillText:        String!
+  pillTextColor:   String!
+  pillBgColor:     String!
+}
+
+enum BundleInputType {
+  RADIO
+  DROPDOWN
+  CHECKBOX
+  MULTISELECT
+}
+
+# Bundle's option group - "Pick a thing" slot on the product detail page.
+type BundleOption {
+  id:         ID!
+  inputType:  BundleInputType!
+  isRequired: Boolean!
+  sortOrder:  Int!
+  title:      String!
+  selections: [BundleSelection!]!
+}
+
+# One concrete SIMPLE product that fills a bundle option's menu. Quantity is the count per bundle unit - multiplied by line quantity at add-to-cart.
+type BundleSelection {
+  id:        ID!
+  product:   Product!
+  quantity:  Float!
+  isDefault: Boolean!
+  sortOrder: Int!
+}
+
+# One member SIMPLE product attached to a GROUPED parent. The customer sees each member rendered with its own image/name/qty input on the PDP and can adjust how many of each to add at once.
+type GroupedMember {
+  id:              ID!
+  member:          Product!
+  defaultQuantity: Float!
+  sortOrder:       Int!
+}
+
+# A customer-facing custom option on a product (engraving text, gift wrap, add-on, …). inputType is one of field, area, dropdown, radio, checkbox, multiselect, date, date_time, time, file. Select-family input types carry their price adjustments on the values; text/date/file carry an option-level priceValue (priceType "fixed" or "percent").
+type ProductCustomOption {
+  id:         ID!
+  inputType:  String!
+  isRequired: Boolean!
+  sortOrder:  Int!
+  title:      String!
+  helpText:   String!
+  maxChars:   Int
+  # File-input constraints (null for non-FILE options). maxFileBytes is the per-upload size cap; fileExtensions is a comma-separated allow-list (e.g. "pdf,png,jpg"). The storefront uses these to set up the file input and pre-validate before submitting.
+  maxFileBytes:   Int
+  fileExtensions: String
+  priceValue: Int
+  priceType:  String!
+  values:     [ProductCustomOptionValue!]!
+  # Visibility condition group gating this option on EARLIER options' picks (null = always visible): { logic: "and"|"or", rules: [{ option_id, op: anyOf|noneOf|filled|empty, value_ids: [ID] }], groups: [...] }. The server re-evaluates on addConfiguredToCart - picks for hidden options are rejected (PRODUCT_OPTION_HIDDEN) and hidden required options are not enforced.
+  visibleIf:  JSON
+}
+
+# One pre-defined choice on a select-family product option. priceValue is a per-unit adjustment in cents (or percent points when priceType is "percent"); quantity is the units this value represents.
+type ProductCustomOptionValue {
+  id:         ID!
+  title:      String!
+  priceValue: Int!
+  priceType:  String!
+  quantity:   Float!
+  isDefault:  Boolean!
+  # Picking this value forces the cart line quantity to this amount and locks it (qty edits fail with PRODUCT_OPTION_QTY_FORCED). The PDP should submit this quantity and tell the customer.
+  forcedLineQty: Float
+  # When this value is backed by an existing SIMPLE product, the linked product (slim stand-in: id/slug/sku/name/defaultPrice/currency). Null for free-form values. priceValue stays a markup on top of the source product's default price.
+  sourceProduct: Product
+}
+
+enum ProductMediaStatus {
+  PENDING
+  READY
+}
+
+enum ProductMediaRole {
+  MAIN
+  THUMBNAIL
+  OG_IMAGE
+}
+
+type ProductMedia {
+  id:        ID!
+  url:       String!
+  altText:   String!
+  sortOrder: Int!
+  mimeType:  String!
+  width:     Int!
+  height:    Int!
+  sizeBytes: Int!
+  # Resized derivative URL (same-origin /media/t/... path, proxied by the storefront). width snaps to the fixed ladder (160..2048); height (optional) makes it a focal-aware cover crop. Null for non-image media.
+  transformUrl(width: Int!, height: Int): String
+}
+
+type CollectionContent {
+  locale:          String!
+  name:            String!
+  description:     JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+}
+
+type CollectionCover {
+  url:       String!
+  altText:   String!
+  width:     Int!
+  height:    Int!
+  mimeType:  String!
+}
+
+type Collection {
+  id:              ID!
+  slug:            String!
+  isPublished:     Boolean!
+  seoNoindex:      Boolean!
+  name:            String
+  description:     JSON
+  metaTitle:       String
+  metaDescription: String
+  metaKeywords:    String
+  coverImage:      CollectionCover
+  products:        [Product!]!
+}
+
+type CategoryContent {
+  locale:           String!
+  name:             String!
+  shortDescription: JSON
+  description:      JSON
+  metaTitle:        String
+  metaDescription:  String
+  metaKeywords:     String
+}
+
+type Category {
+  id:               ID!
+  slug:             String!
+  urlPath:          String!
+  position:         Int!
+  isPublished:      Boolean!
+  seoNoindex:       Boolean!
+  parent:           Category
+  children:         [Category!]!
+  ancestors:        [Category!]!
+  level:            Int!
+  coverImage:       CollectionCover
+  name:             String
+  shortDescription: JSON
+  description:      JSON
+  metaTitle:        String
+  metaDescription:  String
+  products:         [Product!]!
+}
+
+extend type Query {
+  # Batch product fetch for client-side rails (recently viewed). Renders
+  # only products published on the active channel; order follows ids.
+  productsByIds(ids: [ID!]!): [Product!]!
+  # The same, keyed by SKU - what an email's products block names. Same
+  # publication gate, order follows skus, unknown ones are skipped.
+  productsBySkus(skus: [String!]!): [Product!]!
+  attributes:               [Attribute!]!
+  attribute(id: ID!):       Attribute!
+  # Locale for every read is taken from the `Locale` request header - see internal/locale.Middleware. Storefront edge/middleware sets it from the URL prefix or the customer's persisted preference.
+  product(id: ID!):         Product!
+  collections:              [Collection!]!
+  collection(id: ID!):      Collection!
+  rootCategories:           [Category!]!
+  categoryChildren(parentId: ID!): [Category!]!
+  category(id: ID!):        Category!
+
+  # Full-text search across products, scoped to the resolved channel and the request locale. Backed by OpenSearch; returns an empty list when the cluster is unreachable or no store is in context.
+  searchProducts(query: String!, limit: Int, offset: Int): ProductSearchResult!
+
+  # Faceted browse over products. Filters layer onto the store/locale/ published scope; the response includes per-attribute facet buckets so callers can render checkbox sidebars with live counts. When `query` is non-empty it adds the same full-text matching logic searchProducts uses, scored alongside the filters - so search results, category pages, and collection pages can all share a single endpoint. Backed by OpenSearch; returns empty hits with no facets when the cluster is unreachable.
+  browseProducts(
+    query: String
+    filter: BrowseProductsFilter
+    # Operator-curated sort key - one of the slugs returned by `productSortOptions`. Empty / unknown values fall back to the first configured option.
+    sort: String
+    limit: Int
+    offset: Int
+  ): BrowseProductsResult!
+
+  # Sort options exposed to the storefront for browse pages. Operator curates the list (label, OS field, direction) in the dashboard; the storefront renders a dropdown driven directly by this query. Order matters - first entry is the default when no `sort` is passed to `browseProducts`.
+  productSortOptions: [ProductSortOption!]!
+}
+
+# Browse filters. Every field is optional; empty / omitted means "no constraint". Multiple AttributeFilterInput entries AND together; values within one entry OR together. Price bounds are inclusive, in cents.
+input BrowseProductsFilter {
+  categoryId:    ID
+  collectionId:  ID
+  attributes:    [AttributeFilterInput!]
+  priceMinCents: Int
+  priceMaxCents: Int
+  kinds:         [ProductKind!]
+}
+
+input AttributeFilterInput {
+  slug:   String!
+  # Each entry may be either a display value (e.g. "Black") or the bucket slug ("black"). The backend resolves known AttributeValue slugs to their display strings before matching; unknown inputs pass through as display values, which non-storefront callers rely on (admin GraphQL, tests, CLI).
+  values: [String!]!
+}
+
+type ProductSortOption {
+  slug:  String!
+  label: String!
+  # When false, the storefront renders this option as a JS-driven navigation (no <a href> for Googlebot to follow) AND treats the resulting URL as noindex. Mirrors the per-attribute / per-attribute-value indexability gate so operators can curate which sort URL variants compete for the SERP slot of the canonical (default-sort) page.
+  isIndexable: Boolean!
+}
+
+type BrowseProductsResult {
+  items:      [Product!]!
+  totalCount: Int!
+  facets:     [BrowseFacet!]!
+}
+
+# One facet group keyed by the catalog attribute's slug. Each value bucket reports the count of products that would match if the user added that value to the current filter set (with the matching slug's active values excluded - Algolia-style "don't collapse my facet").
+type BrowseFacet {
+  slug:    String!
+  # Human-readable label for the facet panel header - the underlying catalog Attribute.name. The storefront should display this verbatim; don't title-case the slug as a fallback.
+  name:    String!
+  # Localised description for the facet panel header, resolved to the request's active locale. Empty string when the operator hasn't translated for this locale.
+  description: String!
+  # Storefront-rendering hint: when true, the facet panel should start collapsed by default. The user can still toggle it open. Sourced from Attribute.facetCollapsed.
+  defaultCollapsed: Boolean!
+  # Echo of the merchandiser-set ordering knob so clients can keep a
+  # stable order even if they batch facets across multiple sources.
+  sortOrder: Int!
+  # Where to place this attribute's value in the page H1 when an indexable filter is active. BEFORE → value comes before the entity name ("Olive / Apparel"). AFTER → ("Apparel / Olive"). Storefront default when this field is missing or unknown is BEFORE.
+  h1Position: BrowseFacetH1Position!
+  buckets:    [BrowseFacetBucket!]!
+}
+
+enum BrowseFacetH1Position {
+  BEFORE
+  AFTER
+}
+
+type BrowseFacetBucket {
+  # Human-readable label, as stored on the indexed product (e.g. "Black",
+  # "Skelet Atelier"). What the storefront should render to the user.
+  value: String!
+  # Localised description for this bucket value, resolved to the request's active locale. Only populated for selectable attributes (those have an AttributeValue row); scalar attrs always return empty. Empty when the operator hasn't translated.
+  description: String!
+  # URL-safe identifier. For selectable attributes (dropdown/multiselect/ swatch) this is the operator-blessed AttributeValue.slug; for scalar attributes it's slugify(value). Storefront URLs should round-trip this back as the value in AttributeFilterInput - the backend translates known slugs to their display strings before querying.
+  slug:  String!
+  # SEO opt-in. True when the operator has marked this value as crawlable+indexable on the storefront. The storefront uses this to decide whether to render the bucket link as a real <a href> and whether to keep the noindex meta tag on the resulting page. Selectable attrs source from AttributeValue.isIndexable (per value); scalar attrs source from the attribute-level Attribute.isIndexable, so every bucket of a scalar facet shares the attribute's flag.
+  isIndexable: Boolean!
+  count: Int!
+}
+
+# A single product hit. Slim view - clients use `id` (or `slug`) to
+# follow up with `product(id)` for full PDP detail when needed.
+type ProductSearchHit {
+  id:      ID!
+  # Canonical product url. Callers link to `/${url}` so the catch-all serves it.
+  url:     String!
+  sku:     String!
+  name:    String
+}
+
+type ProductSearchResult {
+  items:      [ProductSearchHit!]!
+  totalCount: Int!
+  # Set when the store configured a redirect for this query - the UI
+  # should navigate instead of rendering results.
+  redirectUrl: String
+}
+
+
+type TierPrice {
+  minQty: Float!
+  price:  Int!
+}
+
+
+enum ProductLinkKind {
+  RELATED
+  UPSELL
+  CROSSSELL
+}

@@ -13,7 +13,12 @@ echo "==> backend"
 if [ $# -eq 0 ]; then
     # e2e is excluded from the default sweep - it writes real orders/customers and never cleans up, so it runs against its own disposable DB via bin/test-e2e, not the dev DB
     bin/go test $(bin/go list ./... | grep -v /internal/e2e)
-    echo "==> (e2e suite skipped - run it against its throwaway DB with bin/test-e2e)"
+    echo "==> signals module"
+    # The suite's own e2e scenarios sit out for the same reason core's do
+    bin/go --signals test $(bin/go --signals list ./... | grep -v /internal/e2e)
+    echo "==> sdk module"
+    bin/go --sdk test ./...
+    echo "==> (e2e suites skipped - run them against their throwaway DBs with bin/test-e2e)"
 else
     bin/go test "$@"
 fi
