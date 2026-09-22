@@ -71,7 +71,6 @@ node_modules/
 
 # Compiled example providers - `go build` in one of these dirs drops a binary
 # named after the module right next to its source, so each example needs a line.
-/examples/remote-providers/tax-provider-go/tax-provider
 
 # Playwright, when run from the repo root rather than apps/dashboard
 test-results/
