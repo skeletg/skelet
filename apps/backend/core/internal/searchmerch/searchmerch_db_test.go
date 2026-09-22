@@ -41,19 +41,36 @@ func seedChannels(t *testing.T, conn *sql.DB) (uuid.UUID, uuid.UUID) {
 	if err := rows.Err(); err != nil {
 		t.Fatalf("read channels: %v", err)
 	}
+	if len(ids) == 0 {
+		t.Skip("no channel to scope against")
+	}
 	if len(ids) < 2 {
-		t.Skip("need two channels to prove per-channel scoping")
+		// A freshly migrated database ships one channel - the second is cloned from it, so scoping is proven against a real pair
+		var id uuid.UUID
+		if err := conn.QueryRow(
+			`INSERT INTO channels (slug, name, currency_code, default_locale)
+			 SELECT $1, $1, currency_code, default_locale FROM channels WHERE id = $2
+			 RETURNING id`, "merch-"+uuid.NewString()[:8], ids[0]).Scan(&id); err != nil {
+			t.Fatalf("seed second channel: %v", err)
+		}
+		t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM channels WHERE id = $1`, id) }) // runs after the pins and boosts registered against it
+		ids = append(ids, id)
 	}
 	return ids[0], ids[1]
 }
 
 func seedProduct(t *testing.T, conn *sql.DB) uuid.UUID {
 	t.Helper()
-	var typeID uuid.UUID
-	if err := conn.QueryRow(`SELECT id FROM catalog_product_types LIMIT 1`).Scan(&typeID); err != nil {
-		t.Skipf("no product type to hang a fixture product off: %v", err)
-	}
 	suffix := uuid.NewString()[:8]
+	// Its own product type - a freshly migrated database has none, and borrowing whichever one
+	// another package's test happens to have made races that package's cleanup
+	var typeID uuid.UUID
+	if err := conn.QueryRow(
+		`INSERT INTO catalog_product_types (slug, name) VALUES ($1, $2) RETURNING id`,
+		"merch-type-"+suffix, "merch fixture").Scan(&typeID); err != nil {
+		t.Fatalf("seed product type: %v", err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM catalog_product_types WHERE id = $1`, typeID) }) // runs after the product delete below
 	var id uuid.UUID
 	if err := conn.QueryRow(
 		`INSERT INTO catalog_products (product_type_id, sku, url, kind)

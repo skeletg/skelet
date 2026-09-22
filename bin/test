@@ -1,26 +1,150 @@
 #!/usr/bin/env bash
 # go test + frontend typechecks + dashboard vitest - extra args go to go test
-# --no-frontend (first arg) skips the frontend bits
-set -e
+#
+# The Go half runs against disposable databases (skelet_test / skelet_test_signals, plus a
+# skelet_test_signals ClickHouse database when the spine is up), fresh each run. Without them
+# testdb.Require skips every database-backed test - the dev databases are never marked disposable,
+# on purpose - and a run that skipped a hundred and fifty tests still ended in "tests OK"
+#
+# --keep reuses last run's databases (migrate still runs, so a new migration lands), --no-frontend skips the frontend bits
+set -euo pipefail
 cd "$(dirname "$(dirname "$0")")"
+. bin/_lib
+. bin/_testdb
+
+TEST_DB="skelet_test"
+TEST_SIG_DB="skelet_test_signals"
+TEST_DB_URL="postgres://skelet:skelet@db:5432/${TEST_DB}?sslmode=disable"
+TEST_SIG_URL="postgres://skelet:skelet@signals-db:5432/${TEST_SIG_DB}?sslmode=disable"
+TEST_CH_URL="clickhouse://skelet:skelet@clickhouse:9000/${TEST_SIG_DB}"
+TEST_CH_MIGRATE_URL="clickhouse://clickhouse:9000?username=skelet&password=skelet&database=${TEST_SIG_DB}&x-multi-statement=true"
 
 skip_frontend=false
-case "${1:-}" in
-    --no-frontend|--no-dashboard) skip_frontend=true; shift ;;
-esac
+fresh=true
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --no-frontend|--no-dashboard) skip_frontend=true; shift ;;
+        --keep) fresh=false; shift ;;
+        --fresh) shift ;;
+        *) break ;;
+    esac
+done
+
+# The databases and go test live in the containers - no docker compose run fallback here, since the run
+# would come up without the db it is about to migrate
+if ! service_running app; then
+    echo "dev stack not running - start it with ./skelet up" >&2
+    exit 1
+fi
+
+echo "==> preparing disposable test databases"
+ensure_pg_db db "$TEST_DB" $fresh
+ensure_pg_db signals-db "$TEST_SIG_DB" $fresh
+unmark_dev_dbs
+echo "==> migrating commerce ($TEST_DB)"
+docker compose exec -T app migrate -path internal/db/migrations -database "$TEST_DB_URL" up
+echo "==> migrating signals ($TEST_SIG_DB)"
+docker compose exec -T app migrate -path /var/www/backend/signals/internal/db/migrations -database "$TEST_SIG_URL" up
+# ClickHouse sits behind the signals profile, so under --lean the spine's tests keep skipping - said out loud below rather than silently
+ch_dsn=""
+if service_running clickhouse; then
+    ensure_ch_db "$TEST_SIG_DB" $fresh
+    echo "==> migrating the spine (clickhouse $TEST_SIG_DB)"
+    docker compose exec -T app migrate -path /var/www/backend/signals/internal/analytics/spinech/migrations -database "$TEST_CH_MIGRATE_URL" up
+    ch_dsn="$TEST_CH_URL"
+else
+    echo "==> (clickhouse not running - the spine's ClickHouse tests will skip)"
+fi
+
+# go test -json in, the usual go test output out, plus a tally - a skip is invisible in the plain output,
+# and a skip is exactly what a missing database looks like. Passing tests' logs are dropped like
+# go test does without -v; a failing test prints everything it logged, like go test does with or without
+summarize() {
+    awk -v label="$1" '
+    function field(name, n,    re) {
+        re = "\"" name "\":\"[^\"]*\""
+        if (match($0, re)) return substr($0, RSTART + length(name) + 4, RLENGTH - length(name) - 5)
+        return ""
+    }
+    # One pass over the JSON string, so a backslash the test itself printed survives - a global
+    # \n-then-\\ substitution turns the "\n" inside a logged stack trace into a real newline
+    function unescape(s,    out, c, i, n) {
+        out = ""; n = length(s); i = 1
+        while (i <= n) {
+            c = substr(s, i, 1)
+            if (c != "\\" || i == n) { out = out c; i++; continue }
+            c = substr(s, i + 1, 1); i += 2
+            if (c == "n") out = out "\n"
+            else if (c == "t") out = out "\t"
+            else if (c == "r") out = out "\r"
+            else if (c == "u") {                             # encoding/json escapes <, > and & this way
+                if (substr(s, i, 4) == "003c") out = out "<"
+                else if (substr(s, i, 4) == "003e") out = out ">"
+                else if (substr(s, i, 4) == "0026") out = out "&"
+                else out = out "\\u" substr(s, i, 4)
+                i += 4
+            }
+            else out = out c                                 # \" \\ \/
+        }
+        return out
+    }
+    {
+        action = field("Action"); pkg = field("Package"); test = field("Test")
+        out = ""
+        if (match($0, /"Output":"([^"\\]|\\.)*"/))           # up to the closing quote, skipping escaped ones - OutputType follows it
+            out = unescape(substr($0, RSTART + 10, RLENGTH - 11))
+        k = pkg SUBSEP test
+        if (action == "output") {
+            if (test == "") {                                # ok / FAIL / ? lines, build errors, panics
+                if (out !~ /^(PASS|FAIL)\n$/) printf "%s", out   # the test binary verdict - the ok/FAIL line that follows carries it
+                next
+            }
+            if (out ~ /^=== /) next                          # RUN / PAUSE / CONT
+            buf[k] = buf[k] out
+            if (out !~ /^--- / && out ~ /[^[:space:]]/) last[k] = out
+            next
+        }
+        if (test == "") next                                 # package-level pass/fail/skip - the output line already said it
+        if (action == "pass") { passed++; delete buf[k]; delete last[k] }
+        else if (action == "fail") { failed++; printf "%s", buf[k]; delete buf[k]; delete last[k] }
+        else if (action == "skip") {
+            skipped++
+            reason = last[k]; sub(/^[[:space:]]*[^[:space:]]+\.go:[0-9]+: /, "", reason); sub(/\n$/, "", reason)
+            if (reason == "") reason = "(no reason given)"
+            reasons[reason]++
+            delete buf[k]; delete last[k]
+        }
+    }
+    END {
+        printf "==> %s: %d passed, %d failed, %d skipped\n", label, passed, failed, skipped
+        for (r in reasons) printf "    %4d skipped: %s\n", reasons[r], r
+    }'
+}
+
+# Core opens no signals database and the suite opens no commerce one - a test on either side that wants the
+# other's data has to get it the way production does, over the contract or off a pushed projection
+core_env=(-e DATABASE_URL="$TEST_DB_URL" -e SIGNALS_DB_URL=)
+sig_env=(-e DATABASE_URL= -e SIGNALS_DB_URL="$TEST_SIG_URL" -e SIGNALS_CH_URL="$ch_dsn" -e SIGNALS_CH_TEST_DSN="$ch_dsn")
+gotest() { # <workdir> [-e VAR=value ...] -- <go test args...>
+    local wd="$1"; shift
+    local env=()
+    while [ "$1" != "--" ]; do env+=("$1"); shift; done
+    shift
+    docker compose exec -T "${USER_FLAG[@]}" -w "$wd" "${env[@]}" app go test -json -count=1 "$@"
+}
 
 echo "==> backend"
 if [ $# -eq 0 ]; then
-    # e2e is excluded from the default sweep - it writes real orders/customers and never cleans up, so it runs against its own disposable DB via bin/test-e2e, not the dev DB
-    bin/go test $(bin/go list ./... | grep -v /internal/e2e)
+    # e2e is excluded from the default sweep - it writes real orders/customers and never cleans up, so it runs against its own disposable DB via bin/test-e2e, not this one
+    gotest /var/www/backend/core "${core_env[@]}" -- $(bin/go list ./... | grep -v /internal/e2e) | summarize core
     echo "==> signals module"
     # The suite's own e2e scenarios sit out for the same reason core's do
-    bin/go --signals test $(bin/go --signals list ./... | grep -v /internal/e2e)
+    gotest /var/www/backend/signals "${sig_env[@]}" -- $(bin/go --signals list ./... | grep -v /internal/e2e) | summarize signals
     echo "==> sdk module"
-    bin/go --sdk test ./...
+    gotest /var/www/backend/sdk "${core_env[@]}" -- ./... | summarize sdk
     echo "==> (e2e suites skipped - run them against their throwaway DBs with bin/test-e2e)"
 else
-    bin/go test "$@"
+    gotest /var/www/backend/core "${core_env[@]}" -- "$@" | summarize core
 fi
 
 if ! $skip_frontend; then

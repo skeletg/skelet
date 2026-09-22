@@ -32,7 +32,7 @@ func seedCustomer(t *testing.T, conn *sql.DB) uuid.UUID {
 	if err := conn.QueryRowContext(ctx, `SELECT id FROM customer_groups LIMIT 1`).Scan(&groupID); err != nil {
 		t.Skipf("no customer group to seed against: %v", err)
 	}
-	if err := conn.QueryRowContext(ctx, `SELECT id FROM channels LIMIT 1`).Scan(&channelID); err != nil {
+	if err := conn.QueryRowContext(ctx, `SELECT id FROM channels ORDER BY created_at LIMIT 1`).Scan(&channelID); err != nil {
 		t.Skipf("no channel to seed against: %v", err)
 	}
 	var id uuid.UUID
@@ -49,11 +49,16 @@ func seedCustomer(t *testing.T, conn *sql.DB) uuid.UUID {
 func seedProduct(t *testing.T, conn *sql.DB) uuid.UUID {
 	t.Helper()
 	ctx := context.Background()
-	var typeID uuid.UUID
-	if err := conn.QueryRowContext(ctx, `SELECT id FROM catalog_product_types LIMIT 1`).Scan(&typeID); err != nil {
-		t.Skipf("no product type to hang a fixture product off: %v", err)
-	}
 	suffix := uuid.NewString()[:8]
+	// Its own product type - a freshly migrated database has none, and borrowing whichever one
+	// another package's test happens to have made races that package's cleanup
+	var typeID uuid.UUID
+	if err := conn.QueryRowContext(ctx,
+		`INSERT INTO catalog_product_types (slug, name) VALUES ($1, $2) RETURNING id`,
+		"wish-type-"+suffix, "wishlist fixture").Scan(&typeID); err != nil {
+		t.Fatalf("seed product type: %v", err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM catalog_product_types WHERE id = $1`, typeID) }) // runs after the product delete below
 	var id uuid.UUID
 	if err := conn.QueryRowContext(ctx,
 		`INSERT INTO catalog_products (product_type_id, sku, url, kind)
