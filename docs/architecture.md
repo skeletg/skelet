@@ -234,7 +234,7 @@ stay in sync; the storefront has its own codegen step
 | Search | OpenSearch (optional sidecar - the app runs without it) |
 | Object storage | Amazon S3 (managed) or Garage (self-hosted/on-prem); Garage in dev |
 | Email (dev) | Mailpit (SMTP catcher) |
-| Observability | OpenTelemetry + Sentry, both opt-in; Vector log shipping to ClickHouse (`logs` profile) |
+| Observability | OpenTelemetry + Sentry, both opt-in; logs are structured JSON on stdout for whatever collector the deployment runs |
 | Hot reload | air (backend), Vite (dashboard) |
 
 ## GraphQL surface

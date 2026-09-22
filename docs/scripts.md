@@ -47,7 +47,6 @@ Three things they share (living in `_lib`, which is sourced, not run):
 | `./skelet ps` | List running containers. |
 | `./skelet serve` | Run one frontend on the HOST instead of in its container - `./skelet serve dashboard`, `./skelet serve vetrina-demo`. It exports the root `.env` first, because Next only reads `.env` files from its own directory and would otherwise need a second copy of `STOREFRONT_CHANNEL_ID` that drifts from the one compose reads. Trailing args go to npm. |
 | `./skelet logs` | Tail logs - `./skelet logs app`, `./skelet logs --tail 50 garage`. |
-| `./skelet logs query` | Search log HISTORY in ClickHouse (needs `--profile logs`, which runs the Vector collector on the spine's ClickHouse). Args are a WHERE clause: `./skelet logs query "level = 'error'"`. Container logs rotate at 10 MB x 3, so this is the only durable copy. |
 | `./skelet doctor` | See "Other tools" below - worth running right after `setup`, it's what catches a datastore the config expects but the stack isn't running. |
 | `./skelet setup` | Guided first-run. Asks which apps you want (backend always does; deselected apps also leave the working tree via sparse-checkout unless `--keep-code`) and, separately, whether to run the frontends in Docker rather than on the host - the host is the default, and `.skelet-apps` lists only the containerized ones, the deployment target, which suites and engines you want, which payment gateways compile in, and whether to hide the admin API. Writes the target's env files with generated secrets - an existing non-placeholder value is never overwritten - plus the root `.env`, `plugins.json` and git-ignored `.skelet-profile`. Then boots the stack with `--lean`, migrates, and regenerates when the plugin set changed. Safe to re-run. `--yes` takes defaults, `--profile FILE` replays answers, `--all` / `--backend-only` / `--apps LIST` set the selection directly, and `--docker-apps LIST|none` sets the placement. |
 
@@ -129,7 +128,7 @@ they take a plain `docker compose -f <file> up -d` on the server.
 |---|---|
 | `up` / `down` / `stop` / `restart` / `ps` | `dev` / `down` / `stop` / `restart` / `ps` |
 | `serve` | `serve` |
-| `logs [service]`, `logs query "<where>"` | `logs`, `logs-query` |
+| `logs [service]` | `logs` |
 | `sh`, `go`, `cli`, `psql` | `bash`, `go`, `cli`, `psql` |
 | `npm <app> <args>` | `dash` when app is `dashboard`, else `channel <app>` |
 | `db migrate [--signals]`, `db export`, `db import`, `db shell` | `migrate`, `migrate-signals`, `db-export`, `db-import`, `psql` |

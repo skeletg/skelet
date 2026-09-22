@@ -411,10 +411,10 @@ services:
     restart: "no"
     logging: *logging
 
-  # The event spine's server, up with the suite - other consumers (the logs profile) get their own database on it
+  # The event spine's server, up with the suite
   clickhouse:
-    # Every profile that needs it starts it: the suite and the beacon tier write the spine, `logs` keeps its own database here
-    profiles: ["signals", "ingest", "logs"]
+    # Every profile that needs it starts it: the suite and the beacon tier both write the spine
+    profiles: ["signals", "ingest"]
     image: clickhouse/clickhouse-server:26.7.5
     environment:
       - CLICKHOUSE_DB=signals
@@ -473,36 +473,6 @@ services:
         "up",
       ]
     restart: "no"
-    logging: *logging
-
-  # Log search - Vector tails container stdout into ClickHouse so the rotation cap stops being the retention policy
-  # Its own `logs` database on the spine's server - query with bin/logs-query "level = 'error'", and start it with --profile signals --profile logs
-  logs-schema:
-    profiles: ["logs"]
-    image: clickhouse/clickhouse-server:26.7.5
-    volumes:
-      - ./deploy/vector/schema.sql:/schema.sql:ro
-    depends_on:
-      clickhouse: { condition: service_healthy, required: false }
-    command:
-      ["sh", "-c", "clickhouse-client --host clickhouse --user skelet --password skelet --queries-file /schema.sql"]
-    restart: "no"
-    logging: *logging
-
-  vector:
-    profiles: ["logs"]
-    image: timberio/vector:0.49.0-debian
-    volumes:
-      - ./deploy/vector/vector.yaml:/etc/vector/vector.yaml:ro
-      # read-only socket: the collector reads the log stream, never writes
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - vector-data:/vector-data
-    environment:
-      - CLICKHOUSE_USER=skelet
-      - CLICKHOUSE_PASSWORD=skelet
-    depends_on:
-      logs-schema: { condition: service_completed_successfully, required: false }
-    restart: unless-stopped
     logging: *logging
 
   valkey:
@@ -657,7 +627,6 @@ services:
     logging: *logging
 
 volumes:
-  vector-data:
   db-data:
   signals-db-data:
   clickhouse-data:

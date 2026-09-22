@@ -64,7 +64,7 @@ subs_for() {
         gen)     echo '(all) | sqlc | gqlgen | buf' ;;
         check)   echo '(all) | pins | structure | contracts | codegen' ;;
         test)    echo '(all) | e2e | [pkgs] [--keep] [--no-frontend]' ;;
-        logs)    echo '[service] | query "<where>"' ;;
+        logs)    echo '[service]' ;;
         npm)     echo '<app> <npm args>' ;;
         new)     echo 'channel <name> [--from <storefront>] [--tracked]' ;;
         rm)      echo 'channel <name> [-y] [--volumes]' ;;
@@ -147,7 +147,6 @@ case "$cmd" in
         usage; exit 0 ;;
 
     logs)
-        [ "${1:-}" = query ] && { shift; run logs-query "$@"; }
         run logs "$@" ;;
 
     npm)
