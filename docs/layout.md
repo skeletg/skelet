@@ -12,7 +12,6 @@ skelet/
 ├── docs/          you are here
 ├── env/           environment templates, one file per service
 ├── deploy/        sidecar config, one directory per service
-├── examples/      standalone reference implementations
 ├── .github/       CI workflows and dependency bumps
 ```
 
@@ -132,13 +131,6 @@ than written - `permissions.md`, `settings.md` and `webhooks.md` are rebuilt by
 the short form keeps Go prose readable, and there is no second `internal/` to
 confuse it with. Write the repo-root form when a page compares apps, the way
 `architecture.md` does for the GraphQL surfaces.
-
-### `examples/`
-
-Standalone programs that demonstrate a published contract, kept outside `apps/`
-because nothing in the platform imports them. Today that is a reference remote
-tax provider in Go, written against [remote-providers.md](remote-providers.md)
-and testable with `./skelet provider`.
 
 ### `.github/`
 

@@ -293,16 +293,6 @@ jobs:
         run: |
           go run ./cmd/plugingen
           git diff --exit-code plugins/firstparty
-      # The published reference providers are their own modules, so no other job
-      # compiles them - a contract change that breaks one fails here, not on a fork
-      - name: Example modules build
-        run: |
-          fail=0
-          for mod in $(find examples -name go.mod); do
-            echo "==> $(dirname "$mod")"
-            (cd "$(dirname "$mod")" && go build ./...) || fail=1
-          done
-          exit $fail
 
   # The same command the pre-commit hook runs, so "bin/check passes" means the same
   # thing locally and here. No toolchain, no containers - three greps

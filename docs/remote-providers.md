@@ -19,19 +19,16 @@ your endpoint in PCI scope. Gateways are first-party plugins instead.
 ```bash
 # 1. Register the provider in the admin (Settings -> Remote providers) and copy the
 #    rpsec_... secret - it is shown exactly once.
-# 2. Run the reference implementation.
-cd examples/remote-providers/tax-provider-go
-SKELET_PROVIDER_SECRET=rpsec_... go run .
-
-# 3. Check it against the contract before wiring it to anything real.
+# 2. Stand up one POST endpoint that verifies the signature below and answers with the
+#    kind's response shape, then check it against the contract before wiring it to
+#    anything real.
 ./skelet provider --url http://localhost:9095/tax --secret rpsec_... --kind tax_provider
 ```
 
 `./skelet provider` posts the generated example payload for the kind, then tries the
 failure cases - forged signature, no signature, wrong key, an hour-old timestamp - and
-tells you whether your endpoint handled each correctly. Copy
-`examples/remote-providers/tax-provider-go`, replace its `calculate()`, and you have a
-provider.
+tells you whether your endpoint handled each correctly. The request, the signature and
+every kind's payload and response are specified in the rest of this page.
 
 ## The request
 
