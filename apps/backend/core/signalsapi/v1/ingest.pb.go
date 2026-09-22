@@ -231,10 +231,13 @@ type RosterEntry struct {
 	// second-guesses this, since consent is core's to answer for
 	MarketingOptedIn bool `protobuf:"varint,7,opt,name=marketing_opted_in,json=marketingOptedIn,proto3" json:"marketing_opted_in,omitempty"`
 	// What an SMS node needs, for the same reason the email fields are here
-	Phone         string `protobuf:"bytes,8,opt,name=phone,proto3" json:"phone,omitempty"`
-	SmsOptedIn    bool   `protobuf:"varint,9,opt,name=sms_opted_in,json=smsOptedIn,proto3" json:"sms_opted_in,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Phone      string `protobuf:"bytes,8,opt,name=phone,proto3" json:"phone,omitempty"`
+	SmsOptedIn bool   `protobuf:"varint,9,opt,name=sms_opted_in,json=smsOptedIn,proto3" json:"sms_opted_in,omitempty"`
+	// The group's slug beside its id - segment rules are authored against slugs, and the suite has no
+	// groups table to resolve one through
+	CustomerGroupSlug string `protobuf:"bytes,10,opt,name=customer_group_slug,json=customerGroupSlug,proto3" json:"customer_group_slug,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RosterEntry) Reset() {
@@ -328,6 +331,13 @@ func (x *RosterEntry) GetSmsOptedIn() bool {
 		return x.SmsOptedIn
 	}
 	return false
+}
+
+func (x *RosterEntry) GetCustomerGroupSlug() string {
+	if x != nil {
+		return x.CustomerGroupSlug
+	}
+	return ""
 }
 
 // One page of the roster - the stream is the whole of it, and a stream that ends early prunes nothing
@@ -1544,7 +1554,7 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\bchannels\x18\x01 \x03(\v2\x1f.skelet.signals.v1.ChannelEntryR\bchannels\"F\n" +
 	"\x14SyncChannelsResponse\x12\x16\n" +
 	"\x06synced\x18\x01 \x01(\x05R\x06synced\x12\x16\n" +
-	"\x06pruned\x18\x02 \x01(\x05R\x06pruned\"\xb1\x02\n" +
+	"\x06pruned\x18\x02 \x01(\x05R\x06pruned\"\xe1\x02\n" +
 	"\vRosterEntry\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x12\x1d\n" +
@@ -1558,7 +1568,9 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\x12marketing_opted_in\x18\a \x01(\bR\x10marketingOptedIn\x12\x14\n" +
 	"\x05phone\x18\b \x01(\tR\x05phone\x12 \n" +
 	"\fsms_opted_in\x18\t \x01(\bR\n" +
-	"smsOptedIn\"Y\n" +
+	"smsOptedIn\x12.\n" +
+	"\x13customer_group_slug\x18\n" +
+	" \x01(\tR\x11customerGroupSlug\"Y\n" +
 	"\x19SyncCustomerRosterRequest\x12<\n" +
 	"\tcustomers\x18\x01 \x03(\v2\x1e.skelet.signals.v1.RosterEntryR\tcustomers\"V\n" +
 	"\x18UpsertRosterEntryRequest\x12:\n" +

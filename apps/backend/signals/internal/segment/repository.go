@@ -26,6 +26,8 @@ type Repository interface {
 	RecordDailySnapshot(ctx context.Context, segmentID uuid.UUID) error
 	SetRules(ctx context.Context, id uuid.UUID, rules json.RawMessage) (Segment, error)
 	ListDynamic(ctx context.Context) ([]Segment, error)
+	// The channels the roster covers - what a windowed order condition asks the spine about, channel by channel
+	RosterChannels(ctx context.Context) ([]uuid.UUID, error)
 
 	AddMember(ctx context.Context, customerID, segmentID uuid.UUID) error
 	BulkAddMembers(ctx context.Context, segmentID uuid.UUID, customerIDs []uuid.UUID) error
@@ -248,6 +250,10 @@ func (r *postgresRepository) SetRules(ctx context.Context, id uuid.UUID, rules j
 		return Segment{}, fmt.Errorf("set segment rules: %w", err)
 	}
 	return toSegment(row), nil
+}
+
+func (r *postgresRepository) RosterChannels(ctx context.Context) ([]uuid.UUID, error) {
+	return r.queries.RosterChannels(ctx)
 }
 
 func (r *postgresRepository) ListDynamic(ctx context.Context) ([]Segment, error) {

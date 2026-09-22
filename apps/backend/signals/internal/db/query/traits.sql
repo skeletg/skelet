@@ -3,27 +3,29 @@
 
 -- name: UpsertCustomerRoster :exec
 -- Lands a page of the synced roster - paired arrays, one statement per page
-INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, marketing_opted_in, sms_opted_in, synced_at)
+INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, synced_at)
 SELECT unnest(sqlc.arg(customer_ids)::uuid[]), unnest(sqlc.arg(channel_ids)::uuid[]),
        unnest(sqlc.arg(emails)::text[]), unnest(sqlc.arg(first_names)::text[]),
        unnest(sqlc.arg(phones)::text[]), unnest(sqlc.arg(actives)::boolean[]),
-       unnest(sqlc.arg(group_ids)::uuid[]), unnest(sqlc.arg(opted_in)::boolean[]),
-       unnest(sqlc.arg(sms_opted_in)::boolean[]), sqlc.arg(synced_at)
+       unnest(sqlc.arg(group_ids)::uuid[]), unnest(sqlc.arg(group_slugs)::text[]),
+       unnest(sqlc.arg(opted_in)::boolean[]), unnest(sqlc.arg(sms_opted_in)::boolean[]), sqlc.arg(synced_at)
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
         phone = EXCLUDED.phone, is_active = EXCLUDED.is_active, customer_group_id = EXCLUDED.customer_group_id,
+        customer_group_slug = EXCLUDED.customer_group_slug,
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
         synced_at = EXCLUDED.synced_at;
 
 -- name: UpsertCustomerRosterEntry :exec
 -- One customer, arriving on a change rather than a sweep - synced_at moves too, so the next sweep does not prune a row that just landed
-INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, marketing_opted_in, sms_opted_in, synced_at)
+INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, synced_at)
 VALUES (sqlc.arg(customer_id), sqlc.arg(channel_id), sqlc.arg(email), sqlc.arg(first_name),
-        sqlc.arg(phone), sqlc.arg(is_active), sqlc.arg(customer_group_id),
+        sqlc.arg(phone), sqlc.arg(is_active), sqlc.arg(customer_group_id), sqlc.arg(customer_group_slug),
         sqlc.arg(marketing_opted_in), sqlc.arg(sms_opted_in), now())
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
         phone = EXCLUDED.phone, is_active = EXCLUDED.is_active, customer_group_id = EXCLUDED.customer_group_id,
+        customer_group_slug = EXCLUDED.customer_group_slug,
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
         synced_at = EXCLUDED.synced_at;
 

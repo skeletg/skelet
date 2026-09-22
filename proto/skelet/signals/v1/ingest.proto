@@ -68,6 +68,9 @@ message RosterEntry {
   // What an SMS node needs, for the same reason the email fields are here
   string phone = 8;
   bool sms_opted_in = 9;
+  // The group's slug beside its id - segment rules are authored against slugs, and the suite has no
+  // groups table to resolve one through
+  string customer_group_slug = 10;
 }
 
 // One page of the roster - the stream is the whole of it, and a stream that ends early prunes nothing
