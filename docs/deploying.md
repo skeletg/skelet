@@ -8,10 +8,9 @@ service to loopback, so something has to sit in front and terminate TLS.
 `docker-compose.small.yml` is the minimum deployable tenant: one app container
 running every backend role (API, WS, media transforms, scheduler, webhook
 delivery, outbox relay) and one Postgres. No Valkey, no NATS, no OpenSearch, and
-Signals off. `--profile signals` adds the suite: its process, ClickHouse for the
-event spine, and the two migrations, with `SIGNALS_ENABLED=true` in
-`env/small.env`. Its ports are offset (18080/18081/13000/15432) so it runs
-beside the dev stack.
+no Signals - the suite, with the ClickHouse its spine lives in, is the prod
+shape's. Its ports are offset (18080/18081/13000/15432) so it runs beside the
+dev stack.
 
 ```bash
 cp env/small.env.example env/small.env

@@ -92,7 +92,6 @@ sibling directories answering two different questions.
 | | Read by |
 |---|---|
 | `caddy/` | The bundled reverse proxy: three vhosts, automatic Let's Encrypt. Behind a profile because it takes `:80` and `:443`. Small and prod |
-| `postgres/` | Creates the second database by hand, since the one-container profile collapses both onto a single cluster. Small only |
 
 `./skelet check contracts` reads the Caddyfile directly - it holds one of the three
 copies of the security headers that have to agree.

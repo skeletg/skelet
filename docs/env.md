@@ -386,7 +386,7 @@ in one process; splitting buys isolation.
 | Tier | Switch | What it does |
 |---|---|---|
 | `worker` | `JOBS_EXTERNAL=true` | App stops claiming scheduler jobs, webhook deliveries and outbox rows, leaving them to the worker. |
-| `signals` | `--profile signals` | Serves the suite's own admin API on `:8090` and its wire contract on `:8092`, and performs the retention, forwarding and trait-compute work core's scheduler asks for. |
+| `signals` | `SIGNALS_ENABLED=true`, prod shape only | Serves the suite's own admin API on `:8090` and its wire contract on `:8092`, and performs the retention, forwarding and trait-compute work core's scheduler asks for. |
 | `ingest` | route `/t/*` and `/e/*` | Serves the public surfaces - the beacons and the mail tracking routes - on `127.0.0.1:8091`. |
 | `media` | route `/media/t/*` | Image resize + focal crop, so decode CPU doesn't land next to checkout. |
 
