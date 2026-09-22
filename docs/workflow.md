@@ -31,7 +31,7 @@ between the two.
 | `./skelet npm dashboard <args>` | Run an npm command inside `apps/dashboard/` (e.g. `./skelet npm dashboard run dev`, `./skelet npm dashboard install`) |
 | `./skelet npm <name> <args>` | Run an npm command inside a storefront container under `apps/channels/` (e.g. `./skelet npm vetrina-demo run build`, `./skelet npm vetrina-demo run codegen`). Exec's into the running container when the stack is up; otherwise spins up a one-shot. |
 | `./skelet gen [--check]` | Regenerate everything: sqlc → gqlgen admin → gqlgen front → dashboard codegen. Pre-flights `/health` before the dashboard step. `--check` exits non-zero if any generated file changed (used by the pre-commit hook). Storefront codegen IS wired in - every storefront under `apps/channels/` gets its TS docs regenerated (skipped for apps deselected via ./skelet setup). |
-| `./skelet test [pkgs] [--no-frontend]` | Backend `go test` + dashboard/storefront typechecks + both apps' vitest suites. Args after the script forward to `go test`. |
+| `./skelet test [pkgs] [--keep] [--no-frontend]` | Backend `go test` against disposable `skelet_test` / `skelet_test_signals` databases (fresh each run, `--keep` reuses them) + dashboard/storefront typechecks + both apps' vitest suites. Each Go module ends with a pass/fail/skip tally. Args after the flags forward to `go test`. |
 | `./skelet lint` | gofmt + golangci-lint + dashboard ESLint |
 
 Full documentation for every command: [scripts.md](scripts.md).

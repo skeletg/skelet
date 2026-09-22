@@ -4,6 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$(dirname "$0")")"
 . bin/_lib
+. bin/_testdb
 
 E2E_DB="skelet_e2e"
 E2E_SIG_DB="skelet_e2e_signals"
@@ -20,50 +21,16 @@ case "${1:-}" in
 esac
 
 # The dev stack has to be up - migrate, the Signals process and go test all run inside the app container
-if ! docker compose ps --status running | grep -q "skelet-app"; then
-    echo "dev stack not running - start it with bin/dev" >&2
+if ! service_running app; then
+    echo "dev stack not running - start it with ./skelet up" >&2
     exit 1
 fi
 
-# psql as the instance superuser against the always-present maintenance DB, so
-# we can CREATE/DROP the target - ON_ERROR_STOP so a failure isn't swallowed
-admin_sql() { # <service> <sql>
-    docker compose exec -T "$1" psql -U skelet -d postgres -v ON_ERROR_STOP=1 -tAc "$2"
-}
-
-db_exists() { # <service> <dbname>
-    [ "$(admin_sql "$1" "SELECT 1 FROM pg_database WHERE datname='$2'")" = "1" ]
-}
-
-ensure_db() { # <service> <dbname>
-    if $fresh && db_exists "$1" "$2"; then
-        echo "==> dropping $2"
-        admin_sql "$1" "DROP DATABASE $2 WITH (FORCE)" >/dev/null
-    fi
-    if ! db_exists "$1" "$2"; then
-        echo "==> creating $2"
-        admin_sql "$1" "CREATE DATABASE $2" >/dev/null
-    fi
-    # The disposable marker testdb.Require gates on - takes effect on new connections, so it's set before migrate/test connect
-    admin_sql "$1" "ALTER DATABASE $2 SET skelet.e2e = 'allowed'" >/dev/null
-}
-
-ch_sql() { docker compose exec -T clickhouse clickhouse-client --user=skelet --password=skelet --query "$1"; }
-ensure_ch_db() {
-    if $fresh; then
-        ch_sql "DROP DATABASE IF EXISTS $1" >/dev/null
-    fi
-    ch_sql "CREATE DATABASE IF NOT EXISTS $1" >/dev/null
-}
 echo "==> preparing disposable e2e databases"
-ensure_db db "$E2E_DB"
-ensure_db signals-db "$E2E_SIG_DB"
-ensure_ch_db "$E2E_SIG_DB"
-
-# Keep the dev DBs unmarked so a stray `go test ./internal/e2e/...` against dev
-# refuses instead of writing test orders
-admin_sql db "ALTER DATABASE skelet RESET skelet.e2e" >/dev/null || true
-admin_sql signals-db "ALTER DATABASE skelet_signals RESET skelet.e2e" >/dev/null || true
+ensure_pg_db db "$E2E_DB" $fresh
+ensure_pg_db signals-db "$E2E_SIG_DB" $fresh
+ensure_ch_db "$E2E_SIG_DB" $fresh
+unmark_dev_dbs
 
 echo "==> migrating commerce ($E2E_DB)"
 docker compose exec -T app migrate -path internal/db/migrations -database "$E2E_DB_URL" up

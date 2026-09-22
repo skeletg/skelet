@@ -78,7 +78,7 @@ func seedCustomer(t *testing.T, conn *sql.DB) uuid.UUID {
 	if err := conn.QueryRowContext(ctx, `SELECT id FROM customer_groups LIMIT 1`).Scan(&groupID); err != nil {
 		t.Skipf("no customer group to seed against: %v", err)
 	}
-	if err := conn.QueryRowContext(ctx, `SELECT id FROM channels LIMIT 1`).Scan(&channelID); err != nil {
+	if err := conn.QueryRowContext(ctx, `SELECT id FROM channels ORDER BY created_at LIMIT 1`).Scan(&channelID); err != nil {
 		t.Skipf("no channel to seed against: %v", err)
 	}
 	var id uuid.UUID

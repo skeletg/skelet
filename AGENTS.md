@@ -98,7 +98,10 @@ let sqlc generate the Go.
 
 - Go: standard `testing`, `_test.go` beside the code. `./skelet test`
 - Database-backed Go tests gate on `testdb` and refuse to run against a
-  database that is not marked disposable
+  database that is not marked disposable. `./skelet test` brings its own
+  (`skelet_test` / `skelet_test_signals`, fresh each run, `--keep` to reuse) and
+  ends with a pass/fail/skip tally - a skip count that isn't near zero means a
+  database went missing, not that the tests are fine
 - Dashboard: Vitest, `*.test.tsx` beside the component. `./skelet npm dashboard run test`
 - Storefront: Vitest. `./skelet npm <name> run test`
 - E2E money paths: `./skelet test e2e`, own databases, dropped and recreated each run (`--keep` to reuse), ~40 seconds
