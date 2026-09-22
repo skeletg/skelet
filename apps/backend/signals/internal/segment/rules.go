@@ -9,7 +9,11 @@ import (
 	"github.com/lib/pq"
 )
 
-// The dynamic-segment rule engine - marketers author a structured condition tree and the server compiles it to ONE parameterized SQL query over customers Operators never supply SQL: every field, operator and join is allowlisted here, and every value travels as a bind arg The wire shape in customer_segments.rules is {logic, conditions[]}, where a condition is one of kind trait, lifecycle, order_count, total_spent_cents, last_order_days, consent or group days: 0 means all time - Trait conditions read customer_traits, recomputed daily, while order conditions read the orders ledger live
+// The dynamic-segment rule engine - marketers author a structured condition tree and the server compiles it to ONE parameterized SQL query over the customer roster Operators never supply SQL: every field, operator and join is allowlisted here, and every value travels as a bind arg The wire shape in customer_segments.rules is {logic, conditions[]}, where a condition is one of kind trait, lifecycle, order_count, total_spent_cents, last_order_days, consent or group days: 0 means all time
+//
+// Everything a rule reads is the suite's own: customer_roster and its consent flags and group slug (pushed by core), customer_traits
+// (recomputed daily) and customer_order_agg (lifetime orders, projected off the spine with the traits). A windowed order condition
+// is the one thing those tables cannot answer, so it is resolved against the spine first (orders.go) and arrives as an id set
 
 type RuleCondition struct {
 	Kind    string  `json:"kind"`
@@ -44,6 +48,13 @@ var numericOps = map[string]string{
 // Exactly the stages the trait recompute writes - "dormant" was accepted here and never produced, so a segment on it matched nobody, while "lapsed" was produced and could not be selected
 var lifecycleStages = map[string]bool{
 	"prospect": true, "new": true, "active": true, "at_risk": true, "lapsed": true,
+}
+
+// The consents the roster carries, as core resolves them (registry default included) - a rule can only ask about
+// one of these, since the suite holds no other consent and never second-guesses core's answer
+var consentColumns = map[string]string{
+	"marketing_email": "marketing_opted_in",
+	"marketing_sms":   "sms_opted_in",
 }
 
 // Decodes and validates the JSONB payload - unknown keys are rejected, so a typo'd condition fails at save time rather than silently at refresh time
@@ -106,8 +117,8 @@ func (c *RuleCondition) validate() error {
 			return fmt.Errorf("last_order_days supports lte/gte")
 		}
 	case "consent":
-		if strings.TrimSpace(c.Channel) == "" {
-			return fmt.Errorf("consent needs a channel")
+		if _, ok := consentColumns[c.Channel]; !ok {
+			return fmt.Errorf("unknown consent channel %q", c.Channel)
 		}
 	case "group":
 		if strings.TrimSpace(c.Slug) == "" {
@@ -119,24 +130,27 @@ func (c *RuleCondition) validate() error {
 	return nil
 }
 
-// Condition kinds backed by customer_traits - the compiled query runs against commerce, so these cannot be a subquery
-var synapseRuleKinds = map[string]bool{"trait": true, "lifecycle": true}
-
-// SignalsConditions returns the conditions that read customer_traits, keyed by their index in the rule set
-// Those live in the signals database now, so they cannot be a subquery here and are resolved to an id set first
-func (r *Rules) SignalsConditions() map[int]RuleCondition {
+// The conditions that need the spine: an order count or spend inside a window, keyed by their index in the rule set
+func (r *Rules) WindowedConditions() map[int]RuleCondition {
 	out := map[int]RuleCondition{}
 	for i, c := range r.Conditions {
-		if synapseRuleKinds[c.Kind] {
+		if (c.Kind == "order_count" || c.Kind == "total_spent_cents") && c.Days > 0 {
 			out[i] = c
 		}
 	}
 	return out
 }
 
+// One windowed condition after the spine has answered it - either the customers it selects or, when a customer with no
+// orders in the window satisfies it the way "at most 5 orders" does, the customers it rules out with everyone else in
+type Resolved struct {
+	IDs     []uuid.UUID
+	Exclude bool
+}
+
 // Turns validated rules into a customer-id query - all values are bind args, and the SQL text is assembled ONLY from the allowlisted fragments above, so operator input never reaches the SQL string
-// resolved carries the customer ids for each trait condition, by index - an empty set matches nobody, which is what an unreachable signals database should mean
-func (r *Rules) Compile(resolved map[int][]uuid.UUID) (string, []any) {
+// resolved carries the spine's answer for each windowed condition, by index - a condition it does not cover matches nobody, which is what an unreachable spine should mean: narrowing a segment is survivable, widening it to the whole roster is not
+func (r *Rules) Compile(resolved map[int]Resolved) (string, []any) {
 	joiner := " AND "
 	if r.Logic == "or" {
 		joiner = " OR "
@@ -151,47 +165,59 @@ func (r *Rules) Compile(resolved map[int][]uuid.UUID) (string, []any) {
 	}
 	for i, c := range r.Conditions {
 		switch c.Kind {
-		case "trait", "lifecycle":
-			// Already resolved against the signals database - the ids come in as one bind arg rather than a join
-			ids := resolved[i]
-			if len(ids) == 0 {
-				preds = append(preds, "FALSE")
+		case "trait":
+			preds = append(preds, fmt.Sprintf(
+				"c.customer_id IN (SELECT t.customer_id FROM customer_traits t WHERE t.%s %s %s)",
+				traitFields[c.Field], numericOps[c.Op], arg(c.Value)))
+		case "lifecycle":
+			op := "="
+			if c.Op == "neq" {
+				op = "<>"
+			}
+			preds = append(preds, fmt.Sprintf(
+				"c.customer_id IN (SELECT t.customer_id FROM customer_traits t WHERE t.lifecycle_stage %s %s)",
+				op, arg(c.Stage)))
+		case "order_count", "total_spent_cents":
+			if c.Days > 0 {
+				preds = append(preds, resolvedPredicate(resolved[i], arg))
 				continue
 			}
-			preds = append(preds, "c.id = ANY("+arg(pq.Array(ids))+")")
-		case "order_count":
-			window := ""
-			if c.Days > 0 {
-				window = fmt.Sprintf(" AND o.created_at > NOW() - make_interval(days => %s::int)", arg(c.Days))
+			// Lifetime, off the projection - a customer who never ordered has no row there, and reads as zero
+			col := "order_count"
+			if c.Kind == "total_spent_cents" {
+				col = "monetary_cents"
 			}
 			preds = append(preds, fmt.Sprintf(
-				"(SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id AND o.status NOT IN ('cancelled','draft')%s) %s %s",
-				window, numericOps[c.Op], arg(c.Value)))
-		case "total_spent_cents":
-			window := ""
-			if c.Days > 0 {
-				window = fmt.Sprintf(" AND o.created_at > NOW() - make_interval(days => %s::int)", arg(c.Days))
-			}
-			preds = append(preds, fmt.Sprintf(
-				"(SELECT COALESCE(SUM(o.total_amount),0) FROM orders o WHERE o.customer_id = c.id AND o.status NOT IN ('cancelled','draft')%s) %s %s",
-				window, numericOps[c.Op], arg(c.Value)))
+				"COALESCE((SELECT a.%s FROM customer_order_agg a WHERE a.customer_id = c.customer_id), 0) %s %s",
+				col, numericOps[c.Op], arg(c.Value)))
 		case "last_order_days":
 			cmp := "<="
 			if c.Op == "gte" {
 				cmp = ">="
 			}
+			// NULL with no orders, so neither side of a recency rule ever selects someone who never bought
 			preds = append(preds, fmt.Sprintf(
-				"EXTRACT(EPOCH FROM NOW() - (SELECT MAX(o.created_at) FROM orders o WHERE o.customer_id = c.id AND o.status NOT IN ('cancelled','draft')))/86400 %s %s",
+				"EXTRACT(EPOCH FROM NOW() - (SELECT a.last_order_at FROM customer_order_agg a WHERE a.customer_id = c.customer_id))/86400 %s %s",
 				cmp, arg(c.Value)))
 		case "consent":
-			preds = append(preds, fmt.Sprintf(
-				"EXISTS (SELECT 1 FROM customer_consents cc WHERE cc.customer_id = c.id AND cc.kind = %s AND cc.opted_in = %s)",
-				arg(c.Channel), arg(c.Granted)))
+			preds = append(preds, fmt.Sprintf("c.%s = %s", consentColumns[c.Channel], arg(c.Granted)))
 		case "group":
-			preds = append(preds, fmt.Sprintf(
-				"EXISTS (SELECT 1 FROM customer_groups g WHERE g.id = c.customer_group_id AND g.slug = %s)",
-				arg(c.Slug)))
+			preds = append(preds, "c.customer_group_slug = "+arg(c.Slug))
 		}
 	}
-	return "SELECT c.id FROM customers c WHERE " + strings.Join(preds, joiner), args
+	return "SELECT c.customer_id FROM customer_roster c WHERE " + strings.Join(preds, joiner), args
+}
+
+// The predicate for a spine-resolved condition - a zero-value Resolved is the unresolved case, and refuses
+func resolvedPredicate(r Resolved, arg func(any) string) string {
+	if r.Exclude {
+		if len(r.IDs) == 0 {
+			return "TRUE"
+		}
+		return "NOT (c.customer_id = ANY(" + arg(pq.Array(r.IDs)) + "))"
+	}
+	if len(r.IDs) == 0 {
+		return "FALSE"
+	}
+	return "c.customer_id = ANY(" + arg(pq.Array(r.IDs)) + ")"
 }

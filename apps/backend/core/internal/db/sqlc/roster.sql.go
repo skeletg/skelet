@@ -14,24 +14,27 @@ import (
 const customerRosterEntry = `-- name: CustomerRosterEntry :one
 SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name,
        COALESCE(c.phone, '')::text AS phone, c.is_active, c.customer_group_id,
+       COALESCE(g.slug, '')::text AS customer_group_slug,
        COALESCE(k.opted_in, false)::boolean AS marketing_opted_in,
        COALESCE(s.opted_in, false)::boolean AS sms_opted_in
 FROM customers c
+LEFT JOIN customer_groups g ON g.id = c.customer_group_id
 LEFT JOIN customer_consents k ON k.customer_id = c.id AND k.kind = 'marketing_email'
 LEFT JOIN customer_consents s ON s.customer_id = c.id AND s.kind = 'marketing_sms'
 WHERE c.id = $1
 `
 
 type CustomerRosterEntryRow struct {
-	CustomerID       uuid.UUID `json:"customer_id"`
-	ChannelID        uuid.UUID `json:"channel_id"`
-	Email            string    `json:"email"`
-	FirstName        string    `json:"first_name"`
-	Phone            string    `json:"phone"`
-	IsActive         bool      `json:"is_active"`
-	CustomerGroupID  uuid.UUID `json:"customer_group_id"`
-	MarketingOptedIn bool      `json:"marketing_opted_in"`
-	SmsOptedIn       bool      `json:"sms_opted_in"`
+	CustomerID        uuid.UUID `json:"customer_id"`
+	ChannelID         uuid.UUID `json:"channel_id"`
+	Email             string    `json:"email"`
+	FirstName         string    `json:"first_name"`
+	Phone             string    `json:"phone"`
+	IsActive          bool      `json:"is_active"`
+	CustomerGroupID   uuid.UUID `json:"customer_group_id"`
+	CustomerGroupSlug string    `json:"customer_group_slug"`
+	MarketingOptedIn  bool      `json:"marketing_opted_in"`
+	SmsOptedIn        bool      `json:"sms_opted_in"`
 }
 
 // One customer for the event-driven push, shaped exactly like a page row
@@ -46,6 +49,7 @@ func (q *Queries) CustomerRosterEntry(ctx context.Context, customerID uuid.UUID)
 		&i.Phone,
 		&i.IsActive,
 		&i.CustomerGroupID,
+		&i.CustomerGroupSlug,
 		&i.MarketingOptedIn,
 		&i.SmsOptedIn,
 	)
@@ -55,9 +59,11 @@ func (q *Queries) CustomerRosterEntry(ctx context.Context, customerID uuid.UUID)
 const customerRosterForSync = `-- name: CustomerRosterForSync :many
 SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name,
        COALESCE(c.phone, '')::text AS phone, c.is_active, c.customer_group_id,
+       COALESCE(g.slug, '')::text AS customer_group_slug,
        COALESCE(k.opted_in, false)::boolean AS marketing_opted_in,
        COALESCE(s.opted_in, false)::boolean AS sms_opted_in
 FROM customers c
+LEFT JOIN customer_groups g ON g.id = c.customer_group_id
 LEFT JOIN customer_consents k ON k.customer_id = c.id AND k.kind = 'marketing_email'
 LEFT JOIN customer_consents s ON s.customer_id = c.id AND s.kind = 'marketing_sms'
 ORDER BY c.id
@@ -70,15 +76,16 @@ type CustomerRosterForSyncParams struct {
 }
 
 type CustomerRosterForSyncRow struct {
-	CustomerID       uuid.UUID `json:"customer_id"`
-	ChannelID        uuid.UUID `json:"channel_id"`
-	Email            string    `json:"email"`
-	FirstName        string    `json:"first_name"`
-	Phone            string    `json:"phone"`
-	IsActive         bool      `json:"is_active"`
-	CustomerGroupID  uuid.UUID `json:"customer_group_id"`
-	MarketingOptedIn bool      `json:"marketing_opted_in"`
-	SmsOptedIn       bool      `json:"sms_opted_in"`
+	CustomerID        uuid.UUID `json:"customer_id"`
+	ChannelID         uuid.UUID `json:"channel_id"`
+	Email             string    `json:"email"`
+	FirstName         string    `json:"first_name"`
+	Phone             string    `json:"phone"`
+	IsActive          bool      `json:"is_active"`
+	CustomerGroupID   uuid.UUID `json:"customer_group_id"`
+	CustomerGroupSlug string    `json:"customer_group_slug"`
+	MarketingOptedIn  bool      `json:"marketing_opted_in"`
+	SmsOptedIn        bool      `json:"sms_opted_in"`
 }
 
 // The roster the Signals database needs: identity for trait and membership cleanup, plus what a marketing send has to know to address someone - the suite reads only what core pushes from here
@@ -100,6 +107,7 @@ func (q *Queries) CustomerRosterForSync(ctx context.Context, arg CustomerRosterF
 			&i.Phone,
 			&i.IsActive,
 			&i.CustomerGroupID,
+			&i.CustomerGroupSlug,
 			&i.MarketingOptedIn,
 			&i.SmsOptedIn,
 		); err != nil {

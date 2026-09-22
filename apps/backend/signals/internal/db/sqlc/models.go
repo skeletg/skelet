@@ -96,6 +96,7 @@ type CustomerRoster struct {
 	MarketingOptedIn    bool          `json:"marketing_opted_in"`
 	Phone               string        `json:"phone"`
 	SmsOptedIn          bool          `json:"sms_opted_in"`
+	CustomerGroupSlug   string        `json:"customer_group_slug"`
 }
 
 type CustomerSegment struct {

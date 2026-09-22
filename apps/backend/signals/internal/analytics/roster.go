@@ -23,6 +23,7 @@ type RosterEntry struct {
 	Phone            string
 	IsActive         bool
 	GroupID          uuid.NullUUID
+	GroupSlug        string
 	MarketingOptedIn bool
 	SMSOptedIn       bool
 }
@@ -54,6 +55,7 @@ func (s *RosterSync) Page(ctx context.Context, entries []RosterEntry) error {
 		p.Phones = append(p.Phones, e.Phone)
 		p.Actives = append(p.Actives, e.IsActive)
 		p.GroupIds = append(p.GroupIds, e.GroupID.UUID) // a customer with no group lands as the nil uuid, which no group matches
+		p.GroupSlugs = append(p.GroupSlugs, e.GroupSlug)
 		p.OptedIn = append(p.OptedIn, e.MarketingOptedIn)
 		p.SmsOptedIn = append(p.SmsOptedIn, e.SMSOptedIn)
 	}
@@ -96,7 +98,7 @@ func (r *Recorder) UpsertRosterEntry(ctx context.Context, e RosterEntry) error {
 	}
 	return r.qs.UpsertCustomerRosterEntry(ctx, signalsdb.UpsertCustomerRosterEntryParams{
 		CustomerID: e.CustomerID, ChannelID: e.ChannelID, Email: e.Email, FirstName: e.FirstName,
-		Phone: e.Phone, IsActive: e.IsActive, CustomerGroupID: e.GroupID,
+		Phone: e.Phone, IsActive: e.IsActive, CustomerGroupID: e.GroupID, CustomerGroupSlug: e.GroupSlug,
 		MarketingOptedIn: e.MarketingOptedIn, SmsOptedIn: e.SMSOptedIn,
 	})
 }

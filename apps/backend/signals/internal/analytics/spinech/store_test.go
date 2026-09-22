@@ -707,3 +707,59 @@ func TestLensReadsRunAndAggregate(t *testing.T) {
 		t.Fatalf("vital = %+v, want LCP p75 32.5 over 4 samples", overall[0])
 	}
 }
+
+// A segment rule's "ordered in the last N days" and trait compute's lifetime RFM inputs are one read with and
+// without a window - the window has to cut on placement alone, and a cancellation has to void its order either way
+func TestChannelOrderAggregatesWindow(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+	ch, cust := uuid.New(), uuid.New()
+	now := time.Now().UTC()
+	add := func(name, orderID string, at time.Time, cents int64) {
+		t.Helper()
+		if _, err := st.AppendEvent(ctx, analytics.SpineEvent{
+			EventName: name, OccurredAt: at, ChannelID: &ch, CustomerID: &cust, Source: "commerce",
+			Props:     map[string]any{"order_id": orderID, "total_cents": cents}, // a number, as core sends it
+			DedupeKey: "agg:" + name + ":" + orderID,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("order_placed", "old", now.Add(-200*24*time.Hour), 70000)
+	add("order_placed", "recent", now.Add(-5*24*time.Hour), 30000)
+	add("order_placed", "voided", now.Add(-3*24*time.Hour), 500000)
+	add("order_cancelled", "voided", now.Add(-time.Hour), 500000)
+	if err := st.flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	find := func(rows []analytics.CustomerOrders) (analytics.CustomerOrders, bool) {
+		for _, r := range rows {
+			if r.CustomerID == cust {
+				return r, true
+			}
+		}
+		return analytics.CustomerOrders{}, false
+	}
+	lifetime, err := st.ChannelOrderAggregates(ctx, ch, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := find(lifetime); !ok || got.OrderCount != 2 || got.MonetaryCents != 100000 {
+		t.Errorf("lifetime = %+v (found %v), want 2 orders for 100000 with the cancelled one voided", got, ok)
+	}
+	windowed, err := st.ChannelOrderAggregates(ctx, ch, now.Add(-30*24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := find(windowed); !ok || got.OrderCount != 1 || got.MonetaryCents != 30000 {
+		t.Errorf("last 30 days = %+v (found %v), want the one recent order for 30000", got, ok)
+	}
+	nothing, err := st.ChannelOrderAggregates(ctx, ch, now.Add(-24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := find(nothing); ok {
+		t.Error("a window after every placement still returned the customer")
+	}
+}

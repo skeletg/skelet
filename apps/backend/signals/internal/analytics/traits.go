@@ -228,7 +228,7 @@ func (r *Recorder) TraitActors(ctx context.Context, channelID uuid.UUID, rule Tr
 // The RFM inputs, read off the spine and landed in commerce so the recompute can join them locally
 // Always a full swap: a cancellation retroactively removes an order the projection already counted, so there is no slice of "what changed" the way engagement has one
 func (r *Recorder) refreshOrderAggregates(ctx context.Context, channelID uuid.UUID) error {
-	aggs, err := r.spine.ChannelOrderAggregates(ctx, channelID)
+	aggs, err := r.spine.ChannelOrderAggregates(ctx, channelID, time.Time{})
 	if err != nil {
 		return fmt.Errorf("order aggregates: %w", err)
 	}
