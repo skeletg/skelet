@@ -167,10 +167,9 @@ once:
 | Valkey | Redis-compatible store. Refresh tokens and cache |
 | Garage | Self-hosted S3-compatible object storage. Media, in dev and on-prem |
 | OpenSearch | Search index. Optional - the app runs without it |
-| ClickHouse | Columnar DB. The Signals spine, and log retention under the `logs` profile |
+| ClickHouse | Columnar DB. The Signals spine |
 | NATS JetStream | Durable queue. Optional, in front of beacon ingest |
 | Mailpit | Dev SMTP catcher. Nothing leaves your machine |
-| Vector | Log shipper, container stdout into ClickHouse |
 | gqlgen | Schema-first GraphQL codegen for Go |
 | sqlc | Generates Go from SQL. There are no hand-written DB calls |
 | air | Backend hot reload in dev |

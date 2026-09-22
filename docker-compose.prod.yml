@@ -590,53 +590,6 @@ services:
         limits: { memory: 256m, cpus: "1" }
     logging: *logging
 
-  # Log search - Vector tails container stdout into ClickHouse, so the json-file rotation cap stops doubling as the retention policy
-  # Its own `logs` database on the spine's server, queried with bin/logs-query, and enabled with --profile logs
-  logs-schema:
-    profiles: ["logs"]
-    image: clickhouse/clickhouse-server:26.7.5
-    environment:
-      CLICKHOUSE_DB: signals
-      CLICKHOUSE_USER: skelet
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in the root .env}
-    volumes:
-      - ./deploy/vector/schema.sql:/schema.sql:ro
-    depends_on:
-      clickhouse: { condition: service_healthy, required: false }
-    command:
-      ["sh", "-c", "clickhouse-client --host clickhouse --user \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" --queries-file /schema.sql"]
-    restart: "no"
-    logging: *logging
-
-  vector:
-    profiles: ["logs"]
-    image: timberio/vector:0.49.0-debian
-    # the ClickHouse credentials the sink authenticates with
-    environment:
-      CLICKHOUSE_DB: signals
-      CLICKHOUSE_USER: skelet
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
-    volumes:
-      - ./deploy/vector/vector.yaml:/etc/vector/vector.yaml:ro
-      # NOTE: :ro protects the socket FILE, not the Docker API - anything that can reach this socket can create a privileged container, so this mount is root-equivalent on the host - Vector's docker_logs source requires it; the `logs` profile is opt-in for that reason - front it with a read-only socket proxy if that trade isn't acceptable
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - vector-data:/vector-data
-    depends_on:
-      logs-schema: { condition: service_completed_successfully, required: false }
-    healthcheck:
-      # The image ships neither curl nor wget, so probe the API port through
-      # bash's /dev/tcp rather than adding a binary just for this
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8686"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits: { memory: 512m, cpus: "1" }
-    logging: *logging
-
 volumes:
   db-data:
   signals-db-data:
@@ -645,4 +598,3 @@ volumes:
   caddy-config:
   clickhouse-data:
   nats-data:
-  vector-data:

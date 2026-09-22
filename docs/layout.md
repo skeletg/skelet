@@ -83,8 +83,7 @@ Secrets that apply install-wide (`JWT_SECRET`, `SIGNALS_SERVICE_SECRET`,
 ### `deploy/`
 
 Config for sidecar containers, kept out of `apps/` because it belongs to no
-application. Mostly production, but not exclusively - the `logs` profile mounts
-the Vector config in dev too.
+application. Production shapes only - the dev stack mounts nothing from here.
 
 One directory per service configured, never per deployment shape - which stack
 mounts a file is a fact about the compose file, and putting it in the path would have
@@ -93,7 +92,6 @@ sibling directories answering two different questions.
 | | Read by |
 |---|---|
 | `caddy/` | The bundled reverse proxy: three vhosts, automatic Let's Encrypt. Behind a profile because it takes `:80` and `:443`. Small and prod |
-| `vector/` | Ships container stdout into ClickHouse so log history outlives the 10 MB json-file cap. Dev (`logs` profile) and prod |
 | `postgres/` | Creates the second database by hand, since the one-container profile collapses both onto a single cluster. Small only |
 
 `./skelet check contracts` reads the Caddyfile directly - it holds one of the three

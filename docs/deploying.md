@@ -125,6 +125,10 @@ set the `OTEL_*` vars. Sentry activates when a DSN is set. In dev, `docker
 compose --profile tracing up` starts Jaeger and the app sends traces to it out of
 the box.
 
-**Logs.** Container stdout is capped at 10 MB x 3 per service. For durable,
-searchable history the `logs` profile ships stdout through Vector
-(`deploy/vector/`) into ClickHouse - query it with `./skelet logs query`.
+**Logs.** Every service writes structured JSON to stdout, and the compose files cap
+Docker's copy at 10 MB x 3 per service, so that cap is also the retention. Shipping
+and searching history is the deployment's job, not the repo's: point a collector
+(Vector, Fluent Bit, Grafana Alloy, the OpenTelemetry Collector) at the container
+logs and send them to whatever log store you already run - Grafana Loki and
+VictoriaLogs are the usual self-hosted answers, both with a UI. Nothing in the
+stack depends on it being there.

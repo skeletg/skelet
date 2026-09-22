@@ -474,8 +474,8 @@ release tag for Sentry and OTel; CI should inject the git sha.
 Application logs go to stdout as JSON (text when `APP_ENV != production`),
 and the compose files cap them at 10 MB x 3 files per service so they
 can't fill the disk. That cap is also the retention: rotated-out lines are
-GONE. If you need searchable history, point a collector (Vector, Promtail,
-Fluent Bit) at the container log files or swap the logging driver.
+GONE. If you need searchable history, point a collector (Vector, Fluent Bit,
+Grafana Alloy) at the container log files or swap the logging driver.
 
 OTLP carries traces and metrics only. It does NOT ship logs.
 
