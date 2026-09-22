@@ -944,8 +944,16 @@ func (s *Store) RecentEngagementEvents(ctx context.Context, customerID uuid.UUID
 	return out, rows.Err()
 }
 
-// Lifetime order aggregates per customer, netting out orders later cancelled - properties are JSON here, so the order id comes out with JSONExtractString rather than a jsonb operator
-func (s *Store) ChannelOrderAggregates(ctx context.Context, channelID uuid.UUID) ([]analytics.CustomerOrders, error) {
+// Order aggregates per customer, netting out orders later cancelled - properties are JSON here, so the order id comes out with JSONExtractString rather than a jsonb operator
+// The window applies to the placement only: a cancellation outside it still voids its order, since the question is "what did they buy since X", not "what happened since X"
+func (s *Store) ChannelOrderAggregates(ctx context.Context, channelID uuid.UUID, since time.Time) ([]analytics.CustomerOrders, error) {
+	window := ""
+	args := []any{channelID}
+	if !since.IsZero() {
+		window = " AND occurred_at >= ?"
+		args = append(args, since)
+	}
+	args = append(args, channelID)
 	rows, err := s.conn.Query(ctx, `
 		SELECT customer_id,
 		       toInt32(count()) AS order_count,
@@ -956,13 +964,13 @@ func (s *Store) ChannelOrderAggregates(ctx context.Context, channelID uuid.UUID)
 		WHERE channel_id = ?
 		  AND event_name = 'order_placed'
 		  AND customer_id != toUUID('00000000-0000-0000-0000-000000000000')
-		  AND JSONHas(properties, 'order_id')
+		  AND JSONHas(properties, 'order_id')`+window+`
 		  AND JSONExtractString(properties, 'order_id') NOT IN (
 		      SELECT JSONExtractString(properties, 'order_id')
 		      FROM analytics_events FINAL
 		      WHERE channel_id = ? AND event_name = 'order_cancelled' AND JSONHas(properties, 'order_id')
 		  )
-		GROUP BY customer_id`, channelID, channelID)
+		GROUP BY customer_id`, args...)
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,9 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
 
@@ -128,8 +130,24 @@ func newExperiment(q Queries, rec *analytics.Recorder) *experiment.Service { // 
 	return experiment.NewService(experiment.NewRepository(q.Queries, rec))
 }
 
-func newSegment(q Queries, txMgr *txrunner.Manager) *segment.Service {
-	return segment.NewService(segment.NewRepository(q.Queries), txMgr)
+// The rules query runs on the signals pool, and a windowed order condition asks the spine - the engine itself, since a read needs no queue in front of it
+func newSegment(q Queries, p SignalsPool, txMgr *txrunner.Manager, stack *signalsboot.Stack) *segment.Service {
+	return segment.NewService(segment.NewRepository(q.Queries), txMgr, p.DB, spineOrders{stack.Spine})
+}
+
+// The spine answering "who ordered what since when" for a segment rule - the same read trait compute takes its lifetime aggregates from, narrowed
+type spineOrders struct{ spine analytics.SpineStore }
+
+func (o spineOrders) CustomerOrdersSince(ctx context.Context, channelID uuid.UUID, since time.Time) ([]segment.CustomerOrderStat, error) {
+	rows, err := o.spine.ChannelOrderAggregates(ctx, channelID, since)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]segment.CustomerOrderStat, len(rows))
+	for i, r := range rows {
+		out[i] = segment.CustomerOrderStat{CustomerID: r.CustomerID, OrderCount: int64(r.OrderCount), MonetaryCents: r.MonetaryCents}
+	}
+	return out, nil
 }
 
 func newDestination(q Queries, rec *analytics.Recorder, allow AllowPrivateTargets) *destination.Service {

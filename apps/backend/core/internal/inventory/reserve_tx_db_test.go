@@ -52,7 +52,7 @@ func attachLocation(t *testing.T, conn *sql.DB, channelID, locID uuid.UUID, prio
 func someChannel(t *testing.T, conn *sql.DB) uuid.UUID {
 	t.Helper()
 	var id uuid.UUID
-	if err := conn.QueryRow(`SELECT id FROM channels LIMIT 1`).Scan(&id); err != nil {
+	if err := conn.QueryRow(`SELECT id FROM channels ORDER BY created_at LIMIT 1`).Scan(&id); err != nil {
 		t.Skipf("no channel to scope reservations to: %v", err)
 	}
 	return id

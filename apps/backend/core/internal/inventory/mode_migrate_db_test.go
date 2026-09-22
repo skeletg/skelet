@@ -29,18 +29,16 @@ func seedTwoLocations(t *testing.T, conn *sql.DB, qtyA, resA, qtyB, resB float64
 	suffix := uuid.NewString()[:8]
 	sku = "MODEMIG-" + suffix
 
-	// Reuse a product type if the database has one, else make our own - a freshly migrated database
-	// has none, and skipping there would quietly mean this never runs
+	// Its own product type - a freshly migrated database has none, and borrowing whichever one
+	// another package's test happens to have made races that package's cleanup
 	var typeID uuid.UUID
-	if err := conn.QueryRowContext(ctx, `SELECT id FROM catalog_product_types LIMIT 1`).Scan(&typeID); err != nil {
-		if err := conn.QueryRowContext(ctx,
-			`INSERT INTO catalog_product_types (slug, name, tracks_inventory)
-			 VALUES ($1, $2, true) RETURNING id`,
-			"modemig-type-"+suffix, "mode migrate fixture").Scan(&typeID); err != nil {
-			t.Fatalf("seed product type: %v", err)
-		}
-		t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM catalog_product_types WHERE id = $1`, typeID) })
+	if err := conn.QueryRowContext(ctx,
+		`INSERT INTO catalog_product_types (slug, name, tracks_inventory)
+		 VALUES ($1, $2, true) RETURNING id`,
+		"modemig-type-"+suffix, "mode migrate fixture").Scan(&typeID); err != nil {
+		t.Fatalf("seed product type: %v", err)
 	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM catalog_product_types WHERE id = $1`, typeID) }) // runs after the product delete registered below
 	var productID uuid.UUID
 	if err := conn.QueryRowContext(ctx,
 		`INSERT INTO catalog_products (product_type_id, sku, url, kind)

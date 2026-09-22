@@ -255,6 +255,7 @@ func rosterEntry(e *signalsv1.RosterEntry) (analytics.RosterEntry, error) {
 			return analytics.RosterEntry{}, invalidArgument("roster entry carries an unparseable group id")
 		}
 		out.GroupID = uuid.NullUUID{UUID: id, Valid: true}
+		out.GroupSlug = e.GetCustomerGroupSlug()
 	}
 	return out, nil
 }

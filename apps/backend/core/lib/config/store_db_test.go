@@ -34,7 +34,7 @@ func uniquePath(t *testing.T, conn *sql.DB) string {
 func someChannelID(t *testing.T, conn *sql.DB) uuid.UUID {
 	t.Helper()
 	var id uuid.UUID
-	if err := conn.QueryRow(`SELECT id FROM channels LIMIT 1`).Scan(&id); err != nil {
+	if err := conn.QueryRow(`SELECT id FROM channels ORDER BY created_at LIMIT 1`).Scan(&id); err != nil {
 		t.Skipf("no channel to scope config against: %v", err)
 	}
 	return id
@@ -308,8 +308,17 @@ func TestServiceResolutionLadderOverRealSQL(t *testing.T) {
 
 // Rows whose path left the registry are invisible to every read, so they need their own listing before anything can clean them up - and Prune must take only those
 func TestServiceOrphanPruneOverRealSQL(t *testing.T) {
-	conn, repo := repoDB(t)
+	conn := testdb.Require(t)
 	ctx := context.Background()
+	// With the registry isolated, every row in the table reads as an orphan - including the program settings other
+	// packages' tests have live in this same database at this moment, which Prune would sweep out from under them.
+	// So the whole test runs in one transaction that is rolled back: the real SQL still runs, nothing it does commits
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback() })
+	repo := configstore.New(dbsqlc.New(conn).WithTx(tx), txrunner.New(conn))
 	config.IsolateRegistries(t)
 	config.RegisterSection(config.Section{Slug: "e2etest", Label: "Test"})
 	config.RegisterGroup(config.Group{Section: "e2etest", Slug: "cfg", Label: "Cfg"})
@@ -352,13 +361,13 @@ func TestServiceOrphanPruneOverRealSQL(t *testing.T) {
 		t.Fatalf("Prune: %v", err)
 	}
 	var n int
-	if err := conn.QueryRow(`SELECT count(*) FROM config_values WHERE path = $1`, orphan).Scan(&n); err != nil {
+	if err := tx.QueryRow(`SELECT count(*) FROM config_values WHERE path = $1`, orphan).Scan(&n); err != nil {
 		t.Fatalf("count orphan: %v", err)
 	}
 	if n != 0 {
 		t.Errorf("%d orphan rows survived Prune", n)
 	}
-	if err := conn.QueryRow(`SELECT count(*) FROM config_values WHERE path = $1`, kept).Scan(&n); err != nil {
+	if err := tx.QueryRow(`SELECT count(*) FROM config_values WHERE path = $1`, kept).Scan(&n); err != nil {
 		t.Fatalf("count kept: %v", err)
 	}
 	if n != 1 {

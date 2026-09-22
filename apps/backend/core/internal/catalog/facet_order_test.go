@@ -17,12 +17,8 @@ func TestFacetCountsKeepsTheBiggestBuckets(t *testing.T) {
 	ctx := context.Background()
 
 	var channelID uuid.UUID
-	if err := conn.QueryRow(`SELECT id FROM channels LIMIT 1`).Scan(&channelID); err != nil {
+	if err := conn.QueryRow(`SELECT id FROM channels ORDER BY created_at LIMIT 1`).Scan(&channelID); err != nil {
 		t.Skipf("no channel: %v", err)
-	}
-	var productTypeID uuid.UUID
-	if err := conn.QueryRow(`SELECT id FROM catalog_product_types LIMIT 1`).Scan(&productTypeID); err != nil {
-		t.Skipf("no product type: %v", err)
 	}
 
 	txn, err := conn.BeginTx(ctx, nil) // always rolled back, so the test leaves no rows behind and can run against a populated database
@@ -30,6 +26,14 @@ func TestFacetCountsKeepsTheBiggestBuckets(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = txn.Rollback() }()
+
+	// A product type of its own, inside the transaction - a freshly migrated database has none
+	var productTypeID uuid.UUID
+	if err := txn.QueryRow(
+		`INSERT INTO catalog_product_types (slug, name) VALUES ('facet-order-test', 'Facet Order Test') RETURNING id`,
+	).Scan(&productTypeID); err != nil {
+		t.Fatal(err)
+	}
 
 	var attrID uuid.UUID
 	if err := txn.QueryRow(

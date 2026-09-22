@@ -31,6 +31,7 @@ func registerRosterPush(bus *events.Bus, q *db.Queries, client *signalsclient.Cl
 			CustomerID: row.CustomerID, ChannelID: row.ChannelID, Email: row.Email,
 			FirstName: row.FirstName, Phone: row.Phone, IsActive: row.IsActive,
 			GroupID:          uuid.NullUUID{UUID: row.CustomerGroupID, Valid: row.CustomerGroupID != uuid.Nil},
+			GroupSlug:        row.CustomerGroupSlug,
 			MarketingOptedIn: row.MarketingOptedIn, SMSOptedIn: row.SmsOptedIn,
 		})
 	}

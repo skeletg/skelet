@@ -18,10 +18,8 @@ func TestClaimForSendIsExactlyOnce(t *testing.T) {
 	ctx := context.Background()
 	r := &repo{q: db.New(conn)}
 
-	var channelID uuid.UUID
-	if err := conn.QueryRow(`SELECT id FROM channels LIMIT 1`).Scan(&channelID); err != nil {
-		t.Skipf("no channel to attach a campaign to: %v", err)
-	}
+	// Channels are core's - the suite carries the id with no table of its own to check it against, so any id will do
+	channelID := uuid.New()
 	var campaignID, recipientID uuid.UUID
 	if err := conn.QueryRow(
 		`INSERT INTO email_campaigns (channel_id, name) VALUES ($1, 'claim-test') RETURNING id`,

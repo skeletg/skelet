@@ -382,6 +382,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 						CustomerID: c.CustomerID, ChannelID: c.ChannelID, Email: c.Email,
 						FirstName: c.FirstName, Phone: c.Phone, IsActive: c.IsActive,
 						GroupID:          uuid.NullUUID{UUID: c.CustomerGroupID, Valid: c.CustomerGroupID != uuid.Nil},
+						GroupSlug:        c.CustomerGroupSlug,
 						MarketingOptedIn: c.MarketingOptedIn, SMSOptedIn: c.SmsOptedIn,
 					}
 				}

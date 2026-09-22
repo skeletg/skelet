@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
@@ -13,9 +14,28 @@ import (
 // ListProducts carries a row cap because the uncapped list is 101k rows and ~17MB on a real catalog
 // but the CSV export, the search reindexer and the URL-rewrite backfill all pass 0 and MUST still see everything, so the 0-means-unlimited sentinel is the load-bearing part
 
+// Seeds three products of its own so a cap of 2 has something to cut on a freshly migrated database, then
+// counts what the table holds - the rows other packages' tests leave behind are part of "everything" too
 func capTestQueries(t *testing.T) (*db.Queries, int) {
 	t.Helper()
 	conn := testdb.Require(t)
+	suffix := uuid.NewString()[:8]
+	var typeID uuid.UUID
+	if err := conn.QueryRow(
+		`INSERT INTO catalog_product_types (slug, name) VALUES ($1, $2) RETURNING id`,
+		"cap-type-"+suffix, "cap fixture").Scan(&typeID); err != nil {
+		t.Fatalf("seed product type: %v", err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM catalog_product_types WHERE id = $1`, typeID) }) // runs after the product delete below
+	for i := range 3 {
+		var id uuid.UUID
+		if err := conn.QueryRow(
+			`INSERT INTO catalog_products (product_type_id, sku, url, kind) VALUES ($1, $2, $3, 'simple') RETURNING id`,
+			typeID, "CAP-"+suffix+"-"+string(rune('a'+i)), "cap-"+suffix+"-"+string(rune('a'+i))).Scan(&id); err != nil {
+			t.Fatalf("seed product: %v", err)
+		}
+		t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM catalog_products WHERE id = $1`, id) })
+	}
 	var total int
 	if err := conn.QueryRow(`SELECT count(*) FROM catalog_products`).Scan(&total); err != nil {
 		t.Fatalf("count products: %v", err)

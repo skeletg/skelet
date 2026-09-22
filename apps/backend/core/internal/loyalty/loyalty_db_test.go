@@ -33,7 +33,7 @@ func newFixture(t *testing.T, conn *sql.DB) (*Service, *storecredit.Service, uui
 	credit := storecredit.NewService(queries, txMgr)
 
 	var channelID uuid.UUID
-	if err := conn.QueryRow(`SELECT id FROM channels LIMIT 1`).Scan(&channelID); err != nil {
+	if err := conn.QueryRow(`SELECT id FROM channels ORDER BY created_at LIMIT 1`).Scan(&channelID); err != nil {
 		t.Skipf("no channel to scope the program to: %v", err)
 	}
 	return NewService(queries, txMgr, cfg, credit), credit, seedCustomer(t, conn), channelID
@@ -45,7 +45,7 @@ func seedCustomer(t *testing.T, conn *sql.DB) uuid.UUID {
 	if err := conn.QueryRow(`SELECT id FROM customer_groups LIMIT 1`).Scan(&groupID); err != nil {
 		t.Skipf("no customer group to seed against: %v", err)
 	}
-	if err := conn.QueryRow(`SELECT id FROM channels LIMIT 1`).Scan(&channelID); err != nil {
+	if err := conn.QueryRow(`SELECT id FROM channels ORDER BY created_at LIMIT 1`).Scan(&channelID); err != nil {
 		t.Skipf("no channel to seed against: %v", err)
 	}
 	var id uuid.UUID
@@ -216,14 +216,14 @@ func TestConcurrentRedeemSpendsPointsOnce(t *testing.T) {
 		var wg sync.WaitGroup
 		start := make(chan struct{})
 		granted := make([]int64, racers)
+		failed := make([]error, racers) // kept so a round where every racer lost says why, not just that it did
 		wg.Add(racers)
 		for i := range racers {
 			go func() {
 				defer wg.Done()
 				<-start // release together so the balance reads overlap
-				if cents, err := svc.Redeem(ctx, customerID, 100, channelID, "USD"); err == nil {
-					granted[i] = cents
-				}
+				cents, err := svc.Redeem(ctx, customerID, 100, channelID, "USD")
+				granted[i], failed[i] = cents, err
 			}()
 		}
 		close(start)
@@ -239,8 +239,14 @@ func TestConcurrentRedeemSpendsPointsOnce(t *testing.T) {
 		cents, _ := credit.Balance(ctx, customerID, "USD")
 
 		if succeeded != 1 || points != 0 || cents != 100 {
-			t.Fatalf("round %d: %d of %d redemptions succeeded against 100 points, leaving %d points and %d cents - want 1 / 0 / 100",
-				round, succeeded, racers, points, cents)
+			var reasons []string
+			for _, err := range failed {
+				if err != nil && !errors.Is(err, ErrInsufficientPoints) {
+					reasons = append(reasons, err.Error())
+				}
+			}
+			t.Fatalf("round %d: %d of %d redemptions succeeded against 100 points, leaving %d points and %d cents - want 1 / 0 / 100; unexpected errors: %v",
+				round, succeeded, racers, points, cents, reasons)
 		}
 	}
 }
