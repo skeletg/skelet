@@ -90,8 +90,10 @@ type SpineStore interface {
 	IngestedCustomerIDs(ctx context.Context, channelID uuid.UUID, from, to time.Time) ([]uuid.UUID, error)
 	ChannelEngagementCountsFor(ctx context.Context, channelID uuid.UUID, since time.Time, customerIDs []uuid.UUID) ([]CustomerEngagement, error)
 
-	// Lifetime order aggregates per customer, netted against cancellations - the RFM inputs, so trait compute reads the spine rather than joining the orders table
-	ChannelOrderAggregates(ctx context.Context, channelID uuid.UUID) ([]CustomerOrders, error)
+	// Order aggregates per customer, netted against cancellations - the RFM inputs, so trait compute reads the spine rather than
+	// joining the orders table. since narrows to orders placed from that instant on, and the zero time means lifetime; a
+	// cancellation still voids its order whenever it happened, so a windowed count never includes an order cancelled later
+	ChannelOrderAggregates(ctx context.Context, channelID uuid.UUID, since time.Time) ([]CustomerOrders, error)
 }
 
 // Lens raw-event read results - the shapes the Lens service folds into its own view models

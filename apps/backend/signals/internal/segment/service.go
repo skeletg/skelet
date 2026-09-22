@@ -15,13 +15,12 @@ type Service struct {
 	repo Repository
 	tx   Transactor
 	bus  Publisher
-	// Runs compiled dynamic-segment queries (rules.go) - optional, and without it dynamic refresh reports unavailable
+	// The signals database, for the compiled rules query (rules.go) - the same one the repository writes memberships to,
+	// since everything a rule reads is a projection the suite already holds
 	dbc *sql.DB
-	// Resolves trait conditions, which moved to the signals database with customer_traits
-	sigDB *sql.DB
+	// The spine, for the one thing those projections cannot answer: orders inside a window (orders.go)
+	orders WindowedOrders
 }
-
-func (s *Service) SetDB(dbc *sql.DB) { s.dbc = dbc }
 
 func (s *Service) SetEventBus(bus Publisher) { s.bus = bus }
 
@@ -38,8 +37,8 @@ type Publisher interface {
 	Publish(ctx context.Context, e Event)
 }
 
-func NewService(repo Repository, txMgr Transactor) *Service {
-	return &Service{repo: repo, tx: txMgr}
+func NewService(repo Repository, txMgr Transactor, dbc *sql.DB, orders WindowedOrders) *Service {
+	return &Service{repo: repo, tx: txMgr, dbc: dbc, orders: orders}
 }
 
 // Atomically swaps a segment's membership for the given customer set - clear and re-add run in one transaction, so concurrent readers like campaign materialisation and the flow engine never see the empty in-between, and a failed refresh can't leave the segment drained
@@ -173,7 +172,7 @@ func (s *Service) SetRules(ctx context.Context, id uuid.UUID, raw json.RawMessag
 // Recomputes one dynamic segment's membership from its rules and atomically swaps it in, returning the member count
 func (s *Service) RefreshDynamic(ctx context.Context, id uuid.UUID) (int, error) {
 	if s.dbc == nil {
-		return 0, fmt.Errorf("dynamic segments are not configured")
+		return 0, fmt.Errorf("dynamic segments need the signals database")
 	}
 	seg, err := s.repo.Get(ctx, id)
 	if err != nil {
@@ -186,7 +185,7 @@ func (s *Service) RefreshDynamic(ctx context.Context, id uuid.UUID) (int, error)
 	if rules == nil {
 		return 0, fmt.Errorf("segment %q has no rules - it is a static segment", seg.Slug)
 	}
-	resolved, err := s.resolveSignalsConditions(ctx, rules)
+	resolved, err := s.resolveWindowedConditions(ctx, rules)
 	if err != nil {
 		return 0, err
 	}

@@ -36,7 +36,7 @@ func TestListOrdersAwaitingPaymentSync(t *testing.T) {
 	conn := testdb.Require(t)
 	ctx := context.Background()
 	var channelID uuid.UUID
-	if err := conn.QueryRowContext(ctx, `SELECT id FROM channels LIMIT 1`).Scan(&channelID); err != nil {
+	if err := conn.QueryRowContext(ctx, `SELECT id FROM channels ORDER BY created_at LIMIT 1`).Scan(&channelID); err != nil {
 		t.Skipf("no channel to seed against: %v", err)
 	}
 

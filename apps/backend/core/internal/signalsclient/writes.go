@@ -251,6 +251,7 @@ type RosterCustomer struct {
 	Phone            string
 	IsActive         bool
 	GroupID          uuid.NullUUID
+	GroupSlug        string // beside the id, since segment rules are authored against slugs
 	MarketingOptedIn bool
 	SMSOptedIn       bool
 }
@@ -349,6 +350,7 @@ func rosterEntry(c RosterCustomer) *signalsv1.RosterEntry {
 	}
 	if c.GroupID.Valid {
 		e.CustomerGroupId = c.GroupID.UUID.String()
+		e.CustomerGroupSlug = c.GroupSlug
 	}
 	return e
 }

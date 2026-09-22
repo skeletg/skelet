@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Disposable test databases, shared by bin/test and bin/test-e2e - sourced, not run
+#
+# testdb.Require refuses any database without the skelet.e2e marker, because database-backed tests write
+# real rows, and the dev databases never carry it. So a suite that wants those tests to run brings its own
+# database: created here, marked here, and the dev ones re-unmarked so a stray go test against dev refuses
+
+# psql as the instance superuser against the always-present maintenance DB, so
+# we can CREATE/DROP the target - ON_ERROR_STOP so a failure isn't swallowed
+admin_sql() { # <service> <sql>
+    docker compose exec -T "$1" psql -U skelet -d postgres -v ON_ERROR_STOP=1 -tAc "$2"
+}
+
+db_exists() { # <service> <dbname>
+    [ "$(admin_sql "$1" "SELECT 1 FROM pg_database WHERE datname='$2'")" = "1" ]
+}
+
+ensure_pg_db() { # <service> <dbname> <fresh: true|false>
+    if $3 && db_exists "$1" "$2"; then
+        echo "==> dropping $2"
+        admin_sql "$1" "DROP DATABASE $2 WITH (FORCE)" >/dev/null
+    fi
+    if ! db_exists "$1" "$2"; then
+        echo "==> creating $2"
+        admin_sql "$1" "CREATE DATABASE $2" >/dev/null
+    fi
+    # The disposable marker testdb.Require gates on - takes effect on new connections, so it's set before migrate/test connect
+    admin_sql "$1" "ALTER DATABASE $2 SET skelet.e2e = 'allowed'" >/dev/null
+}
+
+ch_sql() { docker compose exec -T clickhouse clickhouse-client --user=skelet --password=skelet --query "$1"; }
+
+ensure_ch_db() { # <dbname> <fresh: true|false>
+    if $2; then
+        ch_sql "DROP DATABASE IF EXISTS $1" >/dev/null
+    fi
+    ch_sql "CREATE DATABASE IF NOT EXISTS $1" >/dev/null
+}
+
+# Keep the dev DBs unmarked so a stray `go test` against dev refuses instead of writing test rows
+unmark_dev_dbs() {
+    admin_sql db "ALTER DATABASE skelet RESET skelet.e2e" >/dev/null || true
+    admin_sql signals-db "ALTER DATABASE skelet_signals RESET skelet.e2e" >/dev/null || true
+}
+
+service_running() { # <service>
+    docker compose ps --status running --services 2>/dev/null | grep -qx "$1"
+}

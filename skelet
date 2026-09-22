@@ -63,7 +63,7 @@ subs_for() {
         db)      echo 'migrate [--signals] | export | import | shell | move-email-sends' ;;
         gen)     echo '(all) | sqlc | gqlgen | buf' ;;
         check)   echo '(all) | pins | structure | contracts | codegen' ;;
-        test)    echo '(all) | e2e' ;;
+        test)    echo '(all) | e2e | [pkgs] [--keep] [--no-frontend]' ;;
         logs)    echo '[service] | query "<where>"' ;;
         npm)     echo '<app> <npm args>' ;;
         new)     echo 'channel <name> [--from <storefront>] [--tracked]' ;;
