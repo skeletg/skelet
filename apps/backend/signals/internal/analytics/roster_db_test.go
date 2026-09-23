@@ -15,7 +15,7 @@ import (
 // The receiving half of the roster - the sweep that keeps a prospect from carrying a trait row, and the delete that drops a customer's traits with them
 // These push entries the way core's job would and drive the sweep, the event push and the delete
 type rosterEnv struct {
-	rec       *Recorder
+	rec       *Roster
 	sigConn   *sql.DB
 	channel   uuid.UUID
 	customers []RosterEntry // what core would page across on the next sweep
@@ -30,7 +30,7 @@ func rosterFixture(t *testing.T) *rosterEnv {
 		_, _ = sigConn.Exec(`DELETE FROM customer_roster WHERE channel_id = $1`, channelID)
 		_, _ = sigConn.Exec(`DELETE FROM customer_traits WHERE channel_id = $1`, channelID)
 	})
-	return &rosterEnv{rec: &Recorder{qs: signalsdb.New(sigConn)}, sigConn: sigConn, channel: channelID, ctx: context.Background()}
+	return &rosterEnv{rec: NewRoster(signalsdb.New(sigConn)), sigConn: sigConn, channel: channelID, ctx: context.Background()}
 }
 
 // customer is one core holds - on the roster once the next sweep or push carries it across

@@ -25,6 +25,8 @@ import (
 )
 
 type maintenanceServer struct {
+	roster *analytics.Roster
+	traits *analytics.TraitCompute
 	signalsv1.UnimplementedMaintenanceServiceServer
 	rec         *analytics.Recorder
 	lens        *lens.Service
@@ -142,7 +144,7 @@ func (s *maintenanceServer) ComputeTraits(ctx context.Context, _ *signalsv1.Comp
 	if err := requireSystem(ctx); err != nil {
 		return nil, err
 	}
-	if err := signalsboot.TraitComputeJob(s.rec, s.settings)(ctx); err != nil {
+	if err := signalsboot.TraitComputeJob(s.roster, s.traits, s.settings)(ctx); err != nil {
 		return nil, err
 	}
 	return &signalsv1.ComputeTraitsResponse{}, nil
@@ -281,7 +283,7 @@ func (s *maintenanceServer) RefreshBehavioralSegments(ctx context.Context, req *
 		for _, a := range attrs {
 			auto = append(auto, analytics.AffinityAttr{Slug: a.GetSlug(), Name: a.GetName()})
 		}
-		channels, err := s.rec.RosterChannels(ctx) // core's channels, already copied across for the trait recompute
+		channels, err := s.roster.RosterChannels(ctx) // core's channels, already copied across for the trait recompute
 		if err != nil {
 			return nil, err
 		}
