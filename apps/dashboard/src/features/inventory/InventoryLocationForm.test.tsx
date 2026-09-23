@@ -11,6 +11,10 @@ import {
   UpdateInventoryLocationDocument,
 } from './Inventory.gql'
 
+// Save -> mutate -> navigate is several async hops - past testing-library's 1s default when the whole
+// suite is loading the machine, which made these flaky
+const SLOW = { timeout: 5000 }
+
 // What these pin, end to end through the real page: the header Save lights up for an edit (it
 // didn't - the section registered into a context that wasn't there yet), the dialog lists what
 // changed including the nested fields, confirming sends the edited record, and a schema error keeps
@@ -104,7 +108,7 @@ describe('InventoryLocationEditPage', () => {
     expect(within(dialog).getByText('Metadata · carrier')).toBeDefined()
 
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply 2 changes/ }))
-    await screen.findByText('locations list')
+    await screen.findByText('locations list', {}, SLOW)
     expect(onUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'loc-1',

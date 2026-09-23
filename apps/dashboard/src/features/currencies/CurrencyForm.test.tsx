@@ -10,6 +10,10 @@ import {
   UpdateCurrencyDocument,
 } from './Currencies.gql'
 
+// Save -> mutate -> navigate is several async hops - past testing-library's 1s default when the whole
+// suite is loading the machine, which made these flaky
+const SLOW = { timeout: 5000 }
+
 // Through the real page: an edit lights the header Save (it never did), confirming sends the record
 // without echoing the fetched exchange rate back as an override, and a bad code stops a create
 
@@ -69,7 +73,7 @@ describe('CurrencyEditPage', () => {
     expect(within(dialog).getByText('Decimals')).toBeDefined()
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply 1 change/ }))
 
-    await screen.findByText('currencies list')
+    await screen.findByText('currencies list', {}, SLOW)
     const input = onWrite.mock.calls[0][0]
     expect(input).toMatchObject({ code: 'EUR', decimals: 0, symbolPosition: 'suffix' })
     expect(input).not.toHaveProperty('exchangeRate')

@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { TaxRuleEditPage } from './TaxRuleForm'
 import { TaxRuleDocument, TaxRuleTypesDocument, UpdateTaxRuleDocument } from './Tax.gql'
 
+// Save -> mutate -> navigate is several async hops - past testing-library's 1s default when the whole
+// suite is loading the machine, which made these flaky
+const SLOW = { timeout: 5000 }
+
 // Through the real page: removing a condition lights the header Save (it never did - the section
 // registered into a context that wasn't there yet), the dialog names the row, and the update sends it
 
@@ -77,7 +81,7 @@ describe('TaxRuleEditPage', () => {
     expect(within(dialog).getByText('Conditions · 1')).toBeDefined()
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply 1 change/ }))
 
-    await screen.findByText('tax list')
+    await screen.findByText('tax list', {}, SLOW)
     expect(onWrite).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'r1', conditions: [], effects: [{ type: 'rate', params: { rate: 7 }, sortOrder: 0 }] }),
     )

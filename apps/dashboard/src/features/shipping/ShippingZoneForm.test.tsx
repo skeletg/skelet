@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { ShippingZoneEditPage } from './ShippingZoneForm'
 import { ShippingZoneDocument, UpdateShippingMethodDocument, UpdateShippingZoneDocument } from './Shipping.gql'
 
+// Save -> mutate -> navigate is several async hops - past testing-library's 1s default when the whole
+// suite is loading the machine, which made these flaky
+const SLOW = { timeout: 5000 }
+
 // Through the real page: a zone edit is reviewed in the dialog before it's written (it used to
 // write straight through), and a method row validates before its own Save sends anything
 
@@ -80,6 +84,7 @@ describe('ShippingZoneEditPage', () => {
 
     await vi.waitFor(() =>
       expect(writes.zone).toHaveBeenCalledWith(expect.objectContaining({ id: 'z1', countries: ['US', 'CA'] })),
+      SLOW,
     )
   })
 
@@ -94,6 +99,7 @@ describe('ShippingZoneEditPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await vi.waitFor(() =>
       expect(writes.method).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1', flatCents: 750 })),
+      SLOW,
     )
   })
 })
