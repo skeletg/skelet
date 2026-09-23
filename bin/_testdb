@@ -43,6 +43,13 @@ unmark_dev_dbs() {
     admin_sql signals-db "ALTER DATABASE skelet_signals RESET skelet.e2e" >/dev/null || true
 }
 
+# The per-package clones testdb makes from a template - throwaways of a throwaway, swept before every run
+drop_clones() { # <service> <template>
+    for name in $(admin_sql "$1" "SELECT datname FROM pg_database WHERE datname LIKE '${2}\_\_pkg%'"); do
+        admin_sql "$1" "DROP DATABASE $name WITH (FORCE)" >/dev/null
+    done
+}
+
 service_running() { # <service>
     docker compose ps --status running --services 2>/dev/null | grep -qx "$1"
 }
