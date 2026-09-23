@@ -278,11 +278,13 @@ export function SwitchField({
 }) {
   const field = useFieldContext<boolean>()
   const switchId = id ?? `f-${field.name}`
+  const error = fieldErrorText(field)
   return (
     <div className={bordered ? 'flex items-start justify-between gap-4 rounded-md border p-4' : 'flex items-start justify-between gap-4'}>
       <div className="grid gap-0.5">
         <Label htmlFor={switchId} className="text-sm">{label}</Label>
         {description && <p className="text-xs text-muted-foreground">{description}</p>}
+        {error && <p className="text-xs text-destructive">{error}</p>}
         {note}
       </div>
       <Switch id={switchId} checked={field.state.value} onCheckedChange={field.handleChange} disabled={disabled} />
