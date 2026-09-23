@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 
@@ -63,6 +64,7 @@ type rosterRow struct {
 	groupSlug string
 	marketing bool
 	sms       bool
+	consents  map[string]bool
 }
 
 func seedRoster(t *testing.T, conn *sql.DB, row rosterRow) uuid.UUID {
@@ -72,10 +74,13 @@ func seedRoster(t *testing.T, conn *sql.DB, row rosterRow) uuid.UUID {
 	if row.groupSlug != "" {
 		groupID = uuid.New()
 	}
+	consents := map[string]bool{"marketing_email": row.marketing, "marketing_sms": row.sms}
+	maps.Copy(consents, row.consents)
+	consentsJSON, _ := json.Marshal(consents)
 	if _, err := conn.Exec(
-		`INSERT INTO customer_roster (customer_id, channel_id, email, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in)
-		 VALUES ($1, $2, $3, true, $4, $5, $6, $7)`,
-		id, row.channelID, "segrule-"+id.String()[:8]+"@example.invalid", groupID, row.groupSlug, row.marketing, row.sms); err != nil {
+		`INSERT INTO customer_roster (customer_id, channel_id, email, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents)
+		 VALUES ($1, $2, $3, true, $4, $5, $6, $7, $8)`,
+		id, row.channelID, "segrule-"+id.String()[:8]+"@example.invalid", groupID, row.groupSlug, row.marketing, row.sms, consentsJSON); err != nil {
 		t.Fatalf("seed roster row: %v", err)
 	}
 	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM customer_roster WHERE customer_id = $1`, id) })
@@ -188,9 +193,9 @@ func TestHostileValuesStayInsideBindArgs(t *testing.T) {
 			}
 		})
 	}
-	// The consent channel never reaches the query as a value at all - it picks an allowlisted column or fails validation
+	// A consent kind is a registry slug or nothing - anything else fails validation before it could reach the query
 	if _, err := ParseRules(json.RawMessage(`{"conditions":[{"kind":"consent","channel":"' UNION SELECT customer_id FROM customer_roster --","granted":true}]}`)); err == nil {
-		t.Error("an unknown consent channel passed validation")
+		t.Error("a consent kind that is not a slug passed validation")
 	}
 	var n int
 	if err := conn.QueryRow(`SELECT count(*) FROM customer_roster`).Scan(&n); err != nil {
@@ -347,5 +352,16 @@ func TestConsentRulesSplitOnTheResolvedFlag(t *testing.T) {
 	sms := run(t, conn, mustRules(t, `{"conditions":[{"kind":"consent","channel":"marketing_sms","granted":true}]}`), nil)
 	if !selects(sms, smsIn) || selects(sms, emailIn) {
 		t.Error("the SMS rule read the email flag")
+	}
+
+	// A kind the suite has no column for still works, since consents arrive as a map keyed by whatever core registers
+	research := seedRoster(t, conn, rosterRow{channelID: ch, consents: map[string]bool{"research_panel": true}})
+	panel := run(t, conn, mustRules(t, `{"conditions":[{"kind":"consent","channel":"research_panel","granted":true}]}`), nil)
+	if !selects(panel, research) || selects(panel, emailIn) {
+		t.Error("a registry kind beyond the marketing pair was not read off the consents map")
+	}
+	declined := run(t, conn, mustRules(t, `{"conditions":[{"kind":"consent","channel":"research_panel","granted":false}]}`), nil)
+	if selects(declined, research) || !selects(declined, emailIn) {
+		t.Error("a customer with no answer for a kind did not read as opted out")
 	}
 }

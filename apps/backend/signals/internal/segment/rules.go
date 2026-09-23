@@ -3,6 +3,7 @@ package segment
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -11,7 +12,7 @@ import (
 
 // The dynamic-segment rule engine - marketers author a structured condition tree and the server compiles it to ONE parameterized SQL query over the customer roster Operators never supply SQL: every field, operator and join is allowlisted here, and every value travels as a bind arg The wire shape in customer_segments.rules is {logic, conditions[]}, where a condition is one of kind trait, lifecycle, order_count, total_spent_cents, last_order_days, consent or group days: 0 means all time
 //
-// Everything a rule reads is the suite's own: customer_roster and its consent flags and group slug (pushed by core), customer_traits
+// Everything a rule reads is the suite's own: customer_roster with its consents and group slug (pushed by core), customer_traits
 // (recomputed daily) and customer_order_agg (lifetime orders, projected off the spine with the traits). A windowed order condition
 // is the one thing those tables cannot answer, so it is resolved against the spine first (orders.go) and arrives as an id set
 
@@ -50,12 +51,8 @@ var lifecycleStages = map[string]bool{
 	"prospect": true, "new": true, "active": true, "at_risk": true, "lapsed": true,
 }
 
-// The consents the roster carries, as core resolves them (registry default included) - a rule can only ask about
-// one of these, since the suite holds no other consent and never second-guesses core's answer
-var consentColumns = map[string]string{
-	"marketing_email": "marketing_opted_in",
-	"marketing_sms":   "sms_opted_in",
-}
+// A consent kind is core's registry slug - the roster carries every kind core holds, keyed by it
+var consentKind = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
 // Decodes and validates the JSONB payload - unknown keys are rejected, so a typo'd condition fails at save time rather than silently at refresh time
 func ParseRules(raw json.RawMessage) (*Rules, error) {
@@ -117,8 +114,8 @@ func (c *RuleCondition) validate() error {
 			return fmt.Errorf("last_order_days supports lte/gte")
 		}
 	case "consent":
-		if _, ok := consentColumns[c.Channel]; !ok {
-			return fmt.Errorf("unknown consent channel %q", c.Channel)
+		if !consentKind.MatchString(c.Channel) {
+			return fmt.Errorf("consent kind %q is not a registry slug", c.Channel)
 		}
 	case "group":
 		if strings.TrimSpace(c.Slug) == "" {
@@ -200,7 +197,7 @@ func (r *Rules) Compile(resolved map[int]Resolved) (string, []any) {
 				"EXTRACT(EPOCH FROM NOW() - (SELECT a.last_order_at FROM customer_order_agg a WHERE a.customer_id = c.customer_id))/86400 %s %s",
 				cmp, arg(c.Value)))
 		case "consent":
-			preds = append(preds, fmt.Sprintf("c.%s = %s", consentColumns[c.Channel], arg(c.Granted)))
+			preds = append(preds, fmt.Sprintf("COALESCE((c.consents ->> %s)::boolean, false) = %s", arg(c.Channel), arg(c.Granted)))
 		case "group":
 			preds = append(preds, "c.customer_group_slug = "+arg(c.Slug))
 		}
