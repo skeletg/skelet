@@ -21,6 +21,8 @@ service IngestService {
   // A customer core no longer has - the stream's sweep would catch it eventually, which is too late
   // to stop a campaign that sends first
   rpc DeleteRosterEntry(DeleteRosterEntryRequest) returns (DeleteRosterEntryResponse);
+  // Whether the suite's roster schema has grown past what the last full sync filled - core answers by running the sweep now rather than on the clock
+  rpc RosterStatus(RosterStatusRequest) returns (RosterStatusResponse);
   // GDPR erasure: core anonymizes or deletes a customer, and the spine identity mappings that would re-link them go with it
   // A failure is surfaced, never swallowed - core reports the erasure as incomplete
   rpc EraseCustomerIdentities(EraseCustomerIdentitiesRequest) returns (EraseCustomerIdentitiesResponse);
@@ -71,6 +73,14 @@ message RosterEntry {
   // The group's slug beside its id - segment rules are authored against slugs, and the suite has no
   // groups table to resolve one through
   string customer_group_slug = 10;
+  // Every consent core holds for the customer, by kind - the two booleans above are the marketing pair
+  // of these, kept so a send path reads one column; a rule can ask about any kind
+  repeated Consent consents = 11;
+}
+
+message Consent {
+  string kind = 1;
+  bool opted_in = 2;
 }
 
 // One page of the roster - the stream is the whole of it, and a stream that ends early prunes nothing
@@ -82,7 +92,19 @@ message UpsertRosterEntryRequest {
   RosterEntry customer = 1;
 }
 
-message UpsertRosterEntryResponse {}
+message UpsertRosterEntryResponse {
+  int32 roster_version = 1;
+  bool needs_full_sync = 2;
+}
+
+message RosterStatusRequest {}
+
+message RosterStatusResponse {
+  int32 roster_version = 1;
+  int32 filled_version = 2;
+  bool needs_full_sync = 3;
+  google.protobuf.Timestamp filled_at = 4;
+}
 
 message DeleteRosterEntryRequest {
   string customer_id = 1;
@@ -94,6 +116,7 @@ message SyncCustomerRosterResponse {
   int32 synced = 1;
   // Customers the stream did not carry, whose traits and memberships went with them
   int32 pruned = 2;
+  int32 roster_version = 3;
 }
 
 // One email send, reported once and whole: a campaign or flow send is kept in the suite's send log under core's id, a transactional one reaches the spine alone

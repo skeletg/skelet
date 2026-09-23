@@ -83,20 +83,27 @@ type CustomerOrderAgg struct {
 }
 
 type CustomerRoster struct {
-	CustomerID          uuid.UUID     `json:"customer_id"`
-	ChannelID           uuid.UUID     `json:"channel_id"`
-	LifecycleNewDays    sql.NullInt32 `json:"lifecycle_new_days"`
-	LifecycleActiveDays sql.NullInt32 `json:"lifecycle_active_days"`
-	LifecycleAtRiskDays sql.NullInt32 `json:"lifecycle_at_risk_days"`
-	SyncedAt            time.Time     `json:"synced_at"`
-	Email               string        `json:"email"`
-	FirstName           string        `json:"first_name"`
-	IsActive            bool          `json:"is_active"`
-	CustomerGroupID     uuid.NullUUID `json:"customer_group_id"`
-	MarketingOptedIn    bool          `json:"marketing_opted_in"`
-	Phone               string        `json:"phone"`
-	SmsOptedIn          bool          `json:"sms_opted_in"`
-	CustomerGroupSlug   string        `json:"customer_group_slug"`
+	CustomerID          uuid.UUID       `json:"customer_id"`
+	ChannelID           uuid.UUID       `json:"channel_id"`
+	LifecycleNewDays    sql.NullInt32   `json:"lifecycle_new_days"`
+	LifecycleActiveDays sql.NullInt32   `json:"lifecycle_active_days"`
+	LifecycleAtRiskDays sql.NullInt32   `json:"lifecycle_at_risk_days"`
+	SyncedAt            time.Time       `json:"synced_at"`
+	Email               string          `json:"email"`
+	FirstName           string          `json:"first_name"`
+	IsActive            bool            `json:"is_active"`
+	CustomerGroupID     uuid.NullUUID   `json:"customer_group_id"`
+	MarketingOptedIn    bool            `json:"marketing_opted_in"`
+	Phone               string          `json:"phone"`
+	SmsOptedIn          bool            `json:"sms_opted_in"`
+	CustomerGroupSlug   string          `json:"customer_group_slug"`
+	Consents            json.RawMessage `json:"consents"`
+}
+
+type CustomerRosterState struct {
+	OneRow        bool         `json:"one_row"`
+	FilledVersion int32        `json:"filled_version"`
+	FilledAt      sql.NullTime `json:"filled_at"`
 }
 
 type CustomerSegment struct {
@@ -104,7 +111,7 @@ type CustomerSegment struct {
 	Slug                string                `json:"slug"`
 	Name                string                `json:"name"`
 	Description         string                `json:"description"`
-	RefreshSql          string                `json:"refresh_sql"`
+	Definition          string                `json:"definition"`
 	IsActive            bool                  `json:"is_active"`
 	CreatedAt           time.Time             `json:"created_at"`
 	UpdatedAt           time.Time             `json:"updated_at"`
