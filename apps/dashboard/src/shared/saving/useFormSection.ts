@@ -45,7 +45,7 @@ export async function submitForm(form: AnyFormApi): Promise<void> {
 }
 
 function firstFieldError(form: AnyFormApi): string | null {
-  for (const [name, meta] of Object.entries(form.state.fieldMeta)) {
+  for (const meta of Object.values(form.state.fieldMeta)) {
     const first: unknown = (meta as { errors?: unknown[] } | undefined)?.errors?.[0]
     if (!first) continue
     const message =
@@ -54,7 +54,7 @@ function firstFieldError(form: AnyFormApi): string | null {
         : typeof first === 'object' && 'message' in first
           ? String(first.message)
           : null
-    if (message) return `${name}: ${message}`
+    if (message) return `Fix the highlighted field: ${message}`
   }
   return null
 }
