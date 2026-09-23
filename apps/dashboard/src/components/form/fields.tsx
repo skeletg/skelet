@@ -128,7 +128,7 @@ export function NumberField({ label, hint, note, id, className, ...inputProps }:
   )
 }
 
-export type SelectOption = { value: string; label: ReactNode }
+export type SelectOption = { value: string; label: ReactNode; disabled?: boolean }
 
 const NONE = '__none__'
 
@@ -176,7 +176,7 @@ export function SelectField({
         <SelectContent>
           {noneLabel !== undefined && <SelectItem value={NONE}>{noneLabel}</SelectItem>}
           {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
+            <SelectItem key={o.value} value={o.value} disabled={o.disabled}>
               {o.label}
             </SelectItem>
           ))}
