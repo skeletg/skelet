@@ -839,6 +839,7 @@ function PageTypeAttributesPanel({
             </div>
           )}
           <Button
+            className="h-10"
             size="sm"
             disabled={!picked}
             onClick={async () => {

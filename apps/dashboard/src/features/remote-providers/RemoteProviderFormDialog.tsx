@@ -307,7 +307,7 @@ export function RemoteProviderFormDialog({
                   value={failurePolicy}
                   onValueChange={(v) => setFailurePolicy(v as RemoteProviderFailurePolicy)}
                 >
-                  <SelectTrigger id="rp-policy">
+                  <SelectTrigger className="w-full" id="rp-policy">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

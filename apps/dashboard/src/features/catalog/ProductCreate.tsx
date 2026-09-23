@@ -470,7 +470,7 @@ export function ProductCreate() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 items-start">
               <div className="grid gap-2">
                 <Label htmlFor="p-name">Name</Label>
                 <Input
@@ -498,7 +498,7 @@ export function ProductCreate() {
             <div className="grid gap-2 sm:max-w-xs">
               <Label htmlFor="p-locale">Initial translation locale</Label>
               <Select value={selectedLocale} onValueChange={setLocale} disabled={channelsQuery.loading}>
-                <SelectTrigger id="p-locale">
+                <SelectTrigger id="p-locale" className="w-full">
                   <SelectValue placeholder={channelsQuery.loading ? 'Loading…' : 'Select a locale…'} />
                 </SelectTrigger>
                 <SelectContent>
@@ -521,7 +521,7 @@ export function ProductCreate() {
             title="Pricing"
             description="Default price applied when a store listing inherits."
           >
-            <div className="grid grid-cols-1 gap-4 sm:max-w-md sm:grid-cols-[1fr_140px]">
+            <div className="grid grid-cols-1 items-start gap-4 sm:max-w-md sm:grid-cols-[1fr_140px]">
               <div className="grid gap-2">
                 <Label htmlFor="p-price">Default price</Label>
                 <Input
@@ -541,8 +541,8 @@ export function ProductCreate() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="p-currency">Default currency</Label>
-<Select value={currencyCode} onValueChange={setCurrencyCode}>
-                  <SelectTrigger id="p-currency">
+                <Select value={currencyCode} onValueChange={setCurrencyCode}>
+                  <SelectTrigger id="p-currency" className="w-full">
                     <SelectValue placeholder="Pick a currency" />
                   </SelectTrigger>
                   <SelectContent>

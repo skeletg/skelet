@@ -414,7 +414,7 @@ function LocaleFormPage({
 
           <DetailPageSection title="Display & state">
             <div className="grid gap-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid items-start grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
                   <Label htmlFor="locale-flag">Flag emoji</Label>
                   <Input
@@ -471,7 +471,7 @@ function LocaleFormPage({
             title="Formatting"
             description="Powers date/number rendering on the channel. Empty = use library defaults."
           >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 items-start">
               <div className="grid gap-2">
                 <Label htmlFor="locale-date">Date format</Label>
                 <Input
@@ -519,7 +519,7 @@ function LocaleFormPage({
                   <SelectTrigger
                     id="locale-fdow"
                     aria-invalid={!!fieldErrors.firstDayOfWeek}
-                    className={cn(fieldErrors.firstDayOfWeek && 'border-destructive')}
+                    className={cn('w-full', fieldErrors.firstDayOfWeek && 'border-destructive')}
                   >
                     <SelectValue />
                   </SelectTrigger>
@@ -542,7 +542,7 @@ function LocaleFormPage({
             title="Geography & SEO"
             description="Affects fallback country and hreflang link tags on the channel."
           >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid items-start grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="locale-country">Default country code</Label>
                 <Select
@@ -551,7 +551,7 @@ function LocaleFormPage({
                 >
                   <SelectTrigger
                     id="locale-country"
-                    className={cn(fieldErrors.defaultCountryCode && 'border-destructive')}
+                    className={cn('w-full', fieldErrors.defaultCountryCode && 'border-destructive')}
                   >
                     <SelectValue placeholder="Country" />
                   </SelectTrigger>

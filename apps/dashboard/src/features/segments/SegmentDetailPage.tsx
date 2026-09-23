@@ -211,7 +211,7 @@ function GeneralSection({ segment, refetch }: { segment: Segment; refetch: () =>
   return (
     <DetailPageSection title="General">
       <div className="grid max-w-2xl gap-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 items-start">
           <div className="grid gap-2">
             <Label htmlFor="seg-name">Name</Label>
             <Input id="seg-name" value={name} onChange={(e) => setName(e.target.value)} />

@@ -345,7 +345,7 @@ function EditMemberDialog({
         </DialogHeader>
 
         <form id="edit-grouped-member" onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 items-start">
             <div className="grid gap-2">
               <Label htmlFor="gm-qty-edit">Default quantity</Label>
               <Input

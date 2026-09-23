@@ -272,7 +272,7 @@ export function MenuCreatePane() {
           title="Basics"
           description="Pick a slug the channel will reference (e.g. main-nav, footer-shop) and a human-readable name. Items can be added on the next screen."
         >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 items-start">
             <div className="grid gap-2">
               <Label htmlFor="menu-name">Name</Label>
               <Input

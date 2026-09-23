@@ -258,7 +258,7 @@ function AddressFields({
             {f.key === 'countryCode' ? (
               // the country is a known list - typing it only ever produced a rejected save
               <Select value={form[f.key] || '__none__'} onValueChange={(v) => onChange(f.key, v === '__none__' ? '' : v)}>
-                <SelectTrigger id={`${side}-${f.key}`}>
+                <SelectTrigger className="w-full" id={`${side}-${f.key}`}>
                   <SelectValue placeholder="Country" />
                 </SelectTrigger>
                 <SelectContent>

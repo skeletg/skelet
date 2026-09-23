@@ -189,7 +189,7 @@ export function SuppressionList() {
                 onKeyDown={(e) => e.key === 'Enter' && void add()}
                 className="w-64"
               />
-              <Button size="sm" onClick={() => void add()} disabled={adding || !newEmail.trim()}>
+              <Button className="h-10" size="sm" onClick={() => void add()} disabled={adding || !newEmail.trim()}>
                 <PlusIcon className="size-4" /> Suppress
               </Button>
             </div>

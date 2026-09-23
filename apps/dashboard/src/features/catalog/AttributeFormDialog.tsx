@@ -279,7 +279,7 @@ export function AttributeFormDialog({
         </DialogHeader>
 
         <form id="attribute-form" onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 items-start">
             <div className="grid gap-2">
               <Label htmlFor="attr-name">Name</Label>
               <Input
@@ -289,9 +289,6 @@ export function AttributeFormDialog({
                 value={name}
                 onChange={(e) => onNameChange(e.target.value)}
               />
-              <p aria-hidden="true" className="invisible min-h-4 text-xs text-muted-foreground">
-                Helper text placeholder
-              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="attr-slug">Slug</Label>
@@ -314,7 +311,7 @@ export function AttributeFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 items-start">
             <div className="grid gap-2">
               <Label htmlFor="attr-type">Input type</Label>
               <Select
@@ -322,7 +319,7 @@ export function AttributeFormDialog({
                 onValueChange={(v) => setInputType(v as AttributeInputType)}
                 disabled={isEdit}
               >
-                <SelectTrigger id="attr-type">
+                <SelectTrigger className="w-full" id="attr-type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -333,13 +330,7 @@ export function AttributeFormDialog({
                   ))}
                 </SelectContent>
               </Select>
-              {isEdit ? (
-                <p className="text-xs text-muted-foreground">Input type is immutable.</p>
-              ) : (
-                <p aria-hidden="true" className="invisible min-h-4 text-xs text-muted-foreground">
-                  Helper text placeholder
-                </p>
-              )}
+              {isEdit && <p className="text-xs text-muted-foreground">Input type is immutable.</p>}
             </div>
             {inputType === 'REFERENCE' && (
               <div className="grid gap-2">
@@ -349,7 +340,7 @@ export function AttributeFormDialog({
                   onValueChange={(v) => setRelationshipTarget(v as AttributeReferenceTarget)}
                   disabled={isEdit}
                 >
-                  <SelectTrigger id="attr-ref-target">
+                  <SelectTrigger className="w-full" id="attr-ref-target">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

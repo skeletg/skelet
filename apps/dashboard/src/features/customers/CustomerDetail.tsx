@@ -1165,7 +1165,7 @@ function AddressesSection({
                 value={form.countryCode || '__none__'}
                 onValueChange={(v) => setForm((f) => ({ ...f, countryCode: v === '__none__' ? '' : v }))}
               >
-                <SelectTrigger id="addr-country">
+                <SelectTrigger className="w-full" id="addr-country">
                   <SelectValue placeholder="Country" />
                 </SelectTrigger>
                 <SelectContent>

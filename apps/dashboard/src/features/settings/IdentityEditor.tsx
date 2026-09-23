@@ -169,7 +169,7 @@ export function IdentityEditor({ channelId }: { channelId: string }) {
       description={`Name, currency, URL, and active state for "${channel.name}". Slug (${channel.slug}) is immutable. Apply edits via the header Save button.`}
     >
       <div className="grid gap-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 items-start">
           <div className="grid gap-2">
             <Label htmlFor="identity-name">Name</Label>
             <Input
@@ -189,7 +189,7 @@ export function IdentityEditor({ channelId }: { channelId: string }) {
               onValueChange={setCurrencyCode}
               disabled={!canEdit || currencies.length === 0}
             >
-              <SelectTrigger id="identity-currency">
+              <SelectTrigger className="w-full" id="identity-currency">
                 <SelectValue placeholder="Pick a currency" />
               </SelectTrigger>
               <SelectContent>

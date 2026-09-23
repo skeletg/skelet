@@ -266,7 +266,7 @@ function CountryFormPage({
             title="Identity"
             description="2-letter ISO 3166-1 alpha-2 code, name, and native name."
           >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 items-start">
               <div className="grid gap-2">
                 <Label htmlFor="country-code">Code</Label>
                 <Input
@@ -323,7 +323,7 @@ function CountryFormPage({
             title="Defaults"
             description="Phone calling code and default currency. Default currency is FK-validated."
           >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 items-start">
               <div className="grid gap-2">
                 <Label htmlFor="country-phone">Phone code</Label>
                 <Input
@@ -341,7 +341,7 @@ function CountryFormPage({
                   onValueChange={(v) => setDefaultCurrencyCode(v === NO_CURRENCY ? '' : v)}
                   disabled={currenciesQuery.loading}
                 >
-                  <SelectTrigger id="country-currency">
+                  <SelectTrigger className="w-full" id="country-currency">
                     <SelectValue
                       placeholder={currenciesQuery.loading ? 'Loading…' : 'No default'}
                     />

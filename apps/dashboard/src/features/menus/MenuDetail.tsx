@@ -1095,6 +1095,7 @@ function TranslationsEditor({
               autoFocus
             />
             <Button
+              className="h-10"
               type="button"
               size="sm"
               onClick={async () => {

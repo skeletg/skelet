@@ -235,7 +235,7 @@ export function RoleEditPage() {
 
       <div className="grid gap-6 px-6 py-6">
         <section className="grid gap-3 rounded-md border p-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 items-start">
             <div className="grid gap-1.5">
               <Label htmlFor="role-slug">Slug</Label>
               <Input
