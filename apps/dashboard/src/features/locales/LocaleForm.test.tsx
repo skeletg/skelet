@@ -7,6 +7,10 @@ import { CountriesPickerDocument } from '@/features/countries/Countries.gql'
 import { LocaleEditPage } from './LocaleForm'
 import { LocaleDocument, LocalesAdminListDocument, UpdateLocaleDocument } from './Locales.gql'
 
+// Save -> mutate -> navigate is several async hops - past testing-library's 1s default when the whole
+// suite is loading the machine, which made these flaky
+const SLOW = { timeout: 5000 }
+
 // Through the real page: an edit lights the header Save (it never did), confirming sends the
 // record, and a service rejection naming a field keeps the dialog open and shows under that field
 
@@ -81,7 +85,7 @@ describe('LocaleEditPage', () => {
   it('saves a reviewed edit', async () => {
     const onWrite = renderPage({ ok: true })
     await editHreflangAndConfirm()
-    await screen.findByText('locales list')
+    await screen.findByText('locales list', {}, SLOW)
     expect(onWrite).toHaveBeenCalledWith(expect.objectContaining({ code: 'es-mx', hreflangValue: 'xx_YY' }))
   })
 

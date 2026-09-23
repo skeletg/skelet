@@ -11,6 +11,10 @@ import {
   UpdateCountryDocument,
 } from './Countries.gql'
 
+// Save -> mutate -> navigate is several async hops - past testing-library's 1s default when the whole
+// suite is loading the machine, which made these flaky
+const SLOW = { timeout: 5000 }
+
 // Through the real page: an edit lights the header Save (it never did - the section registered
 // into a context that wasn't there yet), a metadata-only edit counts, confirming sends the record,
 // and a create with a bad code is stopped at the field
@@ -81,7 +85,7 @@ describe('CountryEditPage', () => {
     expect(within(dialog).getByText('Metadata · vat')).toBeDefined()
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply 1 change/ }))
 
-    await screen.findByText('countries list')
+    await screen.findByText('countries list', {}, SLOW)
     expect(onWrite).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'DE', name: 'Germany', metadata: [{ key: 'vat', value: 'DE999' }] }),
     )
@@ -102,7 +106,7 @@ describe('CountryCreatePage', () => {
 
     fireEvent.change(code, { target: { value: 'de' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create country' }))
-    await screen.findByText('countries list')
+    await screen.findByText('countries list', {}, SLOW)
     expect(onWrite).toHaveBeenCalledWith(expect.objectContaining({ code: 'DE', name: 'Germany' }))
   })
 })
