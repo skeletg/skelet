@@ -137,7 +137,7 @@ export function CmsPageTagsSection({
             placeholder="Create & assign a new tag…"
             className="h-8 max-w-xs"
           />
-          <Button type="button" variant="outline" size="sm" disabled={!newName.trim()} onClick={() => void onCreate()}>
+          <Button className="h-10" type="button" variant="outline" size="sm" disabled={!newName.trim()} onClick={() => void onCreate()}>
             Create
           </Button>
           {changed && <span className="text-xs text-amber-600">unsaved</span>}

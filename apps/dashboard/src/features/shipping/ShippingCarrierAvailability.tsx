@@ -204,7 +204,7 @@ function CarrierCard({
         <div className="grid gap-1">
           <Label className="text-xs">Ships to</Label>
           <Select value={mode} onValueChange={(v) => setMode(v as 'all' | 'specific')}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

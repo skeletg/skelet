@@ -216,7 +216,7 @@ function BlockTypeForm({
       <div>
         <DetailPageBody>
           <DetailPageSection title="Type">
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid items-start gap-4 sm:grid-cols-3">
               <div className="grid gap-2">
                 <Label htmlFor="bt-key">Key</Label>
                 <Input

@@ -70,6 +70,7 @@ export function CmsPageExperimentSection({
               </SelectContent>
             </Select>
             <Button
+              className="h-10"
               size="sm"
               disabled={!canManage || !pick || binding}
               onClick={() => setExperiment({ variables: { pageId: page.id, experimentKey: pick } })}

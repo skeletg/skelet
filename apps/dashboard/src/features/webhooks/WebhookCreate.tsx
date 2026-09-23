@@ -257,7 +257,7 @@ export function WebhookCreate() {
                 onValueChange={setChannelId}
                 disabled={channelsQuery.loading}
               >
-                <SelectTrigger id="webhook-store">
+                <SelectTrigger className="w-full" id="webhook-store">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

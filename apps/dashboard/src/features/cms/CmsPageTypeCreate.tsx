@@ -115,7 +115,7 @@ export function CmsPageTypeCreate() {
             title="Basics"
             description="Pick a slug pages will reference and a human-readable name. Attributes are assigned on the next screen."
           >
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 items-start">
               <div className="grid gap-1.5">
                 <Label htmlFor="pt-name">Name ({scopedLocale})</Label>
                 <Input

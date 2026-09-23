@@ -337,7 +337,7 @@ function EditComponentDialog({
         </DialogHeader>
 
         <form id="edit-kit-component" onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 items-start">
             <div className="grid gap-2">
               <Label htmlFor="kc-qty-edit">Quantity per kit</Label>
               <Input

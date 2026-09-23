@@ -191,7 +191,7 @@ function ProviderCard({
         <div className="grid gap-1">
           <Label className="text-xs">Accepted in</Label>
           <Select value={mode} onValueChange={(v) => setMode(v as 'all' | 'specific')}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -144,7 +144,7 @@ export function ProductTypeFormDialog({
         </DialogHeader>
 
         <form id="product-type-form" onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 items-start">
             <div className="grid gap-2">
               <Label htmlFor="pt-name">Name</Label>
               <Input
@@ -154,9 +154,6 @@ export function ProductTypeFormDialog({
                 value={name}
                 onChange={(e) => onNameChange(e.target.value)}
               />
-              <p aria-hidden="true" className="invisible min-h-4 text-xs text-muted-foreground">
-                Helper text placeholder
-              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="pt-slug">Slug</Label>

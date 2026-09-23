@@ -108,7 +108,7 @@ export function PromotionSimulatorDialog({ trigger }: { trigger: ReactNode }) {
             <div className="grid gap-1.5">
               <Label htmlFor="sim-country">Country</Label>
               <Select value={countryCode || '__none__'} onValueChange={(v) => setCountryCode(v === '__none__' ? '' : v)}>
-                <SelectTrigger id="sim-country">
+                <SelectTrigger className="w-full" id="sim-country">
                   <SelectValue placeholder="Country" />
                 </SelectTrigger>
                 <SelectContent>
@@ -126,7 +126,7 @@ export function PromotionSimulatorDialog({ trigger }: { trigger: ReactNode }) {
             <div className="grid gap-1.5">
               <Label htmlFor="sim-group">Customer group</Label>
               <Select value={groupSlug || '__none__'} onValueChange={(v) => setGroupSlug(v === '__none__' ? '' : v)}>
-                <SelectTrigger id="sim-group">
+                <SelectTrigger className="w-full" id="sim-group">
                   <SelectValue placeholder="Customer group" />
                 </SelectTrigger>
                 <SelectContent>

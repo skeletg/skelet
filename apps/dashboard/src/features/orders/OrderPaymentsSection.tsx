@@ -282,7 +282,7 @@ export function OrderPaymentsSection({ order }: { order: OrderData }) {
           <div className="grid gap-3">
             {dialog === 'record' ? (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 items-start">
                   <div className="grid gap-2">
                     <Label htmlFor="pay-record-amount">Amount</Label>
                     <Input

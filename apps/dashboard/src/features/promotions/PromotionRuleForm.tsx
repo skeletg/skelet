@@ -562,7 +562,7 @@ function PromotionRuleEditor({
 
           {/* Identity block - what humans read in the dashboard and what
               the engine / URLs use as a stable identifier */}
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2 items-start">
             <div className="grid gap-1.5">
               <Label htmlFor="name">Name</Label>
               <Input
@@ -739,7 +739,7 @@ function PromotionRuleEditor({
         </DetailPageSection>
 
         <DetailPageSection title="Stacking & priority" description="Where this rule sits in the evaluation chain.">
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid items-start gap-3 md:grid-cols-2">
             <div className="grid gap-1.5">
               <Label htmlFor="priority">Priority</Label>
               <Input

@@ -1191,7 +1191,7 @@ function CategoryForm({
                   onValueChange={(v) => setParentId(v === '__root__' ? null : v)}
                   disabled={!canManage}
                 >
-                  <SelectTrigger id="cat-parent">
+                  <SelectTrigger className="w-full" id="cat-parent">
                     <SelectValue placeholder="None (root)" />
                   </SelectTrigger>
                   <SelectContent>

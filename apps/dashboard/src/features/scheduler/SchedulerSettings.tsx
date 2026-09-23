@@ -102,6 +102,7 @@ export function SchedulerSettings() {
               className="text-sm"
             />
             <Button
+              className="h-10"
               variant="outline"
               size="sm"
               disabled={!canEdit || saving || alertUrl === (data?.alertWebhookUrl?.value ?? '')}
@@ -126,6 +127,7 @@ export function SchedulerSettings() {
               disabled={!canEdit}
             />
             <Button
+              className="h-10"
               variant="outline"
               size="sm"
               disabled={!canEdit || saving || retention === (data?.historyRetentionDays?.value ?? '')}

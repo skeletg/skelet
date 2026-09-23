@@ -306,7 +306,7 @@ function CurrencyFormPage({
             description="How this currency renders to customers."
           >
             <div className="grid gap-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 items-start">
                 <div className="grid gap-2">
                   <Label htmlFor="currency-symbol">Symbol</Label>
                   <Input
@@ -323,7 +323,7 @@ function CurrencyFormPage({
                     value={symbolPosition}
                     onValueChange={(v) => setSymbolPosition(v as SymbolPosition)}
                   >
-                    <SelectTrigger id="currency-position">
+                    <SelectTrigger className="w-full" id="currency-position">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

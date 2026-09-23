@@ -687,7 +687,7 @@ function EditOptionDialog({
             <div className="grid gap-2">
               <Label htmlFor="opt-input-edit">Selection style</Label>
               <Select value={inputType} onValueChange={(v) => setInputType(v as BundleInputType)}>
-                <SelectTrigger id="opt-input-edit">
+                <SelectTrigger className="w-full" id="opt-input-edit">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

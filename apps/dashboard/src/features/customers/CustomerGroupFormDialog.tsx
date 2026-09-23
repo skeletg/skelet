@@ -104,7 +104,7 @@ export function CustomerGroupFormDialog({
         </DialogHeader>
 
         <form id="customer-group-form" onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 items-start">
             <div className="grid gap-2">
               <Label htmlFor="cg-slug">Slug</Label>
               <Input
@@ -126,11 +126,6 @@ export function CustomerGroupFormDialog({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
-              {isEdit && (
-                <p aria-hidden="true" className="invisible min-h-4 text-xs text-muted-foreground">
-                  Helper text placeholder
-                </p>
-              )}
             </div>
           </div>
 

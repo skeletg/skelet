@@ -415,6 +415,7 @@ function AudienceSyncSection({ destinations }: { destinations: DestinationRow[] 
           </SelectContent>
         </Select>
         <Button
+          className="h-10"
           variant="outline"
           size="sm"
           disabled={!segmentId || !destinationId || syncing}

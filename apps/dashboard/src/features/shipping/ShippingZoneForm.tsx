@@ -573,7 +573,7 @@ function MethodRow({
         <div className="grid gap-1">
           <Label className="text-xs">Ships to</Label>
           <Select value={countryMode} onValueChange={(v) => setCountryMode(v as 'all' | 'specific')}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -129,7 +129,7 @@ export function ShippingBoxFormDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 items-start">
             <div className="grid gap-2">
               <Label htmlFor="box-code">Code</Label>
               <Input
