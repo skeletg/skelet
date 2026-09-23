@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useFieldContext } from './form-context'
@@ -117,6 +118,70 @@ export function NumberField({ label, hint, note, id, className, ...inputProps }:
         onChange={(e) => field.handleChange(Number(e.target.value) || 0)}
         onBlur={field.handleBlur}
       />
+      {error ? (
+        <p className="text-xs text-destructive">{error}</p>
+      ) : (
+        hint && <p className="text-xs text-muted-foreground">{hint}</p>
+      )}
+      {note}
+    </div>
+  )
+}
+
+export type SelectOption = { value: string; label: ReactNode }
+
+const NONE = '__none__'
+
+// A string field picked from a list. `noneLabel` adds a first entry that stands for '' - Radix
+// Select can't hold an empty value itself, so '' round-trips through a sentinel
+export function SelectField({
+  label,
+  id,
+  options,
+  placeholder,
+  noneLabel,
+  hint,
+  note,
+  disabled,
+  className,
+}: {
+  label?: ReactNode
+  id?: string
+  options: SelectOption[]
+  placeholder?: string
+  noneLabel?: ReactNode
+  hint?: ReactNode
+  note?: ReactNode
+  disabled?: boolean
+  className?: string
+}) {
+  const field = useFieldContext<string>()
+  const selectId = id ?? `f-${field.name}`
+  const error = fieldErrorText(field)
+  const value = field.state.value === '' && noneLabel !== undefined ? NONE : field.state.value
+  return (
+    <div className={['grid gap-1.5', className].filter(Boolean).join(' ')}>
+      {label && <Label htmlFor={selectId}>{label}</Label>}
+      <Select
+        value={value}
+        disabled={disabled}
+        onValueChange={(v) => {
+          field.handleChange(v === NONE ? '' : v)
+          field.handleBlur()
+        }}
+      >
+        <SelectTrigger id={selectId} className="w-full" aria-invalid={error ? true : undefined}>
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {noneLabel !== undefined && <SelectItem value={NONE}>{noneLabel}</SelectItem>}
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       {error ? (
         <p className="text-xs text-destructive">{error}</p>
       ) : (
