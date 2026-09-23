@@ -592,6 +592,27 @@ body[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
   body {
     @apply bg-background text-foreground;
     }
+
+  /* Tailwind v4 dropped Preflight's cursor: pointer on buttons - put it back for everything clickable, in base so a
+     cursor-* utility still wins. Radix marks disabled items data-disabled="", cmdk writes data-disabled="false" on
+     enabled ones, hence the two explicit values rather than a bare [data-disabled] */
+  :is(
+    button,
+    select,
+    summary,
+    input:is([type="checkbox"], [type="radio"], [type="file"], [type="color"], [type="range"]),
+    [role="button"],
+    [role="checkbox"],
+    [role="switch"],
+    [role="radio"],
+    [role="tab"],
+    [role="option"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"]
+  ):not(:disabled, [aria-disabled="true"], [data-disabled=""], [data-disabled="true"]) {
+    cursor: pointer;
+    }
   html {
     @apply font-sans;
     scrollbar-width: thin;
