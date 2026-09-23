@@ -1,6 +1,6 @@
 import { createFormHook } from '@tanstack/react-form'
 import { fieldContext, formContext } from './form-context'
-import { CheckboxField, MetadataField, NumberField, SwitchField, TextField } from './fields'
+import { CheckboxField, MetadataField, NumberField, SwitchField, TextareaField, TextField } from './fields'
 
 // The dashboard's form hook - TanStack Form with our bound field components registered, so pages
 // write <form.AppField name="city">{(f) => <f.TextField label="City" />}</form.AppField>
@@ -10,6 +10,6 @@ import { CheckboxField, MetadataField, NumberField, SwitchField, TextField } fro
 export const { useAppForm, withForm } = createFormHook({
   fieldContext,
   formContext,
-  fieldComponents: { TextField, NumberField, SwitchField, CheckboxField, MetadataField },
+  fieldComponents: { TextField, TextareaField, NumberField, SwitchField, CheckboxField, MetadataField },
   formComponents: {},
 })

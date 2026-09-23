@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { useFieldContext } from './form-context'
 import { fieldErrorText } from './field-errors'
 
@@ -47,6 +48,38 @@ export function TextField({ label, hint, note, id, className, onValueChange, par
           field.handleChange(value)
           onValueChange?.(value)
         }}
+        onBlur={field.handleBlur}
+      />
+      {error ? (
+        <p className="text-xs text-destructive">{error}</p>
+      ) : (
+        hint && <p className="text-xs text-muted-foreground">{hint}</p>
+      )}
+      {note}
+    </div>
+  )
+}
+
+type TextareaFieldProps = Omit<ComponentProps<typeof Textarea>, 'value' | 'onChange' | 'onBlur' | 'name'> & {
+  label?: ReactNode
+  hint?: ReactNode
+  note?: ReactNode
+}
+
+export function TextareaField({ label, hint, note, id, className, ...props }: TextareaFieldProps) {
+  const field = useFieldContext<string>()
+  const inputId = id ?? `f-${field.name}`
+  const error = fieldErrorText(field)
+  return (
+    <div className={['grid gap-1.5', className].filter(Boolean).join(' ')}>
+      {label && <Label htmlFor={inputId}>{label}</Label>}
+      <Textarea
+        {...props}
+        id={inputId}
+        name={field.name}
+        value={field.state.value}
+        aria-invalid={error ? true : undefined}
+        onChange={(e) => field.handleChange(e.target.value)}
         onBlur={field.handleBlur}
       />
       {error ? (
