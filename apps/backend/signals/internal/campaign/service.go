@@ -39,7 +39,7 @@ type Service struct {
 	suppress suppressionChecker
 }
 
-type suppressionChecker interface { // the slice of the suppression service the send loop needs - an interface so the dependency stays optional, nil meaning no suppression, and is wired through a setter
+type suppressionChecker interface { // the slice of the suppression service the send loop needs
 	IsSuppressed(ctx context.Context, email string) bool
 	SuppressedSet(ctx context.Context, emails []string) map[string]bool // one query for a whole recipient page, keyed by the caller's original email strings
 	Suppress(ctx context.Context, email, reason, detail string) error
@@ -61,11 +61,9 @@ type segmentAudience interface {
 }
 
 // unsubKey signs unsubscribe and tracking links, the same key core verifies them with
-func NewService(repo Repository, tmpl *emailtemplate.Service, contacts audienceReader, segments segmentAudience, stores storeReader, cfg *config.Service, sender email.Sender, recorder sendTracker, unsubKey []byte) *Service {
-	return &Service{repo: repo, tmpl: tmpl, contacts: contacts, segments: segments, stores: stores, config: cfg, sender: sender, recorder: recorder, track: emailtrack.NewSigner(unsubKey)}
+func NewService(repo Repository, tmpl *emailtemplate.Service, contacts audienceReader, segments segmentAudience, stores storeReader, cfg *config.Service, sender email.Sender, recorder sendTracker, suppress suppressionChecker, unsubKey []byte) *Service {
+	return &Service{repo: repo, tmpl: tmpl, contacts: contacts, segments: segments, stores: stores, config: cfg, sender: sender, recorder: recorder, suppress: suppress, track: emailtrack.NewSigner(unsubKey)}
 }
-
-func (s *Service) SetSuppression(sc suppressionChecker) { s.suppress = sc } // optional - leaving it unset means no suppression
 
 // Turns a send failure into a suppression signal when auto-suppress is on - a permanent 5xx SMTP rejection hard-suppresses the address, a transient one accrues toward the soft-bounce threshold, and unknown errors like timeouts and resets are ignored since they aren't a verdict on the address (this is the out-of-the-box feedback loop for pure-SMTP setups, a provider webhook supplies richer signals)
 func (s *Service) captureBounce(ctx context.Context, addr string, sendErr error) {
