@@ -32,17 +32,20 @@ export function RecordFormPage({
   backLabel,
   title,
   meta,
+  badges,
   createLabel,
   actions,
   labels,
   children,
   after,
+  readOnly = false,
 }: {
   record: RecordFormFrame
   backTo: string
   backLabel: string
   title: ReactNode
   meta?: ReactNode
+  badges?: ReactNode
   /** The header button while creating - 'Create country' */
   createLabel: string
   /** Extra header actions left of Save - a Cancel link, say */
@@ -52,6 +55,8 @@ export function RecordFormPage({
   children: ReactNode
   /** Below the form body and outside it - plugin sections, whose own buttons mustn't touch the form */
   after?: ReactNode
+  /** No write permission - every field disabled and the Save button left out */
+  readOnly?: boolean
 }) {
   const { form, draft, registry, confirm, submitError, save, isEdit, label } = record
   const submitting = useStore(form.store, (s) => s.isSubmitting)
@@ -64,17 +69,20 @@ export function RecordFormPage({
           backLabel={backLabel}
           title={title}
           meta={meta}
+          badges={badges}
           actions={
             <>
               {actions}
-              <Button
-                type="button"
-                size="sm"
-                disabled={submitting || (isEdit && !registry.isDirty)}
-                onClick={save}
-              >
-                {submitting ? 'Saving…' : isEdit ? 'Save changes' : createLabel}
-              </Button>
+              {!readOnly && (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={submitting || (isEdit && !registry.isDirty)}
+                  onClick={save}
+                >
+                  {submitting ? 'Saving…' : isEdit ? 'Save changes' : createLabel}
+                </Button>
+              )}
             </>
           }
         />
@@ -93,7 +101,10 @@ export function RecordFormPage({
               </Alert>
             </div>
           )}
-          {children}
+          {/* display:contents keeps the section layout while one attribute disables every control */}
+          <fieldset disabled={readOnly} className="contents">
+            {children}
+          </fieldset>
         </DetailPageBody>
 
         {after && <DetailPageBody className="border-t-0">{after}</DetailPageBody>}
