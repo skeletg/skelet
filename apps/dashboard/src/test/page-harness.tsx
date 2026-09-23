@@ -104,3 +104,22 @@ export function renderPage({
     </MockedProvider>,
   )
 }
+
+// A dialog (or any component that isn't a routed page) under the same providers
+export function renderDialog(node: ReactNode, mocks: MockLink.MockedResponse[] = [], scope: ConfigScopeContextValue = globalScope) {
+  return render(
+    <MockedProvider mocks={mocks}>
+      <ConfigScopeContext.Provider value={scope}>{node}</ConfigScopeContext.Provider>
+    </MockedProvider>,
+  )
+}
+
+// Radix's Switch measures itself inside a <form>, and jsdom has no ResizeObserver - call at the top
+// of a test file that renders one
+export function stubResizeObserver() {
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver
+}

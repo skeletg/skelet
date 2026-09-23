@@ -126,7 +126,7 @@ function ReviewLabelForm({
       </form.AppField>
 
       <form.AppField name="sortOrder">
-        {(f) => <f.NumberField id={`${p}-sort-order`} label="Sort order" className="max-w-[120px]" />}
+        {(f) => <f.NumberField id={`${p}-sort-order`} label="Sort order" className="max-w-30" />}
       </form.AppField>
     </FormDialogBody>
   )
