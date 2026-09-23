@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useMatch, useNavigate, useParams } from 'react-router-dom'
 import { gql } from '@apollo/client'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
@@ -106,7 +106,8 @@ export function ShippingZonesList() {
   const navigate = useNavigate()
   const params = useParams<{ id?: string }>()
   const rawId = params.id ?? null
-  const isCreate = rawId === 'new'
+  // /shipping/new is a literal route with no :id, so match the path rather than the param
+  const isCreate = useMatch('/shipping/new') !== null || rawId === 'new'
   const activeID = !isCreate && rawId ? rawId : null
 
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
