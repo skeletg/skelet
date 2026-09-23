@@ -319,7 +319,7 @@ export function SearchSettings() {
                       onValueChange={(v) => setReindexTarget(v as 'products' | 'blog' | 'all')}
                       disabled={reindexing}
                     >
-                      <SelectTrigger className="h-9 w-44">
+                      <SelectTrigger size="sm" className="w-44">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -333,6 +333,7 @@ export function SearchSettings() {
                       variant="outline"
                       onClick={() => void onReindex()}
                       disabled={reindexing}
+                      className="h-8"
                     >
                       {reindexing ? (
                         <Loader2Icon className="size-4 animate-spin" />

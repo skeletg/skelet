@@ -211,8 +211,8 @@ export function SearchAttributesEditor({
                   !attr.searchable && 'opacity-50',
                 )}
               >
-                <td className="px-3 py-2">
-                  <div className="flex items-center gap-2">
+                <td className="px-3 py-2 align-top">
+                  <div className="flex min-h-8 items-center gap-2">
                     <GripVerticalIcon className="size-3.5 text-muted-foreground/40" />
                     <div className="flex flex-col">
                       <span className="font-mono text-xs">{meta?.label ?? attr.name}</span>
@@ -230,14 +230,16 @@ export function SearchAttributesEditor({
                     </div>
                   </div>
                 </td>
-                <td className="px-3 py-2">
-                  <Switch
-                    checked={attr.searchable}
-                    onCheckedChange={(v) => update(i, { searchable: v })}
-                    disabled={disabled}
-                  />
+                <td className="px-3 py-2 align-top">
+                  <div className="flex h-8 items-center">
+                    <Switch
+                      checked={attr.searchable}
+                      onCheckedChange={(v) => update(i, { searchable: v })}
+                      disabled={disabled}
+                    />
+                  </div>
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 align-top">
                   <Input
                     type="number"
                     inputMode="numeric"
@@ -252,13 +254,13 @@ export function SearchAttributesEditor({
                     className="h-8 w-16"
                   />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 align-top">
                   <Select
                     value={attr.matchType}
                     onValueChange={(v) => update(i, { matchType: v })}
                     disabled={disabled || !attr.searchable}
                   >
-                    <SelectTrigger className="h-8">
+                    <SelectTrigger size="sm" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -273,13 +275,13 @@ export function SearchAttributesEditor({
                     </SelectContent>
                   </Select>
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 align-top">
                   <Select
                     value={attr.fuzziness === '' ? FUZZ_OFF : attr.fuzziness}
                     onValueChange={(v) => update(i, { fuzziness: v === FUZZ_OFF ? '' : v })}
                     disabled={fuzzDisabled}
                   >
-                    <SelectTrigger className="h-8">
+                    <SelectTrigger size="sm" className="w-full">
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
