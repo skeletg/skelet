@@ -90,6 +90,7 @@ export function renderPage({
   mocks: MockLink.MockedResponse[]
   scope?: ConfigScopeContextValue
 }) {
+  stubResizeObserver()
   return render(
     <MockedProvider mocks={mocks}>
       <ConfigScopeContext.Provider value={scope}>
@@ -107,6 +108,7 @@ export function renderPage({
 
 // A dialog (or any component that isn't a routed page) under the same providers
 export function renderDialog(node: ReactNode, mocks: MockLink.MockedResponse[] = [], scope: ConfigScopeContextValue = globalScope) {
+  stubResizeObserver()
   return render(
     <MockedProvider mocks={mocks}>
       <ConfigScopeContext.Provider value={scope}>{node}</ConfigScopeContext.Provider>
@@ -114,8 +116,8 @@ export function renderDialog(node: ReactNode, mocks: MockLink.MockedResponse[] =
   )
 }
 
-// Radix's Switch measures itself inside a <form>, and jsdom has no ResizeObserver - call at the top
-// of a test file that renders one
+// Radix switches and checkboxes measure themselves inside a <form>, and jsdom has no ResizeObserver -
+// renderPage and renderDialog install this; call it yourself when rendering without them
 export function stubResizeObserver() {
   globalThis.ResizeObserver ??= class {
     observe() {}
