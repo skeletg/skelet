@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useMatch, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { CheckCircle2Icon, CircleOffIcon, PlusIcon, ShapesIcon } from 'lucide-react'
@@ -22,6 +22,8 @@ export function CollectionsPage() {
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const { id: routeId } = useParams<{ id: string }>()
+  // /collections/new is a literal route with no :id, so match the path rather than the param
+  const isCreate = useMatch('/collections/new') !== null || routeId === 'new'
   const navigate = useNavigate()
   const { has } = usePermissions()
   const { isGlobal } = useConfigScope()
@@ -91,7 +93,7 @@ export function CollectionsPage() {
 
   // Create / detail render full-width (reached from the table) - The list itself
   // is the table
-  if (routeId === 'new') return <CollectionCreate />
+  if (isCreate) return <CollectionCreate />
   if (routeId) return <CollectionDetail key={routeId} />
 
   return (
