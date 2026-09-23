@@ -211,7 +211,7 @@ export function SearchAttributesEditor({
                   !attr.searchable && 'opacity-50',
                 )}
               >
-                <td className="px-3 py-2 align-top">
+                <td className="px-3 py-2">
                   <div className="flex min-h-8 items-center gap-2">
                     <GripVerticalIcon className="size-3.5 text-muted-foreground/40" />
                     <div className="flex flex-col">
@@ -230,7 +230,7 @@ export function SearchAttributesEditor({
                     </div>
                   </div>
                 </td>
-                <td className="px-3 py-2 align-top">
+                <td className="px-3 py-2">
                   <div className="flex h-8 items-center">
                     <Switch
                       checked={attr.searchable}
@@ -239,7 +239,7 @@ export function SearchAttributesEditor({
                     />
                   </div>
                 </td>
-                <td className="px-3 py-2 align-top">
+                <td className="px-3 py-2">
                   <Input
                     type="number"
                     inputMode="numeric"
@@ -254,13 +254,18 @@ export function SearchAttributesEditor({
                     className="h-8 w-16"
                   />
                 </td>
-                <td className="px-3 py-2 align-top">
+                <td className="px-3 py-2">
                   <Select
                     value={attr.matchType}
                     onValueChange={(v) => update(i, { matchType: v })}
                     disabled={disabled || !attr.searchable}
                   >
-                    <SelectTrigger size="sm" className="w-full">
+                    {/* The value mirrors the item's label + help, so the trigger grows to two lines
+                        instead of clipping to one, and reads left-aligned like the open list */}
+                    <SelectTrigger
+                      size="sm"
+                      className="h-auto min-h-8 w-full py-1 text-left *:data-[slot=select-value]:line-clamp-none"
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -275,7 +280,7 @@ export function SearchAttributesEditor({
                     </SelectContent>
                   </Select>
                 </td>
-                <td className="px-3 py-2 align-top">
+                <td className="px-3 py-2">
                   <Select
                     value={attr.fuzziness === '' ? FUZZ_OFF : attr.fuzziness}
                     onValueChange={(v) => update(i, { fuzziness: v === FUZZ_OFF ? '' : v })}
