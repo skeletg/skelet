@@ -25,9 +25,11 @@ type TextFieldProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange' | 
   note?: ReactNode
   /** Runs after the value is staged - for fields that drive another (name -> slug) */
   onValueChange?: (value: string) => void
+  /** Normalises what's typed before it's staged - uppercasing an ISO code, say */
+  parse?: (raw: string) => string
 }
 
-export function TextField({ label, hint, note, id, className, onValueChange, ...inputProps }: TextFieldProps) {
+export function TextField({ label, hint, note, id, className, onValueChange, parse, ...inputProps }: TextFieldProps) {
   const field = useFieldContext<string>()
   const inputId = id ?? `f-${field.name}`
   const error = fieldErrorText(field)
@@ -41,9 +43,45 @@ export function TextField({ label, hint, note, id, className, onValueChange, ...
         value={field.state.value}
         aria-invalid={error ? true : undefined}
         onChange={(e) => {
-          field.handleChange(e.target.value)
-          onValueChange?.(e.target.value)
+          const value = parse ? parse(e.target.value) : e.target.value
+          field.handleChange(value)
+          onValueChange?.(value)
         }}
+        onBlur={field.handleBlur}
+      />
+      {error ? (
+        <p className="text-xs text-destructive">{error}</p>
+      ) : (
+        hint && <p className="text-xs text-muted-foreground">{hint}</p>
+      )}
+      {note}
+    </div>
+  )
+}
+
+type NumberFieldProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange' | 'onBlur' | 'name' | 'type'> & {
+  label?: ReactNode
+  hint?: ReactNode
+  note?: ReactNode
+}
+
+// A whole-number input bound to a number value - an emptied box reads as 0, like the pages always did
+export function NumberField({ label, hint, note, id, className, ...inputProps }: NumberFieldProps) {
+  const field = useFieldContext<number>()
+  const inputId = id ?? `f-${field.name}`
+  const error = fieldErrorText(field)
+  return (
+    <div className={['grid gap-1.5', className].filter(Boolean).join(' ')}>
+      {label && <Label htmlFor={inputId}>{label}</Label>}
+      <Input
+        inputMode="numeric"
+        {...inputProps}
+        type="number"
+        id={inputId}
+        name={field.name}
+        value={field.state.value}
+        aria-invalid={error ? true : undefined}
+        onChange={(e) => field.handleChange(Number(e.target.value) || 0)}
         onBlur={field.handleBlur}
       />
       {error ? (
