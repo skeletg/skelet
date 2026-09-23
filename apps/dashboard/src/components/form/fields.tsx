@@ -265,22 +265,27 @@ export function SwitchField({
   description,
   id,
   note,
+  disabled,
+  bordered = true,
 }: {
   label: ReactNode
   description?: ReactNode
   id?: string
   note?: ReactNode
+  disabled?: boolean
+  /** False for rows grouped inside one bordered box */
+  bordered?: boolean
 }) {
   const field = useFieldContext<boolean>()
   const switchId = id ?? `f-${field.name}`
   return (
-    <div className="flex items-start justify-between gap-4 rounded-md border p-4">
+    <div className={bordered ? 'flex items-start justify-between gap-4 rounded-md border p-4' : 'flex items-start justify-between gap-4'}>
       <div className="grid gap-0.5">
         <Label htmlFor={switchId} className="text-sm">{label}</Label>
         {description && <p className="text-xs text-muted-foreground">{description}</p>}
         {note}
       </div>
-      <Switch id={switchId} checked={field.state.value} onCheckedChange={field.handleChange} />
+      <Switch id={switchId} checked={field.state.value} onCheckedChange={field.handleChange} disabled={disabled} />
     </div>
   )
 }
