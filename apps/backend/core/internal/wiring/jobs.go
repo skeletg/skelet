@@ -47,6 +47,7 @@ var Jobs = fx.Module("jobs", fx.Provide(newJobScheduler))
 type jobDeps struct {
 	fx.In
 
+	Lc      fx.Lifecycle
 	Ctx     RootContext
 	Wcfg    Config
 	Queries *db.Queries
@@ -98,6 +99,12 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 		}
 	}
 	jobScheduler.SetPollInterval(15 * time.Second)
+	if d.SignalsClient != nil && bool(d.SignalsEnabled) {
+		d.Lc.Append(fx.Hook{OnStart: func(context.Context) error {
+			go resyncRosterIfBehind(bootCtx, d.SignalsClient, jobScheduler)
+			return nil
+		}})
+	}
 	schedCfg := scheduler.NewConfig(d.Config) // Global pause switch + failure-alert webhook (config-backed)
 	jobScheduler.SetConfig(schedCfg)
 	jobScheduler.Register("scheduler-history-prune", "@every 24h", "Delete scheduled-job run history past the retention window.",
@@ -383,6 +390,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 						FirstName: c.FirstName, Phone: c.Phone, IsActive: c.IsActive,
 						GroupID:          uuid.NullUUID{UUID: c.CustomerGroupID, Valid: c.CustomerGroupID != uuid.Nil},
 						GroupSlug:        c.CustomerGroupSlug,
+						Consents:         signalsclient.ConsentsFromJSON(c.Consents),
 						MarketingOptedIn: c.MarketingOptedIn, SMSOptedIn: c.SmsOptedIn,
 					}
 				}
@@ -487,4 +495,21 @@ func PushChannelRoster(ctx context.Context, chans *channel.Service, cfg *config.
 		return err
 	}
 	return nil
+}
+
+// A roster migration on the suite's side leaves every row short a column until a full sweep lands - asked once at boot, so a deploy fixes itself instead of waiting for the six-hourly job
+func resyncRosterIfBehind(ctx context.Context, client *signalsclient.Client, jobs *scheduler.Service) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	behind, err := client.RosterNeedsFullSync(ctx)
+	if err != nil {
+		log.Printf("[roster] status: %v", err)
+		return
+	}
+	if !behind {
+		return
+	}
+	if err := jobs.RunNowByName(ctx, "customer-roster-push"); err != nil {
+		log.Printf("[roster] full sync requested but could not be scheduled: %v", err)
+	}
 }

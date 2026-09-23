@@ -37,7 +37,7 @@ func (h *harness) shopper(t *testing.T, channelID uuid.UUID, optedIn bool) (uuid
 	addr := "shopper-" + id.String()[:8] + "@e2e.test"
 	if err := h.d.Queries.UpsertCustomerRosterEntry(h.ctx, signalsdb.UpsertCustomerRosterEntryParams{
 		CustomerID: id, ChannelID: channelID, Email: addr, FirstName: "Ada", IsActive: true, MarketingOptedIn: optedIn,
-	}); err != nil {
+		Consents: json.RawMessage("{}")}); err != nil {
 		t.Fatalf("push customer: %v", err)
 	}
 	return id, addr

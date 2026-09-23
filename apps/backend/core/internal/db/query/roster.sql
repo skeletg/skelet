@@ -5,7 +5,8 @@ SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name,
        COALESCE(c.phone, '')::text AS phone, c.is_active, c.customer_group_id,
        COALESCE(g.slug, '')::text AS customer_group_slug,
        COALESCE(k.opted_in, false)::boolean AS marketing_opted_in,
-       COALESCE(s.opted_in, false)::boolean AS sms_opted_in
+       COALESCE(s.opted_in, false)::boolean AS sms_opted_in,
+       COALESCE((SELECT jsonb_object_agg(cc.kind, cc.opted_in) FROM customer_consents cc WHERE cc.customer_id = c.id), '{}'::jsonb) AS consents
 FROM customers c
 LEFT JOIN customer_groups g ON g.id = c.customer_group_id
 LEFT JOIN customer_consents k ON k.customer_id = c.id AND k.kind = 'marketing_email'
@@ -19,7 +20,8 @@ SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name,
        COALESCE(c.phone, '')::text AS phone, c.is_active, c.customer_group_id,
        COALESCE(g.slug, '')::text AS customer_group_slug,
        COALESCE(k.opted_in, false)::boolean AS marketing_opted_in,
-       COALESCE(s.opted_in, false)::boolean AS sms_opted_in
+       COALESCE(s.opted_in, false)::boolean AS sms_opted_in,
+       COALESCE((SELECT jsonb_object_agg(cc.kind, cc.opted_in) FROM customer_consents cc WHERE cc.customer_id = c.id), '{}'::jsonb) AS consents
 FROM customers c
 LEFT JOIN customer_groups g ON g.id = c.customer_group_id
 LEFT JOIN customer_consents k ON k.customer_id = c.id AND k.kind = 'marketing_email'

@@ -6,6 +6,8 @@ package signalsclient
 import (
 	"context"
 	"encoding/json"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -254,6 +256,25 @@ type RosterCustomer struct {
 	GroupSlug        string // beside the id, since segment rules are authored against slugs
 	MarketingOptedIn bool
 	SMSOptedIn       bool
+	Consents         map[string]bool
+}
+
+// ConsentsFromJSON reads the roster query's jsonb_object_agg of kind -> opted_in, which sqlc hands over untyped
+func ConsentsFromJSON(v any) map[string]bool {
+	out := map[string]bool{}
+	var raw []byte
+	switch x := v.(type) {
+	case []byte:
+		raw = x
+	case string:
+		raw = []byte(x)
+	case json.RawMessage:
+		raw = x
+	}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &out)
+	}
+	return out
 }
 
 type RosterPage struct {
@@ -294,6 +315,19 @@ func (c *Client) PushCustomerRoster(ctx context.Context, next func() (RosterPage
 		return 0, 0, err
 	}
 	return res.GetSynced(), res.GetPruned(), nil
+}
+
+// RosterNeedsFullSync is the suite saying its roster schema grew past the last full sync - the caller runs the sweep now
+func (c *Client) RosterNeedsFullSync(ctx context.Context) (bool, error) {
+	sys, err := c.System(ctx)
+	if err != nil {
+		return false, err
+	}
+	res, err := c.Ingest.RosterStatus(sys, &signalsv1.RosterStatusRequest{})
+	if err != nil {
+		return false, err
+	}
+	return res.GetNeedsFullSync(), nil
 }
 
 // ChannelEntry is one of core's active channels on the way to the suite
@@ -352,18 +386,24 @@ func rosterEntry(c RosterCustomer) *signalsv1.RosterEntry {
 		e.CustomerGroupId = c.GroupID.UUID.String()
 		e.CustomerGroupSlug = c.GroupSlug
 	}
+	for _, kind := range slices.Sorted(maps.Keys(c.Consents)) {
+		e.Consents = append(e.Consents, &signalsv1.Consent{Kind: kind, OptedIn: c.Consents[kind]})
+	}
 	return e
 }
 
 // UpsertRosterCustomer pushes one customer on a change core just committed, so an audience built
-// before the next sweep still sees it
-func (c *Client) UpsertRosterCustomer(ctx context.Context, cust RosterCustomer) error {
+// before the next sweep still sees it - the answer says whether the suite wants a full sweep too
+func (c *Client) UpsertRosterCustomer(ctx context.Context, cust RosterCustomer) (needsFullSync bool, err error) {
 	sys, err := c.System(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
-	_, err = c.Ingest.UpsertRosterEntry(sys, &signalsv1.UpsertRosterEntryRequest{Customer: rosterEntry(cust)})
-	return err
+	res, err := c.Ingest.UpsertRosterEntry(sys, &signalsv1.UpsertRosterEntryRequest{Customer: rosterEntry(cust)})
+	if err != nil {
+		return false, err
+	}
+	return res.GetNeedsFullSync(), nil
 }
 
 // DeleteRosterCustomer drops one customer ahead of the sweep that would eventually have caught them

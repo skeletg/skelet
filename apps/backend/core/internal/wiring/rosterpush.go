@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/google/uuid"
 
@@ -18,7 +19,11 @@ import (
 // The 6-hourly sweep is too coarse for what a campaign must not get wrong - an unsubscribe four hours before a send, most of all
 // Each of these re-reads the customer rather than trusting the payload, so a handler arriving out of order still lands the current row
 
-func registerRosterPush(bus *events.Bus, q *db.Queries, client *signalsclient.Client) {
+type rosterResync interface {
+	RunNowByName(ctx context.Context, name string) error
+}
+
+func registerRosterPush(bus *events.Bus, q *db.Queries, client *signalsclient.Client, jobs rosterResync) {
 	push := func(ctx context.Context, customerID uuid.UUID) error {
 		row, err := q.CustomerRosterEntry(ctx, customerID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -27,13 +32,23 @@ func registerRosterPush(bus *events.Bus, q *db.Queries, client *signalsclient.Cl
 		if err != nil {
 			return fmt.Errorf("read roster entry %s: %w", customerID, err)
 		}
-		return client.UpsertRosterCustomer(ctx, signalsclient.RosterCustomer{
+		behind, err := client.UpsertRosterCustomer(ctx, signalsclient.RosterCustomer{
 			CustomerID: row.CustomerID, ChannelID: row.ChannelID, Email: row.Email,
 			FirstName: row.FirstName, Phone: row.Phone, IsActive: row.IsActive,
 			GroupID:          uuid.NullUUID{UUID: row.CustomerGroupID, Valid: row.CustomerGroupID != uuid.Nil},
 			GroupSlug:        row.CustomerGroupSlug,
+			Consents:         signalsclient.ConsentsFromJSON(row.Consents),
 			MarketingOptedIn: row.MarketingOptedIn, SMSOptedIn: row.SmsOptedIn,
 		})
+		if err != nil {
+			return err
+		}
+		if behind && jobs != nil {
+			if err := jobs.RunNowByName(ctx, "customer-roster-push"); err != nil {
+				log.Printf("[roster] full sync requested but could not be scheduled: %v", err)
+			}
+		}
+		return nil
 	}
 
 	bus.Subscribe(customer.EventRegistered, func(ctx context.Context, e events.Event) error {

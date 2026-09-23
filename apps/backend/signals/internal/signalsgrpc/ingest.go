@@ -23,6 +23,7 @@ import (
 )
 
 type ingestServer struct {
+	roster *analytics.Roster
 	signalsv1.UnimplementedIngestServiceServer
 	rec      *analytics.Recorder
 	channels *analytics.ChannelRoster
@@ -209,7 +210,7 @@ func (s *ingestServer) SyncCustomerRoster(stream signalsv1.IngestService_SyncCus
 	if err := requireSystem(stream.Context()); err != nil {
 		return err
 	}
-	sync := s.rec.BeginRosterSync()
+	sync := s.roster.BeginRosterSync()
 	for {
 		page, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
@@ -234,7 +235,7 @@ func (s *ingestServer) SyncCustomerRoster(stream signalsv1.IngestService_SyncCus
 	if err != nil {
 		return err
 	}
-	return stream.SendAndClose(&signalsv1.SyncCustomerRosterResponse{Synced: int32(synced), Pruned: int32(pruned)})
+	return stream.SendAndClose(&signalsv1.SyncCustomerRosterResponse{Synced: int32(synced), Pruned: int32(pruned), RosterVersion: analytics.RosterVersion})
 }
 
 // Translates one wire entry, refusing the whole page on a bad id rather than landing a half-identified customer
@@ -248,6 +249,12 @@ func rosterEntry(e *signalsv1.RosterEntry) (analytics.RosterEntry, error) {
 		CustomerID: cust, ChannelID: ch, Email: e.GetEmail(), FirstName: e.GetFirstName(),
 		Phone: e.GetPhone(), IsActive: e.GetIsActive(),
 		MarketingOptedIn: e.GetMarketingOptedIn(), SMSOptedIn: e.GetSmsOptedIn(),
+	}
+	if cs := e.GetConsents(); len(cs) > 0 {
+		out.Consents = make(map[string]bool, len(cs))
+		for _, c := range cs {
+			out.Consents[c.GetKind()] = c.GetOptedIn()
+		}
 	}
 	if g := e.GetCustomerGroupId(); g != "" {
 		id, err := uuid.Parse(g)
@@ -268,10 +275,29 @@ func (s *ingestServer) UpsertRosterEntry(ctx context.Context, req *signalsv1.Ups
 	if err != nil {
 		return nil, err
 	}
-	if err := s.rec.UpsertRosterEntry(ctx, entry); err != nil {
+	if err := s.roster.UpsertRosterEntry(ctx, entry); err != nil {
 		return nil, err
 	}
-	return &signalsv1.UpsertRosterEntryResponse{}, nil
+	st, err := s.roster.RosterStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &signalsv1.UpsertRosterEntryResponse{RosterVersion: st.Version, NeedsFullSync: st.NeedsFullSync}, nil
+}
+
+func (s *ingestServer) RosterStatus(ctx context.Context, _ *signalsv1.RosterStatusRequest) (*signalsv1.RosterStatusResponse, error) {
+	if err := requireSystem(ctx); err != nil {
+		return nil, err
+	}
+	st, err := s.roster.RosterStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := &signalsv1.RosterStatusResponse{RosterVersion: st.Version, FilledVersion: st.FilledVersion, NeedsFullSync: st.NeedsFullSync}
+	if st.FilledAt != nil {
+		out.FilledAt = timestamppb.New(*st.FilledAt)
+	}
+	return out, nil
 }
 
 func (s *ingestServer) DeleteRosterEntry(ctx context.Context, req *signalsv1.DeleteRosterEntryRequest) (*signalsv1.DeleteRosterEntryResponse, error) {
@@ -282,7 +308,7 @@ func (s *ingestServer) DeleteRosterEntry(ctx context.Context, req *signalsv1.Del
 	if err != nil {
 		return nil, invalidArgument("customer id is not a uuid")
 	}
-	if err := s.rec.DeleteRosterEntry(ctx, id); err != nil {
+	if err := s.roster.DeleteRosterEntry(ctx, id); err != nil {
 		return nil, err
 	}
 	return &signalsv1.DeleteRosterEntryResponse{}, nil

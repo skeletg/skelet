@@ -29,6 +29,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/referral"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
+	"github.com/skeletg/skelet/apps/backend/core/internal/scheduler"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
@@ -62,6 +63,7 @@ type subscriberDeps struct {
 	TransactionalSender *mailsend.Sender
 	SignalsClient       *signalsclient.Client
 	Signals             SignalsEnabled
+	Jobs                *scheduler.Service `optional:"true"`
 	BackInStock         *backinstock.Service
 	Customer            *customer.Service
 	Consent             *consent.Service
@@ -115,7 +117,11 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	if !d.Signals {
 		return // the Recorder no-ops anyway - skipping the subscribe also skips their per-event order lookups
 	}
-	registerRosterPush(bus, d.Queries, d.SignalsClient) // keeps the suite's copy current between the 6-hourly sweeps
+	var resync rosterResync
+	if d.Jobs != nil {
+		resync = d.Jobs
+	}
+	registerRosterPush(bus, d.Queries, d.SignalsClient, resync) // keeps the suite's copy current between the 6-hourly sweeps
 	activity.RegisterConversionAttribution(bus, d.SignalsClient)
 	activity.NewTracker(d.SignalsClient, d.Order).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
 	d.BackInStock.Register(bus)                                  // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail

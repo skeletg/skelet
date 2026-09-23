@@ -45,8 +45,11 @@ type Deps struct {
 	Destination *destination.Service
 	Segment     *segment.Service
 	Analytics   *analytics.Recorder
-	Behavioral  *behavioralsegment.Service
-	Channels    *analytics.ChannelRoster
+	// The customer roster core pushes, and the compute that turns it into traits - separate from the event recorder
+	CustomerRoster *analytics.Roster
+	Traits         *analytics.TraitCompute
+	Behavioral     *behavioralsegment.Service
+	Channels       *analytics.ChannelRoster
 	// The suite's own upkeep, driven from core's scheduler
 	Settings signalsboot.Settings
 	Queue    *spinequeue.Queue // optional - nil when events go straight to the engine
@@ -93,11 +96,11 @@ func NewServer(d Deps) *grpc.Server {
 	signalsv1.RegisterSegmentServiceServer(srv, &segmentServer{svc: d.Segment})
 	signalsv1.RegisterPulseServiceServer(srv, &pulseServer{rec: d.Analytics, sends: d.SendLog, roster: rosterOrNil(d.Roster)})
 	signalsv1.RegisterIngestServiceServer(srv, &ingestServer{
-		rec: d.Analytics, channels: d.Channels, sends: d.SendLog, track: engagement.New(d.Analytics, d.SendLog),
+		rec: d.Analytics, roster: d.CustomerRoster, channels: d.Channels, sends: d.SendLog, track: engagement.New(d.Analytics, d.SendLog),
 	})
 	signalsv1.RegisterSettingsServiceServer(srv, &settingsServer{repo: d.SettingsRepo})
 	maint := &maintenanceServer{
-		rec: d.Analytics, lens: d.Lens, destination: d.Destination, settings: d.Settings,
+		rec: d.Analytics, roster: d.CustomerRoster, traits: d.Traits, lens: d.Lens, destination: d.Destination, settings: d.Settings,
 		segments: d.Segment, behavioral: d.Behavioral, queue: queueOrNil(d.Queue), sends: sendLogOrNil(d.SendLog),
 	}
 	if d.Flows != nil {

@@ -183,8 +183,7 @@ func newFlow(
 	contacts *RosterContacts, stores *RosterStores, mailer email.Sender, texter sms.Sender,
 	track *engagement.Tracker, rec *analytics.Recorder, segs *segment.Service, suppress *suppression.Service,
 ) *flow.Service {
-	svc := flow.NewService(flow.NewRepository(q.Queries), tmpl, contacts, flowStores{stores}, mailer, texter, track, bool(allow), []byte(cfg.JWTSecret))
-	svc.SetSuppression(suppress)
+	svc := flow.NewService(flow.NewRepository(q.Queries), tmpl, contacts, flowStores{stores}, mailer, texter, track, suppress, bool(allow), []byte(cfg.JWTSecret))
 	members := segmentMembers{segs}
 	traits := traitReader{rec}
 	svc.RegisterCondition(flow.NewEmailActivityCondition(track))
@@ -201,9 +200,7 @@ func newCampaign(
 	cfg Config, q Queries, tmpl *emailtemplate.Service, contacts *RosterContacts, stores *RosterStores,
 	settings *config.Service, mailer email.Sender, track *engagement.Tracker, segs *segment.Service, suppress *suppression.Service,
 ) *campaign.Service {
-	svc := campaign.NewService(campaign.NewRepository(q.Queries), tmpl, campaignAudience{contacts}, segmentAudience{segs}, campaignStores{stores}, settings, mailer, track, []byte(cfg.JWTSecret))
-	svc.SetSuppression(suppress)
-	return svc
+	return campaign.NewService(campaign.NewRepository(q.Queries), tmpl, campaignAudience{contacts}, segmentAudience{segs}, campaignStores{stores}, settings, mailer, track, suppress, []byte(cfg.JWTSecret))
 }
 
 // --- the suite's answers to the engine's questions ---

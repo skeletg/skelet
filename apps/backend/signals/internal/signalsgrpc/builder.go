@@ -57,6 +57,9 @@ func (s *builderServer) GetLibraryEmail(ctx context.Context, req *signalsv1.GetL
 
 func (s *builderServer) SaveLibraryEmail(ctx context.Context, req *signalsv1.SaveLibraryEmailRequest) (*signalsv1.SaveLibraryEmailResponse, error) {
 	in := req.GetEmail()
+	if in == nil {
+		return nil, invalidArgument("email is required")
+	}
 	e, err := libraryEmailInput(in)
 	if err != nil {
 		return nil, err

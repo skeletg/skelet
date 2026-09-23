@@ -56,7 +56,7 @@ Three things they share (living in `_lib`, which is sourced, not run):
 |---|---|
 | `./skelet sh` | Shell into the app container. |
 | `./skelet go` | Run go in the app container - `./skelet go build ./...`, `./skelet go test ./internal/...`. `--signals` or `--sdk` first runs it in that module instead. |
-| `./skelet cli` | The skelet ops CLI - `./skelet cli admin list`, `./skelet cli media-migrate ...`. Works with pipes and CI (only grabs a TTY when there is one). |
+| `./skelet cli` | The skelet ops CLI - `./skelet cli admin list`, `./skelet cli media-migrate ...`, `./skelet cli job run customer-roster-push` to run a scheduled job now. Works with pipes and CI (only grabs a TTY when there is one). |
 | `./skelet npm dashboard` | npm in the dashboard container - `./skelet npm dashboard run codegen`, `./skelet npm dashboard run lint`. Vite is already running via `./skelet up`, so no need for `run dev`. |
 | `./skelet npm <name>` | Same for storefronts (`apps/channels/<name>/`) - `./skelet npm <name> [name] run codegen`, `run build`; the name is optional when only one storefront exists. Note: storefront codegen/tsc only works right in the container; host runs show phantom errors (no `.next/types`). |
 | `./skelet psql` | psql shell into the dev database. |

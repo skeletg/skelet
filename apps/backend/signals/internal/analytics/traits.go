@@ -64,7 +64,17 @@ func (lc LifecycleWindows) normalized() LifecycleWindows {
 
 // The whole read-rank-upsert pass is ONE set-based statement on the primary, no per-customer round-trips, and it skips rows whose decision-relevant traits are unchanged so dormant customers don't churn - the return is the count of rows actually written
 // RFM scores are quintile ranks among the channel's ordering customers (5 best, 0 never-ordered), lifecycle derives from recency and order count against LifecycleWindows, engagement is last-30d commerce + account + email spine activity capped at 100
-func (r *Recorder) ComputeTraits(ctx context.Context, channelID uuid.UUID, now time.Time, lc LifecycleWindows) (int, error) { // driven by the trait-compute scheduled job, never the request path
+// TraitCompute turns the roster and the spine into customer_traits and the projections the recompute reads
+type TraitCompute struct {
+	qs    *signalsdb.Queries
+	spine SpineStore
+}
+
+func NewTraitCompute(qs *signalsdb.Queries, spine SpineStore) *TraitCompute {
+	return &TraitCompute{qs: qs, spine: spine}
+}
+
+func (r *TraitCompute) ComputeTraits(ctx context.Context, channelID uuid.UUID, now time.Time, lc LifecycleWindows) (int, error) { // driven by the trait-compute scheduled job, never the request path
 	lc = lc.normalized()
 	// Both projections are refreshed first, because the recompute reads them in commerce rather than reaching into the signals db - engagement for the 30-day event count, order aggregates for the RFM inputs
 	if err := r.refreshEngagement(ctx, channelID, now); err != nil {
@@ -89,7 +99,7 @@ const (
 )
 
 // Incremental by default - only customers whose events entered or left the window since the last run get recomputed, with the first run and a weekly self-heal doing the full swap and the fresh slice starting 1h early to absorb late arrivals
-func (r *Recorder) refreshEngagement(ctx context.Context, channelID uuid.UUID, now time.Time) error {
+func (r *TraitCompute) refreshEngagement(ctx context.Context, channelID uuid.UUID, now time.Time) error {
 	since := now.Add(-engagementWindow)
 	last, werr := r.qs.GetEngagementWatermark(ctx, channelID)
 	if werr != nil && !errors.Is(werr, sql.ErrNoRows) {
@@ -154,7 +164,7 @@ func (r *Recorder) refreshEngagement(ctx context.Context, channelID uuid.UUID, n
 }
 
 // The full atomic swap - one statement, so a crash can't leave the projection half-cleared for the recompute that reads it next
-func (r *Recorder) refreshEngagementFull(ctx context.Context, channelID uuid.UUID, since time.Time) error {
+func (r *TraitCompute) refreshEngagementFull(ctx context.Context, channelID uuid.UUID, since time.Time) error {
 	counts, err := r.spine.ChannelEngagementCounts(ctx, channelID, since)
 	if err != nil {
 		return fmt.Errorf("engagement counts: %w", err)
@@ -227,7 +237,7 @@ func (r *Recorder) TraitActors(ctx context.Context, channelID uuid.UUID, rule Tr
 
 // The RFM inputs, read off the spine and landed in commerce so the recompute can join them locally
 // Always a full swap: a cancellation retroactively removes an order the projection already counted, so there is no slice of "what changed" the way engagement has one
-func (r *Recorder) refreshOrderAggregates(ctx context.Context, channelID uuid.UUID) error {
+func (r *TraitCompute) refreshOrderAggregates(ctx context.Context, channelID uuid.UUID) error {
 	aggs, err := r.spine.ChannelOrderAggregates(ctx, channelID, time.Time{})
 	if err != nil {
 		return fmt.Errorf("order aggregates: %w", err)

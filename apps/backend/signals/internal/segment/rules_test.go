@@ -19,8 +19,7 @@ func TestParseRulesValidation(t *testing.T) {
 		`{"conditions":[{"kind":"trait","field":"rfm_r","op":"like","value":1}]}`,
 		`{"conditions":[{"kind":"lifecycle","op":"eq","stage":"vip"}]}`,
 		`{"conditions":[{"kind":"group"}]}`,
-		// The roster carries two consents and no others, so a rule on a third has nothing to read
-		`{"conditions":[{"kind":"consent","channel":"newsletter","granted":true}]}`,
+		`{"conditions":[{"kind":"consent","channel":"Not A Slug","granted":true}]}`,
 		`{"logic":"xor","conditions":[{"kind":"group","slug":"x"}]}`,
 		`{"conditions":[{"kind":"trait","field":"rfm_r","op":"eq","value":1,"extra":"nope"}]}`,
 	}
