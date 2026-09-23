@@ -56,5 +56,11 @@ function firstFieldError(form: AnyFormApi): string | null {
           : null
     if (message) return `Fix the highlighted field: ${message}`
   }
+  // A schema issue on a path no mounted field owns still lands on the form - say what it is
+  for (const err of form.state.errors as unknown[]) {
+    const issues = err && typeof err === 'object' ? Object.values(err as Record<string, unknown>).flat() : []
+    const first = issues.find((i): i is { message: string } => !!i && typeof i === 'object' && 'message' in i)
+    if (first) return `Fix the highlighted field: ${first.message}`
+  }
   return null
 }
