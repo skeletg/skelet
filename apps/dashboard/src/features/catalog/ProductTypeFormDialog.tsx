@@ -38,11 +38,13 @@ export function ProductTypeFormDialog({
   trigger,
   open,
   onOpenChange,
+  onCreated,
 }: {
   productType?: ExistingProductType
   trigger?: ReactNode
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  onCreated?: (productType: { id: string; name: string }) => void
 }) {
   const isEdit = !!productType
   const [internalOpen, setInternalOpen] = useState(false)
@@ -96,6 +98,9 @@ export function ProductTypeFormDialog({
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    // The dialog portals out of the DOM but not out of the React tree - without this a submit here also fires the
+    // surrounding form's onSubmit when the dialog is opened from inside one (ProductCreate)
+    e.stopPropagation()
     setSubmitError(null)
     try {
       if (isEdit && productType) {
@@ -120,9 +125,11 @@ export function ProductTypeFormDialog({
           })
         }
       } else {
-        await createProductType({
+        const result = await createProductType({
           variables: { input: { slug, name, isDigital, isShippingRequired, urlTemplate, tracksInventory } },
         })
+        const created = result.data?.createProductType
+        if (created) onCreated?.(created)
       }
       setOpen(false)
     } catch (err) {

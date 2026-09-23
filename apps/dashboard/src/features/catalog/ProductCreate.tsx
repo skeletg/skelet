@@ -9,6 +9,7 @@ import {
   GiftIcon,
   LayersIcon,
   PackageIcon,
+  PlusIcon,
   RepeatIcon,
   ShoppingBagIcon,
   SlidersHorizontalIcon,
@@ -57,6 +58,7 @@ import {
 } from './Catalog.gql'
 import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { LexicalRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
+import { ProductTypeFormDialog } from './ProductTypeFormDialog'
 
 function dollarsToCents(input: string): number {
   const n = Number(input)
@@ -143,11 +145,14 @@ const CREATABLE_KINDS: string[] = KIND_OPTIONS.map((o) => o.value)
 export function ProductCreate() {
   const navigate = useNavigate()
   const permissions = usePermissions()
-  const { globalDefaultLocale } = useConfigScope()
+  const { globalDefaultLocale, isGlobal } = useConfigScope()
   const allowedCatalogScopes = useMemo(
     () => permissions.allowedChannelScopes('catalog.manage'),
     [permissions],
   )
+  // Product types are global - same gate as the product types list
+  const canCreateProductType = permissions.has('catalog.manage')
+  const [typeDialogOpen, setTypeDialogOpen] = useState(false)
 
   const productTypesQuery = useQuery(ProductTypesDocument)
   const channelsQuery = useQuery(ChannelsDocument)
@@ -321,6 +326,26 @@ export function ProductCreate() {
   }
 
   const productTypes = productTypesQuery.data?.productTypes ?? []
+
+  // type="button" - these sit inside the product form and must not submit it
+  // className sizes it to its neighbour - h-10 beside the select trigger, compact inside the empty-state alert
+  function renderNewTypeButton(label: string, className: string) {
+    if (!canCreateProductType) return null
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        className={className}
+        disabled={!isGlobal}
+        title={isGlobal ? undefined : 'Switch the header to GLOBAL to add a product type.'}
+        onClick={() => setTypeDialogOpen(true)}
+      >
+        <PlusIcon className="size-4" />
+        {label}
+      </Button>
+    )
+  }
+
   const formReady =
     CREATABLE_KINDS.includes(kind) &&
     Boolean(productTypeId) &&
@@ -416,39 +441,48 @@ export function ProductCreate() {
           >
             <div className="grid gap-2">
               <Label htmlFor="p-type">Product type</Label>
-              <Select
-                value={productTypeId}
-                onValueChange={setProductTypeId}
-                disabled={productTypesQuery.loading || productTypes.length === 0}
-              >
-                <SelectTrigger id="p-type" className="sm:max-w-md">
-                  <SelectValue
-                    placeholder={
-                      productTypesQuery.loading
-                        ? 'Loading…'
-                        : productTypes.length === 0
-                          ? 'No product types available'
-                          : 'Select a product type…'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {productTypes.map((pt) => (
-                    <SelectItem key={pt.id} value={pt.id}>
-                      {pt.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2 sm:max-w-md">
+                <Select
+                  value={productTypeId}
+                  onValueChange={setProductTypeId}
+                  disabled={productTypesQuery.loading || productTypes.length === 0}
+                >
+                  <SelectTrigger id="p-type" className="flex-1">
+                    <SelectValue
+                      placeholder={
+                        productTypesQuery.loading
+                          ? 'Loading…'
+                          : productTypes.length === 0
+                            ? 'No product types available'
+                            : 'Select a product type…'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {productTypes.map((pt) => (
+                      <SelectItem key={pt.id} value={pt.id}>
+                        {pt.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {productTypes.length > 0 && renderNewTypeButton('New type', 'h-10 shrink-0')}
+              </div>
 
               {productTypes.length === 0 && !productTypesQuery.loading && !productTypesQuery.error && (
                 <Alert>
                   <AlertTitle>No product types yet</AlertTitle>
                   <AlertDescription>
-                    Create a product type before adding products so attributes can be assigned.
+                    <p>Create a product type before adding products so attributes can be assigned.</p>
+                    {renderNewTypeButton('Create product type', 'w-fit')}
                   </AlertDescription>
                 </Alert>
               )}
+              <ProductTypeFormDialog
+                open={typeDialogOpen}
+                onOpenChange={setTypeDialogOpen}
+                onCreated={(pt) => setProductTypeId(pt.id)}
+              />
 
               {productType && (
                 <div className="flex flex-wrap gap-1.5 pt-1 text-xs">
