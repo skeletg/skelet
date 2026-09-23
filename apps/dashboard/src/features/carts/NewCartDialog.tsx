@@ -1,37 +1,21 @@
-import { useState } from 'react'
+import { useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@apollo/client/react'
+import { useStore } from '@tanstack/react-form'
 import { XIcon } from 'lucide-react'
-
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { FormDialog } from '@/components/form/FormDialog'
+import { FormDialogBody } from '@/components/form/FormDialogBody'
+import { FieldError } from '@/components/form/fields'
+import { useDialogForm } from '@/components/form/useDialogForm'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AdminCreateCustomerDocument, CustomersDocument } from '@/features/customers/Customers.gql'
 import { AdminCreateCartDocument, CartsDocument } from './Carts.gql'
 import { CustomerSearch } from './pickers'
+import { emptyNewCart, newCartSchema, randomPassword, type NewCartValues } from './schemas/newCart'
 
-type Mode = 'guest' | 'existing' | 'new'
-
-// A strong throwaway password for an admin-created customer - they set their own
-// via password reset - Satisfies typical complexity (length + mixed classes)
-function randomPassword(): string {
-  const bytes = new Uint8Array(18)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (b) => b.toString(36).padStart(2, '0')).join('') + 'Aa1!'
-}
-
-// NewCartDialog creates a cart for a guest, an existing customer, or a brand-new
-// customer (created inline), then navigates to the cart detail
+// Creates a cart for a guest, an existing customer, or a brand-new customer (created inline), then
+// opens the cart
 export function NewCartDialog({
   open,
   onOpenChange,
@@ -41,56 +25,36 @@ export function NewCartDialog({
   onOpenChange: (open: boolean) => void
   channelId: string | undefined
 }) {
+  return (
+    <FormDialog open={open} onOpenChange={onOpenChange} className="sm:max-w-md">
+      {(close) => <NewCartForm channelId={channelId} onClose={close} />}
+    </FormDialog>
+  )
+}
+
+function NewCartForm({ channelId, onClose }: { channelId: string | undefined; onClose: () => void }) {
   const navigate = useNavigate()
-  const [mode, setMode] = useState<Mode>('existing')
-  const [picked, setPicked] = useState<{ id: string; label: string } | null>(null)
-  const [email, setEmail] = useState('')
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  const refetch = channelId ? [{ query: CartsDocument, variables: { channelId, status: 'active' } }] : []
-  const [createCart, createState] = useMutation(AdminCreateCartDocument, { refetchQueries: refetch })
-  const [createCustomer, custState] = useMutation(AdminCreateCustomerDocument, {
-    refetchQueries: [{ query: CustomersDocument, variables: {} }],
+  const [createCart] = useMutation(AdminCreateCartDocument, {
+    refetchQueries: channelId ? [{ query: CartsDocument, variables: { channelId, status: 'active' } }] : [],
   })
-  const busy = createState.loading || custState.loading
+  const [createCustomer] = useMutation(AdminCreateCustomerDocument, { refetchQueries: [{ query: CustomersDocument, variables: {} }] })
+  const createdId = useRef('')
 
-  function reset() {
-    setMode('existing')
-    setPicked(null)
-    setEmail('')
-    setFirstName('')
-    setLastName('')
-    setError(null)
-  }
-
-  async function onSubmit() {
-    if (!channelId) {
-      setError('Pick a channel in the header scope picker first.')
-      return
-    }
-    setError(null)
-    try {
+  const dialog = useDialogForm({
+    baseline: emptyNewCart,
+    schema: newCartSchema,
+    submit: async (v: NewCartValues) => {
+      if (!channelId) throw new Error('Pick a channel in the header scope picker first.')
       let customerId: string | null = null
-      if (mode === 'existing') {
-        if (!picked) {
-          setError('Pick a customer.')
-          return
-        }
-        customerId = picked.id
-      } else if (mode === 'new') {
-        if (!email.trim() || !firstName.trim() || !lastName.trim()) {
-          setError('Email, first name, and last name are required.')
-          return
-        }
+      if (v.mode === 'existing') customerId = v.customer?.id ?? null
+      if (v.mode === 'new') {
         const res = await createCustomer({
           variables: {
             input: {
               channelId,
-              email: email.trim(),
-              firstName: firstName.trim(),
-              lastName: lastName.trim(),
+              email: v.email.trim(),
+              firstName: v.firstName.trim(),
+              lastName: v.lastName.trim(),
               password: randomPassword(),
             },
           },
@@ -101,83 +65,77 @@ export function NewCartDialog({
       const res = await createCart({ variables: { channelId, customerId } })
       const id = res.data?.adminCreateCart.id
       if (!id) throw new Error('Cart creation returned no id.')
-      onOpenChange(false)
-      navigate(`/carts/${id}`)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create the cart.')
-    }
-  }
+      createdId.current = id
+    },
+    onSaved: () => {
+      onClose()
+      navigate(`/carts/${createdId.current}`)
+    },
+  })
+  const { form } = dialog
+  const mode = useStore(form.store, (s) => s.values.mode)
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (v) reset()
-        onOpenChange(v)
-      }}
+    <FormDialogBody
+      dialog={dialog}
+      title="New cart"
+      description={channelId ? 'Start a cart for a guest, an existing customer, or a new one.' : 'Pick a channel in the header scope picker first.'}
+      submitLabel="Create cart"
+      canSubmit={!!channelId}
+      onCancel={onClose}
     >
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>New cart</DialogTitle>
-          <DialogDescription>Start a cart for a guest, an existing customer, or a new one.</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-3">
-          <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
+      <form.Field name="mode">
+        {(f) => (
+          <Tabs value={f.state.value} onValueChange={(v) => f.handleChange(v as NewCartValues['mode'])}>
             <TabsList className="w-full">
-              <TabsTrigger value="existing" className="flex-1">Existing</TabsTrigger>
-              <TabsTrigger value="new" className="flex-1">New customer</TabsTrigger>
-              <TabsTrigger value="guest" className="flex-1">Guest</TabsTrigger>
+              <TabsTrigger value="existing" className="flex-1">
+                Existing
+              </TabsTrigger>
+              <TabsTrigger value="new" className="flex-1">
+                New customer
+              </TabsTrigger>
+              <TabsTrigger value="guest" className="flex-1">
+                Guest
+              </TabsTrigger>
             </TabsList>
           </Tabs>
+        )}
+      </form.Field>
 
-          {mode === 'existing' &&
-            (picked ? (
-              <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
-                <span>{picked.label}</span>
-                <Button variant="ghost" size="icon" className="size-7" onClick={() => setPicked(null)} aria-label="Clear">
-                  <XIcon className="size-3.5" />
-                </Button>
-              </div>
-            ) : (
-              <CustomerSearch onPick={(c) => setPicked({ id: c.id, label: `${c.firstName} ${c.lastName} · ${c.email}` })} />
-            ))}
-
-          {mode === 'new' && (
-            <div className="grid gap-2">
-              <div className="grid gap-1">
-                <Label htmlFor="nc-email" className="text-xs">Email</Label>
-                <Input id="nc-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="grid gap-1">
-                  <Label htmlFor="nc-first" className="text-xs">First name</Label>
-                  <Input id="nc-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+      {mode === 'existing' && (
+        <form.Field name="customer">
+          {(f) => (
+            <div className="grid gap-1">
+              {f.state.value ? (
+                <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                  <span>{f.state.value.label}</span>
+                  <Button type="button" variant="ghost" size="icon" className="size-7" onClick={() => f.handleChange(null)} aria-label="Clear">
+                    <XIcon className="size-3.5" />
+                  </Button>
                 </div>
-                <div className="grid gap-1">
-                  <Label htmlFor="nc-last" className="text-xs">Last name</Label>
-                  <Input id="nc-last" value={lastName} onChange={(e) => setLastName(e.target.value)} />
-                </div>
-              </div>
-              <p className="text-[10px] text-muted-foreground">A login is created with a random password; the customer can reset it later.</p>
+              ) : (
+                <CustomerSearch onPick={(c) => f.handleChange({ id: c.id, label: `${c.firstName} ${c.lastName} · ${c.email}` })} />
+              )}
+              <FieldError field={f} />
             </div>
           )}
+        </form.Field>
+      )}
 
-          {mode === 'guest' && (
-            <p className="text-sm text-muted-foreground">Creates an unowned guest cart you can build and later finish or assign.</p>
-          )}
-
-          {error && (
-            <Alert variant="destructive">
-              <AlertTitle>Failed</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+      {mode === 'new' && (
+        <div className="grid gap-2">
+          <form.AppField name="email">{(f) => <f.TextField id="nc-email" label="Email" type="email" />}</form.AppField>
+          <div className="grid grid-cols-2 items-start gap-2">
+            <form.AppField name="firstName">{(f) => <f.TextField id="nc-first" label="First name" />}</form.AppField>
+            <form.AppField name="lastName">{(f) => <f.TextField id="nc-last" label="Last name" />}</form.AppField>
+          </div>
+          <p className="text-[10px] text-muted-foreground">A login is created with a random password; the customer can reset it later.</p>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
-          <Button onClick={onSubmit} disabled={busy || !channelId}>{busy ? 'Creating…' : 'Create cart'}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      )}
+
+      {mode === 'guest' && (
+        <p className="text-sm text-muted-foreground">Creates an unowned guest cart you can build and later finish or assign.</p>
+      )}
+    </FormDialogBody>
   )
 }
