@@ -85,7 +85,7 @@ convention is the one most code comments point at.
   section) - so a section that round-trips its form state can never
   light the Save button. If you see that warning, fix the section's
   diff computation rather than relying on the central filter.
-- **Every page declares its unsaved work, in one of four ways.** A page
+- **Every page declares its unsaved work, in one of five ways.** A page
   that holds edits the admin could lose has to say so, or closing the
   tab, refreshing, switching channel/locale, closing a workspace tab and
   clicking a link all discard them silently. Everything lives in
@@ -123,8 +123,41 @@ convention is the one most code comments point at.
      `MenuDetail.tsx`, which re-syncs from the query and so diffs against
      the loaded menu). A mount snapshot would read as dirty forever
      there.
-  Pages that navigate after committing - every create form, and any
-  delete that returns to a list - must wrap that navigation in
+  5. **Record forms** (`useRecordForm` + `RecordFormPage`, both in
+     `src/shared/saving/`) are the default for create and edit pages, for new
+     ones and for existing ones when they're next touched. The page passes a
+     zod schema, a memoised `baseline`, a `diff`, a `persist` key and its
+     mutations. The hook wires the rest: the save registry, a TanStack form
+     (`useAppForm`, `src/components/form/form.ts`), the stored draft, the
+     section the header Save reviews, and the confirm dialog. `RecordFormPage`
+     renders the header with the one Save button, the restored-draft banner,
+     the create-failure alert and `SaveConfirmDialog`, so the page file is only
+     its sections. Bind fields with
+     `<form.AppField name="x">{(f) => <f.TextField … />}</form.AppField>`;
+     `TextField`, `SwitchField`, `CheckboxField` and `MetadataField` are
+     registered. A save rejects when validation fails or `submit` throws, so
+     the dialog stays open with the reason, and `fieldErrorsFrom` can route a
+     server message to the field it's about.
+     - **Schemas** live in `features/<domain>/schemas/<entity>.ts`: the zod
+       schema, its `Values` type, `to<Entity>Values(record)`,
+       `to<Entity>Input(values)`, the field labels and the diff, with a
+       `<entity>.test.ts` beside it. One schema serves both create and edit.
+       Key/value metadata uses `src/shared/schemas/metadata.ts`, so it's
+       always diffed, one entry per key.
+     - **Drafts** (`persist`, `src/lib/form-drafts.ts`) keep the admin's work
+       in localStorage, keyed admin → workspace tab → page, with a 7-day TTL.
+       A refresh or a closed browser gives it back. Refresh, close and scope
+       switches stop prompting; closing the workspace tab still does, and
+       deletes the draft. Dialogs pass `persist: false`. List secrets in
+       `exclude`, because they must never reach storage.
+     - **Every migrated page gets a page test** (`<Page>.test.tsx`, Apollo
+       `MockedProvider`): edit, check that Save enables, check what the
+       dialog lists, confirm, and assert the mutation's variables. A section
+       registered in the same component as `useSaveRegistry()` needs the
+       registry passed explicitly (`useSaveSection(reg, registry)`), because
+       context can't reach the component that renders the Provider. Several
+       pages lost their Save button that way.
+     Reference: `features/inventory/InventoryLocationForm.tsx`.
   `duringCommit()` (`src/lib/nav-guard.ts`), or the work they just saved
   gets a "discard changes?" prompt on the way out. `ConfirmDialog` and
   `useSaveRegistry().saveAll()` already do this for you.

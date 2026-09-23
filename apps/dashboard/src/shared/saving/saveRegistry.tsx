@@ -39,8 +39,12 @@ export function normalizeDiff(id: string, diff: SectionDiffEntry[]): SectionDiff
   return kept
 }
 
-export function useSaveSection(reg: SectionRegistration) {  // re-registers when the diff content changes, and removes its entry on unmount
-  const ctx = useContext(SaveRegistryContext)
+// `registry` - pass the page's own contextValue when the section lives in the SAME component that
+// calls useSaveRegistry: that component renders the Provider, so it can't read it from context -
+// without this the section silently registers nowhere and the header Save never lights up
+export function useSaveSection(reg: SectionRegistration, registry?: SaveRegistryValue) {  // re-registers when the diff content changes, and removes its entry on unmount
+  const fromContext = useContext(SaveRegistryContext)
+  const ctx = registry ?? fromContext
   const regRef = useRef(reg)
   // Declared before the register effect so registration reads a fresh ref
   useEffect(() => {
@@ -68,7 +72,9 @@ export function useSaveSection(reg: SectionRegistration) {  // re-registers when
 }
 
 // `label` names the page in the discard prompts - left off, the workspace tab's own title stands in
-export function useSaveRegistry(label?: string) {  // page side - owns the section map, the dirty subset for the dialog, and the save runner
+// `persisted` - the page keeps its edits in a stored draft (usePersistedForm), so only closing its
+// workspace tab prompts
+export function useSaveRegistry(label?: string, opts: { persisted?: boolean } = {}) {  // page side - owns the section map, the dirty subset for the dialog, and the save runner
   const [sections, setSections] = useState<Record<string, SectionRegistration>>({})
   const register = useCallback((reg: SectionRegistration) => {
     setSections((prev) => ({ ...prev, [reg.id]: reg }))
@@ -102,6 +108,6 @@ export function useSaveRegistry(label?: string) {  // page side - owns the secti
   // Every staged-save page is a page that can lose work, so the guard is wired HERE rather than
   // per page - closing, refreshing or switching scope with a dirty section now always prompts
   const isDirty = dirtySections.length > 0
-  useUnsavedChangesGuard(isDirty, label)
+  useUnsavedChangesGuard(isDirty, label, opts)
   return { contextValue, dirtySections, isDirty, saveAll }
 }
