@@ -1,7 +1,7 @@
 -- Customer segments and their membership table - segments are an admin bucket of customers; membership is materialised explicitly - the promotion engine reads them via Service.SegmentSlugsForCustomer and merges into the customer's group list, so the existing core.customer_group_in condition handles segment-gated rules with no engine changes
 
 -- name: CreateCustomerSegment :one
-INSERT INTO customer_segments (slug, name, description, refresh_sql, is_active)
+INSERT INTO customer_segments (slug, name, description, definition, is_active)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
@@ -10,14 +10,14 @@ UPDATE customer_segments
 SET slug         = $2,
     name         = $3,
     description  = $4,
-    refresh_sql  = $5,
+    definition   = $5,
     is_active    = $6,
     updated_at   = NOW()
 WHERE id = $1
 RETURNING *;
 
 -- name: SetSegmentLifecycleWindows :one
--- Set (or clear, by passing NULLs) a segment's lifecycle-cadence override - kept separate from UpdateCustomerSegment so the Synapse segment-refresh sync (which rewrites name/refresh_sql on auto-segments) never disturbs an operator's override
+-- Set (or clear, by passing NULLs) a segment's lifecycle-cadence override - kept separate from UpdateCustomerSegment so the Synapse segment-refresh sync (which rewrites name/definition on auto-segments) never disturbs an operator's override
 UPDATE customer_segments
 SET lifecycle_new_days     = sqlc.narg(new_days),
     lifecycle_active_days  = sqlc.narg(active_days),
@@ -57,8 +57,7 @@ VALUES ($1, $2)
 ON CONFLICT DO NOTHING;
 
 -- name: BulkAddCustomersToSegment :exec
--- Used by the admin "assign N customers" path and by the future
--- refresh-job that re-runs a segment's refresh_sql
+-- The admin "assign N customers" path and the refreshes that swap a computed membership in
 INSERT INTO customer_segment_memberships (customer_id, segment_id)
 SELECT customer_id, sqlc.arg(segment_id)::UUID
 FROM unnest(sqlc.arg(customer_ids)::UUID[]) AS t(customer_id)
@@ -88,8 +87,8 @@ SELECT customer_id FROM customer_segment_memberships WHERE segment_id = sqlc.arg
 
 -- name: SegmentSlugsForCustomer :many
 -- Hot path for the promotion engine: every active segment slug a customer belongs to, so a disabled segment stops firing promotions
--- rules + refresh_sql ride along so the caller can tell a computed segment from a hand-picked one
-SELECT s.slug, s.rules, s.refresh_sql
+-- rules + definition ride along so the caller can tell a computed segment from a hand-picked one
+SELECT s.slug, s.rules, s.definition
 FROM customer_segments s
 JOIN customer_segment_memberships m ON m.segment_id = s.id
 WHERE m.customer_id = $1 AND s.is_active = TRUE

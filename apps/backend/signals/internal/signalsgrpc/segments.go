@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -117,6 +118,9 @@ func (s *segmentServer) CreateSegment(ctx context.Context, req *signalsv1.Create
 	if err := requirePermission(ctx, "promotions.manage"); err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(req.GetSlug()) == "" || strings.TrimSpace(req.GetName()) == "" {
+		return nil, invalidArgument("slug and name are required")
+	}
 	sg, err := s.svc.Create(ctx, segment.CreateInput{
 		Slug: req.GetSlug(), Name: req.GetName(), Description: req.GetDescription(),
 		IsActive: req.IsActive == nil || req.GetIsActive(), // a segment created without saying so is active
@@ -142,7 +146,7 @@ func (s *segmentServer) UpdateSegment(ctx context.Context, req *signalsv1.Update
 	}
 	in := segment.UpdateInput{
 		ID: id, Slug: existing.Slug, Name: existing.Name,
-		Description: existing.Description, RefreshSQL: existing.RefreshSQL, IsActive: existing.IsActive,
+		Description: existing.Description, Definition: existing.Definition, IsActive: existing.IsActive,
 	}
 	if req.Slug != nil {
 		in.Slug = req.GetSlug()

@@ -66,7 +66,7 @@ type CreateInput struct {
 	Slug        string
 	Name        string
 	Description string
-	RefreshSQL  string
+	Definition  string
 	IsActive    bool
 }
 
@@ -78,7 +78,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Segment, error) {
 		Slug:        in.Slug,
 		Name:        in.Name,
 		Description: in.Description,
-		RefreshSQL:  in.RefreshSQL,
+		Definition:  in.Definition,
 		IsActive:    in.IsActive,
 	})
 }
@@ -88,7 +88,7 @@ type UpdateInput struct {
 	Slug        string
 	Name        string
 	Description string
-	RefreshSQL  string
+	Definition  string
 	IsActive    bool
 }
 
@@ -98,7 +98,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (Segment, error) {
 		Slug:        in.Slug,
 		Name:        in.Name,
 		Description: in.Description,
-		RefreshSQL:  in.RefreshSQL,
+		Definition:  in.Definition,
 		IsActive:    in.IsActive,
 	})
 }
