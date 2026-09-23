@@ -1,31 +1,14 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useMutation } from '@apollo/client/react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
+import { FormDialog } from '@/components/form/FormDialog'
+import { FormDialogBody } from '@/components/form/FormDialogBody'
+import { useDialogForm } from '@/components/form/useDialogForm'
 import { Label } from '@/components/ui/label'
 import { RoleSelector } from '@/components/RoleSelector'
 import { AdminsDocument, CreateAdminDocument, UpdateAdminDocument } from './Admins.gql'
+import { createAdminSchema, editAdminSchema, toAdminValues, type ExistingAdmin } from './schemas/admin'
 
-export type ExistingAdmin = {
-  id: string
-  email: string
-  firstName: string
-  lastName: string
-  isActive: boolean
-  isSuperuser: boolean
-  roles: { slug: string }[]
-}
+export type { ExistingAdmin }
 
 export function AdminFormDialog({
   admin,
@@ -38,185 +21,88 @@ export function AdminFormDialog({
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
-  const isEdit = !!admin
-  const [internalOpen, setInternalOpen] = useState(false)
-  const actualOpen = open ?? internalOpen
-  const setOpen = onOpenChange ?? setInternalOpen
-
-  const [firstName, setFirstName] = useState(admin?.firstName ?? '')
-  const [lastName, setLastName] = useState(admin?.lastName ?? '')
-  const [email, setEmail] = useState(admin?.email ?? '')
-  const [password, setPassword] = useState('')
-  const [isActive, setIsActive] = useState(admin?.isActive ?? true)
-  const [roleSlugs, setRoleSlugs] = useState<string[]>(
-    admin?.roles.map((r) => r.slug) ?? [],
+  return (
+    <FormDialog open={open} onOpenChange={onOpenChange} trigger={trigger} className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+      {(close) => <AdminForm admin={admin} onClose={close} />}
+    </FormDialog>
   )
-  const [submitError, setSubmitError] = useState<string | null>(null)
+}
 
-  // Reset the form when the dialog (re)opens or the target admin changes
-  // while open (adjust-state-during-render)
-  const [prevOpen, setPrevOpen] = useState(actualOpen)
-  const [prevAdmin, setPrevAdmin] = useState(admin)
-  if (prevOpen !== actualOpen || prevAdmin !== admin) {
-    setPrevOpen(actualOpen)
-    setPrevAdmin(admin)
-    if (actualOpen) {
-      setFirstName(admin?.firstName ?? '')
-      setLastName(admin?.lastName ?? '')
-      setEmail(admin?.email ?? '')
-      setPassword('')
-      setIsActive(admin?.isActive ?? true)
-      setRoleSlugs(admin?.roles.map((r) => r.slug) ?? [])
-      setSubmitError(null)
-    }
-  }
+function AdminForm({ admin, onClose }: { admin?: ExistingAdmin; onClose: () => void }) {
+  const refetchQueries = [{ query: AdminsDocument }]
+  const [createAdmin] = useMutation(CreateAdminDocument, { refetchQueries })
+  const [updateAdmin] = useMutation(UpdateAdminDocument, { refetchQueries })
 
-  const [createAdmin, { loading: creating }] = useMutation(CreateAdminDocument, {
-    refetchQueries: [{ query: AdminsDocument }],
+  const dialog = useDialogForm({
+    baseline: toAdminValues(admin),
+    schema: admin ? editAdminSchema : createAdminSchema,
+    submit: async (v) => {
+      const profile = { firstName: v.firstName.trim(), lastName: v.lastName.trim(), roleSlugs: v.roleSlugs }
+      if (admin) await updateAdmin({ variables: { id: admin.id, input: { ...profile, isActive: v.isActive } } })
+      else await createAdmin({ variables: { input: { ...profile, email: v.email.trim(), password: v.password } } })
+    },
+    onSaved: onClose,
   })
-  const [updateAdmin, { loading: updating }] = useMutation(UpdateAdminDocument, {
-    refetchQueries: [{ query: AdminsDocument }],
-  })
-  const loading = creating || updating
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSubmitError(null)
-    try {
-      if (isEdit && admin) {
-        await updateAdmin({
-          variables: {
-            id: admin.id,
-            input: { firstName, lastName, isActive, roleSlugs },
-          },
-        })
-      } else {
-        await createAdmin({
-          variables: { input: { firstName, lastName, email, password, roleSlugs } },
-        })
-      }
-      setOpen(false)
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Something went wrong.')
-    }
-  }
+  const { form } = dialog
 
   return (
-    <Dialog open={actualOpen} onOpenChange={setOpen}>
-      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            {isEdit ? `Edit ${admin?.firstName} ${admin?.lastName}`.trim() : 'New admin'}
-          </DialogTitle>
-          <DialogDescription>
-            {isEdit
-              ? 'Update the admin\'s profile, roles, and active status. Email and password can\'t be changed here.'
-              : 'The admin will be able to sign in immediately with the password you set here. Share credentials over a secure channel.'}
-          </DialogDescription>
-        </DialogHeader>
+    <FormDialogBody
+      dialog={dialog}
+      title={admin ? `Edit ${admin.firstName} ${admin.lastName}`.trim() : 'New admin'}
+      description={
+        admin
+          ? "Update the admin's profile, roles, and active status. Email and password can't be changed here."
+          : 'The admin will be able to sign in immediately with the password you set here. Share credentials over a secure channel.'
+      }
+      submitLabel={admin ? 'Save changes' : 'Create admin'}
+      onCancel={onClose}
+    >
+      <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+        <form.AppField name="firstName">
+          {(f) => <f.TextField id="admin-first" label="First name" autoComplete="given-name" />}
+        </form.AppField>
+        <form.AppField name="lastName">
+          {(f) => <f.TextField id="admin-last" label="Last name" autoComplete="family-name" />}
+        </form.AppField>
+      </div>
 
-        <form id="admin-form" onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="admin-first">First name</Label>
-              <Input
-                id="admin-first"
-                required
-                autoComplete="given-name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="admin-last">Last name</Label>
-              <Input
-                id="admin-last"
-                required
-                autoComplete="family-name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-              />
-            </div>
-          </div>
+      <form.AppField name="email">
+        {(f) => (
+          <f.TextField
+            id="admin-email"
+            label="Email"
+            type="email"
+            autoComplete="off"
+            disabled={!!admin}
+            hint={admin ? 'Email is immutable.' : undefined}
+          />
+        )}
+      </form.AppField>
 
-          <div className="grid gap-2">
-            <Label htmlFor="admin-email">Email</Label>
-            <Input
-              id="admin-email"
-              type="email"
-              required
-              disabled={isEdit}
-              autoComplete="off"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            {isEdit && (
-              <p className="text-xs text-muted-foreground">Email is immutable.</p>
-            )}
-          </div>
-
-          {!isEdit && (
-            <div className="grid gap-2">
-              <Label htmlFor="admin-password">Password</Label>
-              <Input
-                id="admin-password"
-                type="password"
-                required
-                minLength={8}
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">Minimum 8 characters.</p>
-            </div>
+      {!admin && (
+        <form.AppField name="password">
+          {(f) => (
+            <f.TextField id="admin-password" label="Password" type="password" autoComplete="new-password" hint="Minimum 8 characters." />
           )}
+        </form.AppField>
+      )}
 
-          {isEdit && (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="admin-active"
-                checked={isActive}
-                onCheckedChange={(v) => setIsActive(!!v)}
-              />
-              <Label htmlFor="admin-active" className="cursor-pointer">
-                Active - inactive admins cannot sign in
-              </Label>
-            </div>
-          )}
+      {admin && (
+        <form.AppField name="isActive">
+          {(f) => <f.CheckboxField id="admin-active" label="Active - inactive admins cannot sign in" />}
+        </form.AppField>
+      )}
 
-          {isEdit && admin?.isSuperuser ? (
-            <div className="grid gap-2">
-              <Label>Roles</Label>
-              <p className="rounded border bg-muted p-3 text-sm text-muted-foreground">
-                This admin is a superuser and bypasses role-based permissions. Role assignments
-                have no effect.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-2">
-              <Label>Roles</Label>
-              <RoleSelector selected={roleSlugs} onChange={setRoleSlugs} />
-            </div>
-          )}
-
-          {submitError && (
-            <Alert variant="destructive">
-              <AlertTitle>{isEdit ? 'Couldn\'t update admin' : 'Couldn\'t create admin'}</AlertTitle>
-              <AlertDescription>{submitError}</AlertDescription>
-            </Alert>
-          )}
-        </form>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" form="admin-form" disabled={loading}>
-            {loading ? 'Saving…' : isEdit ? 'Save changes' : 'Create admin'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <div className="grid gap-2">
+        <Label>Roles</Label>
+        {admin?.isSuperuser ? (
+          <p className="rounded border bg-muted p-3 text-sm text-muted-foreground">
+            This admin is a superuser and bypasses role-based permissions. Role assignments have no effect.
+          </p>
+        ) : (
+          <form.Field name="roleSlugs">{(f) => <RoleSelector selected={f.state.value} onChange={f.handleChange} />}</form.Field>
+        )}
+      </div>
+    </FormDialogBody>
   )
 }
