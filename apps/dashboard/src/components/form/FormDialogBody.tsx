@@ -13,6 +13,7 @@ export function FormDialogBody({
   submitLabel,
   onCancel,
   children,
+  scrollable = false,
 }: {
   dialog: { form: AnyFormApi; error: string | null; onSubmit: (e: FormEvent<HTMLFormElement>) => void }
   title: ReactNode
@@ -20,15 +21,21 @@ export function FormDialogBody({
   submitLabel: string
   onCancel: () => void
   children: ReactNode
+  /** Long forms: the fields scroll between a fixed header and footer - pair with a max-h on the DialogContent */
+  scrollable?: boolean
 }) {
   const submitting = useStore(dialog.form.store, (s) => s.isSubmitting)
   return (
-    <form onSubmit={dialog.onSubmit} className="grid gap-4" noValidate>
+    <form
+      onSubmit={dialog.onSubmit}
+      className={scrollable ? 'flex min-h-0 flex-1 flex-col gap-4' : 'grid gap-4'}
+      noValidate
+    >
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
         {description && <DialogDescription>{description}</DialogDescription>}
       </DialogHeader>
-      {children}
+      {scrollable ? <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto py-1 pr-1">{children}</div> : children}
       {dialog.error && (
         <Alert variant="destructive">
           <AlertTitle>Save failed</AlertTitle>
