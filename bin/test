@@ -2,7 +2,8 @@
 # go test + frontend typechecks + dashboard vitest - extra args go to go test
 #
 # The Go half runs against disposable databases (skelet_test / skelet_test_signals, plus a
-# skelet_test_signals ClickHouse database when the spine is up), fresh each run. Without them
+# skelet_test_signals ClickHouse database when the spine is up), fresh each run, and every test
+# binary clones its own copy of them (lib/testdb), so parallel packages never share rows. Without them
 # testdb.Require skips every database-backed test - the dev databases are never marked disposable,
 # on purpose - and a run that skipped a hundred and fifty tests still ended in "tests OK"
 #
@@ -40,6 +41,8 @@ fi
 echo "==> preparing disposable test databases"
 ensure_pg_db db "$TEST_DB" $fresh
 ensure_pg_db signals-db "$TEST_SIG_DB" $fresh
+drop_clones db "$TEST_DB"
+drop_clones signals-db "$TEST_SIG_DB"
 unmark_dev_dbs
 echo "==> migrating commerce ($TEST_DB)"
 docker compose exec -T app migrate -path internal/db/migrations -database "$TEST_DB_URL" up

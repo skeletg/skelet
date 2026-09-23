@@ -180,3 +180,28 @@ func TestRowTimeoutBoundsRunAndReleasesLease(t *testing.T) {
 		t.Fatal("lease not released after the timed-out run")
 	}
 }
+
+func TestRunNowByNamePullsTheJobForward(t *testing.T) {
+	svc, conn, _ := newDBService(t)
+	ctx := context.Background()
+	name := "run-now-" + uuid.NewString()[:8]
+	svc.Register(name, "@every 24h", "run-now fixture", func(context.Context) error { return nil })
+	if err := svc.Seed(ctx); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM scheduled_jobs WHERE name = $1`, name) })
+
+	if err := svc.RunNowByName(ctx, name); err != nil {
+		t.Fatalf("RunNowByName: %v", err)
+	}
+	var due time.Time
+	if err := conn.QueryRow(`SELECT next_run_at FROM scheduled_jobs WHERE name = $1`, name).Scan(&due); err != nil {
+		t.Fatalf("read due: %v", err)
+	}
+	if time.Until(due) > time.Minute {
+		t.Errorf("next run is %s away, want it pulled to now", time.Until(due))
+	}
+	if err := svc.RunNowByName(ctx, "no-such-job-"+uuid.NewString()[:8]); err == nil {
+		t.Error("an unknown job name was accepted")
+	}
+}

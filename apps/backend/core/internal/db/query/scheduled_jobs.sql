@@ -53,6 +53,9 @@ RETURNING *;
 -- "Run now": pull the next run forward (the engine picks it up on its next tick)
 UPDATE scheduled_jobs SET next_run_at = $2, updated_at = now() WHERE id = $1;
 
+-- name: SetScheduledJobNextRunByName :execrows
+UPDATE scheduled_jobs SET next_run_at = $2, updated_at = now() WHERE name = $1;
+
 -- name: DeleteScheduledJob :exec
 -- Only webhook (admin-created) jobs are deletable; code jobs are owned by code
 DELETE FROM scheduled_jobs WHERE id = $1 AND kind = 'webhook';

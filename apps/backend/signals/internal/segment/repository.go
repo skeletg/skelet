@@ -62,7 +62,7 @@ func (r *postgresRepository) Create(ctx context.Context, in Segment) (Segment, e
 		Slug:        in.Slug,
 		Name:        in.Name,
 		Description: in.Description,
-		RefreshSql:  in.RefreshSQL,
+		Definition:  in.Definition,
 		IsActive:    in.IsActive,
 	})
 	if err != nil {
@@ -77,7 +77,7 @@ func (r *postgresRepository) Update(ctx context.Context, in Segment) (Segment, e
 		Slug:        in.Slug,
 		Name:        in.Name,
 		Description: in.Description,
-		RefreshSql:  in.RefreshSQL,
+		Definition:  in.Definition,
 		IsActive:    in.IsActive,
 	})
 	if err != nil {
@@ -224,7 +224,7 @@ func (r *postgresRepository) MembershipsForCustomer(ctx context.Context, custome
 	}
 	out := make([]Membership, len(rows))
 	for i, row := range rows {
-		out[i] = Membership{Slug: row.Slug, Rules: row.Rules.RawMessage, RefreshSQL: row.RefreshSql}
+		out[i] = Membership{Slug: row.Slug, Rules: row.Rules.RawMessage, Definition: row.Definition}
 	}
 	return out, nil
 }
@@ -274,7 +274,7 @@ func toSegment(row db.CustomerSegment) Segment {
 		Slug:                row.Slug,
 		Name:                row.Name,
 		Description:         row.Description,
-		RefreshSQL:          row.RefreshSql,
+		Definition:          row.Definition,
 		Rules:               row.Rules.RawMessage,
 		IsActive:            row.IsActive,
 		LifecycleNewDays:    nullToInt32Ptr(row.LifecycleNewDays),

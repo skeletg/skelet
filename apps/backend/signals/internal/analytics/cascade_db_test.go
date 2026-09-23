@@ -18,7 +18,7 @@ import (
 func TestDeletingACustomerTakesTheirFlowRunsAndTargetedRows(t *testing.T) {
 	conn := testdb.RequireSignals(t)
 	ctx := context.Background()
-	rec := NewRecorder(signalsdb.New(conn), nil)
+	rec := NewRoster(signalsdb.New(conn))
 
 	customerID, channelID := uuid.New(), uuid.New()
 	var flowID, campaignID uuid.UUID

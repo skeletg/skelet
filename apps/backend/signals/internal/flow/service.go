@@ -49,14 +49,12 @@ type suppressionChecker interface {
 	IsSuppressed(ctx context.Context, email string) bool
 }
 
-func (s *Service) SetSuppression(sc suppressionChecker) { s.suppress = sc }
-
 // unsubKey signs unsubscribe and tracking links, the same key core verifies them with
-func NewService(repo Repository, tmpl *emailtemplate.Service, contacts contactReader, stores storeReader, sender emailpkg.Sender, smsSender sms.Sender, sends sendTracker, allowPrivateWebhook bool, unsubKey []byte) *Service {
+func NewService(repo Repository, tmpl *emailtemplate.Service, contacts contactReader, stores storeReader, sender emailpkg.Sender, smsSender sms.Sender, sends sendTracker, suppress suppressionChecker, allowPrivateWebhook bool, unsubKey []byte) *Service {
 	s := &Service{
 		repo: repo, tmpl: tmpl, contacts: contacts,
 		stores: stores, sender: sender, sms: smsSender,
-		sends:      sends,
+		sends: sends, suppress: suppress,
 		conditions: NewConditionRegistry(),
 		nodes:      NewNodeRegistry(),
 		track:      emailtrack.NewSigner(unsubKey),

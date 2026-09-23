@@ -28,8 +28,7 @@ type Querier interface {
 	BrowseNotifiedForCustomers(ctx context.Context, customerIds []uuid.UUID) ([]BrowseNotified, error)
 	// One keyset page of anon-keyed browse rows newer than the lookback, newest-first, for the browse-abandonment scan. Identity resolution, the latest-per-customer pick, the idle-threshold check and the notified filter all run app-side (the identities live on the spine engine, which this Postgres table can't join); paging bounds the fetch and each resolve batch on an arbitrarily busy window.
 	BrowseSeenSincePage(ctx context.Context, arg BrowseSeenSincePageParams) ([]BrowseSeen, error)
-	// Used by the admin "assign N customers" path and by the future
-	// refresh-job that re-runs a segment's refresh_sql
+	// The admin "assign N customers" path and the refreshes that swap a computed membership in
 	BulkAddCustomersToSegment(ctx context.Context, arg BulkAddCustomersToSegmentParams) error
 	BumpCampaignClicked(ctx context.Context, id uuid.UUID) error
 	BumpCampaignOpened(ctx context.Context, id uuid.UUID) error
@@ -126,6 +125,7 @@ type Querier interface {
 	GetExperiment(ctx context.Context, id uuid.UUID) (Experiment, error)
 	GetFlow(ctx context.Context, id uuid.UUID) (Flow, error)
 	GetLibraryEmail(ctx context.Context, id uuid.UUID) (EmailLibrary, error)
+	GetRosterState(ctx context.Context) (GetRosterStateRow, error)
 	// The email assigned to a transactional slot for a channel (if any) - the render
 	// path checks this before the email_templates -> built-in fallback
 	GetSlotEmail(ctx context.Context, arg GetSlotEmailParams) (EmailLibrary, error)
@@ -336,7 +336,7 @@ type Querier interface {
 	// customer, so the sum needs no DISTINCT of its own
 	SegmentOrderRollup(ctx context.Context, customerIds []uuid.UUID) (SegmentOrderRollupRow, error)
 	// Hot path for the promotion engine: every active segment slug a customer belongs to, so a disabled segment stops firing promotions
-	// rules + refresh_sql ride along so the caller can tell a computed segment from a hand-picked one
+	// rules + definition ride along so the caller can tell a computed segment from a hand-picked one
 	SegmentSlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentSlugsForCustomerRow, error)
 	// Active segments a customer belongs to, with id + name (for the Synapse
 	// profile "audiences" panel - chips that deep-link to each segment page)
@@ -347,7 +347,8 @@ type Querier interface {
 	SetEngagementWatermark(ctx context.Context, arg SetEngagementWatermarkParams) error
 	SetEventDestinationError(ctx context.Context, arg SetEventDestinationErrorParams) error
 	SetFlowStatus(ctx context.Context, arg SetFlowStatusParams) (int64, error)
-	// Set (or clear, by passing NULLs) a segment's lifecycle-cadence override - kept separate from UpdateCustomerSegment so the Synapse segment-refresh sync (which rewrites name/refresh_sql on auto-segments) never disturbs an operator's override
+	SetRosterFilled(ctx context.Context, filledVersion int32) error
+	// Set (or clear, by passing NULLs) a segment's lifecycle-cadence override - kept separate from UpdateCustomerSegment so the Synapse segment-refresh sync (which rewrites name/definition on auto-segments) never disturbs an operator's override
 	SetSegmentLifecycleWindows(ctx context.Context, arg SetSegmentLifecycleWindowsParams) (CustomerSegment, error)
 	SetSegmentRules(ctx context.Context, arg SetSegmentRulesParams) (CustomerSegment, error)
 	// The rows a read has to consider: the platform default, plus the channel override when one is asked for

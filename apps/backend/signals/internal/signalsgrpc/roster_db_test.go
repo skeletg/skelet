@@ -30,7 +30,7 @@ func rosterServer(t *testing.T) (signalsv1.IngestServiceClient, *signalsdb.Queri
 
 	qs := signalsdb.New(conn)
 	lis := bufconn.Listen(1 << 20)
-	srv := NewServer(Deps{ServiceSecret: testSecret, Analytics: analytics.NewRecorder(qs, nil)})
+	srv := NewServer(Deps{ServiceSecret: testSecret, Analytics: analytics.NewRecorder(qs, nil), CustomerRoster: analytics.NewRoster(qs)})
 	go func() { _ = srv.Serve(lis) }()
 	cc, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) { return lis.DialContext(ctx) }),
@@ -173,5 +173,54 @@ func TestAPushedEntryArrivesWithEveryFieldItLeftWith(t *testing.T) {
 	}
 	if !group.Valid || group.UUID != groupID {
 		t.Errorf("group = %v, want %s - a group-audience campaign filters on it", group, groupID)
+	}
+}
+
+func TestRosterAsksForAFullSyncUntilOneLands(t *testing.T) {
+	ingest, _, channelID := rosterServer(t)
+	ctx := rosterCtx(t)
+	if _, err := testdb.RequireSignals(t).Exec(`DELETE FROM customer_roster_state`); err != nil {
+		t.Fatalf("reset roster state: %v", err)
+	}
+
+	up, err := ingest.UpsertRosterEntry(ctx, &signalsv1.UpsertRosterEntryRequest{
+		Customer: &signalsv1.RosterEntry{CustomerId: uuid.NewString(), ChannelId: channelID.String()},
+	})
+	if err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if up.GetRosterVersion() != analytics.RosterVersion || !up.GetNeedsFullSync() {
+		t.Errorf("before any full sync: version=%d needs=%v, want %d and true", up.GetRosterVersion(), up.GetNeedsFullSync(), analytics.RosterVersion)
+	}
+	st, err := ingest.RosterStatus(ctx, &signalsv1.RosterStatusRequest{})
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if !st.GetNeedsFullSync() || st.GetFilledVersion() != 0 || st.GetFilledAt() != nil {
+		t.Errorf("status before a sync = %+v, want behind with nothing filled", st)
+	}
+
+	stream, err := ingest.SyncCustomerRoster(ctx)
+	if err != nil {
+		t.Fatalf("open stream: %v", err)
+	}
+	if err := stream.Send(&signalsv1.SyncCustomerRosterRequest{Customers: []*signalsv1.RosterEntry{
+		{CustomerId: uuid.NewString(), ChannelId: channelID.String()},
+	}}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	res, err := stream.CloseAndRecv()
+	if err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if res.GetRosterVersion() != analytics.RosterVersion {
+		t.Errorf("sync answered version %d, want %d", res.GetRosterVersion(), analytics.RosterVersion)
+	}
+	st, err = ingest.RosterStatus(ctx, &signalsv1.RosterStatusRequest{})
+	if err != nil {
+		t.Fatalf("status after sync: %v", err)
+	}
+	if st.GetNeedsFullSync() || st.GetFilledVersion() != analytics.RosterVersion || st.GetFilledAt() == nil {
+		t.Errorf("status after a full sync = %+v, want filled at the current version", st)
 	}
 }

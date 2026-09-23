@@ -8,6 +8,7 @@ package signalsdb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -228,6 +229,22 @@ func (q *Queries) GetEngagementWatermark(ctx context.Context, channelID uuid.UUI
 	var ran_at time.Time
 	err := row.Scan(&ran_at)
 	return ran_at, err
+}
+
+const getRosterState = `-- name: GetRosterState :one
+SELECT filled_version, filled_at FROM customer_roster_state WHERE one_row
+`
+
+type GetRosterStateRow struct {
+	FilledVersion int32        `json:"filled_version"`
+	FilledAt      sql.NullTime `json:"filled_at"`
+}
+
+func (q *Queries) GetRosterState(ctx context.Context) (GetRosterStateRow, error) {
+	row := q.db.QueryRowContext(ctx, getRosterState)
+	var i GetRosterStateRow
+	err := row.Scan(&i.FilledVersion, &i.FilledAt)
+	return i, err
 }
 
 const lifecycleMixForCustomers = `-- name: LifecycleMixForCustomers :many
@@ -911,6 +928,16 @@ func (q *Queries) SetEngagementWatermark(ctx context.Context, arg SetEngagementW
 	return err
 }
 
+const setRosterFilled = `-- name: SetRosterFilled :exec
+INSERT INTO customer_roster_state (one_row, filled_version, filled_at) VALUES (true, $1, now())
+ON CONFLICT (one_row) DO UPDATE SET filled_version = EXCLUDED.filled_version, filled_at = EXCLUDED.filled_at
+`
+
+func (q *Queries) SetRosterFilled(ctx context.Context, filledVersion int32) error {
+	_, err := q.db.ExecContext(ctx, setRosterFilled, filledVersion)
+	return err
+}
+
 const traitsForCustomers = `-- name: TraitsForCustomers :many
 SELECT customer_id, lifecycle_stage, recency_days, engagement_score
 FROM customer_traits
@@ -1012,18 +1039,19 @@ func (q *Queries) UpsertChannelRoster(ctx context.Context, arg UpsertChannelRost
 
 const upsertCustomerRoster = `-- name: UpsertCustomerRoster :exec
 
-INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, synced_at)
+INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, synced_at)
 SELECT unnest($1::uuid[]), unnest($2::uuid[]),
        unnest($3::text[]), unnest($4::text[]),
        unnest($5::text[]), unnest($6::boolean[]),
        unnest($7::uuid[]), unnest($8::text[]),
-       unnest($9::boolean[]), unnest($10::boolean[]), $11
+       unnest($9::boolean[]), unnest($10::boolean[]),
+       unnest($11::text[])::jsonb, $12
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
         phone = EXCLUDED.phone, is_active = EXCLUDED.is_active, customer_group_id = EXCLUDED.customer_group_id,
         customer_group_slug = EXCLUDED.customer_group_slug,
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
-        synced_at = EXCLUDED.synced_at
+        consents = EXCLUDED.consents, synced_at = EXCLUDED.synced_at
 `
 
 type UpsertCustomerRosterParams struct {
@@ -1037,6 +1065,7 @@ type UpsertCustomerRosterParams struct {
 	GroupSlugs  []string    `json:"group_slugs"`
 	OptedIn     []bool      `json:"opted_in"`
 	SmsOptedIn  []bool      `json:"sms_opted_in"`
+	Consents    []string    `json:"consents"`
 	SyncedAt    time.Time   `json:"synced_at"`
 }
 
@@ -1055,35 +1084,37 @@ func (q *Queries) UpsertCustomerRoster(ctx context.Context, arg UpsertCustomerRo
 		pq.Array(arg.GroupSlugs),
 		pq.Array(arg.OptedIn),
 		pq.Array(arg.SmsOptedIn),
+		pq.Array(arg.Consents),
 		arg.SyncedAt,
 	)
 	return err
 }
 
 const upsertCustomerRosterEntry = `-- name: UpsertCustomerRosterEntry :exec
-INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, synced_at)
+INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, synced_at)
 VALUES ($1, $2, $3, $4,
         $5, $6, $7, $8,
-        $9, $10, now())
+        $9, $10, $11::jsonb, now())
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
         phone = EXCLUDED.phone, is_active = EXCLUDED.is_active, customer_group_id = EXCLUDED.customer_group_id,
         customer_group_slug = EXCLUDED.customer_group_slug,
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
-        synced_at = EXCLUDED.synced_at
+        consents = EXCLUDED.consents, synced_at = EXCLUDED.synced_at
 `
 
 type UpsertCustomerRosterEntryParams struct {
-	CustomerID        uuid.UUID     `json:"customer_id"`
-	ChannelID         uuid.UUID     `json:"channel_id"`
-	Email             string        `json:"email"`
-	FirstName         string        `json:"first_name"`
-	Phone             string        `json:"phone"`
-	IsActive          bool          `json:"is_active"`
-	CustomerGroupID   uuid.NullUUID `json:"customer_group_id"`
-	CustomerGroupSlug string        `json:"customer_group_slug"`
-	MarketingOptedIn  bool          `json:"marketing_opted_in"`
-	SmsOptedIn        bool          `json:"sms_opted_in"`
+	CustomerID        uuid.UUID       `json:"customer_id"`
+	ChannelID         uuid.UUID       `json:"channel_id"`
+	Email             string          `json:"email"`
+	FirstName         string          `json:"first_name"`
+	Phone             string          `json:"phone"`
+	IsActive          bool            `json:"is_active"`
+	CustomerGroupID   uuid.NullUUID   `json:"customer_group_id"`
+	CustomerGroupSlug string          `json:"customer_group_slug"`
+	MarketingOptedIn  bool            `json:"marketing_opted_in"`
+	SmsOptedIn        bool            `json:"sms_opted_in"`
+	Consents          json.RawMessage `json:"consents"`
 }
 
 // One customer, arriving on a change rather than a sweep - synced_at moves too, so the next sweep does not prune a row that just landed
@@ -1099,6 +1130,7 @@ func (q *Queries) UpsertCustomerRosterEntry(ctx context.Context, arg UpsertCusto
 		arg.CustomerGroupSlug,
 		arg.MarketingOptedIn,
 		arg.SmsOptedIn,
+		arg.Consents,
 	)
 	return err
 }

@@ -61,8 +61,8 @@ type Service struct {
 	qr     *signalsdb.Queries // optional signals read pool for the aggregations
 	rec    *analytics.Recorder
 	cfg    Settings
-	rollup *analytics.TrafficRollup // optional; nil in CLI/test
-	blobs  BlobStore                // nil only on the CLI and test paths, where ingest drops blobs instead
+	rollup *analytics.TrafficRollup
+	blobs  BlobStore // nil only on the CLI and test paths, where ingest drops blobs instead
 }
 
 // Settings is the slice of the store's settings Lens reads, declared here so the package depends on the shape rather than on whoever holds them
@@ -73,12 +73,9 @@ type Settings interface {
 	String(ctx context.Context, path string, channelID *uuid.UUID) (string, error)
 }
 
-func NewService(q *signalsdb.Queries, rec *analytics.Recorder, cfg Settings) *Service {
-	return &Service{q: q, rec: rec, cfg: cfg}
+func NewService(q *signalsdb.Queries, rec *analytics.Recorder, cfg Settings, rollup *analytics.TrafficRollup) *Service {
+	return &Service{q: q, rec: rec, cfg: cfg, rollup: rollup}
 }
-
-// Optional - when nil, human page-view counts simply aren't rolled up
-func (s *Service) SetRollup(r *analytics.TrafficRollup) { s.rollup = r }
 
 // Optional - when unset, reads use the primary pool
 func (s *Service) SetReadQueries(qr *signalsdb.Queries) { s.qr = qr }
