@@ -14,6 +14,7 @@ export function FormDialogBody({
   onCancel,
   children,
   scrollable = false,
+  canSubmit = true,
 }: {
   dialog: { form: AnyFormApi; error: string | null; onSubmit: (e: FormEvent<HTMLFormElement>) => void }
   title: ReactNode
@@ -23,6 +24,8 @@ export function FormDialogBody({
   children: ReactNode
   /** Long forms: the fields scroll between a fixed header and footer - pair with a max-h on the DialogContent */
   scrollable?: boolean
+  /** False disables the submit button - nothing to send yet */
+  canSubmit?: boolean
 }) {
   const submitting = useStore(dialog.form.store, (s) => s.isSubmitting)
   return (
@@ -46,7 +49,7 @@ export function FormDialogBody({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={submitting}>
+        <Button type="submit" disabled={submitting || !canSubmit}>
           {submitting ? 'Saving…' : submitLabel}
         </Button>
       </DialogFooter>
