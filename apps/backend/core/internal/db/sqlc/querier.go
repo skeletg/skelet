@@ -1517,6 +1517,7 @@ type Querier interface {
 	SetReviewStatus(ctx context.Context, arg SetReviewStatusParams) (Review, error)
 	// "Run now": pull the next run forward (the engine picks it up on its next tick)
 	SetScheduledJobNextRun(ctx context.Context, arg SetScheduledJobNextRunParams) error
+	SetScheduledJobNextRunByName(ctx context.Context, arg SetScheduledJobNextRunByNameParams) (int64, error)
 	SetShippingCarrierCountryMode(ctx context.Context, arg SetShippingCarrierCountryModeParams) (ShippingCarrier, error)
 	SetShippingCarrierEnabled(ctx context.Context, arg SetShippingCarrierEnabledParams) (ShippingCarrier, error)
 	SetShippingCarrierSortOrder(ctx context.Context, arg SetShippingCarrierSortOrderParams) (ShippingCarrier, error)

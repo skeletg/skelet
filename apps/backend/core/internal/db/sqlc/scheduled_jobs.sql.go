@@ -431,6 +431,23 @@ func (q *Queries) SetScheduledJobNextRun(ctx context.Context, arg SetScheduledJo
 	return err
 }
 
+const setScheduledJobNextRunByName = `-- name: SetScheduledJobNextRunByName :execrows
+UPDATE scheduled_jobs SET next_run_at = $2, updated_at = now() WHERE name = $1
+`
+
+type SetScheduledJobNextRunByNameParams struct {
+	Name      string       `json:"name"`
+	NextRunAt sql.NullTime `json:"next_run_at"`
+}
+
+func (q *Queries) SetScheduledJobNextRunByName(ctx context.Context, arg SetScheduledJobNextRunByNameParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setScheduledJobNextRunByName, arg.Name, arg.NextRunAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateScheduledJobSchedule = `-- name: UpdateScheduledJobSchedule :one
 UPDATE scheduled_jobs
 SET schedule              = $2,
