@@ -26,6 +26,7 @@ import { WorkspaceTabsProvider } from '@/lib/workspace-tabs'
 import { scopePermissionForPath } from '@/nav/scope-permission'
 import { ConfigScopeProvider } from '@/lib/config-scope-ui'
 import { useUnloadGuard } from '@/lib/unsaved-changes'
+import { purgeExpiredDrafts } from '@/lib/form-drafts'
 import {
   SidebarInset,
   SidebarProvider,
@@ -71,6 +72,11 @@ export function DashboardLayout() {
   // One listener for the whole shell - it reads the dirty registry when the browser asks, so it
   // needs no state of its own and never re-subscribes
   useUnloadGuard()
+
+  // Once per shell mount - form drafts nobody came back to within the TTL are abandoned work
+  useEffect(() => {
+    purgeExpiredDrafts()
+  }, [])
 
   // recents resolve to the owning nav PAGE (longest prefix), so ten order details count as one
   // "Orders" entry rather than ten near-duplicates
