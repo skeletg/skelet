@@ -1,5 +1,5 @@
 // Package segment is the customer-segments domain - an admin-defined bucket of customers like "VIP", "first-time buyers" or "lapsed for 90 days"
-// v2 scope, not built yet: a definition language (the refresh_sql column is reserved for it), an auto-refresh scheduler, and materialised-view backing
+// Membership is materialised: static segments are hand-picked, rule segments recompute from rules.go on the refresh sweep, and behavioural segments keep their definition in the definition column
 package segment
 
 import (
@@ -19,7 +19,7 @@ type MemberSegment struct {
 type Membership struct {
 	Slug       string
 	Rules      json.RawMessage
-	RefreshSQL string
+	Definition string
 }
 
 type Member struct {
@@ -33,7 +33,7 @@ type Segment struct {
 	Slug        string
 	Name        string
 	Description string
-	RefreshSQL  string // placeholder - Rules is the live definition
+	Definition  string // a behavioural segment's JSON definition (behavioralsegment) - empty for static and rule segments
 	// The dynamic-segment condition tree (rules.go) - nil for a static or trait segment
 	Rules               json.RawMessage
 	IsActive            bool

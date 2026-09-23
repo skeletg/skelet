@@ -43,8 +43,7 @@ type BulkAddCustomersToSegmentParams struct {
 	CustomerIds []uuid.UUID `json:"customer_ids"`
 }
 
-// Used by the admin "assign N customers" path and by the future
-// refresh-job that re-runs a segment's refresh_sql
+// The admin "assign N customers" path and the refreshes that swap a computed membership in
 func (q *Queries) BulkAddCustomersToSegment(ctx context.Context, arg BulkAddCustomersToSegmentParams) error {
 	_, err := q.db.ExecContext(ctx, bulkAddCustomersToSegment, arg.SegmentID, pq.Array(arg.CustomerIds))
 	return err
@@ -120,16 +119,16 @@ func (q *Queries) CountSegmentMembersByIDs(ctx context.Context, segmentIds []uui
 
 const createCustomerSegment = `-- name: CreateCustomerSegment :one
 
-INSERT INTO customer_segments (slug, name, description, refresh_sql, is_active)
+INSERT INTO customer_segments (slug, name, description, definition, is_active)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, slug, name, description, refresh_sql, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules
+RETURNING id, slug, name, description, definition, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules
 `
 
 type CreateCustomerSegmentParams struct {
 	Slug        string `json:"slug"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	RefreshSql  string `json:"refresh_sql"`
+	Definition  string `json:"definition"`
 	IsActive    bool   `json:"is_active"`
 }
 
@@ -139,7 +138,7 @@ func (q *Queries) CreateCustomerSegment(ctx context.Context, arg CreateCustomerS
 		arg.Slug,
 		arg.Name,
 		arg.Description,
-		arg.RefreshSql,
+		arg.Definition,
 		arg.IsActive,
 	)
 	var i CustomerSegment
@@ -148,7 +147,7 @@ func (q *Queries) CreateCustomerSegment(ctx context.Context, arg CreateCustomerS
 		&i.Slug,
 		&i.Name,
 		&i.Description,
-		&i.RefreshSql,
+		&i.Definition,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -170,7 +169,7 @@ func (q *Queries) DeleteCustomerSegment(ctx context.Context, id uuid.UUID) error
 }
 
 const getCustomerSegment = `-- name: GetCustomerSegment :one
-SELECT id, slug, name, description, refresh_sql, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules FROM customer_segments WHERE id = $1
+SELECT id, slug, name, description, definition, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules FROM customer_segments WHERE id = $1
 `
 
 func (q *Queries) GetCustomerSegment(ctx context.Context, id uuid.UUID) (CustomerSegment, error) {
@@ -181,7 +180,7 @@ func (q *Queries) GetCustomerSegment(ctx context.Context, id uuid.UUID) (Custome
 		&i.Slug,
 		&i.Name,
 		&i.Description,
-		&i.RefreshSql,
+		&i.Definition,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -194,7 +193,7 @@ func (q *Queries) GetCustomerSegment(ctx context.Context, id uuid.UUID) (Custome
 }
 
 const getCustomerSegmentBySlug = `-- name: GetCustomerSegmentBySlug :one
-SELECT id, slug, name, description, refresh_sql, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules FROM customer_segments WHERE slug = $1
+SELECT id, slug, name, description, definition, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules FROM customer_segments WHERE slug = $1
 `
 
 func (q *Queries) GetCustomerSegmentBySlug(ctx context.Context, slug string) (CustomerSegment, error) {
@@ -205,7 +204,7 @@ func (q *Queries) GetCustomerSegmentBySlug(ctx context.Context, slug string) (Cu
 		&i.Slug,
 		&i.Name,
 		&i.Description,
-		&i.RefreshSql,
+		&i.Definition,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -218,7 +217,7 @@ func (q *Queries) GetCustomerSegmentBySlug(ctx context.Context, slug string) (Cu
 }
 
 const listCustomerSegments = `-- name: ListCustomerSegments :many
-SELECT id, slug, name, description, refresh_sql, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules FROM customer_segments
+SELECT id, slug, name, description, definition, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules FROM customer_segments
 ORDER BY slug
 LIMIT $1 OFFSET $2
 `
@@ -242,7 +241,7 @@ func (q *Queries) ListCustomerSegments(ctx context.Context, arg ListCustomerSegm
 			&i.Slug,
 			&i.Name,
 			&i.Description,
-			&i.RefreshSql,
+			&i.Definition,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -265,7 +264,7 @@ func (q *Queries) ListCustomerSegments(ctx context.Context, arg ListCustomerSegm
 }
 
 const listDynamicSegments = `-- name: ListDynamicSegments :many
-SELECT id, slug, name, description, refresh_sql, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules FROM customer_segments
+SELECT id, slug, name, description, definition, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules FROM customer_segments
 WHERE rules IS NOT NULL AND is_active = TRUE
 ORDER BY created_at
 `
@@ -284,7 +283,7 @@ func (q *Queries) ListDynamicSegments(ctx context.Context) ([]CustomerSegment, e
 			&i.Slug,
 			&i.Name,
 			&i.Description,
-			&i.RefreshSql,
+			&i.Definition,
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -420,7 +419,7 @@ func (q *Queries) SegmentMemberCustomerIDs(ctx context.Context, segmentID uuid.U
 }
 
 const segmentSlugsForCustomer = `-- name: SegmentSlugsForCustomer :many
-SELECT s.slug, s.rules, s.refresh_sql
+SELECT s.slug, s.rules, s.definition
 FROM customer_segments s
 JOIN customer_segment_memberships m ON m.segment_id = s.id
 WHERE m.customer_id = $1 AND s.is_active = TRUE
@@ -430,11 +429,11 @@ ORDER BY s.slug
 type SegmentSlugsForCustomerRow struct {
 	Slug       string                `json:"slug"`
 	Rules      pqtype.NullRawMessage `json:"rules"`
-	RefreshSql string                `json:"refresh_sql"`
+	Definition string                `json:"definition"`
 }
 
 // Hot path for the promotion engine: every active segment slug a customer belongs to, so a disabled segment stops firing promotions
-// rules + refresh_sql ride along so the caller can tell a computed segment from a hand-picked one
+// rules + definition ride along so the caller can tell a computed segment from a hand-picked one
 func (q *Queries) SegmentSlugsForCustomer(ctx context.Context, customerID uuid.UUID) ([]SegmentSlugsForCustomerRow, error) {
 	rows, err := q.db.QueryContext(ctx, segmentSlugsForCustomer, customerID)
 	if err != nil {
@@ -444,7 +443,7 @@ func (q *Queries) SegmentSlugsForCustomer(ctx context.Context, customerID uuid.U
 	items := []SegmentSlugsForCustomerRow{}
 	for rows.Next() {
 		var i SegmentSlugsForCustomerRow
-		if err := rows.Scan(&i.Slug, &i.Rules, &i.RefreshSql); err != nil {
+		if err := rows.Scan(&i.Slug, &i.Rules, &i.Definition); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -504,7 +503,7 @@ SET lifecycle_new_days     = $1,
     lifecycle_at_risk_days = $3,
     updated_at             = NOW()
 WHERE id = $4
-RETURNING id, slug, name, description, refresh_sql, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules
+RETURNING id, slug, name, description, definition, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules
 `
 
 type SetSegmentLifecycleWindowsParams struct {
@@ -514,7 +513,7 @@ type SetSegmentLifecycleWindowsParams struct {
 	ID         uuid.UUID     `json:"id"`
 }
 
-// Set (or clear, by passing NULLs) a segment's lifecycle-cadence override - kept separate from UpdateCustomerSegment so the Synapse segment-refresh sync (which rewrites name/refresh_sql on auto-segments) never disturbs an operator's override
+// Set (or clear, by passing NULLs) a segment's lifecycle-cadence override - kept separate from UpdateCustomerSegment so the Synapse segment-refresh sync (which rewrites name/definition on auto-segments) never disturbs an operator's override
 func (q *Queries) SetSegmentLifecycleWindows(ctx context.Context, arg SetSegmentLifecycleWindowsParams) (CustomerSegment, error) {
 	row := q.db.QueryRowContext(ctx, setSegmentLifecycleWindows,
 		arg.NewDays,
@@ -528,7 +527,7 @@ func (q *Queries) SetSegmentLifecycleWindows(ctx context.Context, arg SetSegment
 		&i.Slug,
 		&i.Name,
 		&i.Description,
-		&i.RefreshSql,
+		&i.Definition,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -544,7 +543,7 @@ const setSegmentRules = `-- name: SetSegmentRules :one
 UPDATE customer_segments
 SET rules = $2, updated_at = NOW()
 WHERE id = $1
-RETURNING id, slug, name, description, refresh_sql, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules
+RETURNING id, slug, name, description, definition, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules
 `
 
 type SetSegmentRulesParams struct {
@@ -560,7 +559,7 @@ func (q *Queries) SetSegmentRules(ctx context.Context, arg SetSegmentRulesParams
 		&i.Slug,
 		&i.Name,
 		&i.Description,
-		&i.RefreshSql,
+		&i.Definition,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -577,11 +576,11 @@ UPDATE customer_segments
 SET slug         = $2,
     name         = $3,
     description  = $4,
-    refresh_sql  = $5,
+    definition   = $5,
     is_active    = $6,
     updated_at   = NOW()
 WHERE id = $1
-RETURNING id, slug, name, description, refresh_sql, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules
+RETURNING id, slug, name, description, definition, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules
 `
 
 type UpdateCustomerSegmentParams struct {
@@ -589,7 +588,7 @@ type UpdateCustomerSegmentParams struct {
 	Slug        string    `json:"slug"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
-	RefreshSql  string    `json:"refresh_sql"`
+	Definition  string    `json:"definition"`
 	IsActive    bool      `json:"is_active"`
 }
 
@@ -599,7 +598,7 @@ func (q *Queries) UpdateCustomerSegment(ctx context.Context, arg UpdateCustomerS
 		arg.Slug,
 		arg.Name,
 		arg.Description,
-		arg.RefreshSql,
+		arg.Definition,
 		arg.IsActive,
 	)
 	var i CustomerSegment
@@ -608,7 +607,7 @@ func (q *Queries) UpdateCustomerSegment(ctx context.Context, arg UpdateCustomerS
 		&i.Slug,
 		&i.Name,
 		&i.Description,
-		&i.RefreshSql,
+		&i.Definition,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
