@@ -196,9 +196,11 @@ type MetadataRow = { key: string; value: string }
 
 // Free-form key/value rows (shared/schemas/metadata) - edits the whole array in one go, which keeps
 // the diff and the stored draft working on the field as one value
-export function MetadataField({ note }: { note?: ReactNode }) {
+// `label` names the rows for screen readers - pages with two lists (public, private) tell them apart
+export function MetadataField({ note, label = 'Metadata' }: { note?: ReactNode; label?: string }) {
   const field = useFieldContext<MetadataRow[]>()
   const rows = field.state.value
+  const error = fieldErrorText(field)
   const set = (next: MetadataRow[]) => field.handleChange(next)
   return (
     <div className="grid gap-2">
@@ -209,13 +211,13 @@ export function MetadataField({ note }: { note?: ReactNode }) {
           <div key={i} className="grid grid-cols-[1fr_2fr_auto] items-center gap-2">
             <Input
               placeholder="Key"
-              aria-label={`Metadata ${i + 1} key`}
+              aria-label={`${label} ${i + 1} key`}
               value={row.key}
               onChange={(e) => set(rows.map((r, j) => (j === i ? { ...r, key: e.target.value } : r)))}
             />
             <Input
               placeholder="Value"
-              aria-label={`Metadata ${i + 1} value`}
+              aria-label={`${label} ${i + 1} value`}
               value={row.value}
               onChange={(e) => set(rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))}
             />
@@ -224,7 +226,7 @@ export function MetadataField({ note }: { note?: ReactNode }) {
               variant="ghost"
               size="icon"
               className="size-8"
-              aria-label={`Remove metadata ${i + 1}`}
+              aria-label={`Remove ${label.toLowerCase()} ${i + 1}`}
               onClick={() => set(rows.filter((_, j) => j !== i))}
             >
               <Trash2Icon className="size-4" />
@@ -232,6 +234,7 @@ export function MetadataField({ note }: { note?: ReactNode }) {
           </div>
         ))
       )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
       {note}
       <Button
         type="button"
