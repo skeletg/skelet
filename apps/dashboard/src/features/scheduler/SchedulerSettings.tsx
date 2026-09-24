@@ -1,74 +1,91 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
-
+import { useStore } from '@tanstack/react-form'
+import { useAppForm } from '@/components/form/form'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { useUnsavedChangesGuard } from '@/lib/unsaved-changes'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { SetConfigValueDocument } from '@/features/settings/Settings.gql'
-import { SchedulerConfigDocument } from './Scheduler.gql'
+import { SchedulerConfigDocument, type SchedulerConfigQuery } from './Scheduler.gql'
 import { DEFAULT_SCOPE } from './scheduler-config'
-
-const PATH_ENABLED = 'system/scheduler/enabled'
-const PATH_ALERT = 'system/scheduler/alert_webhook_url'
-const PATH_RETENTION = 'system/scheduler/history_retention_days'
+import {
+  PATH_ENABLED,
+  changedSchedulerConfig,
+  schedulerSettingsSchema,
+  toSchedulerSettingsValues,
+} from './schemas/schedulerSettings'
 
 /**
- * SchedulerSettings is the global config strip: master pause switch, failure
- * alert webhook, and run-history retention - Writes go straight through
- * setConfigValue (immediate, like the other settings/list pages) and refetch
- * the shared SchedulerConfig query so the paused banner stays in sync
+ * SchedulerSettings is the global config strip: master pause switch, failure alert webhook, and
+ * run-history retention. It sits on the jobs list, which has no header Save, so the strip carries
+ * its own - the pause switch writes the moment it's flipped, being a lifecycle action rather than a
+ * field. Writes refetch the shared SchedulerConfig query so the paused banner stays in sync
  */
 export function SchedulerSettings() {
   const { has } = usePermissions()
   const canView = has('config.view')
-  const canEdit = has('config.manage_defaults')
   const { data } = useQuery(SchedulerConfigDocument, {
     variables: { scope: DEFAULT_SCOPE },
     skip: !canView,
   })
-  const [setConfigValue, { loading: saving }] = useMutation(SetConfigValueDocument, {
+
+  // Global settings are config-backed; hide the strip entirely from admins without config
+  // visibility (they keep per-job scheduler controls)
+  if (!canView || !data) return null
+  return <SchedulerSettingsForm config={data} canEdit={has('config.manage_defaults')} />
+}
+
+function SchedulerSettingsForm({ config, canEdit }: { config: SchedulerConfigQuery; canEdit: boolean }) {
+  const [setConfigValue, { loading: pausing }] = useMutation(SetConfigValueDocument, {
     refetchQueries: [{ query: SchedulerConfigDocument, variables: { scope: DEFAULT_SCOPE } }],
   })
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
 
-  const enabled = data?.enabled?.value !== 'false'
-  const [alertUrl, setAlertUrl] = useState('')
-  const [retention, setRetention] = useState('30')
-  const [savedField, setSavedField] = useState<string | null>(null)
-  const [err, setErr] = useState<string | null>(null)
-
-  // Seed local inputs once the config loads (state adjustment during
-  // render, keyed on the config objects themselves)
-  const alertCfg = data?.alertWebhookUrl
-  const retentionCfg = data?.historyRetentionDays
-  const [prevCfg, setPrevCfg] = useState<{
-    alert: typeof alertCfg
-    retention: typeof retentionCfg
-  }>({ alert: undefined, retention: undefined })
-  if (prevCfg.alert !== alertCfg || prevCfg.retention !== retentionCfg) {
-    setPrevCfg({ alert: alertCfg, retention: retentionCfg })
-    if (alertCfg) setAlertUrl(alertCfg.value)
-    if (retentionCfg) setRetention(retentionCfg.value)
-  }
-
-  async function save(path: string, value: string, fieldLabel: string) {
-    setErr(null)
+  const enabled = config.enabled?.value !== 'false'
+  async function setEnabled(on: boolean) {
+    setError(null)
     try {
-      await setConfigValue({ variables: { path, value, scope: DEFAULT_SCOPE } })
-      setSavedField(fieldLabel)
-      setTimeout(() => setSavedField((s) => (s === fieldLabel ? null : s)), 1500)
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Save failed.')
+      await setConfigValue({ variables: { path: PATH_ENABLED, value: on ? 'true' : 'false', scope: DEFAULT_SCOPE } })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed.')
     }
   }
 
-  // Global settings are config-backed; hide the strip entirely from admins
-  // without config visibility (they keep per-job scheduler controls)
-  if (!canView) return null
+  const baseline = useMemo(() => toSchedulerSettingsValues(config), [config])
+  const form = useAppForm({
+    defaultValues: baseline,
+    validators: { onChange: schedulerSettingsSchema },
+    onSubmit: async ({ value }) => {
+      setError(null)
+      try {
+        for (const { path, value: v } of changedSchedulerConfig(baseline, value)) {
+          await setConfigValue({ variables: { path, value: v, scope: DEFAULT_SCOPE } })
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Save failed.')
+        return
+      }
+      form.reset(value)
+      setSaved(true)
+    },
+  })
+  const values = useStore(form.store, (s) => s.values)
+  const submitting = useStore(form.store, (s) => s.isSubmitting)
+  const dirty = changedSchedulerConfig(baseline, values).length > 0
+  useUnsavedChangesGuard(dirty, 'Scheduler settings')
 
   return (
-    <div className="rounded-md border p-4">
+    <form
+      className="rounded-md border p-4"
+      onSubmit={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        void form.handleSubmit()
+      }}
+    >
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold">Scheduler settings</h2>
@@ -78,66 +95,33 @@ export function SchedulerSettings() {
           <Label htmlFor="sched-enabled" className="text-sm">
             {enabled ? 'Running' : 'Paused'}
           </Label>
-          <Switch
-            id="sched-enabled"
-            checked={enabled}
-            disabled={!canEdit || saving}
-            onCheckedChange={(v) => save(PATH_ENABLED, v ? 'true' : 'false', 'enabled')}
-          />
+          <Switch id="sched-enabled" checked={enabled} disabled={!canEdit || pausing} onCheckedChange={(v) => void setEnabled(v)} />
         </div>
       </div>
 
-      {err && <p className="mb-2 text-xs text-destructive">{err}</p>}
+      {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
 
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="grid gap-1.5">
-          <Label htmlFor="alert-url" className="text-xs">Failure alert webhook URL</Label>
-          <div className="flex gap-2">
-            <Input
+      <fieldset disabled={!canEdit} className="grid items-start gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto]">
+        <form.AppField name="alertWebhookUrl">
+          {(f) => (
+            <f.TextField
               id="alert-url"
-              value={alertUrl}
-              onChange={(e) => setAlertUrl(e.target.value)}
+              label="Failure alert webhook URL"
               placeholder="https://hooks.example.com/scheduler-alerts"
-              disabled={!canEdit}
               className="text-sm"
+              hint="POSTed (HMAC-signed) when a job crosses its alert-after-failures threshold."
             />
-            <Button
-              className="h-10"
-              variant="outline"
-              size="sm"
-              disabled={!canEdit || saving || alertUrl === (data?.alertWebhookUrl?.value ?? '')}
-              onClick={() => save(PATH_ALERT, alertUrl.trim(), 'alert')}
-            >
-              {savedField === 'alert' ? 'Saved' : 'Save'}
-            </Button>
-          </div>
-          <p className="text-[11px] leading-tight text-muted-foreground">
-            POSTed (HMAC-signed) when a job crosses its alert-after-failures threshold.
-          </p>
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="retention" className="text-xs">Run-history retention (days)</Label>
-          <div className="flex gap-2">
-            <Input
-              id="retention"
-              type="number"
-              min={1}
-              value={retention}
-              onChange={(e) => setRetention(e.target.value)}
-              disabled={!canEdit}
-            />
-            <Button
-              className="h-10"
-              variant="outline"
-              size="sm"
-              disabled={!canEdit || saving || retention === (data?.historyRetentionDays?.value ?? '')}
-              onClick={() => save(PATH_RETENTION, String(Math.max(1, Number(retention) || 30)), 'retention')}
-            >
-              {savedField === 'retention' ? 'Saved' : 'Save'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
+          )}
+        </form.AppField>
+        <form.AppField name="historyRetentionDays">
+          {(f) => <f.NumberField id="retention" label="Run-history retention (days)" min={1} />}
+        </form.AppField>
+        {canEdit && (
+          <Button type="submit" variant="outline" size="sm" className="h-10 sm:mt-5.5" disabled={!dirty || submitting}>
+            {submitting ? 'Saving…' : saved && !dirty ? 'Saved' : 'Save'}
+          </Button>
+        )}
+      </fieldset>
+    </form>
   )
 }
