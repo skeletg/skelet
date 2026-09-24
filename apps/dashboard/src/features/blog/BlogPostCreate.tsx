@@ -1,168 +1,105 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useDraft } from '@/shared/saving/useDraft'
-import { duringCommit } from '@/lib/nav-guard'
+import { useMemo, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { useStore } from '@tanstack/react-form'
+import { DetailPageSection } from '@/components/layout/detail-page'
 import { Button } from '@/components/ui/button'
-import { PageBackLink } from '@/components/layout/detail-page'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { useConfigScope } from '@/lib/config-scope'
+import { useEditingLocale } from '@/lib/editing-locale'
 import { slugify } from '@/lib/slug'
+import { RecordFormPage } from '@/shared/saving/RecordFormPage'
+import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { LocalesPickerDocument } from '@/features/locales/Locales.gql'
 import { BlogPostsDocument, CreateBlogPostDocument } from './Blog.gql'
+import { newPostSchema, toNewPostInput } from './schemas/newPost'
 
 export function BlogPostCreate() {
   const navigate = useNavigate()
-  const { scope, selectedChannel, globalDefaultLocale } = useConfigScope()
-  const scopedLocale =
-    scope.mode === 'CHANNEL'
-      ? scope.locale || selectedChannel?.defaultLocale || globalDefaultLocale
-      : globalDefaultLocale
-
-  const draft = useDraft({
-    slug: '',
-    title: '',
-    locale: scopedLocale,
-    excerpt: '',
-  }, 'New post')
-  const { slug, title, locale, excerpt } = draft.values
-  const { setSlug, setTitle, setLocale, setExcerpt } = draft.setters
-  // slugTouched flips true the moment the user types into the slug field;
-  // until then we keep deriving the slug from the title for them
+  const editingLocale = useEditingLocale()
+  const locales = useQuery(LocalesPickerDocument).data?.locales ?? []
+  // Until the title is typed into the slug by hand, the slug follows the title
   const [slugTouched, setSlugTouched] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const { data: localesData } = useQuery(LocalesPickerDocument)
-  const locales = localesData?.locales ?? []
-
-  const [createPost, { loading }] = useMutation(CreateBlogPostDocument, {
+  const [createPost] = useMutation(CreateBlogPostDocument, {
     refetchQueries: [{ query: BlogPostsDocument, variables: { filter: { includeUnpublished: true }, limit: 200, offset: 0 } }],
   })
+  const createdId = useRef<string | null>(null)
 
-  function onTitleChange(next: string) {
-    setTitle(next)
-    if (!slugTouched) setSlug(slugify(next))
-  }
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    if (!slug.trim() || !title.trim() || !locale.trim()) {
-      setError('Slug, title and locale are required.')
-      return
-    }
-    try {
-      const result = await createPost({
-        variables: {
-          input: {
-            slug: slug.trim(),
-            locale: locale.trim(),
-            title: title.trim(),
-            excerpt: excerpt.trim() ? { root: { children: [{ type: 'paragraph', children: [{ type: 'text', text: excerpt.trim() }] }] } } : null,
-          },
-        },
-      })
-      const id = result.data?.createBlogPost.id
-      if (id) await duringCommit(() => navigate(`/blog/posts/${id}`))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create post.')
-    }
-  }
+  const baseline = useMemo(() => ({ title: '', slug: '', locale: editingLocale, excerpt: '' }), [editingLocale])
+  const record = useRecordForm({
+    id: 'blog-post',
+    title: 'Post',
+    label: 'New post',
+    isEdit: false,
+    baseline,
+    schema: newPostSchema,
+    diff: () => [],
+    persist: { routeKey: 'blog-post:new' },
+    submit: async (v) => {
+      const result = await createPost({ variables: { input: toNewPostInput(v) } })
+      createdId.current = result.data?.createBlogPost.id ?? null
+    },
+    onSaved: () => navigate(createdId.current ? `/blog/posts/${createdId.current}` : '/blog/posts'),
+  })
+  const { form } = record
+  const title = useStore(form.store, (s) => s.values.title)
+  const locale = useStore(form.store, (s) => s.values.locale)
 
   return (
-    <form onSubmit={onSubmit} className="grid max-w-2xl gap-4">
-      <div className="grid gap-2">
-        <PageBackLink className="justify-self-start" />
-        <h1 className="text-2xl font-bold tracking-tight">New blog post</h1>
-        <p className="text-sm text-muted-foreground">
-          Start with a title - slug auto-fills, but you can override it. Body, status, categories, and tags come later.
-        </p>
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Could not create post</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Basics</CardTitle>
-          <CardDescription>The slug is permanent in URLs but a 301 redirect is created on change.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid gap-1.5">
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => onTitleChange(e.target.value)}
-              placeholder="A clear, concise title"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="slug">Slug</Label>
-            <Input
-              id="slug"
-              value={slug}
-              onChange={(e) => {
-                setSlug(e.target.value)
-                setSlugTouched(true)
-              }}
-              placeholder="hello-world"
-            />
-            {!slugTouched && title && (
-              <p className="text-xs text-muted-foreground">Generated from the title - type here to override.</p>
+    <RecordFormPage
+      record={record}
+      backTo="/blog/posts"
+      backLabel="Back to posts"
+      title="New blog post"
+      meta="Start with a title - slug auto-fills, but you can override it. Body, status, categories, and tags come later."
+      createLabel="Create post"
+      actions={
+        <Button type="button" variant="outline" size="sm" asChild>
+          <Link to="/blog/posts">Cancel</Link>
+        </Button>
+      }
+    >
+      <DetailPageSection title="Basics" description="The slug is permanent in URLs but a 301 redirect is created on change.">
+        <div className="grid max-w-2xl gap-4">
+          <form.AppField
+            name="title"
+            listeners={{
+              onChange: ({ value }) => {
+                if (!slugTouched) form.setFieldValue('slug', slugify(value))
+              },
+            }}
+          >
+            {(f) => <f.TextField id="title" label="Title" placeholder="A clear, concise title" />}
+          </form.AppField>
+          <form.AppField name="slug">
+            {(f) => (
+              <f.TextField
+                id="slug"
+                label="Slug"
+                placeholder="hello-world"
+                onValueChange={() => setSlugTouched(true)}
+                hint={!slugTouched && title ? 'Generated from the title - type here to override.' : undefined}
+              />
             )}
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="locale">Initial locale</Label>
-            <Select value={locale} onValueChange={setLocale}>
-              <SelectTrigger id="locale">
-                <SelectValue placeholder="Pick a locale…" />
-              </SelectTrigger>
-              <SelectContent>
-                {locales.length === 0 ? (
-                  <SelectItem value={locale}>{locale}</SelectItem>
-                ) : (
-                  locales.map((l) => (
-                    <SelectItem key={l.code} value={l.code}>
-                      {l.flagEmoji ? `${l.flagEmoji} ` : ''}
-                      {l.name}
-                      <span className="ml-2 text-muted-foreground">({l.code})</span>
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="excerpt">Excerpt (optional)</Label>
-            <Textarea id="excerpt" value={excerpt} onChange={(e) => setExcerpt(e.target.value)} rows={3} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={() => navigate('/blog/posts')}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? 'Creating…' : 'Create post'}
-        </Button>
-      </div>
-    </form>
+          </form.AppField>
+          <form.AppField name="locale">
+            {(f) => (
+              <f.SelectField
+                id="locale"
+                label="Initial locale"
+                placeholder="Pick a locale…"
+                options={
+                  locales.length === 0
+                    ? [{ value: locale, label: locale }]
+                    : locales.map((l) => ({
+                        value: l.code,
+                        label: `${l.flagEmoji ? `${l.flagEmoji} ` : ''}${l.name} (${l.code})`,
+                      }))
+                }
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="excerpt">{(f) => <f.TextareaField id="excerpt" label="Excerpt (optional)" rows={3} />}</form.AppField>
+        </div>
+      </DetailPageSection>
+    </RecordFormPage>
   )
 }
