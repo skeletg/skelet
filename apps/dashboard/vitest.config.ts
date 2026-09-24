@@ -21,5 +21,8 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['./src/test-setup.ts'],
+    // Page tests wait up to 5s for a save -> mutate -> navigate round trip (SLOW in
+    // src/test/page-harness) - the test itself must outlast those waits on a loaded machine
+    testTimeout: 15000,
   },
 })
