@@ -1,20 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { useStore } from '@tanstack/react-form'
+import { useAppForm } from '@/components/form/form'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { LoadError } from '@/shared/errors/LoadError'
 import { usePermissions } from '@/shared/auth/usePermissions'
-import { useSaveSection, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
-import { added, removed } from '@/shared/saving/diff'
+import { useFormSection } from '@/shared/saving/useFormSection'
 import {
   LocalesPickerDocument,
   SetChannelLocalesDocument,
@@ -23,149 +17,26 @@ import {
   ChannelDocument,
   ChannelsDocument,
   UpdateChannelDocument,
+  type ChannelQuery,
 } from '@/features/channels/Channels.gql'
+import {
+  channelLocalesDiff,
+  channelLocalesSchema,
+  channelLocalesSteps,
+  toChannelLocalesValues,
+} from './schemas/channelLocales'
 
-// LocalesEditor combines the supported-locales picker (junction
-// `channel_locales`) and the default-locale select - Edits are staged
-// locally and applied through the SettingsPage header Save +
-// SaveConfirmDialog (the dashboard-wide convention, see docs/conventions.md):
-// confirming fires SetChannelLocalesDocument for the supported set and
-// UpdateChannelDocument for the default, sequenced so the backend's
-// "default must stay supported" guard is never violated mid-save
-
+// LocalesEditor combines the supported-locales picker (junction `channel_locales`) and the
+// default-locale select - Edits are staged and applied through the SettingsPage header Save +
+// SaveConfirmDialog (the dashboard-wide convention, see docs/conventions.md): confirming fires
+// SetChannelLocalesDocument for the supported set and UpdateChannelDocument for the default,
+// sequenced so the backend's "default must stay supported" guard is never violated mid-save
 export function LocalesEditor({ channelId }: { channelId: string }) {
-  const permissions = usePermissions()
-  const canEdit = permissions.canAccessChannelScope('channels.manage', channelId)
-
   const channelQuery = useQuery(ChannelDocument, {
     variables: { id: channelId },
     notifyOnNetworkStatusChange: true,
   })
-  const localesQuery = useQuery(LocalesPickerDocument)
-  const allLocales = useMemo(
-    () =>
-      [...(localesQuery.data?.locales ?? [])].sort((a, b) => a.code.localeCompare(b.code)),
-    [localesQuery.data],
-  )
-
   const channel = channelQuery.data?.channel
-  const savedCodes = useMemo(
-    () => (channel?.locales ?? []).map((l) => l.code),
-    [channel],
-  )
-
-  // Staged drafts: reset to server truth whenever the channel payload
-  // (re)loads - including the refetch that follows a successful save
-  const [stagedCodes, setStagedCodes] = useState<string[]>([])
-  const [stagedDefault, setStagedDefault] = useState('')
-  const [hint, setHint] = useState<string | null>(null)
-
-  // (State adjustment during render, keyed on channel identity -
-  // savedCodes only changes when channel does.)
-  const [prevChannel, setPrevChannel] = useState<typeof channel>(undefined)
-  if (channel !== prevChannel) {
-    setPrevChannel(channel)
-    setStagedCodes(savedCodes)
-    setStagedDefault(channel?.defaultLocale ?? '')
-    setHint(null)
-  }
-
-  const refetchQueries = [
-    { query: ChannelDocument, variables: { id: channelId } },
-    { query: ChannelsDocument },
-  ]
-  const [setStoreLocales] = useMutation(SetChannelLocalesDocument, {
-    refetchQueries,
-  })
-  const [updateChannel] = useMutation(UpdateChannelDocument, {
-    refetchQueries,
-  })
-
-  function toggleLocale(code: string) {
-    setHint(null)
-    if (stagedCodes.includes(code)) {
-      // Never let the operator yank the (staged) default locale out of the supported set - the backend would reject the
-      // save anyway Surface a hint instead
-      if (code === stagedDefault) {
-        setHint(
-          `${code} is the channel's default locale. Change the default first, then remove this entry.`,
-        )
-        return
-      }
-      setStagedCodes((prev) => prev.filter((c) => c !== code))
-    } else {
-      setStagedCodes((prev) => [...prev, code])
-    }
-  }
-
-  const codesChanged = useMemo(() => {
-    if (!channel) return false
-    return [...stagedCodes].sort().join(',') !== [...savedCodes].sort().join(',')
-  }, [channel, stagedCodes, savedCodes])
-  const defaultChanged = !!channel && stagedDefault !== channel.defaultLocale
-
-  const diff = useMemo<SectionDiffEntry[]>(() => {
-    if (!channel) return []
-    const out: SectionDiffEntry[] = []
-    if (codesChanged) {
-      for (const c of [...stagedCodes].sort()) {
-        if (!savedCodes.includes(c)) out.push(added(`locale · ${c}`))
-      }
-      for (const c of [...savedCodes].sort()) {
-        if (!stagedCodes.includes(c)) out.push(removed(`locale · ${c}`))
-      }
-    }
-    if (defaultChanged) {
-      out.push({ label: 'default locale', before: channel.defaultLocale, after: stagedDefault })
-    }
-    return out
-  }, [channel, codesChanged, defaultChanged, savedCodes, stagedCodes, stagedDefault])
-
-  useSaveSection({
-    id: 'channel-locales',
-    title: 'Locales',
-    diff,
-    save: async () => {
-      if (!channel) return
-      if (stagedDefault && !stagedCodes.includes(stagedDefault)) {
-        throw new Error('The default locale must be one of the supported locales.')
-      }
-      if (codesChanged) {
-        // Keep the outgoing default in the set until the new default
-        // lands, so the backend never sees an unsupported default
-        const interim =
-          defaultChanged && !stagedCodes.includes(channel.defaultLocale)
-            ? [...stagedCodes, channel.defaultLocale]
-            : stagedCodes
-        await setStoreLocales({ variables: { channelId: channel.id, codes: interim } })
-        if (defaultChanged) {
-          await saveDefault()
-          if (interim.length !== stagedCodes.length) {
-            await setStoreLocales({ variables: { channelId: channel.id, codes: stagedCodes } })
-          }
-        }
-      } else if (defaultChanged) {
-        await saveDefault()
-      }
-    },
-  })
-
-  async function saveDefault() {
-    if (!channel) return
-    await updateChannel({
-      variables: {
-        input: {
-          id: channel.id,
-          defaultLocale: stagedDefault,
-          name: channel.name,
-          isActive: channel.isActive,
-          currencyCode: channel.currencyCode,
-          publicUrl: channel.publicUrl,
-          metadata: channel.metadata,
-        },
-      },
-    })
-  }
 
   if (channelQuery.loading && !channel) {
     return (
@@ -188,11 +59,91 @@ export function LocalesEditor({ channelId }: { channelId: string }) {
     )
   }
 
+  // Keyed on the channel - switching channel in the header scope picker starts a fresh form
+  return <LocalesForm key={channel.id} channel={channel} />
+}
+
+function LocalesForm({ channel }: { channel: NonNullable<ChannelQuery['channel']> }) {
+  const permissions = usePermissions()
+  const canEdit = permissions.canAccessChannelScope('channels.manage', channel.id)
+
+  const localesQuery = useQuery(LocalesPickerDocument)
+  const allLocales = useMemo(
+    () => [...(localesQuery.data?.locales ?? [])].sort((a, b) => a.code.localeCompare(b.code)),
+    [localesQuery.data],
+  )
+
+  const refetchQueries = [{ query: ChannelDocument, variables: { id: channel.id } }, { query: ChannelsDocument }]
+  const [setChannelLocales] = useMutation(SetChannelLocalesDocument, { refetchQueries })
+  const [updateChannel] = useMutation(UpdateChannelDocument, { refetchQueries })
+  // A refused toggle - UI feedback, not the admin's work
+  const [hint, setHint] = useState<string | null>(null)
+
+  const baseline = useMemo(() => toChannelLocalesValues(channel), [channel])
+  const form = useAppForm({
+    defaultValues: baseline,
+    validators: { onChange: channelLocalesSchema },
+    onSubmit: async ({ value }) => {
+      for (const step of channelLocalesSteps(baseline, value)) {
+        if (step.kind === 'codes') {
+          await setChannelLocales({ variables: { channelId: channel.id, codes: step.codes } })
+        } else {
+          await updateChannel({
+            variables: {
+              input: {
+                id: channel.id,
+                defaultLocale: step.code,
+                name: channel.name,
+                isActive: channel.isActive,
+                currencyCode: channel.currencyCode,
+                publicUrl: channel.publicUrl,
+                metadata: channel.metadata,
+              },
+            },
+          })
+        }
+      }
+      form.reset(value)
+    },
+  })
+  useFormSection({ id: 'channel-locales', title: 'Locales', form, baseline, diff: channelLocalesDiff })
+
+  const codes = useStore(form.store, (s) => s.values.codes)
+  const defaultLocale = useStore(form.store, (s) => s.values.defaultLocale)
+
+  function toggleLocale(code: string) {
+    setHint(null)
+    if (!codes.includes(code)) {
+      form.setFieldValue('codes', [...codes, code])
+      return
+    }
+    // Never let the operator yank the (staged) default locale out of the supported set - the
+    // backend would reject the save anyway. Surface a hint instead
+    if (code === defaultLocale) {
+      setHint(`${code} is the channel's default locale. Change the default first, then remove this entry.`)
+      return
+    }
+    form.setFieldValue(
+      'codes',
+      codes.filter((c) => c !== code),
+    )
+  }
+
+  const describe = (code: string) => {
+    const entry = allLocales.find((l) => l.code === code)
+    return (
+      <>
+        <span className="mr-1.5" aria-hidden>
+          {entry?.flagEmoji || '🏳️'}
+        </span>
+        {entry?.nativeName || entry?.name || code} <span className="text-xs text-muted-foreground">({code})</span>
+      </>
+    )
+  }
+
   return (
-    <DetailPageSection
-      description="Languages this channel serves. Apply edits via the header Save button."
-    >
-      <div className="grid gap-4">
+    <DetailPageSection description="Languages this channel serves. Apply edits via the header Save button.">
+      <fieldset disabled={!canEdit} className="grid gap-4">
         <div className="grid gap-2">
           <Label>Supported locales</Label>
           {localesQuery.loading ? (
@@ -200,23 +151,20 @@ export function LocalesEditor({ channelId }: { channelId: string }) {
           ) : allLocales.length === 0 ? (
             <Alert>
               <AlertTitle>No active languages defined</AlertTitle>
-              <AlertDescription>
-                Create at least one language on the Languages page first, then
-                assign it here.
-              </AlertDescription>
+              <AlertDescription>Create at least one language on the Languages page first, then assign it here.</AlertDescription>
             </Alert>
           ) : (
             <div className="grid gap-2 rounded-md border p-3 sm:grid-cols-2">
               {allLocales.map((entry) => (
                 <label
                   key={entry.code}
-                  className="flex cursor-pointer items-start gap-2 rounded px-2 py-1 hover:bg-accent/50 has-[:checked]:bg-accent"
+                  className="flex cursor-pointer items-start gap-2 rounded px-2 py-1 hover:bg-muted/50 has-data-[state=checked]:bg-muted"
                 >
                   <Checkbox
-                    checked={stagedCodes.includes(entry.code)}
+                    checked={codes.includes(entry.code)}
                     onCheckedChange={() => toggleLocale(entry.code)}
                     className="mt-0.5"
-                    disabled={!canEdit}
+                    aria-label={`Support ${entry.code}`}
                   />
                   <div className="grid gap-0.5 leading-tight">
                     <div className="flex items-center gap-2 text-sm">
@@ -224,14 +172,10 @@ export function LocalesEditor({ channelId }: { channelId: string }) {
                         {entry.flagEmoji || '🏳️'}
                       </span>
                       <span className="font-medium">{entry.nativeName || entry.name}</span>
-                      <code className="font-mono text-xs text-muted-foreground">
-                        ({entry.code})
-                      </code>
+                      <code className="font-mono text-xs text-muted-foreground">({entry.code})</code>
                     </div>
                     {entry.nativeName && entry.name !== entry.nativeName && (
-                      <span className="pl-7 text-xs text-muted-foreground">
-                        {entry.name}
-                      </span>
+                      <span className="pl-7 text-xs text-muted-foreground">{entry.name}</span>
                     )}
                   </div>
                 </label>
@@ -240,54 +184,24 @@ export function LocalesEditor({ channelId }: { channelId: string }) {
           )}
         </div>
 
-        <div className="grid gap-2 max-w-sm">
-          <Label htmlFor="locales-default">Default locale</Label>
-          <Select
-            value={stagedCodes.includes(stagedDefault) ? stagedDefault : ''}
-            onValueChange={(v) => { setHint(null); setStagedDefault(v) }}
-            disabled={stagedCodes.length === 0 || !canEdit}
-          >
-            <SelectTrigger id="locales-default">
-              <SelectValue
-                placeholder={
-                  stagedCodes.length === 0
-                    ? 'Select supported locales first'
-                    : 'Pick a default…'
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {stagedCodes.map((code) => {
-                const entry =
-                  allLocales.find((l) => l.code === code) ?? {
-                    code,
-                    name: code,
-                    nativeName: code,
-                    flagEmoji: '',
-                  }
-                return (
-                  <SelectItem key={code} value={code}>
-                    <span className="mr-1.5" aria-hidden>
-                      {entry.flagEmoji || '🏳️'}
-                    </span>
-                    {entry.nativeName || entry.name}{' '}
-                    <span className="text-xs text-muted-foreground">({code})</span>
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Only locales selected above are eligible.
-          </p>
-        </div>
+        <form.AppField name="defaultLocale">
+          {(f) => (
+            <f.SelectField
+              id="locales-default"
+              label="Default locale"
+              className="max-w-sm"
+              disabled={codes.length === 0 || !canEdit}
+              placeholder={codes.length === 0 ? 'Select supported locales first' : 'Pick a default…'}
+              options={codes.map((code) => ({ value: code, label: describe(code) }))}
+              hint="Only locales selected above are eligible."
+            />
+          )}
+        </form.AppField>
 
         {!canEdit && (
           <Alert>
             <AlertTitle>Read-only</AlertTitle>
-            <AlertDescription>
-              You don't have channels.manage on this channel.
-            </AlertDescription>
+            <AlertDescription>You don't have channels.manage on this channel.</AlertDescription>
           </Alert>
         )}
 
@@ -297,7 +211,7 @@ export function LocalesEditor({ channelId }: { channelId: string }) {
             <AlertDescription>{hint}</AlertDescription>
           </Alert>
         )}
-      </div>
+      </fieldset>
     </DetailPageSection>
   )
 }
