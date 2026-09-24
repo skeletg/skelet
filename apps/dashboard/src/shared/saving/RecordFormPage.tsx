@@ -42,8 +42,9 @@ export function RecordFormPage({
   hideSave = false,
 }: {
   record: RecordFormFrame
-  backTo: string
-  backLabel: string
+  /** Null leaves the back link out - a top-level page has nowhere to go back to */
+  backTo: string | null
+  backLabel?: string
   title: ReactNode
   meta?: ReactNode
   badges?: ReactNode
