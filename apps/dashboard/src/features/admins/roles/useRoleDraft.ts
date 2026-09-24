@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 
 // One grant: a permission at an optional channel + locale, where null means "any" - matches
 // GraphQL's RolePermissionScopeInput 1:1, so the save payload is just the array
@@ -12,23 +12,12 @@ export type Scope = {
 export type PermissionRow = { id: string; slug: string; name: string }
 export type GroupRow = { id: string; slug: string; name: string; permissions: PermissionRow[] }
 
-export type RoleDraftSeed = {
-  scopes: Scope[]
-}
+type SetScopes = (update: (prev: Scope[]) => Scope[]) => void
 
-  // Deliberately feature-rich rather than a thin useState, so page, sidebar, panel and popover
-  // all read the same derivations and never disagree about what's granted where
-export function useRoleDraft(seed: RoleDraftSeed, groups: GroupRow[]) {
-  const [scopes, setScopes] = useState<Scope[]>(seed.scopes)
-  // `initial` backs Discard - kept separate from `scopes` because the seed prop can change identity mid-render (save then refetch) and the
-  // editor must survive that unless the role id itself changes - Reset during render off the seed identity, per the React docs
-  const [initial, setInitial] = useState(seed.scopes)
-  if (initial !== seed.scopes) {
-    setInitial(seed.scopes)
-    setScopes(seed.scopes)
-  }
-
-
+// The grant operations and their derivations over a scope list someone else owns - the role page's
+// form (schemas/role) holds the list, its baseline and its dirt; this is what the sidebar, panel and
+// popover share, so they never disagree about what's granted where
+export function useRoleDraft(scopes: Scope[], setScopes: SetScopes, groups: GroupRow[]) {
   const addScope = useCallback((permissionId: string, permissionSlug: string, channelId: string | null = null, locale: string | null = null) => {
     setScopes((prev) => {
       // No duplicate rows - Same (perm, channel, locale) tuple → no-op
@@ -38,15 +27,15 @@ export function useRoleDraft(seed: RoleDraftSeed, groups: GroupRow[]) {
       if (exists) return prev
       return [...prev, { permissionId, permissionSlug, channelId, locale }]
     })
-  }, [])
+  }, [setScopes])
 
   const removeScopeAt = useCallback((index: number) => {
     setScopes((prev) => prev.filter((_, i) => i !== index))
-  }, [])
+  }, [setScopes])
 
   const updateScopeAt = useCallback((index: number, patch: Partial<Pick<Scope, 'channelId' | 'locale'>>) => {
     setScopes((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)))
-  }, [])
+  }, [setScopes])
 
   // ON ensures at least one row exists (any/any), OFF strips every row for the permission -
   // dropping multi-scope grants silently on toggle-off is the deliberate tradeoff
@@ -59,7 +48,7 @@ export function useRoleDraft(seed: RoleDraftSeed, groups: GroupRow[]) {
       if (hasAny) return prev
       return [...prev, { permissionId: perm.id, permissionSlug: perm.slug, channelId: null, locale: null }]
     })
-  }, [])
+  }, [setScopes])
 
   // Additive - skips permissions that already have a row, so a per-channel scope is never widened to global
   const grantAllInGroup = useCallback((group: GroupRow) => {
@@ -73,12 +62,12 @@ export function useRoleDraft(seed: RoleDraftSeed, groups: GroupRow[]) {
       }
       return additions.length === 0 ? prev : [...prev, ...additions]
     })
-  }, [])
+  }, [setScopes])
 
   const revokeAllInGroup = useCallback((group: GroupRow) => {
     const ids = new Set(group.permissions.map((p) => p.id))
     setScopes((prev) => prev.filter((s) => !ids.has(s.permissionId)))
-  }, [])
+  }, [setScopes])
 
   // Additive and idempotent - appends (channel, locale) to every already-granted permission
   const applyScopeToGroup = useCallback((group: GroupRow, channelId: string | null, locale: string | null) => {
@@ -100,10 +89,7 @@ export function useRoleDraft(seed: RoleDraftSeed, groups: GroupRow[]) {
       }
       return additions.length === 0 ? prev : [...prev, ...additions]
     })
-  }, [])
-
-  const reset = useCallback(() => setScopes(initial), [initial])
-
+  }, [setScopes])
 
   // Entry order follows the master `scopes` array, so the editor stays predictable as rows are added
   const scopesByPermission = useMemo(() => {
@@ -152,15 +138,6 @@ export function useRoleDraft(seed: RoleDraftSeed, groups: GroupRow[]) {
     }
   }, [scopes, groups, grantedCountByGroup])
 
-  // Deep-equal by tuple - order shouldn't matter here, and happens to be stable since we always append
-  const dirty = useMemo(() => {
-    if (initial.length !== scopes.length) return true
-    const key = (s: Scope) => `${s.permissionId}|${s.channelId ?? ''}|${s.locale ?? ''}`
-    const seen = new Set(initial.map(key))
-    for (const s of scopes) if (!seen.has(key(s))) return true
-    return false
-  }, [scopes, initial])
-
   return {
     scopes,
     addScope,
@@ -170,11 +147,9 @@ export function useRoleDraft(seed: RoleDraftSeed, groups: GroupRow[]) {
     grantAllInGroup,
     revokeAllInGroup,
     applyScopeToGroup,
-    reset,
     scopesByPermission,
     grantedCountByGroup,
     summary,
-    dirty,
   }
 }
 
