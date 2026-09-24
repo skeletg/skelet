@@ -84,7 +84,9 @@ describe('ProductCreate', () => {
     })
 
     expect(await screen.findByText(/Restored unsaved changes/)).toBeDefined()
-    fireEvent.click(await screen.findByRole('button', { name: 'Create product' }))
+    // The type's attributes arrive a beat after the draft - wait for them the way a person would
+    await screen.findByPlaceholderText('Enter a value')
+    fireEvent.click(screen.getByRole('button', { name: 'Create product' }))
     expect(await screen.findByText('Material is required')).toBeDefined()
     expect(writes.create).not.toHaveBeenCalled()
 

@@ -21,8 +21,9 @@ function attributeMissing(a: AttributeSummary, s: AttrState | undefined): boolea
 }
 
 // `locale` falls back to `fallbackLocale` when unpicked. The required attributes come from the chosen
-// product type, which the form itself holds - so they are read when validation runs, not baked in
-export function newProductSchema(ctx: { fallbackLocale: string; attributes: () => AttributeSummary[] }) {
+// product type, which the form itself holds - so they are read when validation runs, not baked in.
+// `attributes` answers null until that type's attributes have loaded, and the create waits for them
+export function newProductSchema(ctx: { fallbackLocale: string; attributes: (productTypeId: string) => AttributeSummary[] | null }) {
   return z
     .object({
       kind: z.enum(PRODUCT_KINDS),
@@ -50,7 +51,13 @@ export function newProductSchema(ctx: { fallbackLocale: string; attributes: () =
       attrState: z.record(z.string(), z.unknown()),
     })
     .superRefine((v, rc) => {
-      for (const a of ctx.attributes()) {
+      if (!v.productTypeId) return
+      const attributes = ctx.attributes(v.productTypeId)
+      if (attributes === null) {
+        rc.addIssue({ code: 'custom', path: ['productTypeId'], message: "Still loading this type's attributes - try again in a moment" })
+        return
+      }
+      for (const a of attributes) {
         if (attributeMissing(a, v.attrState[a.id] as AttrState | undefined)) {
           rc.addIssue({ code: 'custom', path: ['attrState', a.id], message: `${a.name} is required` })
         }

@@ -110,11 +110,11 @@ export function ProductCreate() {
 
   // The chosen type decides which attributes are asked for - and which are required. It lives in the
   // form (so a restored draft brings it back), so the schema reads the loaded set when it validates
-  const attributesRef = useRef<AttributeSummary[]>([])
+  const loadedRef = useRef<{ typeId: string; attributes: AttributeSummary[] } | null>(null)
   // The getter runs when the form validates, never while rendering - the schema has to exist before the
   // form, and the attributes only exist once the form has a type, so a ref is the one way to join them
   // eslint-disable-next-line react-hooks/refs
-  const schema = useMemo(() => newProductSchema({ fallbackLocale, attributes: () => attributesRef.current }), [fallbackLocale])
+  const schema = useMemo(() => newProductSchema({ fallbackLocale, attributes: (id) => (loadedRef.current?.typeId === id ? loadedRef.current.attributes : null) }), [fallbackLocale])
 
   const record = useRecordForm({
     id: 'product',
@@ -131,7 +131,7 @@ export function ProductCreate() {
       const id = result.data?.createProduct.id
       if (!id) throw new Error('Create succeeded but no id returned. Please reload and check the products list.')
       createdId.current = id
-      const assignments = toAttributeAssignments(v, attributesRef.current)
+      const assignments = toAttributeAssignments(v, loadedRef.current?.attributes ?? [])
       if (assignments.length === 0) return
       // The product exists either way - an attribute failure is reported on its page, not as a failed create
       try {
@@ -148,8 +148,10 @@ export function ProductCreate() {
   const productType = productTypeQuery.data?.productType
   const attributes: AttributeSummary[] = useMemo(() => productType?.attributes.map((a) => a.attribute) ?? [], [productType])
   useEffect(() => {
-    attributesRef.current = attributes
-  }, [attributes])
+    loadedRef.current = productType ? { typeId: productType.id, attributes } : null
+    // The schema reads these, but no field changed - re-check, or a result from before they loaded sticks
+    if (productType) void form.validate('change')
+  }, [productType, attributes, form])
 
   // type="button" - these sit inside the page and must never submit anything
   function newTypeButton(label: string, className: string) {
