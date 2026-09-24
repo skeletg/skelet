@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
+import { fieldDiff } from '@/shared/saving/diff'
 
 // Product type - the blueprint products inherit. Slug is fixed after create
 
@@ -62,4 +64,24 @@ export function toProductTypeUpdateInput(v: ProductTypeValues, pt: ExistingProdu
     },
     newTemplate: templateChanged ? v.urlTemplate : null,
   }
+}
+
+export const PRODUCT_TYPE_LABELS: Record<keyof ProductTypeValues, string> = {
+  slug: 'Slug',
+  name: 'Name',
+  isDigital: 'Digital',
+  isShippingRequired: 'Requires shipping',
+  tracksInventory: 'Tracks inventory',
+  urlTemplate: 'URL path template',
+}
+
+export function productTypeDiff(original: ProductTypeValues, draft: ProductTypeValues): SectionDiffEntry[] {
+  return fieldDiff(
+    original,
+    draft,
+    (['name', 'isDigital', 'isShippingRequired', 'tracksInventory', 'urlTemplate'] as const).map((k) => ({
+      label: PRODUCT_TYPE_LABELS[k],
+      value: (v: ProductTypeValues) => v[k],
+    })),
+  )
 }
