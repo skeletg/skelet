@@ -11,7 +11,7 @@ import { usePermissions } from '@/shared/auth/usePermissions'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { ChannelsDocument } from '@/features/channels/Channels.gql'
-import { LexicalRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
+import { FormRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
 import { CollectionsDocument, CreateCollectionDocument } from './Collections.gql'
 import { emptyNewCollection, newCollectionSchema, toNewCollectionInput } from './schemas/newCollection'
 
@@ -130,7 +130,7 @@ export function CollectionCreate() {
       </DetailPageSection>
 
       <DetailPageSection title="Description" description="Locale-specific content stored as rich text JSON.">
-        <LexicalRichTextEditor
+        <FormRichTextEditor
           value={values.description as RichTextValue}
           fallbackText=""
           placeholder="Describe the collection and merchandising intent..."

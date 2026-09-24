@@ -30,7 +30,7 @@ import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { AttributeControl, emptyAttrState, type AttrState, type AttributeSummary } from './AttributesEditor'
 import { AttributeInputTypeBadge } from './AttributeInputTypeBadge'
 import { CreateProductDocument, ProductTypeDocument, ProductTypesDocument, SetProductAttributesDocument } from './Catalog.gql'
-import { LexicalRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
+import { FormRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
 import { ProductTypeFormDialog } from './ProductTypeFormDialog'
 import {
   dollarsToCents,
@@ -372,7 +372,7 @@ export function ProductCreate() {
       <DetailPageSection title="Content" description="First-translation copy. More locales can be added on the detail page.">
         <div className="grid gap-2">
           <Label>Short description</Label>
-          <LexicalRichTextEditor
+          <FormRichTextEditor
             value={values.shortDescription as RichTextValue}
             fallbackText=""
             placeholder="One-line teaser shown in listings"
@@ -385,7 +385,7 @@ export function ProductCreate() {
         </div>
         <div className="grid gap-2">
           <Label>Description</Label>
-          <LexicalRichTextEditor
+          <FormRichTextEditor
             value={values.description as RichTextValue}
             fallbackText=""
             onChange={(next, plain) => {
