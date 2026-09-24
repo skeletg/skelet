@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { GripIcon, PlusIcon, Trash2Icon } from 'lucide-react'
@@ -17,18 +17,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { LoadingState } from '@/components/ui/loading-state'
 import { LoadError } from '@/shared/errors/LoadError'
-import {
-  DetailPageBody,
-  DetailPageHeader,
-  DetailPageLayout,
-  DetailPageSection,
-} from '@/components/layout/detail-page'
-import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
-import { SaveRegistryContext, useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
-import { fieldDiff } from '@/shared/saving/diff'
+import { DetailPageSection } from '@/components/layout/detail-page'
+import { RecordFormPage } from '@/shared/saving/RecordFormPage'
+import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   AddCmsAttributeValueDocument,
@@ -41,6 +34,14 @@ import {
   type CmsAttributeRowFragment,
 } from './Cms.gql'
 import { useConfigScope } from '@/lib/config-scope'
+import {
+  CMS_ATTRIBUTE_DEFAULTS_LABELS,
+  attributeKind,
+  cmsAttributeDefaultsDiff,
+  cmsAttributeDefaultsSchema,
+  toCmsAttributeDefaultsInput,
+  toCmsAttributeDefaultsValues,
+} from './schemas/cmsAttribute'
 
 function acceptsValues(t: CmsAttributeRowFragment['inputType']): boolean {
   return t === 'SELECT' || t === 'MULTISELECT'
@@ -52,54 +53,12 @@ function attrName(a: CmsAttributeRowFragment): string {
 
 export function CmsAttributeDetail() {
   const { id = '' } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const { has } = usePermissions()
-  const canManage = has('cms.types_manage')
-
   // Attribute volume is low - reuse the list doc and pick by id rather than
   // adding a dedicated single-attribute query
   const { data, loading, error, refetch } = useQuery(CmsAttributesDocument)
   const attribute = data?.cmsAttributes.find((a) => a.id === id)
 
-  const [confirmDelete, setConfirmDelete] = useState(false)
-
-  // The defaults/validation panel stages here and the header Save applies it through the review
-  // dialog rather than carrying a Save of its own. Value rows stay explicit CRUD, which the
-  // convention allows
-  const { contextValue: saveContextValue, dirtySections, isDirty, saveAll } = useSaveRegistry()
-  const [confirmingSave, setConfirmingSave] = useState(false)
-  const [savingAll, setSavingAll] = useState(false)
-  const [saveAllError, setSaveAllError] = useState<string | null>(null)
-
-  async function onConfirmSave() {
-    setSaveAllError(null)
-    setSavingAll(true)
-    try {
-      await saveAll()
-      setConfirmingSave(false)
-    } catch (err) {
-      setSaveAllError(err instanceof Error ? err.message : 'Save failed.')
-    } finally {
-      setSavingAll(false)
-    }
-  }
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deleteAttr, { loading: deleting }] = useMutation(DeleteCmsAttributeDocument, {
-    refetchQueries: [{ query: CmsAttributesDocument }],
-  })
-
-  async function onDelete() {
-    if (!attribute) return
-    setDeleteError(null)
-    try {
-      await deleteAttr({ variables: { id: attribute.id } })
-      navigate('/cms/attributes', { replace: true })
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
-  }
-
-  if (loading) return <LoadingState label="Loading attribute…" />
+  if (loading && !attribute) return <LoadingState label="Loading attribute…" />
   if (error)
     return (
       <LoadError
@@ -109,146 +68,206 @@ export function CmsAttributeDetail() {
         retrying={loading}
       />
     )
-  if (!id || !attribute)
-    return <p className="text-sm text-muted-foreground">Attribute not found.</p>
+  if (!id || !attribute) return <p className="text-sm text-muted-foreground">Attribute not found.</p>
+  return <CmsAttributeForm attribute={attribute} />
+}
 
-  const a = attribute
+// The default & validation fields are the page's form and go through the header Save. Option rows
+// stay explicit CRUD, which the convention allows
+function CmsAttributeForm({ attribute: a }: { attribute: CmsAttributeRowFragment }) {
+  const navigate = useNavigate()
+  const { has } = usePermissions()
+  const canManage = has('cms.types_manage')
+  const { isNum, isText, isBool } = attributeKind(a.inputType)
+
+  const [update] = useMutation(UpdateCmsAttributeDocument, {
+    refetchQueries: [{ query: CmsAttributesDocument }],
+  })
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleteAttr, { loading: deleting }] = useMutation(DeleteCmsAttributeDocument, {
+    refetchQueries: [{ query: CmsAttributesDocument }],
+  })
+
+  const baseline = useMemo(() => toCmsAttributeDefaultsValues(a), [a])
+  const schema = useMemo(() => cmsAttributeDefaultsSchema(a.inputType), [a.inputType])
+  const diff = useMemo(() => cmsAttributeDefaultsDiff(a.inputType), [a.inputType])
+  const record = useRecordForm({
+    id: 'attribute-defaults',
+    title: 'Defaults & validation',
+    label: `Attribute · ${attrName(a)}`,
+    isEdit: true,
+    baseline,
+    schema,
+    diff,
+    persist: { routeKey: `cms-attribute:${a.id}` },
+    submit: async (v) => {
+      await update({ variables: { input: toCmsAttributeDefaultsInput(v, a.inputType, a.id) } })
+    },
+  })
+  const { form } = record
+
+  async function onDelete() {
+    setDeleteError(null)
+    try {
+      await deleteAttr({ variables: { id: a.id } })
+      navigate('/cms/attributes', { replace: true })
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
+    }
+  }
 
   return (
-    <SaveRegistryContext.Provider value={saveContextValue}>
-    <DetailPageLayout>
-      <DetailPageHeader
-        backTo="/cms/attributes"
-        backLabel="Back to attributes"
-        title={attrName(a)}
-        badges={
-          <>
-            <Badge variant="outline">{a.inputType.toLowerCase()}</Badge>
-            {a.isTranslatable && (
-              <Badge variant="secondary" className="text-xs">
-                translatable
-              </Badge>
-            )}
-            {a.isRequiredDefault && (
-              <Badge variant="secondary" className="text-xs">
-                required
-              </Badge>
-            )}
-            {a.relationshipTarget && (
-              <Badge variant="outline" className="text-xs">
-                → {a.relationshipTarget}
-              </Badge>
-            )}
-          </>
-        }
-        meta={<code className="font-mono">{a.slug}</code>}
-        actions={
-          canManage ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => {
-                  setDeleteError(null)
-                  setConfirmDelete(true)
-                }}
-                disabled={deleting}
-              >
-                <Trash2Icon className="size-4" />
-                Delete
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                disabled={!isDirty || savingAll}
-                onClick={() => setConfirmingSave(true)}
-              >
-                {savingAll ? 'Saving…' : 'Save changes'}
-              </Button>
-            </>
-          ) : null
-        }
-      />
-
-      <DetailPageBody>
-        <DetailPageSection
-          title="Definition"
-          description="Slug + input type are immutable after creation."
-        >
-          <dl className="grid gap-3 sm:grid-cols-2">
-            <div className="grid gap-1">
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Display name</dt>
-              <dd className="text-sm font-medium">{attrName(a)}</dd>
-            </div>
-            <div className="grid gap-1">
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Slug</dt>
-              <dd className="font-mono text-sm text-muted-foreground">{a.slug}</dd>
-            </div>
-            <div className="grid gap-1">
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Input type</dt>
-              <dd className="text-sm">{a.inputType.toLowerCase()}</dd>
-            </div>
-            {a.unit && (
-              <div className="grid gap-1">
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Unit</dt>
-                <dd className="text-sm">{a.unit}</dd>
-              </div>
-            )}
-            {a.relationshipTarget && (
-              <div className="grid gap-1">
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Relationship target
-                </dt>
-                <dd className="text-sm">{a.relationshipTarget}</dd>
-              </div>
-            )}
-            <div className="grid gap-1">
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Flags</dt>
-              <dd className="flex flex-wrap gap-1.5">
-                {a.isTranslatable && (
-                  <Badge variant="secondary" className="text-xs">
-                    translatable
-                  </Badge>
-                )}
-                {a.isRequiredDefault && (
-                  <Badge variant="secondary" className="text-xs">
-                    required by default
-                  </Badge>
-                )}
-                {!a.isTranslatable && !a.isRequiredDefault && (
-                  <span className="text-sm text-muted-foreground">-</span>
-                )}
-              </dd>
-            </div>
-          </dl>
-        </DetailPageSection>
-
-        {acceptsValues(a.inputType) && (
-          <DetailPageSection
-            title="Options"
-            description="Selectable values for this select / multi-select attribute."
+    <RecordFormPage
+      record={record}
+      backTo="/cms/attributes"
+      backLabel="Back to attributes"
+      title={attrName(a)}
+      badges={
+        <>
+          <Badge variant="outline">{a.inputType.toLowerCase()}</Badge>
+          {a.isTranslatable && (
+            <Badge variant="secondary" className="text-xs">
+              translatable
+            </Badge>
+          )}
+          {a.isRequiredDefault && (
+            <Badge variant="secondary" className="text-xs">
+              required
+            </Badge>
+          )}
+          {a.relationshipTarget && (
+            <Badge variant="outline" className="text-xs">
+              → {a.relationshipTarget}
+            </Badge>
+          )}
+        </>
+      }
+      meta={<code className="font-mono">{a.slug}</code>}
+      actions={
+        canManage && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => {
+              setDeleteError(null)
+              setConfirmDelete(true)
+            }}
+            disabled={deleting}
           >
-            <AttributeValuesEditor attributeId={a.id} canManage={canManage} values={a.values} />
-          </DetailPageSection>
-        )}
+            <Trash2Icon className="size-4" />
+            Delete
+          </Button>
+        )
+      }
+      createLabel="Save changes"
+      labels={CMS_ATTRIBUTE_DEFAULTS_LABELS}
+      readOnly={!canManage}
+    >
+      <DetailPageSection title="Definition" description="Slug + input type are immutable after creation.">
+        <dl className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-1">
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Display name</dt>
+            <dd className="text-sm font-medium">{attrName(a)}</dd>
+          </div>
+          <div className="grid gap-1">
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Slug</dt>
+            <dd className="font-mono text-sm text-muted-foreground">{a.slug}</dd>
+          </div>
+          <div className="grid gap-1">
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Input type</dt>
+            <dd className="text-sm">{a.inputType.toLowerCase()}</dd>
+          </div>
+          {a.unit && (
+            <div className="grid gap-1">
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Unit</dt>
+              <dd className="text-sm">{a.unit}</dd>
+            </div>
+          )}
+          {a.relationshipTarget && (
+            <div className="grid gap-1">
+              <dt className="text-xs uppercase tracking-wide text-muted-foreground">Relationship target</dt>
+              <dd className="text-sm">{a.relationshipTarget}</dd>
+            </div>
+          )}
+          <div className="grid gap-1">
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Flags</dt>
+            <dd className="flex flex-wrap gap-1.5">
+              {a.isTranslatable && (
+                <Badge variant="secondary" className="text-xs">
+                  translatable
+                </Badge>
+              )}
+              {a.isRequiredDefault && (
+                <Badge variant="secondary" className="text-xs">
+                  required by default
+                </Badge>
+              )}
+              {!a.isTranslatable && !a.isRequiredDefault && <span className="text-sm text-muted-foreground">-</span>}
+            </dd>
+          </div>
+        </dl>
+      </DetailPageSection>
 
-        <DetailPageSection
-          title="Default & validation"
-          description="A default value seeded into new pages, and rules enforced when a page is saved."
-        >
-          <AttributeDefaultsValidationPanel attribute={a} canManage={canManage} />
+      {acceptsValues(a.inputType) && (
+        <DetailPageSection title="Options" description="Selectable values for this select / multi-select attribute.">
+          <AttributeValuesEditor attributeId={a.id} canManage={canManage} values={a.values} />
         </DetailPageSection>
-      </DetailPageBody>
+      )}
+
+      <DetailPageSection
+        title="Default & validation"
+        description="A default value seeded into new pages, and rules enforced when a page is saved."
+      >
+        {/* Default and validation - which rules apply depends on the input type */}
+        <div className="grid max-w-lg gap-4">
+          {isBool ? (
+            <form.AppField name="defaultBool">
+              {(f) => <f.SwitchField id="attr-default-bool" label="Default value" description={f.state.value ? 'true' : 'false'} />}
+            </form.AppField>
+          ) : (
+            <form.AppField name="defaultValue">
+              {(f) => <f.TextField id="attr-default" label="Default value" type={isNum ? 'number' : 'text'} placeholder="No default" />}
+            </form.AppField>
+          )}
+
+          {(isNum || isText) && (
+            <div className="grid gap-2">
+              <Label className="text-sm font-medium">Validation rules</Label>
+              {isNum && (
+                <div className="grid grid-cols-2 items-start gap-2">
+                  <form.AppField name="min">{(f) => <f.TextField aria-label="Min" type="number" placeholder="min" />}</form.AppField>
+                  <form.AppField name="max">{(f) => <f.TextField aria-label="Max" type="number" placeholder="max" />}</form.AppField>
+                </div>
+              )}
+              {isText && (
+                <>
+                  <div className="grid grid-cols-2 items-start gap-2">
+                    <form.AppField name="minLength">
+                      {(f) => <f.TextField aria-label="Min length" type="number" placeholder="min length" />}
+                    </form.AppField>
+                    <form.AppField name="maxLength">
+                      {(f) => <f.TextField aria-label="Max length" type="number" placeholder="max length" />}
+                    </form.AppField>
+                  </div>
+                  <form.AppField name="regex">
+                    {(f) => <f.TextField aria-label="Regex" placeholder="regex pattern (optional)" className="font-mono text-xs" />}
+                  </form.AppField>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </DetailPageSection>
 
       <AlertDialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {attrName(a)}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes the attribute definition. It must be unassigned from all page
-              types first.
+              This permanently removes the attribute definition. It must be unassigned from all page types first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError && (
@@ -263,7 +282,7 @@ export function CmsAttributeDetail() {
               disabled={deleting}
               onClick={(e) => {
                 e.preventDefault()
-                onDelete()
+                void onDelete()
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
@@ -272,18 +291,7 @@ export function CmsAttributeDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <SaveConfirmDialog
-        open={confirmingSave}
-        scopeLabel={`Attribute · ${attrName(a)}`}
-        sections={dirtySections}
-        saving={savingAll}
-        error={saveAllError}
-        onCancel={() => { if (!savingAll) { setConfirmingSave(false); setSaveAllError(null) } }}
-        onConfirm={onConfirmSave}
-      />
-    </DetailPageLayout>
-    </SaveRegistryContext.Provider>
+    </RecordFormPage>
   )
 }
 
@@ -383,146 +391,6 @@ function AttributeValuesEditor({
             <PlusIcon className="size-3" />
             Add
           </Button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// AttributeDefaultsValidationPanel edits the attribute's default value (seeded into new pages) and validation rules
-// (enforced server-side on save), keyed by input type - Both ride the UpdateCMSAttribute mutation's partial update
-function AttributeDefaultsValidationPanel({
-  attribute: a,
-  canManage,
-}: {
-  attribute: CmsAttributeRowFragment
-  canManage: boolean
-}) {
-  const [update] = useMutation(UpdateCmsAttributeDocument, {
-    refetchQueries: [{ query: CmsAttributesDocument }],
-  })
-  const t = a.inputType
-  const isNum = t === 'NUMBER'
-  const isText = t === 'TEXT' || t === 'TEXTAREA' || t === 'URL' || t === 'RICHTEXT'
-  const isBool = t === 'BOOLEAN'
-  const supportsValidation = isNum || isText
-  const v = (a.validation ?? {}) as Record<string, unknown>
-
-  const str = (x: unknown) => (x == null ? '' : String(x))
-  const [def, setDef] = useState(str(a.defaultValue))
-  const [defBool, setDefBool] = useState(a.defaultValue === true)
-  const [min, setMin] = useState(str(v.min))
-  const [max, setMax] = useState(str(v.max))
-  const [minLength, setMinLength] = useState(str(v.minLength))
-  const [maxLength, setMaxLength] = useState(str(v.maxLength))
-  const [regex, setRegex] = useState(str(v.regex))
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [ok, setOk] = useState(false)
-
-  useSaveSection({
-    id: 'attribute-defaults',
-    title: 'Defaults & validation',
-    diff: fieldDiff(
-      {
-        def: str(a.defaultValue), defBool: a.defaultValue === true, min: str(v.min), max: str(v.max),
-        minLength: str(v.minLength), maxLength: str(v.maxLength), regex: str(v.regex),
-      },
-      { def, defBool, min, max, minLength, maxLength, regex },
-      [
-        { label: isBool ? 'Default' : 'Default value', value: (o) => (isBool ? o.defBool : o.def) },
-        { label: 'Min', value: (o) => o.min },
-        { label: 'Max', value: (o) => o.max },
-        { label: 'Min length', value: (o) => o.minLength },
-        { label: 'Max length', value: (o) => o.maxLength },
-        { label: 'Regex', value: (o) => o.regex },
-      ],
-    ),
-    save: () => save(),
-  })
-
-  async function save() {
-    setError(null)
-    setOk(false)
-    setSaving(true)
-    try {
-      const validation: Record<string, unknown> = {}
-      if (isNum) {
-        if (min.trim() !== '') validation.min = Number(min)
-        if (max.trim() !== '') validation.max = Number(max)
-      }
-      if (isText) {
-        if (minLength.trim() !== '') validation.minLength = Number(minLength)
-        if (maxLength.trim() !== '') validation.maxLength = Number(maxLength)
-        if (regex.trim() !== '') validation.regex = regex.trim()
-      }
-      let defaultValue: unknown = null
-      if (isBool) defaultValue = defBool
-      else if (isNum) defaultValue = def.trim() === '' ? null : Number(def)
-      else if (def.trim() !== '') defaultValue = def
-      await update({ variables: { input: { id: a.id, validation, defaultValue } } })
-      setOk(true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed.')
-      throw e // the header dialog keeps itself open and surfaces the message
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="grid max-w-lg gap-4">
-      <div className="grid gap-1.5">
-        <Label className="text-sm font-medium">Default value</Label>
-        {isBool ? (
-          <div className="flex items-center gap-2">
-            <Switch checked={defBool} onCheckedChange={setDefBool} disabled={!canManage} />
-            <span className="text-xs text-muted-foreground">{defBool ? 'true' : 'false'}</span>
-          </div>
-        ) : (
-          <Input
-            type={isNum ? 'number' : 'text'}
-            value={def}
-            onChange={(e) => setDef(e.target.value)}
-            placeholder="No default"
-            disabled={!canManage}
-            className="h-9"
-          />
-        )}
-      </div>
-
-      {supportsValidation && (
-        <div className="grid gap-2">
-          <Label className="text-sm font-medium">Validation rules</Label>
-          {isNum && (
-            <div className="flex gap-2">
-              <Input type="number" value={min} onChange={(e) => setMin(e.target.value)} placeholder="min" disabled={!canManage} className="h-9" />
-              <Input type="number" value={max} onChange={(e) => setMax(e.target.value)} placeholder="max" disabled={!canManage} className="h-9" />
-            </div>
-          )}
-          {isText && (
-            <>
-              <div className="flex gap-2">
-                <Input type="number" value={minLength} onChange={(e) => setMinLength(e.target.value)} placeholder="min length" disabled={!canManage} className="h-9" />
-                <Input type="number" value={maxLength} onChange={(e) => setMaxLength(e.target.value)} placeholder="max length" disabled={!canManage} className="h-9" />
-              </div>
-              <Input value={regex} onChange={(e) => setRegex(e.target.value)} placeholder="regex pattern (optional)" disabled={!canManage} className="h-9 font-mono text-xs" />
-            </>
-          )}
-        </div>
-      )}
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Save failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {canManage && (
-        <div className="flex items-center gap-3">
-          {/* No per-panel Save - the page header applies every staged panel through one dialog */}
-          {saving ? <span className="text-xs text-muted-foreground">Saving…</span> : null}
-          {ok && <span className="text-xs text-emerald-600">Saved.</span>}
         </div>
       )}
     </div>
