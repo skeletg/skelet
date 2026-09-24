@@ -12,6 +12,7 @@ import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from '@d
 import { CSS } from '@dnd-kit/utilities'
 import {
   CheckSquare2Icon,
+  ChevronDownIcon,
   GripVerticalIcon,
   ImageIcon,
   MoreHorizontalIcon,
@@ -328,18 +329,22 @@ export function ProductMediaPanel({
           <div className="flex flex-wrap items-center justify-end gap-2">
             {!selectMode ? (
               <>
-                <select
-                  value={uploadRole}
-                  onChange={(event) => setUploadRole(event.currentTarget.value as ProductUploadRole)}
-                  disabled={uploading}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm"
-                  aria-label="Upload destination"
-                >
-                  <option value="GALLERY">Gallery</option>
-                  {MEDIA_ROLE_OPTIONS.map(({ role, label }) => (
-                    <option key={role} value={role}>{label}</option>
-                  ))}
-                </select>
+                {/* Native arrow hugs the border, so draw our own and match the button height */}
+                <div className="relative">
+                  <select
+                    value={uploadRole}
+                    onChange={(event) => setUploadRole(event.currentTarget.value as ProductUploadRole)}
+                    disabled={uploading}
+                    className="h-8 appearance-none rounded-lg border border-input bg-background pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+                    aria-label="Upload destination"
+                  >
+                    <option value="GALLERY">Gallery</option>
+                    {MEDIA_ROLE_OPTIONS.map(({ role, label }) => (
+                      <option key={role} value={role}>{label}</option>
+                    ))}
+                  </select>
+                  <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                </div>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
                 <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
                   <PlusIcon className="size-4" />
