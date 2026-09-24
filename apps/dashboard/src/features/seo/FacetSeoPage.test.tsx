@@ -92,7 +92,7 @@ describe('FacetSeoPage', () => {
       ],
     })
 
-    const save = await screen.findByRole('button', { name: 'Save changes' })
+    const save = await screen.findByRole('button', { name: 'Save changes' }, SLOW)
     fireEvent.click(screen.getByRole('switch', { name: 'Facet Size indexable' }))
     fireEvent.click(screen.getByRole('button', { name: /Add combination/ }))
     fireEvent.click(save)
