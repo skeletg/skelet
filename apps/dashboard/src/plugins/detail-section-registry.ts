@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 // Detail-page section registry - plugins call registerDetailSection at import time and each
 // entry renders at the end of the matching entity's <DetailPageBody> via <PluginSections>
 // A section owns its own state, mutations and save UX - wiring into the parent form's Save
-// button is out of scope, use productSaveRegistry / categorySaveRegistry for that
+// button is out of scope, use useSaveSection (shared/saving/saveRegistry) for that
 
 export type DetailSectionMode = 'edit' | 'create' | 'both'
 
