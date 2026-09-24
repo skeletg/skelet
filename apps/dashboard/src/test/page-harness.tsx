@@ -4,6 +4,7 @@ import type { MockLink } from '@apollo/client/testing'
 import { MockedProvider } from '@apollo/client/testing/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ConfigScopeContext, type ConfigScopeContextValue } from '@/lib/config-scope'
+import { PrefsContext } from '@/lib/admin-prefs'
 import { MeDocument } from '@/shared/auth/Me.gql'
 
 // Shared setup for the form page tests - a real page under Apollo's MockedProvider, a router and
@@ -83,25 +84,30 @@ export function renderPage({
   routes,
   mocks,
   scope = globalScope,
+  adminId,
 }: {
   path: string
   /** Route pattern -> element; add the page a save navigates to, so the test can wait for it */
   routes: Record<string, ReactNode>
   mocks: MockLink.MockedResponse[]
   scope?: ConfigScopeContextValue
+  /** Set to switch stored drafts on - they key on the admin (lib/form-drafts) */
+  adminId?: string
 }) {
   stubResizeObserver()
   return render(
     <MockedProvider mocks={mocks}>
-      <ConfigScopeContext.Provider value={scope}>
-        <MemoryRouter initialEntries={[path]}>
-          <Routes>
-            {Object.entries(routes).map(([pattern, element]) => (
-              <Route key={pattern} path={pattern} element={element} />
-            ))}
-          </Routes>
-        </MemoryRouter>
-      </ConfigScopeContext.Provider>
+      <PrefsContext.Provider value={adminId ?? null}>
+        <ConfigScopeContext.Provider value={scope}>
+          <MemoryRouter initialEntries={[path]}>
+            <Routes>
+              {Object.entries(routes).map(([pattern, element]) => (
+                <Route key={pattern} path={pattern} element={element} />
+              ))}
+            </Routes>
+          </MemoryRouter>
+        </ConfigScopeContext.Provider>
+      </PrefsContext.Provider>
     </MockedProvider>,
   )
 }

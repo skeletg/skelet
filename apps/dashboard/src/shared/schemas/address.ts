@@ -83,8 +83,15 @@ export function addressChanged(a: AddressValues, b: AddressValues): boolean {
 
 // The backend's required set, as issues on the address's own fields - `prefix` is where the address
 // sits in the form (['shipping'] -> shipping.firstName)
-export function addressIssues(a: AddressValues, prefix: (string | number)[], ctx: z.RefinementCtx) {
+export function addressIssues(
+  a: AddressValues,
+  prefix: (string | number)[],
+  ctx: z.RefinementCtx,
+  opts: { requireNames?: boolean } = {},
+) {
+  const requireNames = opts.requireNames ?? true
   for (const { key, label, required } of ADDRESS_FIELDS) {
+    if (!requireNames && (key === 'firstName' || key === 'lastName')) continue
     if (required && !a[key].trim()) ctx.addIssue({ code: 'custom', path: [...prefix, key], message: `${label} is required` })
   }
   if (a.countryCode.trim() && a.countryCode.trim().length !== 2) {
