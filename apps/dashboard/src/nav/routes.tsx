@@ -608,7 +608,7 @@ const detailLeaves = [
   { title: 'Flow detail', path: '/flows/:id', element: lazyPage(() => import('@/features/flows/FlowBuilder'), 'FlowBuilder'), permission: 'flows.view' },
   { title: 'New email', path: '/emails/new', element: lazyPage(() => import('@/features/emails/EmailLibraryDetail'), 'EmailLibraryDetail'), permission: 'emails.manage' },
   { title: 'Email detail', path: '/emails/:id', element: lazyPage(() => import('@/features/emails/EmailLibraryDetail'), 'EmailLibraryDetail'), permission: 'emails.view' },
-  { title: 'New menu', path: '/menus/new', element: lazyPage(() => import('@/features/menus/MenusList'), 'MenuCreatePane') },
+  { title: 'New menu', path: '/menus/new', element: lazyPage(() => import('@/features/menus/MenuCreate'), 'MenuCreate') },
   { title: 'Menu detail', path: '/menus/:id', element: lazyPage(() => import('@/features/menus/MenuDetail'), 'MenuDetail') },
   {
     title: 'URL rewrites redirect',
