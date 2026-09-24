@@ -53,7 +53,7 @@ import {
   UpdateCollectionDocument,
   UpsertCollectionContentDocument,
 } from './Collections.gql'
-import { LexicalRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
+import { FormRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
 import { UrlRewritesSection } from './UrlRewritesSection'
 import { AutocompletePicker, type Option } from '@/features/promotions/widgets/AutocompletePicker'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
@@ -269,7 +269,7 @@ function CollectionForm({ collection, locale }: { collection: CollectionRecord; 
               <Label>Description</Label>
               <form.Field name="description">
                 {(f) => (
-                  <LexicalRichTextEditor
+                  <FormRichTextEditor
                     value={f.state.value as RichTextValue}
                     fallbackText=""
                     disabled={!canManage}
