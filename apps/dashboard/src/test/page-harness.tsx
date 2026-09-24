@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ConfigScopeContext, type ConfigScopeContextValue } from '@/lib/config-scope'
 import { PrefsContext } from '@/lib/admin-prefs'
 import { MeDocument } from '@/shared/auth/Me.gql'
+import { SectionHost } from './SectionHost'
 
 // Shared setup for the form page tests - a real page under Apollo's MockedProvider, a router and
 // the header config scope, so each test only states its fixtures and what it clicks
@@ -130,4 +131,10 @@ export function stubResizeObserver() {
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver
+}
+
+// A section that registers into its page's save registry (a Settings tab, say), hosted the way its
+// page would: the registry, a header "Save changes" and the confirm dialog it opens
+export function renderSection(node: ReactNode, mocks: MockLink.MockedResponse[] = [], scope: ConfigScopeContextValue = globalScope) {
+  return renderDialog(<SectionHost>{node}</SectionHost>, mocks, scope)
 }
