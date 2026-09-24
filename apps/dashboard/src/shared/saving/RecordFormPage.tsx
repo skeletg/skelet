@@ -39,6 +39,7 @@ export function RecordFormPage({
   children,
   after,
   readOnly = false,
+  hideSave = false,
 }: {
   record: RecordFormFrame
   backTo: string
@@ -57,6 +58,8 @@ export function RecordFormPage({
   after?: ReactNode
   /** No write permission - every field disabled and the Save button left out */
   readOnly?: boolean
+  /** The page renders its own submit buttons in `actions` - a create with two ways to save, say */
+  hideSave?: boolean
 }) {
   const { form, draft, registry, confirm, submitError, save, isEdit, label } = record
   const submitting = useStore(form.store, (s) => s.isSubmitting)
@@ -73,7 +76,7 @@ export function RecordFormPage({
           actions={
             <>
               {actions}
-              {!readOnly && (
+              {!readOnly && !hideSave && (
                 <Button
                   type="button"
                   size="sm"
