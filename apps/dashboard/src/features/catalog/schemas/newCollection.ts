@@ -13,7 +13,8 @@ export function newCollectionSchema(defaultLocale: string) {
       .string()
       .trim()
       .min(1, 'Slug is required')
-      .regex(/^[a-z0-9_-]+$/, 'Lowercase letters, numbers, underscores and hyphens only'),
+      // The backend's content slug rule (internal/content.ValidateSlug)
+      .regex(/^[a-z0-9._-]+$/, 'Lowercase letters, numbers, dots, underscores and hyphens only'),
     locale: z.string().refine((v) => (v || defaultLocale) !== '', 'Pick a locale'),
     isPublished: z.boolean(),
     seoNoindex: z.boolean(),
