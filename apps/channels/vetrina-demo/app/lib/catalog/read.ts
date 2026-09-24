@@ -243,6 +243,8 @@ export type ProductDetail = ProductSummary & {
   metaDescription: string | null;
   salableQuantity: number | null;
   media: ProductMedia[];
+  // Explicit OG role only - null means the PDP falls back to the first gallery image
+  ogImage: ProductMedia | null;
   attributeValues: ProductAttributeValue[];
   variantMode: "ATTRIBUTE" | "LIST" | null;
   configurableOptions: ConfigurableOption[];
