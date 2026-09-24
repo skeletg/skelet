@@ -58,7 +58,7 @@ import {
   type SectionDiffEntry,
 } from '../productSaveRegistry'
 import { type ProductMediaSummary } from './shared'
-import { readImageDimensions } from './media-utils'
+import { effectiveMediaRoles, readImageDimensions } from './media-utils'
 
 const MEDIA_ROLE_OPTIONS: Array<{ role: ProductMediaRole; label: string }> = [
   { role: 'MAIN', label: 'Main' },
@@ -135,6 +135,7 @@ export function ProductMediaPanel({
     const pos = new Map(orderOverride.map((id, i) => [id, i]))
     return base.sort((a, b) => (pos.get(a.id) ?? 0) - (pos.get(b.id) ?? 0))
   }, [media, orderOverride])
+  const effectiveRoles = useMemo(() => effectiveMediaRoles(sortedMedia, draftRoleIds), [sortedMedia, draftRoleIds])
   const visibleMedia = showAllMedia ? sortedMedia : sortedMedia.slice(0, 3)
   const hiddenMediaCount = Math.max(0, sortedMedia.length - visibleMedia.length)
   const refetchQueries = [{ query: ProductDocument, variables: productVariables }]
@@ -306,20 +307,22 @@ export function ProductMediaPanel({
           <p className="text-sm text-muted-foreground">
             Add gallery images, then mark which ready image should represent the product in each
             channel context. Pending images can be reviewed here but cannot receive roles until
-            processing finishes.
+            processing finishes. Unassigned roles fall back to the first image.
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
             <Badge variant="secondary" className="font-normal">{sortedMedia.length} image{sortedMedia.length === 1 ? '' : 's'}</Badge>
             {MEDIA_ROLE_OPTIONS.map(({ role, label }) => {
               const draftId = draftRoleIds[role]
               const dirty = draftId !== originalRoleIds[role]
+              const { auto } = effectiveRoles[role]
               return (
                 <Badge
                   key={role}
                   variant={draftId ? 'outline' : 'secondary'}
                   className={`font-normal ${dirty ? 'ring-1 ring-primary/40' : ''}`}
+                  title={auto ? (role === 'THUMBNAIL' ? 'Uses the main image until one is chosen' : 'Uses the first image until one is chosen') : undefined}
                 >
-                  {label}: {draftId ? 'set' : 'not set'}{dirty ? ' (pending)' : ''}
+                  {label}: {draftId ? 'set' : auto ? 'automatic' : 'not set'}{dirty ? ' (pending)' : ''}
                 </Badge>
               )
             })}
@@ -449,7 +452,14 @@ export function ProductMediaPanel({
                     <div className="flex items-start justify-between gap-2">
                       <div className="truncate text-sm font-medium">{item.altText || 'Untitled media'}</div>
                       <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                        {MEDIA_ROLE_OPTIONS.filter(({ role }) => draftRoleIds[role] === item.id).map(({ role, label }) => {
+                        {MEDIA_ROLE_OPTIONS.filter(({ role }) => effectiveRoles[role].id === item.id).map(({ role, label }) => {
+                          if (effectiveRoles[role].auto) {
+                            return (
+                              <Badge key={role} variant="outline" className="text-[10px] font-normal text-muted-foreground" title="Not assigned - used by fallback">
+                                {label} · auto
+                              </Badge>
+                            )
+                          }
                           const dirty = draftRoleIds[role] !== originalRoleIds[role]
                           return (
                             <Badge key={role} variant="secondary" className={`text-[10px] ${dirty ? 'ring-1 ring-primary/40' : ''}`}>
