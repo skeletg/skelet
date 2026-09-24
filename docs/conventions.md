@@ -149,7 +149,11 @@ convention is the one most code comments point at.
        A refresh or a closed browser gives it back. Refresh, close and scope
        switches stop prompting; closing the workspace tab still does, and
        deletes the draft. Dialogs pass `persist: false`. List secrets in
-       `exclude`, because they must never reach storage.
+       `exclude`, because they must never reach storage. Other staged
+       sections on the same page (a values table, the registry's config
+       fields) keep no draft, so while one of them is dirty the refresh
+       prompt comes back - the registry skips it only when every dirty
+       section is persisted.
      - **Every migrated page gets a page test** (`<Page>.test.tsx`, Apollo
        `MockedProvider`): edit, check that Save enables, check what the
        dialog lists, confirm, and assert the mutation's variables. A section

@@ -20,9 +20,11 @@ export type FormSectionOptions<T> = {
   enabled?: boolean
   /** The page's own registry, when this runs in the component that calls useSaveRegistry */
   registry?: SaveRegistryValue
+  /** The form keeps a stored draft (usePersistedForm) - see SectionRegistration.persisted */
+  persisted?: boolean
 }
 
-export function useFormSection<T>({ id, title, form, baseline, diff, enabled = true, registry }: FormSectionOptions<T>) {
+export function useFormSection<T>({ id, title, form, baseline, diff, enabled = true, registry, persisted }: FormSectionOptions<T>) {
   const values = useStore(form.store, (s) => s.values as T)
   useSaveSection(
     {
@@ -30,6 +32,7 @@ export function useFormSection<T>({ id, title, form, baseline, diff, enabled = t
       title,
       diff: enabled ? diff(baseline, values) : [],
       save: () => submitForm(form),
+      persisted,
     },
     registry,
   )

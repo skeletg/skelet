@@ -38,7 +38,7 @@ export type RecordFormOptions<T extends object> = {
 
 export function useRecordForm<T extends object>(opts: RecordFormOptions<T>) {
   const { isEdit, baseline, persist } = opts
-  const registry = useSaveRegistry(opts.label, { persisted: persist !== false })
+  const registry = useSaveRegistry(opts.label)
   const confirm = useSaveConfirm(registry.saveAll)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
@@ -76,6 +76,7 @@ export function useRecordForm<T extends object>(opts: RecordFormOptions<T>) {
     diff: opts.diff,
     enabled: isEdit,
     registry: registry.contextValue,
+    persisted: persist !== false,
   })
 
   // Server-side rejections that name a field show under that field, like a schema error would
