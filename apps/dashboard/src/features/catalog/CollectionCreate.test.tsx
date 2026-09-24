@@ -37,7 +37,7 @@ describe('CollectionCreate', () => {
     fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Summer arrivals' } })
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'Summer Arrivals' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create collection' }))
-    expect(await screen.findByText('Lowercase letters, numbers, underscores and hyphens only')).toBeDefined()
+    expect(await screen.findByText('Lowercase letters, numbers, dots, underscores and hyphens only')).toBeDefined()
 
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'summer-arrivals' } })
     fireEvent.change(screen.getByLabelText('Locale'), { target: { value: 'en' } })
