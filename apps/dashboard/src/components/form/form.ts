@@ -7,7 +7,7 @@ import { CheckboxField, MetadataField, NumberField, SelectField, SwitchField, Te
 //
 // Forms on a detail page still save through the page-header Save: wire the form into the registry
 // with shared/saving/useFormSection, and into refresh-proof drafts with usePersistedForm
-export const { useAppForm, withForm } = createFormHook({
+export const { useAppForm, withForm, withFieldGroup } = createFormHook({
   fieldContext,
   formContext,
   fieldComponents: { TextField, TextareaField, NumberField, SelectField, SwitchField, CheckboxField, MetadataField },
