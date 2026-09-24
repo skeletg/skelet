@@ -245,6 +245,8 @@ export function ProductCreate() {
 
       <DetailPageSection title="General" description="The product identity, type, and first translation.">
         <div className="grid gap-2">
+          {/* Label sits above the row so the select and the button share one line */}
+          <Label htmlFor="p-type">Product type</Label>
           <div className="flex items-start gap-2 sm:max-w-md">
             <form.AppField
               name="productTypeId"
@@ -256,7 +258,6 @@ export function ProductCreate() {
               {(f) => (
                 <f.SelectField
                   id="p-type"
-                  label="Product type"
                   disabled={productTypesQuery.loading || productTypes.length === 0}
                   placeholder={
                     productTypesQuery.loading
@@ -270,7 +271,7 @@ export function ProductCreate() {
                 />
               )}
             </form.AppField>
-            {productTypes.length > 0 && newTypeButton('New type', 'mt-6 h-10 shrink-0')}
+            {productTypes.length > 0 && newTypeButton('New type', 'h-10 shrink-0')}
           </div>
 
           {productTypes.length === 0 && !productTypesQuery.loading && !productTypesQuery.error && (
