@@ -19,6 +19,8 @@ export type SectionRegistration = {
   title: string
   diff: SectionDiffEntry[]
   save: () => Promise<void>
+  // Its edits also live in a stored draft (usePersistedForm), so a refresh loses nothing
+  persisted?: boolean
 }
 
 export type SaveRegistryValue = {
@@ -72,9 +74,7 @@ export function useSaveSection(reg: SectionRegistration, registry?: SaveRegistry
 }
 
 // `label` names the page in the discard prompts - left off, the workspace tab's own title stands in
-// `persisted` - the page keeps its edits in a stored draft (usePersistedForm), so only closing its
-// workspace tab prompts
-export function useSaveRegistry(label?: string, opts: { persisted?: boolean } = {}) {  // page side - owns the section map, the dirty subset for the dialog, and the save runner
+export function useSaveRegistry(label?: string) {  // page side - owns the section map, the dirty subset for the dialog, and the save runner
   const [sections, setSections] = useState<Record<string, SectionRegistration>>({})
   const register = useCallback((reg: SectionRegistration) => {
     setSections((prev) => ({ ...prev, [reg.id]: reg }))
@@ -108,6 +108,9 @@ export function useSaveRegistry(label?: string, opts: { persisted?: boolean } = 
   // Every staged-save page is a page that can lose work, so the guard is wired HERE rather than
   // per page - closing, refreshing or switching scope with a dirty section now always prompts
   const isDirty = dirtySections.length > 0
-  useUnsavedChangesGuard(isDirty, label, opts)
+  // Refresh and close skip the prompt only while EVERY dirty section keeps a stored draft - one
+  // staged section without one (a values table beside a record form) still has work to lose
+  const persisted = isDirty && dirtySections.every((s) => s.persisted)
+  useUnsavedChangesGuard(isDirty, label, { persisted })
   return { contextValue, dirtySections, isDirty, saveAll }
 }
