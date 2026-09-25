@@ -531,7 +531,7 @@ export function ProductDetail() {
                 productVariables={productVariables}
               />
               <ChannelUrlOverridesEditor
-                key={`${product.id}:${product.updatedAt}:channel-urls`}
+                key={`${product.id}:channel-urls`}
                 productId={product.id}
                 listings={product.listings}
                 canManage={canManage}
