@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { useStore } from '@tanstack/react-form'
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -20,10 +21,16 @@ import {
   SetProductPrimaryCategoryDocument,
 } from '../Catalog.gql'
 import { RootCategoriesDocument, type CategorySummary } from '../Categories.gql'
+import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
+import { useSectionForm } from '@/shared/saving/useSectionForm'
 import {
-  useProductSaveSection,
-  type SectionDiffEntry,
-} from '../productSaveRegistry'
+  PRODUCT_CATEGORY_LABELS,
+  productCategoriesDiff,
+  productCategoriesSchema,
+  productCategoryChanges,
+  toggleCategory,
+  toProductCategoryValues,
+} from '../schemas/product'
 import type { ProductCategoryItem } from './shared'
 
 // ---------- Product categories card ----------
@@ -86,32 +93,37 @@ export function ProductCategoriesPicker({
   const [removeFromCategory] = useMutation(RemoveProductFromCategoryDocument, { refetchQueries })
   const [setPrimary] = useMutation(SetProductPrimaryCategoryDocument, { refetchQueries })
 
-  const originalAssignedIds = useMemo(() => new Set(categories.map((c) => c.id)), [categories])
-  const originalPrimaryId = primaryCategory?.id ?? null
-
-  // Draft state - clicks only mutate this; the global Save runs the deltas
-  const [draftAssigned, setDraftAssigned] = useState<Set<string>>(originalAssignedIds)
-  const [draftPrimaryId, setDraftPrimaryId] = useState<string | null>(originalPrimaryId)
-
-  // Re-sync the draft whenever the upstream product refetches (e.g. after save)
-  const originalAssignedKey = useMemo(
-    () => [...originalAssignedIds].sort().join('|'),
-    [originalAssignedIds],
-  )
-  const [prevAssignedKey, setPrevAssignedKey] = useState(originalAssignedKey)
-  const [prevPrimaryId, setPrevPrimaryId] = useState(originalPrimaryId)
-  if (prevAssignedKey !== originalAssignedKey || prevPrimaryId !== originalPrimaryId) {
-    setPrevAssignedKey(originalAssignedKey)
-    setPrevPrimaryId(originalPrimaryId)
-    setDraftAssigned(new Set(originalAssignedIds))
-    setDraftPrimaryId(originalPrimaryId)
-  }
-
   const flat = useMemo(() => {
     const out: CategoryFlatNode[] = []
     flattenCategoryTree(roots, 0, [], out)
     return out
   }, [roots])
+
+  const diff = useMemo(() => {
+    const names = new Map([...flat.map((n) => [n.id, n.name] as const), ...categories.map((c) => [c.id, c.name ?? c.slug] as const)])
+    return productCategoriesDiff((id) => names.get(id) ?? id)
+  }, [flat, categories])
+  // Clicks only stage; the header Save runs the deltas
+  const baseline = useMemo(() => toProductCategoryValues(categories, primaryCategory), [categories, primaryCategory])
+  const { form, draft } = useSectionForm({
+    id: 'categories',
+    title: 'Categories',
+    baseline,
+    schema: productCategoriesSchema,
+    diff,
+    routeKey: `product-categories:${productId}`,
+    submit: async (v) => {
+      const changes = productCategoryChanges(baseline, v)
+      // Add new assignments first so a primary swap can target them
+      for (const id of changes.add) await addToCategory({ variables: { productId, categoryId: id, isPrimary: false } })
+      if (changes.primary) await setPrimary({ variables: { productId, categoryId: changes.primary } })
+      // Remove afterwards so we don't temporarily strip the primary if it's being swapped within the same set
+      for (const id of changes.remove) await removeFromCategory({ variables: { productId, categoryId: id } })
+    },
+  })
+  const values = useStore(form.store, (s) => s.values)
+  const draftAssigned = useMemo(() => new Set(values.assigned), [values.assigned])
+  const pending = diff(baseline, values).length
 
   // Auto-expand ancestors of assigned categories whenever the tree or the draft assignments change (state adjusted
   // during render; expandedIds is still user-editable, so manual collapses stick until the next change)
@@ -189,87 +201,19 @@ export function ProductCategoriesPicker({
 
   function onToggleAssigned(node: CategoryFlatNode) {
     if (!canManage) return
-    setDraftAssigned((prev) => {
-      const next = new Set(prev)
-      if (next.has(node.id)) {
-        next.delete(node.id)
-        // If the primary is being unassigned, clear it (or pick another)
-        if (draftPrimaryId === node.id) {
-          const remaining = [...next]
-          setDraftPrimaryId(remaining.length > 0 ? remaining[0] : null)
-        }
-      } else {
-        next.add(node.id)
-        // First assignment becomes primary by default
-        if (next.size === 1 || draftPrimaryId === null) {
-          setDraftPrimaryId(node.id)
-        }
-      }
-      return next
-    })
+    const next = toggleCategory(form.state.values, node.id)
+    form.setFieldValue('assigned', next.assigned)
+    form.setFieldValue('primaryId', next.primaryId)
   }
 
   function onSetPrimary(categoryId: string) {
-    if (!canManage) return
-    if (!draftAssigned.has(categoryId)) return
-    setDraftPrimaryId(categoryId)
+    if (!canManage || !draftAssigned.has(categoryId)) return
+    form.setFieldValue('primaryId', categoryId)
   }
-
-  // Compute the diff between draft and original
-  const toAdd = useMemo(
-    () => [...draftAssigned].filter((id) => !originalAssignedIds.has(id)),
-    [draftAssigned, originalAssignedIds],
-  )
-  const toRemove = useMemo(
-    () => [...originalAssignedIds].filter((id) => !draftAssigned.has(id)),
-    [draftAssigned, originalAssignedIds],
-  )
-  const primaryChanged = draftPrimaryId !== originalPrimaryId
-
-  const labelById = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const n of flat) m.set(n.id, n.name)
-    for (const c of categories) m.set(c.id, c.name ?? c.slug)
-    return m
-  }, [flat, categories])
-
-  const diff = useMemo<SectionDiffEntry[]>(() => {
-    const entries: SectionDiffEntry[] = []
-    for (const id of toAdd) {
-      entries.push({ label: 'Assign', before: '-', after: labelById.get(id) ?? id })
-    }
-    for (const id of toRemove) {
-      entries.push({ label: 'Unassign', before: labelById.get(id) ?? id, after: '-' })
-    }
-    if (primaryChanged) {
-      const before = originalPrimaryId ? labelById.get(originalPrimaryId) ?? originalPrimaryId : '-'
-      const after = draftPrimaryId ? labelById.get(draftPrimaryId) ?? draftPrimaryId : '-'
-      entries.push({ label: 'Primary', before, after })
-    }
-    return entries
-  }, [toAdd, toRemove, primaryChanged, draftPrimaryId, originalPrimaryId, labelById])
-
-  const save = useCallback(async () => {
-    // Add new assignments first so a primary swap can target them
-    for (const id of toAdd) {
-      await addToCategory({
-        variables: { productId, categoryId: id, isPrimary: false },
-      })
-    }
-    if (primaryChanged && draftPrimaryId) {
-      await setPrimary({ variables: { productId, categoryId: draftPrimaryId } })
-    }
-    // Remove afterwards so we don't temporarily strip the primary if it's
-    // being swapped within the same set
-    for (const id of toRemove) {
-      await removeFromCategory({ variables: { productId, categoryId: id } })
-    }
-  }, [toAdd, toRemove, primaryChanged, draftPrimaryId, productId, addToCategory, setPrimary, removeFromCategory])
-
-  useProductSaveSection({ id: 'categories', title: 'Categories', diff, save })
 
   return (
     <div className="grid gap-3">
+      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_CATEGORY_LABELS} />}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="grid gap-0.5">
           <Label className="text-sm font-medium">Categories</Label>
@@ -279,7 +223,7 @@ export function ProductCategoriesPicker({
         </div>
         <Badge variant="secondary" className="gap-1">
           {draftAssigned.size} assigned
-          {diff.length > 0 ? <span className="text-muted-foreground">· {diff.length} pending</span> : null}
+          {pending > 0 ? <span className="text-muted-foreground">· {pending} pending</span> : null}
         </Badge>
       </div>
 
@@ -312,17 +256,17 @@ export function ProductCategoriesPicker({
             No matches for &ldquo;{search}&rdquo;
           </div>
         ) : (
-          <div className="scrollbar-accent max-h-[26rem] overflow-y-auto rounded-md border">
+          <div className="scrollbar-accent max-h-104 overflow-y-auto rounded-md border">
             <ul className="divide-y">
               {visibleNodes.map((node) => {
                 const isAssigned = draftAssigned.has(node.id)
-                const isPrimaryNode = draftPrimaryId === node.id
+                const isPrimaryNode = values.primaryId === node.id
                 const isExpanded = effectiveExpanded.has(node.id)
                 return (
                   <li
                     key={node.id}
                     className={`relative flex items-center gap-2 py-1.5 pr-3 text-sm transition-colors ${
-                      isAssigned ? 'bg-primary/5' : 'hover:bg-muted/50'
+                      isAssigned ? 'bg-muted/60' : 'hover:bg-muted/50'
                     }`}
                     style={{ paddingLeft: `${node.depth * 1.125 + 0.5}rem` }}
                   >
@@ -359,9 +303,9 @@ export function ProductCategoriesPicker({
                     />
 
                     {isExpanded && node.hasChildren ? (
-                      <FolderOpenIcon className={`size-4 shrink-0 ${isAssigned ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <FolderOpenIcon className={`size-4 shrink-0 ${isAssigned ? 'text-foreground' : 'text-muted-foreground'}`} />
                     ) : (
-                      <FolderIcon className={`size-4 shrink-0 ${isAssigned ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <FolderIcon className={`size-4 shrink-0 ${isAssigned ? 'text-foreground' : 'text-muted-foreground'}`} />
                     )}
 
                     <span className={`flex-1 truncate ${isAssigned ? 'font-medium' : ''}`}>
