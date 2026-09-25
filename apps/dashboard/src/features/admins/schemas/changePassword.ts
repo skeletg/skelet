@@ -1,14 +1,12 @@
 import { z } from 'zod'
+import { newPassword } from '@/shared/schemas/fields'
 
-// Self-service password change. The length floor mirrors the backend's auth.MinPasswordLen so it
-// can be said up front rather than bounced back from the server
-
-export const MIN_PASSWORD_LENGTH = 8
+// Self-service password change
 
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, 'Enter your current password'),
-    newPassword: z.string().min(MIN_PASSWORD_LENGTH, `At least ${MIN_PASSWORD_LENGTH} characters`),
+    newPassword: newPassword(),
     confirmPassword: z.string(),
   })
   .refine((v) => v.confirmPassword === v.newPassword, { message: "Passwords don't match", path: ['confirmPassword'] })

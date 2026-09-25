@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { wholeNumber } from '@/shared/schemas/fields'
 
 // Bulk promotion-code generator. Pattern grammar: [A] uppercase letter, [N] digit, [*] alphanumeric;
 // anything outside the brackets is literal, and prefix + suffix wrap the whole pattern -
@@ -7,7 +8,7 @@ import { z } from 'zod'
 export const codeGeneratorSchema = z.object({
   // Without a placeholder every generated code would be the same literal string
   pattern: z.string().refine((v) => /\[(A|N|\*)\]/.test(v), 'Needs at least one [A], [N] or [*] placeholder'),
-  count: z.number().int('Whole numbers only').min(1, 'At least 1').max(10000, 'At most 10000'),
+  count: wholeNumber().min(1, 'At least 1').max(10000, 'At most 10000'),
   prefix: z.string(),
   suffix: z.string(),
 })

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
 import {
@@ -49,7 +50,7 @@ export const localeSchema = z.object({
   description: z.string(),
   isActive: z.boolean(),
   isRTL: z.boolean(),
-  sortOrder: z.number().int('Whole numbers only'),
+  sortOrder: wholeNumber(),
   flagEmoji: z.string(),
   dateFormat: z.string(),
   timeFormat: z.string(),

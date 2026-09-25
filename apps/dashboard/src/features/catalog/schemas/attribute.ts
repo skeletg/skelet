@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { wholeNumber } from '@/shared/schemas/fields'
 import type { AttributeInputType, AttributeReferenceTarget } from '@/graphql/schema.types'
 
 // Catalog attribute dialog. Slug and input type are fixed after create (a new input type would
@@ -56,7 +57,7 @@ const baseSchema = z.object({
   facetCollapsed: z.boolean(),
   isIndexable: z.boolean(),
   h1Position: z.enum(['BEFORE', 'AFTER']),
-  sortOrder: z.number().int('Whole numbers only'),
+  sortOrder: wholeNumber(),
   // Create-only default - the toggle, then a raw text value or a boolean depending on the type
   hasDefault: z.boolean(),
   defaultRaw: z.string(),

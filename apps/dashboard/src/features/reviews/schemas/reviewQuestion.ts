@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { wholeNumber } from '@/shared/schemas/fields'
 import type { ReviewQuestionInputType } from '@/graphql/schema.types'
 import type { ReviewQuestionFieldsFragment } from '../Reviews.gql'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
@@ -17,7 +18,7 @@ const shape = {
   inputType: z.enum(INPUT_TYPES),
   isRequired: z.boolean(),
   allowComment: z.boolean(),
-  sortOrder: z.number().int('Whole numbers only'),
+  sortOrder: wholeNumber(),
 }
 
 // Create seeds the label and slug; edit never shows them, so it mustn't block on them

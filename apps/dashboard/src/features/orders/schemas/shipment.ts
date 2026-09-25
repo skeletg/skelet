@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { dollarsToCents, isNumberText, money } from '@/shared/schemas/fields'
 
 // Create-shipment dialog - a partial fulfilment of the order's still-unshipped lines, plus optional
 // carrier, tracking and insured value
@@ -21,14 +22,14 @@ export const shipmentSchema = z
     lines: z.array(
       z
         .object({ id: z.string(), checked: z.boolean(), quantity: z.string(), remaining: z.number() })
-        .refine((l) => !l.checked || (Number(l.quantity) > 0 && Number(l.quantity) <= l.remaining), {
+        .refine((l) => !l.checked || isNumberText(l.quantity, { above: 0, max: l.remaining }), {
           message: 'Between 1 and what is still unshipped',
           path: ['quantity'],
         }),
     ),
     carrier: z.string(),
     tracking: z.string(),
-    insured: z.string().refine((v) => v.trim() === '' || (Number.isFinite(Number(v)) && Number(v) >= 0), 'Must be 0 or more'),
+    insured: money({ optional: true }),
   })
   .refine((v) => v.lines.some((l) => l.checked), { message: 'Select at least one line to ship', path: ['lines'] })
 
@@ -52,6 +53,6 @@ export function toShipmentInput(v: ShipmentValues, orderId: string) {
     lines: v.lines.filter((l) => l.checked).map((l) => ({ orderLineId: l.id, quantity: Number(l.quantity) })),
     carrier: v.carrier.trim() || null,
     trackingNumber: v.tracking.trim() || null,
-    insuredValueCents: v.insured.trim() ? Math.round(Number(v.insured) * 100) : null,
+    insuredValueCents: v.insured.trim() ? dollarsToCents(v.insured) : null,
   }
 }

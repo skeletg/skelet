@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isNumberText, numberText } from '@/shared/schemas/fields'
 import type { CmsInputType, CmsRelationshipTarget } from '@/graphql/schema.types'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
@@ -79,8 +80,6 @@ export function attributeKind(inputType: CmsInputType): Kind {
   }
 }
 
-const blankOrNumber = (v: string) => v.trim() === '' || Number.isFinite(Number(v))
-const blankOrCount = (v: string) => v.trim() === '' || (Number.isInteger(Number(v)) && Number(v) >= 0)
 
 function compiles(pattern: string): boolean {
   try {
@@ -95,12 +94,12 @@ export function cmsAttributeDefaultsSchema(inputType: CmsInputType) {
   const { isNum } = attributeKind(inputType)
   return z
     .object({
-      defaultValue: z.string().refine((v) => !isNum || blankOrNumber(v), 'A number'),
+      defaultValue: z.string().refine((v) => !isNum || isNumberText(v, { optional: true }), 'A number'),
       defaultBool: z.boolean(),
-      min: z.string().refine(blankOrNumber, 'A number'),
-      max: z.string().refine(blankOrNumber, 'A number'),
-      minLength: z.string().refine(blankOrCount, 'A whole number, zero or more'),
-      maxLength: z.string().refine(blankOrCount, 'A whole number, zero or more'),
+      min: numberText({ optional: true }),
+      max: numberText({ optional: true }),
+      minLength: numberText({ optional: true, int: true, min: 0 }),
+      maxLength: numberText({ optional: true, int: true, min: 0 }),
       regex: z.string().refine((v) => v.trim() === '' || compiles(v.trim()), 'Not a valid regular expression'),
     })
     .superRefine((v, ctx) => {

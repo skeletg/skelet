@@ -24,7 +24,7 @@ describe('AdminFormDialog', () => {
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'short' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create admin' }))
     expect(await screen.findByText('Enter a valid email address')).toBeDefined()
-    expect(screen.getByText('Minimum 8 characters')).toBeDefined()
+    expect(screen.getByText('At least 8 characters')).toBeDefined()
     expect(onCreate).not.toHaveBeenCalled()
 
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })

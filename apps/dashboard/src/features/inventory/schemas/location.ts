@@ -8,6 +8,7 @@ import {
   toMetadataValues,
   type MetadataEntry,
 } from '@/shared/schemas/metadata'
+import { numberText, optionalEmail, parseNumberText } from '@/shared/schemas/fields'
 
 // Inventory location form - THE field list. Values, validation, the form's type, the mutation
 // input and the confirm-dialog diff all come from here, so a new column is added once
@@ -55,14 +56,7 @@ export type ExistingLocation = {
 
 // Coordinates stay strings in the form - that's what the inputs hold, and '' is how "no coordinate"
 // is typed - they become numbers only on the way into the mutation
-function coordinate(limit: number) {
-  return z
-    .string()
-    .refine(
-      (v) => v.trim() === '' || (Number.isFinite(Number(v)) && Math.abs(Number(v)) <= limit),
-      `Between -${limit} and ${limit}`,
-    )
-}
+const coordinate = (limit: number) => numberText({ optional: true, min: -limit, max: limit })
 
 const dayHoursSchema = z.object({ closed: z.boolean(), open: z.string(), close: z.string() })
 
@@ -89,7 +83,7 @@ export const locationSchema = z.object({
     saturday: dayHoursSchema,
     sunday: dayHoursSchema,
   }),
-  email: z.union([z.literal(''), z.email('Enter a valid email address')]),
+  email: optionalEmail(),
   phone: z.string(),
   contactName: z.string(),
   externalReference: z.string(),
@@ -157,11 +151,6 @@ function hoursToJSON(h: HoursMap): Record<string, unknown> {
   return out
 }
 
-function parseFloatOrNull(v: string): number | null {
-  if (v.trim() === '') return null
-  const n = Number(v)
-  return Number.isFinite(n) ? n : null
-}
 
 export function toLocationValues(location?: ExistingLocation): LocationValues {
   return {
@@ -201,8 +190,8 @@ export function toLocationInput(v: LocationValues) {
     region: v.region,
     postalCode: v.postalCode,
     countryCode: v.countryCode,
-    latitude: parseFloatOrNull(v.latitude),
-    longitude: parseFloatOrNull(v.longitude),
+    latitude: parseNumberText(v.latitude),
+    longitude: parseNumberText(v.longitude),
     timezone: v.timezone,
     hours: hoursToJSON(v.hours),
     email: v.email,

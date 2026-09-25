@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
 import { countryListText, formatCountryList, parseCountryList } from '@/shared/schemas/countries'
@@ -21,7 +22,7 @@ export const zoneSchema = z.object({
   code: z.string().trim().min(1, 'Code is required'),
   name: z.string(),
   countries: countryListText,
-  sortOrder: z.number().int('Whole numbers only'),
+  sortOrder: wholeNumber(),
   isActive: z.boolean(),
 })
 

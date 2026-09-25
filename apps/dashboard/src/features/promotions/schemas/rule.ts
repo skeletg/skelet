@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { numberText, wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
 
@@ -19,7 +20,7 @@ const subrow = z.object({
 export type RuleRow = z.infer<typeof subrow>
 
 // Blank means "no limit"
-const optionalCount = z.string().refine((v) => v.trim() === '' || (Number.isInteger(Number(v)) && Number(v) > 0), 'A whole number, one or more')
+const optionalCount = numberText({ optional: true, int: true, min: 1 })
 const HEX = /^#[0-9a-f]{6}$/i
 
 export const ruleSchema = z
@@ -30,7 +31,7 @@ export const ruleSchema = z
     publicLabel: z.string(),
     requiresCode: z.boolean(),
     isActive: z.boolean(),
-    priority: z.number().int('Whole numbers only'),
+    priority: wholeNumber(),
     stopAfterApply: z.enum(['NONE', 'SAME_ACTION_TYPE', 'ALL']),
     exclusivityGroup: z.string(),
     // datetime-local text, local time - converted to ISO on the way out

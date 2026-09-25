@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { email, newPassword } from '@/shared/schemas/fields'
 
 // New-customer page. Accounts are scoped to one store, so the header must point at a channel; the
 // password is only ever typed here and is kept out of the stored draft
@@ -6,8 +7,8 @@ import { z } from 'zod'
 export const newCustomerSchema = z.object({
   firstName: z.string().trim().min(1, 'First name is required'),
   lastName: z.string().trim().min(1, 'Last name is required'),
-  email: z.email('Enter a valid email address'),
-  password: z.string().min(8, 'Minimum 8 characters'),
+  email: email(),
+  password: newPassword(),
   phone: z.string(),
   isActive: z.boolean(),
   isEmailVerified: z.boolean(),

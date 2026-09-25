@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { added, fieldDiff, removed } from '@/shared/saving/diff'
+import { email, newPassword } from '@/shared/schemas/fields'
 
 // Admin dialog. Email and password are set once on create; an edit changes the profile, roles and
 // active flag only. Dialogs keep no stored draft, so the password never reaches storage
@@ -26,8 +27,8 @@ const shape = {
 
 export const createAdminSchema = z.object({
   ...shape,
-  email: z.email('Enter a valid email address'),
-  password: z.string().min(8, 'Minimum 8 characters'),
+  email: email(),
+  password: newPassword(),
 })
 export const editAdminSchema = z.object(shape)
 

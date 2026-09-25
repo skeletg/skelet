@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { numberText } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
 
@@ -42,7 +43,7 @@ export const pageTypeSchema = z
   .object({
     name: z.string(),
     description: z.string(),
-    position: z.string().refine((v) => v.trim() === '' || Number.isInteger(Number(v)), 'A whole number'),
+    position: numberText({ optional: true, int: true }),
     icon: z.string(),
     rootSlug: z.string().refine(validRoot, ROOT_MESSAGE),
     // Channel id -> its root override; blank means "use the global root"

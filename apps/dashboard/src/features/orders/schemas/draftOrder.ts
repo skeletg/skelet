@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { email, numberText, parseNumberText } from '@/shared/schemas/fields'
 import { addressIssues, addressSchema, toAddressInput, toAddressValues } from '@/shared/schemas/address'
 
 // Manual (draft) order - a customer or a guest email, simple-product lines, addresses and an optional
@@ -18,13 +19,13 @@ export type DraftCustomer = { id: string; email: string; label: string }
 export const draftOrderSchema = z
   .object({
     customer: z.object({ id: z.string(), email: z.string(), label: z.string() }).nullable(),
-    email: z.email('Enter the order email'),
+    email: email('Enter the order email'),
     lines: z.array(lineSchema).min(1, 'Add at least one product'),
     billing: addressSchema,
     shipping: addressSchema,
     shipSame: z.boolean(),
     // Whole minor units (cents), clamped to the subtotal server-side
-    discount: z.string().refine((v) => v.trim() === '' || /^\d+$/.test(v.trim()), 'Whole cents, 0 or more'),
+    discount: numberText({ optional: true, int: true, min: 0 }, 'Whole cents, 0 or more'),
     note: z.string(),
   })
   .superRefine((v, ctx) => {
@@ -56,7 +57,7 @@ export function addDraftLine(lines: DraftLine[], next: Omit<DraftLine, 'quantity
 }
 
 export function discountCents(v: DraftOrderValues): number {
-  return Number.parseInt(v.discount.trim() || '0', 10) || 0
+  return parseNumberText(v.discount) ?? 0
 }
 
 export function toDraftOrderInput(v: DraftOrderValues, channelId: string, sourceCartId: string | null) {

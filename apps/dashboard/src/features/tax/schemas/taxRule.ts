@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { added, changed, display, fieldDiff, removed } from '@/shared/saving/diff'
 
@@ -23,9 +24,9 @@ const ruleRowSchema = z.object({ type: z.string().min(1, 'Pick a type'), params:
 
 export const taxRuleSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  priority: z.number().int('Whole numbers only'),
+  priority: wholeNumber(),
   exclusivityGroup: z.string(),
-  sortOrder: z.number().int('Whole numbers only'),
+  sortOrder: wholeNumber(),
   isActive: z.boolean(),
   conditions: z.array(ruleRowSchema),
   effects: z.array(ruleRowSchema),
