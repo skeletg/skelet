@@ -535,7 +535,6 @@ export function ProductDetail() {
                 productId={product.id}
                 listings={product.listings}
                 canManage={canManage}
-                productVariables={productVariables}
               />
             </div>
           </CollapsibleSection>
