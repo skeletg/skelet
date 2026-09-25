@@ -3,9 +3,11 @@ import { expect, type Page } from '@playwright/test'
 const API = process.env.E2E_API_URL ?? 'http://localhost:8080'
 const EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'dev-super@skelet.test'
 const PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'devpassword'
+// ADMIN_API_SLUG moves the admin endpoint (see the root .env) - the same variable finds it here
+const ADMIN_GRAPHQL = process.env.ADMIN_API_SLUG ? `/api/admin/${process.env.ADMIN_API_SLUG}/graphql` : '/api/admin/graphql'
 
 async function api(query: string, variables: unknown, token?: string) {
-  const res = await fetch(`${API}/api/admin/graphql`, {
+  const res = await fetch(`${API}${ADMIN_GRAPHQL}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ query, variables }),
@@ -38,6 +40,28 @@ async function signIn(): Promise<string> {
 export async function resetWorkspaces(): Promise<void> {
   const token = await adminToken()
   await api('mutation($k:String!,$v:JSON){ setMyPreference(key:$k, value:$v) }', { k: 'workspaces', v: null }, token)
+}
+
+/** An admin API call as the e2e admin - throws on any GraphQL error, so a failed seed stops the spec */
+export async function adminApi<T = Record<string, unknown>>(query: string, variables: unknown = {}): Promise<T> {
+  const out = await api(query, variables, await adminToken())
+  if (out.errors || !out.data) throw new Error(`admin API: ${JSON.stringify(out.errors ?? out).slice(0, 400)}`)
+  return out.data as T
+}
+
+/**
+ * The page-header Save: opens the review dialog, checks it lists each expected row, applies, and
+ * waits for the header Save to go idle again - "No changes" on some pages, a disabled "Save changes"
+ * on the record-form pages
+ */
+export async function saveThroughDialog(page: Page, expectedRows: (string | RegExp)[] = []): Promise<void> {
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog).toBeVisible()
+  for (const row of expectedRows) await expect(dialog.getByText(row).first()).toBeVisible()
+  await dialog.getByRole('button', { name: /^Apply/ }).click()
+  await expect(dialog).toBeHidden()
+  await expect(page.getByRole('button', { name: /^(No changes|Save changes)$/ }).first()).toBeDisabled()
 }
 
 export const AUTH_FILE = 'e2e/.auth/admin.json'
