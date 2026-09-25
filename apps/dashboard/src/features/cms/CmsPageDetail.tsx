@@ -497,6 +497,7 @@ export function CmsPageDetail() {
             description="Pick options for select / multiselect attributes."
           >
             <SelectionsCard
+              pageId={p.id}
               selectAttrs={selectAttrs}
               selections={p.selections}
               canManage={canManage}
@@ -514,6 +515,7 @@ export function CmsPageDetail() {
             description="Link this page to other entities. Selection order is preserved."
           >
             <RelationshipsCard
+              pageId={p.id}
               relationshipAttrs={relationshipAttrs}
               relationships={p.relationships}
               canManage={canManage}

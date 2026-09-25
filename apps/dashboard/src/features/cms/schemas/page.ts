@@ -48,3 +48,50 @@ export function pageBasicsDiff(scalarAttrs: PageTypeAttr[]) {
     ...dynamicFieldDiff(scalarAttrs, original.data as Record<string, FieldValue>, draft.data as Record<string, FieldValue>),
   ]
 }
+
+// ---------- Selections and relationships: value ids per attribute ----------
+
+// Attribute id -> the chosen value ids (selections) or linked entity ids (relationships, in order).
+// One write per changed attribute, so they're grouped by attribute rather than flattened
+export const pageLinksSchema = z.object({ byAttribute: z.record(z.string(), z.array(z.string())) })
+
+export type PageLinksValues = z.infer<typeof pageLinksSchema>
+
+export const PAGE_LINKS_LABELS: Record<keyof PageLinksValues, string> = { byAttribute: 'Values' }
+
+export function toPageLinksValues(attrs: PageTypeAttr[], rows: { attributeId: string; id: string }[]): PageLinksValues {
+  return {
+    byAttribute: Object.fromEntries(attrs.map((pta) => [pta.attribute.id, rows.filter((r) => r.attributeId === pta.attribute.id).map((r) => r.id)])),
+  }
+}
+
+// `ordered` - relationships keep their order, so a reorder is a change; selections are a set
+export function changedAttributes(before: PageLinksValues, after: PageLinksValues, ordered: boolean): string[] {
+  const norm = (ids: string[] | undefined) => (ordered ? (ids ?? []) : [...(ids ?? [])].sort())
+  return Object.keys(after.byAttribute).filter((id) => JSON.stringify(norm(before.byAttribute[id])) !== JSON.stringify(norm(after.byAttribute[id])))
+}
+
+const attrName = (attrs: PageTypeAttr[], id: string) => {
+  const a = attrs.find((pta) => pta.attribute.id === id)?.attribute
+  return a ? (a.content?.name ?? a.slug) : id
+}
+
+// Selections read as the chosen values' slugs
+export function pageSelectionsDiff(attrs: PageTypeAttr[]) {
+  return (original: PageLinksValues, draft: PageLinksValues): SectionDiffEntry[] =>
+    changedAttributes(original, draft, false).map((id) => {
+      const values = attrs.find((pta) => pta.attribute.id === id)?.attribute.values ?? []
+      const names = (ids: string[] | undefined) => (ids ?? []).map((v) => values.find((x) => x.id === v)?.slug ?? v).join(', ')
+      return { kind: 'change', label: attrName(attrs, id), before: names(original.byAttribute[id]), after: names(draft.byAttribute[id]) }
+    })
+}
+
+// Relationships read as how many are linked - the ids alone mean nothing to the admin
+export function pageRelationshipsDiff(attrs: PageTypeAttr[]) {
+  const count = (ids: string[] | undefined) => `${(ids ?? []).length} linked`
+  return (original: PageLinksValues, draft: PageLinksValues): SectionDiffEntry[] =>
+    changedAttributes(original, draft, true).map((id) => {
+      const [b, a] = [count(original.byAttribute[id]), count(draft.byAttribute[id])]
+      return { kind: 'change', label: attrName(attrs, id), before: b, after: a === b ? `${a}, reordered or swapped` : a }
+    })
+}
