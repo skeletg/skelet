@@ -632,3 +632,51 @@ export function toProductMetadataValues(product: { metadata: MetadataEntry[]; pr
 export function productMetadataDiff(original: ProductMetadataValues, draft: ProductMetadataValues): SectionDiffEntry[] {
   return [...metadataDiff(original.metadata, draft.metadata), ...metadataDiff(original.privateMetadata, draft.privateMetadata, 'Private metadata')]
 }
+
+// ---------- Categories: which categories the product sits in, and its primary one ----------
+
+export const productCategoriesSchema = z
+  .object({
+    assigned: z.array(z.string()),
+    // '' = none - only when nothing is assigned
+    primaryId: z.string(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.assigned.length > 0 && !v.assigned.includes(v.primaryId)) {
+      ctx.addIssue({ code: 'custom', path: ['primaryId'], message: 'Star one of the assigned categories as primary' })
+    }
+  })
+
+export type ProductCategoriesValues = z.infer<typeof productCategoriesSchema>
+
+export const PRODUCT_CATEGORY_LABELS: Record<keyof ProductCategoriesValues, string> = { assigned: 'Categories', primaryId: 'Primary category' }
+
+export function toProductCategoryValues(categories: { id: string }[], primary: { id: string } | null): ProductCategoriesValues {
+  return { assigned: categories.map((c) => c.id), primaryId: primary?.id ?? '' }
+}
+
+// Assigning keeps a primary: the first category assigned becomes it, and unassigning the primary
+// hands it to another assigned one
+export function toggleCategory(v: ProductCategoriesValues, id: string): ProductCategoriesValues {
+  if (v.assigned.includes(id)) {
+    const assigned = v.assigned.filter((x) => x !== id)
+    return { assigned, primaryId: v.primaryId === id ? (assigned[0] ?? '') : v.primaryId }
+  }
+  return { assigned: [...v.assigned, id], primaryId: v.primaryId || id }
+}
+
+export function productCategoryChanges(before: ProductCategoriesValues, after: ProductCategoriesValues) {
+  return {
+    add: after.assigned.filter((id) => !before.assigned.includes(id)),
+    remove: before.assigned.filter((id) => !after.assigned.includes(id)),
+    primary: after.primaryId && after.primaryId !== before.primaryId ? after.primaryId : null,
+  }
+}
+
+export function productCategoriesDiff(name: (id: string) => string) {
+  return (original: ProductCategoriesValues, draft: ProductCategoriesValues): SectionDiffEntry[] => {
+    const { add, remove } = productCategoryChanges(original, draft)
+    const primary = original.primaryId !== draft.primaryId ? changed('Primary', original.primaryId && name(original.primaryId), draft.primaryId && name(draft.primaryId)) : null
+    return [...add.map((id) => added('Category', name(id))), ...remove.map((id) => removed('Category', name(id))), ...(primary ? [primary] : [])]
+  }
+}

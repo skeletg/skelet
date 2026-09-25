@@ -3,16 +3,19 @@ import {
   clearedStore,
   productContentChanges,
   productContentDiff,
+  productCategoryChanges,
   productListingChanges,
   productListingsSchema,
   productMetadataSchema,
   toProductListingValues,
+  toggleCategory,
   type ProductContentValues,
 } from './product'
 
 // What these pin: only a description that changed is written (the content writer keeps the rest of
 // the row), and a formatting-only edit still shows in the review dialog. Per store, an equal price
-// typed differently is no change, and a blank price is refused. Metadata keys are unique and required
+// typed differently is no change, and a blank price is refused. Metadata keys are unique and required,
+// and assigned categories always keep a primary
 
 const doc = (text: string, format = 0) => ({ root: { children: [{ children: [{ text, format }] }] } })
 
@@ -61,5 +64,20 @@ describe('product metadata', () => {
     expect(parse([{ key: 'a', value: '1' }, { key: ' a', value: '2' }])).toBe(false)
     expect(parse([{ key: '', value: 'orphan' }])).toBe(false)
     expect(parse([{ key: 'a', value: '1' }, { key: '', value: '' }])).toBe(true)
+  })
+})
+
+describe('product categories', () => {
+  it('keeps a primary while assigning and unassigning', () => {
+    const one = toggleCategory({ assigned: [], primaryId: '' }, 'shirts')
+    expect(one).toEqual({ assigned: ['shirts'], primaryId: 'shirts' })
+    const two = toggleCategory(one, 'sale')
+    expect(two.primaryId).toBe('shirts')
+    expect(toggleCategory(two, 'shirts')).toEqual({ assigned: ['sale'], primaryId: 'sale' })
+  })
+
+  it('moves the primary to an added category', () => {
+    const before = { assigned: ['shirts'], primaryId: 'shirts' }
+    expect(productCategoryChanges(before, { assigned: ['sale'], primaryId: 'sale' })).toEqual({ add: ['sale'], remove: ['shirts'], primary: 'sale' })
   })
 })
