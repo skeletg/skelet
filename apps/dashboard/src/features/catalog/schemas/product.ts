@@ -558,3 +558,45 @@ export function productListingsDiff(store: (id: string) => { name: string; curre
     }))
   }
 }
+
+// ---------- Variants: the variant mode and the configurable option attributes ----------
+
+export const productVariantsSchema = z.object({
+  mode: z.enum(['ATTRIBUTE', 'LIST']),
+  // Attribute ids - a set, only meaningful in ATTRIBUTE mode
+  options: z.array(z.string()),
+})
+
+export type ProductVariantsValues = z.infer<typeof productVariantsSchema>
+
+export const PRODUCT_VARIANT_LABELS: Record<keyof ProductVariantsValues, string> = { mode: 'Variant mode', options: 'Configurable options' }
+
+export const VARIANT_MODE_LABELS: Record<ProductVariantsValues['mode'], string> = {
+  ATTRIBUTE: 'Attribute-based',
+  LIST: 'List (no attributes)',
+}
+
+export function toProductVariantValues(product: { variantMode?: ProductVariantsValues['mode'] | null; configurableOptions: { id: string }[] }): ProductVariantsValues {
+  return { mode: product.variantMode ?? 'ATTRIBUTE', options: product.configurableOptions.map((a) => a.id) }
+}
+
+// Mode first when both change: setConfigurableOptions is refused while the product is still LIST
+export function productVariantChanges(before: ProductVariantsValues, after: ProductVariantsValues) {
+  const optionsChanged = after.mode === 'ATTRIBUTE' && (before.options.length !== after.options.length || after.options.some((id) => !before.options.includes(id)))
+  return { mode: before.mode !== after.mode ? after.mode : null, options: optionsChanged ? after.options : null }
+}
+
+export function productVariantsDiff(attributeName: (id: string) => string) {
+  return (original: ProductVariantsValues, draft: ProductVariantsValues): SectionDiffEntry[] => {
+    const changes = productVariantChanges(original, draft)
+    return [
+      ...(changes.mode ? [changed('Variant mode', VARIANT_MODE_LABELS[original.mode], VARIANT_MODE_LABELS[changes.mode])] : []),
+      ...(changes.options
+        ? [
+            ...changes.options.filter((id) => !original.options.includes(id)).map((id) => added('Option', attributeName(id))),
+            ...original.options.filter((id) => !changes.options?.includes(id)).map((id) => removed('Option', attributeName(id))),
+          ]
+        : []),
+    ].filter((e) => e !== null)
+  }
+}
