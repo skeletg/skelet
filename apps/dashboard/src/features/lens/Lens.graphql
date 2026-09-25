@@ -1,4 +1,3 @@
-# Lens operations, served by the Signals API - the .signals.graphql suffix is load-bearing, since codegen validates against that schema and the split link routes by the names generated from it
 query LensOverview($channelId: ID!, $sinceDays: Int) {
   lensOverview(channelId: $channelId, sinceDays: $sinceDays) {
     views

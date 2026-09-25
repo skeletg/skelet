@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@apollo/client/react'
 
 import { CustomerSegmentsListDocument } from '@/features/promotions/Promotions.gql'
+import { useFeatures } from '@/shared/features/useFeatures'
 import type { WidgetProps } from '../SchemaForm'
 import { AutocompletePicker, type Option } from './AutocompletePicker'
 
@@ -11,8 +12,11 @@ import { AutocompletePicker, type Option } from './AutocompletePicker'
 // param silently fell back to a free-text list of slugs
 export function SegmentPicker({ schema, value, onChange }: WidgetProps) {
   const isMulti = schema.type === 'array'
+  const { enabled: featureEnabled, known } = useFeatures()
+  const signalsOn = featureEnabled('signals') // segments are the suite's, so with it off there is nothing to pick
   const { data, loading } = useQuery(CustomerSegmentsListDocument, {
     variables: { limit: 200, offset: 0 },
+    skip: !signalsOn,
   })
   const options = useMemo<Option[]>(
     () =>
@@ -30,7 +34,7 @@ export function SegmentPicker({ schema, value, onChange }: WidgetProps) {
       onChange={onChange}
       multi={isMulti}
       placeholder={isMulti ? 'Select segments…' : 'Select segment…'}
-      emptyMessage="No segments."
+      emptyMessage={signalsOn || !known ? 'No segments.' : 'Segments need Signals, which is switched off.'}
       loading={loading}
     />
   )

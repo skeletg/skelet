@@ -7,6 +7,7 @@ query GiftCardsAdminList($limit: Int, $offset: Int) {
     balance
     status
     recipientEmail
+    channelId
     expiresAt
     createdAt
   }
@@ -22,6 +23,7 @@ query GiftCardByCode($code: String!) {
     status
     recipientEmail
     issuedOrderId
+    channelId
     expiresAt
     createdAt
     transactions {
@@ -40,12 +42,14 @@ mutation IssueGiftCard(
   $amount: Int!
   $recipientEmail: String
   $expiresAt: Time
+  $channelId: ID
 ) {
   issueGiftCard(
     currencyCode: $currencyCode
     amount: $amount
     recipientEmail: $recipientEmail
     expiresAt: $expiresAt
+    channelId: $channelId
   ) {
     id
     code

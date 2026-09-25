@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { resendableMessages } from './ResendEmailMenu'
+import { resendableMessages } from './resendable-messages'
 
 // The backend refuses a shipment notice with no shipment and a refund notice with no refund, so an entry
 // offered in either state is a guaranteed error handed to the operator

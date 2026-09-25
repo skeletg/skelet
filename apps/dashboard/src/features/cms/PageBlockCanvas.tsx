@@ -46,6 +46,7 @@ import { AutocompletePicker } from '@/features/promotions/widgets/AutocompletePi
 import { MediaImageInput } from '@/features/media/MediaImageInput'
 import { type AssetRef } from '@/features/media/asset-ref'
 import { PrismSegmentsDocument } from '@/features/prism/Prism.gql'
+import { useFeatures } from '@/shared/features/useFeatures'
 import { LexicalRichTextEditor, type RichTextValue } from '@/features/catalog/LexicalRichTextEditor'
 import { LinkField } from './LinkField'
 import {
@@ -499,7 +500,8 @@ function BlockCard({
     : {}) as { startAt?: string; endAt?: string; segments?: string[]; devices?: string[] }
   const visSegments = Array.isArray(vis.segments) ? vis.segments : []
   const visDevices = Array.isArray(vis.devices) ? vis.devices : []
-  const { data: segData } = useQuery(PrismSegmentsDocument, { skip: !open })
+  const { enabled: featureEnabled } = useFeatures()
+  const { data: segData } = useQuery(PrismSegmentsDocument, { skip: !open || !featureEnabled('signals') })
   const segments = segData?.experimentSegments ?? []
 
   function setVis(key: string, val: unknown) {

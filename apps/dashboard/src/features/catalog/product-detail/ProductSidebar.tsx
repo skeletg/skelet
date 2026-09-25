@@ -17,8 +17,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { useFeatures } from '@/shared/features/useFeatures'
 import { formatCents } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { ProductSidebarStatsDocument } from '../Catalog.gql'
-import { ProductTrafficDocument } from '../Catalog.gql'
+import { ProductSidebarStatsDocument, ProductTrafficDocument } from '../Catalog.gql'
 
 const COLLAPSE_KEY = 'skelet-dash:product-sidebar-collapsed'
 const WINDOW_DAYS = 30
