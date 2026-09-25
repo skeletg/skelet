@@ -338,7 +338,7 @@ export function ProductDetail() {
           >
             <div className="grid gap-4">
               <AdvancedInventoryPricingSection
-                key={`${product.id}:${product.updatedAt}:advanced`}
+                key={`${product.id}:advanced`}
                 product={product}
                 canManage={canManage}
                 productVariables={productVariables}
