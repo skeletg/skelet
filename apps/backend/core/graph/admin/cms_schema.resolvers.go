@@ -25,7 +25,7 @@ func (r *cMSPageTypeResolver) PageCount(ctx context.Context, obj *model.CMSPageT
 }
 
 func (r *mutationResolver) CreateCMSAttribute(ctx context.Context, input model.CreateCMSAttributeInput) (*model.CMSAttribute, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	in := fromCreateCMSAttributeInput(input)
@@ -37,7 +37,7 @@ func (r *mutationResolver) CreateCMSAttribute(ctx context.Context, input model.C
 }
 
 func (r *mutationResolver) UpdateCMSAttribute(ctx context.Context, input model.UpdateCMSAttributeInput) (*model.CMSAttribute, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	id, err := uuid.Parse(input.ID)
@@ -67,7 +67,7 @@ func (r *mutationResolver) UpdateCMSAttribute(ctx context.Context, input model.U
 }
 
 func (r *mutationResolver) DeleteCMSAttribute(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return false, err
 	}
 	uid, err := uuid.Parse(id)
@@ -81,7 +81,7 @@ func (r *mutationResolver) DeleteCMSAttribute(ctx context.Context, id string) (b
 }
 
 func (r *mutationResolver) UpsertCMSAttributeContent(ctx context.Context, input model.UpsertCMSAttributeContentInput) (*model.CMSAttribute, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	uid, err := parseID(input.AttributeID, "attribute")
@@ -101,7 +101,7 @@ func (r *mutationResolver) UpsertCMSAttributeContent(ctx context.Context, input 
 }
 
 func (r *mutationResolver) AddCMSAttributeValue(ctx context.Context, attributeID string, slug string, position *int32) (*model.CMSAttributeValue, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	uid, err := parseID(attributeID, "attribute")
@@ -118,7 +118,7 @@ func (r *mutationResolver) AddCMSAttributeValue(ctx context.Context, attributeID
 }
 
 func (r *mutationResolver) UpdateCMSAttributeValue(ctx context.Context, id string, slug string, position int32) (*model.CMSAttributeValue, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	uid, err := uuid.Parse(id)
@@ -135,7 +135,7 @@ func (r *mutationResolver) UpdateCMSAttributeValue(ctx context.Context, id strin
 }
 
 func (r *mutationResolver) UpsertCMSAttributeValueContent(ctx context.Context, valueID string, locale string, name string) (*model.CMSAttribute, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	vid, err := parseID(valueID, "value")
@@ -150,7 +150,7 @@ func (r *mutationResolver) UpsertCMSAttributeValueContent(ctx context.Context, v
 }
 
 func (r *mutationResolver) DeleteCMSAttributeValue(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return false, err
 	}
 	uid, err := uuid.Parse(id)
@@ -164,7 +164,7 @@ func (r *mutationResolver) DeleteCMSAttributeValue(ctx context.Context, id strin
 }
 
 func (r *mutationResolver) CreateCMSAttributeGroup(ctx context.Context, slug string, position *int32) (*model.CMSAttributeGroup, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	g, err := r.CMSSvc.CreateAttributeGroup(ctx, slug, intDeref(position, 0))
@@ -175,7 +175,7 @@ func (r *mutationResolver) CreateCMSAttributeGroup(ctx context.Context, slug str
 }
 
 func (r *mutationResolver) UpdateCMSAttributeGroup(ctx context.Context, id string, slug string, position int32) (*model.CMSAttributeGroup, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	uid, err := uuid.Parse(id)
@@ -190,7 +190,7 @@ func (r *mutationResolver) UpdateCMSAttributeGroup(ctx context.Context, id strin
 }
 
 func (r *mutationResolver) DeleteCMSAttributeGroup(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return false, err
 	}
 	uid, err := uuid.Parse(id)
@@ -204,7 +204,7 @@ func (r *mutationResolver) DeleteCMSAttributeGroup(ctx context.Context, id strin
 }
 
 func (r *mutationResolver) CreateCMSPageType(ctx context.Context, input model.CreateCMSPageTypeInput) (*model.CMSPageType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	in := cms.CreatePageTypeInput{
@@ -224,7 +224,7 @@ func (r *mutationResolver) CreateCMSPageType(ctx context.Context, input model.Cr
 }
 
 func (r *mutationResolver) UpdateCMSPageType(ctx context.Context, input model.UpdateCMSPageTypeInput) (*model.CMSPageType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	id, err := uuid.Parse(input.ID)
@@ -241,7 +241,7 @@ func (r *mutationResolver) UpdateCMSPageType(ctx context.Context, input model.Up
 }
 
 func (r *mutationResolver) DeleteCMSPageType(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return false, err
 	}
 	uid, err := uuid.Parse(id)
@@ -255,7 +255,7 @@ func (r *mutationResolver) DeleteCMSPageType(ctx context.Context, id string) (bo
 }
 
 func (r *mutationResolver) UpsertCMSPageTypeContent(ctx context.Context, input model.UpsertCMSPageTypeContentInput) (*model.CMSPageType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	uid, err := parseID(input.PageTypeID, "page type")
@@ -272,7 +272,7 @@ func (r *mutationResolver) UpsertCMSPageTypeContent(ctx context.Context, input m
 }
 
 func (r *mutationResolver) UpdateCMSPageTypeStructure(ctx context.Context, input model.UpdateCMSPageTypeStructureInput) (*model.CMSPageType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	id, err := uuid.Parse(input.ID)
@@ -293,9 +293,6 @@ func (r *mutationResolver) UpdateCMSPageTypeStructure(ctx context.Context, input
 }
 
 func (r *mutationResolver) SetCMSPageTypeChannelRoot(ctx context.Context, pageTypeID string, channelID string, rootSlug string) (*model.CMSPageType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
-		return nil, err
-	}
 	ptID, err := uuid.Parse(pageTypeID)
 	if err != nil {
 		return nil, errInvalidID("pageTypeId", err)
@@ -303,6 +300,9 @@ func (r *mutationResolver) SetCMSPageTypeChannelRoot(ctx context.Context, pageTy
 	chID, err := uuid.Parse(channelID)
 	if err != nil {
 		return nil, errInvalidID("channelId", err)
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "cms.types_manage", chID, nil); err != nil {
+		return nil, err
 	}
 	pt, err := r.CMSSvc.SetPageTypeChannelRoot(ctx, ptID, chID, rootSlug)
 	if err != nil {
@@ -312,7 +312,7 @@ func (r *mutationResolver) SetCMSPageTypeChannelRoot(ctx context.Context, pageTy
 }
 
 func (r *mutationResolver) SetCMSPageTypeDefaultBlocks(ctx context.Context, pageTypeID string, blocks interface{}) (*model.CMSPageType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	ptID, err := uuid.Parse(pageTypeID)
@@ -334,7 +334,7 @@ func (r *mutationResolver) SetCMSPageTypeDefaultBlocks(ctx context.Context, page
 }
 
 func (r *mutationResolver) AssignCMSAttribute(ctx context.Context, input model.AssignCMSAttributeInput) (*model.CMSPageType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	pageTypeID, err := parseID(input.PageTypeID, "page type")
@@ -370,7 +370,7 @@ func (r *mutationResolver) AssignCMSAttribute(ctx context.Context, input model.A
 }
 
 func (r *mutationResolver) UnassignCMSAttribute(ctx context.Context, pageTypeID string, attributeID string) (*model.CMSPageType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	ptID, err := parseID(pageTypeID, "page type")

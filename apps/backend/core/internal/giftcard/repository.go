@@ -37,6 +37,7 @@ func (r *postgresRepository) CreateGiftCard(ctx context.Context, code string, in
 		CustomerID:     nullableUUID(in.CustomerID),
 		ExpiresAt:      nullableTime(in.ExpiresAt),
 		IssueRef:       in.IssueRef,
+		ChannelID:      nullableUUID(in.ChannelID),
 	})
 	if err != nil {
 		if pgdb.IsUniqueViolation(err) {
@@ -114,8 +115,8 @@ func (r *postgresRepository) UpdateBalance(ctx context.Context, id uuid.UUID, ba
 	return toGiftCard(row), nil
 }
 
-func (r *postgresRepository) List(ctx context.Context, limit, offset int32) ([]GiftCard, error) {
-	rows, err := r.queries.ListGiftCards(ctx, db.ListGiftCardsParams{Limit: limit, Offset: offset})
+func (r *postgresRepository) List(ctx context.Context, channelIDs []uuid.UUID, limit, offset int32) ([]GiftCard, error) {
+	rows, err := r.queries.ListGiftCards(ctx, db.ListGiftCardsParams{ChannelIds: channelIDs, Lim: limit, Off: offset})
 	if err != nil {
 		return nil, fmt.Errorf("list gift cards: %w", err)
 	}
@@ -198,6 +199,10 @@ func toGiftCard(row db.GiftCard) GiftCard {
 	if row.CustomerID.Valid {
 		id := row.CustomerID.UUID
 		g.CustomerID = &id
+	}
+	if row.ChannelID.Valid {
+		id := row.ChannelID.UUID
+		g.ChannelID = &id
 	}
 	if row.ExpiresAt.Valid {
 		t := row.ExpiresAt.Time

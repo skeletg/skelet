@@ -76,13 +76,14 @@ func (s *Service) List(ctx context.Context, sc Scope, unreadOnly bool, limit int
 		limit = 50
 	}
 	rows, err := s.q.ListNotifications(ctx, db.ListNotificationsParams{
-		AdminID:    sc.AdminID,
-		Bypass:     sc.Bypass,
-		Perms:      sc.Perms,
-		Channels:   sc.Channels,
-		Muted:      sc.Muted,
-		UnreadOnly: unreadOnly,
-		Lim:        limit,
+		AdminID:      sc.AdminID,
+		Bypass:       sc.Bypass,
+		Perms:        sc.Perms,
+		GlobalPerms:  sc.GlobalPerms,
+		PermChannels: sc.permChannelPairs(),
+		Muted:        sc.Muted,
+		UnreadOnly:   unreadOnly,
+		Lim:          limit,
 	})
 	if err != nil {
 		return nil, err
@@ -107,11 +108,12 @@ func (s *Service) List(ctx context.Context, sc Scope, unreadOnly bool, limit int
 // The badge number - visible and unread for this admin
 func (s *Service) UnreadCount(ctx context.Context, sc Scope) (int64, error) {
 	return s.q.CountUnreadNotifications(ctx, db.CountUnreadNotificationsParams{
-		AdminID:  sc.AdminID,
-		Bypass:   sc.Bypass,
-		Perms:    sc.Perms,
-		Channels: sc.Channels,
-		Muted:    sc.Muted,
+		AdminID:      sc.AdminID,
+		Bypass:       sc.Bypass,
+		Perms:        sc.Perms,
+		GlobalPerms:  sc.GlobalPerms,
+		PermChannels: sc.permChannelPairs(),
+		Muted:        sc.Muted,
 	})
 }
 
@@ -121,11 +123,12 @@ func (s *Service) MarkRead(ctx context.Context, adminID, notificationID uuid.UUI
 
 func (s *Service) MarkAllRead(ctx context.Context, sc Scope) error {
 	return s.q.MarkAllNotificationsRead(ctx, db.MarkAllNotificationsReadParams{
-		AdminID:  sc.AdminID,
-		Bypass:   sc.Bypass,
-		Perms:    sc.Perms,
-		Channels: sc.Channels,
-		Muted:    sc.Muted,
+		AdminID:      sc.AdminID,
+		Bypass:       sc.Bypass,
+		Perms:        sc.Perms,
+		GlobalPerms:  sc.GlobalPerms,
+		PermChannels: sc.permChannelPairs(),
+		Muted:        sc.Muted,
 	})
 }
 

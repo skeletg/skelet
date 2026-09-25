@@ -26,6 +26,9 @@ if ! service_running app; then
     exit 1
 fi
 
+acquire_test_lock test-e2e
+trap release_test_lock EXIT
+
 echo "==> preparing disposable e2e databases"
 ensure_pg_db db "$E2E_DB" $fresh
 ensure_pg_db signals-db "$E2E_SIG_DB" $fresh
@@ -50,6 +53,7 @@ SIG_HTTP_PORT=18090
 SIG_BIN=/tmp/skelet-e2e-signals
 cleanup() {
     docker compose exec -T app sh -c "pkill -f $SIG_BIN" >/dev/null 2>&1 || true
+    release_test_lock
 }
 trap cleanup EXIT
 echo "==> building the Signals process"

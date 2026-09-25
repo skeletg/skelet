@@ -21,11 +21,11 @@ func (r *mutationResolver) CreateMenu(ctx context.Context, input model.CreateMen
 }
 
 func (r *mutationResolver) UpdateMenu(ctx context.Context, input model.UpdateMenuInput) (*model.Menu, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	id, err := parseID(input.ID, "menu")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnMenuChannels(ctx, id); err != nil {
 		return nil, err
 	}
 	m, err := r.MenuSvc.UpdateMenu(ctx, menu.UpdateMenuInput{
@@ -40,11 +40,11 @@ func (r *mutationResolver) UpdateMenu(ctx context.Context, input model.UpdateMen
 }
 
 func (r *mutationResolver) DeleteMenu(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return false, err
-	}
 	mid, err := parseID(id, "menu")
 	if err != nil {
+		return false, err
+	}
+	if err := r.requireOnMenuChannels(ctx, mid); err != nil {
 		return false, err
 	}
 	if err := r.MenuSvc.DeleteMenu(ctx, mid); err != nil {
@@ -55,11 +55,11 @@ func (r *mutationResolver) DeleteMenu(ctx context.Context, id string) (bool, err
 
 func (r *mutationResolver) SetMenuStores(ctx context.Context, menuID string, channelIds []string) (*model.Menu, error) {
 	// an empty list converts the menu back to a draft
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	mid, err := parseID(menuID, "menu")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnMenuChannels(ctx, mid); err != nil {
 		return nil, err
 	}
 	ids := make([]uuid.UUID, 0, len(channelIds))
@@ -70,9 +70,9 @@ func (r *mutationResolver) SetMenuStores(ctx context.Context, menuID string, cha
 		}
 		ids = append(ids, id)
 	}
-	// EVERY channel in the new set is gated - that's the cross-channel-leak vector where a scoped admin grants access to a channel they don't otherwise touch - removals stay ungated because contracting your own access is always allowed
+	// Gating the current set above keeps a removal from stripping a channel the caller can't manage
 	for _, id := range ids {
-		if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "catalog.manage", id, nil); err != nil {
+		if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "cms.manage", id, nil); err != nil {
 			return nil, err
 		}
 	}
@@ -83,11 +83,11 @@ func (r *mutationResolver) SetMenuStores(ctx context.Context, menuID string, cha
 }
 
 func (r *mutationResolver) CreateMenuItem(ctx context.Context, input model.CreateMenuItemInput) (*model.MenuItem, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	menuID, err := parseID(input.MenuID, "menu")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnMenuChannels(ctx, menuID); err != nil {
 		return nil, err
 	}
 	parentID, err := parseOptionalUUIDStrict(input.ParentID)
@@ -122,11 +122,11 @@ func (r *mutationResolver) CreateMenuItem(ctx context.Context, input model.Creat
 }
 
 func (r *mutationResolver) UpdateMenuItem(ctx context.Context, input model.UpdateMenuItemInput) (*model.MenuItem, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	id, err := parseID(input.ID, "menu item")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnMenuItemChannels(ctx, id); err != nil {
 		return nil, err
 	}
 	parentID, err := parseOptionalUUIDStrict(input.ParentID)
@@ -163,11 +163,11 @@ func (r *mutationResolver) UpdateMenuItem(ctx context.Context, input model.Updat
 }
 
 func (r *mutationResolver) DeleteMenuItem(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return false, err
-	}
 	itemID, err := parseID(id, "menu item")
 	if err != nil {
+		return false, err
+	}
+	if err := r.requireOnMenuItemChannels(ctx, itemID); err != nil {
 		return false, err
 	}
 	if err := r.MenuSvc.DeleteMenuItem(ctx, itemID); err != nil {
@@ -177,11 +177,11 @@ func (r *mutationResolver) DeleteMenuItem(ctx context.Context, id string) (bool,
 }
 
 func (r *mutationResolver) ReorderMenuItems(ctx context.Context, menuID string, items []*model.ReorderMenuItemInput) (*model.Menu, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	mid, err := parseID(menuID, "menu")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnMenuChannels(ctx, mid); err != nil {
 		return nil, err
 	}
 	updates := make([]menu.ReorderMenuItem, 0, len(items))
@@ -207,11 +207,11 @@ func (r *mutationResolver) ReorderMenuItems(ctx context.Context, menuID string, 
 }
 
 func (r *mutationResolver) UpsertMenuItemTranslation(ctx context.Context, itemID string, locale string, label string) (*model.MenuItemTranslation, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	id, err := parseID(itemID, "menu item")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnMenuItemChannels(ctx, id); err != nil {
 		return nil, err
 	}
 	t, err := r.MenuSvc.UpsertMenuItemTranslation(ctx, id, locale, label)
@@ -222,11 +222,11 @@ func (r *mutationResolver) UpsertMenuItemTranslation(ctx context.Context, itemID
 }
 
 func (r *mutationResolver) DeleteMenuItemTranslation(ctx context.Context, itemID string, locale string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return false, err
-	}
 	id, err := parseID(itemID, "menu item")
 	if err != nil {
+		return false, err
+	}
+	if err := r.requireOnMenuItemChannels(ctx, id); err != nil {
 		return false, err
 	}
 	if err := r.MenuSvc.DeleteMenuItemTranslation(ctx, id, locale); err != nil {

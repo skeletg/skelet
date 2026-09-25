@@ -13,7 +13,7 @@ import (
 )
 
 type Querier interface {
-	// Active, non-empty carts that are CONTACTABLE - either owned by a known customer, or a guest cart that captured an email at checkout entry - whose last activity is older than `threshold` but newer than `max_age`, not already notified since that activity - last activity = GREATEST(cart.updated_at, MAX(line.updated_at)) - carts.updated_at isn't bumped on line edits, so the line max is authoritative
+	// Oldest first, so a backlog drains in order
 	AbandonedCarts(ctx context.Context, arg AbandonedCartsParams) ([]AbandonedCartsRow, error)
 	AddAdminUserRole(ctx context.Context, arg AddAdminUserRoleParams) error
 	// ==================== Junctions ====================
@@ -47,15 +47,15 @@ type Querier interface {
 	AdjustInventoryLevelReserved(ctx context.Context, arg AdjustInventoryLevelReservedParams) error
 	AdvanceSubscriptionPeriod(ctx context.Context, arg AdvanceSubscriptionPeriodParams) (Subscription, error)
 	// AggregateOverallRating returns count + overall mean + 5-bucket distribution for the PDP summary card
-	AggregateOverallRating(ctx context.Context, productID uuid.UUID) (AggregateOverallRatingRow, error)
+	AggregateOverallRating(ctx context.Context, arg AggregateOverallRatingParams) (AggregateOverallRatingRow, error)
 	// AggregateOverallRatingsByProductIDs is the batched form - used by the storefront PLP path to hydrate review summaries for many products in one query instead of one per card - same per-review averaging rules as the single-product form above
-	AggregateOverallRatingsByProductIDs(ctx context.Context, productIds []uuid.UUID) ([]AggregateOverallRatingsByProductIDsRow, error)
+	AggregateOverallRatingsByProductIDs(ctx context.Context, arg AggregateOverallRatingsByProductIDsParams) ([]AggregateOverallRatingsByProductIDsRow, error)
 	// ==================== Aggregates ====================
 	// AggregateReviewRatings returns one row per (product, question) with the mean rating and count over approved reviews - the storefront per-question average + overall count are computed from this set
-	AggregateReviewRatings(ctx context.Context, productID uuid.UUID) ([]AggregateReviewRatingsRow, error)
+	AggregateReviewRatings(ctx context.Context, arg AggregateReviewRatingsParams) ([]AggregateReviewRatingsRow, error)
 	// AggregateReviewRatingsByProductIDs is the per-question variant of
 	// AggregateReviewRatings, batched by product id
-	AggregateReviewRatingsByProductIDs(ctx context.Context, productIds []uuid.UUID) ([]AggregateReviewRatingsByProductIDsRow, error)
+	AggregateReviewRatingsByProductIDs(ctx context.Context, arg AggregateReviewRatingsByProductIDsParams) ([]AggregateReviewRatingsByProductIDsRow, error)
 	// AggregateReviewVotesByReviewIDs returns helpful + not-helpful counts per review, batched so the storefront review list hydrates votes in one query rather than N - counts every row regardless of identity type so customer + anon votes contribute to the same tally
 	AggregateReviewVotesByReviewIDs(ctx context.Context, reviewIds []uuid.UUID) ([]AggregateReviewVotesByReviewIDsRow, error)
 	// GDPR anonymize-in-place - orders are retained (tax-law basis) with their PII columns scrubbed; the customer row keeps
@@ -72,6 +72,8 @@ type Querier interface {
 	AssignCMSPage(ctx context.Context, arg AssignCMSPageParams) (CmsPage, error)
 	// ==================== Question Assignments (per Product Type) ====================
 	AssignReviewQuestion(ctx context.Context, arg AssignReviewQuestionParams) error
+	// Built from the channel's own listing, never the storefront's copy - an unlisted product has no row
+	BackInStockProduct(ctx context.Context, arg BackInStockProductParams) (BackInStockProductRow, error)
 	// Flips multi-location -> flat: one quantity per product, taken from SALABLE (physical minus held), because flat mode's quantity IS the number customers can buy - its placement path decrements it Reserved is floored at 0 so a drifted negative can't inflate the result, matching Salable's clamp
 	BackfillItemQuantityFromLevels(ctx context.Context) (int64, error)
 	// Flips flat -> multi-location: parks every product's flat quantity at one target location Other locations for the same item are zeroed by ZeroLevelsOutsideLocation, or their stale quantities would add on top of what lands here
@@ -133,13 +135,15 @@ type Querier interface {
 	ClearReviewMerchantReply(ctx context.Context, id uuid.UUID) (Review, error)
 	ClearShippingCarrierCountries(ctx context.Context, carrierID uuid.UUID) error
 	ClearZoneCountries(ctx context.Context, zoneID uuid.UUID) error
+	// The commerce database's clock, the one every roster read_at is stamped on
+	CommerceClock(ctx context.Context) (time.Time, error)
 	ConfirmCategoryCover(ctx context.Context, arg ConfirmCategoryCoverParams) (CatalogCategory, error)
 	ConfirmCollectionCover(ctx context.Context, arg ConfirmCollectionCoverParams) (Collection, error)
 	ConfirmMediaAssetUpload(ctx context.Context, arg ConfirmMediaAssetUploadParams) (MediaAsset, error)
 	// Single-use for the non-rotating paths (ValidateAndRevoke) - delete and return
 	// the owner in one statement, so two concurrent callers can't both succeed
 	ConsumeRefreshToken(ctx context.Context, arg ConsumeRefreshTokenParams) (uuid.UUID, error)
-	CountApprovedReviewsForProduct(ctx context.Context, productID uuid.UUID) (int64, error)
+	CountApprovedReviewsForProduct(ctx context.Context, arg CountApprovedReviewsForProductParams) (int64, error)
 	CountAttributeValues(ctx context.Context, attributeID uuid.UUID) (int64, error)
 	CountAuditLog(ctx context.Context, arg CountAuditLogParams) (int64, error)
 	CountBundleSelectionDefaultsForOption(ctx context.Context, optionID uuid.UUID) (int64, error)
@@ -164,8 +168,10 @@ type Querier interface {
 	// Used by customer.Service.Delete to refuse deletion of customers with post-purchase history - the query physically lives in orders.sql for semantic clarity even though customer.Repository calls it - sqlc generates one `db` package so the file-split is cosmetic
 	CountOrdersByCustomer(ctx context.Context, customerID uuid.NullUUID) (int64, error)
 	CountOrdersPaged(ctx context.Context, arg CountOrdersPagedParams) (int64, error)
+	CountOrdersPagedInChannels(ctx context.Context, arg CountOrdersPagedInChannelsParams) (int64, error)
 	// Dashboard: how many shoppers are waiting on a product (channel-scoped)
 	CountPendingBackInStock(ctx context.Context, channelID uuid.UUID) (int64, error)
+	CountPendingBackInStockForEmail(ctx context.Context, arg CountPendingBackInStockForEmailParams) (int64, error)
 	CountProductAttributeSlugs(ctx context.Context, attributeID uuid.UUID) (int64, error)
 	CountProductOptionValueDefaultsForOption(ctx context.Context, optionID uuid.UUID) (int64, error)
 	// Direct membership count (products explicitly assigned to this category, not its descendants) - backs admin Category.productCount; served by the idx_product_categories_category(category_id, position) index
@@ -245,6 +251,7 @@ type Querier interface {
 	CreateDataJob(ctx context.Context, arg CreateDataJobParams) (DataJob, error)
 	// Download grants (per-buyer access, created at order placement)
 	CreateDownloadGrant(ctx context.Context, arg CreateDownloadGrantParams) (DownloadGrant, error)
+	// A card issued against an order belongs to the order's channel unless the caller names one
 	CreateGiftCard(ctx context.Context, arg CreateGiftCardParams) (GiftCard, error)
 	CreateGroupedMember(ctx context.Context, arg CreateGroupedMemberParams) (CatalogProductGroupedMember, error)
 	CreateIntegration(ctx context.Context, arg CreateIntegrationParams) (Integration, error)
@@ -322,10 +329,12 @@ type Querier interface {
 	CreateWebhookJob(ctx context.Context, arg CreateWebhookJobParams) (ScheduledJob, error)
 	// Addresses for a known set of ids, skipping any that no longer exist - the commerce half of the audience export, whose membership comes from the signals database
 	CustomerEmailsByIDs(ctx context.Context, customerIds []uuid.UUID) ([]string, error)
+	CustomerEmailsByIDsInChannel(ctx context.Context, arg CustomerEmailsByIDsInChannelParams) ([]string, error)
 	// One customer for the event-driven push, shaped exactly like a page row
 	CustomerRosterEntry(ctx context.Context, customerID uuid.UUID) (CustomerRosterEntryRow, error)
 	// The roster the Signals database needs: identity for trait and membership cleanup, plus what a marketing send has to know to address someone - the suite reads only what core pushes from here
 	// Both consent joins resolve to the registry default when no row exists, which for marketing is opted out
+	// Keyset-paged so a delete mid-sweep can't shift a customer off a page; read_at stops an older push overwriting a newer one
 	CustomerRosterForSync(ctx context.Context, arg CustomerRosterForSyncParams) ([]CustomerRosterForSyncRow, error)
 	DeleteAddress(ctx context.Context, id uuid.UUID) error
 	DeleteAdminPreference(ctx context.Context, arg DeleteAdminPreferenceParams) error
@@ -496,6 +505,8 @@ type Querier interface {
 	// Returns rows affected (0 when coalesced against an existing pending task)
 	EnqueueRebuildTask(ctx context.Context, arg EnqueueRebuildTaskParams) (int64, error)
 	EnqueueWebhookDelivery(ctx context.Context, arg EnqueueWebhookDeliveryParams) (WebhookQueue, error)
+	// Enqueues only when the (webhook, dedupe key) marker is new - an outbox replay of the same event returns no row
+	EnqueueWebhookDeliveryOnce(ctx context.Context, arg EnqueueWebhookDeliveryOnceParams) ([]WebhookQueue, error)
 	// Returns the keys to delete from the object store - the row stays so the history survives its artifact
 	ExpireDataJobArtifacts(ctx context.Context) ([]ExpireDataJobArtifactsRow, error)
 	// Back-office CSV export feeds (customers + accounting-shaped order lines)
@@ -556,6 +567,7 @@ type Querier interface {
 	GetCMSPageByID(ctx context.Context, id uuid.UUID) (CmsPage, error)
 	GetCMSPageBySlug(ctx context.Context, slug string) (CmsPage, error)
 	GetCMSPageByURLPath(ctx context.Context, urlPath string) (CmsPage, error)
+	GetCMSPageComment(ctx context.Context, id uuid.UUID) (CmsPageComment, error)
 	GetCMSPageContent(ctx context.Context, arg GetCMSPageContentParams) (CmsPageContent, error)
 	GetCMSPageRevisionByID(ctx context.Context, id uuid.UUID) (CmsPageRevision, error)
 	GetCMSPageTypeByID(ctx context.Context, id uuid.UUID) (CmsPageType, error)
@@ -670,7 +682,7 @@ type Querier interface {
 	GetProductOptionValueByID(ctx context.Context, id uuid.UUID) (CatalogProductOptionValue, error)
 	GetProductQuestion(ctx context.Context, id uuid.UUID) (ProductQuestion, error)
 	// ==================== Product review summaries (AI "what customers say") ====================
-	GetProductReviewSummary(ctx context.Context, productID uuid.UUID) (ProductReviewSummary, error)
+	GetProductReviewSummary(ctx context.Context, arg GetProductReviewSummaryParams) (ProductReviewSummary, error)
 	// Order-placement lookup: resolve each cart line's product tax class
 	// from its SKU so the tax engine can evaluate per line
 	GetProductTaxClassesBySKUs(ctx context.Context, skus []string) ([]GetProductTaxClassesBySKUsRow, error)
@@ -701,7 +713,10 @@ type Querier interface {
 	GetPublishedProductForChannel(ctx context.Context, arg GetPublishedProductForChannelParams) (Product, error)
 	GetReferralCodeByCode(ctx context.Context, code string) (ReferralCode, error)
 	GetReferralCodeByCustomer(ctx context.Context, customerID uuid.UUID) (ReferralCode, error)
+	// A code only refers someone on its owner's own channel, since each channel runs its own program
+	GetReferralCodeForReferee(ctx context.Context, arg GetReferralCodeForRefereeParams) (ReferralCode, error)
 	GetRemoteProviderByID(ctx context.Context, id uuid.UUID) (RemoteProvider, error)
+	// A slug names the channel's own provider when it has one, else the global one - NULL channel_id reaches global rows only
 	GetRemoteProviderBySlug(ctx context.Context, arg GetRemoteProviderBySlugParams) (RemoteProvider, error)
 	GetRemoteProviderSecret(ctx context.Context, id uuid.UUID) (string, error)
 	GetReviewByCustomerAndProduct(ctx context.Context, arg GetReviewByCustomerAndProductParams) (Review, error)
@@ -753,6 +768,7 @@ type Querier interface {
 	GetWebFormSubmission(ctx context.Context, id uuid.UUID) (WebFormSubmission, error)
 	GetWebhookByID(ctx context.Context, id uuid.UUID) (Webhook, error)
 	GetWebhookDelivery(ctx context.Context, id uuid.UUID) (WebhookDelivery, error)
+	GetWebhookQueueItemWebhookID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetWebhookSigningSecret(ctx context.Context, id uuid.UUID) (string, error)
 	GetWishlistShareByCustomer(ctx context.Context, customerID uuid.UUID) (WishlistShare, error)
 	GetWishlistShareByToken(ctx context.Context, token string) (WishlistShare, error)
@@ -1013,6 +1029,7 @@ type Querier interface {
 	ListCustomerGroupsWithMemberCount(ctx context.Context) ([]ListCustomerGroupsWithMemberCountRow, error)
 	ListCustomerPaymentMethods(ctx context.Context, customerID uuid.UUID) ([]CustomerPaymentMethod, error)
 	ListCustomers(ctx context.Context) ([]Customer, error)
+	ListCustomersInChannels(ctx context.Context, arg ListCustomersInChannelsParams) ([]Customer, error)
 	// Server-side page for the admin list - ListCustomers returns the WHOLE table, which the dashboard then paged and searched in the browser - fine at seed scale, a hung tab and an ~80MB response at 200k customers Channel scoping is applied here rather than post-filtered in the resolver, or LIMIT would be taken before the permission filter and pages would come back short with holes
 	ListCustomersPaged(ctx context.Context, arg ListCustomersPagedParams) ([]ListCustomersPagedRow, error)
 	ListDataJobErrors(ctx context.Context, arg ListDataJobErrorsParams) ([]DataJobError, error)
@@ -1093,9 +1110,11 @@ type Querier interface {
 	// about - the lower bound stops ancient abandoned orders polling gateways forever
 	ListOrdersAwaitingPaymentSync(ctx context.Context, arg ListOrdersAwaitingPaymentSyncParams) ([]Order, error)
 	ListOrdersByCustomer(ctx context.Context, customerID uuid.NullUUID) ([]Order, error)
-	// Server-side page for the admin list - ListOrders returns the WHOLE table, which the dashboard then paged in the browser
-	// orders is the one table that grows forever, so that was a full-table read per page view Channel scoping applies here rather than post-filtered in the resolver, or LIMIT would run before the permission filter and pages would come back short SELECT * (not window-count) so the repo maps rows through toOrder verbatim - CountOrdersPaged shares the WHERE and must stay in lockstep
+	// Every channel's page - the scoped caller has its own statement, so neither shares a plan that reads the whole created_at index
+	// SELECT * (not window-count) so the repo maps rows through toOrder verbatim - CountOrdersPaged shares the WHERE and must stay in lockstep
 	ListOrdersPaged(ctx context.Context, arg ListOrdersPagedParams) ([]Order, error)
+	// Scoped in SQL, so LIMIT runs after the permission filter
+	ListOrdersPagedInChannels(ctx context.Context, arg ListOrdersPagedInChannelsParams) ([]Order, error)
 	// Customer option uploads that never made it onto a line (or whose line was removed) - cart and order line options snapshot the asset's PUBLIC URL, so reference = any file_url ending in the object key - order rows never delete, which correctly pins assets referenced by placed orders forever
 	ListOrphanProductOptionAssets(ctx context.Context, arg ListOrphanProductOptionAssetsParams) ([]MediaAsset, error)
 	ListPageTypesUsingAttribute(ctx context.Context, attributeID uuid.UUID) ([]uuid.UUID, error)
@@ -1128,6 +1147,7 @@ type Querier interface {
 	ListProductChannelListingsByProduct(ctx context.Context, productID uuid.UUID) ([]ProductChannelListing, error)
 	// Batched loader: storefront PLP renders N products and each one's effective-price card needs its listing rows - one query keyed by product replaces N round-trips
 	ListProductChannelListingsByProductIDs(ctx context.Context, productIds []uuid.UUID) ([]ProductChannelListing, error)
+	ListProductChannelListingsByProductIDsForChannel(ctx context.Context, arg ListProductChannelListingsByProductIDsForChannelParams) ([]ProductChannelListing, error)
 	// Inverse of the configurable parent→child link, batched - the UNIQUE index on catalog_product_children(child_id) guarantees each child maps to at most one parent; sort_order is the variant's position under that parent - powers Product.partOf.configurable
 	ListProductChildLinksByChildIDs(ctx context.Context, childIds []uuid.UUID) ([]ListProductChildLinksByChildIDsRow, error)
 	ListProductChildren(ctx context.Context, parentID uuid.UUID) ([]Product, error)
@@ -1197,6 +1217,7 @@ type Querier interface {
 	ListReviewAnswersByReviewIDs(ctx context.Context, reviewIds []uuid.UUID) ([]ReviewAnswer, error)
 	ListReviewAnswersForReview(ctx context.Context, reviewID uuid.UUID) ([]ReviewAnswer, error)
 	ListReviewCategories(ctx context.Context) ([]ReviewCategory, error)
+	ListReviewChannelsForProduct(ctx context.Context, productID uuid.UUID) ([]uuid.UUID, error)
 	ListReviewMediaByReviewIDs(ctx context.Context, reviewIds []uuid.UUID) ([]ListReviewMediaByReviewIDsRow, error)
 	ListReviewMediaForReview(ctx context.Context, reviewID uuid.UUID) ([]ListReviewMediaForReviewRow, error)
 	ListReviewModerationTags(ctx context.Context) ([]ReviewModerationTag, error)
@@ -1206,6 +1227,7 @@ type Querier interface {
 	// Reviews for moderation, filterable by status, product and channel, newest first so the freshest pending review tops the queue
 	// The channel_ids narg scopes the page to the admin's permitted channels so pagination and total stay correct, and a NULL array no-ops the filter for bypass admins
 	ListReviewsForModeration(ctx context.Context, arg ListReviewsForModerationParams) ([]Review, error)
+	ListRoleMemberIDs(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error)
 	ListRootBlogCategories(ctx context.Context) ([]BlogCategory, error)
 	ListRootCategories(ctx context.Context) ([]CatalogCategory, error)
 	ListSavedItemsByCart(ctx context.Context, cartID uuid.UUID) ([]CartSavedItem, error)
@@ -1226,12 +1248,13 @@ type Querier interface {
 	// All forms for a channel (dashboard), newest first
 	ListSignupForms(ctx context.Context, channelID uuid.UUID) ([]SignupForm, error)
 	ListSignupSubmissions(ctx context.Context, arg ListSignupSubmissionsParams) ([]ListSignupSubmissionsRow, error)
-	ListStaleProductReviewSummaryIDs(ctx context.Context, limit int32) ([]uuid.UUID, error)
+	ListStaleProductReviewSummaryIDs(ctx context.Context, limit int32) ([]ListStaleProductReviewSummaryIDsRow, error)
 	ListStoreCreditEntries(ctx context.Context, arg ListStoreCreditEntriesParams) ([]StoreCreditEntry, error)
 	ListSubscriptionInvoices(ctx context.Context, subscriptionID uuid.UUID) ([]SubscriptionInvoice, error)
 	ListSubscriptions(ctx context.Context, arg ListSubscriptionsParams) ([]Subscription, error)
 	ListSubscriptionsByCustomer(ctx context.Context, customerID uuid.NullUUID) ([]Subscription, error)
 	ListSubscriptionsByOrder(ctx context.Context, orderID uuid.NullUUID) ([]Subscription, error)
+	ListSubscriptionsForChannels(ctx context.Context, arg ListSubscriptionsForChannelsParams) ([]Subscription, error)
 	// Attributes flagged for affinity tracking - Signals wants the slug and label alone, so this stays a narrow read rather than the whole catalog service
 	ListSynapseTrackedAttributes(ctx context.Context) ([]ListSynapseTrackedAttributesRow, error)
 	ListTagsByBlogPostIDs(ctx context.Context, postIds []uuid.UUID) ([]ListTagsByBlogPostIDsRow, error)
@@ -1273,8 +1296,8 @@ type Querier interface {
 	MarkOrderReturnRefunded(ctx context.Context, arg MarkOrderReturnRefundedParams) (OrderReturn, error)
 	MarkOutboxDelivered(ctx context.Context, id uuid.UUID) error
 	MarkProductMediaReady(ctx context.Context, arg MarkProductMediaReadyParams) (ProductMedium, error)
-	MarkProductReviewSummaryFresh(ctx context.Context, productID uuid.UUID) error
-	MarkProductReviewSummaryStale(ctx context.Context, productID uuid.UUID) error
+	MarkProductReviewSummaryFresh(ctx context.Context, arg MarkProductReviewSummaryFreshParams) error
+	MarkProductReviewSummaryStale(ctx context.Context, arg MarkProductReviewSummaryStaleParams) error
 	MarkRebuildTaskDone(ctx context.Context, id uuid.UUID) error
 	// Terminal state: a reversed referral is never re-rewarded, so a cancelled
 	// first order can't be replayed into another payout
@@ -1282,7 +1305,8 @@ type Querier interface {
 	MarkReferralRewarded(ctx context.Context, arg MarkReferralRewardedParams) error
 	MarkWebhookQueueItemDead(ctx context.Context, arg MarkWebhookQueueItemDeadParams) error
 	// Google Merchant product feed page - one row per product published on the channel: channel-priced, default-locale content, first ready
-	// image, and the denormalized inventory totals for availability - pages by product id for stable iteration
+	// image, and what the channel's own locations can sell (physical minus held for tracked items) - pages by product id for stable iteration
+	// The path is channel-first like the sitemap: the listing's url override, then the channel's canonical rewrite, then the global one
 	MerchantFeedProducts(ctx context.Context, arg MerchantFeedProductsParams) ([]MerchantFeedProductsRow, error)
 	MoveAttributeToGroup(ctx context.Context, arg MoveAttributeToGroupParams) error
 	OrderEmailExists(ctx context.Context, arg OrderEmailExistsParams) (bool, error)
@@ -1295,10 +1319,13 @@ type Querier interface {
 	PreviousSeoCrawl(ctx context.Context, arg PreviousSeoCrawlParams) (SeoCrawl, error)
 	// ===== Analytics ===== Backs the /promotions/analytics dashboard page - one row per rule with aggregate counts, discount totals, distinct customer reach, and the summed order revenue those redemptions appeared on - range filters via start/end timestamps; pass start = '0001-01-01', end = NOW() for "all time"
 	PromotionAnalyticsByRule(ctx context.Context, arg PromotionAnalyticsByRuleParams) ([]PromotionAnalyticsByRuleRow, error)
+	PromotionAnalyticsByRuleForChannels(ctx context.Context, arg PromotionAnalyticsByRuleForChannelsParams) ([]PromotionAnalyticsByRuleForChannelsRow, error)
 	// Daily redemption + discount series. rule_id is optional: NULL → every rule
 	// (the hub trend); set → a single promotion's trend
 	PromotionAnalyticsDaily(ctx context.Context, arg PromotionAnalyticsDailyParams) ([]PromotionAnalyticsDailyRow, error)
+	PromotionAnalyticsDailyForChannels(ctx context.Context, arg PromotionAnalyticsDailyForChannelsParams) ([]PromotionAnalyticsDailyForChannelsRow, error)
 	PromotionAnalyticsTotals(ctx context.Context, arg PromotionAnalyticsTotalsParams) (PromotionAnalyticsTotalsRow, error)
+	PromotionAnalyticsTotalsForChannels(ctx context.Context, arg PromotionAnalyticsTotalsForChannelsParams) (PromotionAnalyticsTotalsForChannelsRow, error)
 	// Backstop at a longer window: an inbox nobody reads must not grow forever
 	// notification_reads cascades on delete
 	PruneAllNotifications(ctx context.Context, cutoff time.Time) (int64, error)
@@ -1320,6 +1347,7 @@ type Querier interface {
 	// Retention: the delivery log grows with every attempt forever otherwise
 	// (rides the daily webhook-deliveries-prune job, window from config)
 	PruneWebhookDeliveries(ctx context.Context, createdAt time.Time) (int64, error)
+	PruneWebhookEnqueueDedup(ctx context.Context, createdAt time.Time) (int64, error)
 	// Postgres backend for verification / password-reset tokens,
 	// only used when Valkey isn't configured
 	// Upsert so re-issuing a token key refreshes subject + expiry instead of erroring

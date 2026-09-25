@@ -208,6 +208,10 @@ The release process, and which version number means what, is in
   write while core kept sending them. The recorder, the flow engine, the segment reads and the
   beacon surface no longer carry a disabled state, and the health probe reports reachability.
 
+- **Deploy Signals before core.** Core now pushes its deactivated channels as well, and a Signals
+  older than this release reads every pushed channel as active, so it would go on sending marketing
+  mail under a switched-off shop.
+
 ### Removed
 
 - **Database backups.** skelet no longer takes them: gone are the `lib/backup` package, the nightly

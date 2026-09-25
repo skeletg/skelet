@@ -350,16 +350,40 @@ func (s *Store) UpsertIdentity(ctx context.Context, anonID string, customerID, c
 	return batch.Send()
 }
 
-func (s *Store) DeleteCustomerIdentities(ctx context.Context, customerIDs []uuid.UUID) error { // gDPR erasure - one lightweight DELETE for the whole batch (each DELETE is a mutation, so the Recorder queues requests, sweeps them daily and calls RefreshIdentities once at the end)
+// customer_id sits outside the sort key, so events are detached in place - except those whose dedupe key embeds the id, which are deleted
+func (s *Store) DeleteCustomerIdentities(ctx context.Context, customerIDs []uuid.UUID) error {
 	if len(customerIDs) == 0 {
 		return nil
 	}
-	ids := make([]string, len(customerIDs))
-	for i, id := range customerIDs {
-		ids[i] = id.String()
+	var running uint64
+	if err := s.conn.QueryRow(ctx, "SELECT count() FROM system.mutations WHERE database = currentDatabase() AND table = 'analytics_events' AND NOT is_done AND position(command, 'UPDATE customer_id') > 0").Scan(&running); err != nil {
+		return err
 	}
-	return s.conn.Exec(ctx, "DELETE FROM analytics_identities WHERE has(?, toString(customer_id))", ids)
+	if running > 0 {
+		return analytics.ErrErasureInFlight
+	}
+	sync := clickhouse.Context(ctx, clickhouse.WithSettings(clickhouse.Settings{"mutations_sync": 1}))
+	for start := 0; start < len(customerIDs); start += erasureChunk {
+		chunk := customerIDs[start:min(start+erasureChunk, len(customerIDs))]
+		ids := make([]string, len(chunk))
+		for i, id := range chunk {
+			ids[i] = id.String()
+		}
+		if err := s.conn.Exec(ctx, "DELETE FROM analytics_identities WHERE has(?, toString(customer_id))", ids); err != nil {
+			return err
+		}
+		if err := s.conn.Exec(ctx, "DELETE FROM analytics_events WHERE has(?, toString(customer_id)) AND position(dedupe_key, toString(customer_id)) > 0", ids); err != nil {
+			return err
+		}
+		if err := s.conn.Exec(sync, "ALTER TABLE analytics_events UPDATE customer_id = toUUID('00000000-0000-0000-0000-000000000000') WHERE has(?, toString(customer_id))", ids); err != nil {
+			return err
+		}
+	}
+	return nil
 }
+
+// The ids bind into the statement text, so a chunk stays well under ClickHouse's default max_query_size
+const erasureChunk = 2000
 
 // PruneIdentities drops mappings not confirmed since the cutoff - count first, then one lightweight DELETE
 // A non-FINAL DELETE on last_seen is collapse-safe: stale versions of a still-fresh anon_id match, and FINAL would have discarded them anyway

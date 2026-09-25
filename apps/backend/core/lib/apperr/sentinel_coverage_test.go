@@ -11,18 +11,27 @@ import (
 	"testing"
 )
 
-// Static sweep across internal/: once a package registers ANY sentinel with apperr.RegisterSentinel, every `Err* = errors.New(...)` it declares must be registered too - a forgotten one surfaces as extensions.code = INTERNAL on what should be a typed error, which nothing else catches Packages with zero registrations are exempt: their errors never cross the GraphQL edge (or haven't yet - the first registration in a package opts the whole package in)
+// Static sweep across internal/ and lib/: once a package registers ANY sentinel with apperr.RegisterSentinel, every `Err* = errors.New(...)` it declares must be registered too - a forgotten one surfaces as extensions.code = INTERNAL on what should be a typed error, which nothing else catches Packages with zero registrations are exempt: their errors never cross the GraphQL edge (or haven't yet - the first registration in a package opts the whole package in)
 func TestSentinelRegistrationCoverage(t *testing.T) {
-	root := ".." // internal/
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
+	var pkgDirs []string
+	for _, root := range []string{"../../internal", "../../lib"} {
+		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				pkgDirs = append(pkgDirs, path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
-		pkgDir := filepath.Join(root, entry.Name())
+	}
+	if len(pkgDirs) < 50 {
+		t.Fatalf("scanned only %d package dirs, the roots are wrong", len(pkgDirs))
+	}
+	for _, pkgDir := range pkgDirs {
 		declared, registered, opted := scanPackage(t, pkgDir)
 		if !opted {
 			continue
@@ -35,7 +44,7 @@ func TestSentinelRegistrationCoverage(t *testing.T) {
 		}
 		sort.Strings(missing)
 		if len(missing) > 0 {
-			t.Errorf("package %s registers sentinels but misses: %s (add them to its RegisterSentinel init)", entry.Name(), strings.Join(missing, ", "))
+			t.Errorf("package %s registers sentinels but misses: %s (add them to its RegisterSentinel init)", pkgDir, strings.Join(missing, ", "))
 		}
 	}
 }

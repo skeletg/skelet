@@ -2,12 +2,7 @@
 // robots) for a CMS page
 import type { Metadata } from "next";
 
-const SITE_URL = (process.env.STOREFRONT_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
-
-function abs(path: string): string {
-  if (/^https?:\/\//.test(path)) return path;
-  return SITE_URL + (path.startsWith("/") ? path : "/" + path);
-}
+import { SITE_URL, absUrl } from "@/app/lib/site-url";
 
 // Structural on purpose - both CMSPage and the leaner HomePage shape satisfy it
 type CMSPageForMetadata = {
@@ -23,7 +18,8 @@ type CMSPageForMetadata = {
   } | null;
 };
 
-export function cmsPageMetadata(page: CMSPageForMetadata, href: string): Metadata {
+export function cmsPageMetadata(page: CMSPageForMetadata, href: string, base: string = SITE_URL): Metadata {
+  const abs = (path: string) => absUrl(path, base);
   const c = page.content;
   const title = c?.metaTitle?.trim() || c?.title?.trim() || page.slug;
   const description = c?.metaDescription?.trim() || undefined;

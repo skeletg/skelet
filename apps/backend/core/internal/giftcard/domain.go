@@ -37,9 +37,14 @@ type GiftCard struct {
 	Message        string
 	IssuedOrderID  *uuid.UUID
 	CustomerID     *uuid.UUID
+	ChannelID      *uuid.UUID
 	ExpiresAt      *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+func (c GiftCard) SpendsOn(channelID uuid.UUID) bool {
+	return c.ChannelID == nil || *c.ChannelID == channelID
 }
 
 type Transaction struct {
@@ -61,6 +66,8 @@ type IssueInput struct {
 	IssuedOrderID  *uuid.UUID
 	CustomerID     *uuid.UUID
 	ExpiresAt      *time.Time
+	// nil takes the issuing order's channel, or every channel when there is no order
+	ChannelID *uuid.UUID
 	// IssueRef makes an issue idempotent for callers that mint store value between a pending ledger row and its finalize ("memo:<id>", "return:<id>") - a replay under the same ref returns the first card instead of minting a second - empty means no key, the plain issue path
 	IssueRef string
 }
@@ -72,6 +79,7 @@ var (
 	ErrInactive         = errors.New("gift card is not active")
 	ErrExpired          = errors.New("gift card has expired")
 	ErrCurrencyMismatch = errors.New("gift card currency does not match the order")
+	ErrWrongChannel     = errors.New("gift card is not valid on this store")
 	ErrInsufficient     = errors.New("gift card balance is insufficient")
 )
 
@@ -87,7 +95,7 @@ type Repository interface {
 	// The cancel-restore path knows ids, not codes - it locks before checking whether the restore already ran
 	GetByIDForUpdate(ctx context.Context, id uuid.UUID) (GiftCard, error)
 	UpdateBalance(ctx context.Context, id uuid.UUID, balance int64, status string) (GiftCard, error)
-	List(ctx context.Context, limit, offset int32) ([]GiftCard, error)
+	List(ctx context.Context, channelIDs []uuid.UUID, limit, offset int32) ([]GiftCard, error)
 	// Cards issued by a given order - used for issuance idempotency under at-least-once OrderPlaced delivery
 	ListByIssuedOrder(ctx context.Context, orderID uuid.UUID) ([]GiftCard, error)
 	InsertTransaction(ctx context.Context, t Transaction) (Transaction, error)

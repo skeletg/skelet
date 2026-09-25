@@ -558,6 +558,94 @@ func (x *UpdateDestinationResponse) GetDestination() *EventDestination {
 	return nil
 }
 
+type GetDestinationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDestinationRequest) Reset() {
+	*x = GetDestinationRequest{}
+	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDestinationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDestinationRequest) ProtoMessage() {}
+
+func (x *GetDestinationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDestinationRequest.ProtoReflect.Descriptor instead.
+func (*GetDestinationRequest) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_destinations_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetDestinationRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type GetDestinationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Destination   *EventDestination      `protobuf:"bytes,1,opt,name=destination,proto3" json:"destination,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDestinationResponse) Reset() {
+	*x = GetDestinationResponse{}
+	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDestinationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDestinationResponse) ProtoMessage() {}
+
+func (x *GetDestinationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDestinationResponse.ProtoReflect.Descriptor instead.
+func (*GetDestinationResponse) Descriptor() ([]byte, []int) {
+	return file_skelet_signals_v1_destinations_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetDestinationResponse) GetDestination() *EventDestination {
+	if x != nil {
+		return x.Destination
+	}
+	return nil
+}
+
 type DeleteDestinationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -567,7 +655,7 @@ type DeleteDestinationRequest struct {
 
 func (x *DeleteDestinationRequest) Reset() {
 	*x = DeleteDestinationRequest{}
-	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[8]
+	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -579,7 +667,7 @@ func (x *DeleteDestinationRequest) String() string {
 func (*DeleteDestinationRequest) ProtoMessage() {}
 
 func (x *DeleteDestinationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[8]
+	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -592,7 +680,7 @@ func (x *DeleteDestinationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDestinationRequest.ProtoReflect.Descriptor instead.
 func (*DeleteDestinationRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_destinations_proto_rawDescGZIP(), []int{8}
+	return file_skelet_signals_v1_destinations_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *DeleteDestinationRequest) GetId() string {
@@ -611,7 +699,7 @@ type DeleteDestinationResponse struct {
 
 func (x *DeleteDestinationResponse) Reset() {
 	*x = DeleteDestinationResponse{}
-	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[9]
+	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -623,7 +711,7 @@ func (x *DeleteDestinationResponse) String() string {
 func (*DeleteDestinationResponse) ProtoMessage() {}
 
 func (x *DeleteDestinationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[9]
+	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -636,7 +724,7 @@ func (x *DeleteDestinationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDestinationResponse.ProtoReflect.Descriptor instead.
 func (*DeleteDestinationResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_destinations_proto_rawDescGZIP(), []int{9}
+	return file_skelet_signals_v1_destinations_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DeleteDestinationResponse) GetDeleted() bool {
@@ -660,7 +748,7 @@ type SyncAudienceRequest struct {
 
 func (x *SyncAudienceRequest) Reset() {
 	*x = SyncAudienceRequest{}
-	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[10]
+	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -672,7 +760,7 @@ func (x *SyncAudienceRequest) String() string {
 func (*SyncAudienceRequest) ProtoMessage() {}
 
 func (x *SyncAudienceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[10]
+	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -685,7 +773,7 @@ func (x *SyncAudienceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncAudienceRequest.ProtoReflect.Descriptor instead.
 func (*SyncAudienceRequest) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_destinations_proto_rawDescGZIP(), []int{10}
+	return file_skelet_signals_v1_destinations_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SyncAudienceRequest) GetSegmentId() string {
@@ -718,7 +806,7 @@ type SyncAudienceResponse struct {
 
 func (x *SyncAudienceResponse) Reset() {
 	*x = SyncAudienceResponse{}
-	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[11]
+	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -730,7 +818,7 @@ func (x *SyncAudienceResponse) String() string {
 func (*SyncAudienceResponse) ProtoMessage() {}
 
 func (x *SyncAudienceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[11]
+	mi := &file_skelet_signals_v1_destinations_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -743,7 +831,7 @@ func (x *SyncAudienceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncAudienceResponse.ProtoReflect.Descriptor instead.
 func (*SyncAudienceResponse) Descriptor() ([]byte, []int) {
-	return file_skelet_signals_v1_destinations_proto_rawDescGZIP(), []int{11}
+	return file_skelet_signals_v1_destinations_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SyncAudienceResponse) GetIdentifiersSent() int32 {
@@ -810,6 +898,10 @@ const file_skelet_signals_v1_destinations_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12E\n" +
 	"\vdestination\x18\x02 \x01(\v2#.skelet.signals.v1.DestinationInputR\vdestination\"b\n" +
 	"\x19UpdateDestinationResponse\x12E\n" +
+	"\vdestination\x18\x01 \x01(\v2#.skelet.signals.v1.EventDestinationR\vdestination\"'\n" +
+	"\x15GetDestinationRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"_\n" +
+	"\x16GetDestinationResponse\x12E\n" +
 	"\vdestination\x18\x01 \x01(\v2#.skelet.signals.v1.EventDestinationR\vdestination\"*\n" +
 	"\x18DeleteDestinationRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"5\n" +
@@ -821,11 +913,12 @@ const file_skelet_signals_v1_destinations_proto_rawDesc = "" +
 	"\x0edestination_id\x18\x02 \x01(\tR\rdestinationId\x12 \n" +
 	"\videntifiers\x18\x03 \x03(\tR\videntifiers\"A\n" +
 	"\x14SyncAudienceResponse\x12)\n" +
-	"\x10identifiers_sent\x18\x01 \x01(\x05R\x0fidentifiersSent2\xb2\x04\n" +
+	"\x10identifiers_sent\x18\x01 \x01(\x05R\x0fidentifiersSent2\x99\x05\n" +
 	"\x12DestinationService\x12k\n" +
 	"\x10ListDestinations\x12*.skelet.signals.v1.ListDestinationsRequest\x1a+.skelet.signals.v1.ListDestinationsResponse\x12n\n" +
 	"\x11CreateDestination\x12+.skelet.signals.v1.CreateDestinationRequest\x1a,.skelet.signals.v1.CreateDestinationResponse\x12n\n" +
-	"\x11UpdateDestination\x12+.skelet.signals.v1.UpdateDestinationRequest\x1a,.skelet.signals.v1.UpdateDestinationResponse\x12n\n" +
+	"\x11UpdateDestination\x12+.skelet.signals.v1.UpdateDestinationRequest\x1a,.skelet.signals.v1.UpdateDestinationResponse\x12e\n" +
+	"\x0eGetDestination\x12(.skelet.signals.v1.GetDestinationRequest\x1a).skelet.signals.v1.GetDestinationResponse\x12n\n" +
 	"\x11DeleteDestination\x12+.skelet.signals.v1.DeleteDestinationRequest\x1a,.skelet.signals.v1.DeleteDestinationResponse\x12_\n" +
 	"\fSyncAudience\x12&.skelet.signals.v1.SyncAudienceRequest\x1a'.skelet.signals.v1.SyncAudienceResponseB\xd5\x01\n" +
 	"\x15com.skelet.signals.v1B\x11DestinationsProtoP\x01ZCgithub.com/skeletg/skelet/apps/backend/core/signalsapi/v1;signalsv1\xa2\x02\x03SSX\xaa\x02\x11Skelet.Signals.V1\xca\x02\x11Skelet\\Signals\\V1\xe2\x02\x1dSkelet\\Signals\\V1\\GPBMetadata\xea\x02\x13Skelet::Signals::V1b\x06proto3"
@@ -842,7 +935,7 @@ func file_skelet_signals_v1_destinations_proto_rawDescGZIP() []byte {
 	return file_skelet_signals_v1_destinations_proto_rawDescData
 }
 
-var file_skelet_signals_v1_destinations_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_skelet_signals_v1_destinations_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_skelet_signals_v1_destinations_proto_goTypes = []any{
 	(*EventDestination)(nil),          // 0: skelet.signals.v1.EventDestination
 	(*DestinationInput)(nil),          // 1: skelet.signals.v1.DestinationInput
@@ -852,36 +945,41 @@ var file_skelet_signals_v1_destinations_proto_goTypes = []any{
 	(*CreateDestinationResponse)(nil), // 5: skelet.signals.v1.CreateDestinationResponse
 	(*UpdateDestinationRequest)(nil),  // 6: skelet.signals.v1.UpdateDestinationRequest
 	(*UpdateDestinationResponse)(nil), // 7: skelet.signals.v1.UpdateDestinationResponse
-	(*DeleteDestinationRequest)(nil),  // 8: skelet.signals.v1.DeleteDestinationRequest
-	(*DeleteDestinationResponse)(nil), // 9: skelet.signals.v1.DeleteDestinationResponse
-	(*SyncAudienceRequest)(nil),       // 10: skelet.signals.v1.SyncAudienceRequest
-	(*SyncAudienceResponse)(nil),      // 11: skelet.signals.v1.SyncAudienceResponse
-	(*timestamppb.Timestamp)(nil),     // 12: google.protobuf.Timestamp
+	(*GetDestinationRequest)(nil),     // 8: skelet.signals.v1.GetDestinationRequest
+	(*GetDestinationResponse)(nil),    // 9: skelet.signals.v1.GetDestinationResponse
+	(*DeleteDestinationRequest)(nil),  // 10: skelet.signals.v1.DeleteDestinationRequest
+	(*DeleteDestinationResponse)(nil), // 11: skelet.signals.v1.DeleteDestinationResponse
+	(*SyncAudienceRequest)(nil),       // 12: skelet.signals.v1.SyncAudienceRequest
+	(*SyncAudienceResponse)(nil),      // 13: skelet.signals.v1.SyncAudienceResponse
+	(*timestamppb.Timestamp)(nil),     // 14: google.protobuf.Timestamp
 }
 var file_skelet_signals_v1_destinations_proto_depIdxs = []int32{
-	12, // 0: skelet.signals.v1.EventDestination.last_forwarded_at:type_name -> google.protobuf.Timestamp
-	12, // 1: skelet.signals.v1.EventDestination.created_at:type_name -> google.protobuf.Timestamp
-	12, // 2: skelet.signals.v1.EventDestination.updated_at:type_name -> google.protobuf.Timestamp
+	14, // 0: skelet.signals.v1.EventDestination.last_forwarded_at:type_name -> google.protobuf.Timestamp
+	14, // 1: skelet.signals.v1.EventDestination.created_at:type_name -> google.protobuf.Timestamp
+	14, // 2: skelet.signals.v1.EventDestination.updated_at:type_name -> google.protobuf.Timestamp
 	0,  // 3: skelet.signals.v1.ListDestinationsResponse.destinations:type_name -> skelet.signals.v1.EventDestination
 	1,  // 4: skelet.signals.v1.CreateDestinationRequest.destination:type_name -> skelet.signals.v1.DestinationInput
 	0,  // 5: skelet.signals.v1.CreateDestinationResponse.destination:type_name -> skelet.signals.v1.EventDestination
 	1,  // 6: skelet.signals.v1.UpdateDestinationRequest.destination:type_name -> skelet.signals.v1.DestinationInput
 	0,  // 7: skelet.signals.v1.UpdateDestinationResponse.destination:type_name -> skelet.signals.v1.EventDestination
-	2,  // 8: skelet.signals.v1.DestinationService.ListDestinations:input_type -> skelet.signals.v1.ListDestinationsRequest
-	4,  // 9: skelet.signals.v1.DestinationService.CreateDestination:input_type -> skelet.signals.v1.CreateDestinationRequest
-	6,  // 10: skelet.signals.v1.DestinationService.UpdateDestination:input_type -> skelet.signals.v1.UpdateDestinationRequest
-	8,  // 11: skelet.signals.v1.DestinationService.DeleteDestination:input_type -> skelet.signals.v1.DeleteDestinationRequest
-	10, // 12: skelet.signals.v1.DestinationService.SyncAudience:input_type -> skelet.signals.v1.SyncAudienceRequest
-	3,  // 13: skelet.signals.v1.DestinationService.ListDestinations:output_type -> skelet.signals.v1.ListDestinationsResponse
-	5,  // 14: skelet.signals.v1.DestinationService.CreateDestination:output_type -> skelet.signals.v1.CreateDestinationResponse
-	7,  // 15: skelet.signals.v1.DestinationService.UpdateDestination:output_type -> skelet.signals.v1.UpdateDestinationResponse
-	9,  // 16: skelet.signals.v1.DestinationService.DeleteDestination:output_type -> skelet.signals.v1.DeleteDestinationResponse
-	11, // 17: skelet.signals.v1.DestinationService.SyncAudience:output_type -> skelet.signals.v1.SyncAudienceResponse
-	13, // [13:18] is the sub-list for method output_type
-	8,  // [8:13] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	0,  // 8: skelet.signals.v1.GetDestinationResponse.destination:type_name -> skelet.signals.v1.EventDestination
+	2,  // 9: skelet.signals.v1.DestinationService.ListDestinations:input_type -> skelet.signals.v1.ListDestinationsRequest
+	4,  // 10: skelet.signals.v1.DestinationService.CreateDestination:input_type -> skelet.signals.v1.CreateDestinationRequest
+	6,  // 11: skelet.signals.v1.DestinationService.UpdateDestination:input_type -> skelet.signals.v1.UpdateDestinationRequest
+	8,  // 12: skelet.signals.v1.DestinationService.GetDestination:input_type -> skelet.signals.v1.GetDestinationRequest
+	10, // 13: skelet.signals.v1.DestinationService.DeleteDestination:input_type -> skelet.signals.v1.DeleteDestinationRequest
+	12, // 14: skelet.signals.v1.DestinationService.SyncAudience:input_type -> skelet.signals.v1.SyncAudienceRequest
+	3,  // 15: skelet.signals.v1.DestinationService.ListDestinations:output_type -> skelet.signals.v1.ListDestinationsResponse
+	5,  // 16: skelet.signals.v1.DestinationService.CreateDestination:output_type -> skelet.signals.v1.CreateDestinationResponse
+	7,  // 17: skelet.signals.v1.DestinationService.UpdateDestination:output_type -> skelet.signals.v1.UpdateDestinationResponse
+	9,  // 18: skelet.signals.v1.DestinationService.GetDestination:output_type -> skelet.signals.v1.GetDestinationResponse
+	11, // 19: skelet.signals.v1.DestinationService.DeleteDestination:output_type -> skelet.signals.v1.DeleteDestinationResponse
+	13, // 20: skelet.signals.v1.DestinationService.SyncAudience:output_type -> skelet.signals.v1.SyncAudienceResponse
+	15, // [15:21] is the sub-list for method output_type
+	9,  // [9:15] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_skelet_signals_v1_destinations_proto_init() }
@@ -896,7 +994,7 @@ func file_skelet_signals_v1_destinations_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_skelet_signals_v1_destinations_proto_rawDesc), len(file_skelet_signals_v1_destinations_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

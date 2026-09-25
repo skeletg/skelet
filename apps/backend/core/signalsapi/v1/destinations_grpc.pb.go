@@ -25,6 +25,7 @@ const (
 	DestinationService_ListDestinations_FullMethodName  = "/skelet.signals.v1.DestinationService/ListDestinations"
 	DestinationService_CreateDestination_FullMethodName = "/skelet.signals.v1.DestinationService/CreateDestination"
 	DestinationService_UpdateDestination_FullMethodName = "/skelet.signals.v1.DestinationService/UpdateDestination"
+	DestinationService_GetDestination_FullMethodName    = "/skelet.signals.v1.DestinationService/GetDestination"
 	DestinationService_DeleteDestination_FullMethodName = "/skelet.signals.v1.DestinationService/DeleteDestination"
 	DestinationService_SyncAudience_FullMethodName      = "/skelet.signals.v1.DestinationService/SyncAudience"
 )
@@ -36,6 +37,7 @@ type DestinationServiceClient interface {
 	ListDestinations(ctx context.Context, in *ListDestinationsRequest, opts ...grpc.CallOption) (*ListDestinationsResponse, error)
 	CreateDestination(ctx context.Context, in *CreateDestinationRequest, opts ...grpc.CallOption) (*CreateDestinationResponse, error)
 	UpdateDestination(ctx context.Context, in *UpdateDestinationRequest, opts ...grpc.CallOption) (*UpdateDestinationResponse, error)
+	GetDestination(ctx context.Context, in *GetDestinationRequest, opts ...grpc.CallOption) (*GetDestinationResponse, error)
 	DeleteDestination(ctx context.Context, in *DeleteDestinationRequest, opts ...grpc.CallOption) (*DeleteDestinationResponse, error)
 	SyncAudience(ctx context.Context, in *SyncAudienceRequest, opts ...grpc.CallOption) (*SyncAudienceResponse, error)
 }
@@ -78,6 +80,16 @@ func (c *destinationServiceClient) UpdateDestination(ctx context.Context, in *Up
 	return out, nil
 }
 
+func (c *destinationServiceClient) GetDestination(ctx context.Context, in *GetDestinationRequest, opts ...grpc.CallOption) (*GetDestinationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetDestinationResponse)
+	err := c.cc.Invoke(ctx, DestinationService_GetDestination_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *destinationServiceClient) DeleteDestination(ctx context.Context, in *DeleteDestinationRequest, opts ...grpc.CallOption) (*DeleteDestinationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteDestinationResponse)
@@ -105,6 +117,7 @@ type DestinationServiceServer interface {
 	ListDestinations(context.Context, *ListDestinationsRequest) (*ListDestinationsResponse, error)
 	CreateDestination(context.Context, *CreateDestinationRequest) (*CreateDestinationResponse, error)
 	UpdateDestination(context.Context, *UpdateDestinationRequest) (*UpdateDestinationResponse, error)
+	GetDestination(context.Context, *GetDestinationRequest) (*GetDestinationResponse, error)
 	DeleteDestination(context.Context, *DeleteDestinationRequest) (*DeleteDestinationResponse, error)
 	SyncAudience(context.Context, *SyncAudienceRequest) (*SyncAudienceResponse, error)
 	mustEmbedUnimplementedDestinationServiceServer()
@@ -125,6 +138,9 @@ func (UnimplementedDestinationServiceServer) CreateDestination(context.Context, 
 }
 func (UnimplementedDestinationServiceServer) UpdateDestination(context.Context, *UpdateDestinationRequest) (*UpdateDestinationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateDestination not implemented")
+}
+func (UnimplementedDestinationServiceServer) GetDestination(context.Context, *GetDestinationRequest) (*GetDestinationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDestination not implemented")
 }
 func (UnimplementedDestinationServiceServer) DeleteDestination(context.Context, *DeleteDestinationRequest) (*DeleteDestinationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteDestination not implemented")
@@ -207,6 +223,24 @@ func _DestinationService_UpdateDestination_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DestinationService_GetDestination_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDestinationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DestinationServiceServer).GetDestination(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DestinationService_GetDestination_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DestinationServiceServer).GetDestination(ctx, req.(*GetDestinationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _DestinationService_DeleteDestination_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteDestinationRequest)
 	if err := dec(in); err != nil {
@@ -261,6 +295,10 @@ var DestinationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateDestination",
 			Handler:    _DestinationService_UpdateDestination_Handler,
+		},
+		{
+			MethodName: "GetDestination",
+			Handler:    _DestinationService_GetDestination_Handler,
 		},
 		{
 			MethodName: "DeleteDestination",

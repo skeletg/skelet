@@ -192,32 +192,62 @@ type ListFilter struct {
 	Statuses  []string
 	Limit     int
 	Offset    int
+	// Nil lists every channel's runs; set, a run shows only where its resource is visible on its channel
+	Visibility *Visibility
+}
+
+type Visibility struct {
+	AnyChannel []string
+	Pairs      []VisiblePair
+}
+
+type VisiblePair struct {
+	Resource  string
+	ChannelID uuid.UUID
+}
+
+func (v *Visibility) params() (bool, []string, []string) {
+	if v == nil {
+		return false, nil, nil
+	}
+	pairs := make([]string, len(v.Pairs))
+	for i, p := range v.Pairs {
+		pairs[i] = p.Resource + "|" + p.ChannelID.String()
+	}
+	return true, append([]string{}, v.AnyChannel...), pairs
 }
 
 func (s *Service) List(ctx context.Context, f ListFilter) ([]Job, int, error) {
 	if f.Limit <= 0 || f.Limit > 200 {
 		f.Limit = 50
 	}
+	scoped, anyRes, pairs := f.Visibility.params()
 	rows, err := s.q.ListDataJobs(ctx, db.ListDataJobsParams{
-		AllResources:  len(f.Resources) == 0,
-		Resources:     f.Resources,
-		AllDirections: f.Direction == "",
-		Direction:     string(f.Direction),
-		AllStatuses:   len(f.Statuses) == 0,
-		Statuses:      f.Statuses,
-		PageSize:      int32(f.Limit),
-		PageOffset:    int32(f.Offset),
+		AllResources:        len(f.Resources) == 0,
+		Resources:           f.Resources,
+		AllDirections:       f.Direction == "",
+		Direction:           string(f.Direction),
+		AllStatuses:         len(f.Statuses) == 0,
+		Statuses:            f.Statuses,
+		Scoped:              scoped,
+		AnyChannelResources: anyRes,
+		ResourceChannels:    pairs,
+		PageSize:            int32(f.Limit),
+		PageOffset:          int32(f.Offset),
 	})
 	if err != nil {
 		return nil, 0, err
 	}
 	total, err := s.q.CountDataJobs(ctx, db.CountDataJobsParams{
-		AllResources:  len(f.Resources) == 0,
-		Resources:     f.Resources,
-		AllDirections: f.Direction == "",
-		Direction:     string(f.Direction),
-		AllStatuses:   len(f.Statuses) == 0,
-		Statuses:      f.Statuses,
+		AllResources:        len(f.Resources) == 0,
+		Resources:           f.Resources,
+		AllDirections:       f.Direction == "",
+		Direction:           string(f.Direction),
+		AllStatuses:         len(f.Statuses) == 0,
+		Statuses:            f.Statuses,
+		Scoped:              scoped,
+		AnyChannelResources: anyRes,
+		ResourceChannels:    pairs,
 	})
 	if err != nil {
 		return nil, 0, err

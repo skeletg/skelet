@@ -9,7 +9,7 @@ RETURNING *;
 UPDATE experiments
 SET name = sqlc.arg(name), status = sqlc.arg(status), coverage = sqlc.arg(coverage),
     goal_event = sqlc.arg(goal_event), variations = sqlc.arg(variations), segment_slug = sqlc.arg(segment_slug), updated_at = NOW()
-WHERE id = sqlc.arg(id);
+WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id);
 
 -- name: GetExperiment :one
 SELECT * FROM experiments WHERE id = sqlc.arg(id);
@@ -21,4 +21,4 @@ SELECT * FROM experiments WHERE channel_id = sqlc.arg(channel_id) ORDER BY creat
 SELECT * FROM experiments WHERE channel_id = sqlc.arg(channel_id) AND status = 'running' ORDER BY key;
 
 -- name: DeleteExperiment :exec
-DELETE FROM experiments WHERE id = sqlc.arg(id);
+DELETE FROM experiments WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id);

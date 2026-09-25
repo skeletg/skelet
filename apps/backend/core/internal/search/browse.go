@@ -282,7 +282,7 @@ func (i *ProductIndexer) BrowseProducts(
 		},
 	}
 
-	rawResp, err := i.client.SearchRaw(ctx, ProductIndex, body)
+	rawResp, err := i.client.SearchRawRouted(ctx, ProductIndex, i.routing(channelID), body)
 	if err != nil {
 		return BrowseResult{}, err
 	}

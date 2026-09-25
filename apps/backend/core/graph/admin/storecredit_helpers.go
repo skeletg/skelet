@@ -14,6 +14,9 @@ import (
 // storeCreditContext loads the customer, enforces the channel-scoped permission, and resolves the channel currency
 // store credit is denominated in
 func (r *Resolver) storeCreditContext(ctx context.Context, customerID, perm string) (customer.Customer, string, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, perm); err != nil {
+		return customer.Customer{}, "", err
+	}
 	cid, err := parseID(customerID, "customer")
 	if err != nil {
 		return customer.Customer{}, "", err

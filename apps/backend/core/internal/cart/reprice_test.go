@@ -42,7 +42,7 @@ func (f fakePricer) ResolveSimplePricing(_ context.Context, _ uuid.UUID, sku str
 	return p, nil
 }
 
-func (f fakePricer) ResolveBundleBySKU(context.Context, string) (BundleSnapshot, error) {
+func (f fakePricer) ResolveBundleBySKU(context.Context, uuid.UUID, string) (BundleSnapshot, error) {
 	panic("not used")
 }
 

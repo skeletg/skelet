@@ -364,3 +364,48 @@ SELECT t.id AS product_id,
 FROM target t
 LEFT JOIN cats c ON c.product_id = t.id
 LEFT JOIN sel  s ON s.product_id = t.id;
+
+-- name: PromotionAnalyticsByRuleForChannels :many
+SELECT
+    r.id                                              AS rule_id,
+    r.slug                                            AS rule_slug,
+    r.name                                            AS rule_name,
+    COUNT(rd.id)::INTEGER                             AS redemption_count,
+    COALESCE(SUM(rd.discount_cents), 0)::BIGINT       AS discount_total_cents,
+    COUNT(DISTINCT rd.customer_id)::INTEGER           AS unique_customers,
+    COALESCE(SUM(o.total_amount), 0)::BIGINT          AS order_revenue_cents
+FROM promotion_rules r
+LEFT JOIN (
+    promotion_redemptions rd
+    JOIN orders o ON o.id = rd.order_id AND o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
+)      ON rd.rule_id = r.id
+      AND rd.redeemed_at >= sqlc.arg(start_time)
+      AND rd.redeemed_at <= sqlc.arg(end_time)
+WHERE r.channel_id IS NULL OR r.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
+GROUP BY r.id, r.slug, r.name
+ORDER BY redemption_count DESC, r.slug;
+
+-- name: PromotionAnalyticsTotalsForChannels :one
+SELECT
+    COUNT(rd.id)::INTEGER                             AS redemption_count,
+    COALESCE(SUM(rd.discount_cents), 0)::BIGINT       AS discount_total_cents,
+    COUNT(DISTINCT rd.customer_id)::INTEGER           AS unique_customers
+FROM promotion_redemptions rd
+JOIN orders o ON o.id = rd.order_id
+WHERE rd.redeemed_at >= sqlc.arg(start_time)
+  AND rd.redeemed_at <= sqlc.arg(end_time)
+  AND o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[]);
+
+-- name: PromotionAnalyticsDailyForChannels :many
+SELECT
+    date_trunc('day', rd.redeemed_at)::timestamptz   AS day,
+    COUNT(rd.id)::INTEGER                             AS redemption_count,
+    COALESCE(SUM(rd.discount_cents), 0)::BIGINT       AS discount_total_cents
+FROM promotion_redemptions rd
+JOIN orders o ON o.id = rd.order_id
+WHERE rd.redeemed_at >= sqlc.arg(start_time)
+  AND rd.redeemed_at <= sqlc.arg(end_time)
+  AND (sqlc.narg(rule_id)::uuid IS NULL OR rd.rule_id = sqlc.narg(rule_id)::uuid)
+  AND o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
+GROUP BY 1
+ORDER BY 1;

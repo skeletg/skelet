@@ -1,8 +1,8 @@
-# Prod stack - compiled images + the datastores, no edge and no TLS: services bind to 127.0.0.1 only, so put your own proxy in front and terminate TLS there cp each env/*.example to its real name plus .env.example -> .env at the root, then build (or pull via *_IMAGE) and `up -d` - migrations gate app Every var is documented in docs/env.md, and optional infra sits behind --profile queue and --profile logs
+# Prod stack - compiled images + the datastores, no edge and no TLS: services bind to 127.0.0.1 only, so put your own proxy in front and terminate TLS there cp each env/*.example to its real name plus .env.example -> .env at the root, then build (or pull via *_IMAGE) and `up -d` - migrations gate app Every var is documented in docs/env.md, and optional infra sits behind --profile queue and --profile edge
 name: skelet-prod
 
 # json-file is UNBOUNDED by default, so a long deployment fills the disk - 10 MB x 3 caps each service at ~30 MB, which
-# is also the retention - rotated lines are gone, so durable history means the `logs` profile below or another driver
+# is also the retention - rotated lines are gone, so durable history means shipping them with your own infrastructure
 x-logging: &logging
   driver: json-file
   options:
@@ -11,13 +11,20 @@ x-logging: &logging
 
 # Datastore containers and the DSNs that reach them derive from one variable each, so a password can't drift out of sync with the URL that uses it - these come from the root .env, NOT env/prod.env - compose interpolates only the former - setting a URL outright wins over the derived one, which is how you point at a managed datastore - see .env.example
 # Split by tier - each backend gets its own datastore credentials and none of the other's, the same boundary the Go modules draw
-x-shared-secrets: &shared-secrets
+# Nested passwords are plain defaults, not :?, since compose expands them even when the URL is set - the bundled containers refuse an empty one
+# What the internet-facing beacon tier gets - it verifies customer sessions and serves no contract, so no contract secret
+x-edge-secrets: &edge-secrets
   JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in the root .env (openssl rand -hex 32)}
-  # The contract's own secret - core signs with it, the suite verifies, the storefront never gets it
-  SIGNALS_SERVICE_SECRET: ${SIGNALS_SERVICE_SECRET:?set SIGNALS_SERVICE_SECRET in the root .env (openssl rand -hex 32, distinct from JWT_SECRET)}
-  VALKEY_URL: ${VALKEY_URL-redis://:${VALKEY_PASSWORD:?set VALKEY_PASSWORD in the root .env, or set VALKEY_URL= to run Postgres-only}@valkey:6379}
+  VALKEY_URL: ${VALKEY_URL-redis://:${VALKEY_PASSWORD:-}@valkey:6379}
   # The evictable half of the split - caches, rate-limit counters and persisted queries live here on an allkeys-lru instance, so an anonymous cache flood is reclaimed instead of filling the noeviction primary and taking auth-token writes down with it - auto-points at valkey-cache when a password exists, unset with no password (Postgres-only) leaves it empty so everything shares the primary (nil) - set it outright to point caches at a managed instance
-  VALKEY_CACHE_URL: ${VALKEY_CACHE_URL-${VALKEY_PASSWORD:+redis://:${VALKEY_PASSWORD}@valkey-cache:6379}}
+  VALKEY_CACHE_URL: ${VALKEY_CACHE_URL-${VALKEY_PASSWORD:+redis://:${VALKEY_PASSWORD:-}@valkey-cache:6379}}
+  # Rate-limit counters and login lockouts, kept off the cache instance so a cache flood can't evict them and lift every limit - same auto-pointing as the cache URL
+  VALKEY_LIMITS_URL: ${VALKEY_LIMITS_URL-${VALKEY_PASSWORD:+redis://:${VALKEY_PASSWORD:-}@valkey-limits:6379}}
+
+x-shared-secrets: &shared-secrets
+  <<: *edge-secrets
+  # The contract's own secret - core signs with it, the suite verifies, the storefront and the beacon tier never get it
+  SIGNALS_SERVICE_SECRET: ${SIGNALS_SERVICE_SECRET:?set SIGNALS_SERVICE_SECRET in the root .env (openssl rand -hex 32, distinct from JWT_SECRET)}
 
 # Core's alone - the suite administers its own settings over the contract and renders no storefront
 x-core-secrets: &core-secrets
@@ -27,25 +34,25 @@ x-core-secrets: &core-secrets
 # The suite's alone - core reaches the spine and the queue over the contract, never by opening them
 x-signals-secrets: &signals-secrets
   # Profile-gated: empty unless the password is set, so `queue` stays off by default without a second switch
-  SIGNALS_QUEUE_URL: ${SIGNALS_QUEUE_URL-${NATS_PASSWORD:+nats://skelet:${NATS_PASSWORD}@nats:4222}}
-  SIGNALS_CH_URL: ${SIGNALS_CH_URL-clickhouse://skelet:${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in the root .env (openssl rand -hex 32)}@clickhouse:9000/signals}
+  SIGNALS_QUEUE_URL: ${SIGNALS_QUEUE_URL-${NATS_PASSWORD:+nats://skelet:${NATS_PASSWORD:-}@nats:4222}}
+  SIGNALS_CH_URL: ${SIGNALS_CH_URL-clickhouse://skelet:${CLICKHOUSE_PASSWORD:-}@clickhouse:9000/signals}
 
 # POOLED is what every long-running tier talks to, so replica count stops dividing max_connections
 # default_query_exec_mode=exec turns OFF pgx's prepared statements, which transaction pooling loses track of between PREPARE and EXECUTE
 x-core-db: &core-db
-  DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:?set DB_PASSWORD in the root .env}@pgbouncer:6432/skelet?sslmode=disable&default_query_exec_mode=exec}
+  DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:-}@pgbouncer:6432/skelet?sslmode=disable&default_query_exec_mode=exec}
 
 x-signals-db: &signals-db
-  SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:?set SIGNALS_DB_PASSWORD in the root .env}@pgbouncer-signals:6432/skelet_signals?sslmode=disable&default_query_exec_mode=exec}
+  SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:-}@pgbouncer-signals:6432/skelet_signals?sslmode=disable&default_query_exec_mode=exec}
 
 # The migration one-shots bypass the pooler, whose transaction pooling loses golang-migrate's advisory lock between statements
 x-core-db-direct: &core-db-direct
-  DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:?set DB_PASSWORD in the root .env}@db:5432/skelet?sslmode=disable}
+  DATABASE_URL: ${DATABASE_URL-postgres://skelet:${DB_PASSWORD:-}@db:5432/skelet?sslmode=disable}
 
 x-signals-db-direct: &signals-db-direct
-  SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:?set SIGNALS_DB_PASSWORD in the root .env}@signals-db:5432/skelet_signals?sslmode=disable}
+  SIGNALS_DB_URL: ${SIGNALS_DB_URL-postgres://skelet:${SIGNALS_DB_PASSWORD:-}@signals-db:5432/skelet_signals?sslmode=disable}
 
-# The bundled datastores sit behind the `bundled` profile so a managed deployment can drop them - point DATABASE_URL / SIGNALS_DB_URL / VALKEY_URL at the managed instances and they never start - .env sets COMPOSE_PROFILES=bundled, so a self-hosted box gets them by default Every depends_on on them carries `required: false`, without which compose rejects the whole file the moment the profile is off
+# The bundled datastores sit behind the `bundled` profile so a managed deployment can drop them - point DATABASE_URL / SIGNALS_DB_URL / VALKEY_URL / SIGNALS_CH_URL at the managed instances and they never start - .env sets COMPOSE_PROFILES=bundled, so a self-hosted box gets them by default Every depends_on on them carries `required: false`, without which compose rejects the whole file the moment the profile is off
 services:
   app:
     image: ${APP_IMAGE:-skelet-app:prod}
@@ -67,6 +74,7 @@ services:
       signals-db: { condition: service_healthy, required: false }
       valkey: { condition: service_healthy, required: false }
       valkey-cache: { condition: service_healthy, required: false }
+      valkey-limits: { condition: service_healthy, required: false }
       # Both schemas are migrated before the app boots - see the two one-shots
       migrate: { condition: service_completed_successfully }
       signals-migrate: { condition: service_completed_successfully }
@@ -109,6 +117,7 @@ services:
       signals-db: { condition: service_healthy, required: false }
       valkey: { condition: service_healthy, required: false }
       valkey-cache: { condition: service_healthy, required: false }
+      valkey-limits: { condition: service_healthy, required: false }
       migrate: { condition: service_completed_successfully }
       signals-migrate: { condition: service_completed_successfully }
       # Optional infra - see the note on `app`
@@ -161,13 +170,16 @@ services:
         limits: { memory: 512m, cpus: "2" }
     logging: *logging
 
-  # Signals worker (Pulse/Lens/Synapse/Prism) as its own process/container - owns retention pruning, spine forwarding, trait compute and the ingest-queue consumer, isolated from the commerce app (separate memory/crash/resource these jobs here (both read the same env file) No published port - healthcheck curls its own /healthz in-container
+  # Signals (Pulse/Lens/Synapse/Prism) as its own process/container - the contract core calls, retention pruning, spine forwarding, trait compute and the ingest-queue consumer, isolated from the commerce app (separate memory/crash/resource budget) No published port - healthcheck curls its own /healthz in-container
   signals:
     image: ${SIGNALS_IMAGE:-skelet-signals:prod}
     build:
       context: ./apps/backend
       dockerfile: signals/Dockerfile.prod
-    env_file: [env/prod.env]
+    env_file:
+      - env/prod.env
+      - path: env/prod-signals.env
+        required: false
     # Inline (beats env_file) so a distinct trace identity doesn't leak into
     # `app`, which shares env/prod.env - OTEL endpoint/exporter come from the file
     environment:
@@ -175,11 +187,11 @@ services:
       OTEL_SERVICE_NAME: skelet-signals
     command: ["/app/signals"]
     depends_on:
-      pgbouncer: { condition: service_healthy, required: false }
       pgbouncer-signals: { condition: service_healthy, required: false }
-      db: { condition: service_healthy, required: false }
       signals-db: { condition: service_healthy, required: false }
-      migrate: { condition: service_completed_successfully }
+      valkey: { condition: service_healthy, required: false }
+      valkey-cache: { condition: service_healthy, required: false }
+      valkey-limits: { condition: service_healthy, required: false }
       signals-migrate: { condition: service_completed_successfully }
       clickhouse: { condition: service_healthy, required: false }
       clickhouse-migrate: { condition: service_completed_successfully }
@@ -208,17 +220,17 @@ services:
       dockerfile: signals/Dockerfile.prod
     env_file: [env/prod.env]
     environment:
-      <<: [*shared-secrets, *signals-secrets, *signals-db]
+      <<: [*edge-secrets, *signals-secrets, *signals-db]
       OTEL_SERVICE_NAME: skelet-ingest
       INGEST_FALLBACK_URL: http://app:8080
     command: ["/app/ingest"]
     ports: ["127.0.0.1:8091:8091"]
     depends_on:
-      pgbouncer: { condition: service_healthy, required: false }
       pgbouncer-signals: { condition: service_healthy, required: false }
-      db: { condition: service_healthy, required: false }
       signals-db: { condition: service_healthy, required: false }
-      migrate: { condition: service_completed_successfully }
+      valkey: { condition: service_healthy, required: false }
+      valkey-cache: { condition: service_healthy, required: false }
+      valkey-limits: { condition: service_healthy, required: false }
       signals-migrate: { condition: service_completed_successfully }
       clickhouse: { condition: service_healthy, required: false }
       clickhouse-migrate: { condition: service_completed_successfully }
@@ -295,6 +307,7 @@ services:
         limits: { memory: 128m, cpus: "0.5" }
     logging: *logging
 
+  # One replica: its page cache lives in the process, so a purge reaches only the container that answers it (docs/deploying.md)
   vetrina-demo:
     image: ${VETRINA_DEMO_IMAGE:-skelet-vetrina-demo:prod}
     build:
@@ -358,7 +371,7 @@ services:
 
   # Connection poolers, one per database so the bulkhead survives the pooler - the commerce pool can't be drained by beacon volume, exactly as the two Postgres instances are already split
   # POOL_MODE=transaction is what makes that true - a server connection is held for
-  # a transaction, not a session - it is also why migrations and pg_dump are wired around this, and why prepared statements are off in the pooled DSN above
+  # a transaction, not a session - it is also why migrations are wired around this, and why prepared statements are off in the pooled DSN above
   pgbouncer:
     profiles: ["bundled"]
     image: edoburu/pgbouncer:v1.25.2-p0
@@ -367,7 +380,7 @@ services:
       DB_PORT: "5432"
       DB_NAME: skelet
       DB_USER: skelet
-      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in the root .env}
+      DB_PASSWORD: ${DB_PASSWORD:-}
       POOL_MODE: transaction
       AUTH_TYPE: scram-sha-256
       # The image DEFAULTS to 5432 - without this every pooled DSN (@pgbouncer:6432)
@@ -407,7 +420,7 @@ services:
       DB_PORT: "5432"
       DB_NAME: skelet_signals
       DB_USER: skelet
-      DB_PASSWORD: ${SIGNALS_DB_PASSWORD:?set SIGNALS_DB_PASSWORD in the root .env}
+      DB_PASSWORD: ${SIGNALS_DB_PASSWORD:-}
       POOL_MODE: transaction
       AUTH_TYPE: scram-sha-256
       # The image DEFAULTS to 5432 - without this every pooled DSN (@pgbouncer:6432)
@@ -441,8 +454,10 @@ services:
     image: postgres:18-alpine
     environment:
       POSTGRES_USER: skelet
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in the root .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-}
       POSTGRES_DB: skelet
+    # The password check lives here rather than as a :? above, which compose would enforce on managed installs too
+    entrypoint: ["sh", "-c", "test -n \"$$POSTGRES_PASSWORD\" || { echo 'set DB_PASSWORD in the root .env' >&2; exit 1; }; exec docker-entrypoint.sh postgres"]
     volumes:
       - db-data:/var/lib/postgresql
     healthcheck:
@@ -463,8 +478,9 @@ services:
     image: postgres:18-alpine
     environment:
       POSTGRES_USER: skelet
-      POSTGRES_PASSWORD: ${SIGNALS_DB_PASSWORD:?set SIGNALS_DB_PASSWORD in the root .env}
+      POSTGRES_PASSWORD: ${SIGNALS_DB_PASSWORD:-}
       POSTGRES_DB: skelet_signals
+    entrypoint: ["sh", "-c", "test -n \"$$POSTGRES_PASSWORD\" || { echo 'set SIGNALS_DB_PASSWORD in the root .env' >&2; exit 1; }; exec docker-entrypoint.sh postgres"]
     volumes:
       - signals-db-data:/var/lib/postgresql
     healthcheck:
@@ -481,11 +497,10 @@ services:
   valkey:
     profiles: ["bundled"]
     image: valkey/valkey:9-alpine
-    # VALKEY_PASSWORD must reach compose (shell env or root .env) AND be embedded in the app's VALKEY_URL - redis://:PASSWORD@valkey:6379
     # maxmemory under the container limit trades an OOM kill for loud write errors, noeviction because refresh tokens must never be evicted
     environment:
-      VALKEY_PASSWORD: "${VALKEY_PASSWORD:?set a strong VALKEY_PASSWORD (also embed it in VALKEY_URL)}"
-    command: ["sh", "-c", "exec valkey-server --appendonly yes --maxmemory 200mb --maxmemory-policy noeviction --requirepass \"$$VALKEY_PASSWORD\""]
+      VALKEY_PASSWORD: "${VALKEY_PASSWORD:-}"
+    command: ["sh", "-c", "test -n \"$$VALKEY_PASSWORD\" || { echo 'set a strong VALKEY_PASSWORD in the root .env' >&2; exit 1; }; exec valkey-server --appendonly yes --maxmemory 200mb --maxmemory-policy noeviction --requirepass \"$$VALKEY_PASSWORD\""]
     volumes:
       - valkey-data:/data
     healthcheck:
@@ -499,13 +514,13 @@ services:
         limits: { memory: 256m, cpus: "0.5" }
     logging: *logging
 
-  # The EVICTABLE half of the Valkey split - APQ, the storefront response cache, the read-through caches and the rate-limit counters, all of which fail open - allkeys-lru (NOT noeviction) so an anonymous flood of persisted-query / response-cache keys is reclaimed here instead of filling the auth primary and making refresh/reset-token writes fail - no appendonly and no volume since every key is reconstructible from Postgres, so a cold cache after a restart is fine not data loss
+  # The EVICTABLE half of the Valkey split - APQ, the storefront response cache and the read-through caches, all of which fail open - allkeys-lru (NOT noeviction) so an anonymous flood of persisted-query / response-cache keys is reclaimed here instead of filling the auth primary and making refresh/reset-token writes fail - no appendonly and no volume since every key is reconstructible from Postgres, so a cold cache after a restart is fine not data loss
   valkey-cache:
     profiles: ["bundled"]
     image: valkey/valkey:9-alpine
     environment:
-      VALKEY_PASSWORD: "${VALKEY_PASSWORD:?set a strong VALKEY_PASSWORD (also embed it in VALKEY_URL)}"
-    command: ["sh", "-c", "exec valkey-server --maxmemory 200mb --maxmemory-policy allkeys-lru --requirepass \"$$VALKEY_PASSWORD\""]
+      VALKEY_PASSWORD: "${VALKEY_PASSWORD:-}"
+    command: ["sh", "-c", "test -n \"$$VALKEY_PASSWORD\" || { echo 'set a strong VALKEY_PASSWORD in the root .env' >&2; exit 1; }; exec valkey-server --maxmemory ${VALKEY_CACHE_MAXMEMORY:-512mb} --maxmemory-policy allkeys-lru --requirepass \"$$VALKEY_PASSWORD\""]
     healthcheck:
       test: ["CMD-SHELL", "valkey-cli -a \"$$VALKEY_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
       interval: 5s
@@ -514,13 +529,30 @@ services:
     restart: unless-stopped
     deploy:
       resources:
-        limits: { memory: 256m, cpus: "0.5" }
+        # The response cache is keyed per channel and locale, so size it with the channel count - raise both together
+        limits: { memory: "${VALKEY_CACHE_MEMORY_LIMIT:-640m}", cpus: "0.5" }
+    logging: *logging
+
+  valkey-limits:
+    profiles: ["bundled"]
+    image: valkey/valkey:9-alpine
+    environment:
+      VALKEY_PASSWORD: "${VALKEY_PASSWORD:-}"
+    command: ["sh", "-c", "test -n \"$$VALKEY_PASSWORD\" || { echo 'set a strong VALKEY_PASSWORD in the root .env' >&2; exit 1; }; exec valkey-server --maxmemory 64mb --maxmemory-policy volatile-ttl --requirepass \"$$VALKEY_PASSWORD\""]
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"$$VALKEY_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 96m, cpus: "0.25" }
     logging: *logging
 
   # ---- Optional infrastructure, behind profiles ---- Off by default; the services that use them carry `required: false` gates, so the project stays valid with the profile off and still waits for health when it's on
   # their env files only need to exist when the profile is enabled
 
-  # The event spine's home, and the `logs` profile's - each consumer gets its own database, and this volume holds the spine's only copy
   # Single-node reference: replicas need ENGINE=Replicated databases, and a GDPR erasure sweep needs SYSTEM RELOAD DICTIONARY signals.identity_map on every other node
   clickhouse:
     profiles: ["bundled"]
@@ -528,7 +560,8 @@ services:
     environment:
       CLICKHOUSE_DB: signals
       CLICKHOUSE_USER: skelet
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in the root .env (openssl rand -hex 32)}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+    entrypoint: ["sh", "-c", "test -n \"$$CLICKHOUSE_PASSWORD\" || { echo 'set CLICKHOUSE_PASSWORD in the root .env (openssl rand -hex 32)' >&2; exit 1; }; exec /entrypoint.sh"]
     volumes:
       - clickhouse-data:/var/lib/clickhouse
     ulimits:
@@ -545,16 +578,16 @@ services:
         limits: { memory: 4g, cpus: "4" }
     logging: *logging
 
-  # The spine schema on that server, gating every process that touches it
   #   docker compose -f docker-compose.prod.yml run --rm clickhouse-migrate
+  # golang-migrate wants credentials as query parameters, so its URL is derived from SIGNALS_CH_URL unless SIGNALS_CH_MIGRATE_URL is set
   clickhouse-migrate:
     image: ${SIGNALS_IMAGE:-skelet-signals:prod}
     build:
       context: ./apps/backend
       dockerfile: signals/Dockerfile.prod
-    env_file: [env/prod.env]
     environment:
-      SIGNALS_CH_MIGRATE_URL: ${SIGNALS_CH_MIGRATE_URL-clickhouse://clickhouse:9000?username=skelet&password=${CLICKHOUSE_PASSWORD}&database=signals&x-multi-statement=true}
+      SIGNALS_CH_URL: ${SIGNALS_CH_URL-clickhouse://skelet:${CLICKHOUSE_PASSWORD:-}@clickhouse:9000/signals}
+      SIGNALS_CH_MIGRATE_URL: ${SIGNALS_CH_MIGRATE_URL:-}
     depends_on:
       clickhouse: { condition: service_healthy, required: false }
     # $$ so the container's shell expands the vars, not compose
@@ -562,7 +595,12 @@ services:
       - "sh"
       - "-c"
       - |
-        migrate -path /app/clickhouse-migrations -database "$$SIGNALS_CH_MIGRATE_URL" up
+        url="$$SIGNALS_CH_MIGRATE_URL"
+        if [ -z "$$url" ]; then
+          url=$$(printf '%s' "$$SIGNALS_CH_URL" | sed -E 's#^clickhouse://([^:@/]+):([^@]*)@([^/?]+)/([^?]+)[?]?(.*)$$#clickhouse://\3?username=\1\&password=\2\&database=\4\&x-multi-statement=true\&\5#')
+        fi
+        case "$$url" in *x-multi-statement=true*) ;; *) echo "SIGNALS_CH_URL is not clickhouse://user:password@host:port/db - set SIGNALS_CH_MIGRATE_URL" >&2; exit 1 ;; esac
+        migrate -path /app/clickhouse-migrations -database "$$url" up
     restart: "no"
     logging: *logging
 

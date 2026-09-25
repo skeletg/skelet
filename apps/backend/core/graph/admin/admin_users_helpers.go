@@ -10,6 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/action"
 	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/permission"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -199,4 +200,83 @@ func toPermissionGroupModel(g admin.PermissionGroup) *model.PermissionGroup {
 		Slug:        g.Slug,
 		Permissions: perms,
 	}
+}
+
+// Admins and roles are install-wide, and what a holder hands out stays inside what they hold
+func (r *Resolver) requireGrantable(ctx context.Context, grants []auth.Grant) error {
+	claims, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return err
+	}
+	if claims.IsSuperuser {
+		return nil
+	}
+	return r.AdminSvc.RequireWithinOwn(ctx, claims.AdminID, grants)
+}
+
+func (r *Resolver) requireRolesGrantable(ctx context.Context, roleSlugs []string) error {
+	if claims, err := auth.RequireAuth(ctx); err == nil && claims.IsSuperuser {
+		return nil
+	}
+	grants, err := r.AdminSvc.RoleGrants(ctx, roleSlugs)
+	if err != nil {
+		return err
+	}
+	return r.requireGrantable(ctx, grants)
+}
+
+func (r *Resolver) requireOutranks(ctx context.Context, targetID uuid.UUID) error {
+	claims, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return err
+	}
+	if claims.IsSuperuser {
+		return nil
+	}
+	return r.AdminSvc.RequireOutranks(ctx, claims.AdminID, targetID)
+}
+
+func (r *Resolver) requireOutranksRoleMembers(ctx context.Context, roleID uuid.UUID) error {
+	claims, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return err
+	}
+	if claims.IsSuperuser {
+		return nil
+	}
+	return r.AdminSvc.RequireOutranksMembers(ctx, claims.AdminID, roleID)
+}
+
+// A role its editor holds is off limits to them, or admins.manage becomes whatever the holder wants
+func (r *Resolver) requireRoleEditable(ctx context.Context, roleID uuid.UUID) (admin.Role, error) {
+	claims, err := auth.RequireAuth(ctx)
+	if err != nil {
+		return admin.Role{}, err
+	}
+	role, err := r.AdminSvc.RoleByID(ctx, roleID)
+	if err != nil {
+		return admin.Role{}, err
+	}
+	if claims.IsSuperuser {
+		return role, nil
+	}
+	held, err := r.AdminSvc.HoldsRole(ctx, claims.AdminID, roleID)
+	if err != nil {
+		return admin.Role{}, err
+	}
+	if held {
+		return admin.Role{}, apperr.New("ADMIN_SELF_EDIT", apperr.ClassValidation, "a role you hold needs another admin to change")
+	}
+	return role, r.requireGrantable(ctx, scopeInputGrants(nil, role))
+}
+
+func scopeInputGrants(in []admin.RolePermissionScopeInput, role admin.Role) []auth.Grant {
+	out := make([]auth.Grant, 0, len(in)+len(role.PermissionScopes))
+	for _, s := range in {
+		out = append(out, auth.Grant{Slug: s.PermissionSlug, ChannelID: s.ChannelID, Locale: s.Locale})
+	}
+	for _, s := range role.PermissionScopes {
+		out = append(out, auth.Grant{Slug: s.Permission.Slug, ChannelID: s.ChannelID, Locale: s.Locale})
+	}
+	return out
 }

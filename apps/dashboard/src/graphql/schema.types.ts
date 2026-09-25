@@ -2173,6 +2173,7 @@ export type CustomerSegment = {
   members: Array<CustomerSegmentMember>;
   name: Scalars['String']['output'];
   rules?: Maybe<Scalars['JSON']['output']>;
+  rulesProblem?: Maybe<Scalars['String']['output']>;
   slug: Scalars['String']['output'];
   updatedAt: Scalars['Time']['output'];
 };
@@ -2668,6 +2669,7 @@ export type GenerateConfigurableChildInput = {
 export type GiftCard = {
   __typename?: 'GiftCard';
   balance: Scalars['Int']['output'];
+  channelId?: Maybe<Scalars['ID']['output']>;
   code: Scalars['String']['output'];
   createdAt: Scalars['Time']['output'];
   currencyCode: Scalars['String']['output'];
@@ -5003,6 +5005,7 @@ export type MutationIssueCreditMemoArgs = {
 
 export type MutationIssueGiftCardArgs = {
   amount: Scalars['Int']['input'];
+  channelId?: InputMaybe<Scalars['ID']['input']>;
   currencyCode: Scalars['String']['input'];
   expiresAt?: InputMaybe<Scalars['Time']['input']>;
   recipientEmail?: InputMaybe<Scalars['String']['input']>;
@@ -7200,6 +7203,7 @@ export type Query = {
   customerSegment?: Maybe<CustomerSegment>;
   customerSegments: CustomerSegmentList;
   customerSignals: CustomerSignals;
+  /** @deprecated Unbounded - use customersPaged */
   customers: Array<Customer>;
   customersByIds: Array<Customer>;
   customersPaged: CustomerPage;

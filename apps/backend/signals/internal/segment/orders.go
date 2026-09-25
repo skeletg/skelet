@@ -33,25 +33,37 @@ func (s *Service) resolveWindowedConditions(ctx context.Context, rules *Rules) (
 	if s.orders == nil {
 		return nil, fmt.Errorf("segment has a windowed order condition but no spine is wired")
 	}
-	channels, err := s.repo.RosterChannels(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("roster channels: %w", err)
-	}
+	var channels []uuid.UUID
 	now := time.Now()
-	byDays := map[int][]CustomerOrderStat{} // one spine read per distinct window, shared by every condition on it
+	type window struct {
+		days    int
+		channel uuid.UUID
+	}
+	byWindow := map[window][]CustomerOrderStat{} // one spine read per distinct window and channel, shared by every condition on it
 	out := make(map[int]Resolved, len(conds))
 	for i, c := range conds {
-		stats, ok := byDays[c.Days]
+		key := window{c.Days, c.channel()}
+		stats, ok := byWindow[key]
 		if !ok {
 			since := now.Add(-time.Duration(c.Days) * 24 * time.Hour)
-			for _, ch := range channels {
+			reads := []uuid.UUID{key.channel}
+			if key.channel == uuid.Nil {
+				if channels == nil {
+					var err error
+					if channels, err = s.repo.RosterChannels(ctx); err != nil {
+						return nil, fmt.Errorf("roster channels: %w", err)
+					}
+				}
+				reads = channels
+			}
+			for _, ch := range reads {
 				rows, err := s.orders.CustomerOrdersSince(ctx, ch, since)
 				if err != nil {
 					return nil, fmt.Errorf("orders since %s on channel %s: %w", since.Format(time.DateOnly), ch, err)
 				}
 				stats = append(stats, rows...)
 			}
-			byDays[c.Days] = stats
+			byWindow[key] = stats
 		}
 		r := Resolved{Exclude: satisfies(c.Op, 0, c.Value)}
 		for _, st := range stats {

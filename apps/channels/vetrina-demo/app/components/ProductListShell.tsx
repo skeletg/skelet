@@ -3,6 +3,7 @@
 // selections layer on top and each checkbox is a Link, so the URL drives re-renders
 // Page-specific chrome goes in the header/prefix slots, not in here
 
+import { getSiteUrl } from "@/app/lib/channel/site";
 import type { ReactNode } from "react";
 import { permanentRedirect } from "next/navigation";
 import { getLocale } from "next-intl/server";
@@ -214,12 +215,12 @@ export async function ProductListShell({
 
   // Every PLP (category, collection, search, /products) gets the ItemList through this one
   // shell - each entry pointing at the locale-canonical PDP URL, positions running across pages
-  const canonical = await canonicalPathMapper();
+  const [canonical, base] = await Promise.all([canonicalPathMapper(), getSiteUrl()]);
 
   return (
     <main className="mx-auto w-full max-w-8xl px-6 md:px-10 pt-6 pb-14">
       {data.items.length > 0 && (
-        <JsonLd data={itemListJsonLd(data.items, (p) => canonical(productHref(p)), offset)} />
+        <JsonLd data={itemListJsonLd(data.items, (p) => canonical(productHref(p)), offset, base)} />
       )}
       {filterLabel && (
         <LensTrack

@@ -35,8 +35,8 @@ repo through the verbs so there's a single vocabulary.
 
 ```bash
 ./skelet setup            # first run: picks apps, writes env, migrates, boots
-./skelet up               # start the dev stack     (--lean skips OpenSearch + Jaeger)
-./skelet check            # every gate that can fail a commit, under a second
+./skelet up               # start the dev stack     (--lean skips OpenSearch, Jaeger and the Signals process with its ClickHouse)
+./skelet check            # every gate that can fail a commit, in about a second
 ./skelet test             # go test + frontend typechecks + unit tests
 ./skelet lint             # gofmt + golangci-lint (hard) + eslint (reports only)
 ./skelet gen              # ALL codegen: buf, sqlc, gqlgen, plugin bridge, docs, TS types
@@ -102,8 +102,11 @@ let sqlc generate the Go.
   (`skelet_test` / `skelet_test_signals`, fresh each run, `--keep` to reuse), and
   every test binary clones them (`CREATE DATABASE ... TEMPLATE`), so packages
   never share rows - a harness that opens its own pool must take its DSN from
-  `testdb.URL`. It ends with a pass/fail/skip tally: a skip count that isn't
-  near zero means a database went missing, not that the tests are fine
+  `testdb.URL`. ClickHouse tests take theirs from `chtest.DSN` (Signals module), the
+  same gate with the marker in the database comment. It ends with a pass/fail/skip
+  tally: a skip count that isn't near zero means a database went missing, not that
+  the tests are fine. One run at a time - a second `./skelet test` refuses while the
+  first holds the databases
 - Dashboard: Vitest, `*.test.tsx` beside the component. `./skelet npm dashboard run test`
 - Storefront: Vitest. `./skelet npm <name> run test`
 - E2E money paths: `./skelet test e2e`, own databases, dropped and recreated each run (`--keep` to reuse), ~40 seconds
@@ -132,7 +135,7 @@ answers only over the wire contract, so an admin resolver that needs it calls
 **Signals is its own Go module, and the dependency points one way.** `apps/backend/signals` requires
 core; core never imports it, and cannot - Go's `internal/` rule refuses a package under
 `apps/backend/core/internal/` from another module. Anything the suite needs of core therefore
-sits beside `internal/` (`config`, `auth`, `pgconn`, `objstore` and the rest), and anything
+sits beside `internal/` (`config`, `auth`, `dbconn`, `objstore` and the rest), and anything
 the suite needs *from* core arrives over the contract: channels and customers are pushed
 across, settings are administered through it, and every moment a flow can start on is
 raised through `Enroll`. Core never opens the signals database - Pulse (campaigns, flows,

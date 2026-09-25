@@ -85,7 +85,7 @@ func TestPromotionCouponPercentOff(t *testing.T) {
 	dark := h.PlaceGuestCOD(t, f, 1)
 
 	cartID := h.NewGuestCart(t, f, 1)
-	if _, err := h.D.Promotion.ApplyCode(h.Ctx, cartID, code, nil); err != nil {
+	if _, err := h.D.Promotion.ApplyCode(h.Ctx, cartID, f.Channel.ID, code, nil); err != nil {
 		t.Fatalf("apply code: %v", err)
 	}
 	o, err := h.TryPlace(t, f.Channel, cartID)

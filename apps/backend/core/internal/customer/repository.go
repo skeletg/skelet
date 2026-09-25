@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -14,20 +15,20 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
-// The Signals-side erasure GDPR anonymize needs - satisfied by *analytics.Recorder, so the identity delete hits whichever spine engine holds the mappings (Postgres or ClickHouse), not a fixed handle
-type signalsEraser interface {
-	DeleteCustomerIdentities(ctx context.Context, customerID uuid.UUID, email string) error
+// SignalsEraser is the Signals half of a GDPR erasure, satisfied by *signalsclient.Client - pass a nil interface, never a nil client, when Signals is off
+type SignalsEraser interface {
+	DeleteCustomerIdentities(ctx context.Context, customerID uuid.UUID, email string, erasedAt time.Time) error
 }
 
 type postgresRepository struct {
 	queries *db.Queries
-	signals signalsEraser // GDPR erasure of the identity mappings
+	signals SignalsEraser // GDPR erasure of the identity mappings
 	tx      *txrunner.Manager
 }
 
 // NewRepository returns a postgres-backed Repository - The txrunner.Manager is used
 // for atomic multi-statement mutations (currently only SetDefaultGroup)
-func NewRepository(queries *db.Queries, signals signalsEraser, txMgr *txrunner.Manager) *postgresRepository {
+func NewRepository(queries *db.Queries, signals SignalsEraser, txMgr *txrunner.Manager) *postgresRepository {
 	return &postgresRepository{queries: queries, signals: signals, tx: txMgr}
 }
 
@@ -125,6 +126,18 @@ func (r *postgresRepository) List(ctx context.Context) ([]Customer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list customers: %w", err)
 	}
+	return r.withGroups(ctx, rows)
+}
+
+func (r *postgresRepository) ListInChannels(ctx context.Context, channelIDs []uuid.UUID) ([]Customer, error) {
+	rows, err := r.queries.ListCustomersInChannels(ctx, db.ListCustomersInChannelsParams{AllChannels: channelIDs == nil, ChannelIds: channelIDs})
+	if err != nil {
+		return nil, fmt.Errorf("list customers in channels: %w", err)
+	}
+	return r.withGroups(ctx, rows)
+}
+
+func (r *postgresRepository) withGroups(ctx context.Context, rows []db.Customer) ([]Customer, error) {
 	// One-shot group load + in-memory map join, avoiding N+1 per customer
 	groups, err := r.ListGroups(ctx)
 	if err != nil {

@@ -120,10 +120,11 @@ type CustomerUpdated struct {
 	LastName      string
 	IsActive      bool
 	ChangedFields []string
-	// Always "admin" for now - reserved for future non-admin paths
-	Source string
-	Tags   []string
+	Source        string
+	Tags          []string
 }
+
+const SourceGDPR = "gdpr"
 
 func (*CustomerUpdated) Type() string { return EventUpdated }
 

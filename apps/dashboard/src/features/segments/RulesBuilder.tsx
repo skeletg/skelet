@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { CustomerGroupsDocument } from '@/features/customers/CustomerGroups.gql'
 import {
   CONSENT_KINDS,
@@ -19,6 +20,8 @@ import {
   NUMERIC_OPS,
   TRAIT_FIELDS,
   defaultCondition,
+  isMoneyCondition,
+  missingMoneyChannel,
   type RuleCondition,
   type Rules,
 } from './rules'
@@ -34,6 +37,9 @@ export function RulesBuilder({
 }) {
   const { data: groupsData } = useQuery(CustomerGroupsDocument)
   const groups = groupsData?.customerGroups ?? []
+  const { data: channelsData } = useQuery(ChannelsDocument)
+  const channels = channelsData?.channels ?? []
+  const soleChannel = channels.length === 1 ? channels[0].id : undefined
 
   const setCondition = (i: number, next: RuleCondition) =>
     onChange({ ...value, conditions: value.conditions.map((c, j) => (j === i ? next : c)) })
@@ -70,7 +76,7 @@ export function RulesBuilder({
           >
             <Select
               value={c.kind}
-              onValueChange={(kind) => setCondition(i, defaultCondition(kind as RuleCondition['kind']))}
+              onValueChange={(kind) => setCondition(i, defaultCondition(kind as RuleCondition['kind'], soleChannel))}
             >
               <SelectTrigger className="h-8 w-40">
                 <SelectValue />
@@ -86,7 +92,10 @@ export function RulesBuilder({
 
             {c.kind === 'trait' && (
               <>
-                <Select value={c.field} onValueChange={(field) => setCondition(i, { ...c, field })}>
+                <Select
+                  value={c.field}
+                  onValueChange={(field) => setCondition(i, { ...c, field, channelId: c.channelId ?? soleChannel })}
+                >
                   <SelectTrigger className="h-8 w-56">
                     <SelectValue />
                   </SelectTrigger>
@@ -238,6 +247,28 @@ export function RulesBuilder({
               </Select>
             )}
 
+            {isMoneyCondition(c) && (
+              <Select
+                value={c.channelId || undefined}
+                onValueChange={(channelId) => setCondition(i, { ...c, channelId })}
+              >
+                <SelectTrigger
+                  className="h-8 w-44"
+                  aria-invalid={!c.channelId}
+                  aria-label="Store the amount is counted in"
+                >
+                  <SelectValue placeholder="Pick a store" />
+                </SelectTrigger>
+                <SelectContent>
+                  {channels.map((ch) => (
+                    <SelectItem key={ch.id} value={ch.id}>
+                      {ch.name} ({ch.currencyCode})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             <Button
               type="button"
               variant="ghost"
@@ -251,6 +282,12 @@ export function RulesBuilder({
           </div>
         ))}
       </div>
+
+      {missingMoneyChannel(value) && (
+        <p className="text-xs text-destructive">
+          Pick the store each spend condition counts in - every store has its own currency, so amounts can't be pooled.
+        </p>
+      )}
 
       <div>
         <Button type="button" variant="outline" size="sm" onClick={addCondition}>

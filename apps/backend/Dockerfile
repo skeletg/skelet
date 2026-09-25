@@ -5,9 +5,8 @@ FROM golang:1.27.0-alpine
 ENV LC_ALL=C.UTF-8 \
     LANG=C.UTF-8
 
-# postgresql18-client - pg_dump for internal/backup (client major >= server major)
 # build-base/pkgconf/vips-dev - cgo for the -tags vips image path (air builds with it)
-RUN apk add --no-cache git curl bash postgresql18-client build-base pkgconf vips-dev
+RUN apk add --no-cache git curl bash build-base pkgconf vips-dev
 
 RUN --mount=type=cache,target=/root/go/pkg/mod \
     go install github.com/air-verse/air@latest && \

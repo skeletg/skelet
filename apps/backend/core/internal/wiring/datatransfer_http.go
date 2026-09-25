@@ -93,7 +93,7 @@ func dataImportHandler(svc *datajob.Service, adminSvc *admin.Service) http.Handl
 				return
 			}
 		}
-		if err := requireTransferPermission(r, adminSvc, res.ImportPermission, channelID, res.RequireGlobalPermission); err != nil {
+		if err := requireTransferPermission(r, adminSvc, res.ImportPermission, channelID, res.GlobalFor(dataio.DirectionImport)); err != nil {
 			forbidden(w)
 			return
 		}

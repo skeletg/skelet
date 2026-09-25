@@ -26,6 +26,7 @@ if [ ${#missing[@]} -gt 0 ]; then
     exit 1
 fi
 
+sync_signals_env
 docker compose up -d "$@"
 
 # The frontends are host-first, so nothing above binds 5173/3000 unless .skelet-apps asks for it

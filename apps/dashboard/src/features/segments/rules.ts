@@ -11,6 +11,8 @@ export type RuleCondition = {
   channel?: string
   granted?: boolean
   slug?: string
+  // The store a condition counts in - required on money, since each store counts in its own currency
+  channelId?: string
 }
 
 export type Rules = {
@@ -41,6 +43,16 @@ export const TRAIT_FIELDS = [
   { value: 'next_order_days', label: 'Predicted days to next order' },
 ]
 
+const MONEY_TRAITS = new Set(['monetary_cents', 'predicted_clv_cents'])
+
+export function isMoneyCondition(c: RuleCondition): boolean {
+  return c.kind === 'total_spent_cents' || (c.kind === 'trait' && MONEY_TRAITS.has(c.field ?? ''))
+}
+
+export function missingMoneyChannel(rules: Rules): boolean {
+  return rules.conditions.some((c) => isMoneyCondition(c) && !c.channelId)
+}
+
 export const NUMERIC_OPS = [
   { value: 'eq', label: '=' },
   { value: 'neq', label: '≠' },
@@ -57,7 +69,7 @@ export const CONSENT_KINDS = [
   { value: 'marketing_sms', label: 'Marketing SMS' },
 ]
 
-export function defaultCondition(kind: RuleCondition['kind']): RuleCondition {
+export function defaultCondition(kind: RuleCondition['kind'], channelId?: string): RuleCondition {
   switch (kind) {
     case 'trait':
       return { kind, field: 'rfm_r', op: 'gte', value: 4 }
@@ -66,7 +78,7 @@ export function defaultCondition(kind: RuleCondition['kind']): RuleCondition {
     case 'order_count':
       return { kind, op: 'gte', value: 1, days: 0 }
     case 'total_spent_cents':
-      return { kind, op: 'gte', value: 10000, days: 0 }
+      return { kind, op: 'gte', value: 10000, days: 0, channelId }
     case 'last_order_days':
       return { kind, op: 'lte', value: 30 }
     case 'consent':
@@ -99,6 +111,12 @@ export function summarize(c: RuleCondition): string {
     case 'group':
       return `in group "${c.slug}"`
   }
+}
+
+// Rules the backend can't run outrank being dynamic, since nothing is refreshing them
+export function segmentType(rules: unknown, rulesProblem?: string | null): 'needs-attention' | 'dynamic' | 'manual' {
+  if (rulesProblem) return 'needs-attention'
+  return rules ? 'dynamic' : 'manual'
 }
 
 export function summarizeRules(rules: Rules | null): string {

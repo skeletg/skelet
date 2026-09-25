@@ -1236,16 +1236,17 @@ type ComplexityRoot struct {
 	}
 
 	CustomerSegment struct {
-		CreatedAt   func(childComplexity int) int
-		Description func(childComplexity int) int
-		ID          func(childComplexity int) int
-		IsActive    func(childComplexity int) int
-		MemberCount func(childComplexity int) int
-		Members     func(childComplexity int, limit *int32, offset *int32) int
-		Name        func(childComplexity int) int
-		Rules       func(childComplexity int) int
-		Slug        func(childComplexity int) int
-		UpdatedAt   func(childComplexity int) int
+		CreatedAt    func(childComplexity int) int
+		Description  func(childComplexity int) int
+		ID           func(childComplexity int) int
+		IsActive     func(childComplexity int) int
+		MemberCount  func(childComplexity int) int
+		Members      func(childComplexity int, limit *int32, offset *int32) int
+		Name         func(childComplexity int) int
+		Rules        func(childComplexity int) int
+		RulesProblem func(childComplexity int) int
+		Slug         func(childComplexity int) int
+		UpdatedAt    func(childComplexity int) int
 	}
 
 	CustomerSegmentList struct {
@@ -1612,6 +1613,7 @@ type ComplexityRoot struct {
 
 	GiftCard struct {
 		Balance        func(childComplexity int) int
+		ChannelID      func(childComplexity int) int
 		Code           func(childComplexity int) int
 		CreatedAt      func(childComplexity int) int
 		CurrencyCode   func(childComplexity int) int
@@ -2354,7 +2356,7 @@ type ComplexityRoot struct {
 		GenerateShippingLabel             func(childComplexity int, fulfillmentID string) int
 		HoldOrder                         func(childComplexity int, id string, reason *string) int
 		IssueCreditMemo                   func(childComplexity int, input model.IssueCreditMemoInput) int
-		IssueGiftCard                     func(childComplexity int, currencyCode string, amount int32, recipientEmail *string, expiresAt *time.Time) int
+		IssueGiftCard                     func(childComplexity int, currencyCode string, amount int32, recipientEmail *string, expiresAt *time.Time, channelID *string) int
 		IssueReturnRefund                 func(childComplexity int, id string, reason *string) int
 		Logout                            func(childComplexity int, token string) int
 		LogoutOtherDevices                func(childComplexity int, currentRefreshToken string) int
@@ -4694,7 +4696,7 @@ type MutationResolver interface {
 	CreateSignupForm(ctx context.Context, input model.SaveSignupFormInput) (*model.SignupForm, error)
 	UpdateSignupForm(ctx context.Context, id string, input model.SaveSignupFormInput) (*model.SignupForm, error)
 	DeleteSignupForm(ctx context.Context, id string) (bool, error)
-	IssueGiftCard(ctx context.Context, currencyCode string, amount int32, recipientEmail *string, expiresAt *time.Time) (*model.GiftCard, error)
+	IssueGiftCard(ctx context.Context, currencyCode string, amount int32, recipientEmail *string, expiresAt *time.Time, channelID *string) (*model.GiftCard, error)
 	DisableGiftCard(ctx context.Context, id string) (*model.GiftCard, error)
 	AdjustGiftCard(ctx context.Context, id string, amount int32, note *string) (*model.GiftCard, error)
 	CreateIntegration(ctx context.Context, input model.CreateIntegrationInput) (*model.CreateIntegrationPayload, error)
@@ -10236,6 +10238,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CustomerSegment.Rules(childComplexity), true
+	case "CustomerSegment.rulesProblem":
+		if e.ComplexityRoot.CustomerSegment.RulesProblem == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerSegment.RulesProblem(childComplexity), true
 	case "CustomerSegment.slug":
 		if e.ComplexityRoot.CustomerSegment.Slug == nil {
 			break
@@ -11866,6 +11874,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.GiftCard.Balance(childComplexity), true
+	case "GiftCard.channelId":
+		if e.ComplexityRoot.GiftCard.ChannelID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GiftCard.ChannelID(childComplexity), true
 	case "GiftCard.code":
 		if e.ComplexityRoot.GiftCard.Code == nil {
 			break
@@ -16474,7 +16488,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.IssueGiftCard(childComplexity, args["currencyCode"].(string), args["amount"].(int32), args["recipientEmail"].(*string), args["expiresAt"].(*time.Time)), true
+		return e.ComplexityRoot.Mutation.IssueGiftCard(childComplexity, args["currencyCode"].(string), args["amount"].(int32), args["recipientEmail"].(*string), args["expiresAt"].(*time.Time), args["channelId"].(*string)), true
 	case "Mutation.issueReturnRefund":
 		if e.ComplexityRoot.Mutation.IssueReturnRefund == nil {
 			break
@@ -31659,7 +31673,7 @@ input AddressInput {
 extend type Query {
   # channelId scopes the result to customers belonging to that channel -
   # header-driven scope uses this. Omit for the global list.
-  customers(channelId: ID):  [Customer!]!
+  customers(channelId: ID):  [Customer!]! @deprecated(reason: "Unbounded - use customersPaged")
   # Names for a known set of ids, channel-filtered like the list above - lets a service holding ids but not details, such as Lens recordings, label them without copying names into its own database
   customersByIds(ids: [ID!]!): [Customer!]!
   # Paged + filtered on the server. search matches email/first/last name.
@@ -32342,6 +32356,8 @@ type GiftCard {
   status:          String!
   recipientEmail:  String!
   issuedOrderId:   ID
+  # The store the card spends on - null spends on every store in its currency
+  channelId:       ID
   expiresAt:       Time
   createdAt:       Time!
   # The card's full ledger, oldest first.
@@ -32368,7 +32384,7 @@ extend type Query {
 
 extend type Mutation {
   # Manually issue a card (promo, support goodwill). Amount is the face value.
-  issueGiftCard(currencyCode: String!, amount: Int!, recipientEmail: String, expiresAt: Time): GiftCard!
+  issueGiftCard(currencyCode: String!, amount: Int!, recipientEmail: String, expiresAt: Time, channelId: ID): GiftCard!
   # Disable a card so it can no longer be redeemed.
   disableGiftCard(id: ID!): GiftCard!
   # Apply a signed balance correction with an 'adjust' ledger row.
@@ -35461,6 +35477,8 @@ type CustomerSegment {
   members(limit: Int = 50, offset: Int = 0): [CustomerSegmentMember!]!
   # Dynamic-segment condition tree (null = static/manual membership): { logic: "and"|"or", conditions: [{kind: trait|lifecycle|order_count| total_spent_cents|last_order_days|consent|group, ...}] }. Compiled to parameterized SQL server-side - operators never write SQL.
   rules:        JSON
+  # Why the rules can't run, so the refresh skips this segment - null when they can
+  rulesProblem: String
   createdAt:    Time!
   updatedAt:    Time!
 }
@@ -38864,6 +38882,8 @@ func (ec *executionContext) childFields_CustomerSegment(ctx context.Context, fie
 		return ec.fieldContext_CustomerSegment_members(ctx, field)
 	case "rules":
 		return ec.fieldContext_CustomerSegment_rules(ctx, field)
+	case "rulesProblem":
+		return ec.fieldContext_CustomerSegment_rulesProblem(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_CustomerSegment_createdAt(ctx, field)
 	case "updatedAt":
@@ -39614,6 +39634,8 @@ func (ec *executionContext) childFields_GiftCard(ctx context.Context, field grap
 		return ec.fieldContext_GiftCard_recipientEmail(ctx, field)
 	case "issuedOrderId":
 		return ec.fieldContext_GiftCard_issuedOrderId(ctx, field)
+	case "channelId":
+		return ec.fieldContext_GiftCard_channelId(ctx, field)
 	case "expiresAt":
 		return ec.fieldContext_GiftCard_expiresAt(ctx, field)
 	case "createdAt":
@@ -47717,6 +47739,14 @@ func (ec *executionContext) field_Mutation_issueGiftCard_args(ctx context.Contex
 		return nil, err
 	}
 	args["expiresAt"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg4
 	return args, nil
 }
 
@@ -76823,6 +76853,29 @@ func (ec *executionContext) fieldContext_CustomerSegment_rules(_ context.Context
 	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type JSON does not have child fields"))
 }
 
+func (ec *executionContext) _CustomerSegment_rulesProblem(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerSegment_rulesProblem(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RulesProblem, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerSegment_rulesProblem(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerSegment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _CustomerSegment_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.CustomerSegment) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -83243,6 +83296,29 @@ func (ec *executionContext) _GiftCard_issuedOrderId(ctx context.Context, field g
 	)
 }
 func (ec *executionContext) fieldContext_GiftCard_issuedOrderId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GiftCard", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _GiftCard_channelId(ctx context.Context, field graphql.CollectedField, obj *model.GiftCard) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GiftCard_channelId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GiftCard_channelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("GiftCard", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
@@ -104397,7 +104473,7 @@ func (ec *executionContext) _Mutation_issueGiftCard(ctx context.Context, field g
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().IssueGiftCard(ctx, fc.Args["currencyCode"].(string), fc.Args["amount"].(int32), fc.Args["recipientEmail"].(*string), fc.Args["expiresAt"].(*time.Time))
+			return ec.Resolvers.Mutation().IssueGiftCard(ctx, fc.Args["currencyCode"].(string), fc.Args["amount"].(int32), fc.Args["recipientEmail"].(*string), fc.Args["expiresAt"].(*time.Time), fc.Args["channelId"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.GiftCard) graphql.Marshaler {
@@ -169694,6 +169770,11 @@ func (ec *executionContext) _CustomerSegment(ctx context.Context, sel ast.Select
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "rulesProblem":
+			out.Values[i] = ec._CustomerSegment_rulesProblem(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "createdAt":
 			out.Values[i] = ec._CustomerSegment_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -172178,6 +172259,11 @@ func (ec *executionContext) _GiftCard(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "issuedOrderId":
 			out.Values[i] = ec._GiftCard_issuedOrderId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "channelId":
+			out.Values[i] = ec._GiftCard_channelId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

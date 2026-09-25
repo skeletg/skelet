@@ -9,7 +9,7 @@ import (
 )
 
 func (r *mutationResolver) CreateCurrency(ctx context.Context, input model.CreateCurrencyInput) (*model.Currency, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "currencies.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "currencies.manage"); err != nil {
 		return nil, err
 	}
 	c, err := r.CurrencySvc.Create(ctx, currency.CreateCurrencyInput{
@@ -29,7 +29,7 @@ func (r *mutationResolver) CreateCurrency(ctx context.Context, input model.Creat
 }
 
 func (r *mutationResolver) UpdateCurrency(ctx context.Context, input model.UpdateCurrencyInput) (*model.Currency, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "currencies.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "currencies.manage"); err != nil {
 		return nil, err
 	}
 	domainInput := currency.UpdateCurrencyInput{
@@ -70,7 +70,7 @@ func (r *mutationResolver) UpdateCurrency(ctx context.Context, input model.Updat
 }
 
 func (r *mutationResolver) DeleteCurrency(ctx context.Context, code string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "currencies.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "currencies.manage"); err != nil {
 		return false, err
 	}
 	if err := r.CurrencySvc.Delete(ctx, code); err != nil {

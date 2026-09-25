@@ -107,7 +107,9 @@ func (r *mutationResolver) RestoreEmailRevision(ctx context.Context, revisionID 
 }
 
 func (r *mutationResolver) SeedPulseStarterContent(ctx context.Context, channelID string) (*model.PulseStarterContent, error) {
-	// The suite asks for flows.manage as well - both halves of the content are the operator's to own
+	if _, err := r.signalsChannel(ctx, "flows.manage", channelID); err != nil {
+		return nil, err
+	}
 	authed, err := r.signalsChannel(ctx, "emails.manage", channelID)
 	if err != nil {
 		return nil, err

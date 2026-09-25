@@ -43,7 +43,7 @@ func (r *fakeRepo) GetByID(_ context.Context, id uuid.UUID) (Provider, error) {
 	}
 	return p, nil
 }
-func (r *fakeRepo) GetBySlug(_ context.Context, kind Kind, slug string) (Provider, error) {
+func (r *fakeRepo) GetBySlug(_ context.Context, kind Kind, slug string, _ *uuid.UUID) (Provider, error) {
 	for _, p := range r.providers {
 		if p.Kind == kind && p.Slug == slug {
 			return p, nil

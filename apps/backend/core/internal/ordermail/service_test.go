@@ -85,6 +85,36 @@ func TestContextResolvesOrderAndChannel(t *testing.T) {
 	}
 }
 
+type fakeDispatcher struct{ took, asked int }
+
+func (f *fakeDispatcher) answer() int { f.asked++; return f.took }
+
+func TestDeliverReadsTheSendLogBeforeAskingAFlow(t *testing.T) {
+	log := newFakeSendLog()
+	d := &fakeDispatcher{}
+	svc := &Service{sendLog: log}
+	id := uuid.New()
+	sends := 0
+	send := func() error { sends++; return nil }
+	enroll := func(FlowDispatcher) int { return d.answer() }
+
+	svc.deliver(context.Background(), id, kindConfirmation, "", enroll, send)
+	svc.flows = stubDispatcher{}
+	d.took = 1
+	svc.deliver(context.Background(), id, kindConfirmation, "", enroll, send)
+	if sends != 1 || d.asked != 0 {
+		t.Fatalf("sends=%d flow asks=%d, want core's one receipt and no flow asked on the replay", sends, d.asked)
+	}
+
+	other := uuid.New()
+	svc.deliver(context.Background(), other, kindConfirmation, "", enroll, send)
+	if sends != 1 || d.asked != 1 {
+		t.Fatalf("sends=%d flow asks=%d, want the flow to take a fresh order", sends, d.asked)
+	}
+}
+
+type stubDispatcher struct{ FlowDispatcher }
+
 // Without a dispatcher nothing else can be sending, so every order email is this package's
 func TestFlowTookIsFalseWithoutADispatcher(t *testing.T) {
 	s := &Service{}
@@ -130,8 +160,8 @@ func TestSendOnceSuppressesAReplay(t *testing.T) {
 	sends := 0
 	send := func() error { sends++; return nil }
 
-	svc.sendOnce(context.Background(), id, kindConfirmation, "", send)
-	svc.sendOnce(context.Background(), id, kindConfirmation, "", send)
+	svc.deliver(context.Background(), id, kindConfirmation, "", nil, send)
+	svc.deliver(context.Background(), id, kindConfirmation, "", nil, send)
 	if sends != 1 {
 		t.Fatalf("a replayed event sent %d times, want 1", sends)
 	}
@@ -144,9 +174,9 @@ func TestSendOnceKeepsRefsApart(t *testing.T) {
 	sends := 0
 	send := func() error { sends++; return nil }
 
-	svc.sendOnce(context.Background(), id, kindShipment, uuid.New().String(), send)
-	svc.sendOnce(context.Background(), id, kindShipment, uuid.New().String(), send)
-	svc.sendOnce(context.Background(), id, kindCancellation, "", send)
+	svc.deliver(context.Background(), id, kindShipment, uuid.New().String(), nil, send)
+	svc.deliver(context.Background(), id, kindShipment, uuid.New().String(), nil, send)
+	svc.deliver(context.Background(), id, kindCancellation, "", nil, send)
 	if sends != 3 {
 		t.Fatalf("distinct emails sent %d times, want 3", sends)
 	}
@@ -158,11 +188,11 @@ func TestSendOnceDoesNotRecordAFailedSend(t *testing.T) {
 	svc := &Service{sendLog: log}
 	id := uuid.New()
 	sends := 0
-	svc.sendOnce(context.Background(), id, kindConfirmation, "", func() error { sends++; return errors.New("smtp down") })
+	svc.deliver(context.Background(), id, kindConfirmation, "", nil, func() error { sends++; return errors.New("smtp down") })
 	if len(log.rows) != 0 {
 		t.Fatalf("a failed send was recorded: %v", log.rows)
 	}
-	svc.sendOnce(context.Background(), id, kindConfirmation, "", func() error { sends++; return nil })
+	svc.deliver(context.Background(), id, kindConfirmation, "", nil, func() error { sends++; return nil })
 	if sends != 2 {
 		t.Fatalf("the retry sent %d times total, want 2", sends)
 	}
@@ -172,7 +202,7 @@ func TestSendOnceDoesNotRecordAFailedSend(t *testing.T) {
 func TestSendOnceSendsWhenTheLogIsUnreadable(t *testing.T) {
 	svc := &Service{sendLog: &fakeSendLog{rows: map[string]bool{}, readErr: errors.New("db down")}}
 	sends := 0
-	svc.sendOnce(context.Background(), uuid.New(), kindConfirmation, "", func() error { sends++; return nil })
+	svc.deliver(context.Background(), uuid.New(), kindConfirmation, "", nil, func() error { sends++; return nil })
 	if sends != 1 {
 		t.Fatalf("sent %d times with an unreadable log, want 1", sends)
 	}
@@ -182,7 +212,7 @@ func TestSendOnceSendsWhenTheLogIsUnreadable(t *testing.T) {
 func TestSendOnceSendsWithoutALog(t *testing.T) {
 	svc := &Service{}
 	sends := 0
-	svc.sendOnce(context.Background(), uuid.New(), kindConfirmation, "", func() error { sends++; return nil })
+	svc.deliver(context.Background(), uuid.New(), kindConfirmation, "", nil, func() error { sends++; return nil })
 	if sends != 1 {
 		t.Fatalf("sent %d times with no log, want 1", sends)
 	}

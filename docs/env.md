@@ -16,9 +16,11 @@ most a one-line hint. Everything that needs a paragraph lives here.
 | File | Copy to | Read by |
 |---|---|---|
 | `../.env.example` | `../.env` | docker compose itself (prod and small) - see below |
-| `go.env.example` | `go.env` | the backend in dev (`app` service) |
+| `go.env.example` | `go.env` | core in dev (`app`, `worker`, `media`, `migrate`) |
+| `signals.env.example` | `signals.env` | the Signals processes in dev (`signals`, `ingest`) - `./skelet up` writes it and copies `JWT_SECRET` / `SIGNALS_SERVICE_SECRET` over from `go.env` |
 | `db.env.example` | `db.env` | the dev Postgres container |
 | `prod.env.example` | `prod.env` | `app`, `worker`, `media`, `signals`, `ingest`, `migrate` - one shared file |
+| `prod-signals.env.example` | `prod-signals.env` | `signals` only, on top of `prod.env` - the retention archive's bucket and `CORE_FRONT_API_URL`; optional |
 | `prod-vetrina-demo.env.example` | `prod-vetrina-demo.env` | the storefront container |
 | `small.env.example` | `small.env` | the single app container in the small profile |
 | `small-vetrina-demo.env.example` | `small-vetrina-demo.env` | its storefront container |
@@ -136,7 +138,8 @@ writes. Unset means the Signals primary. It is NOT `DATABASE_REPLICA_URL`
 - that's the commerce replica and doesn't hold spine tables.
 
 `CORE_FRONT_API_URL` is where the suite reads core's public storefront API -
-`http://app:8080/api/front/graphql` in compose. The email builder's products
+`http://app:8080/api/front/graphql` in compose, set in `signals.env` (dev) or
+`prod-signals.env` (prod). The email builder's products
 block prices and links products the way the storefront does, and this is the
 one call the suite makes into core. Unset, the block renders nothing and every
 other email renders as before.
@@ -173,10 +176,9 @@ it, which is how you point at a managed datastore - the pooler then has
 nothing to do and you can drop its two services.
 
 Pool sizes: `SIGNALS_DB_MAX_CONNS` (8) and `SIGNALS_READ_DB_MAX_CONNS` (8)
-in the app and worker; the ingest tier has its own pair,
-`INGEST_SIGNALS_MAX_CONNS` (16) and `INGEST_PRIMARY_MAX_CONNS` (4),
-because beacons write to the spine inside the request handler and it
-holds a connection per concurrent write.
+in the signals process; the ingest tier has its own,
+`INGEST_SIGNALS_MAX_CONNS` (16), because beacons write inside the request
+handler and it holds a connection per concurrent write.
 
 Budget them against the server, not appetite. Stock Postgres allows 100
 connections; app and worker hold 16 each, the signals worker another 16,
@@ -210,10 +212,19 @@ In prod, set `VALKEY_PASSWORD` in the root `.env` and `VALKEY_URL` derives
 from it. To run Postgres-only, set `VALKEY_URL=` explicitly - that wins
 over the derived value.
 
-`VALKEY_CACHE_URL` is OPTIONAL and points the catalog/CMS read caches at a
-different instance from the one doing rate limits and pub/sub. Leave it empty
-and they share `VALKEY_URL`. Worth splitting when cache eviction pressure
-starts costing you rate-limit counters. The Signals process reads its caches
+`VALKEY_CACHE_URL` is OPTIONAL and points the catalog/CMS read caches and the
+storefront response cache at a different instance from the auth primary. Leave
+it empty and they share `VALKEY_URL`. The response cache is keyed per channel
+and locale, so its footprint grows with the channel count: the bundled
+`valkey-cache` takes `VALKEY_CACHE_MAXMEMORY` (default `512mb`) under a
+`VALKEY_CACHE_MEMORY_LIMIT` container cap (default `640m`), and a many-channel
+install should raise both.
+
+`VALKEY_LIMITS_URL` is OPTIONAL and holds the rate-limit counters and login
+lockouts. The prod stack points it at a small bundled `valkey-limits`
+(`volatile-ttl`), so a flood on the evictable cache can't evict the counters
+and quietly lift every limit. Leave it empty and the counters share the cache
+instance; set it to `VALKEY_URL` and they share the primary. The Signals process reads its caches
 off the same variable, and reads the killed-session list core publishes off
 `VALKEY_URL`, so a logout refuses a still-valid service token on the contract
 too. Without a `VALKEY_URL` that check is skipped, as it is on core's own surface.
@@ -231,7 +242,10 @@ fails if the suite is on and either the container or `signals.analytics_events`
 is missing.
 
 There are two URLs because the app driver and golang-migrate disagree on
-DSN shape: `SIGNALS_CH_URL` and `SIGNALS_CH_MIGRATE_URL`.
+DSN shape: `SIGNALS_CH_URL` and `SIGNALS_CH_MIGRATE_URL`. In prod the
+migrate one-shot rewrites a `clickhouse://user:password@host:port/db` form of
+`SIGNALS_CH_URL` itself, so `SIGNALS_CH_MIGRATE_URL` is only for a URL it can't
+rewrite.
 
 Set `CLICKHOUSE_PASSWORD` in the root `.env`; the server credentials and
 both ClickHouse URLs derive from it. Backing the spine up is
@@ -319,6 +333,9 @@ they control, past every permission scope. So there is no admin config for
 this - only `BACKUP_*` env vars, readable solely by whoever controls the
 deployment.
 
+They go in `prod-signals.env`, which only the `signals` service loads, so the
+archive credential never reaches the commerce containers.
+
 - `BACKUP_S3_BUCKET` - the analytics retention archive's destination, not a
   database backup. skelet takes no backups; see [backups.md](backups.md) for
   how to set those up at the infrastructure level. Use a DEDICATED bucket and
@@ -367,16 +384,38 @@ All three are OPTIONAL. With no key from any source the assistant stays off.
 `STOREFRONT_URL` is where customer email links land, `DASHBOARD_URL` where
 admin password-reset links land. Include the scheme.
 
-`STOREFRONT_REVALIDATE_URL` + `STOREFRONT_REVALIDATE_SECRET` wire CMS
-publish to a storefront cache bust. The secret matches the storefront's
-own file.
+Cache purges (CMS publish, product and catalog edits, the cache screen) are
+signed with `STOREFRONT_REVALIDATE_SECRET`, which matches the storefront's
+own file. With `STOREFRONT_REVALIDATE_URL` set, that one storefront serves
+every channel and gets a single request naming all the active ones - the
+usual setup, with the in-network URL. Leave it empty and each active channel
+is purged at its own public URL plus `/api/revalidate`, for channels served
+by separate deployments; a channel with no public URL, or one on localhost,
+is then not purged at all.
 
-On the storefront side: `STOREFRONT_BASE_URL` drives canonical URLs,
-sitemap and JSON-LD. `STOREFRONT_CHANNEL_ID` is the channel uuid this
-deployment serves (admin > channels shows it); leave it empty to resolve
-by Host against the channel's public URL, or fall back to the backend's
-default channel. `REVIEW_VOTER_TOKEN_SECRET` signs review-voter tokens and
-voting 500s without it.
+On the storefront side, one deployment serves as many channels as you point
+at it. `STOREFRONT_CHANNEL_HOSTS` maps hosts to channel uuids
+(`shop.example.com=<uuid>,de.shop.example.com=<uuid>`, admin > channels
+shows the ids), and `STOREFRONT_CHANNEL_ID` is the channel for any host the
+map doesn't name. Set only the id and every host serves that one channel. A
+page request on a host neither covers is a 404, and so are the sitemaps and
+robots.txt. Absolute URLs (canonicals, sitemap, JSON-LD) use the channel's
+public URL, with `STOREFRONT_BASE_URL` as the fallback for a channel without
+one. Neither is needed at build time: the image is the same for every
+channel. `REVIEW_VOTER_TOKEN_SECRET` signs review-voter tokens and voting
+500s without it.
+
+`BACKEND_INTERNAL_URL` is where the storefront reaches the backend, and it's
+read at runtime too, so compose sets it on the container rather than the
+build. Besides GraphQL it carries the backend links the browser loads from the
+shop's own origin: `/media/t/*` thumbnails, `/download/*`, `/unsubscribe/*`,
+the `/e/*` email pixels and clicks, and the `/t/*` beacons. Left unset it
+falls back to `http://localhost:8080`, which only fits `npm run dev` on the
+host.
+
+A purge reaches one storefront process, since the page cache lives in it. Run
+a single replica unless you've configured a shared cache handler; see
+[deploying.md](deploying.md#putting-an-edge-in-front).
 
 ## Tiers you can split out
 

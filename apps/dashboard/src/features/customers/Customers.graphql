@@ -1,21 +1,3 @@
-query Customers($channelId: ID) {
-  customers(channelId: $channelId) {
-    id
-    email
-    firstName
-    lastName
-    phone
-    isActive
-    isEmailVerified
-    createdAt
-    group {
-      id
-      slug
-      name
-    }
-  }
-}
-
 query CustomersPaged(
   $channelId: ID
   $search: String

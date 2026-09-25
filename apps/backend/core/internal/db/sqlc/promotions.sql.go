@@ -1273,6 +1273,74 @@ func (q *Queries) PromotionAnalyticsByRule(ctx context.Context, arg PromotionAna
 	return items, nil
 }
 
+const promotionAnalyticsByRuleForChannels = `-- name: PromotionAnalyticsByRuleForChannels :many
+SELECT
+    r.id                                              AS rule_id,
+    r.slug                                            AS rule_slug,
+    r.name                                            AS rule_name,
+    COUNT(rd.id)::INTEGER                             AS redemption_count,
+    COALESCE(SUM(rd.discount_cents), 0)::BIGINT       AS discount_total_cents,
+    COUNT(DISTINCT rd.customer_id)::INTEGER           AS unique_customers,
+    COALESCE(SUM(o.total_amount), 0)::BIGINT          AS order_revenue_cents
+FROM promotion_rules r
+LEFT JOIN (
+    promotion_redemptions rd
+    JOIN orders o ON o.id = rd.order_id AND o.channel_id = ANY($1::uuid[])
+)      ON rd.rule_id = r.id
+      AND rd.redeemed_at >= $2
+      AND rd.redeemed_at <= $3
+WHERE r.channel_id IS NULL OR r.channel_id = ANY($1::uuid[])
+GROUP BY r.id, r.slug, r.name
+ORDER BY redemption_count DESC, r.slug
+`
+
+type PromotionAnalyticsByRuleForChannelsParams struct {
+	ChannelIds []uuid.UUID `json:"channel_ids"`
+	StartTime  time.Time   `json:"start_time"`
+	EndTime    time.Time   `json:"end_time"`
+}
+
+type PromotionAnalyticsByRuleForChannelsRow struct {
+	RuleID             uuid.UUID `json:"rule_id"`
+	RuleSlug           string    `json:"rule_slug"`
+	RuleName           string    `json:"rule_name"`
+	RedemptionCount    int32     `json:"redemption_count"`
+	DiscountTotalCents int64     `json:"discount_total_cents"`
+	UniqueCustomers    int32     `json:"unique_customers"`
+	OrderRevenueCents  int64     `json:"order_revenue_cents"`
+}
+
+func (q *Queries) PromotionAnalyticsByRuleForChannels(ctx context.Context, arg PromotionAnalyticsByRuleForChannelsParams) ([]PromotionAnalyticsByRuleForChannelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, promotionAnalyticsByRuleForChannels, pq.Array(arg.ChannelIds), arg.StartTime, arg.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PromotionAnalyticsByRuleForChannelsRow{}
+	for rows.Next() {
+		var i PromotionAnalyticsByRuleForChannelsRow
+		if err := rows.Scan(
+			&i.RuleID,
+			&i.RuleSlug,
+			&i.RuleName,
+			&i.RedemptionCount,
+			&i.DiscountTotalCents,
+			&i.UniqueCustomers,
+			&i.OrderRevenueCents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const promotionAnalyticsDaily = `-- name: PromotionAnalyticsDaily :many
 SELECT
     date_trunc('day', rd.redeemed_at)::timestamptz   AS day,
@@ -1323,6 +1391,62 @@ func (q *Queries) PromotionAnalyticsDaily(ctx context.Context, arg PromotionAnal
 	return items, nil
 }
 
+const promotionAnalyticsDailyForChannels = `-- name: PromotionAnalyticsDailyForChannels :many
+SELECT
+    date_trunc('day', rd.redeemed_at)::timestamptz   AS day,
+    COUNT(rd.id)::INTEGER                             AS redemption_count,
+    COALESCE(SUM(rd.discount_cents), 0)::BIGINT       AS discount_total_cents
+FROM promotion_redemptions rd
+JOIN orders o ON o.id = rd.order_id
+WHERE rd.redeemed_at >= $1
+  AND rd.redeemed_at <= $2
+  AND ($3::uuid IS NULL OR rd.rule_id = $3::uuid)
+  AND o.channel_id = ANY($4::uuid[])
+GROUP BY 1
+ORDER BY 1
+`
+
+type PromotionAnalyticsDailyForChannelsParams struct {
+	StartTime  time.Time     `json:"start_time"`
+	EndTime    time.Time     `json:"end_time"`
+	RuleID     uuid.NullUUID `json:"rule_id"`
+	ChannelIds []uuid.UUID   `json:"channel_ids"`
+}
+
+type PromotionAnalyticsDailyForChannelsRow struct {
+	Day                time.Time `json:"day"`
+	RedemptionCount    int32     `json:"redemption_count"`
+	DiscountTotalCents int64     `json:"discount_total_cents"`
+}
+
+func (q *Queries) PromotionAnalyticsDailyForChannels(ctx context.Context, arg PromotionAnalyticsDailyForChannelsParams) ([]PromotionAnalyticsDailyForChannelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, promotionAnalyticsDailyForChannels,
+		arg.StartTime,
+		arg.EndTime,
+		arg.RuleID,
+		pq.Array(arg.ChannelIds),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PromotionAnalyticsDailyForChannelsRow{}
+	for rows.Next() {
+		var i PromotionAnalyticsDailyForChannelsRow
+		if err := rows.Scan(&i.Day, &i.RedemptionCount, &i.DiscountTotalCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const promotionAnalyticsTotals = `-- name: PromotionAnalyticsTotals :one
 SELECT
     COUNT(*)::INTEGER                                 AS redemption_count,
@@ -1347,6 +1471,37 @@ type PromotionAnalyticsTotalsRow struct {
 func (q *Queries) PromotionAnalyticsTotals(ctx context.Context, arg PromotionAnalyticsTotalsParams) (PromotionAnalyticsTotalsRow, error) {
 	row := q.db.QueryRowContext(ctx, promotionAnalyticsTotals, arg.RedeemedAt, arg.RedeemedAt_2)
 	var i PromotionAnalyticsTotalsRow
+	err := row.Scan(&i.RedemptionCount, &i.DiscountTotalCents, &i.UniqueCustomers)
+	return i, err
+}
+
+const promotionAnalyticsTotalsForChannels = `-- name: PromotionAnalyticsTotalsForChannels :one
+SELECT
+    COUNT(rd.id)::INTEGER                             AS redemption_count,
+    COALESCE(SUM(rd.discount_cents), 0)::BIGINT       AS discount_total_cents,
+    COUNT(DISTINCT rd.customer_id)::INTEGER           AS unique_customers
+FROM promotion_redemptions rd
+JOIN orders o ON o.id = rd.order_id
+WHERE rd.redeemed_at >= $1
+  AND rd.redeemed_at <= $2
+  AND o.channel_id = ANY($3::uuid[])
+`
+
+type PromotionAnalyticsTotalsForChannelsParams struct {
+	StartTime  time.Time   `json:"start_time"`
+	EndTime    time.Time   `json:"end_time"`
+	ChannelIds []uuid.UUID `json:"channel_ids"`
+}
+
+type PromotionAnalyticsTotalsForChannelsRow struct {
+	RedemptionCount    int32 `json:"redemption_count"`
+	DiscountTotalCents int64 `json:"discount_total_cents"`
+	UniqueCustomers    int32 `json:"unique_customers"`
+}
+
+func (q *Queries) PromotionAnalyticsTotalsForChannels(ctx context.Context, arg PromotionAnalyticsTotalsForChannelsParams) (PromotionAnalyticsTotalsForChannelsRow, error) {
+	row := q.db.QueryRowContext(ctx, promotionAnalyticsTotalsForChannels, arg.StartTime, arg.EndTime, pq.Array(arg.ChannelIds))
+	var i PromotionAnalyticsTotalsForChannelsRow
 	err := row.Scan(&i.RedemptionCount, &i.DiscountTotalCents, &i.UniqueCustomers)
 	return i, err
 }

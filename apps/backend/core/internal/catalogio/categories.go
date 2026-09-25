@@ -41,13 +41,14 @@ var categoryFields = []dataio.Field{
 // describe a whole hierarchy in any row order
 func CategoryResource(cat *catalog.Service) dataio.Resource {
 	return dataio.Resource{
-		Slug:             "categories",
-		Label:            "Categories",
-		Group:            "Catalog",
-		Description:      "The category tree. Rows link to their parent by slug, so the file can arrive in any order.",
-		ViewPermission:   "catalog.view",
-		ImportPermission: "catalog.manage",
-		Fields:           categoryFields,
+		Slug:                "categories",
+		Label:               "Categories",
+		Group:               "Catalog",
+		Description:         "The category tree. Rows link to their parent by slug, so the file can arrive in any order.",
+		ViewPermission:      "catalog.view",
+		ImportPermission:    "catalog.manage",
+		RequireGlobalImport: true,
+		Fields:              categoryFields,
 		NewExporter: func(_ context.Context, o dataio.Opts) (dataio.Exporter, error) {
 			return &categoryExporter{cat: cat, opts: o}, nil
 		},

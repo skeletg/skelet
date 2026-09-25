@@ -31,11 +31,13 @@ type ChannelEntry struct {
 	IsDefault bool `protobuf:"varint,2,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`
 	// The identity a message sent for this channel goes out under. These resolve from core's config
 	// registry, which is a commerce read the suite cannot make, so the answer is pushed rather than looked up
-	Name          string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	PublicUrl     string `protobuf:"bytes,4,opt,name=public_url,json=publicUrl,proto3" json:"public_url,omitempty"`
-	FromAddress   string `protobuf:"bytes,5,opt,name=from_address,json=fromAddress,proto3" json:"from_address,omitempty"`
-	FromName      string `protobuf:"bytes,6,opt,name=from_name,json=fromName,proto3" json:"from_name,omitempty"`
-	LogoUrl       string `protobuf:"bytes,7,opt,name=logo_url,json=logoUrl,proto3" json:"logo_url,omitempty"`
+	Name        string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	PublicUrl   string `protobuf:"bytes,4,opt,name=public_url,json=publicUrl,proto3" json:"public_url,omitempty"`
+	FromAddress string `protobuf:"bytes,5,opt,name=from_address,json=fromAddress,proto3" json:"from_address,omitempty"`
+	FromName    string `protobuf:"bytes,6,opt,name=from_name,json=fromName,proto3" json:"from_name,omitempty"`
+	LogoUrl     string `protobuf:"bytes,7,opt,name=logo_url,json=logoUrl,proto3" json:"logo_url,omitempty"`
+	// A deactivated channel is still sent, so its Pulse content survives - absent reads as active
+	IsActive      *bool `protobuf:"varint,8,opt,name=is_active,json=isActive,proto3,oneof" json:"is_active,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -119,7 +121,14 @@ func (x *ChannelEntry) GetLogoUrl() string {
 	return ""
 }
 
-// The whole of it - channels absent from the set are ones core no longer runs
+func (x *ChannelEntry) GetIsActive() bool {
+	if x != nil && x.IsActive != nil {
+		return *x.IsActive
+	}
+	return false
+}
+
+// Every channel core has - one absent from the set is one core deleted
 type SyncChannelsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Channels      []*ChannelEntry        `protobuf:"bytes,1,rep,name=channels,proto3" json:"channels,omitempty"`
@@ -223,7 +232,7 @@ type RosterEntry struct {
 	// What a marketing send needs to address this customer - empty where core has nothing on file
 	Email     string `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
 	FirstName string `protobuf:"bytes,4,opt,name=first_name,json=firstName,proto3" json:"first_name,omitempty"`
-	// A deactivated account is never mailed, and never counts toward an audience estimate
+	// A deactivated account gets transactional mail only, and never counts toward an audience estimate
 	IsActive bool `protobuf:"varint,5,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
 	// Empty unless the customer is in a group, which is what a group-audience campaign filters on
 	CustomerGroupId string `protobuf:"bytes,6,opt,name=customer_group_id,json=customerGroupId,proto3" json:"customer_group_id,omitempty"`
@@ -238,7 +247,9 @@ type RosterEntry struct {
 	CustomerGroupSlug string `protobuf:"bytes,10,opt,name=customer_group_slug,json=customerGroupSlug,proto3" json:"customer_group_slug,omitempty"`
 	// Every consent core holds for the customer, by kind - the two booleans above are the marketing pair
 	// of these, kept so a send path reads one column; a rule can ask about any kind
-	Consents      []*Consent `protobuf:"bytes,11,rep,name=consents,proto3" json:"consents,omitempty"`
+	Consents []*Consent `protobuf:"bytes,11,rep,name=consents,proto3" json:"consents,omitempty"`
+	// When core read the row, on its own clock - an entry older than the one already held is not applied
+	ReadAt        *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=read_at,json=readAt,proto3" json:"read_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -346,6 +357,13 @@ func (x *RosterEntry) GetCustomerGroupSlug() string {
 func (x *RosterEntry) GetConsents() []*Consent {
 	if x != nil {
 		return x.Consents
+	}
+	return nil
+}
+
+func (x *RosterEntry) GetReadAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ReadAt
 	}
 	return nil
 }
@@ -1639,7 +1657,9 @@ type EraseCustomerIdentitiesRequest struct {
 	CustomerId string                 `protobuf:"bytes,1,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
 	// The address as it stood before core redacted it, so sends from before the customer had an
 	// account are erased too - they are the same person, and only this address says so
-	Email         string `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	Email string `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	// When core erased, on core's clock like read_at - absent uses the suite's clock
+	ErasedAt      *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=erased_at,json=erasedAt,proto3" json:"erased_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1688,6 +1708,13 @@ func (x *EraseCustomerIdentitiesRequest) GetEmail() string {
 	return ""
 }
 
+func (x *EraseCustomerIdentitiesRequest) GetErasedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ErasedAt
+	}
+	return nil
+}
+
 type EraseCustomerIdentitiesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1728,7 +1755,7 @@ var File_skelet_signals_v1_ingest_proto protoreflect.FileDescriptor
 
 const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\n" +
-	"\x1eskelet/signals/v1/ingest.proto\x12\x11skelet.signals.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xda\x01\n" +
+	"\x1eskelet/signals/v1/ingest.proto\x12\x11skelet.signals.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8a\x02\n" +
 	"\fChannelEntry\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\tR\tchannelId\x12\x1d\n" +
@@ -1739,12 +1766,15 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"public_url\x18\x04 \x01(\tR\tpublicUrl\x12!\n" +
 	"\ffrom_address\x18\x05 \x01(\tR\vfromAddress\x12\x1b\n" +
 	"\tfrom_name\x18\x06 \x01(\tR\bfromName\x12\x19\n" +
-	"\blogo_url\x18\a \x01(\tR\alogoUrl\"R\n" +
+	"\blogo_url\x18\a \x01(\tR\alogoUrl\x12 \n" +
+	"\tis_active\x18\b \x01(\bH\x00R\bisActive\x88\x01\x01B\f\n" +
+	"\n" +
+	"_is_active\"R\n" +
 	"\x13SyncChannelsRequest\x12;\n" +
 	"\bchannels\x18\x01 \x03(\v2\x1f.skelet.signals.v1.ChannelEntryR\bchannels\"F\n" +
 	"\x14SyncChannelsResponse\x12\x16\n" +
 	"\x06synced\x18\x01 \x01(\x05R\x06synced\x12\x16\n" +
-	"\x06pruned\x18\x02 \x01(\x05R\x06pruned\"\x99\x03\n" +
+	"\x06pruned\x18\x02 \x01(\x05R\x06pruned\"\xce\x03\n" +
 	"\vRosterEntry\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x12\x1d\n" +
@@ -1761,7 +1791,8 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"smsOptedIn\x12.\n" +
 	"\x13customer_group_slug\x18\n" +
 	" \x01(\tR\x11customerGroupSlug\x126\n" +
-	"\bconsents\x18\v \x03(\v2\x1a.skelet.signals.v1.ConsentR\bconsents\"8\n" +
+	"\bconsents\x18\v \x03(\v2\x1a.skelet.signals.v1.ConsentR\bconsents\x123\n" +
+	"\aread_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\x06readAt\"8\n" +
 	"\aConsent\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bopted_in\x18\x02 \x01(\bR\aoptedIn\"Y\n" +
@@ -1869,11 +1900,12 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\x18RecordEmailClickResponse\x12\x1a\n" +
 	"\brecorded\x18\x01 \x01(\bR\brecorded\x123\n" +
 	"\x04send\x18\x02 \x01(\v2\x1f.skelet.signals.v1.EmailSendRefR\x04send\x12\x18\n" +
-	"\amachine\x18\x03 \x01(\bR\amachine\"W\n" +
+	"\amachine\x18\x03 \x01(\bR\amachine\"\x90\x01\n" +
 	"\x1eEraseCustomerIdentitiesRequest\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x12\x14\n" +
-	"\x05email\x18\x02 \x01(\tR\x05email\"!\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x127\n" +
+	"\terased_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\berasedAt\"!\n" +
 	"\x1fEraseCustomerIdentitiesResponse2\xbe\t\n" +
 	"\rIngestService\x12e\n" +
 	"\x0eRecordActivity\x12(.skelet.signals.v1.RecordActivityRequest\x1a).skelet.signals.v1.RecordActivityResponse\x12k\n" +
@@ -1935,47 +1967,49 @@ var file_skelet_signals_v1_ingest_proto_goTypes = []any{
 var file_skelet_signals_v1_ingest_proto_depIdxs = []int32{
 	0,  // 0: skelet.signals.v1.SyncChannelsRequest.channels:type_name -> skelet.signals.v1.ChannelEntry
 	4,  // 1: skelet.signals.v1.RosterEntry.consents:type_name -> skelet.signals.v1.Consent
-	3,  // 2: skelet.signals.v1.SyncCustomerRosterRequest.customers:type_name -> skelet.signals.v1.RosterEntry
-	3,  // 3: skelet.signals.v1.UpsertRosterEntryRequest.customer:type_name -> skelet.signals.v1.RosterEntry
-	27, // 4: skelet.signals.v1.RosterStatusResponse.filled_at:type_name -> google.protobuf.Timestamp
-	27, // 5: skelet.signals.v1.EmailSendRef.sent_at:type_name -> google.protobuf.Timestamp
-	27, // 6: skelet.signals.v1.EmailHit.at:type_name -> google.protobuf.Timestamp
-	27, // 7: skelet.signals.v1.RecordActivityRequest.at:type_name -> google.protobuf.Timestamp
-	27, // 8: skelet.signals.v1.RecordConversionRequest.at:type_name -> google.protobuf.Timestamp
-	13, // 9: skelet.signals.v1.RecordEmailSentRequest.send:type_name -> skelet.signals.v1.EmailSendRef
-	13, // 10: skelet.signals.v1.RecordEmailOpenRequest.send:type_name -> skelet.signals.v1.EmailSendRef
-	14, // 11: skelet.signals.v1.RecordEmailOpenRequest.hit:type_name -> skelet.signals.v1.EmailHit
-	13, // 12: skelet.signals.v1.RecordEmailOpenResponse.send:type_name -> skelet.signals.v1.EmailSendRef
-	13, // 13: skelet.signals.v1.RecordEmailClickRequest.send:type_name -> skelet.signals.v1.EmailSendRef
-	14, // 14: skelet.signals.v1.RecordEmailClickRequest.hit:type_name -> skelet.signals.v1.EmailHit
-	13, // 15: skelet.signals.v1.RecordEmailClickResponse.send:type_name -> skelet.signals.v1.EmailSendRef
-	15, // 16: skelet.signals.v1.IngestService.RecordActivity:input_type -> skelet.signals.v1.RecordActivityRequest
-	17, // 17: skelet.signals.v1.IngestService.RecordConversion:input_type -> skelet.signals.v1.RecordConversionRequest
-	19, // 18: skelet.signals.v1.IngestService.RecordEmailSent:input_type -> skelet.signals.v1.RecordEmailSentRequest
-	21, // 19: skelet.signals.v1.IngestService.RecordEmailOpen:input_type -> skelet.signals.v1.RecordEmailOpenRequest
-	23, // 20: skelet.signals.v1.IngestService.RecordEmailClick:input_type -> skelet.signals.v1.RecordEmailClickRequest
-	5,  // 21: skelet.signals.v1.IngestService.SyncCustomerRoster:input_type -> skelet.signals.v1.SyncCustomerRosterRequest
-	6,  // 22: skelet.signals.v1.IngestService.UpsertRosterEntry:input_type -> skelet.signals.v1.UpsertRosterEntryRequest
-	10, // 23: skelet.signals.v1.IngestService.DeleteRosterEntry:input_type -> skelet.signals.v1.DeleteRosterEntryRequest
-	8,  // 24: skelet.signals.v1.IngestService.RosterStatus:input_type -> skelet.signals.v1.RosterStatusRequest
-	25, // 25: skelet.signals.v1.IngestService.EraseCustomerIdentities:input_type -> skelet.signals.v1.EraseCustomerIdentitiesRequest
-	1,  // 26: skelet.signals.v1.IngestService.SyncChannels:input_type -> skelet.signals.v1.SyncChannelsRequest
-	16, // 27: skelet.signals.v1.IngestService.RecordActivity:output_type -> skelet.signals.v1.RecordActivityResponse
-	18, // 28: skelet.signals.v1.IngestService.RecordConversion:output_type -> skelet.signals.v1.RecordConversionResponse
-	20, // 29: skelet.signals.v1.IngestService.RecordEmailSent:output_type -> skelet.signals.v1.RecordEmailSentResponse
-	22, // 30: skelet.signals.v1.IngestService.RecordEmailOpen:output_type -> skelet.signals.v1.RecordEmailOpenResponse
-	24, // 31: skelet.signals.v1.IngestService.RecordEmailClick:output_type -> skelet.signals.v1.RecordEmailClickResponse
-	12, // 32: skelet.signals.v1.IngestService.SyncCustomerRoster:output_type -> skelet.signals.v1.SyncCustomerRosterResponse
-	7,  // 33: skelet.signals.v1.IngestService.UpsertRosterEntry:output_type -> skelet.signals.v1.UpsertRosterEntryResponse
-	11, // 34: skelet.signals.v1.IngestService.DeleteRosterEntry:output_type -> skelet.signals.v1.DeleteRosterEntryResponse
-	9,  // 35: skelet.signals.v1.IngestService.RosterStatus:output_type -> skelet.signals.v1.RosterStatusResponse
-	26, // 36: skelet.signals.v1.IngestService.EraseCustomerIdentities:output_type -> skelet.signals.v1.EraseCustomerIdentitiesResponse
-	2,  // 37: skelet.signals.v1.IngestService.SyncChannels:output_type -> skelet.signals.v1.SyncChannelsResponse
-	27, // [27:38] is the sub-list for method output_type
-	16, // [16:27] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	27, // 2: skelet.signals.v1.RosterEntry.read_at:type_name -> google.protobuf.Timestamp
+	3,  // 3: skelet.signals.v1.SyncCustomerRosterRequest.customers:type_name -> skelet.signals.v1.RosterEntry
+	3,  // 4: skelet.signals.v1.UpsertRosterEntryRequest.customer:type_name -> skelet.signals.v1.RosterEntry
+	27, // 5: skelet.signals.v1.RosterStatusResponse.filled_at:type_name -> google.protobuf.Timestamp
+	27, // 6: skelet.signals.v1.EmailSendRef.sent_at:type_name -> google.protobuf.Timestamp
+	27, // 7: skelet.signals.v1.EmailHit.at:type_name -> google.protobuf.Timestamp
+	27, // 8: skelet.signals.v1.RecordActivityRequest.at:type_name -> google.protobuf.Timestamp
+	27, // 9: skelet.signals.v1.RecordConversionRequest.at:type_name -> google.protobuf.Timestamp
+	13, // 10: skelet.signals.v1.RecordEmailSentRequest.send:type_name -> skelet.signals.v1.EmailSendRef
+	13, // 11: skelet.signals.v1.RecordEmailOpenRequest.send:type_name -> skelet.signals.v1.EmailSendRef
+	14, // 12: skelet.signals.v1.RecordEmailOpenRequest.hit:type_name -> skelet.signals.v1.EmailHit
+	13, // 13: skelet.signals.v1.RecordEmailOpenResponse.send:type_name -> skelet.signals.v1.EmailSendRef
+	13, // 14: skelet.signals.v1.RecordEmailClickRequest.send:type_name -> skelet.signals.v1.EmailSendRef
+	14, // 15: skelet.signals.v1.RecordEmailClickRequest.hit:type_name -> skelet.signals.v1.EmailHit
+	13, // 16: skelet.signals.v1.RecordEmailClickResponse.send:type_name -> skelet.signals.v1.EmailSendRef
+	27, // 17: skelet.signals.v1.EraseCustomerIdentitiesRequest.erased_at:type_name -> google.protobuf.Timestamp
+	15, // 18: skelet.signals.v1.IngestService.RecordActivity:input_type -> skelet.signals.v1.RecordActivityRequest
+	17, // 19: skelet.signals.v1.IngestService.RecordConversion:input_type -> skelet.signals.v1.RecordConversionRequest
+	19, // 20: skelet.signals.v1.IngestService.RecordEmailSent:input_type -> skelet.signals.v1.RecordEmailSentRequest
+	21, // 21: skelet.signals.v1.IngestService.RecordEmailOpen:input_type -> skelet.signals.v1.RecordEmailOpenRequest
+	23, // 22: skelet.signals.v1.IngestService.RecordEmailClick:input_type -> skelet.signals.v1.RecordEmailClickRequest
+	5,  // 23: skelet.signals.v1.IngestService.SyncCustomerRoster:input_type -> skelet.signals.v1.SyncCustomerRosterRequest
+	6,  // 24: skelet.signals.v1.IngestService.UpsertRosterEntry:input_type -> skelet.signals.v1.UpsertRosterEntryRequest
+	10, // 25: skelet.signals.v1.IngestService.DeleteRosterEntry:input_type -> skelet.signals.v1.DeleteRosterEntryRequest
+	8,  // 26: skelet.signals.v1.IngestService.RosterStatus:input_type -> skelet.signals.v1.RosterStatusRequest
+	25, // 27: skelet.signals.v1.IngestService.EraseCustomerIdentities:input_type -> skelet.signals.v1.EraseCustomerIdentitiesRequest
+	1,  // 28: skelet.signals.v1.IngestService.SyncChannels:input_type -> skelet.signals.v1.SyncChannelsRequest
+	16, // 29: skelet.signals.v1.IngestService.RecordActivity:output_type -> skelet.signals.v1.RecordActivityResponse
+	18, // 30: skelet.signals.v1.IngestService.RecordConversion:output_type -> skelet.signals.v1.RecordConversionResponse
+	20, // 31: skelet.signals.v1.IngestService.RecordEmailSent:output_type -> skelet.signals.v1.RecordEmailSentResponse
+	22, // 32: skelet.signals.v1.IngestService.RecordEmailOpen:output_type -> skelet.signals.v1.RecordEmailOpenResponse
+	24, // 33: skelet.signals.v1.IngestService.RecordEmailClick:output_type -> skelet.signals.v1.RecordEmailClickResponse
+	12, // 34: skelet.signals.v1.IngestService.SyncCustomerRoster:output_type -> skelet.signals.v1.SyncCustomerRosterResponse
+	7,  // 35: skelet.signals.v1.IngestService.UpsertRosterEntry:output_type -> skelet.signals.v1.UpsertRosterEntryResponse
+	11, // 36: skelet.signals.v1.IngestService.DeleteRosterEntry:output_type -> skelet.signals.v1.DeleteRosterEntryResponse
+	9,  // 37: skelet.signals.v1.IngestService.RosterStatus:output_type -> skelet.signals.v1.RosterStatusResponse
+	26, // 38: skelet.signals.v1.IngestService.EraseCustomerIdentities:output_type -> skelet.signals.v1.EraseCustomerIdentitiesResponse
+	2,  // 39: skelet.signals.v1.IngestService.SyncChannels:output_type -> skelet.signals.v1.SyncChannelsResponse
+	29, // [29:40] is the sub-list for method output_type
+	18, // [18:29] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_skelet_signals_v1_ingest_proto_init() }
@@ -1983,6 +2017,7 @@ func file_skelet_signals_v1_ingest_proto_init() {
 	if File_skelet_signals_v1_ingest_proto != nil {
 		return
 	}
+	file_skelet_signals_v1_ingest_proto_msgTypes[0].OneofWrappers = []any{}
 	file_skelet_signals_v1_ingest_proto_msgTypes[13].OneofWrappers = []any{}
 	file_skelet_signals_v1_ingest_proto_msgTypes[15].OneofWrappers = []any{}
 	type x struct{}

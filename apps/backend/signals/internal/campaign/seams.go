@@ -41,6 +41,7 @@ type Store struct {
 	FromAddress string
 	FromName    string
 	LogoURL     string
+	Active      bool
 }
 
 type storeReader interface {

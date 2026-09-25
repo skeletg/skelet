@@ -227,7 +227,7 @@ func (r *mutationResolver) GenerateProductReviewSummary(ctx context.Context, pro
 	if err != nil {
 		return "", errInvalidID("product id", nil)
 	}
-	return r.ReviewSvc.GenerateProductSummary(ctx, pid, "")
+	return r.generateReviewSummaries(ctx, pid)
 }
 
 func (r *mutationResolver) CreateReviewCategory(ctx context.Context, input model.CreateReviewCategoryInput) (*model.ReviewCategory, error) {

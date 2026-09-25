@@ -24,6 +24,15 @@ func (r *mutationResolver) CreateDraftOrder(ctx context.Context, input model.Cre
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "orders.update", channelID, nil); err != nil {
 		return nil, err
 	}
+	if input.CustomerID != nil && *input.CustomerID != "" {
+		cid, err := parseID(*input.CustomerID, "customer")
+		if err != nil {
+			return nil, err
+		}
+		if err := r.requireCustomerOnChannel(ctx, &cid, channelID); err != nil {
+			return nil, err
+		}
+	}
 	o, err := r.OrderSvc.CreateDraftOrder(ctx, toCreateDraftOrderInput(input, channelID))
 	if err != nil {
 		return nil, err
@@ -32,6 +41,9 @@ func (r *mutationResolver) CreateDraftOrder(ctx context.Context, input model.Cre
 }
 
 func (r *mutationResolver) PlaceDraftOrder(ctx context.Context, id string) (*model.Order, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
+		return nil, err
+	}
 	orderID, err := parseID(id, "order")
 	if err != nil {
 		return nil, err
@@ -64,6 +76,9 @@ func (r *mutationResolver) MarkProcessing(ctx context.Context, id string) (*mode
 }
 
 func (r *mutationResolver) HoldOrder(ctx context.Context, id string, reason *string) (*model.Order, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
+		return nil, err
+	}
 	orderID, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("order id", nil)
@@ -83,6 +98,9 @@ func (r *mutationResolver) HoldOrder(ctx context.Context, id string, reason *str
 }
 
 func (r *mutationResolver) ReleaseOrder(ctx context.Context, id string) (*model.Order, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
+		return nil, err
+	}
 	orderID, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("order id", nil)
@@ -103,6 +121,9 @@ func (r *mutationResolver) ReleaseOrder(ctx context.Context, id string) (*model.
 
 // Records a real fulfillment covering the remainder rather than only flipping the status, so inventory decrements and the first shipment captures payment - a sync OrderFulfilling subscriber can still override the carrier and tracking
 func (r *mutationResolver) FulfillOrder(ctx context.Context, id string, carrier *string, trackingNumber *string, insuredValueCents *int32) (*model.Order, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
+		return nil, err
+	}
 	orderID, err := parseID(id, "order")
 	if err != nil {
 		return nil, err
@@ -238,6 +259,9 @@ func (r *mutationResolver) CreateFulfillment(ctx context.Context, input model.Cr
 }
 
 func (r *mutationResolver) GenerateShippingLabel(ctx context.Context, fulfillmentID string) (*model.ShippingLabel, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
+		return nil, err
+	}
 	fID, err := parseID(fulfillmentID, "fulfillment")
 	if err != nil {
 		return nil, err
@@ -262,6 +286,9 @@ func (r *mutationResolver) GenerateShippingLabel(ctx context.Context, fulfillmen
 
 // The automatic sends are event-driven and may be delivered by a flow - this is the operator's way to send one again
 func (r *mutationResolver) ResendOrderEmail(ctx context.Context, orderID string, message model.OrderEmailMessage, fulfillmentID *string) (bool, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
+		return false, err
+	}
 	oID, err := parseID(orderID, "order")
 	if err != nil {
 		return false, err
@@ -630,7 +657,7 @@ func (r *orderResolver) TrackingURL(ctx context.Context, obj *model.Order) (stri
 	if err != nil || o.ShippingCarrierSlug == nil || *o.ShippingCarrierSlug == "" {
 		return "", nil
 	}
-	res, err := r.ShippingSvc.Track(ctx, *o.ShippingCarrierSlug, obj.TrackingNumber)
+	res, err := r.ShippingSvc.TrackForChannel(ctx, o.ChannelID, *o.ShippingCarrierSlug, obj.TrackingNumber)
 	if err != nil {
 		return "", nil
 	}
@@ -824,6 +851,9 @@ func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, sear
 
 // A scoped admin asking by ID for a channel they can't reach gets FORBIDDEN, not the row
 func (r *queryResolver) Order(ctx context.Context, id string) (*model.Order, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.view"); err != nil {
+		return nil, err
+	}
 	orderID, err := parseID(id, "order")
 	if err != nil {
 		return nil, err
@@ -839,6 +869,9 @@ func (r *queryResolver) Order(ctx context.Context, id string) (*model.Order, err
 }
 
 func (r *queryResolver) OrderDocumentPDF(ctx context.Context, orderID string, kind model.OrderDocumentKind, creditMemoID *string) (string, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.view"); err != nil {
+		return "", err
+	}
 	oid, err := uuid.Parse(orderID)
 	if err != nil {
 		return "", errInvalidID("order id", nil)
@@ -892,6 +925,9 @@ func (r *queryResolver) OrderDocumentPDF(ctx context.Context, orderID string, ki
 }
 
 func (r *queryResolver) CreditMemos(ctx context.Context, orderID string) ([]*model.CreditMemo, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.view"); err != nil {
+		return nil, err
+	}
 	oid, err := parseID(orderID, "order")
 	if err != nil {
 		return nil, err
@@ -916,6 +952,9 @@ func (r *queryResolver) CreditMemos(ctx context.Context, orderID string) ([]*mod
 
 // Ordered minus what earlier memos covered, per line - bounds the issue form
 func (r *queryResolver) CreditableQuantities(ctx context.Context, orderID string) ([]*model.OrderLineQuantity, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.refund"); err != nil {
+		return nil, err
+	}
 	oid, err := parseID(orderID, "order")
 	if err != nil {
 		return nil, err

@@ -75,7 +75,8 @@ type Infra struct {
 	Config  Config
 	DB      *sql.DB
 	Valkey  *redis.Client // the noeviction primary - auth/refresh/reset tokens, preview stores, pub/sub
-	Cache   CacheRedis    // the evictable cache client - APQ, response cache, read-through caches, rate limiters
+	Cache   CacheRedis    // the evictable cache client - APQ, response cache, read-through caches
+	Limits  LimitsRedis   // rate-limit counters, the cache client unless VALKEY_LIMITS_URL names its own
 	Queries *db.Queries
 }
 

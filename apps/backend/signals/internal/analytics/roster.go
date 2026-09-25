@@ -19,6 +19,8 @@ import (
 // RosterVersion moves with every migration that adds a roster column - a full sync stamps it, and until one has, the roster reads as behind
 const RosterVersion int32 = 3
 
+const rosterTombstoneTTL = 24 * time.Hour
+
 type RosterStatus struct {
 	Version       int32
 	FilledVersion int32
@@ -45,6 +47,7 @@ type RosterEntry struct {
 	MarketingOptedIn bool
 	SMSOptedIn       bool
 	Consents         map[string]bool
+	ReadAt           time.Time // when core read the row, on core's clock - zero when the caller did not say
 }
 
 func consentsJSON(m map[string]bool) string {
@@ -86,9 +89,13 @@ func (s *RosterSync) Page(ctx context.Context, entries []RosterEntry) error {
 		p.OptedIn = append(p.OptedIn, e.MarketingOptedIn)
 		p.SmsOptedIn = append(p.SmsOptedIn, e.SMSOptedIn)
 		p.Consents = append(p.Consents, consentsJSON(e.Consents))
+		p.ReadAts = append(p.ReadAts, e.ReadAt)
 	}
 	if err := s.r.qs.UpsertCustomerRoster(ctx, p); err != nil {
 		return fmt.Errorf("upsert roster: %w", err)
+	}
+	if err := s.r.qs.TouchCustomerRoster(ctx, signalsdb.TouchCustomerRosterParams{SyncedAt: s.startedAt, CustomerIds: p.CustomerIds}); err != nil {
+		return fmt.Errorf("touch roster: %w", err)
 	}
 	s.synced += len(entries)
 	return nil
@@ -115,6 +122,9 @@ func (s *RosterSync) Commit(ctx context.Context) (synced, pruned int, err error)
 		if err := s.r.pruneOrphanedMarketing(ctx); err != nil {
 			return s.synced, int(gone), err
 		}
+	}
+	if _, err := s.r.qs.PruneRosterTombstones(ctx, s.startedAt.Add(-rosterTombstoneTTL)); err != nil {
+		return s.synced, int(gone), fmt.Errorf("prune roster tombstones: %w", err)
 	}
 	if err := s.r.qs.SetRosterFilled(ctx, RosterVersion); err != nil {
 		return s.synced, int(gone), fmt.Errorf("stamp roster version: %w", err)
@@ -152,26 +162,35 @@ func (r *Roster) UpsertRosterEntry(ctx context.Context, e RosterEntry) error {
 		CustomerID: e.CustomerID, ChannelID: e.ChannelID, Email: e.Email, FirstName: e.FirstName,
 		Phone: e.Phone, IsActive: e.IsActive, CustomerGroupID: e.GroupID, CustomerGroupSlug: e.GroupSlug,
 		MarketingOptedIn: e.MarketingOptedIn, SmsOptedIn: e.SMSOptedIn,
-		Consents: json.RawMessage(consentsJSON(e.Consents)),
+		Consents: json.RawMessage(consentsJSON(e.Consents)), ReadAt: e.ReadAt,
 	})
 }
 
 // DeleteRosterEntry drops one customer ahead of the sweep, taking their traits and memberships with them
+// The tombstone lands first and whether or not a row existed, so a sweep page read before the delete cannot bring them back
 func (r *Roster) DeleteRosterEntry(ctx context.Context, customerID uuid.UUID) error {
 	if r.qs == nil {
 		return nil
 	}
-	gone, err := r.qs.DeleteCustomerRosterEntry(ctx, customerID)
-	if err != nil || gone == 0 {
+	if err := r.qs.TombstoneCustomerRosterEntry(ctx, customerID); err != nil {
+		return fmt.Errorf("tombstone roster entry: %w", err)
+	}
+	if _, err := r.qs.DeleteCustomerRosterEntry(ctx, customerID); err != nil {
 		return err
 	}
-	if _, err := r.qs.PruneOrphanedTraits(ctx); err != nil {
-		return fmt.Errorf("prune orphaned traits: %w", err)
+	if err := r.qs.DeleteCustomerTraits(ctx, customerID); err != nil {
+		return fmt.Errorf("delete traits: %w", err)
 	}
-	if _, err := r.qs.PruneOrphanedMemberships(ctx); err != nil {
-		return fmt.Errorf("prune orphaned memberships: %w", err)
+	if err := r.qs.DeleteCustomerMemberships(ctx, customerID); err != nil {
+		return fmt.Errorf("delete memberships: %w", err)
 	}
-	return r.pruneOrphanedMarketing(ctx)
+	if err := r.qs.DeleteCustomerFlowRuns(ctx, customerID); err != nil {
+		return fmt.Errorf("delete flow runs: %w", err)
+	}
+	if err := r.qs.DetachCustomerCampaignRecipients(ctx, customerID); err != nil {
+		return fmt.Errorf("detach campaign recipients: %w", err)
+	}
+	return nil
 }
 
 // A live run or a targeted row for a customer core deleted would otherwise sit here and keep trying to reach them
@@ -179,17 +198,67 @@ func (r *Roster) pruneOrphanedMarketing(ctx context.Context) error {
 	if _, err := r.qs.PruneOrphanedFlowRuns(ctx); err != nil {
 		return fmt.Errorf("prune orphaned flow runs: %w", err)
 	}
-	if _, err := r.qs.PruneOrphanedCampaignRecipients(ctx); err != nil {
-		return fmt.Errorf("prune orphaned campaign recipients: %w", err)
+	if _, err := r.qs.DetachOrphanedCampaignRecipients(ctx); err != nil {
+		return fmt.Errorf("detach orphaned campaign recipients: %w", err)
 	}
 	return nil
 }
 
-// RosterChannels are the channels the roster covers, which is what the trait recompute iterates -
-// a channel with no customers has nothing to recompute
 func (r *Roster) RosterChannels(ctx context.Context) ([]uuid.UUID, error) {
 	if r.qs == nil {
 		return nil, nil
 	}
 	return r.qs.RosterChannels(ctx)
+}
+
+func (r *Roster) TraitComputeChannels(ctx context.Context) ([]uuid.UUID, error) {
+	if r.qs == nil {
+		return nil, nil
+	}
+	return r.qs.TraitComputeChannels(ctx)
+}
+
+func (r *Roster) MarkTraitsComputed(ctx context.Context, channelID uuid.UUID, at time.Time) error {
+	if r.qs == nil {
+		return nil
+	}
+	return r.qs.MarkTraitComputeRun(ctx, signalsdb.MarkTraitComputeRunParams{ChannelID: channelID, FinishedAt: at})
+}
+
+// An attempt counts toward staleness, so a channel that never finishes in time cannot lead every run
+func (r *Roster) MarkTraitsAttempted(ctx context.Context, channelID uuid.UUID, at time.Time) error {
+	if r.qs == nil {
+		return nil
+	}
+	return r.qs.MarkTraitComputeAttempt(ctx, signalsdb.MarkTraitComputeAttemptParams{ChannelID: channelID, AttemptedAt: at})
+}
+
+// The account stays in core as a redacted anchor, so its rows here are scrubbed in place rather than deleted
+func (r *Roster) EraseCustomer(ctx context.Context, customerID uuid.UUID, email string, erasedAt time.Time) error {
+	if r == nil || r.qs == nil {
+		return nil
+	}
+	if err := r.qs.ScrubErasedRosterEntry(ctx, signalsdb.ScrubErasedRosterEntryParams{
+		CustomerID: customerID, ErasedAt: sql.NullTime{Time: erasedAt, Valid: !erasedAt.IsZero()},
+	}); err != nil {
+		return fmt.Errorf("scrub roster entry: %w", err)
+	}
+	if err := r.qs.ScrubErasedFlowRuns(ctx, customerID); err != nil {
+		return fmt.Errorf("scrub flow runs: %w", err)
+	}
+	if err := r.qs.ScrubErasedCampaignRecipients(ctx, customerID); err != nil {
+		return fmt.Errorf("scrub campaign recipients: %w", err)
+	}
+	if email != "" {
+		if err := r.qs.ScrubErasedGuestFlowRuns(ctx, email); err != nil {
+			return fmt.Errorf("scrub guest flow runs: %w", err)
+		}
+		if err := r.qs.ScrubErasedGuestCampaignRecipients(ctx, email); err != nil {
+			return fmt.Errorf("scrub guest campaign recipients: %w", err)
+		}
+	}
+	if err := r.qs.DetachErasedLensSessions(ctx, customerID); err != nil {
+		return fmt.Errorf("detach lens sessions: %w", err)
+	}
+	return nil
 }

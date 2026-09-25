@@ -195,7 +195,7 @@ func (o *Outbox) dispatchRow(ctx context.Context, row db.EventOutbox) {
 	}
 
 	// Delivered now means "every subscriber succeeded" - a handler error (or panic, converted inside the bus) leaves the row for the lease to replay, which is the retry every compensating handler assumes: without it a failed gift-card restore or stock release is a log line and permanently wrong state - created_at rides along so a redelivery carries the same event time and time-derived dedupe keys stay stable
-	if err := o.bus.DispatchAsyncNow(events.WithEmittedAt(ctx, row.CreatedAt), e); err != nil {
+	if err := o.bus.DispatchAsyncNow(events.WithOutboxID(events.WithEmittedAt(ctx, row.CreatedAt), row.ID), e); err != nil {
 		if row.Attempts >= maxAttempts {
 			// side effects for a committed event are being abandoned - say so where an operator looks
 			o.dropRow(ctx, row, "subscribers kept failing: "+err.Error())

@@ -2,8 +2,7 @@
 # Every gate that can fail your commit, in one command. This is what the pre-commit
 # hook and CI both run, so "bin/check passes" is the whole contract
 #
-# Deliberately fast and dependency-free: no Docker, no running backend, under a second.
-# Generated-code staleness is the one gate that needs a container, so it's --codegen
+# About a second, no running backend - only contract-check's proto step uses the app container (skipped when down); codegen staleness is --codegen
 usage() {
     cat <<'EOF'
 bin/check [--codegen] [--list]

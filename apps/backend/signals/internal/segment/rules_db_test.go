@@ -13,6 +13,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
+	db "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 )
 
 // Compile hand-assembles SQL text from allowlisted fragments, and nothing else in the package ever runs the result
@@ -128,7 +129,7 @@ func TestEveryAllowlistedTraitFieldHasAColumnBehindIt(t *testing.T) {
 	}
 	for field := range traitFields {
 		t.Run(field, func(t *testing.T) {
-			run(t, conn, mustRules(t, fmt.Sprintf(`{"conditions":[{"kind":"trait","field":%q,"op":"gte","value":1}]}`, field)), nil)
+			run(t, conn, mustRules(t, fmt.Sprintf(`{"conditions":[{"kind":"trait","field":%q,"op":"gte","value":1,"channelId":%q}]}`, field, uuid.NewString())), nil)
 		})
 	}
 }
@@ -137,20 +138,21 @@ func TestEveryConditionKindAndOperatorExecutes(t *testing.T) {
 	// Each kind is its own hand-written fragment, and the windowed variants build a second one - so
 	// every branch needs Postgres to have parsed it at least once
 	conn := testDB(t)
+	anyChannel := uuid.NewString()
 	for name, raw := range map[string]string{
 		"trait, every numeric op": `{"conditions":[
 			{"kind":"trait","field":"rfm_r","op":"eq","value":1},
 			{"kind":"trait","field":"rfm_f","op":"neq","value":1},
 			{"kind":"trait","field":"rfm_m","op":"gt","value":1},
 			{"kind":"trait","field":"frequency","op":"gte","value":1},
-			{"kind":"trait","field":"monetary_cents","op":"lt","value":1},
+			{"kind":"trait","field":"monetary_cents","op":"lt","value":1,"channelId":"` + anyChannel + `"},
 			{"kind":"trait","field":"engagement_score","op":"lte","value":1}]}`,
 		"lifecycle eq":          `{"conditions":[{"kind":"lifecycle","op":"eq","stage":"active"}]}`,
 		"lifecycle neq":         `{"conditions":[{"kind":"lifecycle","op":"neq","stage":"lapsed"}]}`,
 		"order count, all time": `{"conditions":[{"kind":"order_count","op":"gte","value":1}]}`,
 		"order count, windowed": `{"conditions":[{"kind":"order_count","op":"lte","value":5,"days":90}]}`,
-		"spend, all time":       `{"conditions":[{"kind":"total_spent_cents","op":"eq","value":0}]}`,
-		"spend, windowed":       `{"conditions":[{"kind":"total_spent_cents","op":"gte","value":1,"days":365}]}`,
+		"spend, all time":       `{"conditions":[{"kind":"total_spent_cents","op":"eq","value":0,"channelId":"` + anyChannel + `"}]}`,
+		"spend, windowed":       `{"conditions":[{"kind":"total_spent_cents","op":"gte","value":1,"days":365,"channelId":"` + anyChannel + `"}]}`,
 		"last order, at most":   `{"conditions":[{"kind":"last_order_days","op":"lte","value":30}]}`,
 		"last order, at least":  `{"conditions":[{"kind":"last_order_days","op":"gte","value":30}]}`,
 		"email consent granted": `{"conditions":[{"kind":"consent","channel":"marketing_email","granted":true}]}`,
@@ -160,7 +162,7 @@ func TestEveryConditionKindAndOperatorExecutes(t *testing.T) {
 			{"kind":"trait","field":"rfm_m","op":"gte","value":1},
 			{"kind":"lifecycle","op":"eq","stage":"active"},
 			{"kind":"order_count","op":"gte","value":1,"days":30},
-			{"kind":"total_spent_cents","op":"gte","value":1,"days":30},
+			{"kind":"total_spent_cents","op":"gte","value":1,"days":30,"channelId":"` + anyChannel + `"},
 			{"kind":"last_order_days","op":"lte","value":30},
 			{"kind":"consent","channel":"marketing_email","granted":true},
 			{"kind":"group","slug":"wholesale"}]}`,
@@ -276,8 +278,9 @@ func TestOrderRulesReadTheProjection(t *testing.T) {
 	}{
 		"two orders all time":             {`{"conditions":[{"kind":"order_count","op":"eq","value":2}]}`, true},
 		"not three":                       {`{"conditions":[{"kind":"order_count","op":"gte","value":3}]}`, false},
-		"spend at the projected total":    {`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":100000}]}`, true},
-		"spend one cent over it":          {`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":100001}]}`, false},
+		"spend at the projected total":    {`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":100000,"channelId":"` + channelID.String() + `"}]}`, true},
+		"spend one cent over it":          {`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":100001,"channelId":"` + channelID.String() + `"}]}`, false},
+		"spend on another channel":        {`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":1,"channelId":"` + uuid.NewString() + `"}]}`, false},
 		"ordered within the last 30 days": {`{"conditions":[{"kind":"last_order_days","op":"lte","value":30}]}`, true},
 		"has not ordered for 30 days":     {`{"conditions":[{"kind":"last_order_days","op":"gte","value":30}]}`, false},
 	} {
@@ -295,7 +298,7 @@ func TestOrderRulesReadTheProjection(t *testing.T) {
 	// A windowed condition composes with the projection ones through the spine's answer - here, who it says ordered recently
 	recentAndBig := mustRules(t, `{"conditions":[
 		{"kind":"order_count","op":"gte","value":1,"days":30},
-		{"kind":"total_spent_cents","op":"gte","value":100000}]}`)
+		{"kind":"total_spent_cents","op":"gte","value":100000,"channelId":"`+channelID.String()+`"}]}`)
 	if got := run(t, conn, recentAndBig, map[int]Resolved{0: {IDs: []uuid.UUID{shopper}}}); !selects(got, shopper) {
 		t.Error("the shopper the spine named was not selected alongside their lifetime spend")
 	}
@@ -331,10 +334,6 @@ func TestACustomerWhoNeverOrderedIsNotDormantByAge(t *testing.T) {
 }
 
 func TestConsentRulesSplitOnTheResolvedFlag(t *testing.T) {
-	// Campaign audiences gate on this, so an inverted case sends marketing to someone who opted out. The roster
-	// carries core's resolved answer, registry default included, so there is no "no record" case here: a customer
-	// who never answered arrives as opted out, and an explicit withheld rule does select them - which is exactly
-	// who a re-permission campaign is for
 	conn := testDB(t)
 	ch := uuid.New()
 	emailIn := seedRoster(t, conn, rosterRow{channelID: ch, marketing: true})
@@ -354,14 +353,43 @@ func TestConsentRulesSplitOnTheResolvedFlag(t *testing.T) {
 		t.Error("the SMS rule read the email flag")
 	}
 
-	// A kind the suite has no column for still works, since consents arrive as a map keyed by whatever core registers
-	research := seedRoster(t, conn, rosterRow{channelID: ch, consents: map[string]bool{"research_panel": true}})
-	panel := run(t, conn, mustRules(t, `{"conditions":[{"kind":"consent","channel":"research_panel","granted":true}]}`), nil)
-	if !selects(panel, research) || selects(panel, emailIn) {
-		t.Error("a registry kind beyond the marketing pair was not read off the consents map")
+	optedOut := seedRoster(t, conn, rosterRow{channelID: ch, consents: map[string]bool{"transactional_email": false}})
+	txn := run(t, conn, mustRules(t, `{"conditions":[{"kind":"consent","channel":"transactional_email","granted":true}]}`), nil)
+	if selects(txn, optedOut) || !selects(txn, emailIn) || !selects(txn, neither) {
+		t.Error("transactional_email did not split on the stored answer with the opt-in default for everyone else")
 	}
-	declined := run(t, conn, mustRules(t, `{"conditions":[{"kind":"consent","channel":"research_panel","granted":false}]}`), nil)
-	if selects(declined, research) || !selects(declined, emailIn) {
-		t.Error("a customer with no answer for a kind did not read as opted out")
+	declined := run(t, conn, mustRules(t, `{"conditions":[{"kind":"consent","channel":"transactional_email","granted":false}]}`), nil)
+	if !selects(declined, optedOut) || selects(declined, neither) {
+		t.Error("a customer with no transactional answer read as opted out, want the registry's opt-in default")
+	}
+}
+
+func TestTheDynamicSweepStartsWithTheLongestUnrefreshed(t *testing.T) {
+	conn := testDB(t)
+	ctx := context.Background()
+	repo := NewRepository(db.New(conn))
+	mk := func(slug string) uuid.UUID {
+		var id uuid.UUID
+		if err := conn.QueryRow(`INSERT INTO customer_segments (slug, name, rules) VALUES ($1, $1, '{"conditions":[{"kind":"group","slug":"x"}]}') RETURNING id`, slug).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM customer_segments WHERE id = $1`, id) })
+		return id
+	}
+	refreshed := mk("sweep-a-" + uuid.NewString()[:8])
+	missed := mk("sweep-b-" + uuid.NewString()[:8])
+	if err := repo.RecordDailySnapshot(ctx, refreshed); err != nil {
+		t.Fatal(err)
+	}
+	dyn, err := repo.ListDynamic(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := map[uuid.UUID]int{}
+	for i, s := range dyn {
+		at[s.ID] = i
+	}
+	if at[missed] > at[refreshed] {
+		t.Error("the segment refreshed today comes first, so a sweep that times out starves the one it missed every time")
 	}
 }

@@ -122,18 +122,19 @@ func (q *Queries) InsertProductQuestion(ctx context.Context, arg InsertProductQu
 
 const listPublishedQuestions = `-- name: ListPublishedQuestions :many
 SELECT id, product_id, channel_id, customer_id, author_name, author_email, question, answer, answered_by, answered_at, status, created_at FROM product_questions
-WHERE  product_id = $1 AND status = 'published'
+WHERE  product_id = $1 AND channel_id = $2 AND status = 'published'
 ORDER  BY answered_at DESC NULLS LAST, created_at DESC
-LIMIT  $2
+LIMIT  $3
 `
 
 type ListPublishedQuestionsParams struct {
 	ProductID uuid.UUID `json:"product_id"`
+	ChannelID uuid.UUID `json:"channel_id"`
 	Limit     int32     `json:"limit"`
 }
 
 func (q *Queries) ListPublishedQuestions(ctx context.Context, arg ListPublishedQuestionsParams) ([]ProductQuestion, error) {
-	rows, err := q.db.QueryContext(ctx, listPublishedQuestions, arg.ProductID, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listPublishedQuestions, arg.ProductID, arg.ChannelID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

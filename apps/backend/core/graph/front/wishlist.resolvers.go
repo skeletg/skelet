@@ -90,9 +90,19 @@ func (r *queryResolver) WishlistProductIds(ctx context.Context) ([]string, error
 	if err != nil {
 		return nil, err
 	}
-	out := make([]string, len(ids))
-	for i, id := range ids {
-		out[i] = id.String()
+	sid := channelIDFromContext(ctx)
+	if sid == nil || len(ids) == 0 {
+		return []string{}, nil
+	}
+	visible, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, *sid)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := visible[id]; ok {
+			out = append(out, id.String())
+		}
 	}
 	return out, nil
 }
@@ -151,17 +161,17 @@ func (r *queryResolver) SharedWishlist(ctx context.Context, token string) ([]*mo
 		return []*model.Product{}, nil
 	}
 	out := make([]*model.Product, 0, len(ids))
-	var visible map[uuid.UUID]struct{}
-	if sid := channelIDFromContext(ctx); sid != nil {
-		if pub, perr := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, *sid); perr == nil {
-			visible = pub
-		}
+	sid := channelIDFromContext(ctx)
+	if sid == nil {
+		return out, nil
+	}
+	visible, perr := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, *sid)
+	if perr != nil {
+		return out, nil
 	}
 	for _, id := range ids {
-		if visible != nil {
-			if _, ok := visible[id]; !ok {
-				continue
-			}
+		if _, ok := visible[id]; !ok {
+			continue
 		}
 		p, perr := r.CatalogSvc.GetProduct(ctx, id, r.activeLocale(ctx))
 		if perr != nil {

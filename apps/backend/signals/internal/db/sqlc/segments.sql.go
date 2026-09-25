@@ -117,6 +117,68 @@ func (q *Queries) CountSegmentMembersByIDs(ctx context.Context, segmentIds []uui
 	return items, nil
 }
 
+const countSegmentMembersInChannels = `-- name: CountSegmentMembersInChannels :many
+SELECT m.segment_id, COUNT(*)::INTEGER AS count
+FROM customer_segment_memberships m
+JOIN customer_roster r ON r.customer_id = m.customer_id
+WHERE m.segment_id = ANY($1::uuid[])
+  AND ($2::boolean OR r.channel_id = ANY($3::uuid[]))
+GROUP BY m.segment_id
+`
+
+type CountSegmentMembersInChannelsParams struct {
+	SegmentIds  []uuid.UUID `json:"segment_ids"`
+	AllChannels bool        `json:"all_channels"`
+	ChannelIds  []uuid.UUID `json:"channel_ids"`
+}
+
+type CountSegmentMembersInChannelsRow struct {
+	SegmentID uuid.UUID `json:"segment_id"`
+	Count     int32     `json:"count"`
+}
+
+func (q *Queries) CountSegmentMembersInChannels(ctx context.Context, arg CountSegmentMembersInChannelsParams) ([]CountSegmentMembersInChannelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, countSegmentMembersInChannels, pq.Array(arg.SegmentIds), arg.AllChannels, pq.Array(arg.ChannelIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountSegmentMembersInChannelsRow{}
+	for rows.Next() {
+		var i CountSegmentMembersInChannelsRow
+		if err := rows.Scan(&i.SegmentID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countVisibleCustomerSegments = `-- name: CountVisibleCustomerSegments :one
+SELECT COUNT(*)::INTEGER FROM customer_segments
+WHERE $1::boolean
+   OR COALESCE(CASE WHEN pg_input_is_valid(definition, 'jsonb') THEN definition::jsonb ->> 'channelId' END, '') = ''
+   OR (CASE WHEN pg_input_is_valid(definition, 'jsonb') THEN definition::jsonb ->> 'channelId' END) = ANY($2::text[])
+`
+
+type CountVisibleCustomerSegmentsParams struct {
+	AllChannels bool     `json:"all_channels"`
+	ChannelIds  []string `json:"channel_ids"`
+}
+
+func (q *Queries) CountVisibleCustomerSegments(ctx context.Context, arg CountVisibleCustomerSegmentsParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, countVisibleCustomerSegments, arg.AllChannels, pq.Array(arg.ChannelIds))
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createCustomerSegment = `-- name: CreateCustomerSegment :one
 
 INSERT INTO customer_segments (slug, name, description, definition, is_active)
@@ -166,6 +228,26 @@ DELETE FROM customer_segments WHERE id = $1
 func (q *Queries) DeleteCustomerSegment(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteCustomerSegment, id)
 	return err
+}
+
+const fillSegmentRules = `-- name: FillSegmentRules :execrows
+UPDATE customer_segments
+SET rules = $1, updated_at = NOW()
+WHERE id = $2 AND rules IS NOT DISTINCT FROM $3::jsonb
+`
+
+type FillSegmentRulesParams struct {
+	Rules pqtype.NullRawMessage `json:"rules"`
+	ID    uuid.UUID             `json:"id"`
+	Old   pqtype.NullRawMessage `json:"old"`
+}
+
+func (q *Queries) FillSegmentRules(ctx context.Context, arg FillSegmentRulesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, fillSegmentRules, arg.Rules, arg.ID, arg.Old)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getCustomerSegment = `-- name: GetCustomerSegment :one
@@ -264,11 +346,12 @@ func (q *Queries) ListCustomerSegments(ctx context.Context, arg ListCustomerSegm
 }
 
 const listDynamicSegments = `-- name: ListDynamicSegments :many
-SELECT id, slug, name, description, definition, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules FROM customer_segments
-WHERE rules IS NOT NULL AND is_active = TRUE
-ORDER BY created_at
+SELECT s.id, s.slug, s.name, s.description, s.definition, s.is_active, s.created_at, s.updated_at, s.lifecycle_new_days, s.lifecycle_active_days, s.lifecycle_at_risk_days, s.rules FROM customer_segments s
+WHERE s.rules IS NOT NULL AND s.is_active = TRUE
+ORDER BY (SELECT max(d.day) FROM segment_membership_daily d WHERE d.segment_id = s.id) NULLS FIRST, s.created_at
 `
 
+// Longest unrefreshed first, so a sweep cut short resumes with what it missed
 func (q *Queries) ListDynamicSegments(ctx context.Context) ([]CustomerSegment, error) {
 	rows, err := q.db.QueryContext(ctx, listDynamicSegments)
 	if err != nil {
@@ -361,6 +444,64 @@ func (q *Queries) ListSegmentMembers(ctx context.Context, arg ListSegmentMembers
 	return items, nil
 }
 
+const listVisibleCustomerSegments = `-- name: ListVisibleCustomerSegments :many
+SELECT id, slug, name, description, definition, is_active, created_at, updated_at, lifecycle_new_days, lifecycle_active_days, lifecycle_at_risk_days, rules FROM customer_segments
+WHERE $1::boolean
+   OR COALESCE(CASE WHEN pg_input_is_valid(definition, 'jsonb') THEN definition::jsonb ->> 'channelId' END, '') = ''
+   OR (CASE WHEN pg_input_is_valid(definition, 'jsonb') THEN definition::jsonb ->> 'channelId' END) = ANY($2::text[])
+ORDER BY slug
+LIMIT $4 OFFSET $3
+`
+
+type ListVisibleCustomerSegmentsParams struct {
+	AllChannels bool     `json:"all_channels"`
+	ChannelIds  []string `json:"channel_ids"`
+	Off         int32    `json:"off"`
+	Lim         int32    `json:"lim"`
+}
+
+// A behavioral segment belongs to the channel its definition names, so a caller sees it only with that channel; the rest are global
+func (q *Queries) ListVisibleCustomerSegments(ctx context.Context, arg ListVisibleCustomerSegmentsParams) ([]CustomerSegment, error) {
+	rows, err := q.db.QueryContext(ctx, listVisibleCustomerSegments,
+		arg.AllChannels,
+		pq.Array(arg.ChannelIds),
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CustomerSegment{}
+	for rows.Next() {
+		var i CustomerSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.Description,
+			&i.Definition,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LifecycleNewDays,
+			&i.LifecycleActiveDays,
+			&i.LifecycleAtRiskDays,
+			&i.Rules,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordSegmentSnapshot = `-- name: RecordSegmentSnapshot :exec
 INSERT INTO segment_membership_daily (segment_id, day, member_count)
 SELECT $1, CURRENT_DATE, COUNT(*)
@@ -388,6 +529,38 @@ type RemoveCustomerFromSegmentParams struct {
 func (q *Queries) RemoveCustomerFromSegment(ctx context.Context, arg RemoveCustomerFromSegmentParams) error {
 	_, err := q.db.ExecContext(ctx, removeCustomerFromSegment, arg.CustomerID, arg.SegmentID)
 	return err
+}
+
+const rosterChannelsOfCustomers = `-- name: RosterChannelsOfCustomers :many
+SELECT customer_id, channel_id FROM customer_roster WHERE customer_id = ANY($1::uuid[])
+`
+
+type RosterChannelsOfCustomersRow struct {
+	CustomerID uuid.UUID `json:"customer_id"`
+	ChannelID  uuid.UUID `json:"channel_id"`
+}
+
+func (q *Queries) RosterChannelsOfCustomers(ctx context.Context, customerIds []uuid.UUID) ([]RosterChannelsOfCustomersRow, error) {
+	rows, err := q.db.QueryContext(ctx, rosterChannelsOfCustomers, pq.Array(customerIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RosterChannelsOfCustomersRow{}
+	for rows.Next() {
+		var i RosterChannelsOfCustomersRow
+		if err := rows.Scan(&i.CustomerID, &i.ChannelID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const segmentMemberCustomerIDs = `-- name: SegmentMemberCustomerIDs :many

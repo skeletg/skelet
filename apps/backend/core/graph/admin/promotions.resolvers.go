@@ -221,7 +221,7 @@ func (r *mutationResolver) ReorderPromotionRules(ctx context.Context, ruleIds []
 	}
 	// Reordering changes priority across ALL rules (including other
 	// channels' and global rules) - requires the unscoped grant.
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "promotions.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "promotions.manage"); err != nil {
 		return false, err
 	}
 	ids := make([]uuid.UUID, len(ruleIds))
@@ -269,14 +269,12 @@ func (r *mutationResolver) DeletePromotionRuleContent(ctx context.Context, ruleI
 	if r.PromotionSvc == nil {
 		return false, errNotConfigured("promotions")
 	}
-	if rid, err := uuid.Parse(ruleID); err == nil {
-		if err := r.requirePromotionRuleManage(ctx, rid); err != nil {
-			return false, err
-		}
-	}
 	rid, err := uuid.Parse(ruleID)
 	if err != nil {
 		return false, errInvalidID("ruleId", err)
+	}
+	if err := r.requirePromotionRuleManage(ctx, rid); err != nil {
+		return false, err
 	}
 	if err := r.PromotionSvc.DeleteRuleContent(ctx, rid, locale); err != nil {
 		return false, err
@@ -440,7 +438,11 @@ func (r *queryResolver) PromotionAnalytics(ctx context.Context, start *time.Time
 		return nil, err
 	}
 	s, e := defaultAnalyticsRange(start, end)
-	rows, err := r.PromotionSvc.AnalyticsByRule(ctx, s, e)
+	channels, err := r.promotionAnalyticsChannels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.promotionAnalyticsByRule(ctx, s, e, channels)
 	if err != nil {
 		return nil, err
 	}
@@ -467,7 +469,11 @@ func (r *queryResolver) PromotionAnalyticsTotals(ctx context.Context, start *tim
 		return nil, err
 	}
 	s, e := defaultAnalyticsRange(start, end)
-	row, err := r.PromotionSvc.AnalyticsTotals(ctx, s, e)
+	channels, err := r.promotionAnalyticsChannels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.promotionAnalyticsTotals(ctx, s, e, channels)
 	if err != nil {
 		return nil, err
 	}
@@ -494,7 +500,11 @@ func (r *queryResolver) PromotionAnalyticsDaily(ctx context.Context, start *time
 		rid = &id
 	}
 	s, e := defaultAnalyticsRange(start, end)
-	rows, err := r.PromotionSvc.AnalyticsDaily(ctx, s, e, rid)
+	channels, err := r.promotionAnalyticsChannels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.promotionAnalyticsDaily(ctx, s, e, rid, channels)
 	if err != nil {
 		return nil, err
 	}
@@ -515,7 +525,7 @@ func (r *queryResolver) SimulatePromotion(ctx context.Context, input model.Promo
 	}
 	// Reveals which rules fire + discount amounts across rules; gate on
 	// the global promotions.view permission.
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "promotions.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "promotions.view"); err != nil {
 		return nil, err
 	}
 	env, err := simulationInputToEnv(input)

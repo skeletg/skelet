@@ -14,7 +14,7 @@ import (
 )
 
 func (r *mutationResolver) CreateBlogAuthor(ctx context.Context, input model.CreateBlogAuthorInput) (*model.BlogAuthor, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return nil, err
 	}
 	in, err := fromCreateBlogAuthorInput(input)
@@ -29,7 +29,7 @@ func (r *mutationResolver) CreateBlogAuthor(ctx context.Context, input model.Cre
 }
 
 func (r *mutationResolver) UpdateBlogAuthor(ctx context.Context, input model.UpdateBlogAuthorInput) (*model.BlogAuthor, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return nil, err
 	}
 	in, err := fromUpdateBlogAuthorInput(input)
@@ -44,7 +44,7 @@ func (r *mutationResolver) UpdateBlogAuthor(ctx context.Context, input model.Upd
 }
 
 func (r *mutationResolver) DeleteBlogAuthor(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return false, err
 	}
 	uid, err := uuid.Parse(id)
@@ -58,7 +58,7 @@ func (r *mutationResolver) DeleteBlogAuthor(ctx context.Context, id string) (boo
 }
 
 func (r *mutationResolver) UpsertBlogAuthorContent(ctx context.Context, input model.UpsertBlogAuthorContentInput) (*model.BlogAuthor, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return nil, err
 	}
 	authorID, err := parseID(input.AuthorID, "author")
@@ -77,7 +77,7 @@ func (r *mutationResolver) UpsertBlogAuthorContent(ctx context.Context, input mo
 }
 
 func (r *mutationResolver) DeleteBlogAuthorContent(ctx context.Context, authorID string, locale string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return false, err
 	}
 	uid, err := parseID(authorID, "author")
@@ -91,7 +91,7 @@ func (r *mutationResolver) DeleteBlogAuthorContent(ctx context.Context, authorID
 }
 
 func (r *mutationResolver) CreateBlogCategory(ctx context.Context, input model.CreateBlogCategoryInput) (*model.BlogCategory, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return nil, err
 	}
 	in, err := fromCreateBlogCategoryInput(input)
@@ -106,7 +106,7 @@ func (r *mutationResolver) CreateBlogCategory(ctx context.Context, input model.C
 }
 
 func (r *mutationResolver) UpdateBlogCategory(ctx context.Context, input model.UpdateBlogCategoryInput) (*model.BlogCategory, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return nil, err
 	}
 	in, err := fromUpdateBlogCategoryInput(input)
@@ -121,7 +121,7 @@ func (r *mutationResolver) UpdateBlogCategory(ctx context.Context, input model.U
 }
 
 func (r *mutationResolver) DeleteBlogCategory(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return false, err
 	}
 	uid, err := uuid.Parse(id)
@@ -135,7 +135,7 @@ func (r *mutationResolver) DeleteBlogCategory(ctx context.Context, id string) (b
 }
 
 func (r *mutationResolver) UpsertBlogCategoryContent(ctx context.Context, input model.UpsertBlogCategoryContentInput) (*model.BlogCategory, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return nil, err
 	}
 	categoryID, err := parseID(input.CategoryID, "category")
@@ -157,7 +157,7 @@ func (r *mutationResolver) UpsertBlogCategoryContent(ctx context.Context, input 
 }
 
 func (r *mutationResolver) DeleteBlogCategoryContent(ctx context.Context, categoryID string, locale string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return false, err
 	}
 	uid, err := parseID(categoryID, "category")
@@ -171,7 +171,7 @@ func (r *mutationResolver) DeleteBlogCategoryContent(ctx context.Context, catego
 }
 
 func (r *mutationResolver) CreateBlogTag(ctx context.Context, input model.CreateBlogTagInput) (*model.BlogTag, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return nil, err
 	}
 	in := blog.CreateTagInput{
@@ -192,7 +192,7 @@ func (r *mutationResolver) CreateBlogTag(ctx context.Context, input model.Create
 }
 
 func (r *mutationResolver) UpdateBlogTag(ctx context.Context, input model.UpdateBlogTagInput) (*model.BlogTag, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return nil, err
 	}
 	tid, err := uuid.Parse(input.ID)
@@ -211,7 +211,7 @@ func (r *mutationResolver) UpdateBlogTag(ctx context.Context, input model.Update
 }
 
 func (r *mutationResolver) DeleteBlogTag(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return false, err
 	}
 	uid, err := uuid.Parse(id)
@@ -225,7 +225,7 @@ func (r *mutationResolver) DeleteBlogTag(ctx context.Context, id string) (bool, 
 }
 
 func (r *mutationResolver) UpsertBlogTagContent(ctx context.Context, input model.UpsertBlogTagContentInput) (*model.BlogTag, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return nil, err
 	}
 	tid, err := parseID(input.TagID, "tag")
@@ -247,7 +247,7 @@ func (r *mutationResolver) UpsertBlogTagContent(ctx context.Context, input model
 }
 
 func (r *mutationResolver) DeleteBlogTagContent(ctx context.Context, tagID string, locale string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "blog.manage"); err != nil {
 		return false, err
 	}
 	uid, err := parseID(tagID, "tag")
@@ -276,11 +276,11 @@ func (r *mutationResolver) CreateBlogPost(ctx context.Context, input model.Creat
 }
 
 func (r *mutationResolver) UpdateBlogPost(ctx context.Context, input model.UpdateBlogPostInput) (*model.BlogPost, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
-		return nil, err
-	}
 	in, err := fromUpdateBlogPostInput(input)
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPostChannels(ctx, "blog.manage", in.ID, ""); err != nil {
 		return nil, err
 	}
 	p, err := r.BlogSvc.UpdatePost(ctx, in)
@@ -291,12 +291,12 @@ func (r *mutationResolver) UpdateBlogPost(ctx context.Context, input model.Updat
 }
 
 func (r *mutationResolver) DeleteBlogPost(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
-		return false, err
-	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return false, errInvalidID("id", err)
+	}
+	if err := r.requireOnPostChannels(ctx, "blog.manage", uid, ""); err != nil {
+		return false, err
 	}
 	if err := r.BlogSvc.DeletePost(ctx, uid); err != nil {
 		return false, err
@@ -339,6 +339,9 @@ func (r *mutationResolver) UpsertBlogPostContent(ctx context.Context, input mode
 
 // Same all-listed-channels gate as UpsertBlogPostContent.
 func (r *mutationResolver) DeleteBlogPostContent(ctx context.Context, postID string, locale string) (bool, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
+		return false, err
+	}
 	uid, err := parseID(postID, "post")
 	if err != nil {
 		return false, err
@@ -361,12 +364,12 @@ func (r *mutationResolver) DeleteBlogPostContent(ctx context.Context, postID str
 }
 
 func (r *mutationResolver) PublishBlogPost(ctx context.Context, id string) (*model.BlogPost, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
-		return nil, err
-	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("id", err)
+	}
+	if err := r.requireOnPostChannels(ctx, "blog.manage", uid, ""); err != nil {
+		return nil, err
 	}
 	p, err := r.BlogSvc.PublishPost(ctx, uid)
 	if err != nil {
@@ -376,12 +379,12 @@ func (r *mutationResolver) PublishBlogPost(ctx context.Context, id string) (*mod
 }
 
 func (r *mutationResolver) ScheduleBlogPost(ctx context.Context, id string, publishedAt time.Time) (*model.BlogPost, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
-		return nil, err
-	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("id", err)
+	}
+	if err := r.requireOnPostChannels(ctx, "blog.manage", uid, ""); err != nil {
+		return nil, err
 	}
 	p, err := r.BlogSvc.SchedulePost(ctx, uid, publishedAt)
 	if err != nil {
@@ -391,12 +394,12 @@ func (r *mutationResolver) ScheduleBlogPost(ctx context.Context, id string, publ
 }
 
 func (r *mutationResolver) UnpublishBlogPost(ctx context.Context, id string) (*model.BlogPost, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
-		return nil, err
-	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("id", err)
+	}
+	if err := r.requireOnPostChannels(ctx, "blog.manage", uid, ""); err != nil {
+		return nil, err
 	}
 	p, err := r.BlogSvc.UnpublishPost(ctx, uid)
 	if err != nil {
@@ -406,12 +409,12 @@ func (r *mutationResolver) UnpublishBlogPost(ctx context.Context, id string) (*m
 }
 
 func (r *mutationResolver) ArchiveBlogPost(ctx context.Context, id string) (*model.BlogPost, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
-		return nil, err
-	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("id", err)
+	}
+	if err := r.requireOnPostChannels(ctx, "blog.manage", uid, ""); err != nil {
+		return nil, err
 	}
 	p, err := r.BlogSvc.ArchivePost(ctx, uid)
 	if err != nil {
@@ -421,11 +424,11 @@ func (r *mutationResolver) ArchiveBlogPost(ctx context.Context, id string) (*mod
 }
 
 func (r *mutationResolver) SetBlogPostCategories(ctx context.Context, postID string, categoryIds []string) (*model.BlogPost, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(postID, "post")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPostChannels(ctx, "blog.manage", pid, ""); err != nil {
 		return nil, err
 	}
 	cids, err := parseUUIDs(categoryIds)
@@ -440,11 +443,11 @@ func (r *mutationResolver) SetBlogPostCategories(ctx context.Context, postID str
 }
 
 func (r *mutationResolver) SetBlogPostTags(ctx context.Context, postID string, tagIds []string) (*model.BlogPost, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(postID, "post")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPostChannels(ctx, "blog.manage", pid, ""); err != nil {
 		return nil, err
 	}
 	tids, err := parseUUIDs(tagIds)
@@ -467,9 +470,7 @@ func (r *mutationResolver) SetBlogPostChannelListing(ctx context.Context, input 
 	if err != nil {
 		return nil, err
 	}
-	// Channel-scoped: publishing a blog post to a channel is the same shape as publishing a product listing - the admin
-	// needs blog.manage at that specific channel's scope
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "blog.manage", storeID, nil); err != nil {
+	if err := r.requirePostListingChange(ctx, postID, storeID, false); err != nil {
 		return nil, err
 	}
 	p, err := r.BlogSvc.SetPostChannelListing(ctx, blog.SetPostChannelListingInput{
@@ -493,7 +494,7 @@ func (r *mutationResolver) DeleteBlogPostChannelListing(ctx context.Context, pos
 	if err != nil {
 		return nil, err
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "blog.manage", sid, nil); err != nil {
+	if err := r.requirePostListingChange(ctx, pid, sid, true); err != nil {
 		return nil, err
 	}
 	p, err := r.BlogSvc.DeletePostChannelListing(ctx, pid, sid)
@@ -519,6 +520,9 @@ func (r *mutationResolver) MintBlogPostPreviewToken(ctx context.Context, input m
 	if _, err := r.BlogSvc.GetPost(ctx, postID, ""); err != nil {
 		return nil, err
 	}
+	if err := r.requireOnPostChannels(ctx, "blog.manage", postID, ""); err != nil {
+		return nil, err
+	}
 	claims, ok := auth.AdminFromContext(ctx)
 	if !ok || claims == nil {
 		return nil, errAdminRequired()
@@ -539,14 +543,11 @@ func (r *mutationResolver) MintBlogPostPreviewToken(ctx context.Context, input m
 }
 
 func (r *queryResolver) BlogPost(ctx context.Context, slug *string, id *string, includeUnpublished *bool) (*model.BlogPost, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.view"); err != nil {
+		return nil, err
+	}
 	loc := r.activeLocale(ctx)
 	includeUnpub := boolDeref(includeUnpublished, false)
-	if includeUnpub {
-		// Drafts/scheduled/archived require admin auth.
-		if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.view"); err != nil {
-			return nil, err
-		}
-	}
 	// Admin endpoint: scope is explicit, never the ambient (default) channel. includeUnpub=true returns drafts/scheduled/archived for preview; otherwise only published posts are returned, ungated by channel - per-store listing gating is a storefront concern handled on the front endpoint.
 	switch {
 	case id != nil && *id != "":
@@ -573,6 +574,9 @@ func (r *queryResolver) BlogPost(ctx context.Context, slug *string, id *string, 
 }
 
 func (r *queryResolver) BlogPosts(ctx context.Context, filter *model.BlogPostFilter, limit *int32, offset *int32) (*model.BlogPostList, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.view"); err != nil {
+		return nil, err
+	}
 	loc := r.activeLocale(ctx)
 	f := blog.PostListFilter{
 		OnlyPublished: true,
@@ -592,9 +596,6 @@ func (r *queryResolver) BlogPosts(ctx context.Context, filter *model.BlogPostFil
 	f.ChannelID = chID
 	if filter != nil {
 		if boolDeref(filter.IncludeUnpublished, false) {
-			if err := auth.RequirePermission(ctx, r.AdminSvc, "blog.view"); err != nil {
-				return nil, err
-			}
 			f.OnlyPublished = false
 		}
 		if filter.Status != nil {

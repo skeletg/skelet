@@ -20,6 +20,9 @@ func customerSegmentModel(s *signalsv1.CustomerSegment) *model.CustomerSegment {
 		CreatedAt:   s.GetCreatedAt().AsTime(),
 		UpdatedAt:   s.GetUpdatedAt().AsTime(),
 	}
+	if p := s.GetRulesProblem(); p != "" {
+		m.RulesProblem = &p
+	}
 	// The rule tree is opaque on the wire - core stores and forwards it without knowing the grammar
 	if raw := s.GetRulesJson(); raw != "" {
 		var out any
