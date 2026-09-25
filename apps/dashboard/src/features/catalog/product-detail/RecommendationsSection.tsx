@@ -79,7 +79,7 @@ export function RecommendationsSection({ productId, canManage }: { productId: st
 
   return (
     <Section title="Recommendations" description="Curated product links. Automatic 'also bought' suggestions fill in alongside these.">
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_LINK_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_LINK_LABELS} />}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {KINDS.map(({ key, label, hint, Icon }) => (
           <form.Field key={key} name={key}>

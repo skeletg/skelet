@@ -155,7 +155,7 @@ convention is the one most code comments point at.
      mutations. The hook wires the rest: the save registry, a TanStack form
      (`useAppForm`, `src/components/form/form.ts`), the stored draft, the
      section the header Save reviews, and the confirm dialog. `RecordFormPage`
-     renders the header with the one Save button, the restored-draft banner,
+     renders the header with the one Save button, the stored-draft banner,
      the create-failure alert and `SaveConfirmDialog`, so the page file is only
      its sections. Bind fields with
      `<form.AppField name="x">{(f) => <f.TextField … />}</form.AppField>`;
@@ -171,7 +171,11 @@ convention is the one most code comments point at.
        always diffed, one entry per key.
      - **Drafts** (`persist`, `src/lib/form-drafts.ts`) keep the admin's work
        in localStorage, keyed admin → workspace tab → page, with a 7-day TTL.
-       A refresh or a closed browser gives it back. Refresh, close and scope
+       After a refresh or a closed browser the draft is offered, never applied
+       on its own: the banner says one was found, Review lists what it would
+       change (the Save dialog's rows, plus any field someone else changed
+       since), and Restore puts it back into the form, which still needs Save.
+       Editing instead of deciding drops the offer. Refresh, close and scope
        switches stop prompting; closing the workspace tab still does, and
        deletes the draft. Dialogs pass `persist: false`. List secrets in
        `exclude`, because they must never reach storage. Other staged

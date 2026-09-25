@@ -87,7 +87,7 @@ export function GeneralProductSection({
         </Badge>
       }
     >
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_GENERAL_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_GENERAL_LABELS} />}
       <fieldset disabled={!canManage} className="grid gap-4">
         <form.AppField name="name">{(f) => <f.TextField id="pd-name" label="Name" />}</form.AppField>
         <form.AppField name="sku">

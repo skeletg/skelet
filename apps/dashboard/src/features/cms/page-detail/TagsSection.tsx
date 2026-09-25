@@ -66,7 +66,7 @@ export function CmsPageTagsSection({
 
   return (
     <div className="grid gap-3">
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PAGE_TAGS_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PAGE_TAGS_LABELS} />}
       {library.length === 0 && orphans.length === 0 ? (
         <p className="text-sm text-muted-foreground">No tags in the library yet - create one below, or in CMS → Tags.</p>
       ) : (

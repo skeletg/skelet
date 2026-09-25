@@ -62,7 +62,7 @@ export function TierPricingSection({
           Quantity-break prices per customer group. The lowest applicable tier beats the regular price in the cart.
         </p>
       </div>
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_TIER_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_TIER_LABELS} />}
       <fieldset disabled={!canManage} className="grid gap-2">
         <form.Field name="tiers" mode="array">
           {(tiers) => (

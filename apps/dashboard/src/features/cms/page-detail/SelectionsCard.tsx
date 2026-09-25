@@ -59,7 +59,7 @@ export function SelectionsCard({
 
   return (
     <fieldset disabled={!canManage} className="grid gap-4">
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PAGE_LINKS_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PAGE_LINKS_LABELS} />}
       {selectAttrs.map((pta) => {
         const a = pta.attribute
         const current = new Set(chosen[a.id] ?? [])

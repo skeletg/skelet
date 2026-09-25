@@ -40,7 +40,7 @@ export function BasicsCard({
 
   return (
     <fieldset disabled={!canManage} className="grid gap-4">
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PAGE_BASICS_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PAGE_BASICS_LABELS} />}
       <form.AppField name="slug">{(f) => <f.TextField id="slug" label="Slug" />}</form.AppField>
       <form.Field name="seoNoindex">
         {(f) => (

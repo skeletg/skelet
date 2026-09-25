@@ -971,7 +971,7 @@ function GeneralProductTypeSection({ productType, canManage }: { productType: Ex
 
   return (
     <DetailPageSection title="General" description="Slug is immutable after creation. Other settings can be edited at any time.">
-      {draft.restoredAt !== null && (
+      {draft.offer !== null && (
         <div className="mb-4">
           <RestoredDraftBanner draft={draft} labels={PRODUCT_TYPE_LABELS} />
         </div>

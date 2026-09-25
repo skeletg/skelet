@@ -821,7 +821,7 @@ function CategoryRecordForm({
 
         {/* ── Body ────────────────────────────────────────────── */}
         <div className="divide-y pb-16">
-          {draft.restoredAt !== null && (
+          {draft.offer !== null && (
             <div className="px-6 py-4">
               <RestoredDraftBanner draft={draft} labels={CATEGORY_LABELS} />
             </div>

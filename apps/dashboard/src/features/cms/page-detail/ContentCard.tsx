@@ -97,7 +97,7 @@ export function ContentCard({
 
   return (
     <div className="grid gap-4">
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PAGE_CONTENT_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PAGE_CONTENT_LABELS} />}
       {!canEditTranslations && (
         <Alert>
           <AlertTitle>Translation editing is disabled in this scope</AlertTitle>

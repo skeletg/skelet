@@ -8,7 +8,8 @@ import { usePersistedForm } from './usePersistedForm'
 // registered into the page's save registry through context, so the page's one header Save reviews
 // and writes it alongside the others. For a page that IS one form, use useRecordForm instead
 //
-// Render the draft banner inside the section: `{draft.restoredAt !== null && <RestoredDraftBanner …/>}`
+// Render the draft banner inside the section: `<RestoredDraftBanner draft={draft} labels={…} />` - it
+// offers a stored draft for review and renders nothing when there is none
 
 export function useSectionForm<T extends object>(opts: {
   /** Section id and title in the confirm dialog */
@@ -39,7 +40,7 @@ export function useSectionForm<T extends object>(opts: {
     },
   })
   const enabled = opts.enabled ?? true
-  const draft = usePersistedForm(form, { routeKey: opts.routeKey, baseline: opts.baseline, label: opts.label, enabled })
+  const draft = usePersistedForm(form, { routeKey: opts.routeKey, baseline: opts.baseline, label: opts.label, enabled, diff: opts.diff })
   useFormSection({
     id: opts.id,
     title: opts.title,

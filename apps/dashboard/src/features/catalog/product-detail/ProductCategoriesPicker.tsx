@@ -213,7 +213,7 @@ export function ProductCategoriesPicker({
 
   return (
     <div className="grid gap-3">
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_CATEGORY_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_CATEGORY_LABELS} />}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="grid gap-0.5">
           <Label className="text-sm font-medium">Categories</Label>

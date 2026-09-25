@@ -52,7 +52,7 @@ export function RelationshipsCard({
 
   return (
     <div className="grid gap-4">
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PAGE_LINKS_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PAGE_LINKS_LABELS} />}
       {relationshipAttrs.map((pta) => (
         <RelationshipField
           key={pta.attribute.id}
