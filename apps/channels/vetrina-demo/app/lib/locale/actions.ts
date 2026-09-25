@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { loadHeader } from "@/app/lib/header/read";
-import { getChannelLocales } from "@/app/lib/locale/backend-locales";
+import { getCurrentChannelLocales } from "@/app/lib/locale/read";
 
 // Switching language changes the URL, it does not set a cookie. The pages that matter here render
 // without a request and can't read one, so a cookie-driven language silently served everyone the
@@ -32,7 +32,7 @@ export async function setLocale(formData: FormData) {
   }
 
   // Drop an existing prefix before adding the new one, or switching twice stacks them
-  const { codes, defaultLocale } = await getChannelLocales();
+  const { codes, defaultLocale } = await getCurrentChannelLocales();
   const first = path.split("/")[1] ?? "";
   if (codes.includes(first)) path = path.slice(first.length + 1) || "/";
   redirect(code === defaultLocale ? path : `/${code}${path === "/" ? "" : path}`);

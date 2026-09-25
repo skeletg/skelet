@@ -1,14 +1,9 @@
-// Storefront locale state
-
+import { headers } from "next/headers";
+import { channel } from "next/root-params";
 import { getLocale } from "next-intl/server";
-import { requireChannelId } from "@/app/lib/channel";
 
-// A storefront serves exactly ONE channel, pinned per deployment via STOREFRONT_CHANNEL_ID, in dev
-// as well as in production - to look at another channel, run another instance pinned to it at that
-// channel's public_url. A dev-only cookie override is deliberately absent: it would do nothing on
-// a force-static route (which is every pretty URL), so a preview would look like it worked while
-// rendering the pinned channel
-export { DEFAULT_CHANNEL_ID } from "@/app/lib/channel";
+import { CHANNEL_HEADER, PINNED_CHANNEL_ID } from "@/app/lib/channel";
+import { getChannelLocales, type ChannelLocales } from "@/app/lib/locale/backend-locales";
 
 // From the [locale] route segment, never from a cookie. A cookie can't be read on the routes that
 // serve most of the site (they render without a request), so a cookie-driven language silently
@@ -18,8 +13,28 @@ export async function getCurrentLocale(): Promise<string> {
   return getLocale();
 }
 
-// Not async-cookie-dependent on purpose - the channel is a constant for the process, which is what
-// lets force-static routes render correctly. Anything request-scoped here is silently wrong there
+function rethrowIfDynamicBailout(err: unknown): void {
+  const digest = (err as { digest?: unknown } | null | undefined)?.digest;
+  if (typeof digest === "string" && digest.startsWith("DYNAMIC_SERVER_USAGE")) throw err;
+}
+
+// Pages read the [channel] segment, so static renders are per channel; route handlers and actions read the proxy's header
 export async function getCurrentChannelId(): Promise<string> {
-  return requireChannelId();
+  try {
+    const c = await channel();
+    if (c) return c;
+  } catch {
+    // not under the [channel] root layout
+  }
+  try {
+    const c = (await headers()).get(CHANNEL_HEADER);
+    if (c) return c;
+  } catch (err) {
+    rethrowIfDynamicBailout(err);
+  }
+  return PINNED_CHANNEL_ID;
+}
+
+export async function getCurrentChannelLocales(): Promise<ChannelLocales> {
+  return getChannelLocales(await getCurrentChannelId());
 }
