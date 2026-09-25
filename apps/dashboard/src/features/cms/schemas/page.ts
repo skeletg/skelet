@@ -95,3 +95,63 @@ export function pageRelationshipsDiff(attrs: PageTypeAttr[]) {
       return { kind: 'change', label: attrName(attrs, id), before: b, after: a === b ? `${a}, reordered or swapped` : a }
     })
 }
+
+// ---------- Tags: slugs from the shared library ----------
+
+export const pageTagsSchema = z.object({ tags: z.array(z.string()) })
+
+export type PageTagsValues = z.infer<typeof pageTagsSchema>
+
+export const PAGE_TAGS_LABELS: Record<keyof PageTagsValues, string> = { tags: 'Tags' }
+
+export function pageTagsDiff(tagName: (slug: string) => string) {
+  const label = (slugs: string[]) => slugs.map(tagName).sort().join(', ') || 'none'
+  return (original: PageTagsValues, draft: PageTagsValues): SectionDiffEntry[] =>
+    [...original.tags].sort().join(' ') === [...draft.tags].sort().join(' ')
+      ? []
+      : [{ kind: 'change', label: PAGE_TAGS_LABELS.tags, before: label(original.tags), after: label(draft.tags) }]
+}
+
+// ---------- Channels: one listing per channel ----------
+
+// `listed` - a listing row exists; without one the page falls back to its global publish state
+export type ListingDraft = { listed: boolean; isPublished: boolean; isHomepage: boolean; seoNoindex: boolean }
+export const EMPTY_LISTING: ListingDraft = { listed: false, isPublished: false, isHomepage: false, seoNoindex: false }
+
+export const pageChannelsSchema = z.object({
+  listings: z.record(z.string(), z.object({ listed: z.boolean(), isPublished: z.boolean(), isHomepage: z.boolean(), seoNoindex: z.boolean() })),
+})
+
+export type PageChannelsValues = z.infer<typeof pageChannelsSchema>
+
+export const PAGE_CHANNELS_LABELS: Record<keyof PageChannelsValues, string> = { listings: 'Channels' }
+
+export function toPageChannelsValues(listings: { channelId: string; isPublished: boolean; isHomepage: boolean; seoNoindex: boolean }[]): PageChannelsValues {
+  return {
+    listings: Object.fromEntries(
+      listings.map((l) => [l.channelId, { listed: true, isPublished: l.isPublished, isHomepage: l.isHomepage, seoNoindex: l.seoNoindex }]),
+    ),
+  }
+}
+
+export const listingOf = (v: PageChannelsValues, channelId: string): ListingDraft => v.listings[channelId] ?? EMPTY_LISTING
+
+export function changedChannels(before: PageChannelsValues, after: PageChannelsValues): string[] {
+  const ids = new Set([...Object.keys(before.listings), ...Object.keys(after.listings)])
+  return [...ids].filter((id) => JSON.stringify(listingOf(before, id)) !== JSON.stringify(listingOf(after, id)))
+}
+
+export function listingStateLabel(s: ListingDraft): string {
+  if (!s.listed) return 'Not listed'
+  return [s.isPublished ? 'Published' : 'Unpublished', ...(s.isHomepage ? ['homepage'] : [])].join(', ')
+}
+
+export function pageChannelsDiff(channelName: (id: string) => string) {
+  return (original: PageChannelsValues, draft: PageChannelsValues): SectionDiffEntry[] =>
+    changedChannels(original, draft).map((id) => ({
+      kind: 'change',
+      label: channelName(id),
+      before: listingStateLabel(listingOf(original, id)),
+      after: listingStateLabel(listingOf(draft, id)),
+    }))
+}
