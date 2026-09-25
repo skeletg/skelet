@@ -1,19 +1,13 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useMutation } from '@apollo/client/react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ProductDocument, SetProductListingDocument } from '../Catalog.gql'
 import { useProductSaveSection, type SectionDiffEntry } from '../productSaveRegistry'
+import { useProductListingWrite } from './productListing'
 
-// Per-store URL override editor, shown inside the SEO section - A product can
-// have a different URL path on a specific store; blank inherits the product's
-// own URL - The override rides on the store listing (there's no standalone
-// per-channel URL mutation), so saving re-sends the listing's current
-// published/price values alongside the new URL to leave them untouched
-//
-// NOTE: because the per-store price/publish editor writes the same listing, a
-// single "Save" that changes BOTH a store's price AND its URL override may need
-// a second save - last write wins per store - Editing one at a time is safe
+// Per-store URL override editor, shown inside the SEO section - A product can have a different URL
+// path on a specific store; blank inherits the product's own URL. The override rides on the store
+// listing (there's no standalone per-channel URL mutation) - the listing writer keeps its published
+// and price values as they are
 
 type ListingLite = {
   isPublished: boolean
@@ -35,12 +29,10 @@ export function ChannelUrlOverridesEditor({
   productId,
   listings,
   canManage,
-  productVariables,
 }: {
   productId: string
   listings: ListingLite[]
   canManage: boolean
-  productVariables: { id: string }
 }) {
   const initial = useMemo<Row[]>(
     () =>
@@ -64,9 +56,7 @@ export function ChannelUrlOverridesEditor({
     setRows(initial)
   }
 
-  const [setListing] = useMutation(SetProductListingDocument, {
-    refetchQueries: [{ query: ProductDocument, variables: productVariables }],
-  })
+  const writeListing = useProductListingWrite(productId)
 
   const patch = (channelId: string, url: string) =>
     setRows((prev) => prev.map((r) => (r.channelId === channelId ? { ...r, url } : r)))
@@ -87,19 +77,9 @@ export function ChannelUrlOverridesEditor({
   const save = useCallback(async () => {
     for (const r of rows) {
       if (r.url.trim() === r.originalUrl.trim()) continue
-      await setListing({
-        variables: {
-          input: {
-            productId,
-            channelId: r.channelId,
-            isPublished: r.isPublished,
-            price: r.price,
-            url: r.url.trim() === '' ? null : r.url.trim(),
-          },
-        },
-      })
+      await writeListing(r.channelId, { url: r.url.trim() === '' ? null : r.url.trim() })
     }
-  }, [rows, productId, setListing])
+  }, [rows, writeListing])
 
   useProductSaveSection({ id: 'channel-urls', title: 'Per-store URL overrides', diff, save })
 

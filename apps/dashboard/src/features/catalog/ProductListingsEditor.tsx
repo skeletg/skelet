@@ -20,9 +20,9 @@ import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import {
   ClearProductListingDocument,
   ProductDocument,
-  SetProductListingDocument,
 } from './Catalog.gql'
 import { useProductSaveSection, type SectionDiffEntry } from './productSaveRegistry'
+import { useProductListingWrite } from './product-detail/productListing'
 
 type Listing = {
   isPublished: boolean
@@ -119,7 +119,7 @@ export function ProductListingsEditor({
   }, [initialRows])
 
   const refetch = [{ query: ProductDocument, variables: productQueryVariables ?? { id: product.id } }]
-  const [setListing] = useMutation(SetProductListingDocument, { refetchQueries: refetch })
+  const writeListing = useProductListingWrite(product.id)
   const [clearListing] = useMutation(ClearProductListingDocument, { refetchQueries: refetch })
 
   function patchRow(id: string, patch: Partial<RowState>) {
@@ -184,19 +184,13 @@ export function ProductListingsEditor({
         })
         continue
       }
-      await setListing({
-        variables: {
-          input: {
-            productId: product.id,
-            channelId: r.channel.id,
-            isPublished: r.isPublished,
-            price: r.inheritPrice ? null : dollarsToCents(r.priceDollars),
-            url: r.url.trim() === '' ? null : r.url.trim(),
-          },
-        },
+      // The store's URL is the per-store URL section's - this one only prices and publishes
+      await writeListing(r.channel.id, {
+        isPublished: r.isPublished,
+        price: r.inheritPrice ? null : dollarsToCents(r.priceDollars),
       })
     }
-  }, [rows, product.id, setListing, clearListing])
+  }, [rows, product.id, writeListing, clearListing])
 
   useProductSaveSection({
     id: 'listings',
