@@ -24,9 +24,9 @@ type Row = NotificationsQuery['notifications'][number]
 type PushRow = NotificationAddedSubscription['notificationAdded']
 
 const SEVERITY_DOT: Record<string, string> = {
-  critical: 'bg-red-500',
-  warning: 'bg-amber-500',
-  info: 'bg-sky-500',
+  critical: 'bg-destructive',
+  warning: 'bg-warning',
+  info: 'bg-info',
 }
 
 function timeAgo(iso: string): string {
@@ -143,7 +143,7 @@ export function NotificationBell() {
         <Button data-tour="bell" variant="ghost" size="icon" aria-label="Notifications" className="relative">
           <BellIcon className="size-4" />
           {unread > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground">
               {unread > 9 ? '9+' : unread}
             </span>
           )}

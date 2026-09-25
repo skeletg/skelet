@@ -224,7 +224,7 @@ function StatusCell({ row }: { row: DeliveryRow }) {
       variant={kind === 'success' ? 'outline' : 'destructive'}
       className={cn(
         'gap-1 font-mono text-[11px]',
-        kind === 'success' && 'border-green-500/30 text-green-600 dark:text-green-400',
+        kind === 'success' && 'border-success/30 text-success',
       )}
     >
       {kind === 'success' ? (

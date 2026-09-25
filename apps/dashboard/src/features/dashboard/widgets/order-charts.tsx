@@ -8,11 +8,11 @@ import {
   YAxis,
 } from 'recharts'
 import { ChartTooltipContent } from '@/components/ui/chart'
+import { CHART_ACCENT } from '@/lib/chart-colors'
 import { OrderStatusBadge } from '@/features/orders/OrderStatusBadge'
 import { SALES_DAYS, useSalesReport } from './sales'
 import { Empty, Panel, WidgetSection } from './primitives'
 
-const ACCENT = '#6366f1'
 const nfmt = (n: number) => n.toLocaleString()
 const dayLabel = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
 
@@ -43,15 +43,15 @@ export function OrderChartsWidget() {
                 <AreaChart data={points} margin={{ top: 8, right: 12, bottom: 0, left: -16 }}>
                   <defs>
                     <linearGradient id="home-vol" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={ACCENT} stopOpacity={0.35} />
-                      <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
+                      <stop offset="0%" stopColor={CHART_ACCENT} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={CHART_ACCENT} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={20} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={28} />
                   <Tooltip content={<ChartTooltipContent />} />
-                  <Area type="monotone" dataKey="count" name="Orders" stroke={ACCENT} strokeWidth={2} fill="url(#home-vol)" />
+                  <Area type="monotone" dataKey="count" name="Orders" stroke={CHART_ACCENT} strokeWidth={2} fill="url(#home-vol)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

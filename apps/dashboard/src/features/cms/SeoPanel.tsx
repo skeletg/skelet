@@ -54,9 +54,9 @@ function initialSchemaMode(rawJson: string, spec: SchemaSpec | null): SchemaMode
 type ImageValue = string | AssetRef
 
 function LintIcon({ level }: { level: LintLevel }) {
-  if (level === 'fail') return <XCircleIcon className="mt-0.5 size-4 shrink-0 text-red-600 dark:text-red-400" />
-  if (level === 'warn') return <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-  return <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+  if (level === 'fail') return <XCircleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
+  if (level === 'warn') return <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-warning" />
+  return <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-success" />
 }
 
 function SerpPreview({ title, description, urlPath }: { title: string; description: string; urlPath: string }) {
@@ -64,7 +64,7 @@ function SerpPreview({ title, description, urlPath }: { title: string; descripti
   return (
     <div className="rounded-md border bg-background p-3">
       <div className="truncate text-xs text-muted-foreground">yourstore.com{path}</div>
-      <div className="truncate text-[18px] leading-tight text-[#1a0dab] dark:text-blue-400">
+      <div className="truncate text-[18px] leading-tight text-[#1a0dab] dark:text-[#8ab4f8]">
         {truncate(title || 'Untitled page', 60)}
       </div>
       <div className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
@@ -403,7 +403,7 @@ export function SeoPanel({
               placeholder={'{ "@context": "https://schema.org", "@type": "WebPage", "name": "…" }'}
             />
             {jsonld.trim() && !jsonldValid ? (
-              <span className="text-xs text-red-600 dark:text-red-400">
+              <span className="text-xs text-destructive">
                 Invalid JSON - fix it or the storefront will skip it
               </span>
             ) : (

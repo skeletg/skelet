@@ -12,6 +12,7 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { DataTable } from '@/components/data-table'
+import { SERIES, SERIES_OTHER } from '@/lib/chart-colors'
 import { useConfigScope } from '@/lib/config-scope'
 import { BotTrafficDocument } from './Lens.gql'
 
@@ -29,17 +30,17 @@ const fmtWhen = (v?: string | null) => {
 // Category → friendly label + colour, used for the per-agent badges and the category roll-up. "ai" is first because
 // it's the headline use case (which LLMs crawl me)
 const CAT: Record<string, { label: string; color: string }> = {
-  ai: { label: 'AI / LLM', color: '#8b5cf6' },
-  search: { label: 'Search', color: '#0ea5e9' },
-  social: { label: 'Social', color: '#ec4899' },
-  seo: { label: 'SEO tool', color: '#f59e0b' },
-  monitoring: { label: 'Monitoring', color: '#10b981' },
-  scraper: { label: 'Scraper', color: '#ef4444' },
-  other: { label: 'Other', color: '#64748b' },
+  ai: { label: 'AI / LLM', color: SERIES[3] },
+  search: { label: 'Search', color: SERIES[1] },
+  social: { label: 'Social', color: SERIES[7] },
+  seo: { label: 'SEO tool', color: SERIES[4] },
+  monitoring: { label: 'Monitoring', color: SERIES[2] },
+  scraper: { label: 'Scraper', color: SERIES[5] },
+  other: { label: 'Other', color: SERIES_OTHER },
 }
 const catOf = (c: string) => CAT[c] ?? CAT.other
-const HUMAN = '#10b981'
-const BOT = '#8b5cf6'
+const HUMAN = SERIES[2]
+const BOT = SERIES[3]
 
 export function LensBots() {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()

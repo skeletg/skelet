@@ -441,9 +441,9 @@ function EditGate({ locked, children }: { locked: boolean; children: ReactNode }
 }
 
 const VAT_STATUS_STYLE: Record<string, string> = {
-  valid: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
-  invalid: 'bg-red-500/10 text-red-600 border-red-500/30',
-  unavailable: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
+  valid: 'bg-success-soft text-success border-success/30',
+  invalid: 'bg-destructive-soft text-destructive border-destructive/30',
+  unavailable: 'bg-warning-soft text-warning border-warning/30',
   unverified: 'bg-muted text-muted-foreground border-border',
 }
 

@@ -488,9 +488,9 @@ export function ChatDock() {
                       className={cn(
                         'flex w-full items-start gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/60',
                         it.level === 'warn'
-                          ? 'border-amber-500/40'
+                          ? 'border-warning/40'
                           : it.level === 'good'
-                            ? 'border-emerald-500/40'
+                            ? 'border-success/40'
                             : '',
                       )}
                     >
@@ -498,9 +498,9 @@ export function ChatDock() {
                         className={cn(
                           'mt-1.5 size-2 shrink-0 rounded-full',
                           it.level === 'warn'
-                            ? 'bg-amber-500'
+                            ? 'bg-warning'
                             : it.level === 'good'
-                              ? 'bg-emerald-500'
+                              ? 'bg-success'
                               : 'bg-muted-foreground/50',
                         )}
                       />

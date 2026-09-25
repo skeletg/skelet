@@ -24,8 +24,8 @@ import { type Check, meaningful, useJustChanged } from './refreshCue'
 // Groups and rows are whatever the backend registered, so nothing here is keyed to a specific subsystem - a new one appears with no change
 // to this file Semantic colours are spelled out rather than taken from primary/accent, which are theme tokens an operator can recolour
 const TONE: Record<HealthStatus, string> = {
-  OK: 'text-emerald-600 dark:text-emerald-400',
-  WARN: 'text-amber-600 dark:text-amber-400',
+  OK: 'text-success',
+  WARN: 'text-warning',
   BAD: 'text-destructive',
   OFF: 'text-muted-foreground',
 }

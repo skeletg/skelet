@@ -566,7 +566,7 @@ function PreflightPanel({ warnings }: { warnings: Array<{ severity: string; mess
               key={i}
               className={
                 w.severity === 'warn'
-                  ? 'rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300'
+                  ? 'rounded-md border border-warning/30 bg-warning-soft px-2.5 py-1.5 text-xs text-warning'
                   : 'rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground'
               }
             >

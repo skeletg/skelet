@@ -133,12 +133,12 @@ export function LensRecordings() {
           return (
             <div className="flex items-center gap-1.5">
               {r.rageCount > 0 ? (
-                <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400" title="rage clicks">
+                <span className="rounded-full bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning" title="rage clicks">
                   😡 {r.rageCount}
                 </span>
               ) : null}
               {r.errorCount > 0 ? (
-                <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:text-red-400" title="JS errors">
+                <span className="rounded-full bg-destructive-soft px-1.5 py-0.5 text-[11px] font-medium text-destructive" title="JS errors">
                   ⚠ {r.errorCount}
                 </span>
               ) : null}

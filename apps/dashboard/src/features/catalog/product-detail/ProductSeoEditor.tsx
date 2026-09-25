@@ -117,7 +117,7 @@ export function ProductSeoEditor({
                 )}
               </form.AppField>
               {urlDirty && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">A 301 redirect will be created from the old URL automatically.</p>
+                <p className="text-xs text-warning">A 301 redirect will be created from the old URL automatically.</p>
               )}
             </div>
           )}

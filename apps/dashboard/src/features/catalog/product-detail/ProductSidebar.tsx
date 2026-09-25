@@ -211,7 +211,7 @@ export function ProductSidebar({ product }: { product: SidebarProduct }) {
               label="Availability"
               value={
                 stock?.inStock ? (
-                  <span className="text-emerald-600 dark:text-emerald-400">In stock</span>
+                  <span className="text-success">In stock</span>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-muted-foreground">
                     <CircleOffIcon className="size-3" /> Out of stock

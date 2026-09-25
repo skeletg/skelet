@@ -197,7 +197,7 @@ function VariantBodyEditor({
           <Button size="sm" onClick={save} disabled={saving}>
             {saving ? 'Saving…' : `Save ${variationName} layout`}
           </Button>
-          {ok && <span className="text-xs text-emerald-600">Saved.</span>}
+          {ok && <span className="text-xs text-success">Saved.</span>}
         </div>
       )}
     </div>

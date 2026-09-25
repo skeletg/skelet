@@ -173,7 +173,7 @@ export function PermissionCatalog() {
                           </span>
                           {held && (
                             <CheckIcon
-                              className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                              className="size-3.5 shrink-0 text-success"
                               aria-label="Held by you"
                             >
                               <title>You hold this permission via your roles.</title>

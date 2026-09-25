@@ -161,7 +161,7 @@ export function ConfigurableVariantsCard({
                     key={a.id}
                     className={`flex items-center gap-2.5 rounded border bg-card px-3 py-2 transition-colors hover:bg-muted/50 has-checked:border-foreground/40 has-checked:bg-muted ${
                       locked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-                    } ${dirty ? 'ring-1 ring-amber-500/50' : ''}`}
+                    } ${dirty ? 'ring-1 ring-warning/50' : ''}`}
                   >
                     <input
                       type="checkbox"

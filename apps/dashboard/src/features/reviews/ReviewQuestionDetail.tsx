@@ -243,10 +243,10 @@ function QuestionEditor({ question }: { question: ReviewQuestionFieldsFragment }
                         <div className="flex items-center justify-between gap-2">
                           <Label className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                             {row.locale}
-                            {row.exists ? null : <span className="ml-2 text-[10px] text-amber-600">missing</span>}
+                            {row.exists ? null : <span className="ml-2 text-[10px] text-warning">missing</span>}
                           </Label>
                           {dirty ? (
-                            <span className="text-[10px] text-amber-600">unsaved</span>
+                            <span className="text-[10px] text-warning">unsaved</span>
                           ) : row.exists ? null : (
                             <span className="text-[10px] text-muted-foreground">not translated</span>
                           )}

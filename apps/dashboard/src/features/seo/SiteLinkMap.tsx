@@ -283,7 +283,7 @@ export function SiteLinkMap() {
           {active ? (
             <div className="mt-3 rounded-md border border-l-2 border-l-sky-500 p-3">
               <div className="flex items-center gap-2 text-sm font-medium">
-                <RadarIcon className="size-4 animate-pulse text-sky-500" /> Crawling {active.baseUrl}
+                <RadarIcon className="size-4 animate-pulse text-info" /> Crawling {active.baseUrl}
               </div>
               <div className="mt-1 text-xs text-muted-foreground tabular-nums">
                 {active.pagesCrawled.toLocaleString()} of {active.maxPages.toLocaleString()} pages ·{' '}
@@ -345,7 +345,7 @@ export function SiteLinkMap() {
                   icon={UnlinkIcon}
                   label={stats!.complete ? 'Never linked to' : 'Not reached (budget)'}
                   value={(stats!.complete ? stats!.unseen : stats!.discovered + stats!.unseen).toLocaleString()}
-                  tone={stats!.complete && stats!.unseen > 0 ? 'text-amber-600' : undefined}
+                  tone={stats!.complete && stats!.unseen > 0 ? 'text-warning' : undefined}
                 />
                 <Stat icon={LayersIcon} label="Deepest page (clicks)" value={String(stats!.maxDepth)} />
                 <Stat icon={EyeOffIcon} label="noindex" value={stats!.noindexed.toLocaleString()} />

@@ -530,7 +530,7 @@ function OptionCard({
               </Badge>
             )}
             {pending && (
-              <Badge variant="outline" className="font-normal text-amber-700 dark:text-amber-400">Unsaved</Badge>
+              <Badge variant="outline" className="font-normal text-warning">Unsaved</Badge>
             )}
           </div>
           {content.helpText && (
@@ -580,7 +580,7 @@ function OptionCard({
                   {sortedValues.map((v) => {
                     const vp = isTemp(v.id)
                     return (
-                      <TableRow key={v.id} className={vp ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}>
+                      <TableRow key={v.id} className={vp ? 'bg-warning-soft' : ''}>
                         <TableCell className="font-medium">{valueContentFor(v, locale)}</TableCell>
                         <TableCell className="font-mono text-xs">
                           {v.sourceProduct ? (

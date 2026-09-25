@@ -581,7 +581,7 @@ function TreeNode({
         <span className={`flex-1 truncate ${isSelected ? 'font-medium' : ''}`}>{node.name}</span>
         <span
           className={`size-1.5 shrink-0 rounded-full ${
-            node.isPublished ? 'bg-emerald-500' : 'bg-muted-foreground/40'
+            node.isPublished ? 'bg-success' : 'bg-muted-foreground/40'
           }`}
           title={node.isPublished ? 'Published' : 'Draft'}
         />
@@ -1622,7 +1622,7 @@ function CategoryAvailabilitySection({
                 {draft.pendingRemove ? 'Undo remove' : 'Remove listing'}
               </Button>
               {op != null ? (
-                <span className="text-xs text-amber-600">
+                <span className="text-xs text-warning">
                   Pending: {op === 'create' ? 'add' : op === 'remove' ? 'remove' : 'update'}.
                   Save with the header button.
                 </span>
@@ -1681,9 +1681,9 @@ function CategoryAvailabilitySection({
                   </td>
                   <td className="px-3 py-2 text-right">
                     {op === 'create' ? (
-                      <span className="text-xs text-amber-600">will create</span>
+                      <span className="text-xs text-warning">will create</span>
                     ) : op === 'update' ? (
-                      <span className="text-xs text-amber-600">modified</span>
+                      <span className="text-xs text-warning">modified</span>
                     ) : op === 'remove' ? (
                       <span className="text-xs text-destructive">will remove</span>
                     ) : (
@@ -1709,7 +1709,7 @@ function CategoryAvailabilitySection({
         </table>
       </div>
       {dirtyCount > 0 ? (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-warning">
           {dirtyCount} pending change{dirtyCount === 1 ? '' : 's'}. Save with the
           header button - the confirm modal lists every channel change before it
           commits.

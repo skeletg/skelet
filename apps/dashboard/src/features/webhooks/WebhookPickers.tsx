@@ -78,7 +78,7 @@ function KindOption({
         selected
           ? kind === 'SYNC'
             ? 'border-destructive/50 bg-destructive/5 ring-1 ring-destructive/30'
-            : 'border-blue-500/50 bg-blue-500/5 ring-1 ring-blue-500/30'
+            : 'border-info/50 bg-info-soft ring-1 ring-info/30'
           : 'hover:bg-muted/40',
       )}
     >

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ChartTooltipContent } from '@/components/ui/chart'
+import { CHART_ACCENT } from '@/lib/chart-colors'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -24,7 +25,6 @@ import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNam
 import { eventLabel } from './eventLabel'
 import { SynapseOverviewDocument, SynapseStickinessDocument } from './Synapse.gql'
 
-const ACCENT = '#6366f1'
 const nfmt = (n: number) => n.toLocaleString()
 const fmtMoney = (cents: number, currency: string) => (cents / 100).toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
 const fmtWhen = (v?: string | null) => {
@@ -119,7 +119,7 @@ export function SynapseHome() {
                   </div>
                   <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
                     <div className="bg-primary" style={{ width: `${((ov.identifiedCustomers ?? 0) / audience) * 100}%` }} title={`Identified: ${nfmt(ov.identifiedCustomers)}`} />
-                    <div className="bg-amber-500" style={{ width: `${((ov.anonymousVisitors ?? 0) / audience) * 100}%` }} title={`Anonymous: ${nfmt(ov.anonymousVisitors)}`} />
+                    <div className="bg-warning" style={{ width: `${((ov.anonymousVisitors ?? 0) / audience) * 100}%` }} title={`Anonymous: ${nfmt(ov.anonymousVisitors)}`} />
                   </div>
                 </div>
               )}
@@ -136,15 +136,15 @@ export function SynapseHome() {
                         <AreaChart data={activity} margin={{ top: 8, right: 12, bottom: 0, left: -12 }}>
                           <defs>
                             <linearGradient id="syn-act" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor={ACCENT} stopOpacity={0.35} />
-                              <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
+                              <stop offset="0%" stopColor={CHART_ACCENT} stopOpacity={0.35} />
+                              <stop offset="100%" stopColor={CHART_ACCENT} stopOpacity={0} />
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                           <XAxis dataKey="day" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={24} />
                           <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={32} />
                           <Tooltip content={<ChartTooltipContent />} />
-                          <Area type="monotone" dataKey="count" name="Active people" stroke={ACCENT} strokeWidth={2} fill="url(#syn-act)" />
+                          <Area type="monotone" dataKey="count" name="Active people" stroke={CHART_ACCENT} strokeWidth={2} fill="url(#syn-act)" />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
@@ -160,7 +160,7 @@ export function SynapseHome() {
                           <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
                           <YAxis type="category" dataKey="label" width={120} tick={{ fontSize: 11 }} />
                           <Tooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="count" name="Events" fill={ACCENT} radius={[0, 4, 4, 0]} barSize={14} />
+                          <Bar dataKey="count" name="Events" fill={CHART_ACCENT} radius={[0, 4, 4, 0]} barSize={14} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
