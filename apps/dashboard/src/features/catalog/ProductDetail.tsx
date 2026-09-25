@@ -524,7 +524,7 @@ export function ProductDetail() {
           >
             <div className="grid gap-6">
               <ProductSeoEditor
-                key={`${product.id}:${scopedLocale ?? 'default'}:${product.updatedAt}:seo`}
+                key={`${product.id}:${scopedLocale ?? 'default'}:seo`}
                 product={product}
                 locale={translationLocale || product.contentLocale || product.content[0]?.locale || globalDefaultLocale}
                 canManage={canManage}
