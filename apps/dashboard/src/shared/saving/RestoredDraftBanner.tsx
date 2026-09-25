@@ -21,9 +21,9 @@ export function RestoredDraftBanner({
   })
   return (
     <div className="flex items-start gap-3 rounded-md border border-warning/40 bg-warning-soft px-4 py-3 text-sm">
-      <HistoryIcon className="mt-0.5 size-4 shrink-0 text-warning" />
+      <HistoryIcon className="mt-1.5 size-4 shrink-0 text-warning" />
       <div className="grid flex-1 gap-1">
-        <p>
+        <p className="py-1">
           Restored unsaved changes from <span className="font-medium">{at}</span>. They aren&apos;t saved
           until you press Save.
         </p>
