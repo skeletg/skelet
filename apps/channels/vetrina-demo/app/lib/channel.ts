@@ -1,25 +1,50 @@
-// The one channel this storefront serves, decided ONCE - three modules read the env directly and
-// only one of them enforced the rule below, so the other two shipped an empty header instead
-//
-// No imports on purpose: proxy.ts runs as middleware, and pulling a server-only module in there
-// (read.ts imports next-intl/server) is not an option
+// The request's channel, decided from its host - no imports, since proxy.ts runs this and can't pull in server-only modules
 
-// Channel uuid, not the slug - ids don't reveal sibling storefronts the way guessable slugs do
-export const DEFAULT_CHANNEL_ID = process.env.STOREFRONT_CHANNEL_ID ?? "";
+// The request header the proxy stamps with the resolved channel, overwriting whatever the client sent
+export const CHANNEL_HEADER = "x-storefront-channel";
 
-// `next build` runs with NODE_ENV=production and none of the deployment's env, so the check below
-// has to let the build through - it is about serving traffic, not compiling
-const BUILDING = process.env.NEXT_PHASE === "phase-production-build";
+// Lets the revalidate route warm a page as a given channel - honoured only beside the revalidate secret
+export const WARM_CHANNEL_HEADER = "x-storefront-warm-channel";
 
-// There is no such thing as a storefront request without a channel. Sending an empty header lets
-// the backend fall back to Host and then to whichever channel is flagged default, which renders
-// someone else's market and looks like it worked - so the absence is an error in every
-// environment, dev included
-export function requireChannelId(): string {
-  if (!DEFAULT_CHANNEL_ID && !BUILDING) {
-    throw new Error(
-      "STOREFRONT_CHANNEL_ID is not set - a storefront is pinned to exactly one channel (admin > channels)",
-    );
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The one [channel] value the build renders, so Next sees which routes read the request; no host or warm can reach it
+export const BUILD_PROBE_CHANNEL = "00000000-0000-0000-0000-000000000000";
+
+export function isChannelId(v: string | null | undefined): v is string {
+  return !!v && UUID.test(v) && v !== BUILD_PROBE_CHANNEL;
+}
+
+export function parseChannelHosts(raw: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const part of raw.split(",")) {
+    const [host, id] = part.split("=").map((s) => s?.trim() ?? "");
+    const h = hostOf(host);
+    if (h && isChannelId(id)) out.set(h, id.toLowerCase());
   }
-  return DEFAULT_CHANNEL_ID;
+  return out;
+}
+
+export function hostOf(hostHeader: string | null | undefined): string {
+  let h = (hostHeader ?? "").trim().toLowerCase();
+  if (h.startsWith("[")) {
+    const end = h.indexOf("]");
+    return end > 0 ? h.slice(0, end + 1) : "";
+  }
+  const colon = h.indexOf(":");
+  if (colon >= 0) h = h.slice(0, colon);
+  return h;
+}
+
+const PINNED = (process.env.STOREFRONT_CHANNEL_ID ?? "").trim().toLowerCase();
+export const PINNED_CHANNEL_ID = isChannelId(PINNED) ? PINNED : "";
+const HOSTS = parseChannelHosts(process.env.STOREFRONT_CHANNEL_HOSTS ?? "");
+
+// A mapped host wins, the pin answers every other host, and with neither the host serves no channel
+export function channelForHost(
+  host: string,
+  hosts: Map<string, string> = HOSTS,
+  pinned: string = PINNED_CHANNEL_ID,
+): string {
+  return hosts.get(hostOf(host)) ?? pinned;
 }

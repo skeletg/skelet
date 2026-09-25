@@ -6,7 +6,7 @@
 
 import { getLocale } from "next-intl/server";
 
-import { getChannelLocales } from "@/app/lib/locale/backend-locales";
+import { getCurrentChannelLocales } from "@/app/lib/locale/read";
 
 function withLocale(path: string, locale: string, defaultLocale: string): string {
   // Keep any query on the end - a paginated canonical is `${href}?page=2`
@@ -20,7 +20,7 @@ function withLocale(path: string, locale: string, defaultLocale: string): string
 // request locale once and returns a sync path -> locale-canonical path mapper, so a page building
 // many URLs (a breadcrumb trail, an item list) pays the lookup once
 export async function canonicalPathMapper(): Promise<(path: string) => string> {
-  const [locale, { defaultLocale }] = await Promise.all([getLocale(), getChannelLocales()]);
+  const [locale, { defaultLocale }] = await Promise.all([getLocale(), getCurrentChannelLocales()]);
   return (path) => withLocale(path, locale, defaultLocale);
 }
 
@@ -30,7 +30,7 @@ export async function localizedAlternates(path: string): Promise<{
 }> {
   const [locale, { codes, defaultLocale, hreflang }] = await Promise.all([
     getLocale(),
-    getChannelLocales(),
+    getCurrentChannelLocales(),
   ]);
   const languages: Record<string, string> = {};
   // Keyed by the backend's hreflang value, not our internal code - "en" and "en-GB" are one locale

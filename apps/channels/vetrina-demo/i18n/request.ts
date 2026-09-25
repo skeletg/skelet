@@ -1,6 +1,6 @@
 import { getRequestConfig } from "next-intl/server";
 
-import { getChannelLocales } from "@/app/lib/locale/backend-locales";
+import { getCurrentChannelLocales } from "@/app/lib/locale/read";
 
 // Per-request i18n config. `locale` comes from the [locale] route segment, which means it is part
 // of the static cache key - the whole point of the move: a cached page can be per-language, where a
@@ -11,7 +11,7 @@ import { getChannelLocales } from "@/app/lib/locale/backend-locales";
 // live OUTSIDE [locale] - sitemap, robots - where there is no segment to read
 export default getRequestConfig(async ({ requestLocale }) => {
   const requested = await requestLocale;
-  const locale = requested || (await getChannelLocales()).defaultLocale;
+  const locale = requested || (await getCurrentChannelLocales()).defaultLocale;
   return {
     // Empty would mean the backend never got a Locale header at all, and it clamps to the channel
     // default anyway - but next-intl needs a string, so pass through whatever we resolved
