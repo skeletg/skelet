@@ -22,7 +22,7 @@ func joinRoot(root, base string) string {
 }
 
 // A page's channel-agnostic hierarchical path from its slug and parent - top-level is the bare slug, nested is parent.BasePath plus the slug
-func (s *core) pageBasePath(ctx context.Context, slug string, parentID *uuid.UUID) (string, error) {
+func (s *pageService) pageBasePath(ctx context.Context, slug string, parentID *uuid.UUID) (string, error) {
 	if parentID == nil {
 		return slug, nil
 	}
