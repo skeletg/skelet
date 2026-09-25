@@ -27,7 +27,7 @@ import {
 import { formatCents } from '@/lib/format'
 import { useConfigScope } from '@/lib/config-scope'
 import { ProductsDocument } from '@/features/catalog/Catalog.gql'
-import { CustomersDocument } from '@/features/customers/Customers.gql'
+import { CustomerSearch } from '@/features/carts/pickers'
 import {
   CreateDraftOrderDocument,
   PlaceDraftOrderDocument,
@@ -416,37 +416,6 @@ function AddressFields({ idPrefix, value, onChange }: { idPrefix: string; value:
       {field('postalCode', 'Postal code')}
       {countryField()}
       <div className="col-span-2">{field('phone', 'Phone (optional)')}</div>
-    </div>
-  )
-}
-
-function CustomerSearch({ onPick }: { onPick: (c: { id: string; email: string; firstName: string; lastName: string }) => void }) {
-  const { data, loading } = useQuery(CustomersDocument, { variables: {} })
-  const [search, setSearch] = useState('')
-  const matches = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return []
-    return (data?.customers ?? [])
-      .filter((c) => [c.email, c.firstName, c.lastName].join(' ').toLowerCase().includes(q))
-      .slice(0, 8)
-  }, [data, search])
-  return (
-    <div className="grid max-w-md gap-2">
-      <Input type="search" placeholder={loading ? 'Loading customers…' : 'Search customers by name or email…'} value={search} onChange={(e) => setSearch(e.target.value)} className="h-8" />
-      {search.trim() !== '' && (
-        <div className="grid gap-1 rounded-md border bg-popover p-1 text-sm">
-          {matches.length === 0 ? (
-            <p className="px-2 py-1.5 text-xs text-muted-foreground">No matches.</p>
-          ) : (
-            matches.map((c) => (
-              <button key={c.id} type="button" className="grid gap-0.5 rounded px-2 py-1.5 text-left hover:bg-accent" onClick={() => { onPick(c); setSearch('') }}>
-                <span className="font-medium">{c.firstName} {c.lastName}</span>
-                <span className="text-xs text-muted-foreground">{c.email}</span>
-              </button>
-            ))
-          )}
-        </div>
-      )}
     </div>
   )
 }

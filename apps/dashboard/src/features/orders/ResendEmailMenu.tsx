@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ResendOrderEmailDocument } from './Orders.gql'
 import type { OrderEmailMessage } from '@/graphql/schema.types'
+import { resendableMessages } from './resendable-messages'
 
 type Props = {
   orderId: string
@@ -26,20 +27,6 @@ const LABELS: Record<OrderEmailMessage, string> = {
   SHIPMENT: 'Shipment notice',
   CANCELLATION: 'Cancellation notice',
   REFUND: 'Refund notice',
-}
-
-// Only what the order actually has something to say in - the backend refuses a shipment notice with no shipment
-// and a refund notice with no refund, so offering them hands the operator a guaranteed error
-export function resendableMessages({
-  hasFulfillments,
-  isCancelled,
-  isRefunded,
-}: Pick<Props, 'hasFulfillments' | 'isCancelled' | 'isRefunded'>): OrderEmailMessage[] {
-  const available: OrderEmailMessage[] = ['CONFIRMATION']
-  if (hasFulfillments) available.push('SHIPMENT')
-  if (isCancelled) available.push('CANCELLATION')
-  if (isRefunded) available.push('REFUND')
-  return available
 }
 
 // Sends one of the order's lifecycle emails again, for a receipt a paused flow swallowed or a customer never got

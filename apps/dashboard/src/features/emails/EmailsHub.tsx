@@ -39,6 +39,7 @@ export function EmailsHub() {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const { has } = usePermissions()
   const canManage = has('emails.manage')
+  const canSeed = canManage && has('flows.manage') // the seed writes flows as well as emails
   const channelId = effectiveChannelId ?? ''
 
   function onTabChange(next: string) {
@@ -71,22 +72,24 @@ export function EmailsHub() {
   const actions =
     isChannel && canManage ? (
       <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={seeding}
-          onClick={() => {
-            if (
-              window.confirm(
-                'Add the starter content to this channel? It creates an editable email for every transactional slot and an active flow that sends it, so receipts and account mail go out from these emails instead of the built-in templates. Anything the channel already has is left alone.',
-              )
-            ) {
-              void seedStarter({ variables: { channelId } })
-            }
-          }}
-        >
-          <SparklesIcon className="size-4" /> Add starter content
-        </Button>
+        {canSeed && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={seeding}
+            onClick={() => {
+              if (
+                window.confirm(
+                  'Add the starter content to this channel? It creates an editable email for every transactional slot and an active flow that sends it, so receipts and account mail go out from these emails instead of the built-in templates. Anything the channel already has is left alone.',
+                )
+              ) {
+                void seedStarter({ variables: { channelId } })
+              }
+            }}
+          >
+            <SparklesIcon className="size-4" /> Add starter content
+          </Button>
+        )}
         {tab === 'blocks' ? (
           <Button asChild size="sm">
             <Link to="/emails/blocks/new">

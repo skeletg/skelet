@@ -58,8 +58,6 @@ mutation DeleteSignupForm($id: ID!) {
   deleteSignupForm(id: $id)
 }
 
-# Segment operations, served by the Signals API - audiences are a Signals capability, and the .signals.graphql suffix routes them there
-
 query FormSegments {
   customerSegments {
     items {

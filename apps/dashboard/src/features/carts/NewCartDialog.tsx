@@ -16,7 +16,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AdminCreateCustomerDocument, CustomersDocument } from '@/features/customers/Customers.gql'
+import { AdminCreateCustomerDocument } from '@/features/customers/Customers.gql'
 import { AdminCreateCartDocument, CartsDocument } from './Carts.gql'
 import { CustomerSearch } from './pickers'
 
@@ -52,7 +52,7 @@ export function NewCartDialog({
   const refetch = channelId ? [{ query: CartsDocument, variables: { channelId, status: 'active' } }] : []
   const [createCart, createState] = useMutation(AdminCreateCartDocument, { refetchQueries: refetch })
   const [createCustomer, custState] = useMutation(AdminCreateCustomerDocument, {
-    refetchQueries: [{ query: CustomersDocument, variables: {} }],
+    refetchQueries: ['CustomersPaged'],
   })
   const busy = createState.loading || custState.loading
 

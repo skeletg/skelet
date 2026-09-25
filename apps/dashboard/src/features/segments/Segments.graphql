@@ -1,5 +1,3 @@
-# Segment operations, served by the Signals API - audiences are a Signals capability, and the .signals.graphql suffix routes them there
-
 query SegmentsPage($limit: Int, $offset: Int) {
   customerSegments(limit: $limit, offset: $offset) {
     items {
@@ -10,6 +8,7 @@ query SegmentsPage($limit: Int, $offset: Int) {
       isActive
       memberCount
       rules
+      rulesProblem
       updatedAt
     }
     totalCount
@@ -24,6 +23,7 @@ query SegmentDetail($id: ID!) {
     isActive
     memberCount
     rules
+    rulesProblem
     createdAt
     updatedAt
     members(limit: 100) {
