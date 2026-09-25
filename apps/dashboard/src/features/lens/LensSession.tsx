@@ -28,9 +28,9 @@ const VITAL_THRESHOLDS: Record<string, [number, number]> = {
 function rateVital(metric: string, v: number): string {
   const t = VITAL_THRESHOLDS[metric]
   if (!t) return 'text-foreground'
-  if (v <= t[0]) return 'text-emerald-600 dark:text-emerald-400'
-  if (v <= t[1]) return 'text-amber-600 dark:text-amber-400'
-  return 'text-red-600 dark:text-red-400'
+  if (v <= t[0]) return 'text-success'
+  if (v <= t[1]) return 'text-warning'
+  return 'text-destructive'
 }
 function fmtVital(metric: string, v: number): string {
   if (metric === 'CLS') return v.toFixed(3)
@@ -348,7 +348,7 @@ export function LensSession() {
                       <span
                         key={i}
                         className={`pointer-events-none absolute top-1/2 h-3 w-0.5 -translate-y-1/2 ${
-                          m.kind === 'click' ? 'bg-indigo-500' : m.kind === 'nav' ? 'bg-amber-500' : 'bg-sky-500'
+                          m.kind === 'click' ? 'bg-info' : m.kind === 'nav' ? 'bg-warning' : 'bg-muted-foreground'
                         }`}
                         style={{ left: `${m.pct}%` }}
                         title={`${fmtClock(m.offset)} · ${m.label}`}
@@ -359,7 +359,7 @@ export function LensSession() {
                       errorMarks.map((m, i) => (
                         <span
                           key={`err${i}`}
-                          className="pointer-events-none absolute inset-y-0 w-0.5 bg-red-500"
+                          className="pointer-events-none absolute inset-y-0 w-0.5 bg-destructive"
                           style={{ left: `${Math.min(100, Math.max(0, (m.offset / totalMs) * 100))}%` }}
                           title={`${fmtClock(m.offset)} · error: ${m.message}`}
                         />
@@ -412,7 +412,7 @@ export function LensSession() {
                           <span className="w-9 shrink-0 tabular-nums text-xs text-muted-foreground">{fmtClock(m.offset)}</span>
                           <span
                             className={`h-2 w-2 shrink-0 rounded-full ${
-                              m.kind === 'click' ? 'bg-indigo-500' : m.kind === 'nav' ? 'bg-amber-500' : 'bg-sky-500'
+                              m.kind === 'click' ? 'bg-info' : m.kind === 'nav' ? 'bg-warning' : 'bg-muted-foreground'
                             }`}
                           />
                           <span className="truncate">{m.label}</span>
@@ -461,7 +461,7 @@ export function LensSession() {
                           className="flex w-full items-start gap-2 px-3 py-1.5 text-left hover:bg-muted"
                           title="Jump to this moment"
                         >
-                          <span className="w-9 shrink-0 pt-0.5 text-xs tabular-nums text-red-600 dark:text-red-400">{fmtClock(m.offset)}</span>
+                          <span className="w-9 shrink-0 pt-0.5 text-xs tabular-nums text-destructive">{fmtClock(m.offset)}</span>
                           <span className="truncate font-mono text-xs">{m.message || '(empty)'}</span>
                         </button>
                       </li>

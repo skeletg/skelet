@@ -1303,9 +1303,9 @@ function FormPreview({
     <div className="mx-auto w-full max-w-xl overflow-hidden rounded-xl border bg-muted/30 shadow-sm">
       {/* Browser-chrome header to signal this is the live storefront view */}
       <div className="flex items-center gap-1.5 border-b bg-muted/60 px-3 py-2">
-        <span className="size-2.5 rounded-full bg-red-400/70" />
-        <span className="size-2.5 rounded-full bg-amber-400/70" />
-        <span className="size-2.5 rounded-full bg-green-400/70" />
+        <span className="size-2.5 rounded-full bg-destructive/70" />
+        <span className="size-2.5 rounded-full bg-warning/70" />
+        <span className="size-2.5 rounded-full bg-success/70" />
         <span className="ml-2 truncate text-xs text-muted-foreground">{name || 'Untitled form'}</span>
       </div>
       <div className="grid gap-4 bg-background p-6">

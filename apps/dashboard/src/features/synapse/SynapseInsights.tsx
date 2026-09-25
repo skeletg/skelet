@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@apollo/client/react'
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ChartTooltipContent } from '@/components/ui/chart'
+import { SERIES, SERIES_OTHER } from '@/lib/chart-colors'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -30,7 +31,7 @@ const BREAKDOWNS: { value: string; label: string }[] = [
   { value: 'status', label: 'Status' },
   { value: 'page_key', label: 'Page' },
 ]
-const COLORS = ['#0ea5e9', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#14b8a6', '#ec4899', '#64748b', '#a3a3a3']
+const COLORS = [...SERIES, SERIES_OTHER]
 const nfmt = (n: number) => n.toLocaleString()
 function fmtBucket(v: string): string {
   const d = new Date(v)
@@ -159,7 +160,7 @@ export function SynapseInsights() {
                       <div className="mt-1 flex items-baseline gap-2">
                         <span className="text-2xl font-semibold tabular-nums">{nfmt(cur)}</span>
                         {delta !== null ? (
-                          <span className={cn('text-xs font-medium tabular-nums', delta > 0 ? 'text-emerald-600' : delta < 0 ? 'text-red-600' : 'text-muted-foreground')}>
+                          <span className={cn('text-xs font-medium tabular-nums', delta > 0 ? 'text-success' : delta < 0 ? 'text-destructive' : 'text-muted-foreground')}>
                             {delta > 0 ? '▲' : delta < 0 ? '▼' : ''} {Math.abs(delta)}%
                           </span>
                         ) : null}

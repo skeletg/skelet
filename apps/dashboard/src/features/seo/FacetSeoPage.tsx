@@ -459,7 +459,7 @@ function ValueOptInList({
             const on = current[v.id] ?? v.isIndexable
             const dirty = on !== v.isIndexable
             return (
-              <li key={v.id} className={`flex items-center gap-2 rounded-md px-2 py-1 ${dirty ? 'bg-amber-500/10' : ''}`}>
+              <li key={v.id} className={`flex items-center gap-2 rounded-md px-2 py-1 ${dirty ? 'bg-warning-soft' : ''}`}>
                 <Switch
                   checked={on}
                   onCheckedChange={(next) => onChange([v.id], next)}

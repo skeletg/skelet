@@ -780,7 +780,7 @@ function ValueDisplayRow({
       </div>
       {value.isIndexable && (
         <span
-          className="shrink-0 rounded border border-emerald-700/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-300"
+          className="shrink-0 rounded border border-success/40 bg-success-soft px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-success"
           title="Filtered listing renders as <a href> and is allowed to be indexed by Google"
         >
           Indexable
@@ -790,7 +790,7 @@ function ValueDisplayRow({
         {value.sortOrder}
       </span>
       {pending && !deleted && (
-        <span className="shrink-0 rounded border border-amber-600/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400">
+        <span className="shrink-0 rounded border border-warning/40 bg-warning-soft px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-warning">
           pending - applied on Save
         </span>
       )}

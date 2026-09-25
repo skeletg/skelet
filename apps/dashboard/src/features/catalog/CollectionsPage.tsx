@@ -79,7 +79,7 @@ export function CollectionsPage() {
         cell: ({ row }) =>
           row.original.isPublished ? (
             <Badge variant="secondary" className="gap-1 text-[10px]">
-              <CheckCircle2Icon className="size-3 text-emerald-500" /> Published
+              <CheckCircle2Icon className="size-3 text-success" /> Published
             </Badge>
           ) : (
             <Badge variant="outline" className="gap-1 text-[10px]">

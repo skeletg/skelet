@@ -425,7 +425,7 @@ function OptionCard({
               <Badge variant="outline" className="font-normal text-muted-foreground">Optional</Badge>
             )}
             {pending && (
-              <Badge variant="outline" className="font-normal text-amber-700 dark:text-amber-400">Unsaved</Badge>
+              <Badge variant="outline" className="font-normal text-warning">Unsaved</Badge>
             )}
           </div>
           {option.content.length > 1 && (
@@ -467,10 +467,10 @@ function OptionCard({
               {sortedSelections.map((sel) => {
                 const selPending = isTemp(sel.id)
                 return (
-                  <TableRow key={sel.id} className={selPending ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}>
+                  <TableRow key={sel.id} className={selPending ? 'bg-warning-soft' : ''}>
                     <TableCell className="font-medium">
                       {sel.product.name ?? sel.product.sku ?? ''}
-                      {selPending && <span className="ml-2 text-xs text-amber-700 dark:text-amber-400">· unsaved</span>}
+                      {selPending && <span className="ml-2 text-xs text-warning">· unsaved</span>}
                     </TableCell>
                     <TableCell>
                       {sel.product.sku ? (

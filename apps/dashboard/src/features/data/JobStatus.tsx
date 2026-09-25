@@ -9,7 +9,7 @@ export function JobStatusBadge({ status, dryRun }: { status: string; dryRun?: bo
   switch (status) {
     case 'succeeded':
       return (
-        <Badge className="bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-100">
+        <Badge className="bg-success-soft text-success">
           {label}
         </Badge>
       )
@@ -19,7 +19,7 @@ export function JobStatusBadge({ status, dryRun }: { status: string; dryRun?: bo
       return <Badge variant="outline">{label}</Badge>
     case 'running':
       return (
-        <Badge className="bg-sky-100 text-sky-900 dark:bg-sky-950/60 dark:text-sky-100">
+        <Badge className="bg-info-soft text-info">
           {label}
         </Badge>
       )
@@ -37,7 +37,7 @@ export function JobProgress({ job, className }: { job: DataJob; className?: stri
     <div className={cn('grid gap-1.5', className)}>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <div
-          className={cn('h-full bg-sky-500 transition-[width] duration-300', pct === null && 'animate-pulse')}
+          className={cn('h-full bg-info transition-[width] duration-300', pct === null && 'animate-pulse')}
           style={{ width: pct === null ? '100%' : `${pct}%` }}
         />
       </div>

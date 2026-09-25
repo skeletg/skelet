@@ -77,7 +77,7 @@ function fmtTime(s?: string | null): string {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === 'success') return <Badge className="bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-100">success</Badge>
+  if (status === 'success') return <Badge className="bg-success-soft text-success">success</Badge>
   if (status === 'error') return <Badge variant="destructive">error</Badge>
   return <span className="text-muted-foreground">-</span>
 }
@@ -209,7 +209,7 @@ export function ScheduledJobsList() {
                 {job.lastRunAt && <span className="text-muted-foreground">{fmtTime(job.lastRunAt)}</span>}
               </div>
               {job.currentAttempt > 0 && (
-                <div className="mt-0.5 text-amber-600 dark:text-amber-500">retrying - attempt {job.currentAttempt + 1}</div>
+                <div className="mt-0.5 text-warning">retrying - attempt {job.currentAttempt + 1}</div>
               )}
               {job.lastStatus === 'error' && job.lastError && (
                 <button

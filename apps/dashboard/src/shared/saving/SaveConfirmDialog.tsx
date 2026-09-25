@@ -75,7 +75,7 @@ export function SaveConfirmDialog({
                           <span className="text-muted-foreground">{d.label}</span>
                           {d.kind === 'add' ? (
                             <span className="min-w-0 break-all">
-                              <span className="mr-1.5 font-semibold text-emerald-600 dark:text-emerald-400">+</span>
+                              <span className="mr-1.5 font-semibold text-success">+</span>
                               <span className="font-medium">{d.after || '(new)'}</span>
                             </span>
                           ) : d.kind === 'remove' ? (

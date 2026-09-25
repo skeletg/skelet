@@ -12,7 +12,7 @@ export function Highlight({ text, terms }: { text: string; terms: string[] }): R
     i % 2 === 1 && piece ? (
       <mark
         key={i}
-        className="rounded-[2px] bg-amber-200/70 px-px text-inherit dark:bg-amber-400/25"
+        className="rounded-[2px] bg-warning-soft px-px text-inherit"
       >
         {piece}
       </mark>

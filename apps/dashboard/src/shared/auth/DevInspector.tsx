@@ -70,7 +70,7 @@ export function DevInspector({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2 text-base">
             Dev inspector
-            <Badge variant="outline" className="border-amber-500/60 font-mono text-[10px] uppercase text-amber-500">
+            <Badge variant="outline" className="border-warning/60 font-mono text-[10px] uppercase text-warning">
               dev
             </Badge>
           </SheetTitle>

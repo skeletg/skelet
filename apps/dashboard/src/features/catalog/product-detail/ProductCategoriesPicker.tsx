@@ -317,14 +317,14 @@ export function ProductCategoriesPicker({
                         type="button"
                         className={`shrink-0 transition-colors ${
                           isPrimaryNode
-                            ? 'text-amber-500'
-                            : 'text-muted-foreground/40 hover:text-amber-500'
+                            ? 'text-warning'
+                            : 'text-muted-foreground/40 hover:text-warning'
                         }`}
                         title={isPrimaryNode ? 'Primary category' : 'Set as primary'}
                         onClick={() => onSetPrimary(node.id)}
                         disabled={!canManage || isPrimaryNode}
                       >
-                        <StarIcon className={`size-3.5 ${isPrimaryNode ? 'fill-amber-500' : ''}`} />
+                        <StarIcon className={`size-3.5 ${isPrimaryNode ? 'fill-warning' : ''}`} />
                       </button>
                     ) : null}
                   </li>

@@ -141,7 +141,7 @@ export function ProductListingsEditor({
               const existing = listingFor(store.id)
               const dirty = productListingChanges(baseline, { stores: [row] }, hasListing).length > 0
               return (
-                <TableRow key={store.id} className={dirty ? 'bg-amber-500/5' : undefined}>
+                <TableRow key={store.id} className={dirty ? 'bg-warning-soft' : undefined}>
                   <TableCell className="font-medium">
                     {store.name}
                     {dirty ? (

@@ -25,7 +25,7 @@ function Row({
           tone === 'total'
             ? 'font-semibold tabular-nums'
             : tone === 'due'
-              ? 'font-semibold tabular-nums text-amber-600 dark:text-amber-500'
+              ? 'font-semibold tabular-nums text-warning'
               : tone === 'muted'
                 ? 'tabular-nums text-muted-foreground'
                 : 'tabular-nums'

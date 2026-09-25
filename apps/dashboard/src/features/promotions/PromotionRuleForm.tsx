@@ -1042,7 +1042,7 @@ function ToggleCard({
 }) {
   const toneClass =
     tone === 'emerald'
-      ? 'border-emerald-500/40 bg-emerald-50/40 dark:bg-emerald-950/20'
+      ? 'border-success/40 bg-success-soft'
       : tone === 'muted'
         ? 'border-muted-foreground/20 bg-muted/40'
         : checked
@@ -1095,7 +1095,7 @@ function StopModeRadio({
       description:
         'Every other promotion still fires. Default for most discounts.',
       icon: <LayersIcon className="size-5" />,
-      selectedRing: 'ring-emerald-500/60 border-emerald-500/40',
+      selectedRing: 'ring-success/60 border-success/40',
     },
     {
       value: 'SAME_ACTION_TYPE',
@@ -1103,7 +1103,7 @@ function StopModeRadio({
       description:
         'Rules at strictly lower priority with the same action are skipped. Peers stay; unrelated actions - free shipping, gifts - pass through.',
       icon: <ShieldIcon className="size-5" />,
-      selectedRing: 'ring-amber-500/60 border-amber-500/40',
+      selectedRing: 'ring-warning/60 border-warning/40',
     },
     {
       value: 'ALL',

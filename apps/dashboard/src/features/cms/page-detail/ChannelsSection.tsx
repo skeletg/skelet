@@ -135,7 +135,7 @@ export function CmsPageChannelsSection({
           </Badge>
         )}
         {changedCount > 0 && (
-          <span className="text-amber-600">{changedCount} unsaved · Save to apply</span>
+          <span className="text-warning">{changedCount} unsaved · Save to apply</span>
         )}
       </div>
 
@@ -164,7 +164,7 @@ export function CmsPageChannelsSection({
                 className={cn(
                   'flex items-center gap-3 rounded-md border px-3 py-2',
                   s.isPublished ? 'bg-card' : 'bg-muted/30',
-                  changed && 'border-amber-400/70 ring-1 ring-amber-400/40',
+                  changed && 'border-warning/70 ring-1 ring-warning/40',
                 )}
               >
                 <div className="min-w-0 flex-1">

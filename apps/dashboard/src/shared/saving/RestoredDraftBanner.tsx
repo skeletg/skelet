@@ -20,8 +20,8 @@ export function RestoredDraftBanner({
     timeStyle: 'short',
   })
   return (
-    <div className="flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm">
-      <HistoryIcon className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+    <div className="flex items-start gap-3 rounded-md border border-warning/40 bg-warning-soft px-4 py-3 text-sm">
+      <HistoryIcon className="mt-0.5 size-4 shrink-0 text-warning" />
       <div className="grid flex-1 gap-1">
         <p>
           Restored unsaved changes from <span className="font-medium">{at}</span>. They aren&apos;t saved
@@ -56,7 +56,7 @@ export function ClashNote({ draft, field }: { draft: PersistedForm; field: strin
   const clash = draft.clashes.find((c) => c.field === field)
   if (!clash) return null
   return (
-    <p className="text-xs text-amber-700 dark:text-amber-400">
+    <p className="text-xs text-warning">
       Server now: {display(clash.server) || '—'}
     </p>
   )

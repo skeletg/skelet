@@ -14,6 +14,7 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
+import { CHART_ACCENT, CHART_SUCCESS, SERIES_OTHER } from '@/lib/chart-colors'
 import { cn } from '@/lib/utils'
 import { ExperimentsOverviewDocument } from './Prism.gql'
 
@@ -107,7 +108,7 @@ export function PrismHome() {
               <span className="tabular-nums text-xs text-muted-foreground">
                 {pct(r.leaderRate)}
                 {!r.leaderIsControl && r.leaderUplift !== 0 ? (
-                  <span className={r.leaderUplift > 0 ? 'text-emerald-600' : 'text-red-600'}>
+                  <span className={r.leaderUplift > 0 ? 'text-success' : 'text-destructive'}>
                     {' '}
                     ({r.leaderUplift > 0 ? '+' : ''}
                     {pct(r.leaderUplift)})
@@ -127,7 +128,7 @@ export function PrismHome() {
           if (r.leaderIsControl || r.totalExposed === 0) return <span className="text-muted-foreground">-</span>
           const strong = r.leaderChanceToWin >= 0.975
           return (
-            <span className={cn('tabular-nums', strong ? 'font-medium text-emerald-600' : 'text-muted-foreground')}>
+            <span className={cn('tabular-nums', strong ? 'font-medium text-success' : 'text-muted-foreground')}>
               {pct(r.leaderChanceToWin)}
             </span>
           )
@@ -140,7 +141,7 @@ export function PrismHome() {
         cell: ({ row }) => {
           const r = row.original
           if (r.sampleRatioMismatch) return <Badge variant="destructive">Check setup</Badge>
-          if (r.winner) return <span className="font-medium text-emerald-600">🏆 {r.winner}</span>
+          if (r.winner) return <span className="font-medium text-success">🏆 {r.winner}</span>
           if (r.totalExposed === 0) return <span className="text-muted-foreground">No data</span>
           return <span className="text-muted-foreground">No winner yet</span>
         },
@@ -210,7 +211,7 @@ export function PrismHome() {
                           <Tooltip content={<ExposedTooltip />} cursor={{ fill: 'transparent' }} />
                           <Bar dataKey="exposed" radius={[4, 4, 0, 0]} maxBarSize={64}>
                             {chartRows.map((d, i) => (
-                              <Cell key={i} fill={d.isWinner ? '#10b981' : '#6366f1'} />
+                              <Cell key={i} fill={d.isWinner ? CHART_SUCCESS : CHART_ACCENT} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -227,7 +228,7 @@ export function PrismHome() {
                           <Tooltip content={<UpliftTooltip />} cursor={{ fill: 'transparent' }} />
                           <Bar dataKey="upliftPct" radius={[4, 4, 0, 0]} maxBarSize={64}>
                             {chartRows.map((d, i) => (
-                              <Cell key={i} fill={d.isWinner ? '#10b981' : '#94a3b8'} />
+                              <Cell key={i} fill={d.isWinner ? CHART_SUCCESS : SERIES_OTHER} />
                             ))}
                           </Bar>
                         </BarChart>

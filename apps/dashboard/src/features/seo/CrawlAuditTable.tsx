@@ -44,7 +44,7 @@ const KINDS: Array<{ value: CrawlPageKind | 'ALL'; label: string }> = [
 // Green inside the range Google will actually render, amber outside it
 function lengthTone(length: number, min: number, max: number): string {
   if (length === 0) return 'text-destructive'
-  return length < min || length > max ? 'text-amber-600' : 'text-muted-foreground'
+  return length < min || length > max ? 'text-warning' : 'text-muted-foreground'
 }
 
 export function CrawlAuditTable({ channelId }: { channelId: string }) {
