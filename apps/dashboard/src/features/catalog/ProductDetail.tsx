@@ -361,7 +361,7 @@ export function ProductDetail() {
           />
 
           <ContentAndMediaSection
-            key={`${product.id}:${translationLocale || 'no-locale'}:${product.updatedAt}:content-media`}
+            key={`${product.id}:${translationLocale || 'no-locale'}:content-media`}
             product={product}
             locale={translationLocale || product.contentLocale || product.content[0]?.locale || globalDefaultLocale}
             scopeLabel={

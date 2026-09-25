@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { added, changed, fieldDiff, removed } from '@/shared/saving/diff'
 import { formatCents } from '@/lib/format'
+import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEditor'
 
 // Product page - its sections each stage their own form (shared/saving/useSectionForm), so the field
 // lists live here one section at a time
@@ -309,4 +310,62 @@ export function productLinksDiff(name: (id: string) => string) {
       const names = (ids: string[]) => ids.map(name).join(', ')
       return { kind: 'change', label: PRODUCT_LINK_LABELS[k], before: names(original[k]), after: names(draft[k]) }
     })
+}
+
+// ---------- Content: the locale's short and full descriptions ----------
+
+// Rich text travels as the editor's JSON, with its plain-text read beside it for the review dialog
+export const productContentSchema = z.object({
+  shortDescription: z.unknown(),
+  shortDescriptionText: z.string(),
+  descriptionRichText: z.unknown(),
+  descriptionText: z.string(),
+})
+
+export type ProductContentValues = z.infer<typeof productContentSchema>
+
+export const PRODUCT_CONTENT_LABELS: Record<keyof ProductContentValues, string> = {
+  shortDescription: 'Short description',
+  shortDescriptionText: 'Short description',
+  descriptionRichText: 'Description',
+  descriptionText: 'Description',
+}
+
+type ContentFields = { shortDescription?: unknown; descriptionRichText?: unknown }
+
+export function toProductContentValues(product: ContentFields & { content: ({ locale: string } & ContentFields)[] }, locale: string): ProductContentValues {
+  const content = product.content.find((c) => c.locale === locale)
+  const shortDescription = (content?.shortDescription ?? product.shortDescription ?? null) as RichTextValue
+  const descriptionRichText = (content?.descriptionRichText ?? product.descriptionRichText ?? null) as RichTextValue
+  return {
+    shortDescription,
+    shortDescriptionText: richTextToPlainText(shortDescription),
+    descriptionRichText,
+    descriptionText: richTextToPlainText(descriptionRichText),
+  }
+}
+
+const sameJSON = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+
+// Only the descriptions that changed - the content writer fills in the rest of the row
+export function productContentChanges(before: ProductContentValues, after: ProductContentValues) {
+  return {
+    ...(sameJSON(before.shortDescription, after.shortDescription) ? {} : { shortDescription: after.shortDescription ?? undefined }),
+    ...(sameJSON(before.descriptionRichText, after.descriptionRichText) ? {} : { descriptionRichText: after.descriptionRichText ?? undefined }),
+  }
+}
+
+const clip = (s: string, max = 80) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
+
+// Rich text shows its plain text; a formatting-only edit (same text, different JSON) still counts
+function richTextEntry(label: string, beforeText: string, afterText: string, before: unknown, after: unknown) {
+  if (beforeText.trim() !== afterText.trim()) return changed(label, clip(beforeText), clip(afterText))
+  return sameJSON(before, after) ? null : changed(label, 'previous formatting', 'updated formatting')
+}
+
+export function productContentDiff(original: ProductContentValues, draft: ProductContentValues): SectionDiffEntry[] {
+  return [
+    richTextEntry(PRODUCT_CONTENT_LABELS.shortDescription, original.shortDescriptionText, draft.shortDescriptionText, original.shortDescription, draft.shortDescription),
+    richTextEntry(PRODUCT_CONTENT_LABELS.descriptionRichText, original.descriptionText, draft.descriptionText, original.descriptionRichText, draft.descriptionRichText),
+  ].filter((e) => e !== null)
 }
