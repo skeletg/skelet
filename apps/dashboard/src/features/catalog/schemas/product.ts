@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
-import { changed, fieldDiff } from '@/shared/saving/diff'
+import { added, changed, fieldDiff, removed } from '@/shared/saving/diff'
 import { formatCents } from '@/lib/format'
 
 // Product page - its sections each stage their own form (shared/saving/useSectionForm), so the field
@@ -213,4 +213,66 @@ export function productAdvancedDiff(original: ProductAdvancedValues, draft: Prod
     { label: 'Weight / dimensions', value: dims },
     { label: 'Order quantity limits', value: qty },
   ])
+}
+
+// ---------- Tier pricing: quantity breaks, for everyone or one customer group ----------
+
+const tierRow = z.object({
+  // '' = all groups
+  customerGroupId: z.string(),
+  minQty: z.string(),
+  price: z.string(),
+})
+
+export type ProductTierRow = z.infer<typeof tierRow>
+
+const tierKey = (r: ProductTierRow) => `${r.customerGroupId}:${Number(r.minQty)}`
+
+// The set is replaced whole on save, so a half-filled row is refused rather than dropped
+export const productTiersSchema = z.object({ tiers: z.array(tierRow) }).superRefine((v, ctx) => {
+  const seen = new Set<string>()
+  v.tiers.forEach((r, i) => {
+    const qty = Number(r.minQty)
+    if (!r.minQty.trim() || !Number.isFinite(qty) || qty <= 0) {
+      ctx.addIssue({ code: 'custom', path: ['tiers', i, 'minQty'], message: 'More than zero' })
+    } else if (seen.has(tierKey(r))) {
+      ctx.addIssue({ code: 'custom', path: ['tiers', i, 'minQty'], message: 'This group already has a tier at this quantity' })
+    }
+    seen.add(tierKey(r))
+    if (!r.price.trim() || !Number.isFinite(Number(r.price)) || Number(r.price) < 0) {
+      ctx.addIssue({ code: 'custom', path: ['tiers', i, 'price'], message: 'Zero or more' })
+    }
+  })
+})
+
+export type ProductTierValues = z.infer<typeof productTiersSchema>
+
+export const PRODUCT_TIER_LABELS: Record<keyof ProductTierValues, string> = { tiers: 'Tier pricing' }
+
+type ExistingTier = { customerGroupId?: string | null; minQty: number; price: number }
+
+export function toProductTierValues(prices: ExistingTier[]): ProductTierValues {
+  return { tiers: prices.map((p) => ({ customerGroupId: p.customerGroupId ?? '', minQty: String(p.minQty), price: centsToDollars(p.price) })) }
+}
+
+export function toProductTierInput(v: ProductTierValues) {
+  return v.tiers.map((r) => ({ customerGroupId: r.customerGroupId || null, minQty: Number(r.minQty), price: dollarsToCents(r.price) }))
+}
+
+// One entry per tier added, repriced or removed, matched on group + quantity - reordering is no change
+export function productTiersDiff(groupName: (id: string) => string) {
+  return (original: ProductTierValues, draft: ProductTierValues): SectionDiffEntry[] => {
+    const label = (r: ProductTierRow) => `Tier · ${groupName(r.customerGroupId)} · ${r.minQty.trim() ? `${Number(r.minQty)}+` : '?'}`
+    const at = (r: ProductTierRow) => (r.price.trim() ? `@ ${moneyText(r.price)}` : '')
+    const before = new Map(original.tiers.map((r) => [tierKey(r), r]))
+    const after = new Set(draft.tiers.map(tierKey))
+    const out: SectionDiffEntry[] = []
+    for (const r of draft.tiers) {
+      const prev = before.get(tierKey(r))
+      const entry = prev ? changed(label(r), at(prev), at(r)) : added(label(r), at(r))
+      if (entry) out.push(entry)
+    }
+    for (const o of original.tiers) if (!after.has(tierKey(o))) out.push(removed(label(o), at(o)))
+    return out
+  }
 }
