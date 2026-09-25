@@ -5,13 +5,14 @@ import {
   productContentDiff,
   productListingChanges,
   productListingsSchema,
+  productMetadataSchema,
   toProductListingValues,
   type ProductContentValues,
 } from './product'
 
 // What these pin: only a description that changed is written (the content writer keeps the rest of
 // the row), and a formatting-only edit still shows in the review dialog. Per store, an equal price
-// typed differently is no change, and a blank price is refused
+// typed differently is no change, and a blank price is refused. Metadata keys are unique and required
 
 const doc = (text: string, format = 0) => ({ root: { children: [{ children: [{ text, format }] }] } })
 
@@ -50,5 +51,15 @@ describe('per-store listings', () => {
   it('refuses a blank store price instead of saving it as zero', () => {
     const after = { stores: [{ ...before.stores[0], price: '' }, before.stores[1]] }
     expect(productListingsSchema.safeParse(after).success).toBe(false)
+  })
+})
+
+describe('product metadata', () => {
+  const parse = (metadata: { key: string; value: string }[]) => productMetadataSchema.safeParse({ metadata, privateMetadata: [] }).success
+
+  it('refuses a key used twice and a value without a key, and lets a blank row through', () => {
+    expect(parse([{ key: 'a', value: '1' }, { key: ' a', value: '2' }])).toBe(false)
+    expect(parse([{ key: '', value: 'orphan' }])).toBe(false)
+    expect(parse([{ key: 'a', value: '1' }, { key: '', value: '' }])).toBe(true)
   })
 })
