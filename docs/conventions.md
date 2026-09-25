@@ -37,6 +37,31 @@ convention is the one most code comments point at.
   App.tsx.
 - **Cross-cutting code lives in `src/shared/`** (auth, errors, saving) -
   `features/` is for actual product domains only.
+- **State colours are tokens, never raw Tailwind hues.** `index.css`
+  defines `success`, `warning`, `info` and `destructive` outside the
+  palettes and registers each in `@theme`, so they are plain utilities
+  that flip with the mode on their own - no `dark:` twin at the call
+  site. Each state has three roles:
+
+  | Utility | Use |
+  |---|---|
+  | `text-success`, `bg-success`, `border-success`, `ring-success` | the colour itself: text, icons, dots, bars, strong lines |
+  | `text-success-foreground` | text on a solid `bg-success` fill |
+  | `bg-success-soft` | tinted badge or banner background |
+
+  A tinted badge is `bg-warning-soft text-warning border-warning/30`,
+  or `<Badge variant="warning">`; `Alert` has the same variants. Opacity
+  modifiers (`border-info/40`) cover one-offs. Never use `primary` /
+  `accent` for state - admins recolour them. Categories with no state
+  (a kind badge, an order status like Processing) map to the nearest
+  state or to `muted`, not to a raw hue like `bg-violet-500`. A new
+  colour goes in as a CSS variable plus a `--color-*` entry in `@theme`.
+  Chart series and legend dots that only tell categories apart use
+  `series-1…8` and `series-other` (`bg-series-3` in markup;
+  `SERIES` / `SERIES_OTHER` / `CHART_ACCENT` from `src/lib/chart-colors.ts`
+  in recharts props) - never a hex.
+  The auth screens' fixed white-card chrome is the one deliberate
+  exception.
 - **Staged save is THE rule, not a pattern to opt into.** On any detail
   page, field edits must be staged locally and applied through the
   single page-header Save button, which opens `SaveConfirmDialog`
