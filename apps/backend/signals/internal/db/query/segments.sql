@@ -108,10 +108,16 @@ SET rules = $2, updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 
+-- name: FillSegmentRules :execrows
+UPDATE customer_segments
+SET rules = sqlc.arg(rules), updated_at = NOW()
+WHERE id = sqlc.arg(id) AND rules IS NOT DISTINCT FROM sqlc.narg(old)::jsonb;
+
 -- name: ListDynamicSegments :many
-SELECT * FROM customer_segments
-WHERE rules IS NOT NULL AND is_active = TRUE
-ORDER BY created_at;
+-- Longest unrefreshed first, so a sweep cut short resumes with what it missed
+SELECT s.* FROM customer_segments s
+WHERE s.rules IS NOT NULL AND s.is_active = TRUE
+ORDER BY (SELECT max(d.day) FROM segment_membership_daily d WHERE d.segment_id = s.id) NULLS FIRST, s.created_at;
 
 -- Newest-first member page for the admin segment detail
 -- name: ListSegmentMembers :many
@@ -124,3 +130,29 @@ WHERE m.segment_id = $1
   AND (sqlc.arg(all_channels)::boolean OR r.channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
 ORDER BY m.added_at DESC, m.customer_id
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: ListVisibleCustomerSegments :many
+-- A behavioral segment belongs to the channel its definition names, so a caller sees it only with that channel; the rest are global
+SELECT * FROM customer_segments
+WHERE sqlc.arg(all_channels)::boolean
+   OR COALESCE(CASE WHEN pg_input_is_valid(definition, 'jsonb') THEN definition::jsonb ->> 'channelId' END, '') = ''
+   OR (CASE WHEN pg_input_is_valid(definition, 'jsonb') THEN definition::jsonb ->> 'channelId' END) = ANY(sqlc.arg(channel_ids)::text[])
+ORDER BY slug
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: CountVisibleCustomerSegments :one
+SELECT COUNT(*)::INTEGER FROM customer_segments
+WHERE sqlc.arg(all_channels)::boolean
+   OR COALESCE(CASE WHEN pg_input_is_valid(definition, 'jsonb') THEN definition::jsonb ->> 'channelId' END, '') = ''
+   OR (CASE WHEN pg_input_is_valid(definition, 'jsonb') THEN definition::jsonb ->> 'channelId' END) = ANY(sqlc.arg(channel_ids)::text[]);
+
+-- name: CountSegmentMembersInChannels :many
+SELECT m.segment_id, COUNT(*)::INTEGER AS count
+FROM customer_segment_memberships m
+JOIN customer_roster r ON r.customer_id = m.customer_id
+WHERE m.segment_id = ANY(sqlc.arg(segment_ids)::uuid[])
+  AND (sqlc.arg(all_channels)::boolean OR r.channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
+GROUP BY m.segment_id;
+
+-- name: RosterChannelsOfCustomers :many
+SELECT customer_id, channel_id FROM customer_roster WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]);

@@ -40,12 +40,12 @@ func init() {
 	Register(Definition{Path: "general/security/admin_single_session", Type: TypeBool, Default: "false", Label: "Log out other admin devices on new login", Description: "Signing in revokes every other admin session for that account. Stops a shared login being used from two places, at the cost of forcing a re-login when someone moves between machines.", Public: false})
 	Register(Definition{Path: "general/security/catalog_query_throttle", Scoping: ScopingChannel, Type: TypeInt, Default: "0", Label: "Catalog query throttle: per-IP soft budget (req/min, 0 = off; slows past budget, refuses past 3x)", Description: "Soft per-IP budget for storefront catalog queries. Past the budget requests are slowed rather than refused; past three times it they are refused outright. 0 disables both.", Public: false})
 
-	Register(Definition{Path: "general/urls/auto_redirect_on_change", Scoping: ScopingChannel, Type: TypeBool, Default: "true", Label: "Create a redirect when a URL changes", Description: "Keeps old links working after a slug edit. Off means the previous URL 404s.", Public: false})
+	Register(Definition{Path: "general/urls/auto_redirect_on_change", Scoping: ScopingGlobal, Type: TypeBool, Default: "true", Label: "Create a redirect when a URL changes", Description: "Keeps old links working after a slug edit. Off means the previous URL 404s.", Public: false})
 	Register(Definition{Path: "general/urls/redirect_type", Type: TypeSelect, Default: "301", Label: "Automatic redirect type", Public: false, Options: []Option{
 		{Value: "301", Label: "301 (permanent)"},
 		{Value: "302", Label: "302 (temporary)"},
 	}})
-	Register(Definition{Path: "general/urls/url_template_fallback", Scoping: ScopingChannel, Type: TypeBool, Default: "true", Label: "Fall back to a slug when a URL template can't render", Description: "Off means the save is rejected instead, which catches a broken template rather than papering over it.", Public: false})
+	Register(Definition{Path: "general/urls/url_template_fallback", Scoping: ScopingGlobal, Type: TypeBool, Default: "true", Label: "Fall back to a slug when a URL template can't render", Description: "Off means the save is rejected instead, which catches a broken template rather than papering over it.", Public: false})
 	Register(Definition{Path: "general/urls/redirect_retention_days", Type: TypeInt, Default: "365", Label: "Auto redirect retention (days, 0 = keep forever)", Description: "Only auto-created redirects are pruned - ones you added by hand are kept.", Public: false})
 	Register(Definition{Path: "general/urls/variant_own_url", Scoping: ScopingChannel, Type: TypeBool, Default: "true", Label: "Give configurable variants their own URLs", Description: "Each variant becomes its own indexable page. More pages to crawl, but a shopper landing from search arrives on the exact one.", Public: true})
 
@@ -63,10 +63,10 @@ func init() {
 	// whole months only (the send log's partition unit) - the log lives in the commerce database and every transactional
 	// mail writes a row, so it ages out by default rather than growing forever on a store that never opens Signals
 
-	Register(Definition{Path: "outreach/triggers/abandoned_cart_minutes", Type: TypeInt, Default: "60", Label: "Abandoned-cart idle threshold (minutes)", Description: "How long a cart sits untouched before it counts as abandoned.", Public: false})
-	Register(Definition{Path: "outreach/triggers/abandoned_cart_max_age_hours", Type: TypeInt, Default: "72", Label: "Abandoned-cart max age (hours)", Description: "Past this the cart is too cold to chase and no flow fires - stops a backlog mailing week-old carts after downtime.", Public: false})
-	Register(Definition{Path: "outreach/triggers/browse_abandoned_minutes", Type: TypeInt, Default: "120", Label: "Browse-abandonment idle threshold (minutes)", Description: "Idle time after browsing with nothing added to the cart.", Public: false})
-	Register(Definition{Path: "outreach/triggers/browse_abandoned_max_age_hours", Type: TypeInt, Default: "48", Label: "Browse-abandonment max age (hours)", Description: "The same staleness cut-off as abandoned carts.", Public: false})
+	Register(Definition{Path: "outreach/triggers/abandoned_cart_minutes", Scoping: ScopingChannel, Type: TypeInt, Default: "60", Label: "Abandoned-cart idle threshold (minutes)", Description: "How long a cart sits untouched before it counts as abandoned.", Public: false})
+	Register(Definition{Path: "outreach/triggers/abandoned_cart_max_age_hours", Scoping: ScopingChannel, Type: TypeInt, Default: "72", Label: "Abandoned-cart max age (hours)", Description: "Past this the cart is too cold to chase and no flow fires - stops a backlog mailing week-old carts after downtime.", Public: false})
+	Register(Definition{Path: "outreach/triggers/browse_abandoned_minutes", Scoping: ScopingChannel, Type: TypeInt, Default: "120", Label: "Browse-abandonment idle threshold (minutes)", Description: "Idle time after browsing with nothing added to the cart.", Public: false})
+	Register(Definition{Path: "outreach/triggers/browse_abandoned_max_age_hours", Scoping: ScopingChannel, Type: TypeInt, Default: "48", Label: "Browse-abandonment max age (hours)", Description: "The same staleness cut-off as abandoned carts.", Public: false})
 	// min salable units to treat a SKU as back (avoids firing on a 1-unit blip)
 	Register(Definition{Path: "outreach/triggers/back_in_stock_min_qty", Type: TypeInt, Default: "1", Label: "Back-in-stock: minimum salable units to notify", Description: "Stops a one-unit blip mailing the whole waiting list for something that instantly resells.", Public: false})
 	Register(Definition{Path: "outreach/forms/enabled", Type: TypeBool, Default: "true", Label: "Signup forms enabled", Public: true})

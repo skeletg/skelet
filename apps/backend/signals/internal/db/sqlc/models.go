@@ -49,6 +49,12 @@ type ChannelRoster struct {
 	FromAddress string    `json:"from_address"`
 	FromName    string    `json:"from_name"`
 	LogoUrl     string    `json:"logo_url"`
+	IsActive    bool      `json:"is_active"`
+}
+
+type ChannelRosterTombstone struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	PrunedAt  time.Time `json:"pruned_at"`
 }
 
 type ConfigValue struct {
@@ -98,12 +104,18 @@ type CustomerRoster struct {
 	SmsOptedIn          bool            `json:"sms_opted_in"`
 	CustomerGroupSlug   string          `json:"customer_group_slug"`
 	Consents            json.RawMessage `json:"consents"`
+	SourceReadAt        sql.NullTime    `json:"source_read_at"`
 }
 
 type CustomerRosterState struct {
 	OneRow        bool         `json:"one_row"`
 	FilledVersion int32        `json:"filled_version"`
 	FilledAt      sql.NullTime `json:"filled_at"`
+}
+
+type CustomerRosterTombstone struct {
+	CustomerID uuid.UUID `json:"customer_id"`
+	DeletedAt  time.Time `json:"deleted_at"`
 }
 
 type CustomerSegment struct {
@@ -424,4 +436,10 @@ type SegmentMembershipDaily struct {
 	SegmentID   uuid.UUID `json:"segment_id"`
 	Day         time.Time `json:"day"`
 	MemberCount int32     `json:"member_count"`
+}
+
+type TraitComputeRun struct {
+	ChannelID   uuid.UUID    `json:"channel_id"`
+	FinishedAt  sql.NullTime `json:"finished_at"`
+	AttemptedAt sql.NullTime `json:"attempted_at"`
 }

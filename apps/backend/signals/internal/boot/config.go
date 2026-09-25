@@ -25,6 +25,7 @@ type Config struct {
 	ValkeyURL string
 	// The primary Valkey, where core publishes killed admin sessions - optional, without it revoked tokens live out their two minutes
 	PrimaryValkeyURL string
+	ValkeyLimitsURL  string
 
 	SignalsMaxConns     int
 	SignalsReadMaxConns int
@@ -59,6 +60,7 @@ func load(maxConns int) (Config, error) {
 		SignalsReadURL:      os.Getenv("SIGNALS_REPLICA_URL"),
 		ValkeyURL:           EnvOr("VALKEY_CACHE_URL", strings.TrimSpace(os.Getenv("VALKEY_URL"))),
 		PrimaryValkeyURL:    strings.TrimSpace(os.Getenv("VALKEY_URL")),
+		ValkeyLimitsURL:     strings.TrimSpace(os.Getenv("VALKEY_LIMITS_URL")),
 		SignalsMaxConns:     maxConns,
 		SignalsReadMaxConns: EnvInt("SIGNALS_READ_DB_MAX_CONNS", 8),
 	}

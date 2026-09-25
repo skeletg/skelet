@@ -2,24 +2,18 @@ package spinech
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/chtest"
 )
 
-// Gated on SIGNALS_CH_TEST_DSN and needs a live ClickHouse - exercises the real ingest and identity path end to end
-// SIGNALS_CH_TEST_DSN=clickhouse://skelet:skelet@clickhouse:9000/signals go test ./internal/analytics/spinech/ -run TestStoreIngest
 func TestStoreIngest(t *testing.T) {
-	dsn := os.Getenv("SIGNALS_CH_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set SIGNALS_CH_TEST_DSN to run the ClickHouse integration test")
-	}
 	ctx := context.Background()
-	st, err := New(ctx, dsn)
+	st, err := New(ctx, chtest.DSN(t))
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
@@ -82,11 +76,7 @@ func TestSeenCacheForgetsDroppedKeys(t *testing.T) {
 // Opens a gated store, or skips
 func testStore(t *testing.T) *Store {
 	t.Helper()
-	dsn := os.Getenv("SIGNALS_CH_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set SIGNALS_CH_TEST_DSN")
-	}
-	st, err := New(context.Background(), dsn)
+	st, err := New(context.Background(), chtest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +115,7 @@ func TestAppendEventReplayCollapses(t *testing.T) {
 
 	reader := testStore(t)
 	defer reader.Close()
-	p, err := reader.VisitorProfile(ctx, anon, at.Add(-time.Hour))
+	p, err := reader.VisitorProfile(ctx, ch, anon, at.Add(-time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +163,7 @@ func TestProfilePagesSurviveSinglePageView(t *testing.T) {
 
 	reader := testStore(t)
 	defer reader.Close()
-	p, err := reader.VisitorProfile(ctx, anon, at.Add(-time.Hour))
+	p, err := reader.VisitorProfile(ctx, ch, anon, at.Add(-time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,6 +279,47 @@ func TestDeleteCustomerIdentitiesErases(t *testing.T) {
 	}
 	if gone, err := st.CustomersForAnonIDs(ctx, []string{anonA, anonB}); err != nil || len(gone) != 0 {
 		t.Fatalf("CustomersForAnonIDs after erasure = %v err=%v, want none", gone, err)
+	}
+}
+
+func TestDeleteCustomerIdentitiesDetachesEvents(t *testing.T) {
+	ctx := context.Background()
+	st := testStore(t)
+	defer st.Close()
+	cust, ch := uuid.New(), uuid.New()
+	at := time.Now().UTC()
+	plain, keyed := "order:"+uuid.NewString(), "act:account_updated:"+cust.String()+":1"
+	for _, key := range []string{plain, keyed} {
+		if _, err := st.AppendEvent(ctx, analytics.SpineEvent{
+			EventName: "order_placed", OccurredAt: at, ChannelID: &ch, CustomerID: &cust,
+			Source: "commerce", Props: map[string]any{}, DedupeKey: key,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteCustomerIdentities(ctx, []uuid.UUID{cust}); err != nil {
+		t.Fatal(err)
+	}
+	var attached, kept uint64
+	if err := st.conn.QueryRow(ctx, "SELECT countIf(customer_id = ?), countIf(dedupe_key = ?) FROM analytics_events FINAL WHERE channel_id = ?",
+		cust, plain, ch).Scan(&attached, &kept); err != nil {
+		t.Fatal(err)
+	}
+	if attached != 0 {
+		t.Errorf("%d events still name the erased customer", attached)
+	}
+	if kept != 1 {
+		t.Errorf("the plain event survived %d times, want once - detached, not deleted", kept)
+	}
+	var keyedLeft uint64
+	if err := st.conn.QueryRow(ctx, "SELECT count() FROM analytics_events FINAL WHERE dedupe_key = ?", keyed).Scan(&keyedLeft); err != nil {
+		t.Fatal(err)
+	}
+	if keyedLeft != 0 {
+		t.Error("an event whose dedupe key embeds the customer id survived, so the id is still on the spine")
 	}
 }
 
@@ -469,7 +500,7 @@ func TestPruneEventsDropsWholeDays(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	before, err := st.VisitorProfile(ctx, anon, old.Add(-time.Hour))
+	before, err := st.VisitorProfile(ctx, ch, anon, old.Add(-time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -483,7 +514,7 @@ func TestPruneEventsDropsWholeDays(t *testing.T) {
 	if n < 1 {
 		t.Fatalf("PruneEvents reported %d rows, want at least the 1 seeded", n)
 	}
-	after, err := st.VisitorProfile(ctx, anon, old.Add(-time.Hour))
+	after, err := st.VisitorProfile(ctx, ch, anon, old.Add(-time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -761,5 +792,34 @@ func TestChannelOrderAggregatesWindow(t *testing.T) {
 	}
 	if _, ok := find(nothing); ok {
 		t.Error("a window after every placement still returned the customer")
+	}
+}
+
+func TestAVisitorProfileShowsOnlyTheAskedChannelsActivity(t *testing.T) {
+	ctx := context.Background()
+	st := testStore(t)
+	defer st.Close()
+	mine, theirs, anon := uuid.New(), uuid.New(), "anon-"+uuid.NewString()
+	at := time.Now().UTC()
+	for _, ch := range []uuid.UUID{mine, theirs, theirs} {
+		if _, err := st.AppendEvent(ctx, analytics.SpineEvent{
+			EventName: "page_view", OccurredAt: at, ChannelID: &ch, AnonID: anon, Source: "web",
+			Props: map[string]any{"title": "Page", "page_key": "/", "ip": "203.0.113.9"}, DedupeKey: "pv:" + uuid.NewString(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	p, err := st.VisitorProfile(ctx, mine, anon, at.Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.TotalEvents != 1 || len(p.Timeline) != 1 {
+		t.Fatalf("profile on one channel counted %d events, %d timeline rows, want only that channel's 1 - another shop's visits leaked", p.TotalEvents, len(p.Timeline))
+	}
+	if len(p.IPs) != 1 || p.IPs[0].Count != 1 {
+		t.Errorf("IPs = %+v, want the one seen on this channel", p.IPs)
 	}
 }

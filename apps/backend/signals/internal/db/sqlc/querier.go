@@ -44,15 +44,17 @@ type Querier interface {
 	// Every customer id in a channel - the universe a behavioral segment draws from, for evaluating a
 	// negated node (NOT X is the universe minus X)
 	ChannelRosterCustomerIDs(ctx context.Context, channelID uuid.UUID) ([]uuid.UUID, error)
+	ChannelRosterTombstones(ctx context.Context) ([]uuid.UUID, error)
 	// Atomically lease due scheduled campaigns for sending (multi-replica safe)
 	ClaimDueCampaigns(ctx context.Context, lim int32) ([]EmailCampaign, error)
-	// Runs the engine can advance now - the flow join is load-bearing: a run it would refuse still fills a LIMIT slot, and oldest-first means enough of them starve every newer run behind them OF r so the claim never locks a flow an operator is editing
-	ClaimRunnableFlowRuns(ctx context.Context, lim int32) ([]FlowRun, error)
+	// Leases runnable runs by pushing resume_at past the lease; channels take turns, and the flow join stays, or a refused run would still fill a LIMIT slot
+	ClaimRunnableFlowRuns(ctx context.Context, arg ClaimRunnableFlowRunsParams) ([]FlowRun, error)
 	// Wipe a channel's engagement projection - the empty-refresh case (no active
 	// customers in the window)
 	ClearChannelEngagement(ctx context.Context, channelID uuid.UUID) error
 	// The empty-refresh case: a channel whose spine holds no surviving orders
 	ClearChannelOrderAgg(ctx context.Context, channelID uuid.UUID) error
+	ClearChannelRosterTombstones(ctx context.Context, channelIds []uuid.UUID) error
 	// Free a slot within a channel (used before assigning it to another email so
 	// the (channel, slot) unique index holds - a slot has one email)
 	ClearLibraryEmailSlot(ctx context.Context, arg ClearLibraryEmailSlotParams) error
@@ -69,7 +71,9 @@ type Querier interface {
 	// Batched member counts for a set of segments (one row per segment that has
 	// ≥1 member) - backs the segment-list resolver so it isn't an N+1
 	CountSegmentMembersByIDs(ctx context.Context, segmentIds []uuid.UUID) ([]CountSegmentMembersByIDsRow, error)
+	CountSegmentMembersInChannels(ctx context.Context, arg CountSegmentMembersInChannelsParams) ([]CountSegmentMembersInChannelsRow, error)
 	CountSuppressions(ctx context.Context, reason string) (int64, error)
+	CountVisibleCustomerSegments(ctx context.Context, arg CountVisibleCustomerSegmentsParams) (int32, error)
 	// Customer segments and their membership table - segments are an admin bucket of customers; membership is materialised explicitly - the promotion engine reads them via Service.SegmentSlugsForCustomer and merges into the customer's group list, so the existing core.customer_group_in condition handles segment-gated rules with no engine changes
 	CreateCustomerSegment(ctx context.Context, arg CreateCustomerSegmentParams) (CustomerSegment, error)
 	CreateEmailCampaign(ctx context.Context, arg CreateEmailCampaignParams) (EmailCampaign, error)
@@ -84,19 +88,27 @@ type Querier interface {
 	CreateLibraryEmail(ctx context.Context, arg CreateLibraryEmailParams) (EmailLibrary, error)
 	// Customers whose 30-day window emptied since the last run
 	DeleteChannelEngagementFor(ctx context.Context, customerIds []uuid.UUID) error
+	DeleteCustomerFlowRuns(ctx context.Context, customerID uuid.UUID) error
+	DeleteCustomerMemberships(ctx context.Context, customerID uuid.UUID) error
 	// A customer core dropped, ahead of the sweep that would have caught it
 	DeleteCustomerRosterEntry(ctx context.Context, customerID uuid.UUID) (int64, error)
 	DeleteCustomerSegment(ctx context.Context, id uuid.UUID) error
+	DeleteCustomerTraits(ctx context.Context, customerID uuid.UUID) error
 	DeleteEmailBlock(ctx context.Context, arg DeleteEmailBlockParams) error
 	// Any group is deletable (incl. the seeded transactional/marketing ones);
 	// email_library.group_id ON DELETE SET NULL keeps the emails, just untagged
 	DeleteEmailGroup(ctx context.Context, id uuid.UUID) (int64, error)
-	DeleteEventDestination(ctx context.Context, id uuid.UUID) error
-	DeleteExperiment(ctx context.Context, id uuid.UUID) error
+	DeleteEventDestination(ctx context.Context, arg DeleteEventDestinationParams) (int64, error)
+	DeleteExperiment(ctx context.Context, arg DeleteExperimentParams) error
 	// Only after the batched spine delete landed - a failed sweep retries these.
 	DeleteIdentityErasures(ctx context.Context, customerIds []uuid.UUID) error
 	DeleteLibraryEmail(ctx context.Context, id uuid.UUID) error
 	DeleteSignalsConfigValue(ctx context.Context, arg DeleteSignalsConfigValueParams) error
+	// A deleted customer's campaign rows stay as the campaign's history with the address gone, and a row still waiting to send is skipped
+	DetachCustomerCampaignRecipients(ctx context.Context, customerID uuid.UUID) error
+	DetachErasedLensSessions(ctx context.Context, customerID uuid.UUID) error
+	// DetachCustomerCampaignRecipients for everyone off the roster - a guest row keeps its address, having no account to delete
+	DetachOrphanedCampaignRecipients(ctx context.Context) (int64, error)
 	// Drops one whole month of sends (partition drop + stray delete), returning the rows removed. Only called for months the archive export has committed, or directly under retention_action=prune.
 	DropEmailSendMonth(ctx context.Context, month time.Time) (int64, error)
 	// The send-log retention sweep's work list: months (partitions + any
@@ -107,7 +119,9 @@ type Querier interface {
 	EnqueueIdentityErasure(ctx context.Context, customerID uuid.UUID) error
 	// Pre-creates the next monthly partitions so inserts never land in the DEFAULT safety net (a populated DEFAULT blocks creating the month it holds). Rides the daily analytics prune.
 	EnsureEmailSendPartitions(ctx context.Context) error
+	FillSegmentRules(ctx context.Context, arg FillSegmentRulesParams) (int64, error)
 	FinalizeCampaign(ctx context.Context, id uuid.UUID) error
+	FlowRunExistsForKey(ctx context.Context, arg FlowRunExistsForKeyParams) (bool, error)
 	GetCustomerSegment(ctx context.Context, id uuid.UUID) (CustomerSegment, error)
 	GetCustomerSegmentBySlug(ctx context.Context, slug string) (CustomerSegment, error)
 	GetCustomerTrait(ctx context.Context, customerID uuid.UUID) (CustomerTrait, error)
@@ -187,7 +201,8 @@ type Querier interface {
 	LensTotalViews(ctx context.Context, arg LensTotalViewsParams) (int64, error)
 	// Roll a flush's metadata onto the session row - the first chunk inserts, later ones bump last_event_at, event_count and exit_page
 	// started_at stays the earliest seen, and customer_id fills once the visitor is known
-	LensUpsertSession(ctx context.Context, arg LensUpsertSessionParams) error
+	// A flush naming another channel's or another visitor's session id touches nothing, so the caller drops its chunk
+	LensUpsertSession(ctx context.Context, arg LensUpsertSessionParams) (int64, error)
 	// One-time backfill (run off-peak via `skelet lens backfill-rollups`). Aggregates existing raw web events into the rollups so the hub shows
 	// history immediately. Idempotent for the view dims (DO UPDATE SET = EXCLUDED overwrites covered days)
 	// Store a layout once per state; a repeat visit to the same layout just bumps last_seen
@@ -209,6 +224,7 @@ type Querier interface {
 	ListAllSignalsConfigValues(ctx context.Context) ([]ConfigValue, error)
 	ListCustomerSegments(ctx context.Context, arg ListCustomerSegmentsParams) ([]CustomerSegment, error)
 	ListCustomerTraitsByChannel(ctx context.Context, channelID uuid.UUID) ([]CustomerTrait, error)
+	// Longest unrefreshed first, so a sweep cut short resumes with what it missed
 	ListDynamicSegments(ctx context.Context) ([]CustomerSegment, error)
 	ListEmailBlocks(ctx context.Context, channelID uuid.UUID) ([]EmailBlock, error)
 	ListEmailCampaigns(ctx context.Context, arg ListEmailCampaignsParams) ([]EmailCampaign, error)
@@ -235,11 +251,14 @@ type Querier interface {
 	// Segments are global but their members are not - the channel filter has to live here rather than in the resolver, or paging would return short pages with holes wherever a foreign-channel member was dropped after LIMIT
 	// The channel comes off the synced roster now, since customers are core's
 	ListSegmentMembers(ctx context.Context, arg ListSegmentMembersParams) ([]ListSegmentMembersRow, error)
-	// Campaigns mid-send (incl. ones resuming after a crash/timeout)
+	// Least recently advanced first, since each pass touches updated_at
 	ListSendingCampaigns(ctx context.Context) ([]EmailCampaign, error)
 	ListSignalsConfigValuesInScopes(ctx context.Context, arg ListSignalsConfigValuesInScopesParams) ([]ConfigValue, error)
 	// Dashboard list, newest first, optional reason filter ('' = all) - active only
 	ListSuppressions(ctx context.Context, arg ListSuppressionsParams) ([]ListSuppressionsRow, error)
+	// A behavioral segment belongs to the channel its definition names, so a caller sees it only with that channel; the rest are global
+	ListVisibleCustomerSegments(ctx context.Context, arg ListVisibleCustomerSegmentsParams) ([]CustomerSegment, error)
+	LockChannelRoster(ctx context.Context) error
 	MarkBrowseNotified(ctx context.Context, arg MarkBrowseNotifiedParams) error
 	// --- A/B subject test ---
 	// Test slice fully sent → enter the measurement window (sending → testing)
@@ -253,21 +272,27 @@ type Querier interface {
 	MarkRecipientSkipped(ctx context.Context, arg MarkRecipientSkippedParams) error
 	MarkSendClicked(ctx context.Context, id uuid.UUID) error
 	MarkSendOpened(ctx context.Context, id uuid.UUID) error
+	MarkTraitComputeAttempt(ctx context.Context, arg MarkTraitComputeAttemptParams) error
+	MarkTraitComputeRun(ctx context.Context, arg MarkTraitComputeRunParams) error
+	OrphanedLensSessionBlobKeys(ctx context.Context) ([]string, error)
+	OrphanedLensSnapshotBlobKeys(ctx context.Context) ([]string, error)
 	PruneBrowseNotified(ctx context.Context, before time.Time) (int64, error)
 	PruneBrowseSeen(ctx context.Context, before time.Time) (int64, error)
-	// Channels core no longer runs, or no longer runs actively - beacons naming one stop being served
-	PruneChannelRoster(ctx context.Context, before time.Time) (int64, error)
+	// Channels core no longer has at all - a deactivated one is still pushed and keeps its row
+	PruneChannelRoster(ctx context.Context, keep []uuid.UUID) (int64, error)
 	// Customers gone from commerce since this sync started - an FK cascade to customers cannot cross databases, so this stands in for one
 	PruneCustomerRoster(ctx context.Context, before time.Time) (int64, error)
 	// Keep the newest `keep` revisions per email; drop older ones
 	PruneEmailRevisions(ctx context.Context, arg PruneEmailRevisionsParams) error
 	PruneLensDaily(ctx context.Context, before time.Time) (int64, error)
 	PruneLensVisitors(ctx context.Context, before time.Time) (int64, error)
-	// The same cascade, for a campaign's targeted rows - the address stays where the customer was a guest,
-	// since there was never an account to delete
-	PruneOrphanedCampaignRecipients(ctx context.Context) (int64, error)
+	PruneOrphanedBrowseNotified(ctx context.Context) (int64, error)
+	PruneOrphanedBrowseSeen(ctx context.Context) (int64, error)
 	// The same, for campaigns - a draft for a retired channel can never send
 	PruneOrphanedCampaigns(ctx context.Context) (int64, error)
+	PruneOrphanedChannelSettings(ctx context.Context) (int64, error)
+	// Destinations hold another shop's credentials, and a retired channel's must not keep forwarding
+	PruneOrphanedDestinations(ctx context.Context) (int64, error)
 	// The same, for admin-defined block types
 	PruneOrphanedEmailBlocks(ctx context.Context) (int64, error)
 	// Saved emails for channels core no longer runs - their revisions follow through an in-database cascade
@@ -275,20 +300,28 @@ type Querier interface {
 	// The same, for per-channel template overrides - a NULL channel is the global row every channel falls
 	// back to, so it belongs to no channel and must survive
 	PruneOrphanedEmailTemplates(ctx context.Context) (int64, error)
+	PruneOrphanedExperiments(ctx context.Context) (int64, error)
 	// Runs for customers no longer on the roster - a live run for a deleted customer would keep trying to mail them
 	PruneOrphanedFlowRuns(ctx context.Context) (int64, error)
 	// Flows for channels core no longer runs, the channel roster being what says which ones still exist
 	PruneOrphanedFlows(ctx context.Context) (int64, error)
+	PruneOrphanedLensSessions(ctx context.Context) (int64, error)
+	PruneOrphanedLensSnapshots(ctx context.Context) (int64, error)
+	PruneOrphanedLensTraffic(ctx context.Context) (int64, error)
+	PruneOrphanedLensVisitors(ctx context.Context) (int64, error)
 	// Memberships for customers no longer on the roster - the foreign key to customers could not cross databases, so this replaces its cascade the way PruneOrphanedTraits does for scores
 	PruneOrphanedMemberships(ctx context.Context) (int64, error)
+	PruneOrphanedTrafficRollup(ctx context.Context) (int64, error)
+	PruneOrphanedTraitRuns(ctx context.Context) (int64, error)
 	// Traits for customers no longer on the roster - the recompute only upserts, so without this a
 	// deleted customer keeps their scores and stays in every trait-based segment
 	PruneOrphanedTraits(ctx context.Context) (int64, error)
+	PruneRosterTombstones(ctx context.Context, before time.Time) (int64, error)
 	PruneTrafficRollup(ctx context.Context, before time.Time) (int64, error)
 	QueuedIdentityErasures(ctx context.Context, lim int32) ([]uuid.UUID, error)
 	// Recompute every customer's RFM, lifecycle and engagement traits for a channel in one set-based statement, so trait-compute scales without per-customer round-trips
 	// RFM are 1..5 quintile ranks among the channel's purchasers with 0 for never-ordered, recency reversed and ties broken by customer_id; lifecycle uses the channel's configured windows
-	// Skip no-op writes: only rewrite a row when a DECISION-relevant column actually changed - this is what stops the long-tail of dormant customers (no orders / activity) from churning a new tuple + WAL every run - their scores/lifecycle are stable, so they're left untouched - deliberately excludes recency_days (drifts ~½ day each run with no real signal) and computed_at from the gate, so a row's computed_at means "last time its traits materially changed" (use the trait-compute job's last_run_at for "when we last recomputed") - lifecycle threshold crossings (30/90/180d) and quintile shifts DO flip a gated column, so genuine transitions are still captured
+	// Rewrites a row only when a column rules read changed, so idle customers churn no WAL - computed_at means "last changed", not "last recomputed"
 	RecomputeChannelTraits(ctx context.Context, arg RecomputeChannelTraitsParams) (int64, error)
 	RecordRecipientClick(ctx context.Context, id uuid.UUID) (int64, error)
 	// Sets the first-open timestamp; returns 1 only on the first open (dedupe)
@@ -308,19 +341,26 @@ type Querier interface {
 	RestoreEmailCampaign(ctx context.Context, id uuid.UUID) (int64, error)
 	RestoreFlow(ctx context.Context, id uuid.UUID) (int64, error)
 	RfmDistributionForCustomers(ctx context.Context, customerIds []uuid.UUID) ([]RfmDistributionForCustomersRow, error)
-	// The channels the roster covers - what the trait recompute iterates, since a channel with no
-	// customers has nothing to compute
 	RosterChannels(ctx context.Context) ([]uuid.UUID, error)
+	RosterChannelsOfCustomers(ctx context.Context, customerIds []uuid.UUID) ([]RosterChannelsOfCustomersRow, error)
 	// One person a flow run can reach, as core last pushed them - consent is read here rather than
 	// carried on the run, so someone who unsubscribes mid-journey is not sent to
 	RosterContact(ctx context.Context, customerID uuid.UUID) (RosterContactRow, error)
 	// Marketing consent as it stands right now for a page of recipients - re-read at send time, since
-	// someone who unsubscribed after the campaign was built must not be mailed
+	// someone who unsubscribed or was deactivated after the campaign was built must not be mailed
 	RosterMarketingConsent(ctx context.Context, customerIds []uuid.UUID) ([]RosterMarketingConsentRow, error)
 	// Move a draft (or an already-scheduled campaign) to scheduled with a send time
 	ScheduleEmailCampaign(ctx context.Context, arg ScheduleEmailCampaignParams) (int64, error)
 	// GDPR erasure: redact the address on the customer's sends. Matched by customer id plus the pre-scrub address itself, which also catches guest-era sends to the same person. The rows stay (the send happened), like the order scrub.
 	ScrubCustomerEmailSends(ctx context.Context, arg ScrubCustomerEmailSendsParams) (int64, error)
+	// Sent rows stay as the campaign's history with the address gone, and a row still waiting to send is skipped
+	ScrubErasedCampaignRecipients(ctx context.Context, customerID uuid.UUID) error
+	ScrubErasedFlowRuns(ctx context.Context, customerID uuid.UUID) error
+	ScrubErasedGuestCampaignRecipients(ctx context.Context, email string) error
+	ScrubErasedGuestFlowRuns(ctx context.Context, email string) error
+	// GDPR erasure scrubs in place, since the customer row stays in commerce as an anchor - a guest row with the same address goes too
+	// Stamped with core's erase time, so a sweep page read before the erasure can't restore the address
+	ScrubErasedRosterEntry(ctx context.Context, arg ScrubErasedRosterEntryParams) error
 	// Synapse's segment-side reads - the behavioural aggregates live on the spine driver
 	// Daily member-count series for a segment over the last `days` days (from the
 	// snapshot table) - accrues forward from when the segment first materialised
@@ -360,6 +400,9 @@ type Querier interface {
 	// Suppress immediately (hard bounce / complaint / manual / unsubscribe) - idempotent:
 	// re-suppressing refreshes the reason/detail and keeps active true
 	SuppressEmail(ctx context.Context, arg SuppressEmailParams) error
+	TombstoneCustomerRosterEntry(ctx context.Context, customerID uuid.UUID) error
+	TouchCustomerRoster(ctx context.Context, arg TouchCustomerRosterParams) error
+	TraitComputeChannels(ctx context.Context) ([]uuid.UUID, error)
 	TraitsForCustomers(ctx context.Context, customerIds []uuid.UUID) ([]TraitsForCustomersRow, error)
 	// Operator clears a suppression (address recovered / added in error) - resets the
 	// soft-bounce tally so it starts fresh
@@ -382,11 +425,11 @@ type Querier interface {
 	// Incremental-refresh upsert: only the changed customers (paired arrays), no
 	// channel-wide pruning - deletions come from DeleteChannelEngagementFor
 	UpsertChannelEngagementFor(ctx context.Context, arg UpsertChannelEngagementForParams) error
-	// Lands the whole active-channel set - paired arrays, one statement
 	UpsertChannelRoster(ctx context.Context, arg UpsertChannelRosterParams) error
 	// Spine half of trait compute (the `act` CTE), split out of the commerce RecomputeChannelTraits - feeds the
 	// commerce-side customer_engagement_30d projection the recompute reads
 	// Lands a page of the synced roster - paired arrays, one statement per page
+	// A deleted customer's tombstone keeps a page read before the delete from bringing them back, and a row core read later than this page is left alone
 	UpsertCustomerRoster(ctx context.Context, arg UpsertCustomerRosterParams) error
 	// One customer, arriving on a change rather than a sweep - synced_at moves too, so the next sweep does not prune a row that just landed
 	UpsertCustomerRosterEntry(ctx context.Context, arg UpsertCustomerRosterEntryParams) error

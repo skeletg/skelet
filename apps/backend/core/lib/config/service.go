@@ -66,12 +66,8 @@ func (s *Service) decryptStored(v string) (string, error) {
 	return s.cipher.Decrypt(v)
 }
 
-// Called after Set and Reset so the next storefront page sees the new value - only one key today, but DelPattern keeps it open for future per-scope splits
 func (s *Service) invalidate(ctx context.Context) {
-	if s.cache == nil {
-		return
-	}
-	s.cache.DelPattern(ctx, "*")
+	s.cache.Flush(ctx)
 }
 
 // Resolution order is the stored row at (scope.Kind, scope.ID), then the stored row at (default, 0), then the Registry default

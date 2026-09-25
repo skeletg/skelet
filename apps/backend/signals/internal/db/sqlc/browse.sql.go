@@ -48,15 +48,17 @@ SELECT channel_id, anon_id, last_browse_at, page_key, sku, product_name, product
 FROM browse_seen
 WHERE last_browse_at > $1::timestamptz
   AND (last_browse_at, anon_id) < ($2::timestamptz, $3::text)
+  AND ($4::uuid IS NULL OR channel_id = $4::uuid)
 ORDER BY last_browse_at DESC, anon_id DESC
-LIMIT $4
+LIMIT $5
 `
 
 type BrowseSeenSincePageParams struct {
-	MaxAge    time.Time `json:"max_age"`
-	AfterAt   time.Time `json:"after_at"`
-	AfterAnon string    `json:"after_anon"`
-	Lim       int32     `json:"lim"`
+	MaxAge    time.Time     `json:"max_age"`
+	AfterAt   time.Time     `json:"after_at"`
+	AfterAnon string        `json:"after_anon"`
+	ChannelID uuid.NullUUID `json:"channel_id"`
+	Lim       int32         `json:"lim"`
 }
 
 // One keyset page of anon-keyed browse rows newer than the lookback, newest-first, for the browse-abandonment scan. Identity resolution, the latest-per-customer pick, the idle-threshold check and the notified filter all run app-side (the identities live on the spine engine, which this Postgres table can't join); paging bounds the fetch and each resolve batch on an arbitrarily busy window.
@@ -65,6 +67,7 @@ func (q *Queries) BrowseSeenSincePage(ctx context.Context, arg BrowseSeenSincePa
 		arg.MaxAge,
 		arg.AfterAt,
 		arg.AfterAnon,
+		arg.ChannelID,
 		arg.Lim,
 	)
 	if err != nil {

@@ -1513,7 +1513,9 @@ func (x *EnrollRequest) GetIdempotencyKey() string {
 type EnrollResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Active flows on the trigger, whether or not each started a run for this moment - zero means core's own mail still has to go out
-	Enrolled      int32 `protobuf:"varint,1,opt,name=enrolled,proto3" json:"enrolled,omitempty"`
+	Enrolled int32 `protobuf:"varint,1,opt,name=enrolled,proto3" json:"enrolled,omitempty"`
+	// Some flow could not be asked - the flows counted in enrolled took the moment, the rest may take it on a repeat
+	Incomplete    bool `protobuf:"varint,2,opt,name=incomplete,proto3" json:"incomplete,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1553,6 +1555,13 @@ func (x *EnrollResponse) GetEnrolled() int32 {
 		return x.Enrolled
 	}
 	return 0
+}
+
+func (x *EnrollResponse) GetIncomplete() bool {
+	if x != nil {
+		return x.Incomplete
+	}
+	return false
 }
 
 var File_skelet_signals_v1_flows_proto protoreflect.FileDescriptor
@@ -1667,9 +1676,12 @@ const file_skelet_signals_v1_flows_proto_rawDesc = "" +
 	"customerId\x12\x14\n" +
 	"\x05email\x18\x04 \x01(\tR\x05email\x12!\n" +
 	"\fpayload_json\x18\x05 \x01(\tR\vpayloadJson\x12'\n" +
-	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\",\n" +
+	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\"L\n" +
 	"\x0eEnrollResponse\x12\x1a\n" +
-	"\benrolled\x18\x01 \x01(\x05R\benrolled2\xb1\t\n" +
+	"\benrolled\x18\x01 \x01(\x05R\benrolled\x12\x1e\n" +
+	"\n" +
+	"incomplete\x18\x02 \x01(\bR\n" +
+	"incomplete2\xb1\t\n" +
 	"\vFlowService\x12V\n" +
 	"\tListFlows\x12#.skelet.signals.v1.ListFlowsRequest\x1a$.skelet.signals.v1.ListFlowsResponse\x12\\\n" +
 	"\vGetFlowByID\x12%.skelet.signals.v1.GetFlowByIDRequest\x1a&.skelet.signals.v1.GetFlowByIDResponse\x12Y\n" +

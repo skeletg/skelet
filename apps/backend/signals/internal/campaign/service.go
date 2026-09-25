@@ -154,9 +154,27 @@ func (s *Service) validate(in Input) error {
 	return s.tmpl.ValidateContent(in.Blocks, in.Styles)
 }
 
+// A campaign sends only a library email of its own channel - another channel's would carry that store's content and branding
+func (s *Service) libraryEmail(ctx context.Context, channelID uuid.UUID, emailID *uuid.UUID) (*emailtemplate.LibraryEmail, error) {
+	if emailID == nil {
+		return nil, nil
+	}
+	le, ok, err := s.tmpl.GetLibraryEmail(ctx, *emailID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok || le.ChannelID != channelID {
+		return nil, fmt.Errorf("library email %s not found", *emailID)
+	}
+	return &le, nil
+}
+
 func (s *Service) Create(ctx context.Context, in Input) (Campaign, error) {
 	in.normalizeAB()
 	if err := s.validate(in); err != nil {
+		return Campaign{}, err
+	}
+	if _, err := s.libraryEmail(ctx, in.ChannelID, in.EmailID); err != nil {
 		return Campaign{}, err
 	}
 	return s.repo.Create(ctx, Campaign{
@@ -170,6 +188,9 @@ func (s *Service) Create(ctx context.Context, in Input) (Campaign, error) {
 func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (Campaign, error) {
 	in.normalizeAB()
 	if err := s.validate(in); err != nil {
+		return Campaign{}, err
+	}
+	if _, err := s.libraryEmail(ctx, in.ChannelID, in.EmailID); err != nil {
 		return Campaign{}, err
 	}
 	ok, err := s.repo.Update(ctx, Campaign{
@@ -356,6 +377,9 @@ func (s *Service) Drain(ctx context.Context, budget time.Duration) (int, error) 
 				log.Printf("[campaign] send %s: %v", c.ID, err)
 				errs = append(errs, fmt.Errorf("send %s: %w", c.ID, err))
 			}
+			if budget > 0 && !more() {
+				return total + handled, errors.Join(errs...) // the rest lead the next pass, having advanced least recently
+			}
 		}
 		total += handled
 		if handled == 0 || len(errs) > 0 || !more() {
@@ -413,17 +437,13 @@ func (s *Service) send(ctx context.Context, c Campaign) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	if !ch.Active {
+		return 0, s.repo.RefreshCounts(ctx, c.ID) // held, and moved behind the campaigns that can send
+	}
 	from := s.fromAddress(ch)
-	var libEmail *emailtemplate.LibraryEmail // resolved ONCE for the whole send - every recipient renders the same template and only the merge vars differ, so a per-recipient round-trip buys nothing
-	if c.EmailID != nil {
-		le, ok, gerr := s.tmpl.GetLibraryEmail(ctx, *c.EmailID)
-		if gerr != nil {
-			return 0, gerr
-		}
-		if !ok {
-			return 0, fmt.Errorf("library email %s not found", *c.EmailID)
-		}
-		libEmail = &le
+	libEmail, err := s.libraryEmail(ctx, c.ChannelID, c.EmailID) // resolved ONCE for the whole send - every recipient renders the same template and only the merge vars differ, so a per-recipient round-trip buys nothing
+	if err != nil {
+		return 0, err
 	}
 	sent := 0
 	for sent < perRunSendCap {
@@ -630,6 +650,9 @@ func (s *Service) SendTest(ctx context.Context, id uuid.UUID, to string) error {
 	}
 	if !ok {
 		return fmt.Errorf("campaign not found")
+	}
+	if _, err := s.libraryEmail(ctx, c.ChannelID, c.EmailID); err != nil {
+		return err
 	}
 	ch, err := s.stores.Get(ctx, c.ChannelID)
 	if err != nil {

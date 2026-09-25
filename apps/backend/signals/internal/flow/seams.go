@@ -33,6 +33,8 @@ type Store struct {
 	FromAddress string
 	FromName    string
 	LogoURL     string
+	// A deactivated channel still sends transactional mail, and nothing else
+	Active bool
 }
 
 type storeReader interface {

@@ -161,8 +161,8 @@ func newDestination(q Queries, rec *analytics.Recorder, allow AllowPrivateTarget
 }
 
 // The beacon surface's copy of core's active channels, which core's push job keeps current
-func newChannelRoster(q Queries) *analytics.ChannelRoster {
-	return analytics.NewChannelRoster(q.Queries)
+func newChannelRoster(p SignalsPool) *analytics.ChannelRoster {
+	return analytics.NewChannelRoster(p.DB)
 }
 
 // Coalesces in memory and flushes aggregates, so busy sites never store a row per hit nor scan raw events

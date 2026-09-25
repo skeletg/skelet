@@ -19,7 +19,7 @@ type Repository interface {
 	Get(ctx context.Context, id uuid.UUID) (Experiment, bool, error)
 	List(ctx context.Context, channelID uuid.UUID) ([]Experiment, error)
 	ListRunning(ctx context.Context, channelID uuid.UUID) ([]Experiment, error)
-	Delete(ctx context.Context, id uuid.UUID) error
+	Delete(ctx context.Context, channelID, id uuid.UUID) error
 	Results(ctx context.Context, channelID uuid.UUID, key, goalEvent string, since time.Time) ([]VariationResult, error)
 	GoalEvents(ctx context.Context, channelID uuid.UUID, since time.Time) ([]string, error)
 }
@@ -70,7 +70,7 @@ func (r *repo) Update(ctx context.Context, e Experiment) (bool, error) {
 	}
 	n, err := r.q.UpdateExperiment(ctx, db.UpdateExperimentParams{
 		Name: e.Name, Status: e.Status, Coverage: int32(e.Coverage),
-		GoalEvent: e.GoalEvent, Variations: vars, SegmentSlug: e.SegmentSlug, ID: e.ID,
+		GoalEvent: e.GoalEvent, Variations: vars, SegmentSlug: e.SegmentSlug, ID: e.ID, ChannelID: e.ChannelID,
 	})
 	return n > 0, err
 }
@@ -103,8 +103,8 @@ func (r *repo) ListRunning(ctx context.Context, channelID uuid.UUID) ([]Experime
 	return toExperiments(rows)
 }
 
-func (r *repo) Delete(ctx context.Context, id uuid.UUID) error {
-	return r.q.DeleteExperiment(ctx, id)
+func (r *repo) Delete(ctx context.Context, channelID, id uuid.UUID) error {
+	return r.q.DeleteExperiment(ctx, db.DeleteExperimentParams{ID: id, ChannelID: channelID})
 }
 
 func (r *repo) Results(ctx context.Context, channelID uuid.UUID, key, goalEvent string, since time.Time) ([]VariationResult, error) {

@@ -3,6 +3,7 @@ package boot
 import (
 	"go.uber.org/fx"
 
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
 )
 
@@ -10,9 +11,9 @@ import (
 // was opened, and a blob store where a bucket is configured
 var Wiring = fx.Module("wiring", fx.Invoke(wire))
 
-func wire(rc RootContext, lensSvc *lens.Service, rq ReadQueries) error {
+func wire(rc RootContext, lensSvc *lens.Service, channels *analytics.ChannelRoster, rq ReadQueries) error {
 	if rq.Queries != nil {
 		lensSvc.SetReadQueries(rq.Queries)
 	}
-	return wireLensBlobStore(rc.Context, lensSvc)
+	return wireLensBlobStore(rc.Context, lensSvc, channels)
 }

@@ -72,15 +72,17 @@ func SignalsServiceSecret(getenv Getenv) (errs, warnings []string) {
 	return errs, nil
 }
 
+const ErrSignalsUnaddressed = "SIGNALS_ENABLED is true (the default) but SIGNALS_GRPC_ADDR is empty - point it at the signals service (e.g. signals:8092), or set SIGNALS_ENABLED=false to run without the suite"
+
 // SignalsCaller is the same rule for core, which only signs when it has a suite to dial
 func SignalsCaller(getenv Getenv) (errs, warnings []string) {
-	if strings.TrimSpace(getenv("SIGNALS_GRPC_ADDR")) == "" {
-		return nil, nil
-	}
 	if v := strings.TrimSpace(getenv("SIGNALS_ENABLED")); v != "" {
 		if on, err := strconv.ParseBool(v); err == nil && !on {
 			return nil, nil
 		}
+	}
+	if strings.TrimSpace(getenv("SIGNALS_GRPC_ADDR")) == "" {
+		return []string{ErrSignalsUnaddressed}, nil
 	}
 	return SignalsServiceSecret(getenv)
 }

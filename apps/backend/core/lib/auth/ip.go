@@ -144,8 +144,8 @@ func hostOnly(s string) string { // some proxies append a :port suffix
 const StorefrontSessionCookie = "storefront_access_token"
 
 // VerifiedStorefrontCustomer is the only customer identity a public endpoint may trust - header and body ids are forgeable there
-// Bearer token first, else the httpOnly session cookie, uuid.Nil when there is neither
-func VerifiedStorefrontCustomer(r *http.Request, secret string) uuid.UUID {
+// Bearer token first, else the httpOnly session cookie, uuid.Nil when there is neither or the session belongs to another channel
+func VerifiedStorefrontCustomer(r *http.Request, secret string, channelID uuid.UUID) uuid.UUID {
 	tokenStr := ""
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
 		tokenStr = strings.TrimPrefix(h, "Bearer ")
@@ -156,7 +156,7 @@ func VerifiedStorefrontCustomer(r *http.Request, secret string) uuid.UUID {
 		return uuid.Nil
 	}
 	cc, err := ValidateCustomerToken(tokenStr, secret)
-	if err != nil {
+	if err != nil || cc.ChannelID != channelID {
 		return uuid.Nil
 	}
 	return cc.CustomerID
