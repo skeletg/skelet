@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { numberText } from '@/shared/schemas/fields'
 import type { RemoteProviderFailurePolicy, RemoteProviderKind } from '@/graphql/schema.types'
 import type { UpdateRemoteProviderMutationVariables } from '../RemoteProviders.gql'
 
@@ -28,11 +29,7 @@ function parseJson(text: string): { ok: true; value: unknown } | { ok: false } {
 }
 
 // Blank means "use the default" - otherwise a whole number within the service's bounds
-function boundedInt(max: number) {
-  return z
-    .string()
-    .refine((v) => v.trim() === '' || (/^\d+$/.test(v.trim()) && Number(v) <= max), `A whole number from 0 to ${max}`)
-}
+const boundedInt = (max: number) => numberText({ optional: true, int: true, min: 0, max })
 
 export const remoteProviderSchema = z.object({
   kind: z.string(),

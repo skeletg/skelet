@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { wholeNumber } from '@/shared/schemas/fields'
 
 // Review categories and moderation tags are the same record - a label the AI classifier picks per
 // review. The slug is fixed after create (reviews and the AI verdict key on it); the description is
@@ -18,7 +19,7 @@ export const reviewLabelSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
   description: z.string(),
   isActive: z.boolean(),
-  sortOrder: z.number().int('Whole numbers only'),
+  sortOrder: wholeNumber(),
 })
 
 export type ReviewLabelValues = z.infer<typeof reviewLabelSchema>

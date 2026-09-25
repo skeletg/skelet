@@ -7,8 +7,9 @@ import { useDialogForm } from '@/components/form/useDialogForm'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { PASSWORD_HINT } from '@/shared/schemas/fields'
 import { ChangePasswordDocument } from './Admins.gql'
-import { MIN_PASSWORD_LENGTH, changePasswordSchema, emptyChangePassword } from './schemas/changePassword'
+import { changePasswordSchema, emptyChangePassword } from './schemas/changePassword'
 
 const TITLE = 'Change password'
 const DESCRIPTION = 'Updates the password for your own account. You stay signed in everywhere.'
@@ -72,7 +73,7 @@ function ChangePasswordForm({ onClose }: { onClose: () => void }) {
             label="New password"
             type="password"
             autoComplete="new-password"
-            hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
+            hint={`${PASSWORD_HINT}.`}
           />
         )}
       </form.AppField>

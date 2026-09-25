@@ -5,6 +5,7 @@ import { FormDialogBody } from '@/components/form/FormDialogBody'
 import { useDialogForm } from '@/components/form/useDialogForm'
 import { Label } from '@/components/ui/label'
 import { RoleSelector } from '@/components/RoleSelector'
+import { PASSWORD_HINT } from '@/shared/schemas/fields'
 import { AdminsDocument, CreateAdminDocument, UpdateAdminDocument } from './Admins.gql'
 import { createAdminSchema, editAdminSchema, toAdminValues, type ExistingAdmin } from './schemas/admin'
 
@@ -82,7 +83,7 @@ function AdminForm({ admin, onClose }: { admin?: ExistingAdmin; onClose: () => v
       {!admin && (
         <form.AppField name="password">
           {(f) => (
-            <f.TextField id="admin-password" label="Password" type="password" autoComplete="new-password" hint="Minimum 8 characters." />
+            <f.TextField id="admin-password" label="Password" type="password" autoComplete="new-password" hint={`${PASSWORD_HINT}.`} />
           )}
         </form.AppField>
       )}

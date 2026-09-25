@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { numberText, wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
 import {
@@ -28,15 +29,13 @@ export const currencySchema = z.object({
   code: z.string().regex(/^[A-Z]{3}$/, 'Use ISO 4217: exactly 3 uppercase letters (e.g. USD, EUR).'),
   name: z.string().trim().min(1, 'Name is required'),
   symbol: z.string(),
-  decimals: z.number().int('Whole numbers only').min(0, 'Between 0 and 4').max(4, 'Between 0 and 4'),
+  decimals: wholeNumber().min(0, 'Between 0 and 4').max(4, 'Between 0 and 4'),
   // The service's own vocabulary - uppercase BEFORE/AFTER fails its check in internal/currency/service.go
   symbolPosition: z.enum(['prefix', 'suffix']),
   isActive: z.boolean(),
-  sortOrder: z.number().int('Whole numbers only'),
+  sortOrder: wholeNumber(),
   // A manual override, edit-only - '' means "leave it to the currency-rates job"
-  exchangeRate: z
-    .string()
-    .refine((v) => v.trim() === '' || (Number.isFinite(Number(v)) && Number(v) > 0), 'Must be a positive number'),
+  exchangeRate: numberText({ optional: true, above: 0 }, 'Must be a positive number'),
   metadata: metadataSchema,
 })
 

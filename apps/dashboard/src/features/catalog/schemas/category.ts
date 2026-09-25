@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
 import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEditor'
@@ -17,7 +18,7 @@ export const categorySchema = z.object({
     .regex(/^[a-z0-9._-]+$/, 'Lowercase letters, numbers, dots, underscores and hyphens only'),
   // '' = a root category
   parentId: z.string(),
-  position: z.number().int('Whole numbers only'),
+  position: wholeNumber(),
   isPublished: z.boolean(),
   seoNoindex: z.boolean(),
   // Opaque rich-text JSON to the form - its recursive type would blow up TanStack's deep field paths

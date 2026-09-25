@@ -92,7 +92,7 @@ describe('ShippingZoneEditPage', () => {
     const writes = renderPage()
     fireEvent.change(await screen.findByLabelText('Flat price ($)'), { target: { value: '-3' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(await screen.findByText(/Fix the highlighted field: Must be 0 or more/)).toBeDefined()
+    expect(await screen.findByText(/Fix the highlighted field: Zero or more/)).toBeDefined()
     expect(writes.method).not.toHaveBeenCalled()
 
     fireEvent.change(screen.getByLabelText('Flat price ($)'), { target: { value: '7.5' } })

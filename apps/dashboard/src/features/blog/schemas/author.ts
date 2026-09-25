@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { optionalEmail } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
 import type { BlogAuthorRowFragment } from '../Blog.gql'
@@ -9,7 +10,7 @@ import type { BlogAuthorRowFragment } from '../Blog.gql'
 export const authorSchema = z.object({
   slug: z.string().trim().min(1, 'Slug is required'),
   displayName: z.string().trim().min(1, 'Display name is required'),
-  email: z.union([z.literal(''), z.email('Enter a valid email address')]),
+  email: optionalEmail(),
   bio: z.string(),
 })
 

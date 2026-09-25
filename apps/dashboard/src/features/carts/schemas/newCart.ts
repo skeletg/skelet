@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { EMAIL_MESSAGE, isEmail } from '@/shared/schemas/fields'
 
 // New-cart dialog - a cart for a guest, an existing customer, or a customer created inline. What's
 // required depends on the mode
@@ -16,8 +17,8 @@ export const newCartSchema = z
       ctx.addIssue({ code: 'custom', path: ['customer'], message: 'Pick a customer' })
     }
     if (v.mode !== 'new') return
-    if (!z.email().safeParse(v.email.trim()).success) {
-      ctx.addIssue({ code: 'custom', path: ['email'], message: 'Enter a valid email address' })
+    if (!isEmail(v.email)) {
+      ctx.addIssue({ code: 'custom', path: ['email'], message: EMAIL_MESSAGE })
     }
     if (!v.firstName.trim()) ctx.addIssue({ code: 'custom', path: ['firstName'], message: 'First name is required' })
     if (!v.lastName.trim()) ctx.addIssue({ code: 'custom', path: ['lastName'], message: 'Last name is required' })

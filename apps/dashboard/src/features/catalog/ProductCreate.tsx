@@ -25,6 +25,7 @@ import { usePermissions } from '@/shared/auth/usePermissions'
 import { filterChannelsByAllowedScopes, localesForAllowedChannel, useConfigScope } from '@/lib/config-scope'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
+import { dollarsToCents } from '@/shared/schemas/fields'
 import { CurrenciesPickerDocument } from '@/features/currencies/Currencies.gql'
 import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { AttributeControl, emptyAttrState, type AttrState, type AttributeSummary } from './AttributesEditor'
@@ -33,7 +34,6 @@ import { CreateProductDocument, ProductTypeDocument, ProductTypesDocument, SetPr
 import { FormRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
 import { ProductTypeFormDialog } from './ProductTypeFormDialog'
 import {
-  dollarsToCents,
   emptyNewProduct,
   newProductSchema,
   toAttributeAssignments,

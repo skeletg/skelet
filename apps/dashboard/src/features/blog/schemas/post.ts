@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { numberText } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { added, changed, fieldDiff, removed } from '@/shared/saving/diff'
 import { richTextToPlainText, type RichTextValue } from '@/features/catalog/LexicalRichTextEditor'
@@ -16,7 +17,7 @@ const postShape = z.object({
     .regex(/^[a-z0-9._-]+$/, 'Lowercase letters, numbers, dots, underscores and hyphens only'),
   seoNoindex: z.boolean(),
   // As typed - blank means "let the storefront estimate it"
-  readingTime: z.string().refine((v) => v.trim() === '' || (Number.isInteger(Number(v)) && Number(v) > 0), 'Whole minutes, one or more'),
+  readingTime: numberText({ optional: true, int: true, min: 1 }, 'Whole minutes, one or more'),
   title: z.string(),
   // Opaque rich-text JSON to the form - its recursive type would blow up TanStack's deep field paths
   body: z.unknown(),

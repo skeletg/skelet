@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { wholeNumber } from '@/shared/schemas/fields'
 import type { AttributeInputType } from '@/graphql/schema.types'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
@@ -58,7 +59,7 @@ export function attributeSettingsSchema(inputType: AttributeInputType) {
     .object({
       name: z.string().trim().min(1, 'Name is required'),
       unit: z.string(),
-      sortOrder: z.number().int('Whole numbers only'),
+      sortOrder: wholeNumber(),
       valueRequired: z.boolean(),
       filterable: z.boolean(),
       searchable: z.boolean(),

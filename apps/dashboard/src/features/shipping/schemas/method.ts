@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { countryListText, formatCountryList, parseCountryList } from '@/shared/schemas/countries'
+import { dollarsToCents, money, wholeNumber } from '@/shared/schemas/fields'
 
 // Shipping method row - an inline CRUD row with its own Save (the conventions' allowed exception),
 // validated by the same kind of schema as the record forms
@@ -20,9 +21,7 @@ export type ExistingMethod = {
 }
 
 // Prices are typed in dollars as text and stored in cents
-const dollars = z
-  .string()
-  .refine((v) => v.trim() === '' || (Number.isFinite(Number(v)) && Number(v) >= 0), 'Must be 0 or more')
+const dollars = money({ optional: true })
 
 export const methodSchema = z.object({
   code: z.string().trim().min(1, 'Code is required'),
@@ -30,7 +29,7 @@ export const methodSchema = z.object({
   calcType: z.enum(['FLAT', 'FREE', 'FREE_ABOVE']),
   flatDollars: dollars,
   freeAboveDollars: dollars,
-  sortOrder: z.number().int('Whole numbers only'),
+  sortOrder: wholeNumber(),
   isActive: z.boolean(),
   countryMode: z.enum(['all', 'specific']),
   allowedCountries: countryListText,
@@ -52,15 +51,13 @@ export function toMethodValues(method?: ExistingMethod): MethodValues {
   }
 }
 
-const toCents = (v: string) => Math.round((Number(v) || 0) * 100)
-
 export function toMethodInput(v: MethodValues) {
   return {
     code: v.code.trim(),
     name: v.name,
     calcType: v.calcType,
-    flatCents: toCents(v.flatDollars),
-    freeAboveCents: toCents(v.freeAboveDollars),
+    flatCents: dollarsToCents(v.flatDollars),
+    freeAboveCents: dollarsToCents(v.freeAboveDollars),
     sortOrder: v.sortOrder,
     isActive: v.isActive,
     countryMode: v.countryMode,

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { ProductAttributeAssignmentInput, ProductKind } from '@/graphql/schema.types'
+import { dollarsToCents, money } from '@/shared/schemas/fields'
 import { buildAssignment, emptyAttrState, type AttrState, type AttributeSummary } from '../AttributesEditor'
 import type { RichTextValue } from '../LexicalRichTextEditor'
 
@@ -31,7 +32,7 @@ export function newProductSchema(ctx: { fallbackLocale: string; attributes: (pro
       name: z.string().trim().min(1, 'Name is required'),
       // Blank lets the service generate one from the name
       sku: z.string(),
-      priceDollars: z.string().refine((v) => v.trim() !== '' && Number.isFinite(Number(v)) && Number(v) >= 0, 'Zero or more'),
+      priceDollars: money(),
       currencyCode: z.string().regex(/^[A-Z]{3}$/, 'A 3-letter ISO code such as USD'),
       locale: z.string().refine((v) => (v || ctx.fallbackLocale) !== '', 'Pick a translation locale'),
       // Opaque rich-text JSON to the form - its recursive type would blow up TanStack's deep field paths
@@ -88,11 +89,6 @@ export const emptyNewProduct: NewProductValues = {
   canonicalUrl: '',
   seoNoindex: false,
   attrState: {},
-}
-
-export function dollarsToCents(input: string): number {
-  const n = Number(input)
-  return Number.isFinite(n) ? Math.round(n * 100) : 0
 }
 
 const blankToNull = (v: string) => v.trim() || null

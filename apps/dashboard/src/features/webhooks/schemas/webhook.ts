@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { numberText } from '@/shared/schemas/fields'
 import type { WebhookFailurePolicy, WebhookKind } from '@/graphql/schema.types'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
@@ -28,9 +29,7 @@ export const webhookSchema = z.object({
   // '' = every store
   channelId: z.string(),
   failurePolicy: z.enum(['FAIL_OPEN', 'FAIL_CLOSED']),
-  timeoutMs: z
-    .string()
-    .refine((v) => v.trim() === '' || (/^\d+$/.test(v.trim()) && Number(v) <= 30000), 'A whole number from 0 to 30000'),
+  timeoutMs: numberText({ optional: true, int: true, min: 0, max: 30000 }),
   // Extra request headers - often auth tokens, so they're kept out of stored drafts
   headers: z.array(z.object({ key: z.string(), value: z.string() })),
 })

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
 import {
@@ -35,7 +36,7 @@ export const countrySchema = z.object({
   phoneCode: z.string(),
   defaultCurrencyCode: z.string(),
   isActive: z.boolean(),
-  sortOrder: z.number().int('Whole numbers only'),
+  sortOrder: wholeNumber(),
   metadata: metadataSchema,
 })
 

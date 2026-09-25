@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { numberText, wholeNumber } from '@/shared/schemas/fields'
 
 // Shipping box dialog - a real carton the packer fits line items into
 
@@ -16,11 +17,9 @@ export type ExistingBox = {
 }
 
 // Dimensions are typed into empty boxes on create, so they stay text until they're sent
-const millimetres = z
-  .string()
-  .refine((v) => /^\d+$/.test(v.trim()) && Number(v) >= 1, 'Whole millimetres, at least 1')
+const millimetres = numberText({ int: true, min: 1 }, 'Whole millimetres, at least 1')
 // Blank means 0 - no limit for the load, nothing added for the carton
-const grams = z.string().refine((v) => v.trim() === '' || /^\d+$/.test(v.trim()), 'Whole grams')
+const grams = numberText({ optional: true, int: true, min: 0 }, 'Whole grams')
 
 export const boxSchema = z.object({
   // The upsert key - fixed after creation
@@ -31,7 +30,7 @@ export const boxSchema = z.object({
   height: millimetres,
   maxWeight: grams,
   boxWeight: grams,
-  sortOrder: z.number().int('Whole numbers only'),
+  sortOrder: wholeNumber(),
   isActive: z.boolean(),
 })
 

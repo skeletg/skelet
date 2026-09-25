@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { useConfigScope } from '@/lib/config-scope'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
+import { PASSWORD_HINT } from '@/shared/schemas/fields'
 import { AdminCreateCustomerDocument } from './Customers.gql'
 import { CustomerGroupsDocument } from './CustomerGroups.gql'
 import { emptyNewCustomer, newCustomerSchema, toNewCustomerInput } from './schemas/newCustomer'
@@ -107,7 +108,7 @@ export function CustomerCreate() {
               label="Password"
               type="password"
               autoComplete="new-password"
-              hint="Minimum 8 characters."
+              hint={`${PASSWORD_HINT}.`}
               className="sm:max-w-sm"
             />
           )}

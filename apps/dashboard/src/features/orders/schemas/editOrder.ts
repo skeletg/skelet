@@ -1,11 +1,12 @@
 import { z } from 'zod'
+import { isNumberText } from '@/shared/schemas/fields'
 
 // Edit-order dialog - pre-fulfillment line changes. The service recomputes totals and re-reserves
 // stock (a shortage aborts the edit); bundle line quantities are refused server-side
 
 type OrderLine = { id: string; quantity: number; productName: string; productSku: string }
 
-const positive = (v: string) => Number.isFinite(Number(v)) && Number(v) > 0
+const positive = (v: string) => isNumberText(v, { above: 0 })
 
 export const editOrderSchema = z
   .object({

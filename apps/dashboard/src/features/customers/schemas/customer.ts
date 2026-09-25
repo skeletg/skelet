@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
 import { addressIssues, addressSchema } from '@/shared/schemas/address'
+import { email } from '@/shared/schemas/fields'
 import { cleanMetadata, metadataDiff, metadataSchema, toMetadataValues, type MetadataEntry } from '@/shared/schemas/metadata'
 
 // Customer page - THE field list (docs/conventions.md, "Record forms"): profile and account, the
@@ -12,7 +13,7 @@ export const customerSchema = z
   .object({
     firstName: z.string().trim().min(1, 'First name is required'),
     lastName: z.string().trim().min(1, 'Last name is required'),
-    email: z.email('Enter a valid email address'),
+    email: email(),
     phone: z.string(),
     isActive: z.boolean(),
     isEmailVerified: z.boolean(),

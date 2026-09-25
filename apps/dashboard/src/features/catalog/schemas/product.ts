@@ -3,18 +3,11 @@ import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { added, changed, fieldDiff, removed } from '@/shared/saving/diff'
 import { formatCents } from '@/lib/format'
 import { metadataDiff, metadataSchema, toMetadataValues, type MetadataEntry } from '@/shared/schemas/metadata'
+import { centsToDollars, dollarsToCents, isNumberText, money, numberText } from '@/shared/schemas/fields'
 import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEditor'
 
 // Product page - its sections each stage their own form (shared/saving/useSectionForm), so the field
 // lists live here one section at a time
-
-// Money is typed in major units ("12.50") and stored as integer cents
-export const centsToDollars = (cents: number) => (cents / 100).toFixed(2)
-export const dollarsToCents = (input: string) => {
-  const n = Number(input)
-  return Number.isFinite(n) ? Math.round(n * 100) : 0
-}
-const money = z.string().refine((v) => v.trim() !== '' && Number.isFinite(Number(v)) && Number(v) >= 0, 'Zero or more')
 
 // ---------- General: the locale's name, SKU, tax class and default price ----------
 
@@ -23,7 +16,7 @@ export const productGeneralSchema = z.object({
   sku: z.string(),
   // Blank means the default class
   taxClass: z.string(),
-  priceDollars: money,
+  priceDollars: money(),
 })
 
 export type ProductGeneralValues = z.infer<typeof productGeneralSchema>
@@ -85,8 +78,8 @@ export function productGeneralDiff(currency: string) {
 // ---------- Advanced: cost, sale pricing, dimensions and order quantity limits ----------
 
 // All typed text - blank means "not set"
-const blankOrMoney = z.string().refine((v) => v.trim() === '' || (Number.isFinite(Number(v)) && Number(v) >= 0), 'Zero or more')
-const blankOrCount = z.string().refine((v) => v.trim() === '' || (Number.isFinite(Number(v)) && Number(v) >= 0), 'Zero or more')
+const blankOrMoney = money({ optional: true })
+const blankOrCount = numberText({ optional: true, min: 0 })
 
 export const productAdvancedSchema = z
   .object({
@@ -234,14 +227,13 @@ const tierKey = (r: ProductTierRow) => `${r.customerGroupId}:${Number(r.minQty)}
 export const productTiersSchema = z.object({ tiers: z.array(tierRow) }).superRefine((v, ctx) => {
   const seen = new Set<string>()
   v.tiers.forEach((r, i) => {
-    const qty = Number(r.minQty)
-    if (!r.minQty.trim() || !Number.isFinite(qty) || qty <= 0) {
+    if (!isNumberText(r.minQty, { above: 0 })) {
       ctx.addIssue({ code: 'custom', path: ['tiers', i, 'minQty'], message: 'More than zero' })
     } else if (seen.has(tierKey(r))) {
       ctx.addIssue({ code: 'custom', path: ['tiers', i, 'minQty'], message: 'This group already has a tier at this quantity' })
     }
     seen.add(tierKey(r))
-    if (!r.price.trim() || !Number.isFinite(Number(r.price)) || Number(r.price) < 0) {
+    if (!isNumberText(r.price, { min: 0 })) {
       ctx.addIssue({ code: 'custom', path: ['tiers', i, 'price'], message: 'Zero or more' })
     }
   })
@@ -505,7 +497,7 @@ export type ProductStoreListing = z.infer<typeof storeListing>
 
 export const productListingsSchema = z.object({ stores: z.array(storeListing) }).superRefine((v, ctx) => {
   v.stores.forEach((s, i) => {
-    if (!s.clear && !s.inheritPrice && (s.price.trim() === '' || !Number.isFinite(Number(s.price)) || Number(s.price) < 0)) {
+    if (!s.clear && !s.inheritPrice && !isNumberText(s.price, { min: 0 })) {
       ctx.addIssue({ code: 'custom', path: ['stores', i, 'price'], message: 'Zero or more, or use the default' })
     }
   })
