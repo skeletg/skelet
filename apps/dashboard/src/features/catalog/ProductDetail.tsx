@@ -344,13 +344,12 @@ export function ProductDetail() {
                 productVariables={productVariables}
               />
               <TierPricingSection
-                key={`${product.id}:${product.updatedAt}:tier-pricing`}
+                key={`${product.id}:tier-pricing`}
                 productId={product.id}
                 groupPrices={product.groupPrices ?? []}
                 currencyCode={product.defaultCurrencyCode}
                 canManage={canManage}
                 productVariables={productVariables}
-                embedded
               />
             </div>
           </CollapsibleSection>
