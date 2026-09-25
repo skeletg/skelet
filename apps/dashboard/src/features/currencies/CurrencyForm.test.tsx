@@ -86,7 +86,7 @@ describe('CurrencyCreatePage', () => {
     fireEvent.change(await screen.findByLabelText('Code'), { target: { value: 'eu' } })
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Euro' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create currency' }))
-    expect(await screen.findByText(/Fix the highlighted field: Use ISO 4217/)).toBeDefined()
+    expect(await screen.findByText(/Fix the highlighted field: A 3-letter ISO 4217 code/)).toBeDefined()
     expect(onWrite).not.toHaveBeenCalled()
   })
 })

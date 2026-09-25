@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { wholeNumber } from '@/shared/schemas/fields'
+import { countryCode, wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
 import {
@@ -57,7 +57,7 @@ export const localeSchema = z.object({
   decimalSeparator: z.string().max(1, 'One character'),
   thousandsSeparator: z.string().max(1, 'One character'),
   firstDayOfWeek: z.number().int().min(0, 'First day of week must be 0..6.').max(6, 'First day of week must be 0..6.'),
-  defaultCountryCode: z.string().regex(/^([A-Z]{2})?$/, 'Must be empty or a 2-letter ISO 3166-1 country code.'),
+  defaultCountryCode: countryCode({ optional: true }),
   hreflangValue: z.string(),
   script: z.string(),
   pluralRule: z.string(),

@@ -3,7 +3,7 @@ import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
 import { addressIssues, addressSchema } from '@/shared/schemas/address'
 import { email } from '@/shared/schemas/fields'
-import { cleanMetadata, metadataDiff, metadataSchema, toMetadataValues, type MetadataEntry } from '@/shared/schemas/metadata'
+import { cleanMetadata, metadataDiff, metadataIssues, metadataSchema, toMetadataValues, type MetadataEntry } from '@/shared/schemas/metadata'
 
 // Customer page - THE field list (docs/conventions.md, "Record forms"): profile and account, the
 // internal note, group, tax status, consents and metadata. Addresses are rows with their own add
@@ -26,11 +26,7 @@ export const customerSchema = z
     consents: z.record(z.string(), z.boolean()),
     metadata: metadataSchema,
   })
-  .superRefine((v, ctx) => {
-    const keys = cleanMetadata(v.metadata).map((e) => e.key)
-    const dupe = keys.find((k, i) => keys.indexOf(k) !== i)
-    if (dupe) ctx.addIssue({ code: 'custom', path: ['metadata'], message: `Duplicate key: "${dupe}"` })
-  })
+  .superRefine((v, ctx) => metadataIssues(v.metadata, 'metadata', ctx))
 
 export type CustomerValues = z.infer<typeof customerSchema>
 

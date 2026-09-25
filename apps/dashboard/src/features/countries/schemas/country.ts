@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { wholeNumber } from '@/shared/schemas/fields'
+import { countryCode, wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
 import {
@@ -29,7 +29,7 @@ export type ExistingCountry = {
 
 export const countrySchema = z.object({
   // Uppercased as typed; the service keys everything on it, so it has to be exact ISO 3166-1 alpha-2
-  code: z.string().regex(/^[A-Z]{2}$/, 'Use ISO 3166-1 alpha-2: exactly 2 uppercase letters (e.g. US, DE).'),
+  code: countryCode(),
   name: z.string().trim().min(1, 'Name is required'),
   nativeName: z.string(),
   emojiFlag: z.string(),

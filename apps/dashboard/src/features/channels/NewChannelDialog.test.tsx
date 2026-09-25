@@ -35,7 +35,7 @@ describe('NewChannelDialog', () => {
     ])
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'US Store' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create channel' }))
-    expect(await screen.findByText('Lowercase letters, digits, dashes, underscores only', {}, SLOW)).toBeDefined()
+    expect(await screen.findByText('Lowercase letters, numbers, underscores and hyphens only', {}, SLOW)).toBeDefined()
     expect(screen.getByText('Name is required')).toBeDefined()
     expect(screen.getByText('Currency is required')).toBeDefined()
     expect(onCreated).not.toHaveBeenCalled()

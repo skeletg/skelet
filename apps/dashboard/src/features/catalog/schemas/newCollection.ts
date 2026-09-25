@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { contentSlug } from '@/shared/schemas/fields'
 import type { RichTextValue } from '../LexicalRichTextEditor'
 
 // New collection - the record and its first translation. Cover image, product membership,
@@ -9,12 +10,7 @@ import type { RichTextValue } from '../LexicalRichTextEditor'
 export function newCollectionSchema(defaultLocale: string) {
   return z.object({
     name: z.string().trim().min(1, 'Name is required'),
-    slug: z
-      .string()
-      .trim()
-      .min(1, 'Slug is required')
-      // The backend's content slug rule (internal/content.ValidateSlug)
-      .regex(/^[a-z0-9._-]+$/, 'Lowercase letters, numbers, dots, underscores and hyphens only'),
+    slug: contentSlug(),
     locale: z.string().refine((v) => (v || defaultLocale) !== '', 'Pick a locale'),
     isPublished: z.boolean(),
     seoNoindex: z.boolean(),

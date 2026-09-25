@@ -101,7 +101,7 @@ describe('CountryCreatePage', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Germany' } })
 
     fireEvent.click(screen.getByRole('button', { name: 'Create country' }))
-    expect(await screen.findByText(/Fix the highlighted field: Use ISO 3166-1 alpha-2/)).toBeDefined()
+    expect(await screen.findByText(/Fix the highlighted field: A 2-letter ISO 3166-1 code/)).toBeDefined()
     expect(onWrite).not.toHaveBeenCalled()
 
     fireEvent.change(code, { target: { value: 'de' } })

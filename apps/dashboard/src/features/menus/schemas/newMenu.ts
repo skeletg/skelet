@@ -1,15 +1,11 @@
 import { z } from 'zod'
+import { handleSlug } from '@/shared/schemas/fields'
 
 // New menu - just the identity. Items are added on the menu's own page afterwards
 
 export const newMenuSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  // The backend's menu slug rule (internal/menu validateSlug)
-  slug: z
-    .string()
-    .trim()
-    .min(1, 'Slug is required')
-    .regex(/^[a-z0-9_-]+$/, 'Lowercase letters, digits, hyphens and underscores only'),
+  slug: handleSlug(),
 })
 
 export type NewMenuValues = z.infer<typeof newMenuSchema>

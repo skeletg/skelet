@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { contentSlug } from '@/shared/schemas/fields'
 import { parseDocument, serializeDocument, type CmsBlock } from '../page-blocks'
 import type { CmsSnippetsQuery } from '../Cms.gql'
 
@@ -9,12 +10,7 @@ type Snippet = CmsSnippetsQuery['cmsSnippets'][number]
 
 export const snippetSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  slug: z
-    .string()
-    .trim()
-    .min(1, 'Slug is required')
-    // The backend's content slug rule (internal/content.ValidateSlug)
-    .regex(/^[a-z0-9._-]+$/, 'Lowercase letters, digits, dots, dashes and underscores'),
+  slug: contentSlug(),
   // Opaque to the form - the block tree's recursive type would blow up TanStack's deep field paths
   blocks: z.array(z.unknown()),
 })

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { numberText } from '@/shared/schemas/fields'
+import { contentSlug, numberText } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { added, changed, fieldDiff, removed } from '@/shared/saving/diff'
 import { richTextToPlainText, type RichTextValue } from '@/features/catalog/LexicalRichTextEditor'
@@ -9,12 +9,7 @@ import { richTextToPlainText, type RichTextValue } from '@/features/catalog/Lexi
 // per-store listings are actions, not fields
 
 const postShape = z.object({
-  slug: z
-    .string()
-    .trim()
-    .min(1, 'Slug is required')
-    // The backend's content slug rule (internal/content.ValidateSlug)
-    .regex(/^[a-z0-9._-]+$/, 'Lowercase letters, numbers, dots, underscores and hyphens only'),
+  slug: contentSlug(),
   seoNoindex: z.boolean(),
   // As typed - blank means "let the storefront estimate it"
   readingTime: numberText({ optional: true, int: true, min: 1 }, 'Whole minutes, one or more'),

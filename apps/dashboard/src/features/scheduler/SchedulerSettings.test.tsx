@@ -39,7 +39,7 @@ describe('SchedulerSettings', () => {
 
     fireEvent.change(await screen.findByLabelText('Failure alert webhook URL'), { target: { value: 'hooks.example.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(await screen.findByText(/An absolute URL/)).toBeDefined()
+    expect(await screen.findByText(/Enter a full URL/)).toBeDefined()
     expect(writes).not.toHaveBeenCalled()
 
     fireEvent.change(screen.getByLabelText('Failure alert webhook URL'), { target: { value: 'https://hooks.example.com/a' } })

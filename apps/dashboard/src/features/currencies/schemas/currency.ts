@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { numberText, wholeNumber } from '@/shared/schemas/fields'
+import { currencyCode, numberText, wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
 import {
@@ -26,7 +26,7 @@ export type ExistingCurrency = {
 }
 
 export const currencySchema = z.object({
-  code: z.string().regex(/^[A-Z]{3}$/, 'Use ISO 4217: exactly 3 uppercase letters (e.g. USD, EUR).'),
+  code: currencyCode(),
   name: z.string().trim().min(1, 'Name is required'),
   symbol: z.string(),
   decimals: wholeNumber().min(0, 'Between 0 and 4').max(4, 'Between 0 and 4'),
