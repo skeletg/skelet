@@ -276,3 +276,37 @@ export function productTiersDiff(groupName: (id: string) => string) {
     return out
   }
 }
+
+// ---------- Recommendations: the curated related, upsell and cross-sell links ----------
+
+// Each list is the curated display order - a reorder is a change
+export const productLinksSchema = z.object({
+  related: z.array(z.string()),
+  upsell: z.array(z.string()),
+  crossSell: z.array(z.string()),
+})
+
+export type ProductLinksValues = z.infer<typeof productLinksSchema>
+
+export const PRODUCT_LINK_LABELS: Record<keyof ProductLinksValues, string> = {
+  related: 'Related links',
+  upsell: 'Upsell links',
+  crossSell: 'Cross-sell links',
+}
+
+export const PRODUCT_LINK_KINDS = { related: 'RELATED', upsell: 'UPSELL', crossSell: 'CROSSSELL' } as const
+
+const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((id, i) => id === b[i])
+
+// The kinds whose list changed - each is its own replace-all write
+export function changedLinkKinds(before: ProductLinksValues, after: ProductLinksValues) {
+  return (Object.keys(PRODUCT_LINK_KINDS) as (keyof ProductLinksValues)[]).filter((k) => !sameList(before[k], after[k]))
+}
+
+export function productLinksDiff(name: (id: string) => string) {
+  return (original: ProductLinksValues, draft: ProductLinksValues): SectionDiffEntry[] =>
+    changedLinkKinds(original, draft).map((k) => {
+      const names = (ids: string[]) => ids.map(name).join(', ')
+      return { kind: 'change', label: PRODUCT_LINK_LABELS[k], before: names(original[k]), after: names(draft[k]) }
+    })
+}
