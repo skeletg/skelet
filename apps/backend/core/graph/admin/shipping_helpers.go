@@ -112,6 +112,9 @@ func toShippingBoxModel(b shipping.Box) *model.ShippingBox {
 // Shipping rows are per-channel - a zone carries the channel, a method inherits its zone's, and boxes and carrier settings take it as an argument
 // An unscoped settings.manage / settings.view here lets an admin scoped to one channel rewrite every other channel's shipping
 func (r *Resolver) requireZoneScope(ctx context.Context, zoneID uuid.UUID, slug string) (shipping.Zone, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, slug); err != nil {
+		return shipping.Zone{}, err
+	}
 	zone, err := r.ShippingSvc.Repo().GetZone(ctx, zoneID)
 	if err != nil {
 		return shipping.Zone{}, err
@@ -123,6 +126,9 @@ func (r *Resolver) requireZoneScope(ctx context.Context, zoneID uuid.UUID, slug 
 }
 
 func (r *Resolver) requireMethodScope(ctx context.Context, methodID uuid.UUID, slug string) (shipping.Method, error) { // a method's channel is its zone's
+	if err := auth.RequirePermission(ctx, r.AdminSvc, slug); err != nil {
+		return shipping.Method{}, err
+	}
 	method, err := r.ShippingSvc.Repo().GetMethod(ctx, methodID)
 	if err != nil {
 		return shipping.Method{}, err

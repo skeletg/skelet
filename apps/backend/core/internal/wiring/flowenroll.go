@@ -28,11 +28,14 @@ func (e *FlowEnroller) enroll(ctx context.Context, trigger, key string, channelI
 	})
 }
 
-// The moments that must reach the shopper now read an unknown answer as zero and send core's own mail
+// Moments that must reach the shopper now send core's own mail on an unknown answer, unless some flow took them
 func (e *FlowEnroller) answered(ctx context.Context, trigger, key string, channelID, customerID uuid.UUID, to string, payload map[string]any) int {
 	n, err := e.enroll(ctx, trigger, key, channelID, customerID, to, payload)
-	if err != nil {
+	switch {
+	case err != nil && n == 0:
 		log.Printf("[flows] %s: %v - core sends its own mail", trigger, err)
+	case err != nil:
+		log.Printf("[flows] %s: %v", trigger, err)
 	}
 	return n
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
@@ -582,9 +583,22 @@ func (s *Service) GetReviewByCustomerAndProduct(ctx context.Context, customerID,
 	return s.repo.GetReviewByCustomerAndProduct(ctx, customerID, productID)
 }
 
+// Every published read is scoped to the request's store, since a review belongs to one channel - without one (admin tooling) they span channels
+func storeScope(ctx context.Context) *uuid.UUID {
+	if sv, ok := channel.FromContext(ctx); ok && sv != nil {
+		id := sv.ID
+		return &id
+	}
+	return nil
+}
+
 // ListReviewsForProduct returns a product's approved reviews, hydrated with answers + media (no N+1)
 func (s *Service) ListReviewsForProduct(ctx context.Context, productID uuid.UUID, limit, offset int32) ([]Review, int64, error) {
-	rows, total, err := s.repo.ListApprovedForProduct(ctx, productID, limit, offset)
+	return s.listReviewsForProduct(ctx, productID, storeScope(ctx), limit, offset)
+}
+
+func (s *Service) listReviewsForProduct(ctx context.Context, productID uuid.UUID, channelID *uuid.UUID, limit, offset int32) ([]Review, int64, error) {
+	rows, total, err := s.repo.ListApprovedForProduct(ctx, productID, channelID, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -594,7 +608,7 @@ func (s *Service) ListReviewsForProduct(ctx context.Context, productID uuid.UUID
 // The batched form - top-N approved reviews for many products in one windowed query, hydrated in a round-trip each, for the storefront DataLoader
 // No per-product totals, since single-product paging uses ListReviewsForProduct
 func (s *Service) ListReviewsForProductIDs(ctx context.Context, productIDs []uuid.UUID, limit, offset int32) (map[uuid.UUID][]Review, error) {
-	byProduct, err := s.repo.ListApprovedForProductIDs(ctx, productIDs, limit, offset)
+	byProduct, err := s.repo.ListApprovedForProductIDs(ctx, productIDs, storeScope(ctx), limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -745,36 +759,42 @@ func (s *Service) SetMerchantReply(ctx context.Context, reviewID uuid.UUID, body
 	return s.repo.SetMerchantReply(ctx, reviewID, body, adminID)
 }
 
-// GetProductSummary returns the cached AI summary ("" when none) - Pure read, no AI call
+// GetProductSummary returns the request store's cached AI summary ("" when none or without a store) - Pure read, no AI call
 func (s *Service) GetProductSummary(ctx context.Context, productID uuid.UUID) (string, error) {
 	// AI_ENABLED=false hides even cached summaries - no "AI summary" branding on an AI-free deploy
 	if s.ai != nil && !s.ai.Enabled() {
 		return "", nil
 	}
-	sum, ok, err := s.repo.GetProductSummary(ctx, productID)
+	ch := storeScope(ctx)
+	if ch == nil {
+		return "", nil
+	}
+	sum, ok, err := s.repo.GetProductSummary(ctx, productID, *ch)
 	if err != nil || !ok {
 		return "", err
 	}
 	return sum.Summary, nil
 }
 
-// MarkSummaryStale flags a summary for regeneration (on approve/reject, so it tracks the live set)
-func (s *Service) MarkSummaryStale(ctx context.Context, productID uuid.UUID) error {
-	return s.repo.MarkSummaryStale(ctx, productID)
+func (s *Service) MarkSummaryStale(ctx context.Context, productID, channelID uuid.UUID) error {
+	return s.repo.MarkSummaryStale(ctx, productID, channelID)
 }
 
-// Regenerates and caches a product's summary, where productName is an optional prompt aid the scheduler passes as ""
+func (s *Service) ReviewChannels(ctx context.Context, productID uuid.UUID) ([]uuid.UUID, error) {
+	return s.repo.ListReviewChannels(ctx, productID)
+}
+
 // Under minReviewsForSummary approved reviews it gets no summary, marked fresh so the job stops rescanning
-func (s *Service) GenerateProductSummary(ctx context.Context, productID uuid.UUID, productName string) (string, error) {
+func (s *Service) GenerateProductSummary(ctx context.Context, productID, channelID uuid.UUID, productName string) (string, error) {
 	if !s.aiReady(ctx) {
 		return "", ai.ErrNotConfigured
 	}
-	rows, _, err := s.ListReviewsForProduct(ctx, productID, 50, 0)
+	rows, _, err := s.listReviewsForProduct(ctx, productID, &channelID, 50, 0)
 	if err != nil {
 		return "", err
 	}
 	if len(rows) < minReviewsForSummary {
-		_ = s.repo.MarkSummaryFresh(ctx, productID)
+		_ = s.repo.MarkSummaryFresh(ctx, productID, channelID)
 		return "", nil
 	}
 	texts := make([]string, 0, len(rows))
@@ -787,7 +807,7 @@ func (s *Service) GenerateProductSummary(ctx context.Context, productID uuid.UUI
 	if err != nil {
 		return "", err
 	}
-	if err := s.repo.UpsertProductSummary(ctx, productID, summary, len(rows)); err != nil {
+	if err := s.repo.UpsertProductSummary(ctx, productID, channelID, summary, len(rows)); err != nil {
 		return "", err
 	}
 	return summary, nil
@@ -798,14 +818,14 @@ func (s *Service) RefreshDueSummaries(ctx context.Context, batch int32) (int, er
 	if !s.aiReady(ctx) {
 		return 0, nil
 	}
-	ids, err := s.repo.ListStaleSummaryIDs(ctx, batch)
+	keys, err := s.repo.ListStaleSummaryIDs(ctx, batch)
 	if err != nil {
 		return 0, err
 	}
 	n := 0
-	for _, pid := range ids {
-		if _, err := s.GenerateProductSummary(ctx, pid, ""); err != nil {
-			log.Printf("[review] refresh summary %s: %v", pid, err)
+	for _, k := range keys {
+		if _, err := s.GenerateProductSummary(ctx, k.ProductID, k.ChannelID, ""); err != nil {
+			log.Printf("[review] refresh summary %s on %s: %v", k.ProductID, k.ChannelID, err)
 			continue
 		}
 		n++

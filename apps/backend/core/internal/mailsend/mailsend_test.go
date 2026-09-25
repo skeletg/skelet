@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -59,6 +60,7 @@ func TestSendDeliversAndReports(t *testing.T) {
 	if mail.sent[0].From != spec.From || mail.sent[0].To != spec.To {
 		t.Errorf("headers = %q -> %q, want %q -> %q", mail.sent[0].From, mail.sent[0].To, spec.From, spec.To)
 	}
+	s.Wait()
 	if rec.called != 1 {
 		t.Fatalf("recorder calls = %d, want 1", rec.called)
 	}
@@ -78,6 +80,7 @@ func TestAFailedDeliveryIsNotReported(t *testing.T) {
 	if err := s.Send(context.Background(), Spec{To: "buyer@test"}, "Receipt", "<p>x</p>", "x"); err == nil {
 		t.Fatal("Send returned nil for a refused delivery")
 	}
+	s.Wait()
 	if rec.called != 0 {
 		t.Errorf("recorder calls = %d, want the send left unreported", rec.called)
 	}
@@ -94,6 +97,34 @@ func TestSendDeliversEvenWhenReportingFails(t *testing.T) {
 	if len(mail.sent) != 1 {
 		t.Fatalf("messages sent = %d, want the mail delivered anyway", len(mail.sent))
 	}
+}
+
+type hungRecorder struct{ release chan struct{} }
+
+func (h hungRecorder) RecordSent(ctx context.Context, _ uuid.UUID, _ Spec) error {
+	select {
+	case <-h.release:
+	case <-ctx.Done():
+	}
+	return ctx.Err()
+}
+
+func TestSendDoesNotWaitOnAHungRecorder(t *testing.T) {
+	s := New(&captureSender{}, nil)
+	h := hungRecorder{release: make(chan struct{})}
+	s.SetRecorder(h)
+	done := make(chan error, 1)
+	go func() { done <- s.Send(context.Background(), Spec{To: "buyer@test"}, "Reset", "<p>x</p>", "x") }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Send: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Send blocked on the recorder")
+	}
+	close(h.release)
+	s.Wait()
 }
 
 func TestSendWithoutARecorderStillDelivers(t *testing.T) {

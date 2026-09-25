@@ -5,13 +5,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
-func (r *mutationResolver) IssueGiftCard(ctx context.Context, currencyCode string, amount int32, recipientEmail *string, expiresAt *time.Time) (*model.GiftCard, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "giftcards.manage"); err != nil {
+func (r *mutationResolver) IssueGiftCard(ctx context.Context, currencyCode string, amount int32, recipientEmail *string, expiresAt *time.Time, channelID *string) (*model.GiftCard, error) {
+	currency := strings.ToUpper(strings.TrimSpace(currencyCode))
+	channel, err := r.giftCardIssueChannel(ctx, channelID, currency)
+	if err != nil {
 		return nil, err
 	}
 	email := ""
@@ -19,10 +22,11 @@ func (r *mutationResolver) IssueGiftCard(ctx context.Context, currencyCode strin
 		email = *recipientEmail
 	}
 	card, err := r.GiftcardSvc.Issue(ctx, giftcard.IssueInput{
-		CurrencyCode:   strings.ToUpper(strings.TrimSpace(currencyCode)),
+		CurrencyCode:   currency,
 		Amount:         int64(amount),
 		RecipientEmail: email,
 		ExpiresAt:      expiresAt,
+		ChannelID:      channel,
 	})
 	if err != nil {
 		return nil, err
@@ -36,6 +40,9 @@ func (r *mutationResolver) DisableGiftCard(ctx context.Context, id string) (*mod
 	}
 	gid, err := parseID(id, "gift card")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireGiftCardByID(ctx, "giftcards.manage", gid); err != nil {
 		return nil, err
 	}
 	card, err := r.GiftcardSvc.Disable(ctx, gid)
@@ -53,6 +60,9 @@ func (r *mutationResolver) AdjustGiftCard(ctx context.Context, id string, amount
 	if err != nil {
 		return nil, err
 	}
+	if err := r.requireGiftCardByID(ctx, "giftcards.manage", gid); err != nil {
+		return nil, err
+	}
 	n := ""
 	if note != nil {
 		n = *note
@@ -68,7 +78,15 @@ func (r *queryResolver) GiftCards(ctx context.Context, limit *int32, offset *int
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "giftcards.view"); err != nil {
 		return nil, err
 	}
-	cards, err := r.GiftcardSvc.List(ctx, int32Or(limit, 50), int32Or(offset, 0))
+	permitted, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "giftcards.view")
+	if err != nil {
+		return nil, err
+	}
+	var scope []uuid.UUID
+	if !permitted.Bypass() {
+		scope = append([]uuid.UUID{}, permitted.IDs()...)
+	}
+	cards, err := r.GiftcardSvc.ListForChannels(ctx, scope, int32Or(limit, 50), int32Or(offset, 0))
 	if err != nil {
 		return nil, err
 	}
@@ -85,6 +103,9 @@ func (r *queryResolver) GiftCard(ctx context.Context, code string) (*model.GiftC
 	}
 	card, err := r.GiftcardSvc.GetByCode(ctx, strings.TrimSpace(code))
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireGiftCard(ctx, "giftcards.view", card); err != nil {
 		return nil, err
 	}
 	return r.giftCardWithTxns(ctx, card)

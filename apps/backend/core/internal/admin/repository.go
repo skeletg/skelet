@@ -390,6 +390,14 @@ func (r *postgresRepository) UpdateRole(ctx context.Context, id uuid.UUID, input
 	return updated, nil
 }
 
+func (r *postgresRepository) RoleMemberIDs(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error) {
+	ids, err := r.queries.ListRoleMemberIDs(ctx, roleID)
+	if err != nil {
+		return nil, fmt.Errorf("list role members: %w", err)
+	}
+	return ids, nil
+}
+
 func (r *postgresRepository) DeleteRole(ctx context.Context, id uuid.UUID) error {
 	n, err := r.queries.CountRoleMembers(ctx, id)
 	if err != nil {

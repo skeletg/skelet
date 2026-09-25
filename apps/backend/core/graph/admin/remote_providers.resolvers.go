@@ -39,6 +39,9 @@ func (r *mutationResolver) CreateRemoteProvider(ctx context.Context, input model
 		}
 		domainInput.ChannelID = &cid
 	}
+	if err := auth.RequireGlobalOrChannelPermission(ctx, r.AdminSvc, "remote_providers.manage", domainInput.ChannelID); err != nil {
+		return nil, err
+	}
 	result, err := r.RemoteProviderSvc.Create(ctx, domainInput)
 	if err != nil {
 		return nil, err
@@ -55,6 +58,9 @@ func (r *mutationResolver) UpdateRemoteProvider(ctx context.Context, input model
 	}
 	providerID, err := parseID(input.ID, "remote provider")
 	if err != nil {
+		return nil, err
+	}
+	if _, err := r.requireRemoteProviderScope(ctx, providerID, "remote_providers.manage"); err != nil {
 		return nil, err
 	}
 	updateInput := remoteprovider.UpdateInput{
@@ -93,6 +99,9 @@ func (r *mutationResolver) SetRemoteProviderActive(ctx context.Context, id strin
 	if err != nil {
 		return nil, err
 	}
+	if _, err := r.requireRemoteProviderScope(ctx, providerID, "remote_providers.manage"); err != nil {
+		return nil, err
+	}
 	p, err := r.RemoteProviderSvc.SetActive(ctx, providerID, active)
 	if err != nil {
 		return nil, err
@@ -106,6 +115,9 @@ func (r *mutationResolver) RotateRemoteProviderSecret(ctx context.Context, id st
 	}
 	providerID, err := parseID(id, "remote provider")
 	if err != nil {
+		return nil, err
+	}
+	if _, err := r.requireRemoteProviderScope(ctx, providerID, "remote_providers.manage"); err != nil {
 		return nil, err
 	}
 	result, err := r.RemoteProviderSvc.RotateSecret(ctx, providerID)
@@ -126,6 +138,9 @@ func (r *mutationResolver) DeleteRemoteProvider(ctx context.Context, id string) 
 	if err != nil {
 		return false, err
 	}
+	if _, err := r.requireRemoteProviderScope(ctx, providerID, "remote_providers.manage"); err != nil {
+		return false, err
+	}
 	if err := r.RemoteProviderSvc.Delete(ctx, providerID); err != nil {
 		return false, err
 	}
@@ -140,9 +155,16 @@ func (r *queryResolver) RemoteProviders(ctx context.Context, kind *model.RemoteP
 	if err != nil {
 		return nil, err
 	}
+	permitted, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "remote_providers.view")
+	if err != nil {
+		return nil, err
+	}
 	out := make([]*model.RemoteProvider, 0, len(providers))
 	for _, p := range providers {
 		if kind != nil && p.Kind != remoteProviderKindFromGQL(*kind) {
+			continue
+		}
+		if !permitted.AllowsOptional(p.ChannelID) {
 			continue
 		}
 		out = append(out, toRemoteProviderModel(p))
@@ -156,6 +178,9 @@ func (r *queryResolver) RemoteProvider(ctx context.Context, id string) (*model.R
 	}
 	providerID, err := parseID(id, "remote provider")
 	if err != nil {
+		return nil, err
+	}
+	if _, err := r.requireRemoteProviderScope(ctx, providerID, "remote_providers.view"); err != nil {
 		return nil, err
 	}
 	p, err := r.RemoteProviderSvc.GetByID(ctx, providerID)

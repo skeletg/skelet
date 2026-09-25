@@ -132,6 +132,8 @@ type Resource struct {
 	ImportPermission string // gates import - empty means the resource is export-only
 	// Set when a run's blast radius is the whole installation, so a channel-scoped grant must not be enough
 	RequireGlobalPermission bool
+	// Set when importing rewrites rows every channel shares, while an export stays channel-scoped
+	RequireGlobalImport bool
 
 	Fields  []Field
 	Options []OptionDef
@@ -143,6 +145,10 @@ type Resource struct {
 	MaxImportRows int
 	// Columns the file may carry that aren't declared Fields, e.g. the attr: prefix - unknown columns outside these are reported as warnings
 	DynamicPrefixes []string
+}
+
+func (r Resource) GlobalFor(d Direction) bool {
+	return r.RequireGlobalPermission || (d == DirectionImport && r.RequireGlobalImport)
 }
 
 func (r Resource) CanImport() bool { return r.NewImporter != nil && r.ImportPermission != "" }

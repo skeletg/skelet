@@ -163,7 +163,7 @@ func (r *remoteRateSource) Quotes(ctx context.Context, req RateRequest) []RatedQ
 
 func (r *remoteRateSource) Price(ctx context.Context, slug, code string, req RateRequest) (int64, error) {
 	ch := req.ChannelID
-	p, err := r.svc.GetBySlug(ctx, remoteprovider.KindShippingCarrier, slug)
+	p, err := r.svc.GetBySlug(ctx, remoteprovider.KindShippingCarrier, slug, &ch)
 	if err != nil || !p.IsActive {
 		return 0, ErrMethodNotFound
 	}

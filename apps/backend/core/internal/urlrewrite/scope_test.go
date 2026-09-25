@@ -407,11 +407,11 @@ func TestCacheKeysCannotCollideAcrossScopes(t *testing.T) {
 	// A per-channel override and the global default share the request_path, so one key for both would
 	// serve channel A's URL to channel B until the TTL ran out
 	keys := map[string]string{
-		"global":                           cacheKey(nil, "tires"),
-		"channel A":                        cacheKey(&chA, "tires"),
-		"channel B":                        cacheKey(&chB, "tires"),
-		"global, other path":               cacheKey(nil, "reifen"),
-		"a path shaped like a channel key": cacheKey(nil, "c:"+chA.String()+":tires"),
+		"global":                           cacheGroup("tires") + "|" + cacheKey(nil),
+		"channel A":                        cacheGroup("tires") + "|" + cacheKey(&chA),
+		"channel B":                        cacheGroup("tires") + "|" + cacheKey(&chB),
+		"global, other path":               cacheGroup("reifen") + "|" + cacheKey(nil),
+		"a path shaped like a channel key": cacheGroup("c:"+chA.String()+":tires") + "|" + cacheKey(nil),
 	}
 	seen := map[string]string{}
 	for name, key := range keys {

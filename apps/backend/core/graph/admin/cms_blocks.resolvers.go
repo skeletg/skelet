@@ -9,7 +9,7 @@ import (
 )
 
 func (r *mutationResolver) CreateCMSSnippet(ctx context.Context, input model.CreateCMSSnippetInput) (*model.CMSSnippet, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.manage"); err != nil {
 		return nil, err
 	}
 	sn, err := r.CMSSvc.CreateSnippet(ctx, input.Slug, input.Name, rawJSON(input.Blocks))
@@ -20,7 +20,7 @@ func (r *mutationResolver) CreateCMSSnippet(ctx context.Context, input model.Cre
 }
 
 func (r *mutationResolver) UpdateCMSSnippet(ctx context.Context, input model.UpdateCMSSnippetInput) (*model.CMSSnippet, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID(input.ID, "snippet")
@@ -35,7 +35,7 @@ func (r *mutationResolver) UpdateCMSSnippet(ctx context.Context, input model.Upd
 }
 
 func (r *mutationResolver) DeleteCMSSnippet(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.manage"); err != nil {
 		return false, err
 	}
 	uid, err := parseID(id, "snippet")
@@ -49,7 +49,7 @@ func (r *mutationResolver) DeleteCMSSnippet(ctx context.Context, id string) (boo
 }
 
 func (r *mutationResolver) CreateCMSBlockType(ctx context.Context, input model.CreateCMSBlockTypeInput) (*model.CMSBlockType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	bt, err := r.CMSSvc.CreateBlockType(ctx, input.Key, input.Name, ptr.Deref(input.Icon), rawJSON(input.Fields), ptr.Deref(input.HTMLTemplate))
@@ -60,7 +60,7 @@ func (r *mutationResolver) CreateCMSBlockType(ctx context.Context, input model.C
 }
 
 func (r *mutationResolver) UpdateCMSBlockType(ctx context.Context, input model.UpdateCMSBlockTypeInput) (*model.CMSBlockType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID(input.ID, "block type")
@@ -75,7 +75,7 @@ func (r *mutationResolver) UpdateCMSBlockType(ctx context.Context, input model.U
 }
 
 func (r *mutationResolver) DeleteCMSBlockType(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.types_manage"); err != nil {
+	if err := r.requireGlobal(ctx, "cms.types_manage"); err != nil {
 		return false, err
 	}
 	uid, err := parseID(id, "block type")

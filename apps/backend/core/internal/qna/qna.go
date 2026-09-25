@@ -141,12 +141,13 @@ func (s *Service) Submit(ctx context.Context, productID, channelID uuid.UUID, cu
 	return q, nil
 }
 
-func (s *Service) Published(ctx context.Context, productID uuid.UUID, limit int32) ([]Question, error) {
+func (s *Service) Published(ctx context.Context, productID, channelID uuid.UUID, limit int32) ([]Question, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
 	rows, err := s.queries.ListPublishedQuestions(ctx, db.ListPublishedQuestionsParams{
 		ProductID: productID,
+		ChannelID: channelID,
 		Limit:     limit,
 	})
 	if err != nil {

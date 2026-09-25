@@ -100,14 +100,28 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Provider, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *Service) GetBySlug(ctx context.Context, kind Kind, slug string) (Provider, error) {
-	return s.repo.GetBySlug(ctx, kind, slug)
+func (s *Service) GetBySlug(ctx context.Context, kind Kind, slug string, channelID *uuid.UUID) (Provider, error) {
+	return s.repo.GetBySlug(ctx, kind, slug, channelID)
 }
 
 // ListActiveByKind returns the providers a consumer should invoke for one
 // decision: global providers plus the ones scoped to the given channel
 func (s *Service) ListActiveByKind(ctx context.Context, kind Kind, channelID *uuid.UUID) ([]Provider, error) {
 	return s.repo.ListActiveByKind(ctx, kind, channelID)
+}
+
+// A single-answer kind consults the channel's own provider when it has one, else a global one
+func (s *Service) ActiveFor(ctx context.Context, kind Kind, channelID *uuid.UUID) (Provider, bool, error) {
+	ps, err := s.repo.ListActiveByKind(ctx, kind, channelID)
+	if err != nil || len(ps) == 0 {
+		return Provider{}, false, err
+	}
+	for _, p := range ps {
+		if p.ChannelID != nil {
+			return p, true, nil
+		}
+	}
+	return ps[0], true, nil
 }
 
 func (s *Service) SetActive(ctx context.Context, id uuid.UUID, active bool) (Provider, error) {

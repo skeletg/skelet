@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/fx"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audienceio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalogio"
@@ -21,6 +22,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
@@ -42,6 +44,7 @@ type dataResourceDeps struct {
 	Tax       *tax.Service
 	Promotion *promotion.Service
 	Signals   *signalsclient.Client
+	Admin     *admin.Service
 }
 
 // The suite answers who is in a segment - core never holds the membership
@@ -92,11 +95,7 @@ func newDataRegistry(d dataResourceDeps) *dataio.Registry { // registered here r
 		if err != nil {
 			return nil, err
 		}
-		out := make([]dataio.Choice, len(rules))
-		for i, r := range rules {
-			out[i] = dataio.Choice{Value: r.ID.String(), Label: r.Name}
-		}
-		return out, nil
+		return ruleChoices(ctx, d.Admin, rules)
 	})
 	reg.RegisterSource(audienceio.SourceSegments, func(ctx context.Context) ([]dataio.Choice, error) {
 		authed, err := d.Signals.Authed(ctx) // the picker renders for the admin on the data page
@@ -145,4 +144,18 @@ func newDataJobService(q *db.Queries, reg *dataio.Registry, storage *objstore.St
 	svc := datajob.New(q, reg, blobs)
 	svc.SetConfig(cfg)
 	return svc
+}
+
+func ruleChoices(ctx context.Context, svc auth.ChannelScopeProvider, rules []promotion.Rule) ([]dataio.Choice, error) {
+	permitted, err := auth.LoadPermittedChannels(ctx, svc, "promotions.manage")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]dataio.Choice, 0, len(rules))
+	for _, r := range rules {
+		if permitted.AllowsOptional(r.ChannelID) {
+			out = append(out, dataio.Choice{Value: r.ID.String(), Label: r.Name})
+		}
+	}
+	return out, nil
 }

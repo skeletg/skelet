@@ -202,6 +202,9 @@ func (r *mutationResolver) UpsertShippingBox(ctx context.Context, input model.Sh
 }
 
 func (r *mutationResolver) DeleteShippingBox(ctx context.Context, id string) (bool, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "settings.manage"); err != nil {
+		return false, err
+	}
 	boxID, err := uuid.Parse(id)
 	if err != nil {
 		return false, errInvalidID("id", err)

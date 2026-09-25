@@ -10,7 +10,12 @@ RETURNING *;
 SELECT * FROM remote_providers WHERE id = $1;
 
 -- name: GetRemoteProviderBySlug :one
-SELECT * FROM remote_providers WHERE kind = $1 AND slug = $2;
+-- A slug names the channel's own provider when it has one, else the global one - NULL channel_id reaches global rows only
+SELECT * FROM remote_providers
+WHERE kind = sqlc.arg(kind) AND slug = sqlc.arg(slug)
+  AND (channel_id IS NULL OR channel_id = sqlc.narg(channel_id)::uuid)
+ORDER BY channel_id NULLS LAST
+LIMIT 1;
 
 -- name: ListRemoteProviders :many
 SELECT * FROM remote_providers ORDER BY kind, slug;

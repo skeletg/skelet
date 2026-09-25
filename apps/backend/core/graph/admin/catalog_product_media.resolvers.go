@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // Media renders on every channel listing the product, so all media mutations carry the same all-listing-channels gate as the shared content rows
@@ -51,6 +52,9 @@ func (r *mutationResolver) RequestProductMediaUpload(ctx context.Context, input 
 }
 
 func (r *mutationResolver) ConfirmProductMediaUpload(ctx context.Context, mediaID string, width int32, height int32) (*model.ProductMedia, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return nil, err
+	}
 	mid, err := parseID(mediaID, "media")
 	if err != nil {
 		return nil, err
@@ -98,6 +102,9 @@ func (r *mutationResolver) UpdateProductMedia(ctx context.Context, input model.U
 }
 
 func (r *mutationResolver) DeleteProductMedia(ctx context.Context, id string, deleteFromStorage *bool) (bool, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return false, err
+	}
 	mid, err := parseID(id, "media")
 	if err != nil {
 		return false, err

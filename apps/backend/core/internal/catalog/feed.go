@@ -28,7 +28,14 @@ type MediaURLer interface {
 type MerchantFeed struct {
 	queries *db.Queries
 	media   MediaURLer
+	salable SalableReader
 }
+
+type SalableReader interface {
+	SalableByProductIDs(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID]float64, error)
+}
+
+func (f *MerchantFeed) SetSalable(s SalableReader) { f.salable = s }
 
 func NewMerchantFeed(queries *db.Queries, media MediaURLer) *MerchantFeed {
 	return &MerchantFeed{queries: queries, media: media}
@@ -86,7 +93,21 @@ func (f *MerchantFeed) Render(ctx context.Context, opts MerchantFeedOptions) ([]
 		if err != nil {
 			return nil, "", fmt.Errorf("merchant feed page: %w", err)
 		}
+		var salable map[uuid.UUID]float64
+		if f.salable != nil && len(rows) > 0 {
+			ids := make([]uuid.UUID, len(rows))
+			for i, r := range rows {
+				ids[i] = r.ID
+			}
+			if salable, err = f.salable.SalableByProductIDs(ctx, ids, opts.ChannelID); err != nil {
+				return nil, "", fmt.Errorf("merchant feed salable: %w", err)
+			}
+		}
 		for _, r := range rows {
+			qty := r.ChannelSalable
+			if v, ok := salable[r.ID]; ok {
+				qty = v
+			}
 			price := effectiveFeedPrice(r, now)
 			item := merchantItem{
 				ID:           r.Sku,
@@ -94,7 +115,7 @@ func (f *MerchantFeed) Render(ctx context.Context, opts MerchantFeedOptions) ([]
 				Description:  truncate(r.Description, 5000),
 				Link:         base + "/" + strings.TrimPrefix(r.Path, "/"),
 				Price:        fmt.Sprintf("%d.%02d %s", price/100, price%100, opts.CurrencyCode),
-				Availability: availabilityFor(r),
+				Availability: availabilityFor(r, qty),
 				Condition:    "new",
 				Brand:        r.Brand,
 				MPN:          r.Sku,
@@ -161,11 +182,12 @@ func effectiveFeedPrice(r db.MerchantFeedProductsRow, now time.Time) int64 {
 	return pricing.Resolve(in, now).Price
 }
 
-func availabilityFor(r db.MerchantFeedProductsRow) string {
-	if !r.Tracked {
+// A negative salable is the inventory's always-in-stock sentinel
+func availabilityFor(r db.MerchantFeedProductsRow, salable float64) string {
+	if !r.Tracked || salable < 0 {
 		return "in_stock"
 	}
-	if r.Quantity > 0 {
+	if salable > 0 {
 		return "in_stock"
 	}
 	if r.Backorderable {

@@ -313,6 +313,9 @@ func (r *mutationResolver) AdminSetCustomerConsent(ctx context.Context, customer
 }
 
 func (r *mutationResolver) AnonymizeCustomer(ctx context.Context, customerID string) (bool, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.manage"); err != nil {
+		return false, err
+	}
 	cid, err := parseID(customerID, "customer")
 	if err != nil {
 		return false, err
@@ -409,20 +412,23 @@ func (r *queryResolver) Customers(ctx context.Context, channelID *string) ([]*mo
 	if err != nil {
 		return nil, err
 	}
-	customers, err := r.CustomerSvc.List(ctx)
-	if err != nil {
-		return nil, err
-	}
 	explicit, err := r.scopedChannelID(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
-	visible := auth.FilterByChannel(customers, perm, func(c customer.Customer) uuid.UUID { return c.ChannelID })
-	result := make([]*model.Customer, 0, len(visible))
-	for _, c := range visible {
-		if explicit != nil && c.ChannelID != *explicit {
-			continue
+	ids := perm.IDs()
+	if explicit != nil {
+		ids = []uuid.UUID{}
+		if perm.Allows(*explicit) {
+			ids = []uuid.UUID{*explicit}
 		}
+	}
+	customers, err := r.CustomerSvc.ListInChannels(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.Customer, 0, len(customers))
+	for _, c := range customers {
 		result = append(result, toCustomerModel(c))
 	}
 	return result, nil
@@ -560,6 +566,9 @@ func (r *queryResolver) CustomerGroup(ctx context.Context, id string) (*model.Cu
 }
 
 func (r *queryResolver) ExportCustomerData(ctx context.Context, customerID string) (string, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.manage"); err != nil {
+		return "", err
+	}
 	cid, err := parseID(customerID, "customer")
 	if err != nil {
 		return "", err

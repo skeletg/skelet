@@ -10,6 +10,13 @@ SELECT * FROM referral_codes WHERE customer_id = $1;
 -- name: GetReferralCodeByCode :one
 SELECT * FROM referral_codes WHERE code = $1;
 
+-- name: GetReferralCodeForReferee :one
+-- A code only refers someone on its owner's own channel, since each channel runs its own program
+SELECT rc.* FROM referral_codes rc
+JOIN customers owner ON owner.id = rc.customer_id
+JOIN customers referee ON referee.id = sqlc.arg(referee_id)::uuid
+WHERE rc.code = sqlc.arg(code) AND owner.channel_id = referee.channel_id;
+
 -- name: InsertReferral :execrows
 -- One referral per referee, ever - re-registration attempts and code
 -- swaps are silently ignored via the unique constraint

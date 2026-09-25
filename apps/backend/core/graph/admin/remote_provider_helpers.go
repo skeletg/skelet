@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -8,7 +9,17 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/circuit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
+
+// A global provider answers checkout on every channel, so it needs the global grant
+func (r *Resolver) requireRemoteProviderScope(ctx context.Context, id uuid.UUID, slug string) (remoteprovider.Provider, error) {
+	p, err := r.RemoteProviderSvc.GetByID(ctx, id)
+	if err != nil {
+		return remoteprovider.Provider{}, err
+	}
+	return p, auth.RequireGlobalOrChannelPermission(ctx, r.AdminSvc, slug, p.ChannelID)
+}
 
 func toRemoteProviderModel(p remoteprovider.Provider) *model.RemoteProvider {
 	m := &model.RemoteProvider{

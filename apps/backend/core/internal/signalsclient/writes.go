@@ -257,6 +257,7 @@ type RosterCustomer struct {
 	MarketingOptedIn bool
 	SMSOptedIn       bool
 	Consents         map[string]bool
+	ReadAt           time.Time // when core's database read the row - the suite keeps whichever read is newest
 }
 
 // ConsentsFromJSON reads the roster query's jsonb_object_agg of kind -> opted_in, which sqlc hands over untyped
@@ -330,10 +331,10 @@ func (c *Client) RosterNeedsFullSync(ctx context.Context) (bool, error) {
 	return res.GetNeedsFullSync(), nil
 }
 
-// ChannelEntry is one of core's active channels on the way to the suite
 type ChannelEntry struct {
 	ID        uuid.UUID
 	IsDefault bool
+	IsActive  bool
 	// The identity a message for this channel is sent under, resolved from core's config registry
 	Name        string
 	PublicURL   string
@@ -342,7 +343,7 @@ type ChannelEntry struct {
 	LogoURL     string
 }
 
-// PushChannels replaces the suite's copy of core's active channels, which is what its beacon surface
+// PushChannels replaces the suite's copy of core's channels, which is what its beacon surface
 // resolves against - the whole set goes in one call, so a failure leaves the old copy serving
 func (c *Client) PushChannels(ctx context.Context, channels []ChannelEntry) (synced, pruned int32, err error) {
 	sys, err := c.System(ctx)
@@ -352,7 +353,7 @@ func (c *Client) PushChannels(ctx context.Context, channels []ChannelEntry) (syn
 	entries := make([]*signalsv1.ChannelEntry, 0, len(channels))
 	for _, ch := range channels {
 		entries = append(entries, &signalsv1.ChannelEntry{
-			ChannelId: ch.ID.String(), IsDefault: ch.IsDefault, Name: ch.Name, PublicUrl: ch.PublicURL,
+			ChannelId: ch.ID.String(), IsDefault: ch.IsDefault, IsActive: &ch.IsActive, Name: ch.Name, PublicUrl: ch.PublicURL,
 			FromAddress: ch.FromAddress, FromName: ch.FromName, LogoUrl: ch.LogoURL,
 		})
 	}
@@ -365,13 +366,13 @@ func (c *Client) PushChannels(ctx context.Context, channels []ChannelEntry) (syn
 
 // DeleteCustomerIdentities is the Signals half of a GDPR erasure - the mappings that would re-link an anonymized customer to everything they did
 // email is the one core is about to redact - sends from before they had an account carry only that
-func (c *Client) DeleteCustomerIdentities(ctx context.Context, customerID uuid.UUID, email string) error {
+func (c *Client) DeleteCustomerIdentities(ctx context.Context, customerID uuid.UUID, email string, erasedAt time.Time) error {
 	sys, err := c.System(ctx)
 	if err != nil {
 		return err
 	}
 	_, err = c.Ingest.EraseCustomerIdentities(sys, &signalsv1.EraseCustomerIdentitiesRequest{
-		CustomerId: customerID.String(), Email: email,
+		CustomerId: customerID.String(), Email: email, ErasedAt: stamp(erasedAt),
 	})
 	return err
 }
@@ -380,7 +381,7 @@ func rosterEntry(c RosterCustomer) *signalsv1.RosterEntry {
 	e := &signalsv1.RosterEntry{
 		CustomerId: c.CustomerID.String(), ChannelId: c.ChannelID.String(),
 		Email: c.Email, FirstName: c.FirstName, Phone: c.Phone, IsActive: c.IsActive,
-		MarketingOptedIn: c.MarketingOptedIn, SmsOptedIn: c.SMSOptedIn,
+		MarketingOptedIn: c.MarketingOptedIn, SmsOptedIn: c.SMSOptedIn, ReadAt: stamp(c.ReadAt),
 	}
 	if c.GroupID.Valid {
 		e.CustomerGroupId = c.GroupID.UUID.String()

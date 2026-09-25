@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
 
@@ -44,15 +45,15 @@ func marketingSignalTools() []signalTool {
 		{
 			def: ai.Tool{
 				Name:        "list_subscriptions",
-				Description: "Subscriptions store-wide (status, billing interval, per-cycle price, next billing). Optional status filter (e.g. active).",
+				Description: "Subscriptions on this channel (status, billing interval, per-cycle price, next billing). Optional status filter (e.g. active).",
 				Schema: objSchema(map[string]any{
 					"status": map[string]any{"type": "string", "description": "Optional status filter (e.g. active, paused, cancelled)."},
 					"limit":  limitProp("Max rows to return (1-50). Default 20.", 50),
 				}),
 			},
 			perm: func(p digestPerms) bool { return p.subscriptions },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolListSubscriptions(ctx, r, a)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolListSubscriptions(ctx, r, cid, a)
 			},
 		},
 		{
@@ -62,8 +63,8 @@ func marketingSignalTools() []signalTool {
 				Schema:      objSchema(map[string]any{"limit": limitProp("Max rows to return (1-50). Default 20.", 50)}),
 			},
 			perm: func(p digestPerms) bool { return p.giftcards },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolListGiftcards(ctx, r, a)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolListGiftcards(ctx, r, cid, a)
 			},
 		},
 		{
@@ -73,8 +74,8 @@ func marketingSignalTools() []signalTool {
 				Schema:      objSchema(map[string]any{}),
 			},
 			perm: func(p digestPerms) bool { return p.channels },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
-				return toolListChannels(ctx, r)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
+				return toolListChannels(ctx, r, cid)
 			},
 		},
 		{
@@ -86,8 +87,8 @@ func marketingSignalTools() []signalTool {
 				}, "code"),
 			},
 			perm: func(p digestPerms) bool { return p.giftcards },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolCheckGiftcard(ctx, r, a)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolCheckGiftcard(ctx, r, cid, a)
 			},
 		},
 		{
@@ -162,9 +163,9 @@ func toolListFlows(ctx context.Context, r *Resolver, cid uuid.UUID) string {
 	return b.String()
 }
 
-func toolListSubscriptions(ctx context.Context, r *Resolver, a toolArgs) string {
+func toolListSubscriptions(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) string {
 	limit := clampLimit(a.Limit, 20, 50)
-	subs, err := r.SubscriptionSvc.List(ctx, strings.TrimSpace(a.Status), int32(limit), 0)
+	subs, err := r.SubscriptionSvc.ListForChannels(ctx, strings.TrimSpace(a.Status), []uuid.UUID{cid}, int32(limit), 0)
 	if err != nil {
 		return "Could not load subscriptions."
 	}
@@ -188,9 +189,9 @@ func maskCode(s string) string {
 	return "…" + s[len(s)-4:]
 }
 
-func toolListGiftcards(ctx context.Context, r *Resolver, a toolArgs) string {
+func toolListGiftcards(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) string {
 	limit := clampLimit(a.Limit, 20, 50)
-	cards, err := r.GiftcardSvc.List(ctx, int32(limit), 0)
+	cards, err := r.GiftcardSvc.ListForChannels(ctx, []uuid.UUID{cid}, int32(limit), 0)
 	if err != nil {
 		return "Could not load gift cards."
 	}
@@ -206,10 +207,20 @@ func toolListGiftcards(ctx context.Context, r *Resolver, a toolArgs) string {
 	return b.String()
 }
 
-func toolListChannels(ctx context.Context, r *Resolver) string {
-	chs, err := r.ChannelSvc.List(ctx)
+func toolListChannels(ctx context.Context, r *Resolver, cid uuid.UUID) string {
+	all, err := r.ChannelSvc.List(ctx)
 	if err != nil {
 		return "Could not load channels."
+	}
+	permitted, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "channels.view")
+	if err != nil {
+		return "Could not load channels."
+	}
+	chs := all[:0:0]
+	for _, c := range all {
+		if permitted.Allows(c.ID) || c.ID == cid {
+			chs = append(chs, c)
+		}
 	}
 	if len(chs) == 0 {
 		return "No channels."
@@ -226,13 +237,13 @@ func toolListChannels(ctx context.Context, r *Resolver) string {
 	return b.String()
 }
 
-func toolCheckGiftcard(ctx context.Context, r *Resolver, a toolArgs) string {
+func toolCheckGiftcard(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) string {
 	code := strings.TrimSpace(a.Code)
 	if code == "" {
 		return "Provide a gift-card 'code'."
 	}
 	gc, err := r.GiftcardSvc.GetByCode(ctx, code)
-	if err != nil {
+	if err != nil || !gc.SpendsOn(cid) {
 		return "No gift card found for that code."
 	}
 	return fmt.Sprintf("Gift card %s: %s of %s remaining - status %s.",

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
@@ -31,6 +32,8 @@ const (
 	sourceCommerce = "commerce"
 	sourceAccount  = "account"
 )
+
+const signalsWriteTimeout = 2 * time.Second
 
 type orderLookup interface {
 	GetByID(ctx context.Context, id uuid.UUID) (order.Order, error)
@@ -94,6 +97,8 @@ func (t *Tracker) emitID(ctx context.Context, source, name string, channel uuid.
 	if cust == nil && anon == "" {
 		return
 	}
+	ctx, cancel := context.WithTimeout(ctx, signalsWriteTimeout)
+	defer cancel()
 	_ = t.rec.RecordActivity(ctx, signalsclient.ActivitySpec{
 		EventName:  name,
 		Source:     source,
@@ -393,8 +398,8 @@ func (t *Tracker) onEmailVerified(ctx context.Context, e events.Event) error {
 
 func (t *Tracker) onAccountUpdated(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*customer.CustomerUpdated)
-	if !ok {
-		return nil
+	if !ok || ev.Source == customer.SourceGDPR {
+		return nil // an erased customer's id must not land on the spine again
 	}
 	t.emit(ctx, sourceAccount, "account_updated", ev.ChannelID, ref(ev.CustomerID),
 		"act:account_updated:"+ev.CustomerID.String()+":"+itoa(secBucket(ctx)),
@@ -454,7 +459,12 @@ func (t *Tracker) onLogout(ctx context.Context, e events.Event) error {
 	if !ok || ev.Subject != auth.SubjectCustomer {
 		return nil
 	}
-	t.emit(ctx, sourceAccount, "logout", uuid.Nil, ref(ev.SubjectID),
+	// The event names no channel, so the storefront request that logged out supplies it
+	chID := uuid.Nil
+	if ch, ok := channel.FromContext(ctx); ok && ch != nil {
+		chID = ch.ID
+	}
+	t.emit(ctx, sourceAccount, "logout", chID, ref(ev.SubjectID),
 		"act:logout:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)),
 		map[string]any{"all_devices": ev.AllDevices})
 	return nil

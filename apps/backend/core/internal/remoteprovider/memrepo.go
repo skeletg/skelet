@@ -44,13 +44,22 @@ func (r *MemRepo) GetByID(_ context.Context, id uuid.UUID) (Provider, error) {
 	return p, nil
 }
 
-func (r *MemRepo) GetBySlug(_ context.Context, kind Kind, slug string) (Provider, error) {
+func (r *MemRepo) GetBySlug(_ context.Context, kind Kind, slug string, channelID *uuid.UUID) (Provider, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	var global *Provider
 	for _, p := range r.providers {
-		if p.Kind == kind && p.Slug == slug {
+		if p.Kind != kind || p.Slug != slug {
+			continue
+		}
+		if p.ChannelID == nil {
+			global = &p
+		} else if channelID != nil && *p.ChannelID == *channelID {
 			return p, nil
 		}
+	}
+	if global != nil {
+		return *global, nil
 	}
 	return Provider{}, ErrNotFound
 }

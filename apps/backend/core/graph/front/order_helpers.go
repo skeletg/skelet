@@ -184,3 +184,8 @@ func (r *Resolver) cartForMinimumCheck(ctx context.Context, input order.PlaceOrd
 	}
 	return r.CartSvc.GetOrCreateCart(ctx, *callerID, channelID)
 }
+
+func orderOnCurrentStore(ctx context.Context, o order.Order) bool {
+	sv, ok := channel.FromContext(ctx)
+	return ok && sv != nil && o.ChannelID == sv.ID
+}

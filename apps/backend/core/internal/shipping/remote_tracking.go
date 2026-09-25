@@ -5,6 +5,9 @@ import (
 	"log"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 )
 
@@ -17,6 +20,22 @@ type RemoteTrackingSource interface {
 
 // Optional - nil leaves tracking to the carrier's own Tracker
 func (s *Service) SetRemoteTracking(src RemoteTrackingSource) { s.remoteTracking = src }
+
+type trackingChannelKey struct{}
+
+func (s *Service) TrackForChannel(ctx context.Context, channelID uuid.UUID, carrierSlug, trackingNumber string) (TrackResult, error) {
+	return s.Track(context.WithValue(ctx, trackingChannelKey{}, channelID), carrierSlug, trackingNumber)
+}
+
+func trackingChannel(ctx context.Context) *uuid.UUID {
+	if id, ok := ctx.Value(trackingChannelKey{}).(uuid.UUID); ok {
+		return &id
+	}
+	if ch, ok := channel.FromContext(ctx); ok && ch != nil {
+		return &ch.ID
+	}
+	return nil
+}
 
 // Consults the remote provider before the carrier's Tracker, ok=false to fall through
 func (s *Service) trackRemoteFirst(ctx context.Context, carrierSlug, trackingNumber string) (TrackResult, bool) {
@@ -58,11 +77,10 @@ func NewRemoteTrackingSource(svc *remoteprovider.Service, invoker *remoteprovide
 }
 
 func (r *remoteTrackingSource) Track(ctx context.Context, carrierSlug, trackingNumber string) (TrackResult, bool) {
-	providers, err := r.svc.ListActiveByKind(ctx, remoteprovider.KindShippingTracking, nil) // account-level tracker
-	if err != nil || len(providers) == 0 {
+	p, found, err := r.svc.ActiveFor(ctx, remoteprovider.KindShippingTracking, trackingChannel(ctx))
+	if err != nil || !found {
 		return TrackResult{}, false
 	}
-	p := providers[0]
 
 	var resp remoteTrackResponse
 	if err := r.invoker.Invoke(ctx, p, remoteTrackRequest{CarrierSlug: carrierSlug, TrackingNumber: trackingNumber}, &resp); err != nil {

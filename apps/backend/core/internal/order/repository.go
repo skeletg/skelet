@@ -978,28 +978,37 @@ func (r *postgresRepository) ListOrders(ctx context.Context) ([]Order, error) {
 }
 
 func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilter) ([]Order, int64, error) {
-	args := db.ListOrdersPagedParams{
-		AllChannels:     len(f.ChannelIDs) == 0,
-		ChannelIds:      f.ChannelIDs,
-		Search:          f.Search,
-		AllStatuses:     len(f.Statuses) == 0,
-		Statuses:        f.Statuses,
-		AllPayment:      len(f.PaymentStatuses) == 0,
-		PaymentStatuses: f.PaymentStatuses,
-		Lim:             f.Limit,
-		Off:             f.Offset,
+	allStatuses, allPayment := len(f.Statuses) == 0, len(f.PaymentStatuses) == 0
+	var (
+		rows  []db.Order
+		total int64
+		err   error
+	)
+	if len(f.ChannelIDs) == 0 {
+		rows, err = r.queries.ListOrdersPaged(ctx, db.ListOrdersPagedParams{
+			Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
+			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, Lim: f.Limit, Off: f.Offset,
+		})
+		if err == nil {
+			total, err = r.queries.CountOrdersPaged(ctx, db.CountOrdersPagedParams{
+				Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
+				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses,
+			})
+		}
+	} else {
+		rows, err = r.queries.ListOrdersPagedInChannels(ctx, db.ListOrdersPagedInChannelsParams{
+			ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
+			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, Lim: f.Limit, Off: f.Offset,
+		})
+		if err == nil {
+			total, err = r.queries.CountOrdersPagedInChannels(ctx, db.CountOrdersPagedInChannelsParams{
+				ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
+				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses,
+			})
+		}
 	}
-	rows, err := r.queries.ListOrdersPaged(ctx, args)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list orders page: %w", err)
-	}
-	total, err := r.queries.CountOrdersPaged(ctx, db.CountOrdersPagedParams{
-		AllChannels: args.AllChannels, ChannelIds: args.ChannelIds, Search: args.Search,
-		AllStatuses: args.AllStatuses, Statuses: args.Statuses,
-		AllPayment: args.AllPayment, PaymentStatuses: args.PaymentStatuses,
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("count orders page: %w", err)
 	}
 	orders := make([]Order, len(rows))
 	for i, row := range rows {

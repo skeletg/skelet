@@ -101,14 +101,17 @@ WHERE customer_id = $1 AND product_id = $2;
 
 -- ListApprovedReviewsForProduct returns the public review list - the storefront calls this for the PDP reviews section - sort is decided in the resolver layer by composing a CASE; this query orders newest- first as the default and the resolver re-orders the slice when a different sort is requested (only 10–50 rows typically - cheap)
 -- name: ListApprovedReviewsForProduct :many
-SELECT * FROM reviews
-WHERE product_id = $1 AND status = 'approved'
-ORDER BY submitted_at DESC
-LIMIT $2 OFFSET $3;
+SELECT r.* FROM reviews r
+WHERE r.product_id = sqlc.arg(product_id) AND r.status = 'approved' AND (sqlc.narg(channel_id)::uuid IS NULL OR r.channel_id = sqlc.narg(channel_id)::uuid)
+ORDER BY r.submitted_at DESC
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: CountApprovedReviewsForProduct :one
-SELECT COUNT(*) FROM reviews
-WHERE product_id = $1 AND status = 'approved';
+SELECT COUNT(*) FROM reviews r
+WHERE r.product_id = sqlc.arg(product_id) AND r.status = 'approved' AND (sqlc.narg(channel_id)::uuid IS NULL OR r.channel_id = sqlc.narg(channel_id)::uuid);
+
+-- name: ListReviewChannelsForProduct :many
+SELECT DISTINCT channel_id FROM reviews WHERE product_id = $1 AND status = 'approved';
 
 -- ListApprovedReviewsForProductIDs is the batched form of ListApprovedReviewsForProduct: it returns the top-N approved reviews for many products in a single windowed query, so the storefront can hydrate the reviews of a configurable's children (or any product list) without one query per product - ROW_NUMBER enforces the same newest-first per-product window the single-product query applies via LIMIT/OFFSET; the resolver re-sorts in memory when a different sort is asked for, exactly as the single-product path does
 -- name: ListApprovedReviewsForProductIDs :many
@@ -123,6 +126,7 @@ FROM (
   FROM reviews r
   WHERE r.product_id = ANY(sqlc.arg(product_ids)::uuid[])
     AND r.status = 'approved'
+    AND (sqlc.narg(channel_id)::uuid IS NULL OR r.channel_id = sqlc.narg(channel_id)::uuid)
 ) t
 WHERE t.rn > sqlc.arg(row_offset)::int
   AND t.rn <= (sqlc.arg(row_offset)::int + sqlc.arg(row_limit)::int)
@@ -220,12 +224,12 @@ RETURNING *;
 -- ==================== Product review summaries (AI "what customers say") ====================
 
 -- name: GetProductReviewSummary :one
-SELECT * FROM product_review_summaries WHERE product_id = $1;
+SELECT * FROM product_review_summaries WHERE product_id = $1 AND channel_id = $2;
 
 -- name: UpsertProductReviewSummary :exec
-INSERT INTO product_review_summaries (product_id, summary, review_count, is_stale, generated_at, updated_at)
-VALUES ($1, $2, $3, FALSE, NOW(), NOW())
-ON CONFLICT (product_id) DO UPDATE
+INSERT INTO product_review_summaries (product_id, channel_id, summary, review_count, is_stale, generated_at, updated_at)
+VALUES ($1, $2, $3, $4, FALSE, NOW(), NOW())
+ON CONFLICT (product_id, channel_id) DO UPDATE
 SET summary      = EXCLUDED.summary,
     review_count = EXCLUDED.review_count,
     is_stale     = FALSE,
@@ -233,16 +237,16 @@ SET summary      = EXCLUDED.summary,
     updated_at   = NOW();
 
 -- name: MarkProductReviewSummaryStale :exec
-INSERT INTO product_review_summaries (product_id, is_stale, updated_at)
-VALUES ($1, TRUE, NOW())
-ON CONFLICT (product_id) DO UPDATE
+INSERT INTO product_review_summaries (product_id, channel_id, is_stale, updated_at)
+VALUES ($1, $2, TRUE, NOW())
+ON CONFLICT (product_id, channel_id) DO UPDATE
 SET is_stale = TRUE, updated_at = NOW();
 
 -- name: MarkProductReviewSummaryFresh :exec
-UPDATE product_review_summaries SET is_stale = FALSE, updated_at = NOW() WHERE product_id = $1;
+UPDATE product_review_summaries SET is_stale = FALSE, updated_at = NOW() WHERE product_id = $1 AND channel_id = $2;
 
 -- name: ListStaleProductReviewSummaryIDs :many
-SELECT product_id FROM product_review_summaries WHERE is_stale ORDER BY updated_at LIMIT $1;
+SELECT product_id, channel_id FROM product_review_summaries WHERE is_stale ORDER BY updated_at LIMIT $1;
 
 -- ==================== Review Answers ====================
 
@@ -301,9 +305,10 @@ SELECT
     COUNT(*)::INT             AS sample_count
 FROM review_answers a
 JOIN reviews r ON r.id = a.review_id
-WHERE r.product_id = $1
+WHERE r.product_id = sqlc.arg(product_id)
   AND r.status = 'approved'
   AND a.rating_value IS NOT NULL
+  AND (sqlc.narg(channel_id)::uuid IS NULL OR r.channel_id = sqlc.narg(channel_id)::uuid)
 GROUP BY r.product_id, a.question_id;
 
 -- AggregateOverallRating returns count + overall mean + 5-bucket distribution for the PDP summary card
@@ -314,9 +319,10 @@ WITH per_review AS (
         AVG(a.rating_value)::FLOAT AS review_avg
     FROM reviews r
     JOIN review_answers a ON a.review_id = r.id
-    WHERE r.product_id = $1
+    WHERE r.product_id = sqlc.arg(product_id)
       AND r.status = 'approved'
       AND a.rating_value IS NOT NULL
+      AND (sqlc.narg(channel_id)::uuid IS NULL OR r.channel_id = sqlc.narg(channel_id)::uuid)
     GROUP BY r.id
 )
 SELECT
@@ -341,6 +347,7 @@ WITH per_review AS (
     WHERE r.product_id = ANY(sqlc.arg(product_ids)::uuid[])
       AND r.status = 'approved'
       AND a.rating_value IS NOT NULL
+      AND (sqlc.narg(channel_id)::uuid IS NULL OR r.channel_id = sqlc.narg(channel_id)::uuid)
     GROUP BY r.product_id, r.id
 )
 SELECT
@@ -368,6 +375,7 @@ JOIN reviews r ON r.id = a.review_id
 WHERE r.product_id = ANY(sqlc.arg(product_ids)::uuid[])
   AND r.status = 'approved'
   AND a.rating_value IS NOT NULL
+  AND (sqlc.narg(channel_id)::uuid IS NULL OR r.channel_id = sqlc.narg(channel_id)::uuid)
 GROUP BY r.product_id, a.question_id;
 
 -- ==================== Review Votes (helpful / not-helpful) ====================

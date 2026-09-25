@@ -30,6 +30,11 @@ SELECT * FROM catalog_product_channel_listings
 WHERE product_id = ANY(sqlc.arg(product_ids)::uuid[])
 ORDER BY product_id, channel_id;
 
+-- name: ListProductChannelListingsByProductIDsForChannel :many
+SELECT * FROM catalog_product_channel_listings
+WHERE product_id = ANY(sqlc.arg(product_ids)::uuid[]) AND channel_id = sqlc.arg(channel_id)
+ORDER BY product_id;
+
 -- name: ListProductChannelListingsByChannel :many
 SELECT * FROM catalog_product_channel_listings
 WHERE channel_id = $1

@@ -38,7 +38,7 @@ func registerRosterPush(bus *events.Bus, q *db.Queries, client *signalsclient.Cl
 			GroupID:          uuid.NullUUID{UUID: row.CustomerGroupID, Valid: row.CustomerGroupID != uuid.Nil},
 			GroupSlug:        row.CustomerGroupSlug,
 			Consents:         signalsclient.ConsentsFromJSON(row.Consents),
-			MarketingOptedIn: row.MarketingOptedIn, SMSOptedIn: row.SmsOptedIn,
+			MarketingOptedIn: row.MarketingOptedIn, SMSOptedIn: row.SmsOptedIn, ReadAt: row.ReadAt,
 		})
 		if err != nil {
 			return err

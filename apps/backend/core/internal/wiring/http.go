@@ -182,7 +182,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	}
 	// No separate REST tier - machine callers hit the admin GraphQL endpoint above with an X-Api-Token integration token; a dedicated /api/v1/ REST surface may still come back once a real consumer needs one
 
-	transformLimiter := ratelimit.NewRedis(infra.Cache.Client, RateLimitPerMin("MEDIA_TRANSFORM_RATE_LIMIT_PER_MIN", 120), time.Minute) // the /media/t/* transform handler is shared with cmd/media, which serves the same route standalone - route a proxy path there and this goes cold
+	transformLimiter := ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("MEDIA_TRANSFORM_RATE_LIMIT_PER_MIN", 120), time.Minute) // the /media/t/* transform handler is shared with cmd/media, which serves the same route standalone - route a proxy path there and this goes cold
 	mediaTransformer := media.NewTransformer(s.MediaStorage)
 	mediaTransformer.SetMaxSourcePixels(EnvInt("MEDIA_MAX_SOURCE_PIXELS", 0))
 	mediaTransformer.SetRenderConcurrency(EnvInt("MEDIA_RENDER_SLOTS", 0), 0)
@@ -203,10 +203,12 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	mux.Handle("/blog/feed.rss.xml", channel.Middleware(s.Channel)(blogFeedHandler(s.Blog, blog.FeedKindRSS)))
 	mux.Handle("/blog/feed.atom.xml", channel.Middleware(s.Channel)(blogFeedHandler(s.Blog, blog.FeedKindAtom)))
 	mux.Handle("/sitemap.xml", channel.Middleware(s.Channel)(blogSitemapHandler(s.Blog)))
-	mux.Handle("/feeds/products.xml", channel.Middleware(s.Channel)(merchantFeedHandler(catalog.NewMerchantFeed(infra.Queries, s.MediaStorage)))) // Google Merchant product feed: channel-priced, channel-scoped - operators point Merchant Center at https://<store-host>/feeds/products.xml
+	feed := catalog.NewMerchantFeed(infra.Queries, s.MediaStorage)
+	feed.SetSalable(s.Inventory)
+	mux.Handle("/feeds/products.xml", channel.Middleware(s.Channel)(merchantFeedHandler(feed))) // Google Merchant product feed: channel-priced, channel-scoped - operators point Merchant Center at https://<store-host>/feeds/products.xml
 
 	// consume enforces the grant's use-count + expiry under a row lock before the 302; the per-IP budget is shared with the other token-keyed public endpoints - tokens are unguessable so forgery isn't the threat, replay-flooding is, since each hit costs a token verify plus DB work and doubles as a brute-force oracle
-	tokenLimiter := ratelimit.NewRedis(infra.Cache.Client, RateLimitPerMin("TOKEN_RATE_LIMIT_PER_MIN", 60), time.Minute)
+	tokenLimiter := ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("TOKEN_RATE_LIMIT_PER_MIN", 60), time.Minute)
 	mux.HandleFunc("/download/", func(w http.ResponseWriter, r *http.Request) {
 		token := strings.TrimPrefix(r.URL.Path, "/download/")
 		if token == "" {
@@ -326,7 +328,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	mux.Handle(mediaSVGPath, otelx.WrapHTTP(adminAuth(mediaSVGHandler(s.MediaLibrary, s.Admin)), "media.svg"))
 
 	// One limiter for the whole /t surface, so a bucket means the same thing whichever tier answers
-	ingestLimiter := ratelimit.NewRedis(infra.Cache.Client, RateLimitPerMin("INGEST_RATE_LIMIT_PER_MIN", 300), time.Minute)
+	ingestLimiter := ratelimit.NewRedis(infra.Limits.Client, RateLimitPerMin("INGEST_RATE_LIMIT_PER_MIN", 300), time.Minute)
 	// Ahead of the /t/ catch-all below
 	registerCommerceBeacons(mux, commerceBeaconDeps{
 		Channels: s.Channel, BackInStock: s.BackInStock, Forms: s.Form,

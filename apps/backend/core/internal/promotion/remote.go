@@ -112,7 +112,7 @@ func buildRemoteCartContext(env Environment) remoteCartContext {
 
 // Finds the active provider the params reference, scoped to the environment's channel - ok=false when it's missing or scoped elsewhere, and the caller then applies fail-open
 func resolveProvider(ctx context.Context, svc *remoteprovider.Service, kind remoteprovider.Kind, env Environment, slug string) (remoteprovider.Provider, bool) {
-	p, err := svc.GetBySlug(ctx, kind, slug)
+	p, err := svc.GetBySlug(ctx, kind, slug, env.ChannelID())
 	if err != nil || !p.IsActive {
 		return remoteprovider.Provider{}, false
 	}

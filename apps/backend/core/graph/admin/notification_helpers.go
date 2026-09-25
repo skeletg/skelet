@@ -5,6 +5,8 @@ package admin
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/notification"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -19,15 +21,29 @@ func (r *Resolver) notifScope(ctx context.Context) (notification.Scope, error) {
 	if err != nil {
 		return notification.Scope{}, err
 	}
-	sc := notification.Scope{
-		AdminID:  claims.AdminID,
-		Bypass:   claims.IsSuperuser || pc.Bypass(),
-		Channels: pc.IDs(),
-	}
-	if !sc.Bypass { // non-bypass admins only see categories whose gating permission they hold
+	sc := notification.Scope{AdminID: claims.AdminID, Bypass: claims.IsSuperuser}
+	if !sc.Bypass { // each category shows on the channels where both it and the inbox are held
+		sc.PermChannels = map[string][]uuid.UUID{}
 		for _, slug := range notification.CategoryPermissions {
-			if ok, _ := r.AdminSvc.HasPermission(ctx, claims.AdminID, slug); ok {
-				sc.Perms = append(sc.Perms, slug)
+			held, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, slug)
+			if err != nil {
+				return notification.Scope{}, err
+			}
+			if !held.Bypass() && len(held.IDs()) == 0 {
+				continue
+			}
+			sc.Perms = append(sc.Perms, slug)
+			switch {
+			case held.Bypass() && pc.Bypass():
+				sc.GlobalPerms = append(sc.GlobalPerms, slug)
+			case held.Bypass():
+				sc.PermChannels[slug] = pc.IDs()
+			default:
+				for _, id := range held.IDs() {
+					if pc.Allows(id) {
+						sc.PermChannels[slug] = append(sc.PermChannels[slug], id)
+					}
+				}
 			}
 		}
 	}

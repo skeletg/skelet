@@ -7,6 +7,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -40,8 +41,20 @@ type ProductDoc struct {
 }
 
 // Assembled from the live config registry so the next Recreate picks up operator changes - name keeps a .keyword subfield because admin tooling sorts on it
-func buildProductMapping(ctx context.Context, cfg *config.Service) (string, error) {
-	shards := cfgIntOr(ctx, cfg, pathMappingShards, 1)
+// Roughly where one shard stops being comfortable
+const docsPerShard = 10_000_000
+
+func productShards(ctx context.Context, cfg *config.Service, estimatedDocs int64) int64 {
+	if cfg != nil {
+		if e, err := cfg.Get(ctx, pathMappingShards, config.DefaultScope); err == nil && !e.IsDefault {
+			return cfgIntOr(ctx, cfg, pathMappingShards, 1)
+		}
+	}
+	return max(1, (estimatedDocs+docsPerShard-1)/docsPerShard)
+}
+
+func buildProductMapping(ctx context.Context, cfg *config.Service, estimatedDocs int64) (string, error) {
+	shards := productShards(ctx, cfg, estimatedDocs)
 	replicas := cfgIntOr(ctx, cfg, pathMappingReplicas, 0)
 	analyzer := cfgStringOr(ctx, cfg, pathMappingAnalyzer, analyzerStandard)
 	minGram := cfgIntOr(ctx, cfg, pathMappingEdgeNgramMin, 2)
@@ -100,59 +113,60 @@ func buildProductMapping(ctx context.Context, cfg *config.Service) (string, erro
 		"type": "boolean",
 	}
 
-	body := map[string]any{
-		"settings": settings,
-		"mappings": map[string]any{
-			// Without this, a scalar attribute value that happens to parse as a date gets dynamically mapped as `date`, the
-			// attr_* string template never matches, and that facet silently returns empty forever - applies on the next recreate
-			"date_detection": false,
-			"dynamic_templates": []any{
-				map[string]any{
-					"attrslug_keyword": map[string]any{
-						"match":              "attrslug_*",
-						"match_mapping_type": "string",
-						"mapping":            attrSlugTemplateMapping,
-					},
-				},
-				map[string]any{
-					"attrindex_boolean": map[string]any{
-						"match":              "attrindex_*",
-						"match_mapping_type": "boolean",
-						"mapping":            attrIndexTemplateMapping,
-					},
-				},
-				map[string]any{
-					"attr_text": map[string]any{
-						"match":              "attr_*",
-						"match_mapping_type": "string",
-						"mapping":            attrTemplateMapping,
-					},
+	mappings := map[string]any{
+		// Without this, a scalar attribute value that happens to parse as a date gets dynamically mapped as `date`, the
+		// attr_* string template never matches, and that facet silently returns empty forever - applies on the next recreate
+		"date_detection": false,
+		"dynamic_templates": []any{
+			map[string]any{
+				"attrslug_keyword": map[string]any{
+					"match":              "attrslug_*",
+					"match_mapping_type": "string",
+					"mapping":            attrSlugTemplateMapping,
 				},
 			},
-			"properties": map[string]any{
-				"product_id":    map[string]any{"type": "keyword"},
-				"channel_id":    map[string]any{"type": "keyword"},
-				"locale":        map[string]any{"type": "keyword"},
-				"url":           map[string]any{"type": "keyword"},
-				"sku":           map[string]any{"type": "keyword"},
-				"name":          nameField,
-				"description":   descField,
-				"kind":          map[string]any{"type": "keyword"},
-				"price_cents":   map[string]any{"type": "long"},
-				"currency_code": map[string]any{"type": "keyword"},
-				"is_published":  map[string]any{"type": "boolean"},
-				"is_in_stock":   map[string]any{"type": "boolean"},
-				"sales_30d":     map[string]any{"type": "double"},
-				"indexed_at":    map[string]any{"type": "date"},
-				// The product's real age - "Newest" used indexed_at, which is just when the doc was last written
-				"created_at": map[string]any{"type": "date"},
-				// Keyword so browse can term-filter a specific category or collection without splitting on dashes
-				"category_ids":   map[string]any{"type": "keyword"},
-				"collection_ids": map[string]any{"type": "keyword"},
+			map[string]any{
+				"attrindex_boolean": map[string]any{
+					"match":              "attrindex_*",
+					"match_mapping_type": "boolean",
+					"mapping":            attrIndexTemplateMapping,
+				},
+			},
+			map[string]any{
+				"attr_text": map[string]any{
+					"match":              "attr_*",
+					"match_mapping_type": "string",
+					"mapping":            attrTemplateMapping,
+				},
 			},
 		},
+		"properties": map[string]any{
+			"product_id":    map[string]any{"type": "keyword"},
+			"channel_id":    map[string]any{"type": "keyword"},
+			"locale":        map[string]any{"type": "keyword"},
+			"url":           map[string]any{"type": "keyword"},
+			"sku":           map[string]any{"type": "keyword"},
+			"name":          nameField,
+			"description":   descField,
+			"kind":          map[string]any{"type": "keyword"},
+			"price_cents":   map[string]any{"type": "long"},
+			"currency_code": map[string]any{"type": "keyword"},
+			"is_published":  map[string]any{"type": "boolean"},
+			"is_in_stock":   map[string]any{"type": "boolean"},
+			"sales_30d":     map[string]any{"type": "double"},
+			"indexed_at":    map[string]any{"type": "date"},
+			// The product's real age - "Newest" used indexed_at, which is just when the doc was last written
+			"created_at": map[string]any{"type": "date"},
+			// Keyword so browse can term-filter a specific category or collection without splitting on dashes
+			"category_ids":   map[string]any{"type": "keyword"},
+			"collection_ids": map[string]any{"type": "keyword"},
+		},
 	}
-	out, err := json.Marshal(body)
+	// Past one shard every doc routes by its channel, so a storefront query reads one shard instead of all of them
+	if shards > 1 {
+		mappings["_routing"] = map[string]any{"required": true}
+	}
+	out, err := json.Marshal(map[string]any{"settings": settings, "mappings": mappings})
 	if err != nil {
 		return "", fmt.Errorf("marshal product mapping: %w", err)
 	}
@@ -189,6 +203,32 @@ type ProductIndexer struct {
 	sales     SalesSource
 	// When wired, answers SearchProducts through an external engine instead of OpenSearch - see remote.go
 	remoteSearch RemoteSearchSource
+	routed       atomic.Bool
+}
+
+// Writes always route by channel, a no-op on one shard, so only reads depend on this per-process flag and a stale one merely fans out
+func (i *ProductIndexer) routing(channelID uuid.UUID) string {
+	if i.routed.Load() {
+		return channelID.String()
+	}
+	return ""
+}
+
+func (i *ProductIndexer) detectRouting(ctx context.Context) {
+	routed, err := i.client.RoutingRequired(ctx, ProductIndex)
+	if err != nil {
+		log.Printf("[search] read %s routing: %v", ProductIndex, err)
+		return
+	}
+	i.routed.Store(routed)
+}
+
+func docRouting(id string) string {
+	parts := strings.Split(id, ":")
+	if len(parts) < 2 {
+		return ""
+	}
+	return parts[1]
 }
 
 // An interface so tests can mock it without standing up the full catalog service
@@ -250,30 +290,59 @@ func NewProductIndexer(c *Client, cat ProductSource, sv ChannelSource, inv Inven
 // Called from server boot so live writes have somewhere to land before the first reindex runs
 // Aliased from birth on a fresh cluster, so every rebuild is an atomic flip
 func (i *ProductIndexer) EnsureIndex(ctx context.Context) error {
-	mapping, err := buildProductMapping(ctx, i.cfg)
+	mapping, err := buildProductMapping(ctx, i.cfg, 0)
 	if err != nil {
 		return err
 	}
-	return i.client.EnsureAliasedIndex(ctx, ProductIndex, mapping)
+	if err := i.client.EnsureAliasedIndex(ctx, ProductIndex, mapping); err != nil {
+		return err
+	}
+	i.detectRouting(ctx)
+	return nil
+}
+
+// An upper bound on docs, the safe side to size shards from
+func (i *ProductIndexer) estimateDocs(ctx context.Context) int64 {
+	channels, err := i.channel.List(ctx)
+	if err != nil {
+		return 0
+	}
+	products, err := i.catalog.ListProducts(ctx, "", 0)
+	if err != nil {
+		return 0
+	}
+	var perProduct int64
+	for _, sv := range channels {
+		perProduct += int64(len(localeCodes(sv)))
+	}
+	return perProduct * int64(len(products))
 }
 
 // RebuildAndSwap reindexes into a fresh physical index and atomically flips the ProductIndex alias - the catalogue
 // keeps serving the old docs for the whole rebuild instead of sitting empty for minutes, which recreate-in-place caused
 func (i *ProductIndexer) RebuildAndSwap(ctx context.Context) (int, error) {
-	mapping, err := buildProductMapping(ctx, i.cfg)
+	mapping, err := buildProductMapping(ctx, i.cfg, i.estimateDocs(ctx))
 	if err != nil {
 		return 0, err
 	}
-	return rebuildAndSwap(ctx, i.client, ProductIndex, mapping, i.reindexAllInto)
+	n, err := rebuildAndSwap(ctx, i.client, ProductIndex, mapping, i.reindexAllInto)
+	if err == nil {
+		i.routed.Store(strings.Contains(mapping, `"_routing"`))
+	}
+	return n, err
 }
 
 // For the bulk reindex CLI and the search.reindex admin action after a mapping change - never the live event path
 func (i *ProductIndexer) Recreate(ctx context.Context) error {
-	mapping, err := buildProductMapping(ctx, i.cfg)
+	mapping, err := buildProductMapping(ctx, i.cfg, i.estimateDocs(ctx))
 	if err != nil {
 		return err
 	}
-	return i.client.RecreateIndex(ctx, ProductIndex, mapping)
+	if err := i.client.RecreateIndex(ctx, ProductIndex, mapping); err != nil {
+		return err
+	}
+	i.routed.Store(strings.Contains(mapping, `"_routing"`))
+	return nil
 }
 
 // Reindexes one product across every (store, locale) its listings span - idempotent, so the event path can replay it freely
@@ -344,11 +413,18 @@ func (i *ProductIndexer) Upsert(ctx context.Context, productID uuid.UUID) error 
 	}
 	built := make([]pending, 0, len(listings))
 	contentByLocale := map[string]catalog.ProductContent{}
+	channels, err := i.channel.List(ctx)
+	if err != nil {
+		return fmt.Errorf("load channels: %w", err)
+	}
+	channelByID := make(map[uuid.UUID]channel.Channel, len(channels))
+	for _, sv := range channels {
+		channelByID[sv.ID] = sv
+	}
 	for _, lst := range listings {
-		sv, err := i.channel.GetByID(ctx, lst.ChannelID)
-		if err != nil {
-			// Listing references a deleted store - skip rather than fail the whole upsert
-			continue
+		sv, ok := channelByID[lst.ChannelID]
+		if !ok {
+			continue // listing references a deleted store - skip rather than fail the whole upsert
 		}
 		// Salable depends on the channel's assigned locations, so fetch once per channel and stamp into every locale doc
 		inStock := i.productInStock(ctx, product.ID, lst.ChannelID)
@@ -374,30 +450,23 @@ func (i *ProductIndexer) Upsert(ctx context.Context, productID uuid.UUID) error 
 	if len(built) == 0 {
 		return i.Delete(ctx, productID)
 	}
-	// Write the new set first, then drop whatever the previous shape left behind.
-	// Worst case is a brief overlap of stale sibling docs rather than a hole.
+	// New docs and stale-doc deletes go in one _bulk - a failed stale-doc listing only leaves a harmless sibling
+	existing, lerr := i.client.ListDocIDsByField(ctx, ProductIndex, "product_id", productID.String())
+	if lerr != nil {
+		log.Printf("[search] list existing docs for product %s: %v", productID, lerr)
+	}
 	fresh := make(map[string]struct{}, len(built))
+	ops := make([]BulkDoc, 0, len(built)+len(existing))
 	for _, b := range built {
-		if err := i.client.IndexDoc(ctx, ProductIndex, b.id, b.doc); err != nil {
-			return err
-		}
+		ops = append(ops, BulkDoc{ID: b.id, Doc: b.doc, Routing: docRouting(b.id)})
 		fresh[b.id] = struct{}{}
 	}
-	stale, err := i.client.ListDocIDsByField(ctx, ProductIndex, "product_id", productID.String())
-	if err != nil {
-		// The new docs are in place - a leftover sibling is cosmetic next to losing the product
-		log.Printf("[search] list existing docs for product %s: %v", productID, err)
-		return nil
-	}
-	for _, id := range stale {
-		if _, ok := fresh[id]; ok {
-			continue
-		}
-		if err := i.client.DeleteDoc(ctx, ProductIndex, id); err != nil {
-			log.Printf("[search] delete stale doc %s: %v", id, err)
+	for _, id := range existing {
+		if _, ok := fresh[id]; !ok {
+			ops = append(ops, BulkDoc{ID: id, Delete: true, Routing: docRouting(id)})
 		}
 	}
-	return nil
+	return i.client.Bulk(ctx, ProductIndex, ops)
 }
 
 // Used when a channel is deleted so its per-locale docs can't serve stale results
@@ -405,18 +474,46 @@ func (i *ProductIndexer) DeleteChannel(ctx context.Context, channelID uuid.UUID)
 	return i.client.DeleteByField(ctx, ProductIndex, "channel_id", channelID.String())
 }
 
-// Upsert's delete-then-rebuild clears docs for removed locales and creates them for added ones - the first per-product error aborts and the next event or manual reindex retries the rest
 func (i *ProductIndexer) ReindexChannel(ctx context.Context, channelID uuid.UUID) (int, error) {
+	sv, err := i.channel.GetByID(ctx, channelID)
+	if err != nil {
+		return 0, fmt.Errorf("load channel: %w", err)
+	}
+	locales := localeCodes(sv)
+	if err := i.client.DeleteByQuery(ctx, ProductIndex, map[string]any{
+		"bool": map[string]any{
+			"filter":   []any{map[string]any{"term": map[string]any{"channel_id": channelID.String()}}},
+			"must_not": []any{map[string]any{"terms": map[string]any{"locale": locales}}},
+		},
+	}); err != nil {
+		return 0, err
+	}
 	listings, err := i.catalog.ListProductChannelListingsByChannel(ctx, channelID)
 	if err != nil {
 		return 0, fmt.Errorf("list channel listings: %w", err)
 	}
-	for n, lst := range listings {
-		if err := i.Upsert(ctx, lst.ProductID); err != nil {
-			return n, fmt.Errorf("reindex product %s: %w", lst.ProductID, err)
+	indexedAttrs, err := i.indexedAttributes(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("load indexed attributes: %w", err)
+	}
+	only := map[uuid.UUID]channel.Channel{channelID: sv}
+	done := 0
+	for start := 0; start < len(listings); start += reindexPageSize {
+		if ctx.Err() != nil {
+			return done, ctx.Err()
+		}
+		end := min(start+reindexPageSize, len(listings))
+		page := make([]catalog.Product, 0, end-start)
+		for _, lst := range listings[start:end] {
+			page = append(page, catalog.Product{ID: lst.ProductID})
+		}
+		n, perr := i.reindexPage(ctx, ProductIndex, page, indexedAttrs, only)
+		done += n
+		if perr != nil {
+			return done, fmt.Errorf("reindex channel %s page %d-%d: %w", channelID, start, end, perr)
 		}
 	}
-	return len(listings), nil
+	return done, nil
 }
 
 func (i *ProductIndexer) Delete(ctx context.Context, productID uuid.UUID) error {
@@ -499,7 +596,7 @@ func (i *ProductIndexer) SearchProducts(ctx context.Context, query string, chann
 		}
 	}
 	hits := make([]ProductHit, 0, limit)
-	total, err := i.client.Search(ctx, ProductIndex, body, func(raw json.RawMessage) error {
+	total, err := i.client.SearchRouted(ctx, ProductIndex, i.routing(channelID), body, func(raw json.RawMessage) error {
 		var src ProductDoc
 		if err := json.Unmarshal(raw, &src); err != nil {
 			return err
@@ -583,15 +680,17 @@ func (i *ProductIndexer) reindexPage(
 	channelByID map[uuid.UUID]channel.Channel,
 ) (int, error) {
 	ids := make([]uuid.UUID, len(page))
-	skus := make([]string, len(page))
 	for n, p := range page {
 		ids[n] = p.ID
-		skus[n] = p.SKU
 	}
 	// ListProducts doesn't hydrate attribute selections, and buildDoc needs them
 	products, err := i.catalog.ListProductsWithAttributesByIDs(ctx, ids)
 	if err != nil {
 		return 0, fmt.Errorf("load products with attributes: %w", err)
+	}
+	skus := make([]string, len(products))
+	for n, p := range products {
+		skus[n] = p.SKU
 	}
 	listingsByProduct, err := i.catalog.ListProductChannelListingsByProductIDs(ctx, ids)
 	if err != nil {
@@ -695,7 +794,7 @@ func (i *ProductIndexer) reindexPage(
 				if derr != nil {
 					return indexed, fmt.Errorf("build doc %s/%s/%s: %w", p.ID, sv.ID, locale, derr)
 				}
-				docs = append(docs, BulkDoc{ID: docID(p.ID, sv.ID, locale), Doc: doc})
+				docs = append(docs, BulkDoc{ID: docID(p.ID, sv.ID, locale), Doc: doc, Routing: sv.ID.String()})
 				built++
 			}
 		}

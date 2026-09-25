@@ -1,11 +1,49 @@
 package admin
 
 import (
+	"context"
 	"fmt"
+
+	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
+
+// A global webhook receives every channel's events, so it needs the global grant
+func (r *Resolver) requireWebhookScope(ctx context.Context, id uuid.UUID, slug string) (webhook.Webhook, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, slug); err != nil {
+		return webhook.Webhook{}, err
+	}
+	w, err := r.WebhookSvc.GetByID(ctx, id)
+	if err != nil {
+		return webhook.Webhook{}, err
+	}
+	return w, auth.RequireGlobalOrChannelPermission(ctx, r.AdminSvc, slug, w.ChannelID)
+}
+
+func (r *Resolver) requireWebhookQueueItemScope(ctx context.Context, id uuid.UUID, slug string) (webhook.Webhook, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, slug); err != nil {
+		return webhook.Webhook{}, err
+	}
+	webhookID, err := r.Queries.GetWebhookQueueItemWebhookID(ctx, id)
+	if err != nil {
+		return webhook.Webhook{}, errNotFound("dead letter")
+	}
+	return r.requireWebhookScope(ctx, webhookID, slug)
+}
+
+func (r *Resolver) requireWebhookDeliveryScope(ctx context.Context, id uuid.UUID, slug string) (webhook.Webhook, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, slug); err != nil {
+		return webhook.Webhook{}, err
+	}
+	d, err := r.Queries.GetWebhookDelivery(ctx, id)
+	if err != nil {
+		return webhook.Webhook{}, errNotFound("delivery")
+	}
+	return r.requireWebhookScope(ctx, d.WebhookID, slug)
+}
 
 func toWebhookModel(w webhook.Webhook) *model.Webhook {
 	m := &model.Webhook{

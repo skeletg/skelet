@@ -28,7 +28,7 @@ func (r *countryResolver) Regions(ctx context.Context, obj *model.Country) ([]*m
 }
 
 func (r *mutationResolver) CreateCountry(ctx context.Context, input model.CreateCountryInput) (*model.Country, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "countries.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "countries.manage"); err != nil {
 		return nil, err
 	}
 	c, err := r.CountrySvc.Create(ctx, country.CreateCountryInput{
@@ -49,7 +49,7 @@ func (r *mutationResolver) CreateCountry(ctx context.Context, input model.Create
 }
 
 func (r *mutationResolver) UpdateCountry(ctx context.Context, input model.UpdateCountryInput) (*model.Country, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "countries.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "countries.manage"); err != nil {
 		return nil, err
 	}
 	domainInput := country.UpdateCountryInput{
@@ -77,7 +77,7 @@ func (r *mutationResolver) UpdateCountry(ctx context.Context, input model.Update
 }
 
 func (r *mutationResolver) DeleteCountry(ctx context.Context, code string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "countries.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "countries.manage"); err != nil {
 		return false, err
 	}
 	if err := r.CountrySvc.Delete(ctx, code); err != nil {

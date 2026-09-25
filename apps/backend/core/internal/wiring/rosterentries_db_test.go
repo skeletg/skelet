@@ -60,8 +60,9 @@ func (s rosterSource) consent(id uuid.UUID, kind string, optedIn bool) {
 // the same answer has to come from both, or a sweep would undo what an unsubscribe just pushed
 func (s rosterSource) swept(id uuid.UUID) db.CustomerRosterForSyncRow {
 	s.t.Helper()
-	for off := int32(0); ; off += 5000 {
-		rows, err := s.q.CustomerRosterForSync(s.ctx, db.CustomerRosterForSyncParams{Lim: 5000, Off: off})
+	var after uuid.UUID
+	for {
+		rows, err := s.q.CustomerRosterForSync(s.ctx, db.CustomerRosterForSyncParams{After: after, Lim: 5000})
 		if err != nil {
 			s.t.Fatalf("page roster: %v", err)
 		}
@@ -73,6 +74,7 @@ func (s rosterSource) swept(id uuid.UUID) db.CustomerRosterForSyncRow {
 		if len(rows) < 5000 {
 			s.t.Fatalf("customer %s is not on the sweep", id)
 		}
+		after = rows[len(rows)-1].CustomerID
 	}
 }
 
@@ -130,4 +132,31 @@ func TestSMSConsentAndPhoneTravelSeparatelyFromEmail(t *testing.T) {
 			t.Errorf("%s: sms consent leaked into the email flag", name)
 		}
 	}
+}
+
+func TestRosterSweepSurvivesDeleteBetweenPages(t *testing.T) {
+	s := rosterSourceFixture(t)
+	a, b := s.customer(), s.customer()
+	if b.String() < a.String() {
+		a, b = b, a
+	}
+	if _, err := s.conn.Exec(`DELETE FROM customers WHERE id = $1`, a); err != nil {
+		t.Fatalf("delete between pages: %v", err)
+	}
+	rows, err := s.q.CustomerRosterForSync(s.ctx, db.CustomerRosterForSyncParams{After: a, Lim: 5000})
+	if err != nil {
+		t.Fatalf("next page: %v", err)
+	}
+	for _, r := range rows {
+		if r.CustomerID == a {
+			t.Fatal("the deleted customer is still on the next page")
+		}
+		if r.CustomerID == b {
+			if r.ReadAt.IsZero() {
+				t.Error("a page row carries no read time, so the suite cannot tell it from a fresher push")
+			}
+			return
+		}
+	}
+	t.Fatal("the next live customer after a deleted one was skipped")
 }

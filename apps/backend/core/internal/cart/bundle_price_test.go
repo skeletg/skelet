@@ -12,7 +12,7 @@ type bundlePricer struct { // fixed bundle snapshot plus per-SKU channel pricing
 	snap BundleSnapshot
 }
 
-func (b bundlePricer) ResolveBundleBySKU(context.Context, string) (BundleSnapshot, error) {
+func (b bundlePricer) ResolveBundleBySKU(context.Context, uuid.UUID, string) (BundleSnapshot, error) {
 	return b.snap, nil
 }
 

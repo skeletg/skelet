@@ -95,6 +95,8 @@ func (d *Dispatcher) dispatchAsync(ctx context.Context, e events.Event) error {
 	}
 
 	bodies := newPayloadCache(e)
+	bodies.at = events.EmittedAtOr(ctx, time.Now())
+	dedupeKey := replayDedupeKey(ctx)
 	var errs []error
 	for _, wh := range webhooks {
 		body, err := bodies.forVersion(wh.PayloadVersion)
@@ -102,12 +104,21 @@ func (d *Dispatcher) dispatchAsync(ctx context.Context, e events.Event) error {
 			log.Printf("[webhook] marshal payload for %s: %v", e.Type(), err) // this version can't serialize, but the other webhooks' versions still might
 			continue
 		}
-		if _, err := d.svc.EnqueueDelivery(ctx, wh.ID, e.Type(), string(body)); err != nil {
+		if _, err := d.svc.EnqueueDelivery(ctx, wh.ID, e.Type(), string(body), dedupeKey); err != nil {
 			log.Printf("[webhook] enqueue %s for %s: %v", e.Type(), wh.ID, err)
 			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// The outbox row the event came from, shared by its replays - empty on the fire-and-forget path, which never replays
+func replayDedupeKey(ctx context.Context) string {
+	id, ok := events.OutboxID(ctx)
+	if !ok {
+		return ""
+	}
+	return "outbox:" + id.String()
 }
 
 // --- sync path ---
@@ -294,11 +305,12 @@ func (d *Dispatcher) attemptDelivery(ctx context.Context, wh Webhook, secret str
 // Marshals the envelope once per payload version per event - today exactly once, since only v1 exists, but this is the seam a v2 envelope plugs into without touching the dispatch loops
 type payloadCache struct {
 	event  events.Event
+	at     time.Time
 	bodies map[string][]byte
 }
 
 func newPayloadCache(e events.Event) *payloadCache {
-	return &payloadCache{event: e, bodies: map[string][]byte{}}
+	return &payloadCache{event: e, at: time.Now(), bodies: map[string][]byte{}}
 }
 
 func (c *payloadCache) forVersion(version string) ([]byte, error) {
@@ -311,7 +323,7 @@ func (c *payloadCache) forVersion(version string) ([]byte, error) {
 	body, err := json.Marshal(webhookPayload{
 		APIVersion: version,
 		Event:      c.event.Type(),
-		Timestamp:  time.Now().UTC().Format(time.RFC3339),
+		Timestamp:  c.at.UTC().Format(time.RFC3339),
 		Data:       c.event,
 	})
 	if err != nil {

@@ -308,7 +308,10 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 	if err != nil {
 		return Cart{}, err
 	}
-	snap, err := s.products.ResolveBundleBySKU(ctx, input.ProductSku)
+	snap, err := s.products.ResolveBundleBySKU(ctx, cart.ChannelID, input.ProductSku)
+	if errors.Is(err, ErrProductNotPublished) {
+		return Cart{}, err
+	}
 	if err != nil {
 		return Cart{}, fmt.Errorf("%w: %w", ErrProductNotBundle, err)
 	}
@@ -383,8 +386,12 @@ func (s *Service) AddBundleToCart(ctx context.Context, cartID uuid.UUID, callerI
 			}
 			lineQty := sel.QuantityPerBundle * input.Quantity
 			compUnit := sel.UnitPrice // the snapshot's catalog default misses listing overrides, specials and remote pricing, so a channel-priced deployment would charge the wrong bundle total - fail-open back to it below so a pricing hiccup never blocks the add
-			if sp, perr := s.resolvePricing(ctx, cart.ChannelID, sel.ProductSKU, cart.CustomerID); perr == nil {
+			sp, perr := s.resolvePricing(ctx, cart.ChannelID, sel.ProductSKU, cart.CustomerID)
+			switch {
+			case perr == nil:
 				compUnit = sp.UnitPrice
+			case errors.Is(perr, ErrProductNotPublished), errors.Is(perr, ErrProductNotPurchasable):
+				return Cart{}, fmt.Errorf("bundle component %s: %w", sel.ProductSKU, perr)
 			}
 			components = append(components, AddCartLineComponentInput{
 				BundleOptionID:    opt.ID,
@@ -1039,6 +1046,27 @@ func (s *Service) MergeGuestCart(ctx context.Context, customerID, guestCartID uu
 	return loadCartWithLines(ctx, s.repo, resultID)
 }
 
+// A bundle line whose bundle or component left the channel can't be placed - only a not-sold answer refuses, never a pricing hiccup
+func (s *Service) ValidateBundleLines(ctx context.Context, c Cart) error {
+	if s.products == nil {
+		return nil
+	}
+	for _, l := range c.Lines {
+		if len(l.Components) == 0 {
+			continue
+		}
+		if _, err := s.products.ResolveBundleBySKU(ctx, c.ChannelID, l.ProductSku); errors.Is(err, ErrProductNotPublished) {
+			return err
+		}
+		for _, comp := range l.Components {
+			if _, err := s.resolvePricing(ctx, c.ChannelID, comp.ProductSku, c.CustomerID); errors.Is(err, ErrProductNotPublished) || errors.Is(err, ErrProductNotPurchasable) {
+				return fmt.Errorf("bundle component %s: %w", comp.ProductSku, err)
+			}
+		}
+	}
+	return nil
+}
+
 // Re-resolves each line's base price from today's catalog and persists any drift - carts snapshot prices at add time, so without this a checkout after a price change would charge the stale snapshot, and the math mirrors UpdateCartLine's reprice: tier break on the base, the line's snapshot option deltas on top
 // Bundle lines keep their snapshot, since component pricing has no per-SKU re-resolution path - fail-open per line, so a pricing hiccup or persist failure keeps the snapshot rather than blocking checkout, and the returned cart always matches what was persisted
 func (s *Service) RepriceCartLines(ctx context.Context, c Cart) Cart {
@@ -1139,8 +1167,8 @@ func loadCartWithLines(ctx context.Context, repo Repository, cartID uuid.UUID) (
 	return cart, nil
 }
 
-func (s *Service) ListAbandoned(ctx context.Context, threshold, maxAge time.Time, limit int32) ([]AbandonedCart, error) { // feeds the abandoned-cart scanner - active non-empty carts last touched between maxAge and threshold, not yet notified
-	return s.repo.ListAbandoned(ctx, threshold, maxAge, limit)
+func (s *Service) ListAbandoned(ctx context.Context, channelID uuid.UUID, threshold, maxAge time.Time, limit int32) ([]AbandonedCart, error) { // feeds the abandoned-cart scanner - one channel's active non-empty carts last touched between maxAge and threshold, not yet notified
+	return s.repo.ListAbandoned(ctx, channelID, threshold, maxAge, limit)
 }
 
 func (s *Service) MarkAbandonedNotified(ctx context.Context, ids []uuid.UUID) error { // stamped so each abandonment episode enrolls once

@@ -63,8 +63,10 @@ func Resource(queries *db.Queries, cat *catalog.Service, ch *channel.Service) da
 		Description:      "Every product with its attributes, pricing and category. Variants are rows of their own linked to a parent by SKU.",
 		ViewPermission:   "catalog.view",
 		ImportPermission: "catalog.manage",
-		Fields:           fields,
-		DynamicPrefixes:  []string{attrPrefix},
+		// Product and category rows are shared by every channel that lists them
+		RequireGlobalImport: true,
+		Fields:              fields,
+		DynamicPrefixes:     []string{attrPrefix},
 		Options: []dataio.OptionDef{
 			{
 				Name: optCreateMissingValues, Label: "Create missing attribute values", Type: dataio.OptBool,

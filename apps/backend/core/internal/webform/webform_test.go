@@ -2,6 +2,7 @@ package webform
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -275,9 +276,14 @@ func (c *capturedMail) Send(_ context.Context, m email.Message) error {
 	return nil
 }
 
-type capturedSpecs struct{ specs []mailsend.Spec }
+type capturedSpecs struct {
+	mu    sync.Mutex
+	specs []mailsend.Spec
+}
 
 func (c *capturedSpecs) RecordSent(_ context.Context, _ uuid.UUID, spec mailsend.Spec) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.specs = append(c.specs, spec)
 	return nil
 }
@@ -301,6 +307,7 @@ func TestSubmissionMailIsAttributedToTheShop(t *testing.T) {
 	if err := bus.WaitIdle(context.Background()); err != nil {
 		t.Fatalf("drain bus: %v", err)
 	}
+	sender.Wait()
 
 	if len(mail.sent) != 2 {
 		t.Fatalf("messages sent = %d, want the owner notice and the submitter confirmation", len(mail.sent))

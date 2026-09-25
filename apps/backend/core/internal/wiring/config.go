@@ -36,10 +36,11 @@ type Config struct {
 	JobsExternal  bool
 	RunBackground bool // False only when the server role hands the background layer to a worker
 
-	DatabaseURL    string
-	ReplicaURL     string
-	ValkeyURL      string
-	ValkeyCacheURL string // evictable Valkey for caches/limiters/APQ - empty falls back to ValkeyURL for a single instance - prod points it at a second instance with an eviction policy so a cache flood can't fill the noeviction primary and take auth-token writes down with it
+	DatabaseURL     string
+	ReplicaURL      string
+	ValkeyURL       string
+	ValkeyCacheURL  string // evictable Valkey for caches/limiters/APQ - empty falls back to ValkeyURL for a single instance - prod points it at a second instance with an eviction policy so a cache flood can't fill the noeviction primary and take auth-token writes down with it
+	ValkeyLimitsURL string
 
 	MaxConns          int
 	AnalyticsMaxConns int
@@ -86,6 +87,8 @@ func loadBase() (Config, error) {
 
 		ValkeyURL:      strings.TrimSpace(os.Getenv("VALKEY_URL")),
 		ValkeyCacheURL: strings.TrimSpace(os.Getenv("VALKEY_CACHE_URL")),
+
+		ValkeyLimitsURL: strings.TrimSpace(os.Getenv("VALKEY_LIMITS_URL")),
 
 		MaxConns:          EnvInt("DB_MAX_CONNS", 25),
 		AnalyticsMaxConns: EnvInt("ANALYTICS_DB_MAX_CONNS", 8),

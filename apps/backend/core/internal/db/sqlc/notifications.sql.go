@@ -18,17 +18,19 @@ SELECT COUNT(*)::bigint
 FROM admin_notifications n
 LEFT JOIN notification_reads r ON r.notification_id = n.id AND r.admin_id = $1
 WHERE ($2::bool OR n.required_permission = ANY($3::text[]))
-  AND ($2::bool OR n.channel_id IS NULL OR n.channel_id = ANY($4::uuid[]))
-  AND NOT (n.category = ANY(COALESCE($5::text[], '{}')))
+  AND ($2::bool OR n.channel_id IS NULL OR n.required_permission = ANY($4::text[])
+       OR (n.required_permission || '|' || n.channel_id::text) = ANY($5::text[]))
+  AND NOT (n.category = ANY(COALESCE($6::text[], '{}')))
   AND r.read_at IS NULL
 `
 
 type CountUnreadNotificationsParams struct {
-	AdminID  uuid.UUID   `json:"admin_id"`
-	Bypass   bool        `json:"bypass"`
-	Perms    []string    `json:"perms"`
-	Channels []uuid.UUID `json:"channels"`
-	Muted    []string    `json:"muted"`
+	AdminID      uuid.UUID `json:"admin_id"`
+	Bypass       bool      `json:"bypass"`
+	Perms        []string  `json:"perms"`
+	GlobalPerms  []string  `json:"global_perms"`
+	PermChannels []string  `json:"perm_channels"`
+	Muted        []string  `json:"muted"`
 }
 
 func (q *Queries) CountUnreadNotifications(ctx context.Context, arg CountUnreadNotificationsParams) (int64, error) {
@@ -36,7 +38,8 @@ func (q *Queries) CountUnreadNotifications(ctx context.Context, arg CountUnreadN
 		arg.AdminID,
 		arg.Bypass,
 		pq.Array(arg.Perms),
-		pq.Array(arg.Channels),
+		pq.Array(arg.GlobalPerms),
+		pq.Array(arg.PermChannels),
 		pq.Array(arg.Muted),
 	)
 	var column_1 int64
@@ -134,21 +137,23 @@ SELECT n.id, n.category, n.severity, n.title, n.body, n.required_permission, n.c
 FROM admin_notifications n
 LEFT JOIN notification_reads r ON r.notification_id = n.id AND r.admin_id = $1
 WHERE ($2::bool OR n.required_permission = ANY($3::text[]))
-  AND ($2::bool OR n.channel_id IS NULL OR n.channel_id = ANY($4::uuid[]))
-  AND NOT (n.category = ANY(COALESCE($5::text[], '{}')))
-  AND (NOT $6::bool OR r.read_at IS NULL)
+  AND ($2::bool OR n.channel_id IS NULL OR n.required_permission = ANY($4::text[])
+       OR (n.required_permission || '|' || n.channel_id::text) = ANY($5::text[]))
+  AND NOT (n.category = ANY(COALESCE($6::text[], '{}')))
+  AND (NOT $7::bool OR r.read_at IS NULL)
 ORDER BY n.created_at DESC
-LIMIT $7
+LIMIT $8
 `
 
 type ListNotificationsParams struct {
-	AdminID    uuid.UUID   `json:"admin_id"`
-	Bypass     bool        `json:"bypass"`
-	Perms      []string    `json:"perms"`
-	Channels   []uuid.UUID `json:"channels"`
-	Muted      []string    `json:"muted"`
-	UnreadOnly bool        `json:"unread_only"`
-	Lim        int32       `json:"lim"`
+	AdminID      uuid.UUID `json:"admin_id"`
+	Bypass       bool      `json:"bypass"`
+	Perms        []string  `json:"perms"`
+	GlobalPerms  []string  `json:"global_perms"`
+	PermChannels []string  `json:"perm_channels"`
+	Muted        []string  `json:"muted"`
+	UnreadOnly   bool      `json:"unread_only"`
+	Lim          int32     `json:"lim"`
 }
 
 type ListNotificationsRow struct {
@@ -172,7 +177,8 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 		arg.AdminID,
 		arg.Bypass,
 		pq.Array(arg.Perms),
-		pq.Array(arg.Channels),
+		pq.Array(arg.GlobalPerms),
+		pq.Array(arg.PermChannels),
 		pq.Array(arg.Muted),
 		arg.UnreadOnly,
 		arg.Lim,
@@ -218,18 +224,20 @@ SELECT n.id, $1
 FROM admin_notifications n
 LEFT JOIN notification_reads r ON r.notification_id = n.id AND r.admin_id = $1
 WHERE ($2::bool OR n.required_permission = ANY($3::text[]))
-  AND ($2::bool OR n.channel_id IS NULL OR n.channel_id = ANY($4::uuid[]))
-  AND NOT (n.category = ANY(COALESCE($5::text[], '{}')))
+  AND ($2::bool OR n.channel_id IS NULL OR n.required_permission = ANY($4::text[])
+       OR (n.required_permission || '|' || n.channel_id::text) = ANY($5::text[]))
+  AND NOT (n.category = ANY(COALESCE($6::text[], '{}')))
   AND r.read_at IS NULL
 ON CONFLICT DO NOTHING
 `
 
 type MarkAllNotificationsReadParams struct {
-	AdminID  uuid.UUID   `json:"admin_id"`
-	Bypass   bool        `json:"bypass"`
-	Perms    []string    `json:"perms"`
-	Channels []uuid.UUID `json:"channels"`
-	Muted    []string    `json:"muted"`
+	AdminID      uuid.UUID `json:"admin_id"`
+	Bypass       bool      `json:"bypass"`
+	Perms        []string  `json:"perms"`
+	GlobalPerms  []string  `json:"global_perms"`
+	PermChannels []string  `json:"perm_channels"`
+	Muted        []string  `json:"muted"`
 }
 
 func (q *Queries) MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) error {
@@ -237,7 +245,8 @@ func (q *Queries) MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotif
 		arg.AdminID,
 		arg.Bypass,
 		pq.Array(arg.Perms),
-		pq.Array(arg.Channels),
+		pq.Array(arg.GlobalPerms),
+		pq.Array(arg.PermChannels),
 		pq.Array(arg.Muted),
 	)
 	return err

@@ -1036,6 +1036,28 @@ func (q *Queries) GetCMSPageByURLPath(ctx context.Context, urlPath string) (CmsP
 	return i, err
 }
 
+const getCMSPageComment = `-- name: GetCMSPageComment :one
+SELECT id, page_id, locale, block_id, author_id, body, resolved, resolved_by, resolved_at, created_at FROM cms_page_comments WHERE id = $1
+`
+
+func (q *Queries) GetCMSPageComment(ctx context.Context, id uuid.UUID) (CmsPageComment, error) {
+	row := q.db.QueryRowContext(ctx, getCMSPageComment, id)
+	var i CmsPageComment
+	err := row.Scan(
+		&i.ID,
+		&i.PageID,
+		&i.Locale,
+		&i.BlockID,
+		&i.AuthorID,
+		&i.Body,
+		&i.Resolved,
+		&i.ResolvedBy,
+		&i.ResolvedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getCMSPageContent = `-- name: GetCMSPageContent :one
 SELECT page_id, locale, title, body, meta_title, meta_description, meta_keywords, data, updated_at, search_vector FROM cms_page_content WHERE page_id = $1 AND locale = $2
 `

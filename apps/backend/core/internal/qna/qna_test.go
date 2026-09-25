@@ -162,3 +162,22 @@ func TestNullableUUID(t *testing.T) {
 		t.Errorf("nullableUUID(&id) = %+v, want the id marked valid", got)
 	}
 }
+
+type argSpy struct {
+	db.DBTX
+	args []any
+}
+
+func (s *argSpy) QueryContext(_ context.Context, _ string, args ...any) (*sql.Rows, error) {
+	s.args = args
+	return nil, errors.New("spy")
+}
+
+func TestPublishedQuestionsAreReadForOneChannel(t *testing.T) {
+	spy := &argSpy{}
+	product, store := uuid.New(), uuid.New()
+	_, _ = NewService(db.New(spy)).Published(context.Background(), product, store, 5)
+	if len(spy.args) < 2 || spy.args[0] != product || spy.args[1] != store {
+		t.Fatalf("query args = %v, want the product then the store", spy.args)
+	}
+}
