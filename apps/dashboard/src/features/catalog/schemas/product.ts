@@ -455,3 +455,35 @@ export function productSeoDiff(original: ProductSeoValues, draft: ProductSeoValu
     { label: PRODUCT_SEO_LABELS.metaKeywords, value: (v) => v.metaKeywords },
   ])
 }
+
+// ---------- Per-store URLs: a store's own path for the product, blank inherits ----------
+
+export const productChannelUrlsSchema = z.object({
+  // channel id -> path
+  urls: z.record(z.string(), z.string()),
+})
+
+export type ProductChannelUrlsValues = z.infer<typeof productChannelUrlsSchema>
+
+export const PRODUCT_CHANNEL_URL_LABELS: Record<keyof ProductChannelUrlsValues, string> = { urls: 'Per-store URLs' }
+
+export function toProductChannelUrlValues(listings: { url?: string | null; channel: { id: string } }[]): ProductChannelUrlsValues {
+  return { urls: Object.fromEntries(listings.map((l) => [l.channel.id, l.url ?? ''])) }
+}
+
+// The stores whose URL changed, with what to send - null clears the override
+export function channelUrlChanges(before: ProductChannelUrlsValues, after: ProductChannelUrlsValues) {
+  return Object.entries(after.urls)
+    .filter(([id, url]) => url.trim() !== (before.urls[id] ?? '').trim())
+    .map(([channelId, url]) => ({ channelId, url: url.trim() || null }))
+}
+
+export function productChannelUrlsDiff(channelName: (id: string) => string) {
+  return (original: ProductChannelUrlsValues, draft: ProductChannelUrlsValues): SectionDiffEntry[] =>
+    channelUrlChanges(original, draft).map(({ channelId, url }) => ({
+      kind: 'change',
+      label: `${channelName(channelId)} URL`,
+      before: original.urls[channelId]?.trim() || 'inherit',
+      after: url ?? 'inherit',
+    }))
+}
