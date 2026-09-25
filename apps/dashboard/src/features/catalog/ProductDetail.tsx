@@ -545,7 +545,8 @@ export function ProductDetail() {
             onOpenChange={setMetadataOpen}
           >
             <ProductMetadataEditor
-              key={`${product.id}:${product.updatedAt}:metadata`}
+              key={`${product.id}:metadata`}
+              productId={product.id}
               metadata={product.metadata}
               privateMetadata={product.privateMetadata}
               canManage={canManage}

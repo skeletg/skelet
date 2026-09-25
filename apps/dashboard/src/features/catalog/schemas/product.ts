@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { added, changed, fieldDiff, removed } from '@/shared/saving/diff'
 import { formatCents } from '@/lib/format'
+import { metadataDiff, metadataSchema, toMetadataValues, type MetadataEntry } from '@/shared/schemas/metadata'
 import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEditor'
 
 // Product page - its sections each stage their own form (shared/saving/useSectionForm), so the field
@@ -599,4 +600,35 @@ export function productVariantsDiff(attributeName: (id: string) => string) {
         : []),
     ].filter((e) => e !== null)
   }
+}
+
+// ---------- Metadata: the public and private key/value lists ----------
+
+// A value typed without a key would be dropped on save, and a key twice would lose one of the two -
+// both are refused instead
+const keyedMetadata = metadataSchema.superRefine((rows, ctx) => {
+  const seen = new Set<string>()
+  for (const r of rows) {
+    const key = r.key.trim()
+    if (!key) {
+      if (r.value.trim()) ctx.addIssue({ code: 'custom', message: 'Every value needs a key' })
+      continue
+    }
+    if (seen.has(key)) ctx.addIssue({ code: 'custom', message: `"${key}" is used twice` })
+    seen.add(key)
+  }
+})
+
+export const productMetadataSchema = z.object({ metadata: keyedMetadata, privateMetadata: keyedMetadata })
+
+export type ProductMetadataValues = z.infer<typeof productMetadataSchema>
+
+export const PRODUCT_METADATA_LABELS: Record<keyof ProductMetadataValues, string> = { metadata: 'Metadata', privateMetadata: 'Private metadata' }
+
+export function toProductMetadataValues(product: { metadata: MetadataEntry[]; privateMetadata: MetadataEntry[] }): ProductMetadataValues {
+  return { metadata: toMetadataValues(product.metadata), privateMetadata: toMetadataValues(product.privateMetadata) }
+}
+
+export function productMetadataDiff(original: ProductMetadataValues, draft: ProductMetadataValues): SectionDiffEntry[] {
+  return [...metadataDiff(original.metadata, draft.metadata), ...metadataDiff(original.privateMetadata, draft.privateMetadata, 'Private metadata')]
 }
