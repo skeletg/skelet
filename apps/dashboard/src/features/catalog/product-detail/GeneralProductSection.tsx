@@ -6,12 +6,12 @@ import { Separator } from '@/components/ui/separator'
 import { TranslationLocales } from '@/components/TranslationLocales'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
 import { useSectionForm } from '@/shared/saving/useSectionForm'
+import { useProductContentWrite } from './productContent'
 import {
   DeleteProductContentDocument,
   ProductDocument,
   SetProductTaxClassDocument,
   UpdateProductDocument,
-  UpsertProductContentDocument,
 } from '../Catalog.gql'
 import {
   PRODUCT_GENERAL_LABELS,
@@ -58,7 +58,7 @@ export function GeneralProductSection({
   const refetchQueries = ['ProductsPaged', { query: ProductDocument, variables: productVariables }]
   const [updateProduct] = useMutation(UpdateProductDocument, { refetchQueries })
   const [setTaxClassMut] = useMutation(SetProductTaxClassDocument, { refetchQueries })
-  const [upsertContent] = useMutation(UpsertProductContentDocument, { refetchQueries })
+  const writeContent = useProductContentWrite(product.id, locale)
   const [deleteContent] = useMutation(DeleteProductContentDocument, { refetchQueries })
 
   const baseline = useMemo(() => toProductGeneralValues(product, locale), [product, locale])
@@ -73,7 +73,7 @@ export function GeneralProductSection({
       const changes = productGeneralChanges(baseline, v)
       if (changes.update) await updateProduct({ variables: { input: { id: product.id, ...changes.update } } })
       if (changes.taxClass) await setTaxClassMut({ variables: { productId: product.id, taxClass: changes.taxClass } })
-      if (changes.name) await upsertContent({ variables: { productId: product.id, locale, input: { name: changes.name } } })
+      if (changes.name) await writeContent({ name: changes.name })
     },
   })
 
