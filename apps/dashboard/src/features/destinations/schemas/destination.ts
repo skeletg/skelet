@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { absoluteUrl } from '@/shared/schemas/fields'
 import type { EventDestinationInput } from '@/graphql/schema.types'
 
 // Analytics destination dialog. The signing secret is write-only: never shown again, so an edit
@@ -22,7 +23,7 @@ export function destinationSchema(opts: { isEdit: boolean }) {
     .object({
       name: z.string().trim().min(1, 'Name is required'),
       kind: z.string(),
-      targetUrl: z.url('Enter a full URL, starting with https://'),
+      targetUrl: absoluteUrl(),
       secret: z.string(),
       eventSources: z.array(z.string()),
       eventNames: z.string(),

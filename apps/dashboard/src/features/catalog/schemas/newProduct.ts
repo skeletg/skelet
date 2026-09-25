@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { ProductAttributeAssignmentInput, ProductKind } from '@/graphql/schema.types'
-import { dollarsToCents, money } from '@/shared/schemas/fields'
+import { currencyCode, dollarsToCents, money, optionalAbsoluteUrl } from '@/shared/schemas/fields'
 import { buildAssignment, emptyAttrState, type AttrState, type AttributeSummary } from '../AttributesEditor'
 import type { RichTextValue } from '../LexicalRichTextEditor'
 
@@ -33,7 +33,7 @@ export function newProductSchema(ctx: { fallbackLocale: string; attributes: (pro
       // Blank lets the service generate one from the name
       sku: z.string(),
       priceDollars: money(),
-      currencyCode: z.string().regex(/^[A-Z]{3}$/, 'A 3-letter ISO code such as USD'),
+      currencyCode: currencyCode(),
       locale: z.string().refine((v) => (v || ctx.fallbackLocale) !== '', 'Pick a translation locale'),
       // Opaque rich-text JSON to the form - its recursive type would blow up TanStack's deep field paths
       shortDescription: z.unknown(),
@@ -47,7 +47,7 @@ export function newProductSchema(ctx: { fallbackLocale: string; attributes: (pro
       metaTitle: z.string(),
       metaDescription: z.string(),
       metaKeywords: z.string(),
-      canonicalUrl: z.union([z.literal(''), z.url('An absolute URL, starting with https://')]),
+      canonicalUrl: optionalAbsoluteUrl(),
       seoNoindex: z.boolean(),
       attrState: z.record(z.string(), z.unknown()),
     })

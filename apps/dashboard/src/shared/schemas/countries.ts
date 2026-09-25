@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isCountryCode } from './fields'
 
 // A comma-separated list of ISO 3166-1 alpha-2 codes, typed into a plain text box - "US, ca,MX".
 // Kept as text in the form (that's what the input holds) and parsed on the way out
@@ -17,4 +18,4 @@ export function formatCountryList(codes?: readonly string[] | null): string {
 
 export const countryListText = z
   .string()
-  .refine((text) => parseCountryList(text).every((c) => /^[A-Z]{2}$/.test(c)), 'Use 2-letter ISO codes, comma-separated')
+  .refine((text) => parseCountryList(text).every(isCountryCode), 'Use 2-letter ISO codes, comma-separated')

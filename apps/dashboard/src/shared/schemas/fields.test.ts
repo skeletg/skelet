@@ -1,13 +1,23 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 
 import {
+  absoluteUrl,
+  contentSlug,
+  countryCode,
+  currencyCode,
+  dateRangeIssues,
   dollarsToCents,
   email,
+  handleSlug,
   isNumberText,
+  isoToLocalInput,
+  localInputToISO,
   money,
   newPassword,
   numberText,
   numberTextMessage,
+  optionalAbsoluteUrl,
   optionalEmail,
   parseNumberText,
   wholeNumber,
@@ -98,5 +108,51 @@ describe('wholeNumber', () => {
   it('refuses fractions', () => {
     expect(message(wholeNumber(), 1.5)).toBe('Whole numbers only')
     expect(wholeNumber().safeParse(3).success).toBe(true)
+  })
+})
+
+describe('slugs', () => {
+  it('content slugs allow dots, handles do not', () => {
+    expect(contentSlug().safeParse('summer.sale-2').success).toBe(true)
+    expect(message(contentSlug(), 'Summer')).toBe('Lowercase letters, numbers, dots, underscores and hyphens only')
+    expect(handleSlug().safeParse('main_menu-1').success).toBe(true)
+    expect(message(handleSlug(), 'main.menu')).toBe('Lowercase letters, numbers, underscores and hyphens only')
+    expect(message(handleSlug(), '  ')).toBe('Slug is required')
+  })
+})
+
+describe('URLs', () => {
+  it('absoluteUrl needs a full URL, optionalAbsoluteUrl also takes blank', () => {
+    expect(absoluteUrl().safeParse('https://example.com/hook').success).toBe(true)
+    expect(message(absoluteUrl(), 'example.com')).toBe('Enter a full URL, starting with https://')
+    expect(optionalAbsoluteUrl().safeParse('').success).toBe(true)
+    expect(optionalAbsoluteUrl().safeParse('nope').success).toBe(false)
+  })
+})
+
+describe('ISO codes', () => {
+  it('holds the letter counts and case', () => {
+    expect(countryCode().safeParse('US').success).toBe(true)
+    expect(countryCode().safeParse('us').success).toBe(false)
+    expect(countryCode().safeParse('').success).toBe(false)
+    expect(countryCode({ optional: true }).safeParse('').success).toBe(true)
+    expect(currencyCode().safeParse('EUR').success).toBe(true)
+    expect(message(currencyCode('Pick a currency'), '')).toBe('Pick a currency')
+  })
+})
+
+describe('datetime-local', () => {
+  it('round-trips through ISO in local time', () => {
+    expect(isoToLocalInput(localInputToISO('2026-05-01T12:30'))).toBe('2026-05-01T12:30')
+    expect(isoToLocalInput(null)).toBe('')
+    expect(localInputToISO('')).toBeNull()
+    expect(localInputToISO('not a date')).toBeNull()
+  })
+
+  it('dateRangeIssues refuses an end at or before the start', () => {
+    const schema = z.object({ from: z.string(), to: z.string() }).superRefine((v, ctx) => dateRangeIssues(v.from, v.to, ['to'], ctx))
+    expect(schema.safeParse({ from: '2026-05-01T12:00', to: '2026-05-01T13:00' }).success).toBe(true)
+    expect(schema.safeParse({ from: '2026-05-01T12:00', to: '' }).success).toBe(true)
+    expect(message(schema, { from: '2026-05-01T12:00', to: '2026-05-01T12:00' })).toBe('Ends after it starts')
   })
 })

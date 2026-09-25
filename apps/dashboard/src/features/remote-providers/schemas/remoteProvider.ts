@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { numberText } from '@/shared/schemas/fields'
+import { absoluteUrl, numberText } from '@/shared/schemas/fields'
 import type { RemoteProviderFailurePolicy, RemoteProviderKind } from '@/graphql/schema.types'
 import type { UpdateRemoteProviderMutationVariables } from '../RemoteProviders.gql'
 
@@ -35,7 +35,7 @@ export const remoteProviderSchema = z.object({
   kind: z.string(),
   slug: z.string().trim().min(1, 'Slug is required'),
   name: z.string().trim().min(1, 'Name is required'),
-  targetUrl: z.url('Enter a full URL, starting with https://'),
+  targetUrl: absoluteUrl(),
   channelId: z.string(),
   config: z.string().refine((v) => parseJson(v).ok, 'Config must be valid JSON'),
   timeoutMs: boundedInt(30000),

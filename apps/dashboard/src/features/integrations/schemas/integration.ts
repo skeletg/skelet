@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoToLocalInput, localInputToISO } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { added, fieldDiff, removed } from '@/shared/saving/diff'
 
@@ -25,24 +26,15 @@ export const integrationSchema = z
     // datetime-local text, "2026-05-01T12:30" - local time, converted to ISO on the way out
     expiresAt: z.string(),
   })
-  .refine((v) => !v.hasExpiry || (v.expiresAt !== '' && !Number.isNaN(new Date(v.expiresAt).getTime())), {
+  .refine((v) => !v.hasExpiry || localInputToISO(v.expiresAt) !== null, {
     message: 'Pick when the token expires',
     path: ['expiresAt'],
   })
 
 export type IntegrationValues = z.infer<typeof integrationSchema>
 
-// The datetime-local input speaks local "YYYY-MM-DDTHH:mm", the API speaks ISO
-function toLocalInput(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 export function toIntegrationValues(integration?: ExistingIntegration): IntegrationValues {
-  const expiresAt = toLocalInput(integration?.expiresAt)
+  const expiresAt = isoToLocalInput(integration?.expiresAt)
   return {
     name: integration?.name ?? '',
     description: integration?.description ?? '',
@@ -54,7 +46,7 @@ export function toIntegrationValues(integration?: ExistingIntegration): Integrat
 }
 
 function expiryIso(v: IntegrationValues): string | null {
-  return v.hasExpiry && v.expiresAt ? new Date(v.expiresAt).toISOString() : null
+  return v.hasExpiry ? localInputToISO(v.expiresAt) : null
 }
 
 export function toIntegrationCreateInput(v: IntegrationValues) {
@@ -90,7 +82,7 @@ export const integrationDetailSchema = z
     expiresAt: z.string(),
     permissionSlugs: z.array(z.string()),
   })
-  .refine((v) => !v.hasExpiry || (v.expiresAt !== '' && !Number.isNaN(new Date(v.expiresAt).getTime())), {
+  .refine((v) => !v.hasExpiry || localInputToISO(v.expiresAt) !== null, {
     message: 'Pick when the token expires',
     path: ['expiresAt'],
   })
@@ -139,7 +131,7 @@ export function toIntegrationDetailInput(v: IntegrationDetailValues, id: string)
     name: v.name.trim(),
     description: v.description,
     permissionSlugs: v.permissionSlugs,
-    ...(v.hasExpiry ? { expiresAt: new Date(v.expiresAt).toISOString() } : { clearExpiresAt: true }),
+    ...(v.hasExpiry ? { expiresAt: localInputToISO(v.expiresAt) } : { clearExpiresAt: true }),
   }
 }
 

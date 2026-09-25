@@ -3,7 +3,7 @@ import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { added, changed, fieldDiff, removed } from '@/shared/saving/diff'
 import { formatCents } from '@/lib/format'
 import { metadataDiff, metadataSchema, toMetadataValues, type MetadataEntry } from '@/shared/schemas/metadata'
-import { centsToDollars, dollarsToCents, isNumberText, money, numberText } from '@/shared/schemas/fields'
+import { centsToDollars, dateRangeIssues, dollarsToCents, isNumberText, isoToLocalInput, localInputToISO, money, numberText } from '@/shared/schemas/fields'
 import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEditor'
 
 // Product page - its sections each stage their own form (shared/saving/useSectionForm), so the field
@@ -97,9 +97,7 @@ export const productAdvancedSchema = z
     maxQty: blankOrCount,
   })
   .superRefine((v, ctx) => {
-    if (v.specialFrom && v.specialTo && new Date(v.specialTo) <= new Date(v.specialFrom)) {
-      ctx.addIssue({ code: 'custom', path: ['specialTo'], message: 'Ends after it starts' })
-    }
+    dateRangeIssues(v.specialFrom, v.specialTo, ['specialTo'], ctx)
     if (v.minQty.trim() && v.maxQty.trim() && Number(v.maxQty) > 0 && Number(v.minQty) > Number(v.maxQty)) {
       ctx.addIssue({ code: 'custom', path: ['maxQty'], message: 'At least the minimum' })
     }
@@ -133,20 +131,6 @@ type AdvancedProduct = {
   minOrderQty?: number | null
   maxOrderQty?: number | null
   costCents?: number | null
-}
-
-export function isoToLocalInput(iso?: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-const localInputToISO = (v: string) => {
-  if (!v) return null
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? null : d.toISOString()
 }
 
 // Zero means "not set" for the dimension and quantity columns

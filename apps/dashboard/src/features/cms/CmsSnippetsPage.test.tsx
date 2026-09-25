@@ -44,7 +44,7 @@ describe('CmsSnippetsPage', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Hero' } })
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'Hero banner' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save section' }))
-    expect(await screen.findByText(/Lowercase letters, digits/)).toBeDefined()
+    expect(await screen.findByText(/Lowercase letters, numbers/)).toBeDefined()
     expect(writes.create).not.toHaveBeenCalled()
 
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'hero-banner' } })

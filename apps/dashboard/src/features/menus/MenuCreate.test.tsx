@@ -26,7 +26,7 @@ describe('MenuCreate', () => {
 
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'Main.Nav' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create menu' }))
-    expect(await screen.findByText(/Lowercase letters, digits/)).toBeDefined()
+    expect(await screen.findByText(/Lowercase letters, numbers/)).toBeDefined()
     expect(onCreate).not.toHaveBeenCalled()
 
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'main-nav' } })

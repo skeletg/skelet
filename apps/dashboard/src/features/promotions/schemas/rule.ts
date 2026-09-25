@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { numberText, wholeNumber } from '@/shared/schemas/fields'
+import { dateRangeIssues, isoToLocalInput, localInputToISO, numberText, wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
 
@@ -52,9 +52,7 @@ export const ruleSchema = z
     contentTerms: z.string(),
   })
   .superRefine((v, ctx) => {
-    if (v.validFrom && v.validTo && new Date(v.validTo) <= new Date(v.validFrom)) {
-      ctx.addIssue({ code: 'custom', path: ['validTo'], message: 'Ends after it starts' })
-    }
+    dateRangeIssues(v.validFrom, v.validTo, ['validTo'], ctx)
     // A translation row needs its label - terms alone would be silently dropped
     if (!v.contentLabel.trim() && v.contentTerms.trim()) {
       ctx.addIssue({ code: 'custom', path: ['contentLabel'], message: 'Terms need a label to go with them' })
@@ -112,15 +110,6 @@ type ExistingRule = {
   actions: { type: string; params: unknown; paramsVersion: number; sortOrder: number }[]
 }
 
-// The datetime-local input speaks local "YYYY-MM-DDTHH:mm", the API speaks ISO
-function toLocalInput(iso: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 const toRows = (rows: ExistingRule['conditions']): RuleRow[] =>
   rows.map((r) => ({ type: r.type, params: r.params ?? {}, paramsVersion: r.paramsVersion, sortOrder: r.sortOrder }))
 
@@ -136,8 +125,8 @@ export function toRuleValues(rule: ExistingRule | undefined, locale: string): Ru
     priority: rule?.priority ?? 0,
     stopAfterApply: rule?.stopAfterApply ?? 'NONE',
     exclusivityGroup: rule?.exclusivityGroup ?? '',
-    validFrom: toLocalInput(rule?.validFrom ?? null),
-    validTo: toLocalInput(rule?.validTo ?? null),
+    validFrom: isoToLocalInput(rule?.validFrom ?? null),
+    validTo: isoToLocalInput(rule?.validTo ?? null),
     maxUses: rule?.maxUses?.toString() ?? '',
     perCustomerLimit: rule?.perCustomerLimit?.toString() ?? '',
     labelMediaId: rule?.labelMediaId ?? '',
@@ -167,8 +156,8 @@ export function toRuleInput(v: RuleValues) {
     priority: v.priority,
     stopAfterApply: v.stopAfterApply,
     exclusivityGroup: v.exclusivityGroup,
-    validFrom: v.validFrom ? new Date(v.validFrom).toISOString() : null,
-    validTo: v.validTo ? new Date(v.validTo).toISOString() : null,
+    validFrom: localInputToISO(v.validFrom),
+    validTo: localInputToISO(v.validTo),
     maxUses: v.maxUses.trim() ? Number(v.maxUses) : null,
     perCustomerLimit: v.perCustomerLimit.trim() ? Number(v.perCustomerLimit) : null,
     isActive: v.isActive,

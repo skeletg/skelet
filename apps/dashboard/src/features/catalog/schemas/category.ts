@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { wholeNumber } from '@/shared/schemas/fields'
+import { contentSlug, wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
 import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEditor'
@@ -10,12 +10,7 @@ import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEdito
 
 export const categorySchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  slug: z
-    .string()
-    .trim()
-    .min(1, 'Slug is required')
-    // The backend's content slug rule (internal/content.ValidateSlug)
-    .regex(/^[a-z0-9._-]+$/, 'Lowercase letters, numbers, dots, underscores and hyphens only'),
+  slug: contentSlug(),
   // '' = a root category
   parentId: z.string(),
   position: wholeNumber(),

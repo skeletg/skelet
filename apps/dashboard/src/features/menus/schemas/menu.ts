@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { handleSlug } from '@/shared/schemas/fields'
 import type { MenuItemTargetType } from '@/graphql/schema.types'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { added, fieldDiff, removed } from '@/shared/saving/diff'
@@ -6,11 +7,8 @@ import { added, fieldDiff, removed } from '@/shared/saving/diff'
 // Menu page - THE field list (docs/conventions.md, "Record forms"): the menu's slug, name and the
 // channels serving it. Items are rows with their own dialog (below), not fields of the page
 
-const SLUG = /^[a-z0-9_-]+$/
-
 export const menuSchema = z.object({
-  // The backend's menu slug rule (internal/menu validateSlug)
-  slug: z.string().trim().min(1, 'Slug is required').regex(SLUG, 'Lowercase letters, digits, hyphens and underscores only'),
+  slug: handleSlug(),
   name: z.string().trim().min(1, 'Name is required'),
   channelIds: z.array(z.string()),
 })

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { contentSlug } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
 import type { FieldValue } from '../DynamicFieldRenderer'
@@ -10,12 +11,7 @@ import { dynamicFieldDiff, type PageTypeAttr } from '../page-detail/shared'
 // ---------- Basics: the slug, noindex and the non-translated attribute values ----------
 
 export const pageBasicsSchema = z.object({
-  slug: z
-    .string()
-    .trim()
-    .min(1, 'Slug is required')
-    // The backend's content slug rule (internal/content.ValidateSlug)
-    .regex(/^[a-z0-9._-]+$/, 'Lowercase letters, numbers, dots, underscores and hyphens only'),
+  slug: contentSlug(),
   seoNoindex: z.boolean(),
   // Attribute slug -> value, shaped by each attribute's input type (DynamicFieldRenderer)
   data: z.record(z.string(), z.unknown()),

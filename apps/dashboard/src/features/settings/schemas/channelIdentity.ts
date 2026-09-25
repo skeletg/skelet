@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { currencyCode, optionalAbsoluteUrl } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
 import type { ChannelQuery } from '@/features/channels/Channels.gql'
@@ -9,8 +10,8 @@ import type { ChannelQuery } from '@/features/channels/Channels.gql'
 
 export const channelIdentitySchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  currencyCode: z.string().regex(/^[A-Z]{3}$/, 'Pick a currency'),
-  publicUrl: z.union([z.literal(''), z.url('An absolute URL, starting with https://')]),
+  currencyCode: currencyCode('Pick a currency'),
+  publicUrl: optionalAbsoluteUrl(),
   isActive: z.boolean(),
 })
 

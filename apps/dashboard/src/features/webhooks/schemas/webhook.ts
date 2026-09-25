@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { numberText } from '@/shared/schemas/fields'
+import { absoluteUrl, numberText } from '@/shared/schemas/fields'
 import type { WebhookFailurePolicy, WebhookKind } from '@/graphql/schema.types'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { fieldDiff } from '@/shared/saving/diff'
@@ -23,7 +23,7 @@ export type ExistingWebhook = {
 
 export const webhookSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  targetUrl: z.url('Enter a full URL, starting with https://'),
+  targetUrl: absoluteUrl(),
   kind: z.enum(['ASYNC', 'SYNC']),
   eventTypes: z.array(z.string()).min(1, 'Select at least one event type'),
   // '' = every store

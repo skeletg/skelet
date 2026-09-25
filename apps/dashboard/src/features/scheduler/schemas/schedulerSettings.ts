@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { wholeNumber } from '@/shared/schemas/fields'
+import { optionalAbsoluteUrl, wholeNumber } from '@/shared/schemas/fields'
 import type { SchedulerConfigQuery } from '../Scheduler.gql'
 
 // The scheduler's global config strip - THE field list (docs/conventions.md, "Record forms"). The
@@ -13,7 +13,7 @@ const PATHS = {
 } as const
 
 export const schedulerSettingsSchema = z.object({
-  alertWebhookUrl: z.union([z.literal(''), z.url('An absolute URL, starting with https://')]),
+  alertWebhookUrl: optionalAbsoluteUrl(),
   historyRetentionDays: wholeNumber('Whole days').min(1, 'At least one day'),
 })
 

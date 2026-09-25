@@ -43,3 +43,15 @@ export function metadataDiff(
   for (const [key, value] of was) if (!now.has(key)) out.push(removed(`${label} · ${key}`, value))
   return out
 }
+
+// Value without a key, or a key used twice - the backend keys metadata by name. `path` is the list's
+// field, `label` names it in the message
+export function metadataIssues(rows: readonly MetadataEntry[], path: string, ctx: z.RefinementCtx, label = 'Metadata') {
+  if (rows.some((r) => !r.key.trim() && r.value.trim())) {
+    ctx.addIssue({ code: 'custom', path: [path], message: `${label} entries with a value need a key` })
+    return
+  }
+  const keys = cleanMetadata(rows).map((r) => r.key)
+  const dupe = keys.find((k, i) => keys.indexOf(k) !== i)
+  if (dupe) ctx.addIssue({ code: 'custom', path: [path], message: `Duplicate ${label.toLowerCase()} key: "${dupe}"` })
+}

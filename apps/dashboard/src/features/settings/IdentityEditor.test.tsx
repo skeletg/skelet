@@ -52,7 +52,7 @@ describe('IdentityEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     const dialog = await screen.findByRole('alertdialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
-    expect(await within(dialog).findByText(/An absolute URL/)).toBeDefined()
+    expect(await within(dialog).findByText(/Enter a full URL/)).toBeDefined()
     expect(onUpdate).not.toHaveBeenCalled()
 
     fireEvent.change(screen.getByLabelText('Public URL'), { target: { value: 'https://wheels.example.com' } })

@@ -1,31 +1,16 @@
 import { z } from 'zod'
+import { contentSlug } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
-import { cleanMetadata, metadataDiff, metadataSchema, toMetadataValues, type MetadataEntry } from '@/shared/schemas/metadata'
+import { cleanMetadata, metadataDiff, metadataIssues, metadataSchema, toMetadataValues, type MetadataEntry } from '@/shared/schemas/metadata'
 import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEditor'
 
 // Collection page - THE field list (docs/conventions.md, "Record forms"): the record's slug and
 // flags, the edited locale's translation (name, description, SEO) and both metadata lists. The cover
 // image (a file) and the storefront filter order stage as their own sections; products write at once
 
-// Value without a key, or a key used twice - the backend keys metadata by name
-function metadataIssues(rows: MetadataEntry[], path: string, label: string, ctx: z.RefinementCtx) {
-  if (rows.some((r) => !r.key.trim() && r.value.trim())) {
-    ctx.addIssue({ code: 'custom', path: [path], message: `${label} entries with a value need a key` })
-    return
-  }
-  const keys = cleanMetadata(rows).map((r) => r.key)
-  const dupe = keys.find((k, i) => keys.indexOf(k) !== i)
-  if (dupe) ctx.addIssue({ code: 'custom', path: [path], message: `Duplicate ${label.toLowerCase()} key: "${dupe}"` })
-}
-
 const collectionShape = z.object({
-  slug: z
-    .string()
-    .trim()
-    .min(1, 'Slug is required')
-    // The backend's content slug rule (internal/content.ValidateSlug)
-    .regex(/^[a-z0-9._-]+$/, 'Lowercase letters, numbers, dots, underscores and hyphens only'),
+  slug: contentSlug(),
   isPublished: z.boolean(),
   seoNoindex: z.boolean(),
   name: z.string(),
@@ -49,8 +34,8 @@ export function collectionSchema(baseline: CollectionValues) {
     if (collectionChanges(baseline, v).content !== null && !v.name.trim()) {
       ctx.addIssue({ code: 'custom', path: ['name'], message: 'A translation needs a name' })
     }
-    metadataIssues(v.metadata, 'metadata', 'Metadata', ctx)
-    metadataIssues(v.privateMetadata, 'privateMetadata', 'Private metadata', ctx)
+    metadataIssues(v.metadata, 'metadata', ctx)
+    metadataIssues(v.privateMetadata, 'privateMetadata', ctx, 'Private metadata')
   })
 }
 
