@@ -55,11 +55,28 @@ func (s *pageService) PromoteDuePages(ctx context.Context) (int, error) {
 			log.Printf("[cms-publish] skipping due page %s: workflow_state=%s (approval required)", p.ID, p.WorkflowState)
 			continue
 		}
+		// The same pre-publish hooks a manual publish passes - a vetoed page stays scheduled and is asked again next run
+		if s.bus != nil {
+			if err := s.bus.PublishSync(ctx, &PagePublishing{
+				PageID: p.ID, PageTypeID: p.PageTypeID, Slug: p.Slug, URLPath: p.URLPath,
+			}); err != nil {
+				log.Printf("[cms-publish] skipping due page %s: publishing hook refused: %v", p.ID, err)
+				continue
+			}
+		}
 		if _, err := s.repo.SetScheduledAt(ctx, p.ID, nil); err != nil {
 			return n, err
 		}
-		now := time.Now()
-		if _, err := s.repo.SetPagePublished(ctx, p.ID, true, &now); err != nil {
+		// A first go-live is dated when it was scheduled for, not when the job got round to it
+		publishedAt := p.PublishedAt
+		if publishedAt == nil {
+			publishedAt = p.ScheduledAt
+		}
+		if publishedAt == nil {
+			now := time.Now()
+			publishedAt = &now
+		}
+		if _, err := s.repo.SetPagePublished(ctx, p.ID, true, publishedAt); err != nil {
 			return n, err
 		}
 		_, _ = s.repo.SetPageWorkflowState(ctx, p.ID, WorkflowPublished)
