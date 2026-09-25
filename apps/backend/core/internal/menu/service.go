@@ -37,12 +37,8 @@ func (s *Service) SetCache(c *cache.Cache) { s.cache = c }
 func (s *Service) Cache() *cache.Cache { return s.cache }
 
 // Drops every cached storefront-menu entry, called from publishMenuUpdated so every mutation routes through one invalidation point and a new write method can't forget it
-// DelPattern is O(keys), but the menu namespace is small - one entry per slug, store and locale - and writes are rare
 func (s *Service) invalidate(ctx context.Context) {
-	if s.cache == nil {
-		return
-	}
-	s.cache.DelPattern(ctx, "*")
+	s.cache.Flush(ctx)
 }
 
 func (s *Service) publishMenuUpdated(ctx context.Context, menuID uuid.UUID, slug string) {
@@ -219,6 +215,14 @@ func (s *Service) DeleteMenuItem(ctx context.Context, id uuid.UUID) error {
 // The storefront's entry point - ErrMenuNotFound when the slug doesn't exist OR isn't assigned to channelID
 func (s *Service) GetMenuBySlugForChannel(ctx context.Context, slug string, channelID uuid.UUID) (Menu, error) {
 	return s.repo.GetMenuBySlugForChannel(ctx, slug, channelID)
+}
+
+func (s *Service) MenuIDForItem(ctx context.Context, itemID uuid.UUID) (uuid.UUID, error) {
+	item, err := s.repo.GetMenuItemByID(ctx, itemID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return item.MenuID, nil
 }
 
 func (s *Service) ListMenuChannelAssignments(ctx context.Context, menuID uuid.UUID) ([]uuid.UUID, error) {

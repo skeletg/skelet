@@ -111,7 +111,7 @@ func (s *Service) Attach(ctx context.Context, refereeID uuid.UUID, code string) 
 	if code == "" {
 		return nil
 	}
-	owner, err := s.queries.GetReferralCodeByCode(ctx, code)
+	owner, err := s.queries.GetReferralCodeForReferee(ctx, db.GetReferralCodeForRefereeParams{Code: code, RefereeID: refereeID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("unknown referral code")

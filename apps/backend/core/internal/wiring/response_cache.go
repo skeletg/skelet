@@ -71,7 +71,7 @@ func storableFrontResponse(status int, body []byte) bool {
 func frontResponseCache(c *cachepkg.Cache, ttl time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if c == nil || r.Method != http.MethodPost || r.Header.Get("Authorization") != "" { // Anything carrying credentials is personal - bypass
+			if c == nil || r.Method != http.MethodPost || r.Header.Get("Authorization") != "" || r.Header.Get("X-Review-Voter-Token") != "" { // Anything carrying credentials or a voter identity is personal - bypass
 				next.ServeHTTP(w, r)
 				return
 			}

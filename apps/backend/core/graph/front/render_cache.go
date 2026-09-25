@@ -269,7 +269,7 @@ func (r *Resolver) primeListingsAndChannels(ctx context.Context, productIDs []uu
 	if c == nil || len(productIDs) == 0 {
 		return nil
 	}
-	byProduct, err := r.CatalogSvc.ListProductChannelListingsByProductIDs(ctx, productIDs)
+	byProduct, err := dataloaders.StorefrontListings(ctx, r.CatalogSvc, productIDs)
 	if err != nil {
 		return err
 	}

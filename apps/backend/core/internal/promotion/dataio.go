@@ -69,7 +69,22 @@ func ruleFor(ctx context.Context, svc *Service, o dataio.Opts) (Rule, error) {
 	if err != nil {
 		return Rule{}, fmt.Errorf("invalid rule id %q", raw)
 	}
-	return svc.Repo().GetRule(ctx, id)
+	rule, err := svc.Repo().GetRule(ctx, id)
+	if err != nil {
+		return Rule{}, err
+	}
+	if !ruleInRunScope(rule, o.ChannelID) {
+		return Rule{}, errors.New("that promotion rule belongs to another channel than this run")
+	}
+	return rule, nil
+}
+
+// The rule has to sit inside what the run was gated on: its channel, or everywhere when it names none
+func ruleInRunScope(rule Rule, runChannel uuid.UUID) bool {
+	if runChannel == uuid.Nil {
+		return true
+	}
+	return rule.ChannelID != nil && *rule.ChannelID == runChannel
 }
 
 type codeExporter struct {

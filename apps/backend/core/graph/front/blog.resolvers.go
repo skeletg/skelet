@@ -12,6 +12,9 @@ import (
 func (r *queryResolver) BlogPost(ctx context.Context, slug *string, id *string) (*model.BlogPost, error) {
 	loc := r.activeLocale(ctx)
 	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return nil, nil
+	}
 	switch {
 	case id != nil && *id != "":
 		uid, err := uuid.Parse(*id)
@@ -25,19 +28,12 @@ func (r *queryResolver) BlogPost(ctx context.Context, slug *string, id *string) 
 		if p.Status != blog.PostStatusPublished {
 			return nil, nil
 		}
-		if storeID != nil && !postListedAndPublished(p, *storeID) {
+		if !postListedAndPublished(p, *storeID) {
 			return nil, nil
 		}
 		return toBlogPostModel(p), nil
 	case slug != nil && *slug != "":
-		if storeID != nil {
-			p, err := r.BlogSvc.GetPublishedPostBySlugForChannel(ctx, *slug, *storeID, loc)
-			if err != nil {
-				return nil, err
-			}
-			return toBlogPostModel(p), nil
-		}
-		p, err := r.BlogSvc.GetPostBySlug(ctx, *slug, loc, false)
+		p, err := r.BlogSvc.GetPublishedPostBySlugForChannel(ctx, *slug, *storeID, loc)
 		if err != nil {
 			return nil, err
 		}
@@ -46,7 +42,7 @@ func (r *queryResolver) BlogPost(ctx context.Context, slug *string, id *string) 
 	return nil, selectorRequired("slug or id is required")
 }
 
-// The storefront cannot bypass the published gate - filter fields only scope to a category/tag/author by slug
+// A storefront caller can't reach drafts or pick another channel
 func (r *queryResolver) BlogPosts(ctx context.Context, filter *model.BlogPostFilter, limit *int32, offset *int32) (*model.BlogPostList, error) {
 	loc := r.activeLocale(ctx)
 	f := blog.PostListFilter{
@@ -55,14 +51,10 @@ func (r *queryResolver) BlogPosts(ctx context.Context, filter *model.BlogPostFil
 		Offset:        intDeref(offset, 0),
 	}
 	f.ChannelID = channelIDFromContext(ctx)
+	if f.ChannelID == nil {
+		return &model.BlogPostList{Items: []*model.BlogPost{}}, nil
+	}
 	if filter != nil {
-		if filter.ChannelID != nil && *filter.ChannelID != "" {
-			sv, err := uuid.Parse(*filter.ChannelID)
-			if err != nil {
-				return nil, invalidID("channel")
-			}
-			f.ChannelID = &sv
-		}
 		if filter.CategorySlug != nil && *filter.CategorySlug != "" {
 			c, err := r.BlogSvc.GetCategoryBySlug(ctx, *filter.CategorySlug, loc)
 			if err != nil {

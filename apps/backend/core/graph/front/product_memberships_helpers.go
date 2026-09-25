@@ -17,18 +17,11 @@ import (
 
 // (nil, nil) means the parent isn't published on the active store - the caller renders the relationship as absent instead of erroring
 func (r *Resolver) fetchMembershipProduct(ctx context.Context, id uuid.UUID) (*catalog.Product, error) {
-	locale := r.activeLocale(ctx)
-	if storeID := channelIDFromContext(ctx); storeID != nil {
-		p, err := r.CatalogSvc.GetProductForChannel(ctx, id, *storeID, locale)
-		if err != nil {
-			if errors.Is(err, catalog.ErrProductNotFound) {
-				return nil, nil
-			}
-			return nil, err
-		}
-		return &p, nil
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return nil, nil
 	}
-	p, err := r.CatalogSvc.GetProduct(ctx, id, locale)
+	p, err := r.CatalogSvc.GetProductForChannel(ctx, id, *storeID, r.activeLocale(ctx))
 	if err != nil {
 		if errors.Is(err, catalog.ErrProductNotFound) {
 			return nil, nil

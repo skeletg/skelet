@@ -138,7 +138,7 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateChannelInpu
 func (r *postgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	if err := r.queries.DeleteChannel(ctx, id); err != nil {
 		if pgdb.IsForeignKeyViolation(err) {
-			return ErrChannelInUse // orders, listings or carts still point at it - a RESTRICT FK, not a server fault
+			return ErrChannelInUse // orders, listings, carts or gift cards still point at it - a RESTRICT FK, not a server fault
 		}
 		return fmt.Errorf("delete channel: %w", err)
 	}

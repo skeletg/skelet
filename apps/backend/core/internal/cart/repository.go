@@ -141,8 +141,8 @@ func (r *postgresRepository) CountCarts(ctx context.Context, f CartFilter) (int3
 	return n, nil
 }
 
-func (r *postgresRepository) ListAbandoned(ctx context.Context, threshold, maxAge time.Time, limit int32) ([]AbandonedCart, error) {
-	rows, err := r.queries.AbandonedCarts(ctx, db.AbandonedCartsParams{Threshold: threshold, MaxAge: maxAge, Lim: limit})
+func (r *postgresRepository) ListAbandoned(ctx context.Context, channelID uuid.UUID, threshold, maxAge time.Time, limit int32) ([]AbandonedCart, error) {
+	rows, err := r.queries.AbandonedCarts(ctx, db.AbandonedCartsParams{ChannelID: channelID, Threshold: threshold, MaxAge: maxAge, Lim: limit})
 	if err != nil {
 		return nil, fmt.Errorf("list abandoned carts: %w", err)
 	}

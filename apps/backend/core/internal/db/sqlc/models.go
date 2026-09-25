@@ -519,6 +519,7 @@ type Cart struct {
 	AbandonedNotifiedAt sql.NullTime  `json:"abandoned_notified_at"`
 	Email               string        `json:"email"`
 	Note                string        `json:"note"`
+	LastActivityAt      time.Time     `json:"last_activity_at"`
 }
 
 type CartAppliedCode struct {
@@ -1323,6 +1324,7 @@ type GiftCard struct {
 	CreatedAt      time.Time     `json:"created_at"`
 	UpdatedAt      time.Time     `json:"updated_at"`
 	IssueRef       string        `json:"issue_ref"`
+	ChannelID      uuid.NullUUID `json:"channel_id"`
 }
 
 type GiftCardTransaction struct {
@@ -1874,6 +1876,7 @@ type ProductReviewSummary struct {
 	IsStale     bool         `json:"is_stale"`
 	GeneratedAt sql.NullTime `json:"generated_at"`
 	UpdatedAt   time.Time    `json:"updated_at"`
+	ChannelID   uuid.UUID    `json:"channel_id"`
 }
 
 type ProductType struct {
@@ -2510,6 +2513,12 @@ type WebhookDelivery struct {
 	CreatedAt       time.Time             `json:"created_at"`
 	RequestHeaders  pqtype.NullRawMessage `json:"request_headers"`
 	ResponseHeaders pqtype.NullRawMessage `json:"response_headers"`
+}
+
+type WebhookEnqueueDedup struct {
+	WebhookID uuid.UUID `json:"webhook_id"`
+	DedupeKey string    `json:"dedupe_key"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type WebhookQueue struct {

@@ -442,16 +442,17 @@ func (r *postgresRepository) GetReviewByCustomerAndProduct(ctx context.Context, 
 	return toReview(row), nil
 }
 
-func (r *postgresRepository) ListApprovedForProduct(ctx context.Context, productID uuid.UUID, limit, offset int32) ([]Review, int64, error) {
+func (r *postgresRepository) ListApprovedForProduct(ctx context.Context, productID uuid.UUID, channelID *uuid.UUID, limit, offset int32) ([]Review, int64, error) {
 	rows, err := r.queries.ListApprovedReviewsForProduct(ctx, db.ListApprovedReviewsForProductParams{
 		ProductID: productID,
-		Limit:     limit,
-		Offset:    offset,
+		ChannelID: nullUUID(channelID),
+		Lim:       limit,
+		Off:       offset,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list approved reviews: %w", err)
 	}
-	count, err := r.queries.CountApprovedReviewsForProduct(ctx, productID)
+	count, err := r.queries.CountApprovedReviewsForProduct(ctx, db.CountApprovedReviewsForProductParams{ProductID: productID, ChannelID: nullUUID(channelID)})
 	if err != nil {
 		return nil, 0, fmt.Errorf("count approved reviews: %w", err)
 	}
@@ -463,13 +464,14 @@ func (r *postgresRepository) ListApprovedForProduct(ctx context.Context, product
 }
 
 // ListApprovedForProductIDs returns the top-N approved reviews for each of productIDs in a single windowed query, grouped by product id - The generated row carries the same columns as db.Review (the window's rn is filtered out in the SELECT), so it maps through the same toReview
-func (r *postgresRepository) ListApprovedForProductIDs(ctx context.Context, productIDs []uuid.UUID, limit, offset int32) (map[uuid.UUID][]Review, error) {
+func (r *postgresRepository) ListApprovedForProductIDs(ctx context.Context, productIDs []uuid.UUID, channelID *uuid.UUID, limit, offset int32) (map[uuid.UUID][]Review, error) {
 	out := make(map[uuid.UUID][]Review, len(productIDs))
 	if len(productIDs) == 0 {
 		return out, nil
 	}
 	rows, err := r.queries.ListApprovedReviewsForProductIDs(ctx, db.ListApprovedReviewsForProductIDsParams{
 		ProductIds: productIDs,
+		ChannelID:  nullUUID(channelID),
 		RowOffset:  offset,
 		RowLimit:   limit,
 	})
@@ -645,8 +647,8 @@ func (r *postgresRepository) SetMerchantReply(ctx context.Context, id uuid.UUID,
 	return toReview(row), nil
 }
 
-func (r *postgresRepository) GetProductSummary(ctx context.Context, productID uuid.UUID) (ProductReviewSummary, bool, error) {
-	row, err := r.queries.GetProductReviewSummary(ctx, productID)
+func (r *postgresRepository) GetProductSummary(ctx context.Context, productID, channelID uuid.UUID) (ProductReviewSummary, bool, error) {
+	row, err := r.queries.GetProductReviewSummary(ctx, db.GetProductReviewSummaryParams{ProductID: productID, ChannelID: channelID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ProductReviewSummary{}, false, nil
@@ -663,33 +665,45 @@ func (r *postgresRepository) GetProductSummary(ctx context.Context, productID uu
 	}, true, nil
 }
 
-func (r *postgresRepository) UpsertProductSummary(ctx context.Context, productID uuid.UUID, summary string, reviewCount int) error {
+func (r *postgresRepository) UpsertProductSummary(ctx context.Context, productID, channelID uuid.UUID, summary string, reviewCount int) error {
 	if err := r.queries.UpsertProductReviewSummary(ctx, db.UpsertProductReviewSummaryParams{
-		ProductID: productID, Summary: summary, ReviewCount: int32(reviewCount),
+		ProductID: productID, ChannelID: channelID, Summary: summary, ReviewCount: int32(reviewCount),
 	}); err != nil {
 		return fmt.Errorf("upsert product summary: %w", err)
 	}
 	return nil
 }
 
-func (r *postgresRepository) MarkSummaryStale(ctx context.Context, productID uuid.UUID) error {
-	if err := r.queries.MarkProductReviewSummaryStale(ctx, productID); err != nil {
+func (r *postgresRepository) MarkSummaryStale(ctx context.Context, productID, channelID uuid.UUID) error {
+	if err := r.queries.MarkProductReviewSummaryStale(ctx, db.MarkProductReviewSummaryStaleParams{ProductID: productID, ChannelID: channelID}); err != nil {
 		return fmt.Errorf("mark summary stale: %w", err)
 	}
 	return nil
 }
 
-func (r *postgresRepository) MarkSummaryFresh(ctx context.Context, productID uuid.UUID) error {
-	if err := r.queries.MarkProductReviewSummaryFresh(ctx, productID); err != nil {
+func (r *postgresRepository) MarkSummaryFresh(ctx context.Context, productID, channelID uuid.UUID) error {
+	if err := r.queries.MarkProductReviewSummaryFresh(ctx, db.MarkProductReviewSummaryFreshParams{ProductID: productID, ChannelID: channelID}); err != nil {
 		return fmt.Errorf("mark summary fresh: %w", err)
 	}
 	return nil
 }
 
-func (r *postgresRepository) ListStaleSummaryIDs(ctx context.Context, limit int32) ([]uuid.UUID, error) {
-	ids, err := r.queries.ListStaleProductReviewSummaryIDs(ctx, limit)
+func (r *postgresRepository) ListStaleSummaryIDs(ctx context.Context, limit int32) ([]SummaryKey, error) {
+	rows, err := r.queries.ListStaleProductReviewSummaryIDs(ctx, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list stale summaries: %w", err)
+	}
+	out := make([]SummaryKey, len(rows))
+	for i, row := range rows {
+		out[i] = SummaryKey{ProductID: row.ProductID, ChannelID: row.ChannelID}
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) ListReviewChannels(ctx context.Context, productID uuid.UUID) ([]uuid.UUID, error) {
+	ids, err := r.queries.ListReviewChannelsForProduct(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("list review channels: %w", err)
 	}
 	return ids, nil
 }
@@ -821,12 +835,12 @@ func (r *postgresRepository) ListMediaByReviewIDs(ctx context.Context, reviewIDs
 
 // --- Aggregates + purchase check ---
 
-func (r *postgresRepository) GetAggregates(ctx context.Context, productID uuid.UUID) (Aggregates, error) {
-	overall, err := r.queries.AggregateOverallRating(ctx, productID)
+func (r *postgresRepository) GetAggregates(ctx context.Context, productID uuid.UUID, channelID *uuid.UUID) (Aggregates, error) {
+	overall, err := r.queries.AggregateOverallRating(ctx, db.AggregateOverallRatingParams{ProductID: productID, ChannelID: nullUUID(channelID)})
 	if err != nil {
 		return Aggregates{}, fmt.Errorf("aggregate overall: %w", err)
 	}
-	perQ, err := r.queries.AggregateReviewRatings(ctx, productID)
+	perQ, err := r.queries.AggregateReviewRatings(ctx, db.AggregateReviewRatingsParams{ProductID: productID, ChannelID: nullUUID(channelID)})
 	if err != nil {
 		return Aggregates{}, fmt.Errorf("aggregate per-question: %w", err)
 	}
@@ -855,15 +869,15 @@ func (r *postgresRepository) GetAggregates(ctx context.Context, productID uuid.U
 	return agg, nil
 }
 
-func (r *postgresRepository) GetAggregatesByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID]Aggregates, error) {
+func (r *postgresRepository) GetAggregatesByProductIDs(ctx context.Context, productIDs []uuid.UUID, channelID *uuid.UUID) (map[uuid.UUID]Aggregates, error) {
 	if len(productIDs) == 0 {
 		return map[uuid.UUID]Aggregates{}, nil
 	}
-	overall, err := r.queries.AggregateOverallRatingsByProductIDs(ctx, productIDs)
+	overall, err := r.queries.AggregateOverallRatingsByProductIDs(ctx, db.AggregateOverallRatingsByProductIDsParams{ProductIds: productIDs, ChannelID: nullUUID(channelID)})
 	if err != nil {
 		return nil, fmt.Errorf("aggregate overall by ids: %w", err)
 	}
-	perQ, err := r.queries.AggregateReviewRatingsByProductIDs(ctx, productIDs)
+	perQ, err := r.queries.AggregateReviewRatingsByProductIDs(ctx, db.AggregateReviewRatingsByProductIDsParams{ProductIds: productIDs, ChannelID: nullUUID(channelID)})
 	if err != nil {
 		return nil, fmt.Errorf("aggregate per-question by ids: %w", err)
 	}
@@ -1184,3 +1198,10 @@ func nullInt32Ptr(n sql.NullInt32) *int32 {
 }
 
 func isUniqueViolation(err error) bool { return pgdb.IsUniqueViolation(err) } // shared SQLSTATE-based check - the per-package copies drifted into fragile message matching
+
+func nullUUID(id *uuid.UUID) uuid.NullUUID {
+	if id == nil {
+		return uuid.NullUUID{}
+	}
+	return uuid.NullUUID{UUID: *id, Valid: true}
+}

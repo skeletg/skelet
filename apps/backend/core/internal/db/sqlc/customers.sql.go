@@ -24,6 +24,18 @@ func (q *Queries) ClearDefaultCustomerGroup(ctx context.Context) error {
 	return err
 }
 
+const commerceClock = `-- name: CommerceClock :one
+SELECT statement_timestamp()::timestamptz AS now
+`
+
+// The commerce database's clock, the one every roster read_at is stamped on
+func (q *Queries) CommerceClock(ctx context.Context) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, commerceClock)
+	var now time.Time
+	err := row.Scan(&now)
+	return now, err
+}
+
 const countCustomerGroupMembers = `-- name: CountCustomerGroupMembers :one
 SELECT COUNT(*) FROM customers WHERE customer_group_id = $1
 `
@@ -233,6 +245,38 @@ SELECT email FROM customers WHERE id = ANY($1::uuid[]) ORDER BY email
 // Addresses for a known set of ids, skipping any that no longer exist - the commerce half of the audience export, whose membership comes from the signals database
 func (q *Queries) CustomerEmailsByIDs(ctx context.Context, customerIds []uuid.UUID) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, customerEmailsByIDs, pq.Array(customerIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var email string
+		if err := rows.Scan(&email); err != nil {
+			return nil, err
+		}
+		items = append(items, email)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const customerEmailsByIDsInChannel = `-- name: CustomerEmailsByIDsInChannel :many
+SELECT email FROM customers WHERE id = ANY($1::uuid[]) AND channel_id = $2 ORDER BY email
+`
+
+type CustomerEmailsByIDsInChannelParams struct {
+	CustomerIds []uuid.UUID `json:"customer_ids"`
+	ChannelID   uuid.UUID   `json:"channel_id"`
+}
+
+func (q *Queries) CustomerEmailsByIDsInChannel(ctx context.Context, arg CustomerEmailsByIDsInChannelParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, customerEmailsByIDsInChannel, pq.Array(arg.CustomerIds), arg.ChannelID)
 	if err != nil {
 		return nil, err
 	}
@@ -593,6 +637,62 @@ SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_ema
 
 func (q *Queries) ListCustomers(ctx context.Context) ([]Customer, error) {
 	rows, err := q.db.QueryContext(ctx, listCustomers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Customer{}
+	for rows.Next() {
+		var i Customer
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.PasswordHash,
+			&i.FirstName,
+			&i.LastName,
+			&i.Phone,
+			&i.IsActive,
+			&i.IsEmailVerified,
+			&i.Note,
+			&i.Metadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DefaultBillingAddressID,
+			&i.DefaultShippingAddressID,
+			&i.CustomerGroupID,
+			&i.ChannelID,
+			&i.TaxExempt,
+			&i.TaxExemptionNote,
+			&i.VatID,
+			&i.VatIDStatus,
+			&i.VatIDCheckedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCustomersInChannels = `-- name: ListCustomersInChannels :many
+SELECT id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at FROM customers
+WHERE $1::boolean OR channel_id = ANY($2::uuid[])
+ORDER BY created_at DESC
+`
+
+type ListCustomersInChannelsParams struct {
+	AllChannels bool        `json:"all_channels"`
+	ChannelIds  []uuid.UUID `json:"channel_ids"`
+}
+
+func (q *Queries) ListCustomersInChannels(ctx context.Context, arg ListCustomersInChannelsParams) ([]Customer, error) {
+	rows, err := q.db.QueryContext(ctx, listCustomersInChannels, arg.AllChannels, pq.Array(arg.ChannelIds))
 	if err != nil {
 		return nil, err
 	}

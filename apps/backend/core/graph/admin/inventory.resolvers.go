@@ -25,7 +25,7 @@ func (r *inventoryLocationResolver) Country(ctx context.Context, obj *model.Inve
 }
 
 func (r *mutationResolver) CreateInventoryLocation(ctx context.Context, input model.CreateInventoryLocationInput) (*model.InventoryLocation, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "inventory.manage"); err != nil {
 		return nil, err
 	}
 	loc, err := r.InventorySvc.CreateLocation(ctx, inventory.CreateLocationInput{
@@ -56,7 +56,7 @@ func (r *mutationResolver) CreateInventoryLocation(ctx context.Context, input mo
 }
 
 func (r *mutationResolver) UpdateInventoryLocation(ctx context.Context, input model.UpdateInventoryLocationInput) (*model.InventoryLocation, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "inventory.manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID(input.ID, "inventory location")
@@ -99,7 +99,7 @@ func (r *mutationResolver) UpdateInventoryLocation(ctx context.Context, input mo
 }
 
 func (r *mutationResolver) DeleteInventoryLocation(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "inventory.manage"); err != nil {
 		return false, err
 	}
 	lid, err := parseID(id, "inventory location")
@@ -113,11 +113,11 @@ func (r *mutationResolver) DeleteInventoryLocation(ctx context.Context, id strin
 }
 
 func (r *mutationResolver) SetChannelLocations(ctx context.Context, channelID string, assignments []*model.LocationAssignmentInput) (*model.Channel, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.manage"); err != nil {
-		return nil, err
-	}
 	svID, err := parseID(channelID, "channel")
 	if err != nil {
+		return nil, err
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "inventory.manage", svID, nil); err != nil {
 		return nil, err
 	}
 	domainAssignments := make([]inventory.LocationAssignment, len(assignments))
@@ -139,11 +139,11 @@ func (r *mutationResolver) SetChannelLocations(ctx context.Context, channelID st
 }
 
 func (r *mutationResolver) SetInventoryItemTracking(ctx context.Context, productID string, tracked bool) (*model.InventoryItem, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(productID, "product")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnProductChannels(ctx, "inventory.manage", pid); err != nil {
 		return nil, err
 	}
 	// Lazily provision an item row if none exists; idempotent.
@@ -158,11 +158,11 @@ func (r *mutationResolver) SetInventoryItemTracking(ctx context.Context, product
 }
 
 func (r *mutationResolver) SetInventoryItemBackorder(ctx context.Context, productID string, backorderable bool, lowStockThreshold *float64) (*model.InventoryItem, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(productID, "product")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnProductChannels(ctx, "inventory.manage", pid); err != nil {
 		return nil, err
 	}
 	threshold := float64(0)
@@ -177,11 +177,11 @@ func (r *mutationResolver) SetInventoryItemBackorder(ctx context.Context, produc
 }
 
 func (r *mutationResolver) AdjustInventoryLevel(ctx context.Context, input model.AdjustInventoryLevelInput) (*model.InventoryLevel, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(input.ProductID, "product")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnProductChannels(ctx, "inventory.manage", pid); err != nil {
 		return nil, err
 	}
 	lid, err := parseID(input.LocationID, "location")
@@ -214,11 +214,11 @@ func (r *mutationResolver) AdjustInventoryLevel(ctx context.Context, input model
 
 // Flat-mode write surface for external ERP integrations. Resolves the product by SKU or ID, fills in the source attribution from the authenticated admin's email when the caller omits one, and overwrites inventory_items.quantity atomically. Permitted in both modes so the audit trail is always populated.
 func (r *mutationResolver) SyncProductInventory(ctx context.Context, input model.SyncProductInventoryInput) (*model.InventoryItem, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := resolveSyncProductID(ctx, r.CatalogSvc, input)
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnProductChannels(ctx, "inventory.manage", pid); err != nil {
 		return nil, err
 	}
 	source := strings.TrimSpace(stringOr(input.Source, ""))
@@ -274,6 +274,10 @@ func (r *mutationResolver) SyncProductInventoryBatch(ctx context.Context, items 
 			fail(err.Error())
 			continue
 		}
+		if err := r.requireOnProductChannels(ctx, "inventory.manage", pid); err != nil {
+			fail(err.Error())
+			continue
+		}
 		source := strings.TrimSpace(stringOr(item.Source, ""))
 		if source == "" {
 			source = defaultSource
@@ -293,7 +297,7 @@ func (r *mutationResolver) SyncProductInventoryBatch(ctx context.Context, items 
 
 // SetLocationPickup toggles click-and-collect for one location.
 func (r *mutationResolver) SetLocationPickup(ctx context.Context, id string, enabled bool, instructions *string) (*model.InventoryLocation, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "inventory.manage"); err != nil {
 		return nil, err
 	}
 	lid, err := parseID(id, "location")

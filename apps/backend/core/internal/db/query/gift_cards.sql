@@ -1,9 +1,14 @@
 -- name: CreateGiftCard :one
+-- A card issued against an order belongs to the order's channel unless the caller names one
 INSERT INTO gift_cards (
     code, currency_code, initial_balance, balance, status,
-    recipient_email, message, issued_order_id, customer_id, expires_at, issue_ref
+    recipient_email, message, issued_order_id, customer_id, expires_at, issue_ref, channel_id
 )
-VALUES ($1, $2, $3, $3, 'active', $4, $5, $6, $7, $8, $9)
+VALUES (
+    sqlc.arg(code), sqlc.arg(currency_code), sqlc.arg(initial_balance), sqlc.arg(initial_balance), 'active',
+    sqlc.arg(recipient_email), sqlc.arg(message), sqlc.narg(issued_order_id), sqlc.narg(customer_id), sqlc.narg(expires_at), sqlc.arg(issue_ref),
+    COALESCE(sqlc.narg(channel_id)::uuid, (SELECT o.channel_id FROM orders o WHERE o.id = sqlc.narg(issued_order_id)::uuid))
+)
 RETURNING *;
 
 -- name: GetGiftCardByIssueRef :one
@@ -35,7 +40,9 @@ WHERE id = $1
 RETURNING *;
 
 -- name: ListGiftCards :many
-SELECT * FROM gift_cards ORDER BY created_at DESC LIMIT $1 OFFSET $2;
+SELECT * FROM gift_cards
+WHERE sqlc.narg(channel_ids)::uuid[] IS NULL OR channel_id = ANY(sqlc.narg(channel_ids)::uuid[])
+ORDER BY created_at DESC LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: ListGiftCardsByIssuedOrder :many
 -- Used for issuance idempotency: if any card already references this order,

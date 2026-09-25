@@ -14,7 +14,7 @@ func (r *mutationResolver) SuppressEmail(ctx context.Context, email string, note
 	if err := r.requireSignals(); err != nil {
 		return false, err
 	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "emails.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "emails.manage"); err != nil {
 		return false, err
 	}
 	if strings.TrimSpace(email) == "" {
@@ -25,8 +25,9 @@ func (r *mutationResolver) SuppressEmail(ctx context.Context, email string, note
 		detail = *note
 	}
 	if err := r.SignalsAPI.Suppress(ctx, email, signalsclient.SuppressionManual, detail); err != nil {
-		return false, err
+		return false, signalsErr(err)
 	}
+	markSignalsRelayed(ctx)
 	return true, nil
 }
 
@@ -34,12 +35,13 @@ func (r *mutationResolver) UnsuppressEmail(ctx context.Context, email string) (b
 	if err := r.requireSignals(); err != nil {
 		return false, err
 	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "emails.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "emails.manage"); err != nil {
 		return false, err
 	}
 	if err := r.SignalsAPI.Unsuppress(ctx, email); err != nil {
-		return false, err
+		return false, signalsErr(err)
 	}
+	markSignalsRelayed(ctx)
 	return true, nil
 }
 
@@ -47,7 +49,7 @@ func (r *queryResolver) EmailSuppressions(ctx context.Context, reason *string, l
 	if err := r.requireSignals(); err != nil {
 		return nil, err
 	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "emails.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "emails.view"); err != nil {
 		return nil, err
 	}
 	rsn := ""
@@ -64,8 +66,9 @@ func (r *queryResolver) EmailSuppressions(ctx context.Context, reason *string, l
 	}
 	rows, total, err := r.SignalsAPI.ListSuppressions(ctx, rsn, lim, off)
 	if err != nil {
-		return nil, err
+		return nil, signalsErr(err)
 	}
+	markSignalsRelayed(ctx)
 	out := &model.EmailSuppressionPage{Items: make([]*model.EmailSuppression, 0, len(rows)), TotalCount: int32(total)}
 	for _, row := range rows {
 		out.Items = append(out.Items, &model.EmailSuppression{

@@ -59,7 +59,7 @@ func (f fakeRepo) ListCarts(context.Context, CartFilter) ([]CartListItem, error)
 	return nil, nil
 }
 func (f fakeRepo) CountCarts(context.Context, CartFilter) (int32, error) { return 0, nil }
-func (f fakeRepo) ListAbandoned(context.Context, time.Time, time.Time, int32) ([]AbandonedCart, error) {
+func (f fakeRepo) ListAbandoned(context.Context, uuid.UUID, time.Time, time.Time, int32) ([]AbandonedCart, error) {
 	return nil, nil
 }
 func (f fakeRepo) MarkAbandonedNotified(context.Context, []uuid.UUID) error { return nil }

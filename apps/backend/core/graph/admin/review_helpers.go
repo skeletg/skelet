@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -327,6 +328,9 @@ func avgReviewRating(rev review.Review) int {
 
 // The channel scope can't be inferred from a review id, so the lookup lives here rather than in every mutation
 func (r *mutationResolver) requireReviewModerate(ctx context.Context, id string) error {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "reviews.moderate"); err != nil {
+		return err
+	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return errInvalidID("review id", nil)
@@ -336,4 +340,34 @@ func (r *mutationResolver) requireReviewModerate(ctx context.Context, id string)
 		return errNotFound("review")
 	}
 	return auth.RequireChannelPermission(ctx, r.AdminSvc, "reviews.moderate", rev.ChannelID, nil)
+}
+
+// Summaries are per channel, so this regenerates one for each channel the admin moderates
+func (r *mutationResolver) generateReviewSummaries(ctx context.Context, productID uuid.UUID) (string, error) {
+	permitted, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "reviews.moderate")
+	if err != nil {
+		return "", err
+	}
+	channels, err := r.ReviewSvc.ReviewChannels(ctx, productID)
+	if err != nil {
+		return "", err
+	}
+	var ambient *uuid.UUID
+	if sv, ok := channel.FromContext(ctx); ok && sv != nil {
+		ambient = &sv.ID
+	}
+	out := ""
+	for _, ch := range channels {
+		if !permitted.Allows(ch) {
+			continue
+		}
+		sum, err := r.ReviewSvc.GenerateProductSummary(ctx, productID, ch, "")
+		if err != nil {
+			return "", err
+		}
+		if (ambient != nil && *ambient == ch) || out == "" {
+			out = sum
+		}
+	}
+	return out, nil
 }

@@ -10,7 +10,7 @@ import (
 )
 
 func (r *mutationResolver) CreateIntegration(ctx context.Context, input model.CreateIntegrationInput) (*model.CreateIntegrationPayload, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
 		return nil, err
 	}
 	description := ""
@@ -32,6 +32,9 @@ func (r *mutationResolver) CreateIntegration(ctx context.Context, input model.Cr
 		}
 		domainInput.ChannelID = &channelID
 	}
+	if err := r.requireGrantable(ctx, integrationGrants(input.PermissionSlugs, domainInput.ChannelID)); err != nil {
+		return nil, err
+	}
 	result, err := r.IntegrationSvc.Create(ctx, domainInput)
 	if err != nil {
 		return nil, err
@@ -44,10 +47,14 @@ func (r *mutationResolver) CreateIntegration(ctx context.Context, input model.Cr
 
 // Nil fields mean "no change" - ClearExpiresAt forces expiresAt to NULL and wins over ExpiresAt
 func (r *mutationResolver) UpdateIntegration(ctx context.Context, input model.UpdateIntegrationInput) (*model.Integration, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID(input.ID, "integration")
+	if err != nil {
+		return nil, err
+	}
+	existing, err := r.requireIntegrationWithinOwn(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +80,22 @@ func (r *mutationResolver) UpdateIntegration(ctx context.Context, input model.Up
 		domainInput.ChannelID = &channelID
 		domainInput.SetChannel = true
 	}
+	after := existingIntegrationGrants(existing)
+	if input.PermissionSlugs != nil || domainInput.SetChannel {
+		slugs, pin := input.PermissionSlugs, existing.ChannelID
+		if slugs == nil {
+			for _, g := range after {
+				slugs = append(slugs, g.Slug)
+			}
+		}
+		if domainInput.SetChannel {
+			pin = domainInput.ChannelID
+		}
+		after = integrationGrants(slugs, pin)
+	}
+	if err := r.requireGrantable(ctx, after); err != nil {
+		return nil, err
+	}
 	i, err := r.IntegrationSvc.Update(ctx, domainInput)
 	if err != nil {
 		return nil, err
@@ -81,11 +104,14 @@ func (r *mutationResolver) UpdateIntegration(ctx context.Context, input model.Up
 }
 
 func (r *mutationResolver) SetIntegrationActive(ctx context.Context, id string, active bool) (*model.Integration, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
 		return nil, err
 	}
 	integrationID, err := parseID(id, "integration")
 	if err != nil {
+		return nil, err
+	}
+	if _, err := r.requireIntegrationWithinOwn(ctx, integrationID); err != nil {
 		return nil, err
 	}
 	i, err := r.IntegrationSvc.SetActive(ctx, integrationID, active) // disabling bites on the next token validation, nothing caches it
@@ -96,11 +122,14 @@ func (r *mutationResolver) SetIntegrationActive(ctx context.Context, id string, 
 }
 
 func (r *mutationResolver) RegenerateIntegrationToken(ctx context.Context, id string) (*model.RegenerateIntegrationTokenPayload, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
 		return nil, err
 	}
 	integrationID, err := parseID(id, "integration")
 	if err != nil {
+		return nil, err
+	}
+	if _, err := r.requireIntegrationWithinOwn(ctx, integrationID); err != nil {
 		return nil, err
 	}
 	result, err := r.IntegrationSvc.RegenerateToken(ctx, integrationID)
@@ -114,11 +143,14 @@ func (r *mutationResolver) RegenerateIntegrationToken(ctx context.Context, id st
 }
 
 func (r *mutationResolver) DeleteIntegration(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
 		return false, err
 	}
 	integrationID, err := parseID(id, "integration")
 	if err != nil {
+		return false, err
+	}
+	if _, err := r.requireIntegrationWithinOwn(ctx, integrationID); err != nil {
 		return false, err
 	}
 	if err := r.IntegrationSvc.Delete(ctx, integrationID); err != nil {
@@ -128,7 +160,7 @@ func (r *mutationResolver) DeleteIntegration(ctx context.Context, id string) (bo
 }
 
 func (r *queryResolver) Integrations(ctx context.Context) ([]*model.Integration, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
 		return nil, err
 	}
 	list, err := r.IntegrationSvc.List(ctx)

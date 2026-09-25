@@ -37,3 +37,29 @@ WHERE product_id = sqlc.arg(product_id) AND channel_id = sqlc.arg(channel_id) AN
 -- Dashboard: how many shoppers are waiting on a product (channel-scoped)
 SELECT COUNT(*)::bigint FROM back_in_stock_requests
 WHERE channel_id = sqlc.arg(channel_id) AND notified_at IS NULL;
+
+-- name: BackInStockProduct :one
+-- Built from the channel's own listing, never the storefront's copy - an unlisted product has no row
+SELECT
+  p.sku,
+  COALESCE(NULLIF(c.name, ''), p.sku)::text AS name,
+  COALESCE(NULLIF(l.url, ''),
+    (SELECT ur.request_path FROM url_rewrites ur
+      WHERE ur.entity_type = 'product' AND ur.entity_id = p.id AND ur.redirect_type = 0
+        AND (ur.channel_id = sqlc.arg(channel_id)::uuid OR ur.channel_id IS NULL)
+      ORDER BY ur.channel_id NULLS LAST LIMIT 1),
+    '')::text AS path,
+  COALESCE(
+    (SELECT m.s3_key FROM catalog_product_media m
+      WHERE m.product_id = p.id AND m.status = 'ready'
+      ORDER BY m.sort_order, m.created_at LIMIT 1),
+    '')::text AS image_key
+FROM catalog_products p
+JOIN catalog_product_channel_listings l
+  ON l.product_id = p.id AND l.channel_id = sqlc.arg(channel_id)::uuid AND l.is_published = TRUE
+LEFT JOIN catalog_product_content c ON c.product_id = p.id AND c.locale = sqlc.arg(locale)::text
+WHERE p.id = sqlc.arg(product_id)::uuid;
+
+-- name: CountPendingBackInStockForEmail :one
+SELECT COUNT(*)::bigint FROM back_in_stock_requests
+WHERE channel_id = sqlc.arg(channel_id) AND email = sqlc.arg(email) AND notified_at IS NULL;

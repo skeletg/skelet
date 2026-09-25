@@ -19,13 +19,13 @@ func RegisterSubscribers(bus *events.Bus, svc *Service, aiEnabled bool) {
 	}
 	bus.Subscribe(EventApproved, func(ctx context.Context, e events.Event) error { // Approve/reject changes the live review set → mark the product's summary stale; the review-summary-refresh job regenerates it
 		if ev, ok := e.(*Approved); ok {
-			_ = svc.MarkSummaryStale(ctx, ev.ProductID)
+			_ = svc.MarkSummaryStale(ctx, ev.ProductID, ev.ChannelID)
 		}
 		return nil
 	})
 	bus.Subscribe(EventRejected, func(ctx context.Context, e events.Event) error {
 		if ev, ok := e.(*Rejected); ok {
-			_ = svc.MarkSummaryStale(ctx, ev.ProductID)
+			_ = svc.MarkSummaryStale(ctx, ev.ProductID, ev.ChannelID)
 		}
 		return nil
 	})

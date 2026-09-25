@@ -4,6 +4,7 @@ import "github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 
 func init() {
 	apperr.RegisterSentinel(ErrNotFound, "GIFT_CARD_NOT_FOUND", apperr.ClassNotFound)
+	apperr.RegisterSentinel(ErrWrongChannel, "GIFT_CARD_NOT_FOUND", apperr.ClassNotFound)
 
 	apperr.RegisterSentinel(ErrInactive, "GIFT_CARD_INACTIVE", apperr.ClassConflict)
 	apperr.RegisterSentinel(ErrExpired, "GIFT_CARD_EXPIRED", apperr.ClassConflict)

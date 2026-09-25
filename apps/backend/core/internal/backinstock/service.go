@@ -3,6 +3,8 @@ package backinstock
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/mailsend"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 )
@@ -46,7 +49,22 @@ type Service struct {
 	direct   *mailsend.Sender // records and tracks the notices sent here rather than through a flow
 	suppress suppressionChecker
 	bus      *events.Bus
+	media    mediaURLer
 }
+
+type mediaURLer interface {
+	PublicURL(key string) string
+}
+
+func (s *Service) SetMedia(m mediaURLer) { s.media = m }
+
+// How many notices one address may wait on per store, so the endpoint can't be used to queue mail at scale
+const maxPendingPerEmail = 20
+
+var (
+	ErrNotSoldHere      = errors.New("product is not sold on this store")
+	ErrTooManyRequested = errors.New("too many back-in-stock requests for this address")
+)
 
 // Names this notice in the send log - back-in-stock has no editable slot, so it is not an emailtemplate key
 const MessageKey = "back_in_stock"
@@ -66,16 +84,13 @@ func (s *Service) directSender() *mailsend.Sender {
 	return mailsend.New(s.sender, s.config)
 }
 
+// Only who asked, for what, on which store - a notice reads everything else from the catalog when it goes out
 type Request struct {
 	ChannelID  uuid.UUID
 	ProductID  uuid.UUID
-	SKU        string
 	Email      string
 	CustomerID *uuid.UUID // set when the shopper is logged in
 	AnonID     string
-	Name       string // display snapshot from the PDP
-	Image      string
-	URL        string
 }
 
 func (s *Service) Record(ctx context.Context, r Request) error { // stores or re-arms a request - idempotent per (channel, product, email)
@@ -83,24 +98,54 @@ func (s *Service) Record(ctx context.Context, r Request) error { // stores or re
 	if em == "" || r.ProductID == uuid.Nil || r.ChannelID == uuid.Nil {
 		return fmt.Errorf("channel, product and email are required")
 	}
+	prod, err := s.q.BackInStockProduct(ctx, db.BackInStockProductParams{ProductID: r.ProductID, ChannelID: r.ChannelID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotSoldHere
+	}
+	if err != nil {
+		return err
+	}
+	pending, err := s.q.CountPendingBackInStockForEmail(ctx, db.CountPendingBackInStockForEmailParams{ChannelID: r.ChannelID, Email: em})
+	if err != nil {
+		return err
+	}
+	if pending >= maxPendingPerEmail {
+		return ErrTooManyRequested
+	}
 	var cid uuid.NullUUID
 	if r.CustomerID != nil && *r.CustomerID != uuid.Nil {
 		cid = uuid.NullUUID{UUID: *r.CustomerID, Valid: true}
 	}
 	if err := s.q.UpsertBackInStockRequest(ctx, db.UpsertBackInStockRequestParams{
-		ChannelID: r.ChannelID, ProductID: r.ProductID, Sku: r.SKU, Email: em,
+		ChannelID: r.ChannelID, ProductID: r.ProductID, Sku: prod.Sku, Email: em,
 		CustomerID: cid, AnonID: r.AnonID,
-		ProductName: r.Name, ProductImage: r.Image, ProductUrl: r.URL,
 	}); err != nil {
 		return err
 	}
 	if s.bus != nil {
 		s.bus.Publish(ctx, &Requested{
-			ChannelID: r.ChannelID, ProductID: r.ProductID, SKU: r.SKU,
+			ChannelID: r.ChannelID, ProductID: r.ProductID, SKU: prod.Sku,
 			Email: em, CustomerID: r.CustomerID,
 		})
 	}
 	return nil
+}
+
+type display struct{ sku, name, image, url string }
+
+func (s *Service) productDisplay(ctx context.Context, productID uuid.UUID, ch channel.Channel) (display, bool) {
+	row, err := s.q.BackInStockProduct(ctx, db.BackInStockProductParams{ProductID: productID, ChannelID: ch.ID, Locale: ch.DefaultLocale})
+	if err != nil {
+		return display{}, false
+	}
+	d := display{sku: row.Sku, name: row.Name}
+	if base := strings.TrimRight(ch.PublicURL, "/"); base != "" && row.Path != "" {
+		d.url = base + "/" + strings.TrimPrefix(row.Path, "/")
+	}
+	if row.ImageKey != "" && s.media != nil {
+		d.image = s.media.PublicURL(row.ImageKey)
+	}
+	return d, true
 }
 
 func (s *Service) PendingCount(ctx context.Context, channelID uuid.UUID) (int64, error) { // the dashboard's per-channel "N shoppers waiting" figure
@@ -152,6 +197,10 @@ func (s *Service) notifyChannel(ctx context.Context, productID, channelID uuid.U
 	if cerr != nil {
 		return
 	}
+	prod, sold := s.productDisplay(ctx, productID, ch)
+	if !sold {
+		return // pulled from the store while shoppers waited - nothing to send them to
+	}
 	var suppressed map[string]bool // one query for the whole waiting list rather than a lookup per request - a nil map, meaning no service, is none suppressed
 	if s.suppress != nil {
 		emails := make([]string, 0, len(reqs))
@@ -172,10 +221,10 @@ func (s *Service) notifyChannel(ctx context.Context, productID, channelID uuid.U
 		}
 		enrolled := 0
 		if custID != uuid.Nil {
-			enrolled = s.flows.OnBackInStock(ctx, channelID, custID, r.Sku, r.ProductName, r.ProductImage, r.ProductUrl)
+			enrolled = s.flows.OnBackInStock(ctx, channelID, custID, prod.sku, prod.name, prod.image, prod.url)
 		}
 		if enrolled == 0 {
-			s.sendDirect(ctx, r.Email, r.ProductName, r.ProductImage, r.ProductUrl, ch) // a guest, or no active back_in_stock flow
+			s.sendDirect(ctx, r.Email, prod.name, prod.image, prod.url, ch)
 		}
 	}
 	if err := s.q.MarkBackInStockNotified(ctx, db.MarkBackInStockNotifiedParams{ProductID: productID, ChannelID: channelID}); err != nil {
@@ -204,7 +253,7 @@ func (s *Service) sendDirect(ctx context.Context, to, name, image, url string, c
 </div>`, htmlEscape(name), img, htmlEscape(url))
 	text := fmt.Sprintf("Good news - %s is back in stock.\nShop now: %s\n\nYou asked to be notified when this item returned.", name, url)
 	if err := s.directSender().Send(ctx, mailsend.Spec{
-		ChannelID: ch.ID, FallbackName: ch.Name, To: to, MessageKey: MessageKey,
+		ChannelID: ch.ID, FallbackName: ordermail.StoreName(ctx, s.config, ch), To: to, MessageKey: MessageKey,
 	}, subject, html, text); err != nil {
 		log.Printf("[backinstock] direct notify %s: %v", to, err)
 	}

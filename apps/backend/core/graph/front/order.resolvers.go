@@ -28,6 +28,9 @@ func (r *mutationResolver) FinalizeOrderPayment(ctx context.Context, orderID str
 	if err != nil {
 		return false, err
 	}
+	if !orderOnCurrentStore(ctx, o) {
+		return false, apperr.New("ORDER_NOT_FOUND", apperr.ClassNotFound, "order not found")
+	}
 	// An authenticated caller may only finalize their own order - guest finalize has no session and leans on the unguessable id, and either way the op captures only that order's own authorized amount so it can't be aimed at another account
 	if custID := channel.OptionalCustomerID(ctx); custID != nil && o.CustomerID != nil && *o.CustomerID != *custID {
 		return false, apperr.New("ORDER_NOT_FOUND", apperr.ClassNotFound, "order not found")
@@ -367,9 +370,13 @@ func (r *queryResolver) GiftCardBalance(ctx context.Context, code string) (*mode
 	if err := rateByIP(ctx, r.RateLimiter, "giftcard-balance"); err != nil {
 		return nil, err
 	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return nil, nil
+	}
 	card, err := r.GiftcardSvc.GetByCode(ctx, strings.TrimSpace(code))
-	if err != nil {
-		return nil, nil // null not an error - enumerators shouldn't be able to tell unknown from disabled, and a typo isn't an internal fault
+	if err != nil || !card.SpendsOn(*storeID) {
+		return nil, nil // null not an error - enumerators shouldn't be able to tell unknown from disabled or another store's, and a typo isn't an internal fault
 	}
 	return &model1.GiftCardBalance{
 		BalanceCents: int32(card.Balance),
@@ -421,7 +428,7 @@ func (r *queryResolver) GuestOrder(ctx context.Context, id string, email string)
 		return nil, nil
 	}
 	o, err := r.OrderSvc.GetGuestOrder(ctx, orderID, email)
-	if err != nil {
+	if err != nil || !orderOnCurrentStore(ctx, o) {
 		return nil, nil
 	}
 	return toOrderModel(o), nil

@@ -11,11 +11,11 @@ import (
 
 // Gated on inventory.view rather than channels.view - it exposes inventory data, and inventory.manage holders pass through the view/manage rule
 func (r *channelResolver) InventoryLocations(ctx context.Context, obj *model.Channel) ([]*model.ChannelInventoryLocation, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "inventory.view"); err != nil {
-		return nil, err
-	}
 	channelID, err := parseID(obj.ID, "channel")
 	if err != nil {
+		return nil, err
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "inventory.view", channelID, nil); err != nil {
 		return nil, err
 	}
 	locations, err := r.InventorySvc.ListChannelLocations(ctx, channelID)

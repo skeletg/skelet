@@ -150,15 +150,20 @@ SELECT COUNT(*)::int FROM data_jobs
 WHERE ($1::boolean OR resource = ANY($2::text[]))
   AND ($3::boolean OR direction = $4)
   AND ($5::boolean OR status = ANY($6::text[]))
+  AND (NOT $7::boolean OR resource = ANY($8::text[])
+       OR resource || '|' || channel_id::text = ANY($9::text[]))
 `
 
 type CountDataJobsParams struct {
-	AllResources  bool     `json:"all_resources"`
-	Resources     []string `json:"resources"`
-	AllDirections bool     `json:"all_directions"`
-	Direction     string   `json:"direction"`
-	AllStatuses   bool     `json:"all_statuses"`
-	Statuses      []string `json:"statuses"`
+	AllResources        bool     `json:"all_resources"`
+	Resources           []string `json:"resources"`
+	AllDirections       bool     `json:"all_directions"`
+	Direction           string   `json:"direction"`
+	AllStatuses         bool     `json:"all_statuses"`
+	Statuses            []string `json:"statuses"`
+	Scoped              bool     `json:"scoped"`
+	AnyChannelResources []string `json:"any_channel_resources"`
+	ResourceChannels    []string `json:"resource_channels"`
 }
 
 func (q *Queries) CountDataJobs(ctx context.Context, arg CountDataJobsParams) (int32, error) {
@@ -169,6 +174,9 @@ func (q *Queries) CountDataJobs(ctx context.Context, arg CountDataJobsParams) (i
 		arg.Direction,
 		arg.AllStatuses,
 		pq.Array(arg.Statuses),
+		arg.Scoped,
+		pq.Array(arg.AnyChannelResources),
+		pq.Array(arg.ResourceChannels),
 	)
 	var column_1 int32
 	err := row.Scan(&column_1)
@@ -490,19 +498,24 @@ SELECT id, direction, resource, format, status, options, dry_run, channel_id, ad
 WHERE ($1::boolean OR resource = ANY($2::text[]))
   AND ($3::boolean OR direction = $4)
   AND ($5::boolean OR status = ANY($6::text[]))
+  AND (NOT $7::boolean OR resource = ANY($8::text[])
+       OR resource || '|' || channel_id::text = ANY($9::text[]))
 ORDER BY created_at DESC
-LIMIT $8 OFFSET $7
+LIMIT $11 OFFSET $10
 `
 
 type ListDataJobsParams struct {
-	AllResources  bool     `json:"all_resources"`
-	Resources     []string `json:"resources"`
-	AllDirections bool     `json:"all_directions"`
-	Direction     string   `json:"direction"`
-	AllStatuses   bool     `json:"all_statuses"`
-	Statuses      []string `json:"statuses"`
-	PageOffset    int32    `json:"page_offset"`
-	PageSize      int32    `json:"page_size"`
+	AllResources        bool     `json:"all_resources"`
+	Resources           []string `json:"resources"`
+	AllDirections       bool     `json:"all_directions"`
+	Direction           string   `json:"direction"`
+	AllStatuses         bool     `json:"all_statuses"`
+	Statuses            []string `json:"statuses"`
+	Scoped              bool     `json:"scoped"`
+	AnyChannelResources []string `json:"any_channel_resources"`
+	ResourceChannels    []string `json:"resource_channels"`
+	PageOffset          int32    `json:"page_offset"`
+	PageSize            int32    `json:"page_size"`
 }
 
 func (q *Queries) ListDataJobs(ctx context.Context, arg ListDataJobsParams) ([]DataJob, error) {
@@ -513,6 +526,9 @@ func (q *Queries) ListDataJobs(ctx context.Context, arg ListDataJobsParams) ([]D
 		arg.Direction,
 		arg.AllStatuses,
 		pq.Array(arg.Statuses),
+		arg.Scoped,
+		pq.Array(arg.AnyChannelResources),
+		pq.Array(arg.ResourceChannels),
 		arg.PageOffset,
 		arg.PageSize,
 	)

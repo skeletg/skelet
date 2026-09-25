@@ -17,6 +17,7 @@ const (
 	rebuildMaxAttempts  = 4
 	rebuildLeaseSeconds = 120
 	rebuildBackoffSecs  = 30
+	rebuildWarmBudget   = (rebuildLeaseSeconds - 20) * time.Second
 )
 
 // The durable, coalescing rebuild queue - producers Enqueue paths instantly, and the cache-rebuild scheduler job drains it through ProcessDue with bounded concurrency, retries and at-least-once lease semantics
@@ -88,6 +89,8 @@ func (qu *Queue) ProcessDue(ctx context.Context, batch, concurrency int) (int, e
 	if err != nil || len(tasks) == 0 {
 		return 0, err
 	}
+	warmCtx, cancel := context.WithTimeout(ctx, rebuildWarmBudget)
+	defer cancel()
 	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
 	// A warm failure is normal - it retries with backoff and eventually dead-letters. The BOOKKEEPING write failing is not: a dropped FailRebuildTask never increments attempts, so the dead-letter branch becomes unreachable and a permanently broken path is re-warmed forever, while a dropped MarkRebuildTaskDone re-warms a page that already succeeded. Those go back to the scheduler; warm failures don't
@@ -114,7 +117,11 @@ func (qu *Queue) ProcessDue(ctx context.Context, batch, concurrency int) (int, e
 				bookErrs = append(bookErrs, fmt.Errorf("%s %s: %w", what, t.Path, err))
 				mu.Unlock()
 			}
-			if warmErr := qu.client.warmPath(ctx, t.Tags, t.Path); warmErr != nil {
+			if warmCtx.Err() != nil {
+				// Left claimed past the budget, so the lapsed lease re-offers it without spending an attempt
+				return
+			}
+			if warmErr := qu.client.warmPath(warmCtx, t.Tags, t.Path); warmErr != nil {
 				status := "pending" // retry with backoff …
 				if int(t.Attempts) >= rebuildMaxAttempts {
 					status = "failed" // … unless attempts are exhausted → dead-letter

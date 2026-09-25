@@ -17,3 +17,10 @@ type Changed struct {
 }
 
 func (*Changed) Type() string { return EventChanged }
+
+func (e *Changed) EventChannelID() uuid.UUID {
+	if e.ChannelID == nil {
+		return uuid.Nil
+	}
+	return *e.ChannelID
+}

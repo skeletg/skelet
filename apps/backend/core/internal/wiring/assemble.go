@@ -1,6 +1,7 @@
 package wiring
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 
@@ -224,6 +225,21 @@ type marketingDeps struct {
 
 	TransactionalSender *mailsend.Sender
 	BackInStock         *backinstock.Service
+	Lifecycle           fx.Lifecycle
+}
+
+// Appended after the signals client's close, so the unwind lets the in-flight send reports land first
+func drainSendReportsOnStop(lc fx.Lifecycle, s *mailsend.Sender) {
+	lc.Append(fx.Hook{OnStop: func(ctx context.Context) error {
+		done := make(chan struct{})
+		go func() { s.Wait(); close(done) }()
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}})
 }
 
 // Transactional mail is offered to Pulse first, where an operator's flow may own it, and goes out from
@@ -234,6 +250,7 @@ func wireMarketing(d marketingDeps) {
 	d.OrderMail.SetFlowDispatcher(d.Flows)                                     // receipts prefer an operator's flow, and fall back to a direct send
 	// Core delivers the mail and Signals counts it - with the suite off the send still goes, unreported
 	d.TransactionalSender.SetRecorder(NewTransactionalRecorder(d.SignalsClient))
+	drainSendReportsOnStop(d.Lifecycle, d.TransactionalSender)
 	d.BackInStock.SetDirectSender(d.TransactionalSender)
 	d.Form.SetHooks(NewContactAdapter(d.Customer), NewConsentAdapter(d.Consent), d.SegmentReads, d.Flows) // storefront email capture → contact + consent + segment + form_submitted flow
 }

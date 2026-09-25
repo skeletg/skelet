@@ -3,6 +3,8 @@ package events // "-ing" events (OrderPlacing) fire sync pre-commit via PublishS
 import (
 	"context"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Event interface {
@@ -26,4 +28,24 @@ func EmittedAtOr(ctx context.Context, fallback time.Time) time.Time {
 		return t
 	}
 	return fallback
+}
+
+type outboxIDKey struct{}
+
+// WithOutboxID names the outbox row being dispatched, which its replays share
+func WithOutboxID(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, outboxIDKey{}, id)
+}
+
+func OutboxID(ctx context.Context) (uuid.UUID, bool) {
+	id, ok := ctx.Value(outboxIDKey{}).(uuid.UUID)
+	return id, ok && id != uuid.Nil
+}
+
+// An event a handler publishes is its own, not the outbox row that woke the handler
+func withoutOutboxID(ctx context.Context) context.Context {
+	if _, ok := OutboxID(ctx); !ok {
+		return ctx
+	}
+	return context.WithValue(ctx, outboxIDKey{}, uuid.Nil)
 }

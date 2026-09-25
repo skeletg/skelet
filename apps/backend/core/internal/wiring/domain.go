@@ -100,13 +100,29 @@ func newMediaLibraryService(q *db.Queries, store *objstore.Storage) *medialibrar
 	return medialibrary.NewService(medialibrary.NewRepository(q), store, os.Getenv("MEDIA_LIBRARY_ROOT_PREFIX"))
 }
 
-// Generic, not CMS-specific - logs every purge and busts the storefront's Data Cache tags
-func newRevalidateClient(q *db.Queries) *revalidate.Client {
-	return revalidate.New(
+// Generic, not CMS-specific - logs every purge and busts each channel's storefront Data Cache tags
+func newRevalidateClient(q *db.Queries, channels *channel.Service) *revalidate.Client {
+	c := revalidate.New(
 		os.Getenv("STOREFRONT_REVALIDATE_URL"),
 		os.Getenv("STOREFRONT_REVALIDATE_SECRET"),
 		revalidate.NewDBStore(q),
 	)
+	c.SetChannels(storefrontChannels{channels})
+	return c
+}
+
+type storefrontChannels struct{ svc *channel.Service }
+
+func (s storefrontChannels) StorefrontChannels(ctx context.Context) ([]revalidate.StorefrontChannel, error) {
+	chs, err := s.svc.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]revalidate.StorefrontChannel, len(chs))
+	for i, ch := range chs {
+		out[i] = revalidate.StorefrontChannel{ID: ch.ID, PublicURL: ch.PublicURL, IsActive: ch.IsActive}
+	}
+	return out, nil
 }
 
 func newRevalidateQueue(q *db.Queries, c *revalidate.Client) *revalidate.Queue { // durable rebuild queue, drained by the cache-rebuild scheduler job
@@ -118,8 +134,13 @@ func newCustomerService(
 	verify *authpkg.VerificationStore, reset *authpkg.PasswordResetStore, refresh CustomerRefreshStore,
 	sender email.Sender, lookup CustomerStoreLookup, consentSvc *consent.Service, bus *events.Bus,
 ) *customer.Service {
+	// A nil *Client in the interface would read as present, so Signals being off has to arrive as a nil interface
+	var eraser customer.SignalsEraser
+	if signals != nil {
+		eraser = signals
+	}
 	return customer.NewService(
-		customer.NewRepository(q, signals, txMgr),
+		customer.NewRepository(q, eraser, txMgr),
 		verify, reset, refresh.RefreshStore,
 		sender, lookup, consentSvc, bus,
 	)
@@ -188,9 +209,11 @@ func newTransactionalSender(sender email.Sender, cfg *config.Service) *mailsend.
 // On restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
 func newBackInStockService(
 	q *db.Queries, inv *inventory.Service, cust *customer.Service, flows *FlowEnroller,
-	ch *channel.Service, cfg *config.Service, sender email.Sender, sc *signalsclient.Client,
+	ch *channel.Service, cfg *config.Service, sender email.Sender, sc *signalsclient.Client, store *objstore.Storage,
 ) *backinstock.Service {
-	return backinstock.New(q, inv, cust, flows, ch, cfg, sender, sc) // the suppression list is the suite's, read over the contract
+	svc := backinstock.New(q, inv, cust, flows, ch, cfg, sender, sc)
+	svc.SetMedia(store)
+	return svc
 }
 
 func newBlogService( // posts/categories/tags/authors with translations and url-rewrite sync

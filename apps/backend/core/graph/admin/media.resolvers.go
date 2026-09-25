@@ -9,7 +9,7 @@ import (
 )
 
 func (r *mutationResolver) SetMediaFocalPoint(ctx context.Context, assetID string, x *float64, y *float64) (*model.MediaAsset, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID(assetID, "asset")
@@ -78,7 +78,7 @@ func (r *mutationResolver) ConfirmMediaAssetUpload(ctx context.Context, assetID 
 }
 
 func (r *mutationResolver) UpdateMediaAsset(ctx context.Context, input model.UpdateMediaAssetInput) (*model.MediaAsset, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID(input.ID, "media asset")
@@ -99,7 +99,7 @@ func (r *mutationResolver) UpdateMediaAsset(ctx context.Context, input model.Upd
 }
 
 func (r *mutationResolver) MoveMediaAsset(ctx context.Context, id string, targetPath string, filename *string) (*model.MediaAsset, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return nil, err
 	}
 	assetID, err := parseID(id, "media asset")
@@ -118,7 +118,7 @@ func (r *mutationResolver) MoveMediaAsset(ctx context.Context, id string, target
 }
 
 func (r *mutationResolver) DeleteMediaAsset(ctx context.Context, id string, deleteFromStorage *bool) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return false, err
 	}
 	assetID, err := parseID(id, "media asset")
@@ -132,7 +132,7 @@ func (r *mutationResolver) DeleteMediaAsset(ctx context.Context, id string, dele
 }
 
 func (r *mutationResolver) DeleteMediaDirectory(ctx context.Context, path string, recursive bool) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return false, err
 	}
 	if err := r.MediaLibrarySvc.DeleteDirectory(ctx, path, recursive); err != nil {
@@ -142,7 +142,7 @@ func (r *mutationResolver) DeleteMediaDirectory(ctx context.Context, path string
 }
 
 func (r *mutationResolver) RenameMediaDirectory(ctx context.Context, path string, newName string) (*model.MediaDirectoryChild, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "media.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "media.manage"); err != nil {
 		return nil, err
 	}
 	dir, err := r.MediaLibrarySvc.RenameDirectory(ctx, path, newName)

@@ -16,6 +16,9 @@ func (r *mutationResolver) SetPaymentMethodEnabled(ctx context.Context, channelI
 	if err != nil {
 		return nil, err
 	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "payments.manage", chID, nil); err != nil {
+		return nil, err
+	}
 	if _, err := r.PaymentSvc.SetEnabled(ctx, chID, providerSlug, enabled); err != nil {
 		return nil, err
 	}
@@ -30,6 +33,9 @@ func (r *mutationResolver) SetPaymentMethodCountries(ctx context.Context, channe
 	if err != nil {
 		return nil, err
 	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "payments.manage", chID, nil); err != nil {
+		return nil, err
+	}
 	if err := r.PaymentSvc.SetPaymentMethodCountries(ctx, chID, providerSlug, mode, countries); err != nil {
 		return nil, err
 	}
@@ -42,6 +48,9 @@ func (r *queryResolver) PaymentMethods(ctx context.Context, channelID string) ([
 	}
 	chID, err := uuid.Parse(channelID)
 	if err != nil {
+		return nil, err
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "payments.view", chID, nil); err != nil {
 		return nil, err
 	}
 	providers, err := r.PaymentSvc.ListProvidersForChannel(ctx, chID)

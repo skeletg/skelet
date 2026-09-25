@@ -132,6 +132,8 @@ type ProductListingChanged struct {
 
 func (*ProductListingChanged) Type() string { return EventProductListingChanged }
 
+func (e *ProductListingChanged) EventChannelID() uuid.UUID { return e.ChannelID }
+
 type CategoryCreated struct { // this and CategoryUpdated/CategoryDeleted fire AFTER the mutation commits, async-only
 	CategoryID uuid.UUID
 	Slug       string

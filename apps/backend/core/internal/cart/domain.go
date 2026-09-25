@@ -29,6 +29,8 @@ var ErrProductNotPurchasable = errors.New("this product kind cannot be added to 
 
 var ErrProductNotBundle = errors.New("AddBundleToCart requires a product of kind 'bundle'")
 
+var ErrProductNotPublished = errors.New("product is not published on this store")
+
 var ErrBundleSelectionMissing = errors.New("bundle requires a selection for a required option")
 
 var ErrBundleSelectionInvalid = errors.New("bundle selection does not belong to this bundle")
@@ -52,8 +54,8 @@ var (
 
 // Enough catalog contract to enforce the kind invariant on add and materialize bundle structure - declared here so cart doesn't import catalog
 type ProductResolver interface {
-	ResolveSimplePricing(ctx context.Context, channelID uuid.UUID, sku string, customerID *uuid.UUID) (SimplePricing, error) // canonical name and price, so the cart ignores client-supplied pricing - errors when the SKU has no listing or can't be a direct line
-	ResolveBundleBySKU(ctx context.Context, sku string) (BundleSnapshot, error)
+	ResolveSimplePricing(ctx context.Context, channelID uuid.UUID, sku string, customerID *uuid.UUID) (SimplePricing, error)             // canonical name and price, so the cart ignores client-supplied pricing - errors when the SKU has no listing or can't be a direct line
+	ResolveBundleBySKU(ctx context.Context, channelID uuid.UUID, sku string) (BundleSnapshot, error)                                     // errors with ErrProductNotPublished unless the bundle is published on the channel
 	ResolveProductOptions(ctx context.Context, channelID uuid.UUID, sku string, customerID *uuid.UUID) (ProductOptionsResolution, error) // customerID scopes pricing to B2B contract prices and customer-group tiers - nil for guests
 }
 
@@ -229,7 +231,7 @@ type Repository interface {
 	ListCarts(ctx context.Context, f CartFilter) ([]CartListItem, error)
 	CountCarts(ctx context.Context, f CartFilter) (int32, error)
 
-	ListAbandoned(ctx context.Context, threshold, maxAge time.Time, limit int32) ([]AbandonedCart, error) // active non-empty carts last touched between maxAge and threshold, by GREATEST of cart and line updated_at, and not notified since
+	ListAbandoned(ctx context.Context, channelID uuid.UUID, threshold, maxAge time.Time, limit int32) ([]AbandonedCart, error) // one channel's active non-empty carts last touched between maxAge and threshold, and not notified since
 	MarkAbandonedNotified(ctx context.Context, ids []uuid.UUID) error
 
 	SetEmail(ctx context.Context, cartID uuid.UUID, email string) error

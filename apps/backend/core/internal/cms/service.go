@@ -1184,6 +1184,10 @@ func (s *pageService) ListPageRevisions(ctx context.Context, pageID uuid.UUID, l
 }
 
 // Re-applies a revision's content, and since that itself snapshots, a restore is reversible
+func (s *pageService) GetRevision(ctx context.Context, revisionID uuid.UUID) (PageRevision, error) {
+	return s.repo.GetRevision(ctx, revisionID)
+}
+
 func (s *pageService) RestoreRevision(ctx context.Context, revisionID uuid.UUID) (Page, error) {
 	rev, err := s.repo.GetRevision(ctx, revisionID)
 	if err != nil {
@@ -1320,6 +1324,10 @@ func (s *pageService) ListComments(ctx context.Context, pageID uuid.UUID) ([]Pag
 
 func (s *pageService) ResolveComment(ctx context.Context, id uuid.UUID, resolved bool) (PageComment, error) {
 	return s.repo.ResolveComment(ctx, id, resolved, adminPtr(ctx))
+}
+
+func (s *pageService) GetComment(ctx context.Context, id uuid.UUID) (PageComment, error) {
+	return s.repo.GetComment(ctx, id)
 }
 
 func (s *pageService) DeleteComment(ctx context.Context, id uuid.UUID) error {

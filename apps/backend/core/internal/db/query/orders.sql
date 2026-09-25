@@ -26,10 +26,10 @@ SELECT * FROM orders WHERE id = $1 LIMIT 1;
 SELECT * FROM orders ORDER BY created_at DESC;
 
 -- name: ListOrdersPaged :many
--- Server-side page for the admin list - ListOrders returns the WHOLE table, which the dashboard then paged in the browser
--- orders is the one table that grows forever, so that was a full-table read per page view Channel scoping applies here rather than post-filtered in the resolver, or LIMIT would run before the permission filter and pages would come back short SELECT * (not window-count) so the repo maps rows through toOrder verbatim - CountOrdersPaged shares the WHERE and must stay in lockstep
+-- Every channel's page - the scoped caller has its own statement, so neither shares a plan that reads the whole created_at index
+-- SELECT * (not window-count) so the repo maps rows through toOrder verbatim - CountOrdersPaged shares the WHERE and must stay in lockstep
 SELECT * FROM orders o
-WHERE  (sqlc.arg(all_channels)::boolean OR o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
+WHERE  TRUE
   AND  (sqlc.arg(search)::text = '' OR
         o.number ILIKE '%' || sqlc.arg(search)::text || '%' OR
         o.email ILIKE '%' || sqlc.arg(search)::text || '%' OR
@@ -42,7 +42,32 @@ LIMIT  sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: CountOrdersPaged :one
 SELECT COUNT(*) FROM orders o
-WHERE  (sqlc.arg(all_channels)::boolean OR o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
+WHERE  TRUE
+  AND  (sqlc.arg(search)::text = '' OR
+        o.number ILIKE '%' || sqlc.arg(search)::text || '%' OR
+        o.email ILIKE '%' || sqlc.arg(search)::text || '%' OR
+        o.shipping_last_name ILIKE '%' || sqlc.arg(search)::text || '%' OR
+        o.billing_last_name ILIKE '%' || sqlc.arg(search)::text || '%')
+  AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
+  AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]));
+
+-- name: ListOrdersPagedInChannels :many
+-- Scoped in SQL, so LIMIT runs after the permission filter
+SELECT * FROM orders o
+WHERE  o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
+  AND  (sqlc.arg(search)::text = '' OR
+        o.number ILIKE '%' || sqlc.arg(search)::text || '%' OR
+        o.email ILIKE '%' || sqlc.arg(search)::text || '%' OR
+        o.shipping_last_name ILIKE '%' || sqlc.arg(search)::text || '%' OR
+        o.billing_last_name ILIKE '%' || sqlc.arg(search)::text || '%')
+  AND  (sqlc.arg(all_statuses)::boolean OR o.status = ANY(sqlc.arg(statuses)::text[]))
+  AND  (sqlc.arg(all_payment)::boolean OR o.payment_status = ANY(sqlc.arg(payment_statuses)::text[]))
+ORDER  BY o.created_at DESC
+LIMIT  sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: CountOrdersPagedInChannels :one
+SELECT COUNT(*) FROM orders o
+WHERE  o.channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
   AND  (sqlc.arg(search)::text = '' OR
         o.number ILIKE '%' || sqlc.arg(search)::text || '%' OR
         o.email ILIKE '%' || sqlc.arg(search)::text || '%' OR

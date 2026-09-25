@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -17,7 +18,8 @@ SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name,
        COALESCE(g.slug, '')::text AS customer_group_slug,
        COALESCE(k.opted_in, false)::boolean AS marketing_opted_in,
        COALESCE(s.opted_in, false)::boolean AS sms_opted_in,
-       COALESCE((SELECT jsonb_object_agg(cc.kind, cc.opted_in) FROM customer_consents cc WHERE cc.customer_id = c.id), '{}'::jsonb) AS consents
+       COALESCE((SELECT jsonb_object_agg(cc.kind, cc.opted_in) FROM customer_consents cc WHERE cc.customer_id = c.id), '{}'::jsonb) AS consents,
+       statement_timestamp()::timestamptz AS read_at
 FROM customers c
 LEFT JOIN customer_groups g ON g.id = c.customer_group_id
 LEFT JOIN customer_consents k ON k.customer_id = c.id AND k.kind = 'marketing_email'
@@ -37,6 +39,7 @@ type CustomerRosterEntryRow struct {
 	MarketingOptedIn  bool        `json:"marketing_opted_in"`
 	SmsOptedIn        bool        `json:"sms_opted_in"`
 	Consents          interface{} `json:"consents"`
+	ReadAt            time.Time   `json:"read_at"`
 }
 
 // One customer for the event-driven push, shaped exactly like a page row
@@ -55,6 +58,7 @@ func (q *Queries) CustomerRosterEntry(ctx context.Context, customerID uuid.UUID)
 		&i.MarketingOptedIn,
 		&i.SmsOptedIn,
 		&i.Consents,
+		&i.ReadAt,
 	)
 	return i, err
 }
@@ -65,18 +69,20 @@ SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name,
        COALESCE(g.slug, '')::text AS customer_group_slug,
        COALESCE(k.opted_in, false)::boolean AS marketing_opted_in,
        COALESCE(s.opted_in, false)::boolean AS sms_opted_in,
-       COALESCE((SELECT jsonb_object_agg(cc.kind, cc.opted_in) FROM customer_consents cc WHERE cc.customer_id = c.id), '{}'::jsonb) AS consents
+       COALESCE((SELECT jsonb_object_agg(cc.kind, cc.opted_in) FROM customer_consents cc WHERE cc.customer_id = c.id), '{}'::jsonb) AS consents,
+       statement_timestamp()::timestamptz AS read_at
 FROM customers c
 LEFT JOIN customer_groups g ON g.id = c.customer_group_id
 LEFT JOIN customer_consents k ON k.customer_id = c.id AND k.kind = 'marketing_email'
 LEFT JOIN customer_consents s ON s.customer_id = c.id AND s.kind = 'marketing_sms'
+WHERE c.id > $1::uuid
 ORDER BY c.id
-LIMIT $2 OFFSET $1
+LIMIT $2
 `
 
 type CustomerRosterForSyncParams struct {
-	Off int32 `json:"off"`
-	Lim int32 `json:"lim"`
+	After uuid.UUID `json:"after"`
+	Lim   int32     `json:"lim"`
 }
 
 type CustomerRosterForSyncRow struct {
@@ -91,12 +97,14 @@ type CustomerRosterForSyncRow struct {
 	MarketingOptedIn  bool        `json:"marketing_opted_in"`
 	SmsOptedIn        bool        `json:"sms_opted_in"`
 	Consents          interface{} `json:"consents"`
+	ReadAt            time.Time   `json:"read_at"`
 }
 
 // The roster the Signals database needs: identity for trait and membership cleanup, plus what a marketing send has to know to address someone - the suite reads only what core pushes from here
 // Both consent joins resolve to the registry default when no row exists, which for marketing is opted out
+// Keyset-paged so a delete mid-sweep can't shift a customer off a page; read_at stops an older push overwriting a newer one
 func (q *Queries) CustomerRosterForSync(ctx context.Context, arg CustomerRosterForSyncParams) ([]CustomerRosterForSyncRow, error) {
-	rows, err := q.db.QueryContext(ctx, customerRosterForSync, arg.Off, arg.Lim)
+	rows, err := q.db.QueryContext(ctx, customerRosterForSync, arg.After, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +124,7 @@ func (q *Queries) CustomerRosterForSync(ctx context.Context, arg CustomerRosterF
 			&i.MarketingOptedIn,
 			&i.SmsOptedIn,
 			&i.Consents,
+			&i.ReadAt,
 		); err != nil {
 			return nil, err
 		}

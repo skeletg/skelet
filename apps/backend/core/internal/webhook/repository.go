@@ -240,6 +240,14 @@ func (r *postgresRepository) ClearDeliveries(ctx context.Context, webhookID uuid
 	return n, nil
 }
 
+func (r *postgresRepository) PruneEnqueueDedup(ctx context.Context, before time.Time) (int64, error) {
+	n, err := r.queries.PruneWebhookEnqueueDedup(ctx, before)
+	if err != nil {
+		return 0, fmt.Errorf("prune enqueue dedup: %w", err)
+	}
+	return n, nil
+}
+
 func (r *postgresRepository) PruneDeliveries(ctx context.Context, before time.Time) (int64, error) {
 	n, err := r.queries.PruneWebhookDeliveries(ctx, before)
 	if err != nil {
@@ -256,7 +264,22 @@ func (r *postgresRepository) GetDelivery(ctx context.Context, id uuid.UUID) (Del
 	return toDelivery(row), nil
 }
 
-func (r *postgresRepository) Enqueue(ctx context.Context, webhookID uuid.UUID, eventType, payload string) (QueueItem, error) {
+func (r *postgresRepository) Enqueue(ctx context.Context, webhookID uuid.UUID, eventType, payload, dedupeKey string) (QueueItem, error) {
+	if dedupeKey != "" {
+		rows, err := r.queries.EnqueueWebhookDeliveryOnce(ctx, db.EnqueueWebhookDeliveryOnceParams{
+			WebhookID: webhookID,
+			EventType: eventType,
+			Payload:   payload,
+			DedupeKey: dedupeKey,
+		})
+		if err != nil {
+			return QueueItem{}, fmt.Errorf("enqueue delivery: %w", err)
+		}
+		if len(rows) == 0 {
+			return QueueItem{}, nil
+		}
+		return toQueueItem(rows[0]), nil
+	}
 	row, err := r.queries.EnqueueWebhookDelivery(ctx, db.EnqueueWebhookDeliveryParams{
 		WebhookID: webhookID,
 		EventType: eventType,

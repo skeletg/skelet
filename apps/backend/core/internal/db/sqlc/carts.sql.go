@@ -15,24 +15,20 @@ import (
 )
 
 const abandonedCarts = `-- name: AbandonedCarts :many
-SELECT
-    c.id                                                AS id,
-    c.channel_id                                        AS channel_id,
-    c.customer_id                                       AS customer_id,
-    c.email                                             AS email,
-    GREATEST(c.updated_at, MAX(l.updated_at))::timestamptz AS last_activity
+SELECT c.id, c.channel_id, c.customer_id, c.email, c.last_activity_at AS last_activity
 FROM carts c
-JOIN cart_lines l ON l.cart_id = c.id
-WHERE c.status = 'active' AND (c.customer_id IS NOT NULL OR c.email <> '')
-GROUP BY c.id, c.channel_id, c.customer_id, c.email, c.updated_at, c.abandoned_notified_at
-HAVING GREATEST(c.updated_at, MAX(l.updated_at)) < $1::timestamptz
-   AND GREATEST(c.updated_at, MAX(l.updated_at)) > $2::timestamptz
-   AND (c.abandoned_notified_at IS NULL OR c.abandoned_notified_at < GREATEST(c.updated_at, MAX(l.updated_at)))
-ORDER BY last_activity DESC
-LIMIT $3
+WHERE c.channel_id = $1
+  AND c.status = 'active' AND (c.customer_id IS NOT NULL OR c.email <> '')
+  AND c.last_activity_at < $2::timestamptz
+  AND c.last_activity_at > $3::timestamptz
+  AND (c.abandoned_notified_at IS NULL OR c.abandoned_notified_at < c.last_activity_at)
+  AND EXISTS (SELECT 1 FROM cart_lines l WHERE l.cart_id = c.id)
+ORDER BY c.last_activity_at, c.id
+LIMIT $4
 `
 
 type AbandonedCartsParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
 	Threshold time.Time `json:"threshold"`
 	MaxAge    time.Time `json:"max_age"`
 	Lim       int32     `json:"lim"`
@@ -46,9 +42,14 @@ type AbandonedCartsRow struct {
 	LastActivity time.Time     `json:"last_activity"`
 }
 
-// Active, non-empty carts that are CONTACTABLE - either owned by a known customer, or a guest cart that captured an email at checkout entry - whose last activity is older than `threshold` but newer than `max_age`, not already notified since that activity - last activity = GREATEST(cart.updated_at, MAX(line.updated_at)) - carts.updated_at isn't bumped on line edits, so the line max is authoritative
+// Oldest first, so a backlog drains in order
 func (q *Queries) AbandonedCarts(ctx context.Context, arg AbandonedCartsParams) ([]AbandonedCartsRow, error) {
-	rows, err := q.db.QueryContext(ctx, abandonedCarts, arg.Threshold, arg.MaxAge, arg.Lim)
+	rows, err := q.db.QueryContext(ctx, abandonedCarts,
+		arg.ChannelID,
+		arg.Threshold,
+		arg.MaxAge,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +114,7 @@ func (q *Queries) CountCarts(ctx context.Context, arg CountCartsParams) (int32, 
 }
 
 const createCart = `-- name: CreateCart :one
-INSERT INTO carts (customer_id, channel_id) VALUES ($1, $2) RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note
+INSERT INTO carts (customer_id, channel_id) VALUES ($1, $2) RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at
 `
 
 type CreateCartParams struct {
@@ -134,6 +135,7 @@ func (q *Queries) CreateCart(ctx context.Context, arg CreateCartParams) (Cart, e
 		&i.AbandonedNotifiedAt,
 		&i.Email,
 		&i.Note,
+		&i.LastActivityAt,
 	)
 	return i, err
 }
@@ -171,7 +173,7 @@ func (q *Queries) DeleteSavedItem(ctx context.Context, arg DeleteSavedItemParams
 }
 
 const getCartByCustomerAndChannel = `-- name: GetCartByCustomerAndChannel :one
-SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note FROM carts
+SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at FROM carts
 WHERE customer_id = $1 AND channel_id = $2 AND status = 'active'
 LIMIT 1
 `
@@ -194,12 +196,13 @@ func (q *Queries) GetCartByCustomerAndChannel(ctx context.Context, arg GetCartBy
 		&i.AbandonedNotifiedAt,
 		&i.Email,
 		&i.Note,
+		&i.LastActivityAt,
 	)
 	return i, err
 }
 
 const getCartByID = `-- name: GetCartByID :one
-SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note FROM carts WHERE id = $1 LIMIT 1
+SELECT id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at FROM carts WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetCartByID(ctx context.Context, id uuid.UUID) (Cart, error) {
@@ -215,6 +218,7 @@ func (q *Queries) GetCartByID(ctx context.Context, id uuid.UUID) (Cart, error) {
 		&i.AbandonedNotifiedAt,
 		&i.Email,
 		&i.Note,
+		&i.LastActivityAt,
 	)
 	return i, err
 }
@@ -461,7 +465,7 @@ func (q *Queries) PruneStaleCarts(ctx context.Context, cutoff time.Time) (int64,
 const reassignCartToCustomer = `-- name: ReassignCartToCustomer :one
 UPDATE carts SET customer_id = $2, updated_at = NOW()
 WHERE id = $1 AND customer_id IS NULL AND status = 'active'
-RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note
+RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at
 `
 
 type ReassignCartToCustomerParams struct {
@@ -482,6 +486,7 @@ func (q *Queries) ReassignCartToCustomer(ctx context.Context, arg ReassignCartTo
 		&i.AbandonedNotifiedAt,
 		&i.Email,
 		&i.Note,
+		&i.LastActivityAt,
 	)
 	return i, err
 }
@@ -555,7 +560,7 @@ func (q *Queries) SetCartNote(ctx context.Context, arg SetCartNoteParams) error 
 const setCartStatus = `-- name: SetCartStatus :one
 UPDATE carts SET status = $2, updated_at = NOW()
 WHERE id = $1 AND status = 'active'
-RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note
+RETURNING id, customer_id, status, created_at, updated_at, channel_id, abandoned_notified_at, email, note, last_activity_at
 `
 
 type SetCartStatusParams struct {
@@ -576,6 +581,7 @@ func (q *Queries) SetCartStatus(ctx context.Context, arg SetCartStatusParams) (C
 		&i.AbandonedNotifiedAt,
 		&i.Email,
 		&i.Note,
+		&i.LastActivityAt,
 	)
 	return i, err
 }

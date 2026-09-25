@@ -134,6 +134,9 @@ func (r *mutationResolver) DeleteProduct(ctx context.Context, id string) (bool, 
 
 // UpsertProductContent creates or replaces translatable content for one locale. The translation row is shared by every channel that lists the product, so the gate requires the admin to have catalog.manage on *every* channel currently listing this product at the requested locale (or a global grant). Otherwise an (EU, de) admin could edit a product listed on EU+US and the change would leak to US.
 func (r *mutationResolver) UpsertProductContent(ctx context.Context, productID string, locale *string, input model.UpsertProductContentInput) (*model.Product, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return nil, err
+	}
 	pid, err := parseID(productID, "product")
 	if err != nil {
 		return nil, err
@@ -170,6 +173,9 @@ func (r *mutationResolver) UpsertProductContent(ctx context.Context, productID s
 // DeleteProductContent removes content for one locale. Same all- listed-channels gate as UpsertProductContent - the
 // translation row is shared across every channel listing the product
 func (r *mutationResolver) DeleteProductContent(ctx context.Context, productID string, locale *string) (bool, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return false, err
+	}
 	pid, err := parseID(productID, "product")
 	if err != nil {
 		return false, err
@@ -447,6 +453,9 @@ func (r *mutationResolver) UpdateProductDownload(ctx context.Context, input mode
 
 // RemoveProductDownload detaches a downloadable file from its product.
 func (r *mutationResolver) RemoveProductDownload(ctx context.Context, id string) (*model.Product, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return nil, err
+	}
 	dlID, err := parseID(id, "product download")
 	if err != nil {
 		return nil, err
