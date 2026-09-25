@@ -12,7 +12,12 @@ npm run test:e2e -- --headed --project=chromium tabs.spec.ts
 
 `npm test` (the unit suite) does NOT run these - CI has no backend, and these need one.
 
-Overrides: `E2E_DASHBOARD_URL`, `E2E_API_URL`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`.
+Overrides: `E2E_DASHBOARD_URL`, `E2E_API_URL`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`. When the
+root `.env` sets `ADMIN_API_SLUG`, export it too - the API helpers find the admin endpoint by it.
+
+`forms.spec.ts` runs the staged-save forms against the real API: it creates its own records,
+edits them through the UI and reads them back, then deletes them. What it can't judge by eye is
+in `FORMS-QA.md`.
 
 ## First run
 
