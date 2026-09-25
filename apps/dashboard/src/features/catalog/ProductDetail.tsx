@@ -277,7 +277,7 @@ export function ProductDetail() {
 
       <DetailPageBody>
           <GeneralProductSection
-            key={`${product.id}:${translationLocale || 'no-locale'}:${product.updatedAt}:general`}
+            key={`${product.id}:${translationLocale || 'no-locale'}:general`}
             product={product}
             locale={translationLocale || product.contentLocale || product.content[0]?.locale || globalDefaultLocale}
             scopeLabel={
