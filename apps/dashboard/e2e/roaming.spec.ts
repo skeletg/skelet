@@ -59,7 +59,7 @@ test('a change made on one machine reaches the other', async ({ page, browser })
   await other.context().close()
 })
 
-test('switching workspace warns before it discards staged edits', async ({ page }) => {
+test('switching workspace keeps staged edits as a draft instead of asking', async ({ page }) => {
   await startClean(page)
   await menuAction(page, 'New workspace')
   await page.getByLabel('Workspace name').fill('Scratch')
@@ -75,15 +75,20 @@ test('switching workspace warns before it discards staged edits', async ({ page 
   await expect(name).toBeVisible()
   await name.fill('E2E dirty edit')
 
+  // The product page keeps its work as a stored draft, so leaving the workspace discards nothing and
+  // doesn't ask - coming back offers the edit (see usePersistedForm)
   const prompts: string[] = []
   page.on('dialog', (d) => {
     prompts.push(d.message())
-    void d.dismiss() // decline the first time
+    void d.dismiss()
   })
+  await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith('skelet.draft.')))).toBe(true)
   await menuAction(page, 'Scratch')
-  await expect.poll(() => prompts.length).toBeGreaterThan(0)
-  expect(prompts[0]).toMatch(/unsaved changes/i)
-  // it names the dirty PAGE by the record it loaded, which is what makes the prompt worth reading
-  expect(prompts[0]).toMatch(/Product '/)
-  await expect.poll(() => workspaceName(page)).toContain('Workspace 1') // declining kept us put
+  await expect.poll(() => workspaceName(page)).toContain('Scratch')
+  expect(prompts).toEqual([])
+
+  await menuAction(page, 'Workspace 1')
+  await expect.poll(() => workspaceName(page)).toContain('Workspace 1')
+  await page.getByRole('button', { name: 'Review' }).click()
+  await expect(page.getByRole('alertdialog').getByText('E2E dirty edit')).toBeVisible()
 })

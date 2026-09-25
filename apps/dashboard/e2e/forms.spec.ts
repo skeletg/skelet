@@ -109,24 +109,38 @@ test.describe('product page', () => {
     expect(listing).toMatchObject({ url: `${RUN}/store-url`, price: 1500, isPublished: true })
   })
 
-  test('an unsaved edit survives a reload and can be discarded', async ({ page }) => {
+  test('an unsaved edit survives a reload as an offer, to restore or discard', async ({ page }) => {
     const { id } = await seedProduct('draft')
     await open(page, `/products/${id}`)
     page.on('dialog', (d) => {
       throw new Error(`unexpected browser dialog on reload: ${d.message()}`)
     })
+    const hasDraft = () => page.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith('skelet.draft.')))
+    const typeAndReload = async () => {
+      await page.locator('#pd-name').fill(`${RUN} typed`)
+      // The draft is written after a short debounce
+      await expect.poll(hasDraft).toBe(true)
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      // Offered, not applied: the field still shows what's stored
+      await expect(page.getByRole('button', { name: 'Review' })).toBeVisible()
+      await expect(page.locator('#pd-name')).toHaveValue(`${RUN} draft`)
+    }
 
-    await page.locator('#pd-name').fill(`${RUN} typed`)
-    // The draft is written after a short debounce
-    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith('skelet.draft.')))).toBe(true)
-    await page.reload({ waitUntil: 'domcontentloaded' })
-
+    await typeAndReload()
+    await page.getByRole('button', { name: 'Review' }).click()
+    const review = page.getByRole('alertdialog')
+    await expect(review.getByText(`${RUN} typed`)).toBeVisible()
+    await review.getByRole('button', { name: 'Restore' }).click()
     await expect(page.locator('#pd-name')).toHaveValue(`${RUN} typed`)
-    const banner = page.getByText(/Restored unsaved changes/).first()
-    await expect(banner).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save changes' })).toBeEnabled()
+
+    // Back to the stored name, then a second draft thrown away from the banner
+    await page.locator('#pd-name').fill(`${RUN} draft`)
+    await typeAndReload()
     await page.getByRole('button', { name: 'Discard' }).first().click()
+    await expect(page.getByRole('button', { name: 'Review' })).toBeHidden()
     await expect(page.locator('#pd-name')).toHaveValue(`${RUN} draft`)
-    await expect(page.getByRole('button', { name: 'No changes' })).toBeVisible()
+    await expect.poll(hasDraft).toBe(false)
   })
 
   test('an invalid value keeps the review dialog open and writes nothing', async ({ page }) => {
