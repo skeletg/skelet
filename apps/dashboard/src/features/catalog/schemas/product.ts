@@ -487,3 +487,74 @@ export function productChannelUrlsDiff(channelName: (id: string) => string) {
       after: url ?? 'inherit',
     }))
 }
+
+// ---------- Per-store pricing & publishing: each store's price and published flag ----------
+
+const storeListing = z.object({
+  channelId: z.string(),
+  isPublished: z.boolean(),
+  // Off, `price` is the store's own amount; on, the store takes the product's default
+  inheritPrice: z.boolean(),
+  price: z.string(),
+  // Staged "Clear" - the listing goes, back to inherited and unpublished
+  clear: z.boolean(),
+})
+
+export type ProductStoreListing = z.infer<typeof storeListing>
+
+export const productListingsSchema = z.object({ stores: z.array(storeListing) }).superRefine((v, ctx) => {
+  v.stores.forEach((s, i) => {
+    if (!s.clear && !s.inheritPrice && (s.price.trim() === '' || !Number.isFinite(Number(s.price)) || Number(s.price) < 0)) {
+      ctx.addIssue({ code: 'custom', path: ['stores', i, 'price'], message: 'Zero or more, or use the default' })
+    }
+  })
+})
+
+export type ProductListingsValues = z.infer<typeof productListingsSchema>
+
+export const PRODUCT_LISTING_LABELS: Record<keyof ProductListingsValues, string> = { stores: 'Per-store pricing & publishing' }
+
+type ExistingListing = { isPublished: boolean; price?: number | null; channel: { id: string } }
+
+export function toProductListingValues(channelIds: string[], listings: ExistingListing[]): ProductListingsValues {
+  const byId = new Map(listings.map((l) => [l.channel.id, l]))
+  return {
+    stores: channelIds.map((channelId) => {
+      const l = byId.get(channelId)
+      return { channelId, isPublished: l?.isPublished ?? false, inheritPrice: l?.price == null, price: l?.price != null ? centsToDollars(l.price) : '', clear: false }
+    }),
+  }
+}
+
+export const clearedStore = (channelId: string): ProductStoreListing => ({ channelId, isPublished: false, inheritPrice: true, price: '', clear: true })
+
+const sameStore = (a: ProductStoreListing, b: ProductStoreListing) =>
+  a.clear === b.clear && a.isPublished === b.isPublished && a.inheritPrice === b.inheritPrice && (a.inheritPrice || moneyText(a.price) === moneyText(b.price))
+
+type ListingChange = { channelId: string; clear: true } | { channelId: string; clear: false; isPublished: boolean; price: number | null }
+
+// What each changed store needs: a clear (only when it had a listing to clear) or a write
+export function productListingChanges(before: ProductListingsValues, after: ProductListingsValues, hasListing: (id: string) => boolean): ListingChange[] {
+  return after.stores.flatMap((s): ListingChange[] => {
+    const was = before.stores.find((b) => b.channelId === s.channelId)
+    if (!was || sameStore(was, s)) return []
+    if (s.clear) return hasListing(s.channelId) ? [{ channelId: s.channelId, clear: true }] : []
+    return [{ channelId: s.channelId, clear: false, isPublished: s.isPublished, price: s.inheritPrice ? null : dollarsToCents(s.price) }]
+  })
+}
+
+export function productListingsDiff(store: (id: string) => { name: string; currencyCode: string }, hasListing: (id: string) => boolean) {
+  return (original: ProductListingsValues, draft: ProductListingsValues): SectionDiffEntry[] => {
+    const describe = (s: ProductStoreListing | undefined) =>
+      s
+        ? `${s.inheritPrice ? 'inherit default' : formatCents(dollarsToCents(s.price), store(s.channelId).currencyCode)} · ${s.isPublished ? 'published' : 'unpublished'}`
+        : ''
+    const find = (v: ProductListingsValues, id: string) => v.stores.find((s) => s.channelId === id)
+    return productListingChanges(original, draft, hasListing).map(({ channelId, clear }) => ({
+      kind: 'change',
+      label: store(channelId).name,
+      before: describe(find(original, channelId)),
+      after: clear ? 'cleared (revert to default)' : describe(find(draft, channelId)),
+    }))
+  }
+}
