@@ -4,6 +4,7 @@ package signalsboot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -83,16 +84,30 @@ func (s *Stack) Close() {
 	}
 }
 
+type TraitRoster interface {
+	TraitComputeChannels(ctx context.Context) ([]uuid.UUID, error)
+	MarkTraitsComputed(ctx context.Context, channelID uuid.UUID, at time.Time) error
+	MarkTraitsAttempted(ctx context.Context, channelID uuid.UUID, at time.Time) error
+}
+
+type TraitComputer interface {
+	ComputeTraits(ctx context.Context, channelID uuid.UUID, now time.Time, lc analytics.LifecycleWindows) (int, error)
+}
+
 // TraitComputeJob is the trait-compute body (RFM / lifecycle / engagement), run when core's scheduler asks for it
 // Lifecycle windows are per-channel so staging matches the catalog's repurchase cadence, falling back to the registered defaults
-func TraitComputeJob(roster *analytics.Roster, traits *analytics.TraitCompute, cfgSvc Settings) func(context.Context) error {
+func TraitComputeJob(roster TraitRoster, traits TraitComputer, cfgSvc Settings) func(context.Context) error {
 	return func(ctx context.Context) error {
-		chs, err := roster.RosterChannels(ctx)
+		chs, err := roster.TraitComputeChannels(ctx)
 		if err != nil {
 			return err
 		}
 		now := time.Now()
+		var errs []error
 		for _, chID := range chs {
+			if ctx.Err() != nil {
+				return errors.Join(append(errs, ctx.Err())...) // the rest are stalest next time, so they go first
+			}
 			cfg := func(key string, def int) int {
 				if v, err := cfgSvc.Int(ctx, key, &chID); err == nil && v > 0 {
 					return int(v)
@@ -104,10 +119,17 @@ func TraitComputeJob(roster *analytics.Roster, traits *analytics.TraitCompute, c
 				ActiveDays: cfg("signals/synapse/lifecycle_active_days", 90),
 				AtRiskDays: cfg("signals/synapse/lifecycle_at_risk_days", 180),
 			}
+			if err := roster.MarkTraitsAttempted(ctx, chID, time.Now()); err != nil {
+				errs = append(errs, fmt.Errorf("channel %s: mark attempted: %w", chID, err))
+			}
 			if _, err := traits.ComputeTraits(ctx, chID, now, lc); err != nil {
-				return err
+				errs = append(errs, fmt.Errorf("channel %s: %w", chID, err)) // one channel failing must not cost the others their traits
+				continue
+			}
+			if err := roster.MarkTraitsComputed(ctx, chID, time.Now()); err != nil {
+				errs = append(errs, fmt.Errorf("channel %s: mark computed: %w", chID, err))
 			}
 		}
-		return nil
+		return errors.Join(errs...)
 	}
 }

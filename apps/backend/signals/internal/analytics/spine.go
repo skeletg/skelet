@@ -3,6 +3,8 @@ package analytics
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,10 +47,10 @@ type SpineStore interface {
 	SynapseOverview(ctx context.Context, channelID uuid.UUID, since time.Time) (SynapseOverview, error)
 	CustomerProfile(ctx context.Context, customerID uuid.UUID, since time.Time) (Profile, error)
 	CustomerEmailEngagement(ctx context.Context, customerID uuid.UUID) (EmailEngagement, error)
-	VisitorProfile(ctx context.Context, anonID string, since time.Time) (Profile, error)
+	VisitorProfile(ctx context.Context, channelID uuid.UUID, anonID string, since time.Time) (Profile, error)
 	CustomerExperiments(ctx context.Context, customerID uuid.UUID, since time.Time) ([]ExperimentArm, error)
 	CustomerAffinities(ctx context.Context, customerID uuid.UUID, since time.Time, attrs []AffinityAttr) ([]AttributeAffinity, error)
-	VisitorAffinities(ctx context.Context, anonID string, since time.Time, attrs []AffinityAttr) []AttributeAffinity
+	VisitorAffinities(ctx context.Context, channelID uuid.UUID, anonID string, since time.Time, attrs []AffinityAttr) []AttributeAffinity
 	AffinityActors(ctx context.Context, channelID uuid.UUID, attrSlug, value string, since time.Time) ([]uuid.UUID, error)
 	AffinityValueCounts(ctx context.Context, channelID uuid.UUID, attrSlug string, since time.Time, limit int) ([]AffinityValueCount, error)
 	CustomerTopAffinities(ctx context.Context, customerID uuid.UUID, since time.Time) (map[string]string, error)
@@ -230,8 +232,8 @@ func (r *Recorder) CustomerEmailEngagement(ctx context.Context, customerID uuid.
 	return r.spine.CustomerEmailEngagement(ctx, customerID)
 }
 
-func (r *Recorder) VisitorProfile(ctx context.Context, anonID string, since time.Time) (Profile, error) {
-	return r.spine.VisitorProfile(ctx, anonID, since)
+func (r *Recorder) VisitorProfile(ctx context.Context, channelID uuid.UUID, anonID string, since time.Time) (Profile, error) {
+	return r.spine.VisitorProfile(ctx, channelID, anonID, since)
 }
 
 func (r *Recorder) CustomerExperiments(ctx context.Context, customerID uuid.UUID, since time.Time) ([]ExperimentArm, error) {
@@ -242,8 +244,8 @@ func (r *Recorder) CustomerAffinities(ctx context.Context, customerID uuid.UUID,
 	return r.spine.CustomerAffinities(ctx, customerID, since, attrs)
 }
 
-func (r *Recorder) VisitorAffinities(ctx context.Context, anonID string, since time.Time, attrs []AffinityAttr) []AttributeAffinity {
-	return r.spine.VisitorAffinities(ctx, anonID, since, attrs)
+func (r *Recorder) VisitorAffinities(ctx context.Context, channelID uuid.UUID, anonID string, since time.Time, attrs []AffinityAttr) []AttributeAffinity {
+	return r.spine.VisitorAffinities(ctx, channelID, anonID, since, attrs)
 }
 
 func (r *Recorder) AffinityActors(ctx context.Context, channelID uuid.UUID, attrSlug, value string, since time.Time) ([]uuid.UUID, error) {
@@ -322,6 +324,9 @@ func (r *Recorder) EventsForForwarding(ctx context.Context, channelID uuid.UUID,
 	return r.spine.EventsForForwarding(ctx, channelID, afterCreatedAt, afterID, limit)
 }
 
+// ErrErasureInFlight is an engine still applying an earlier detach, which a second one would only duplicate
+var ErrErasureInFlight = errors.New("an earlier identity erasure is still being applied")
+
 // GDPR erasure is queued for the daily sweep rather than run inline - each ClickHouse delete is a mutation, and erasure bursts would stack them
 func (r *Recorder) DeleteCustomerIdentities(ctx context.Context, customerID uuid.UUID) error {
 	return r.qs.EnqueueIdentityErasure(ctx, customerID)
@@ -346,7 +351,10 @@ func (r *Recorder) sweepIdentityErasures(ctx context.Context) error {
 		if len(ids) == 0 {
 			break
 		}
-		if err := r.spine.DeleteCustomerIdentities(ctx, ids); err != nil {
+		if err := r.spine.DeleteCustomerIdentities(ctx, ids); errors.Is(err, ErrErasureInFlight) {
+			log.Printf("[analytics] identity erasure: the last sweep's detach is still running, %d stay queued for the next", len(ids))
+			break
+		} else if err != nil {
 			return err
 		}
 		if err := r.qs.DeleteIdentityErasures(ctx, ids); err != nil {

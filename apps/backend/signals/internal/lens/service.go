@@ -133,17 +133,17 @@ type Batch struct {
 
 // One /t/rec flush - raw rrweb events for a session plus the metadata to attribute and index the recording - Events stays raw JSON: the server gzips it verbatim and reads only each event's timestamp, for the chunk's time range
 type ReplayBatch struct {
-	SessionID  string          `json:"sessionId"`
-	AnonID     string          `json:"anonId"`
-	CustomerID string          `json:"customerId"` // set once the visitor is logged in
-	Seq        int32           `json:"seq"`        // monotonic per-session (client sessionStorage)
-	Page       string          `json:"page"`
-	Viewport   string          `json:"viewport"`
-	Events     json.RawMessage `json:"events"`
+	SessionID string          `json:"sessionId"`
+	AnonID    string          `json:"anonId"`
+	Seq       int32           `json:"seq"` // monotonic per-session (client sessionStorage)
+	Page      string          `json:"page"`
+	Viewport  string          `json:"viewport"`
+	Events    json.RawMessage `json:"events"`
 }
 
 // Gzips the events into an append-only chunk and rolls the session metadata forward - best-effort, since the handler always 204s, so a malformed or oversized flush is dropped whole
-func (s *Service) IngestReplay(ctx context.Context, channelID uuid.UUID, userAgent string, b ReplayBatch) {
+// verifiedCustomer is the customer the request's session token proves, the only identity a recording is attached to - the body's customerId is forgeable
+func (s *Service) IngestReplay(ctx context.Context, channelID uuid.UUID, userAgent string, b ReplayBatch, verifiedCustomer uuid.UUID) {
 	if len(b.Events) == 0 || len(b.Events) > maxReplayChunkBytes {
 		return
 	}
@@ -178,14 +178,14 @@ func (s *Service) IngestReplay(ctx context.Context, channelID uuid.UUID, userAge
 	}
 
 	var cust uuid.NullUUID
-	if c, err := uuid.Parse(b.CustomerID); err == nil {
-		cust = uuid.NullUUID{UUID: c, Valid: true}
+	if verifiedCustomer != uuid.Nil {
+		cust = uuid.NullUUID{UUID: verifiedCustomer, Valid: true}
 	}
 	if len(userAgent) > 400 {
 		userAgent = userAgent[:400]
 	}
 
-	if err := s.q.LensUpsertSession(ctx, signalsdb.LensUpsertSessionParams{
+	n, err := s.q.LensUpsertSession(ctx, signalsdb.LensUpsertSessionParams{
 		ID:          sid,
 		ChannelID:   channelID,
 		AnonID:      b.AnonID,
@@ -197,7 +197,8 @@ func (s *Service) IngestReplay(ctx context.Context, channelID uuid.UUID, userAge
 		ExitPage:    b.Page,
 		UserAgent:   userAgent,
 		Viewport:    b.Viewport,
-	}); err != nil {
+	})
+	if err != nil || n == 0 {
 		return
 	}
 	if s.blobs == nil {
@@ -438,7 +439,7 @@ func (s *Service) recordSignal(ctx context.Context, channelID uuid.UUID, e Event
 	if kind != "" {
 		if sid, ok := e.Props["sessionId"].(string); ok && sid != "" {
 			if su, err := uuid.Parse(sid); err == nil {
-				_ = s.q.LensBumpSessionSignal(ctx, signalsdb.LensBumpSessionSignalParams{Kind: kind, ID: su})
+				_ = s.q.LensBumpSessionSignal(ctx, signalsdb.LensBumpSessionSignalParams{Kind: kind, ID: su, ChannelID: channelID})
 			}
 		}
 	}
@@ -686,7 +687,7 @@ type BrowseAbandoner struct {
 
 // Resolves idle product browses to the customers who made them, minus anyone already notified for that browse
 // Bounded pages, newest-first: the browse rows are anon-keyed and the spine engine resolves each page to customers
-func (s *Service) ListBrowseAbandoners(ctx context.Context, threshold, maxAge time.Time, limit int32) ([]BrowseAbandoner, error) {
+func (s *Service) ListBrowseAbandoners(ctx context.Context, channelID uuid.UUID, threshold, maxAge time.Time, limit int32) ([]BrowseAbandoner, error) {
 	const pageSize = 10000
 	var cands []BrowseAbandoner
 	seen := make(map[uuid.UUID]bool)
@@ -695,6 +696,7 @@ func (s *Service) ListBrowseAbandoners(ctx context.Context, threshold, maxAge ti
 	for {
 		rows, err := s.read().BrowseSeenSincePage(ctx, signalsdb.BrowseSeenSincePageParams{
 			MaxAge: maxAge, AfterAt: afterAt, AfterAnon: afterAnon, Lim: pageSize,
+			ChannelID: uuid.NullUUID{UUID: channelID, Valid: channelID != uuid.Nil},
 		})
 		if err != nil {
 			return nil, err
@@ -1247,13 +1249,16 @@ func metaFrom(id, anon string, cust uuid.NullUUID, started, ended time.Time, eve
 }
 
 // Resolved by customer id OR any anon id they later identified with, so pre-login sessions show up too
-func (s *Service) SessionsForCustomer(ctx context.Context, customerID uuid.UUID, limit int32) ([]SessionMeta, error) {
+func (s *Service) SessionsForCustomer(ctx context.Context, customerID uuid.UUID, channels []uuid.UUID, limit int32) ([]SessionMeta, error) {
 	// the identity map lives on the spine engine - a direct signalsdb read misses every stitch made after a ClickHouse flip, and an error surfaces rather than silently dropping pre-login sessions
 	anonIDs, err := s.rec.AnonIDsForCustomer(ctx, customerID)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.read().LensSessionsForCustomer(ctx, signalsdb.LensSessionsForCustomerParams{CustomerID: uuid.NullUUID{UUID: customerID, Valid: true}, AnonIds: anonIDs, Lim: limit})
+	rows, err := s.read().LensSessionsForCustomer(ctx, signalsdb.LensSessionsForCustomerParams{
+		CustomerID: uuid.NullUUID{UUID: customerID, Valid: true}, AnonIds: anonIDs,
+		AllChannels: channels == nil, ChannelIds: emptyIDs(channels), Lim: limit,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1266,8 +1271,10 @@ func (s *Service) SessionsForCustomer(ctx context.Context, customerID uuid.UUID,
 	return out, nil
 }
 
-func (s *Service) SessionsForAnon(ctx context.Context, anonID string, limit int32) ([]SessionMeta, error) {
-	rows, err := s.read().LensSessionsForAnon(ctx, signalsdb.LensSessionsForAnonParams{AnonID: anonID, Lim: limit})
+func (s *Service) SessionsForAnon(ctx context.Context, anonID string, channels []uuid.UUID, limit int32) ([]SessionMeta, error) {
+	rows, err := s.read().LensSessionsForAnon(ctx, signalsdb.LensSessionsForAnonParams{
+		AnonID: anonID, AllChannels: channels == nil, ChannelIds: emptyIDs(channels), Lim: limit,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1278,6 +1285,13 @@ func (s *Service) SessionsForAnon(ctx context.Context, anonID string, limit int3
 		out[i] = m
 	}
 	return out, nil
+}
+
+func emptyIDs(ids []uuid.UUID) []uuid.UUID {
+	if ids == nil {
+		return []uuid.UUID{}
+	}
+	return ids
 }
 
 func (s *Service) SessionsForChannel(ctx context.Context, channelID uuid.UUID, limit int32) ([]SessionMeta, error) {

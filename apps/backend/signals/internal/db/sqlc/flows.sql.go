@@ -15,19 +15,37 @@ import (
 )
 
 const claimRunnableFlowRuns = `-- name: ClaimRunnableFlowRuns :many
-SELECT r.id, r.flow_id, r.customer_id, r.current_node_id, r.status, r.resume_at, r.context, r.error, r.created_at, r.updated_at, r.email, r.enrollment_key FROM flow_runs r
-JOIN flows f ON f.id = r.flow_id
-WHERE (r.status = 'active' OR (r.status = 'waiting' AND r.resume_at <= NOW()))
-  AND f.status = 'active'
-  AND f.deleted_at IS NULL
-ORDER BY r.created_at
-LIMIT $1
-FOR UPDATE OF r SKIP LOCKED
+WITH candidates AS (
+    SELECT c.id, c.created_at, row_number() OVER (PARTITION BY f.channel_id ORDER BY c.created_at) AS turn
+    FROM flows f
+    CROSS JOIN LATERAL (
+        SELECT r.id, r.created_at FROM flow_runs r
+        WHERE r.flow_id = f.id AND r.status IN ('active', 'waiting')
+          AND (r.resume_at <= NOW() OR (r.status = 'active' AND r.resume_at IS NULL))
+        ORDER BY r.created_at
+        LIMIT $2
+    ) c
+    WHERE f.status = 'active' AND f.deleted_at IS NULL
+)
+UPDATE flow_runs SET resume_at = NOW() + make_interval(secs => $1::float8), updated_at = NOW()
+WHERE id IN (
+    SELECT r.id FROM flow_runs r
+    WHERE r.id IN (SELECT id FROM candidates ORDER BY turn, created_at LIMIT $2)
+      AND r.status IN ('active', 'waiting')
+      AND (r.resume_at <= NOW() OR (r.status = 'active' AND r.resume_at IS NULL))
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING id, flow_id, customer_id, current_node_id, status, resume_at, context, error, created_at, updated_at, email, enrollment_key
 `
 
-// Runs the engine can advance now - the flow join is load-bearing: a run it would refuse still fills a LIMIT slot, and oldest-first means enough of them starve every newer run behind them OF r so the claim never locks a flow an operator is editing
-func (q *Queries) ClaimRunnableFlowRuns(ctx context.Context, lim int32) ([]FlowRun, error) {
-	rows, err := q.db.QueryContext(ctx, claimRunnableFlowRuns, lim)
+type ClaimRunnableFlowRunsParams struct {
+	LeaseSeconds float64 `json:"lease_seconds"`
+	Lim          int32   `json:"lim"`
+}
+
+// Leases runnable runs by pushing resume_at past the lease; channels take turns, and the flow join stays, or a refused run would still fill a LIMIT slot
+func (q *Queries) ClaimRunnableFlowRuns(ctx context.Context, arg ClaimRunnableFlowRunsParams) ([]FlowRun, error) {
+	rows, err := q.db.QueryContext(ctx, claimRunnableFlowRuns, arg.LeaseSeconds, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +199,22 @@ func (q *Queries) CreateFlowRun(ctx context.Context, arg CreateFlowRunParams) (F
 		&i.EnrollmentKey,
 	)
 	return i, err
+}
+
+const flowRunExistsForKey = `-- name: FlowRunExistsForKey :one
+SELECT EXISTS (SELECT 1 FROM flow_runs WHERE flow_id = $1 AND enrollment_key = $2) AS held
+`
+
+type FlowRunExistsForKeyParams struct {
+	FlowID        uuid.UUID `json:"flow_id"`
+	EnrollmentKey string    `json:"enrollment_key"`
+}
+
+func (q *Queries) FlowRunExistsForKey(ctx context.Context, arg FlowRunExistsForKeyParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, flowRunExistsForKey, arg.FlowID, arg.EnrollmentKey)
+	var held bool
+	err := row.Scan(&held)
+	return held, err
 }
 
 const getFlow = `-- name: GetFlow :one

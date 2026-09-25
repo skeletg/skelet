@@ -39,6 +39,7 @@ var Pools = fx.Module("pools",
 		newReadQueries,
 		newTxManager,
 		newValkey,
+		newLimitsValkey,
 		newRevocations,
 	),
 )
@@ -53,8 +54,25 @@ var IngestPools = fx.Module("ingestpools",
 		func() ReadQueries { return ReadQueries{} },
 		newTxManager,
 		newValkey,
+		newLimitsValkey,
 	),
 )
+
+// LimitsValkey holds the rate-limit counters, kept off the evictable cache when VALKEY_LIMITS_URL names its own instance
+type LimitsValkey struct{ *redis.Client }
+
+func newLimitsValkey(lc fx.Lifecycle, cfg Config, vk *redis.Client) (LimitsValkey, error) {
+	if cfg.ValkeyLimitsURL == "" || cfg.ValkeyLimitsURL == cfg.ValkeyURL {
+		return LimitsValkey{vk}, nil
+	}
+	opt, err := redis.ParseURL(cfg.ValkeyLimitsURL)
+	if err != nil {
+		return LimitsValkey{}, fmt.Errorf("parse valkey limits url: %w", err)
+	}
+	client := redis.NewClient(opt)
+	lc.Append(fx.Hook{OnStop: func(context.Context) error { return client.Close() }})
+	return LimitsValkey{client}, nil
+}
 
 // The killed-session list core writes on the primary Valkey - reused when the cache client already points
 // there, opened separately when the two are split, and a no-op reader with no primary at all

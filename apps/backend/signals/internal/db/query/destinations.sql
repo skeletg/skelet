@@ -13,11 +13,11 @@ SET name = sqlc.arg(name), kind = sqlc.arg(kind), target_url = sqlc.arg(target_u
     secret = COALESCE(NULLIF(sqlc.arg(secret)::text, ''), secret),
     event_sources = sqlc.arg(event_sources), event_names = sqlc.arg(event_names),
     is_active = sqlc.arg(is_active), updated_at = NOW()
-WHERE id = sqlc.arg(id)
+WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id)
 RETURNING *;
 
--- name: DeleteEventDestination :exec
-DELETE FROM event_destinations WHERE id = $1;
+-- name: DeleteEventDestination :execrows
+DELETE FROM event_destinations WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id);
 
 -- name: GetEventDestination :one
 SELECT * FROM event_destinations WHERE id = $1;

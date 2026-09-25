@@ -9,7 +9,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
@@ -35,7 +34,7 @@ type beaconDeps struct {
 
 	Config     Config
 	Pool       SignalsPool
-	Valkey     *redis.Client
+	Limits     LimitsValkey
 	Geo        *geo.Resolver
 	Stack      *signalsboot.Stack
 	Lens       *lens.Service
@@ -53,13 +52,13 @@ func newBeaconMux(d beaconDeps) *http.ServeMux {
 	mux.Handle("/t/", ingesthttp.New(ingesthttp.Options{
 		Channels: d.Channels, Lens: d.Lens, Experiments: d.Experiment, Segments: d.Segment,
 		Geo: d.Geo, Rollup: d.Rollup,
-		Limiter:   ratelimit.NewRedis(d.Valkey, RateLimitPerMin("INGEST_RATE_LIMIT_PER_MIN", 300), time.Minute),
+		Limiter:   ratelimit.NewRedis(d.Limits.Client, RateLimitPerMin("INGEST_RATE_LIMIT_PER_MIN", 300), time.Minute),
 		JWTSecret: d.Config.JWTSecret,
 	}))
 	// The open pixel and click redirect every marketing mail carries, so the hit lands beside the send log it names
 	mux.Handle("/e/", pulsehttp.New(pulsehttp.Options{
 		Campaigns: d.Campaign, Flows: d.Flow,
-		Limiter: ratelimit.NewRedis(d.Valkey, RateLimitPerMin("TOKEN_RATE_LIMIT_PER_MIN", 60), time.Minute),
+		Limiter: ratelimit.NewRedis(d.Limits.Client, RateLimitPerMin("TOKEN_RATE_LIMIT_PER_MIN", 60), time.Minute),
 	}))
 	chPing := d.Stack.CHPing
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {

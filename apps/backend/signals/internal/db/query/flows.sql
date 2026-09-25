@@ -47,6 +47,9 @@ WHERE flow_id = sqlc.arg(flow_id) AND customer_id = sqlc.arg(customer_id) AND st
 SELECT COUNT(*) FROM flow_runs
 WHERE flow_id = sqlc.arg(flow_id) AND customer_id IS NULL AND email = sqlc.arg(email) AND status IN ('active', 'waiting');
 
+-- name: FlowRunExistsForKey :one
+SELECT EXISTS (SELECT 1 FROM flow_runs WHERE flow_id = sqlc.arg(flow_id) AND enrollment_key = sqlc.arg(enrollment_key)) AS held;
+
 -- name: CreateFlowRun :one
 -- A keyed moment that already has its run inserts nothing and returns no row
 INSERT INTO flow_runs (flow_id, customer_id, email, current_node_id, status, resume_at, context, enrollment_key)
@@ -55,15 +58,28 @@ ON CONFLICT (flow_id, enrollment_key) WHERE enrollment_key <> '' DO NOTHING
 RETURNING *;
 
 -- name: ClaimRunnableFlowRuns :many
--- Runs the engine can advance now - the flow join is load-bearing: a run it would refuse still fills a LIMIT slot, and oldest-first means enough of them starve every newer run behind them OF r so the claim never locks a flow an operator is editing
-SELECT r.* FROM flow_runs r
-JOIN flows f ON f.id = r.flow_id
-WHERE (r.status = 'active' OR (r.status = 'waiting' AND r.resume_at <= NOW()))
-  AND f.status = 'active'
-  AND f.deleted_at IS NULL
-ORDER BY r.created_at
-LIMIT sqlc.arg('lim')
-FOR UPDATE OF r SKIP LOCKED;
+-- Leases runnable runs by pushing resume_at past the lease; channels take turns, and the flow join stays, or a refused run would still fill a LIMIT slot
+WITH candidates AS (
+    SELECT c.id, c.created_at, row_number() OVER (PARTITION BY f.channel_id ORDER BY c.created_at) AS turn
+    FROM flows f
+    CROSS JOIN LATERAL (
+        SELECT r.id, r.created_at FROM flow_runs r
+        WHERE r.flow_id = f.id AND r.status IN ('active', 'waiting')
+          AND (r.resume_at <= NOW() OR (r.status = 'active' AND r.resume_at IS NULL))
+        ORDER BY r.created_at
+        LIMIT sqlc.arg('lim')
+    ) c
+    WHERE f.status = 'active' AND f.deleted_at IS NULL
+)
+UPDATE flow_runs SET resume_at = NOW() + make_interval(secs => sqlc.arg(lease_seconds)::float8), updated_at = NOW()
+WHERE id IN (
+    SELECT r.id FROM flow_runs r
+    WHERE r.id IN (SELECT id FROM candidates ORDER BY turn, created_at LIMIT sqlc.arg('lim'))
+      AND r.status IN ('active', 'waiting')
+      AND (r.resume_at <= NOW() OR (r.status = 'active' AND r.resume_at IS NULL))
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING *;
 
 -- name: UpdateFlowRun :exec
 UPDATE flow_runs

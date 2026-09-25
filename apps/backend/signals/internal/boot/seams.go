@@ -10,6 +10,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
 	"github.com/skeletg/skelet/apps/backend/core/lib/urlguard"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/archivefile"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
 )
@@ -69,7 +70,7 @@ func backupBucket(ctx context.Context) (*objstore.Storage, string) {
 
 // Lens keeps replay chunks and DOM snapshots in the store's own bucket - the same S3_* variables core's
 // media reads. Without one the rest of Lens still works, so this warns rather than refusing to boot
-func wireLensBlobStore(ctx context.Context, lensSvc *lens.Service) error {
+func wireLensBlobStore(ctx context.Context, lensSvc *lens.Service, channels *analytics.ChannelRoster) error {
 	bucket := os.Getenv("S3_BUCKET_NAME")
 	if bucket == "" {
 		slog.Warn("S3 not configured - session replays and page snapshots are dropped at ingest, so replay and heatmaps stay empty")
@@ -88,5 +89,6 @@ func wireLensBlobStore(ctx context.Context, lensSvc *lens.Service) error {
 		return err
 	}
 	lensSvc.SetBlobStore(store)
+	channels.SetBlobStore(store)
 	return nil
 }

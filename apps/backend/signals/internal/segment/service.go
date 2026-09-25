@@ -128,6 +128,21 @@ func (s *Service) List(ctx context.Context, limit, offset int32) ([]Segment, int
 	return s.repo.List(ctx, limit, offset)
 }
 
+func (s *Service) ListVisible(ctx context.Context, scope ChannelScope, limit, offset int32) ([]Segment, int32, error) {
+	if limit <= 0 {
+		limit = 25
+	}
+	return s.repo.ListVisible(ctx, scope, limit, offset)
+}
+
+func (s *Service) MemberCountsIn(ctx context.Context, ids []uuid.UUID, scope ChannelScope) (map[uuid.UUID]int32, error) {
+	return s.repo.CountMembersIn(ctx, ids, scope)
+}
+
+func (s *Service) CustomerChannels(ctx context.Context, customerIDs []uuid.UUID) (map[uuid.UUID]uuid.UUID, error) {
+	return s.repo.CustomerChannels(ctx, customerIDs)
+}
+
 func (s *Service) AssignCustomers(ctx context.Context, segmentID uuid.UUID, customerIDs []uuid.UUID) error {
 	return s.repo.BulkAddMembers(ctx, segmentID, customerIDs)
 }
@@ -162,8 +177,18 @@ func (s *Service) SegmentsForCustomer(ctx context.Context, customerID uuid.UUID)
 // Validates and stores a dynamic segment's condition tree - empty raw clears the rules, reverting to a static segment
 func (s *Service) SetRules(ctx context.Context, id uuid.UUID, raw json.RawMessage) (Segment, error) {
 	if len(raw) > 0 {
-		if _, err := ParseRules(raw); err != nil {
+		rules, err := ParseRules(raw)
+		if err != nil {
 			return Segment{}, err
+		}
+		seg, err := s.repo.Get(ctx, id)
+		if err != nil {
+			return Segment{}, err
+		}
+		if owner, owned := seg.OwnerChannel(); owned {
+			if err := rules.ValidateOwner(owner); err != nil {
+				return Segment{}, err
+			}
 		}
 	}
 	return s.repo.SetRules(ctx, id, raw)
@@ -178,6 +203,9 @@ func (s *Service) RefreshDynamic(ctx context.Context, id uuid.UUID) (int, error)
 	if err != nil {
 		return 0, err
 	}
+	if seg, err = s.fillSoleChannel(ctx, seg); err != nil {
+		return 0, err
+	}
 	rules, err := ParseRules(seg.Rules)
 	if err != nil {
 		return 0, err
@@ -185,11 +213,18 @@ func (s *Service) RefreshDynamic(ctx context.Context, id uuid.UUID) (int, error)
 	if rules == nil {
 		return 0, fmt.Errorf("segment %q has no rules - it is a static segment", seg.Slug)
 	}
+	owner, owned := seg.OwnerChannel()
+	if owned {
+		if err := rules.ValidateOwner(owner); err != nil {
+			return 0, err
+		}
+		rules.scopeTo(owner)
+	}
 	resolved, err := s.resolveWindowedConditions(ctx, rules)
 	if err != nil {
 		return 0, err
 	}
-	query, args := rules.Compile(resolved)
+	query, args := rules.CompileIn(resolved, owner)
 	rows, err := s.dbc.QueryContext(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("run segment rules: %w", err)
@@ -216,6 +251,30 @@ func (s *Service) RefreshDynamic(ctx context.Context, id uuid.UUID) (int, error)
 	return len(ids), nil
 }
 
+// Rules saved before money needed a channel are unambiguous on a one-channel install, so they're completed and stored rather than left failing
+func (s *Service) fillSoleChannel(ctx context.Context, seg Segment) (Segment, error) {
+	if RulesProblem(seg.Rules) == "" {
+		return seg, nil
+	}
+	channels, err := s.repo.RosterChannels(ctx)
+	if err != nil || len(channels) != 1 {
+		return seg, err
+	}
+	filled, changed := FillSoleChannel(seg.Rules, channels[0])
+	if !changed {
+		return seg, nil
+	}
+	ok, err := s.repo.FillRules(ctx, seg.ID, seg.Rules, filled)
+	if err != nil {
+		return seg, err
+	}
+	if !ok {
+		return s.repo.Get(ctx, seg.ID)
+	}
+	seg.Rules = filled
+	return seg, nil
+}
+
 // Sweeps every active rules-bearing segment - wired into the synapse-segment-refresh job alongside trait segments
 func (s *Service) RefreshAllDynamic(ctx context.Context) (segments, members int, err error) {
 	dyn, err := s.repo.ListDynamic(ctx)
@@ -223,6 +282,9 @@ func (s *Service) RefreshAllDynamic(ctx context.Context) (segments, members int,
 		return 0, 0, err
 	}
 	for _, seg := range dyn {
+		if ctx.Err() != nil {
+			return segments, members, errors.Join(err, ctx.Err())
+		}
 		n, rerr := s.RefreshDynamic(ctx, seg.ID)
 		if rerr != nil {
 			// One bad segment must not starve the rest of the sweep

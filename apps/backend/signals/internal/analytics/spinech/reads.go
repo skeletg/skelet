@@ -459,19 +459,19 @@ func (s *Store) CustomerProfile(ctx context.Context, customerID uuid.UUID, since
 	if err != nil {
 		return analytics.Profile{}, err
 	}
-	return s.profileFor(ctx, customerID, anonIDs, since)
+	return s.profileFor(ctx, person{cid: customerID, anon: anonIDs}, since)
 }
 
-func (s *Store) VisitorProfile(ctx context.Context, anonID string, since time.Time) (analytics.Profile, error) {
-	if anonID == "" {
+func (s *Store) VisitorProfile(ctx context.Context, channelID uuid.UUID, anonID string, since time.Time) (analytics.Profile, error) {
+	if anonID == "" || channelID == uuid.Nil {
 		return analytics.Profile{}, nil
 	}
-	return s.profileFor(ctx, uuid.Nil, []string{anonID}, since)
+	return s.profileFor(ctx, person{channel: channelID, anon: []string{anonID}}, since)
 }
 
 // profileFor rolls the spine into a Profile for a customer (zero = anonymous visitor) and/or anon ids - the shared core of Customer/VisitorProfile
-func (s *Store) profileFor(ctx context.Context, cid uuid.UUID, anonIDs []string, since time.Time) (analytics.Profile, error) {
-	pf, pfArgs := personFilter(cid, anonIDs)
+func (s *Store) profileFor(ctx context.Context, who person, since time.Time) (analytics.Profile, error) {
+	pf, pfArgs := who.filter()
 	base := func(extra ...any) []any { return append(append([]any{}, pfArgs...), append([]any{since}, extra...)...) }
 	var p analytics.Profile
 
@@ -529,16 +529,16 @@ func (s *Store) profileFor(ctx context.Context, cid uuid.UUID, anonIDs []string,
 	}
 
 	// context dimensions (reuse topValues)
-	p.Devices, _ = s.topValues(ctx, "device", cid, anonIDs, since)
-	p.Browsers, _ = s.topValues(ctx, "client", cid, anonIDs, since)
-	p.Referrers, _ = s.topValues(ctx, "referrer", cid, anonIDs, since)
-	p.IPs, _ = s.topValues(ctx, "ip", cid, anonIDs, since)
-	p.OSes, _ = s.topValues(ctx, "os", cid, anonIDs, since)
-	p.Screens, _ = s.topValues(ctx, "viewport", cid, anonIDs, since)
-	p.Countries, _ = s.topValues(ctx, "country", cid, anonIDs, since)
-	p.Sources, _ = s.topValues(ctx, "utm_source", cid, anonIDs, since)
-	p.Campaigns, _ = s.topValues(ctx, "utm_campaign", cid, anonIDs, since)
-	p.Searches, _ = s.topValues(ctx, "search_query", cid, anonIDs, since)
+	p.Devices, _ = s.topValues(ctx, "device", who, since)
+	p.Browsers, _ = s.topValues(ctx, "client", who, since)
+	p.Referrers, _ = s.topValues(ctx, "referrer", who, since)
+	p.IPs, _ = s.topValues(ctx, "ip", who, since)
+	p.OSes, _ = s.topValues(ctx, "os", who, since)
+	p.Screens, _ = s.topValues(ctx, "viewport", who, since)
+	p.Countries, _ = s.topValues(ctx, "country", who, since)
+	p.Sources, _ = s.topValues(ctx, "utm_source", who, since)
+	p.Campaigns, _ = s.topValues(ctx, "utm_campaign", who, since)
+	p.Searches, _ = s.topValues(ctx, "search_query", who, since)
 	p.TopPages, p.PagesViewedTotal = s.topPages(ctx, pf, base())
 	p.TopProducts = s.topProducts(ctx, pf, base())
 
@@ -645,17 +645,27 @@ func (s *Store) CustomerExperiments(ctx context.Context, customerID uuid.UUID, s
 	return out, rows.Err()
 }
 
-// personFilter builds the "this profile's events" WHERE fragment + its args: a customer (zero = anonymous visitor) OR any of their anon ids - VisitorProfile passes a zero customer so it never matches the zero-UUID anonymous events
-func personFilter(cid uuid.UUID, anonIDs []string) (string, []any) {
-	if cid != uuid.Nil {
-		return "(customer_id = ? OR has(?, anon_id))", []any{cid, anonIDs}
+type person struct {
+	cid     uuid.UUID
+	channel uuid.UUID
+	anon    []string
+}
+
+// A zero customer never matches the zero-UUID anonymous events, which is why a visitor passes none
+func (p person) filter() (string, []any) {
+	pf, args := "has(?, anon_id)", []any{p.anon}
+	if p.cid != uuid.Nil {
+		pf, args = "(customer_id = ? OR has(?, anon_id))", []any{p.cid, p.anon}
 	}
-	return "has(?, anon_id)", []any{anonIDs}
+	if p.channel != uuid.Nil {
+		return "channel_id = ? AND " + pf, append([]any{p.channel}, args...)
+	}
+	return pf, args
 }
 
 // topValues: the most frequent distinct values of one event-property key across a profile's events (device/browser/attr:<slug>/...)
-func (s *Store) topValues(ctx context.Context, key string, cid uuid.UUID, anonIDs []string, since time.Time) ([]analytics.ValueCount, error) {
-	pf, pfArgs := personFilter(cid, anonIDs)
+func (s *Store) topValues(ctx context.Context, key string, who person, since time.Time) ([]analytics.ValueCount, error) {
+	pf, pfArgs := who.filter()
 	args := append([]any{key}, pfArgs...)
 	args = append(args, since)
 	rows, err := s.conn.Query(ctx, `
@@ -678,10 +688,10 @@ func (s *Store) topValues(ctx context.Context, key string, cid uuid.UUID, anonID
 }
 
 // affinities: top values of each tracked attribute (attr:<slug>) over a profile
-func (s *Store) affinities(ctx context.Context, cid uuid.UUID, anonIDs []string, since time.Time, attrs []analytics.AffinityAttr) ([]analytics.AttributeAffinity, error) {
+func (s *Store) affinities(ctx context.Context, who person, since time.Time, attrs []analytics.AffinityAttr) ([]analytics.AttributeAffinity, error) {
 	out := make([]analytics.AttributeAffinity, 0, len(attrs))
 	for _, a := range attrs {
-		vals, err := s.topValues(ctx, "attr:"+a.Slug, cid, anonIDs, since)
+		vals, err := s.topValues(ctx, "attr:"+a.Slug, who, since)
 		if err != nil {
 			return nil, err
 		}
@@ -700,14 +710,14 @@ func (s *Store) CustomerAffinities(ctx context.Context, customerID uuid.UUID, si
 	if err != nil {
 		return nil, err
 	}
-	return s.affinities(ctx, customerID, anonIDs, since, attrs)
+	return s.affinities(ctx, person{cid: customerID, anon: anonIDs}, since, attrs)
 }
 
-func (s *Store) VisitorAffinities(ctx context.Context, anonID string, since time.Time, attrs []analytics.AffinityAttr) []analytics.AttributeAffinity {
-	if anonID == "" || len(attrs) == 0 {
+func (s *Store) VisitorAffinities(ctx context.Context, channelID uuid.UUID, anonID string, since time.Time, attrs []analytics.AffinityAttr) []analytics.AttributeAffinity {
+	if anonID == "" || channelID == uuid.Nil || len(attrs) == 0 {
 		return nil
 	}
-	out, _ := s.affinities(ctx, uuid.Nil, []string{anonID}, since, attrs)
+	out, _ := s.affinities(ctx, person{channel: channelID, anon: []string{anonID}}, since, attrs)
 	return out
 }
 
@@ -765,7 +775,7 @@ func (s *Store) CustomerTopAffinities(ctx context.Context, customerID uuid.UUID,
 	if err != nil {
 		return nil, err
 	}
-	pf, pfArgs := personFilter(customerID, anonIDs)
+	pf, pfArgs := person{cid: customerID, anon: anonIDs}.filter()
 	args := append(append([]any{}, pfArgs...), since)
 	rows, err := s.conn.Query(ctx, `
 		SELECT attr_key, attr_val FROM (

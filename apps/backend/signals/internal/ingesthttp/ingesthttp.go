@@ -104,7 +104,7 @@ func New(o Options) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Vary", "Authorization, Cookie")
 			var custSegments map[string]bool
-			if custID := auth.VerifiedStorefrontCustomer(r, o.JWTSecret); custID != uuid.Nil {
+			if custID := auth.VerifiedStorefrontCustomer(r, o.JWTSecret, channelID); custID != uuid.Nil {
 				if slugs, e := o.Segments.SlugsForCustomer(r.Context(), custID); e == nil {
 					custSegments = make(map[string]bool, len(slugs))
 					for _, s := range slugs {
@@ -154,7 +154,7 @@ func New(o Options) http.Handler {
 					hit.IsBot, hit.BotName, hit.BotCat = true, bot.Name, bot.Category
 				}
 				// Identity stitching trusts ONLY the session-verified customer - the batch body's customerId is attacker-controlled here
-				o.Lens.Ingest(r.Context(), channelID, b.AnonID, hit, b, auth.VerifiedStorefrontCustomer(r, o.JWTSecret))
+				o.Lens.Ingest(r.Context(), channelID, b.AnonID, hit, b, auth.VerifiedStorefrontCustomer(r, o.JWTSecret, channelID))
 			}
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPost && r.URL.Path == "/t/rec":
@@ -162,7 +162,7 @@ func New(o Options) http.Handler {
 			var rb lens.ReplayBatch
 			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 6<<20)).Decode(&rb); err == nil {
 				rb.AnonID = auth.SanitizeAnonID(rb.AnonID) // IngestReplay drops an id-less batch, so a garbage id drops the flush whole
-				o.Lens.IngestReplay(r.Context(), channelID, r.UserAgent(), rb)
+				o.Lens.IngestReplay(r.Context(), channelID, r.UserAgent(), rb, auth.VerifiedStorefrontCustomer(r, o.JWTSecret, channelID))
 			}
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPost && r.URL.Path == "/t/crawl":

@@ -30,6 +30,7 @@ SELECT channel_id, anon_id, last_browse_at, page_key, sku, product_name, product
 FROM browse_seen
 WHERE last_browse_at > sqlc.arg(max_age)::timestamptz
   AND (last_browse_at, anon_id) < (sqlc.arg(after_at)::timestamptz, sqlc.arg(after_anon)::text)
+  AND (sqlc.narg(channel_id)::uuid IS NULL OR channel_id = sqlc.narg(channel_id)::uuid)
 ORDER BY last_browse_at DESC, anon_id DESC
 LIMIT sqlc.arg(lim);
 

@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -250,6 +252,9 @@ func rosterEntry(e *signalsv1.RosterEntry) (analytics.RosterEntry, error) {
 		Phone: e.GetPhone(), IsActive: e.GetIsActive(),
 		MarketingOptedIn: e.GetMarketingOptedIn(), SMSOptedIn: e.GetSmsOptedIn(),
 	}
+	if e.GetReadAt() != nil {
+		out.ReadAt = e.GetReadAt().AsTime()
+	}
 	if cs := e.GetConsents(); len(cs) > 0 {
 		out.Consents = make(map[string]bool, len(cs))
 		for _, c := range cs {
@@ -320,16 +325,29 @@ func (s *ingestServer) SyncChannels(ctx context.Context, req *signalsv1.SyncChan
 	if err := requireSystem(ctx); err != nil {
 		return nil, err
 	}
+	if len(req.GetChannels()) == 0 {
+		return nil, invalidArgument("an empty channel set would prune every channel") // core always has its default channel
+	}
 	channels := make([]analytics.ChannelEntry, 0, len(req.GetChannels()))
+	complete := true
 	for _, e := range req.GetChannels() {
+		complete = complete && e.IsActive != nil
 		id, err := uuid.Parse(e.GetChannelId())
 		if err != nil {
 			return nil, invalidArgument("channel entry carries an unparseable id")
 		}
 		channels = append(channels, analytics.ChannelEntry{
-			ID: id, IsDefault: e.GetIsDefault(), Name: e.GetName(), PublicURL: e.GetPublicUrl(),
+			ID: id, IsDefault: e.GetIsDefault(), IsActive: e.IsActive == nil || e.GetIsActive(), Name: e.GetName(), PublicURL: e.GetPublicUrl(),
 			FromAddress: e.GetFromAddress(), FromName: e.GetFromName(), LogoURL: e.GetLogoUrl(),
 		})
+	}
+	if !complete {
+		slog.Warn("channel push without is_active - applied without pruning, since the deactivated channels it leaves out are not deleted ones", "channels", len(channels))
+		synced, err := s.channels.UpsertChannels(ctx, channels)
+		if err != nil {
+			return nil, err
+		}
+		return &signalsv1.SyncChannelsResponse{Synced: int32(synced)}, nil
 	}
 	synced, pruned, err := s.channels.SyncChannels(ctx, channels)
 	if err != nil {
@@ -338,8 +356,7 @@ func (s *ingestServer) SyncChannels(ctx context.Context, req *signalsv1.SyncChan
 	return &signalsv1.SyncChannelsResponse{Synced: int32(synced), Pruned: int32(pruned)}, nil
 }
 
-// EraseCustomerIdentities drops the mappings that would re-link an erased customer to their spine
-// events. Core surfaces a failure here rather than reporting an erasure it could not complete
+// Core surfaces a failure here rather than reporting an erasure it could not complete
 func (s *ingestServer) EraseCustomerIdentities(ctx context.Context, req *signalsv1.EraseCustomerIdentitiesRequest) (*signalsv1.EraseCustomerIdentitiesResponse, error) {
 	if err := requireSystem(ctx); err != nil {
 		return nil, err
@@ -356,6 +373,13 @@ func (s *ingestServer) EraseCustomerIdentities(ctx context.Context, req *signals
 		if err := s.sends.ScrubIdentity(ctx, id, req.GetEmail()); err != nil {
 			return nil, err
 		}
+	}
+	var erasedAt time.Time
+	if req.GetErasedAt() != nil {
+		erasedAt = req.GetErasedAt().AsTime()
+	}
+	if err := s.roster.EraseCustomer(ctx, id, req.GetEmail(), erasedAt); err != nil {
+		return nil, err
 	}
 	return &signalsv1.EraseCustomerIdentitiesResponse{}, nil
 }

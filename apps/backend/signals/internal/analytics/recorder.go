@@ -198,10 +198,11 @@ func (r *Recorder) Prune(ctx context.Context, before time.Time) (int64, error) {
 }
 
 // Spine hygiene that must NOT hang off the retention decision - queued ClickHouse erasures still have to run under keep-forever retention, or erasure requests sit unswept
-func (r *Recorder) Maintain(ctx context.Context) {
+func (r *Recorder) Maintain(ctx context.Context) error {
 	if err := r.sweepIdentityErasures(ctx); err != nil {
-		log.Printf("[analytics] identity erasure sweep: %v", err)
+		return fmt.Errorf("identity erasure sweep: %w", err)
 	}
+	return nil
 }
 
 type LensCellIncrement struct { // a binned heatmap increment from one tracker flush - ClickHouse appends these as raw events where Postgres upserts hot counter rows

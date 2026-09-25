@@ -22,12 +22,17 @@ type Repository interface {
 	Get(ctx context.Context, id uuid.UUID) (Segment, error)
 	GetBySlug(ctx context.Context, slug string) (Segment, error)
 	List(ctx context.Context, limit, offset int32) ([]Segment, int32, error)
+	ListVisible(ctx context.Context, scope ChannelScope, limit, offset int32) ([]Segment, int32, error)
+	CountMembersIn(ctx context.Context, ids []uuid.UUID, scope ChannelScope) (map[uuid.UUID]int32, error)
+	CustomerChannels(ctx context.Context, customerIDs []uuid.UUID) (map[uuid.UUID]uuid.UUID, error)
 	SetLifecycleWindows(ctx context.Context, id uuid.UUID, newDays, activeDays, atRiskDays *int32) (Segment, error)
 	RecordDailySnapshot(ctx context.Context, segmentID uuid.UUID) error
 	SetRules(ctx context.Context, id uuid.UUID, rules json.RawMessage) (Segment, error)
 	ListDynamic(ctx context.Context) ([]Segment, error)
 	// The channels the roster covers - what a windowed order condition asks the spine about, channel by channel
 	RosterChannels(ctx context.Context) ([]uuid.UUID, error)
+	// FillRules swaps the rules only while they still read old, false when an edit got there first
+	FillRules(ctx context.Context, id uuid.UUID, old, rules json.RawMessage) (bool, error)
 
 	AddMember(ctx context.Context, customerID, segmentID uuid.UUID) error
 	BulkAddMembers(ctx context.Context, segmentID uuid.UUID, customerIDs []uuid.UUID) error
@@ -252,6 +257,18 @@ func (r *postgresRepository) SetRules(ctx context.Context, id uuid.UUID, rules j
 	return toSegment(row), nil
 }
 
+func (r *postgresRepository) FillRules(ctx context.Context, id uuid.UUID, old, rules json.RawMessage) (bool, error) {
+	n, err := r.queries.FillSegmentRules(ctx, db.FillSegmentRulesParams{
+		ID:    id,
+		Rules: pqtype.NullRawMessage{RawMessage: rules, Valid: len(rules) > 0},
+		Old:   pqtype.NullRawMessage{RawMessage: old, Valid: len(old) > 0},
+	})
+	if err != nil {
+		return false, fmt.Errorf("fill segment rules: %w", err)
+	}
+	return n > 0, nil
+}
+
 func (r *postgresRepository) RosterChannels(ctx context.Context) ([]uuid.UUID, error) {
 	return r.queries.RosterChannels(ctx)
 }
@@ -298,4 +315,54 @@ func int32PtrToNull(p *int32) sql.NullInt32 {
 		return sql.NullInt32{}
 	}
 	return sql.NullInt32{Int32: *p, Valid: true}
+}
+
+func (r *postgresRepository) ListVisible(ctx context.Context, scope ChannelScope, limit, offset int32) ([]Segment, int32, error) {
+	chans := make([]string, len(scope.Channels))
+	for i, c := range scope.Channels {
+		chans[i] = c.String()
+	}
+	rows, err := r.queries.ListVisibleCustomerSegments(ctx, db.ListVisibleCustomerSegmentsParams{AllChannels: scope.All, ChannelIds: chans, Lim: limit, Off: offset})
+	if err != nil {
+		return nil, 0, fmt.Errorf("list segments: %w", err)
+	}
+	count, err := r.queries.CountVisibleCustomerSegments(ctx, db.CountVisibleCustomerSegmentsParams{AllChannels: scope.All, ChannelIds: chans})
+	if err != nil {
+		return nil, 0, fmt.Errorf("count segments: %w", err)
+	}
+	out := make([]Segment, len(rows))
+	for i, row := range rows {
+		out[i] = toSegment(row)
+	}
+	return out, count, nil
+}
+
+func (r *postgresRepository) CountMembersIn(ctx context.Context, ids []uuid.UUID, scope ChannelScope) (map[uuid.UUID]int32, error) {
+	out := make(map[uuid.UUID]int32, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.CountSegmentMembersInChannels(ctx, db.CountSegmentMembersInChannelsParams{SegmentIds: ids, AllChannels: scope.All, ChannelIds: scope.Channels})
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.SegmentID] = row.Count
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) CustomerChannels(ctx context.Context, customerIDs []uuid.UUID) (map[uuid.UUID]uuid.UUID, error) {
+	out := make(map[uuid.UUID]uuid.UUID, len(customerIDs))
+	if len(customerIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.RosterChannelsOfCustomers(ctx, customerIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.CustomerID] = row.ChannelID
+	}
+	return out, nil
 }

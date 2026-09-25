@@ -96,13 +96,21 @@ func (q *Queries) CreateEventDestination(ctx context.Context, arg CreateEventDes
 	return i, err
 }
 
-const deleteEventDestination = `-- name: DeleteEventDestination :exec
-DELETE FROM event_destinations WHERE id = $1
+const deleteEventDestination = `-- name: DeleteEventDestination :execrows
+DELETE FROM event_destinations WHERE id = $1 AND channel_id = $2
 `
 
-func (q *Queries) DeleteEventDestination(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteEventDestination, id)
-	return err
+type DeleteEventDestinationParams struct {
+	ID        uuid.UUID `json:"id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+}
+
+func (q *Queries) DeleteEventDestination(ctx context.Context, arg DeleteEventDestinationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteEventDestination, arg.ID, arg.ChannelID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getEventDestination = `-- name: GetEventDestination :one
@@ -240,7 +248,7 @@ SET name = $1, kind = $2, target_url = $3,
     secret = COALESCE(NULLIF($4::text, ''), secret),
     event_sources = $5, event_names = $6,
     is_active = $7, updated_at = NOW()
-WHERE id = $8
+WHERE id = $8 AND channel_id = $9
 RETURNING id, channel_id, name, kind, target_url, secret, event_sources, event_names, is_active, cursor_created_at, cursor_event_id, last_error, last_forwarded_at, created_at, updated_at
 `
 
@@ -253,6 +261,7 @@ type UpdateEventDestinationParams struct {
 	EventNames   []string  `json:"event_names"`
 	IsActive     bool      `json:"is_active"`
 	ID           uuid.UUID `json:"id"`
+	ChannelID    uuid.UUID `json:"channel_id"`
 }
 
 // The secret is write-only (never returned by the API), so an edit
@@ -267,6 +276,7 @@ func (q *Queries) UpdateEventDestination(ctx context.Context, arg UpdateEventDes
 		pq.Array(arg.EventNames),
 		arg.IsActive,
 		arg.ID,
+		arg.ChannelID,
 	)
 	var i EventDestination
 	err := row.Scan(

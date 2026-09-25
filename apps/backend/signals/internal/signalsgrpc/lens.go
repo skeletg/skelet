@@ -4,9 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
 )
@@ -163,7 +165,8 @@ func (s *lensServer) ListSessions(ctx context.Context, req *signalsv1.ListSessio
 }
 
 func (s *lensServer) ListCustomerSessions(ctx context.Context, req *signalsv1.ListCustomerSessionsRequest) (*signalsv1.ListCustomerSessionsResponse, error) {
-	if err := requirePermission(ctx, "lens.view"); err != nil {
+	channels, err := lensChannels(ctx)
+	if err != nil {
 		return nil, err
 	}
 	id, err := parseID("customer_id", req.GetCustomerId())
@@ -174,7 +177,10 @@ func (s *lensServer) ListCustomerSessions(ctx context.Context, req *signalsv1.Li
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.svc.SessionsForCustomer(ctx, id, offset+size)
+	if channels != nil && len(channels) == 0 {
+		return &signalsv1.ListCustomerSessionsResponse{}, nil
+	}
+	rows, err := s.svc.SessionsForCustomer(ctx, id, channels, offset+size)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +189,8 @@ func (s *lensServer) ListCustomerSessions(ctx context.Context, req *signalsv1.Li
 }
 
 func (s *lensServer) ListVisitorSessions(ctx context.Context, req *signalsv1.ListVisitorSessionsRequest) (*signalsv1.ListVisitorSessionsResponse, error) {
-	if err := requirePermission(ctx, "lens.view"); err != nil {
+	channels, err := lensChannels(ctx)
+	if err != nil {
 		return nil, err
 	}
 	if req.GetAnonId() == "" {
@@ -193,12 +200,30 @@ func (s *lensServer) ListVisitorSessions(ctx context.Context, req *signalsv1.Lis
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.svc.SessionsForAnon(ctx, req.GetAnonId(), offset+size)
+	if channels != nil && len(channels) == 0 {
+		return &signalsv1.ListVisitorSessionsResponse{}, nil
+	}
+	rows, err := s.svc.SessionsForAnon(ctx, req.GetAnonId(), channels, offset+size)
 	if err != nil {
 		return nil, err
 	}
 	sessions, next := sessionPage(rows, offset, size)
 	return &signalsv1.ListVisitorSessionsResponse{Sessions: sessions, NextPageToken: next}, nil
+}
+
+// A visitor's or customer's sessions span every store they browsed, so the listing keeps to the channels the caller holds lens.view on - nil is all of them
+func lensChannels(ctx context.Context) ([]uuid.UUID, error) {
+	if err := requirePermission(ctx, "lens.view"); err != nil {
+		return nil, err
+	}
+	perm, err := auth.LoadPermittedChannels(ctx, auth.GrantCheckerFrom(ctx), "lens.view")
+	if err != nil {
+		return nil, err
+	}
+	if perm.Bypass() {
+		return nil, nil
+	}
+	return append([]uuid.UUID{}, perm.IDs()...), nil
 }
 
 // Chunked because a recording runs to megabytes - the caller concatenates them back into the JSON

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
@@ -138,5 +139,28 @@ func TestServiceTokenExpires(t *testing.T) {
 	}
 	if _, err := ValidateServiceToken(token, "signals", svcSecret); err == nil {
 		t.Error("an expired token validated, so revocation by TTL would never take effect")
+	}
+}
+
+func TestServiceTokenRefusesNoExpiryAndOtherHMACs(t *testing.T) {
+	sign := func(m jwt.SigningMethod, exp bool) string {
+		c := serviceJWTClaims{Type: "service", Audience: jwt.ClaimStrings{"signals"}, AdminID: uuid.New()}
+		if exp {
+			c.ExpiresAt = jwt.NewNumericDate(time.Now().Add(time.Minute))
+		}
+		s, err := jwt.NewWithClaims(m, c).SignedString([]byte(svcSecret))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	if _, err := ValidateServiceToken(sign(jwt.SigningMethodHS256, false), "signals", svcSecret); err == nil {
+		t.Error("a service token with no expiry validated, so a leaked one would work forever")
+	}
+	if _, err := ValidateServiceToken(sign(jwt.SigningMethodHS512, true), "signals", svcSecret); err == nil {
+		t.Error("an HS512 service token validated, want only the HS256 core mints")
+	}
+	if _, err := ValidateServiceToken(sign(jwt.SigningMethodHS256, true), "signals", svcSecret); err != nil {
+		t.Errorf("an HS256 token with an expiry = %v, want valid", err)
 	}
 }

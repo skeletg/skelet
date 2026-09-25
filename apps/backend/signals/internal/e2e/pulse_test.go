@@ -23,7 +23,7 @@ func (h *harness) shop(t *testing.T) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
 	if _, _, err := h.d.Channels.SyncChannels(h.ctx, []analytics.ChannelEntry{{
-		ID: id, Name: "E2E Shop", PublicURL: "https://shop.e2e.test", FromAddress: "hello@e2e.test", FromName: "E2E Shop",
+		ID: id, IsActive: true, Name: "E2E Shop", PublicURL: "https://shop.e2e.test", FromAddress: "hello@e2e.test", FromName: "E2E Shop",
 	}}); err != nil {
 		t.Fatalf("push channel: %v", err)
 	}
