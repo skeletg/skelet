@@ -276,6 +276,11 @@ type QuestionAverage struct {
 }
 
 // The cached AI "what customers say" summary, served verbatim with no AI call at render
+type SummaryKey struct {
+	ProductID uuid.UUID
+	ChannelID uuid.UUID
+}
+
 type ProductReviewSummary struct {
 	ProductID   uuid.UUID
 	Summary     string

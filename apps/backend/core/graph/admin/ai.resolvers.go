@@ -15,15 +15,15 @@ import (
 )
 
 func (r *mutationResolver) GenerateCMSPageSeo(ctx context.Context, pageID string, locale string) (*model.AISeoSuggestion, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	if r.AISvc == nil {
 		return nil, errNotConfigured("ai")
 	}
 	pid, err := uuid.Parse(pageID)
 	if err != nil {
 		return nil, errInvalidID("id", err)
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", pid, locale); err != nil {
+		return nil, err
 	}
 	page, err := r.CMSSvc.GetPage(ctx, pid, locale)
 	if err != nil {
@@ -66,9 +66,6 @@ func (r *mutationResolver) GenerateMediaAltText(ctx context.Context, assetID str
 }
 
 func (r *mutationResolver) TranslateCMSPage(ctx context.Context, pageID string, sourceLocale string, targetLocale string) (*model.CMSPage, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	if r.AISvc == nil {
 		return nil, errNotConfigured("ai")
 	}
@@ -78,6 +75,9 @@ func (r *mutationResolver) TranslateCMSPage(ctx context.Context, pageID string, 
 	pid, err := uuid.Parse(pageID)
 	if err != nil {
 		return nil, errInvalidID("id", err)
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", pid, targetLocale); err != nil {
+		return nil, err
 	}
 	page, err := r.CMSSvc.GetPage(ctx, pid, sourceLocale)
 	if err != nil {

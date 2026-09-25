@@ -18,7 +18,8 @@ SELECT n.*, (r.read_at IS NOT NULL) AS is_read
 FROM admin_notifications n
 LEFT JOIN notification_reads r ON r.notification_id = n.id AND r.admin_id = sqlc.arg(admin_id)
 WHERE (sqlc.arg(bypass)::bool OR n.required_permission = ANY(sqlc.arg(perms)::text[]))
-  AND (sqlc.arg(bypass)::bool OR n.channel_id IS NULL OR n.channel_id = ANY(sqlc.arg(channels)::uuid[]))
+  AND (sqlc.arg(bypass)::bool OR n.channel_id IS NULL OR n.required_permission = ANY(sqlc.arg(global_perms)::text[])
+       OR (n.required_permission || '|' || n.channel_id::text) = ANY(sqlc.arg(perm_channels)::text[]))
   AND NOT (n.category = ANY(COALESCE(sqlc.arg(muted)::text[], '{}')))
   AND (NOT sqlc.arg(unread_only)::bool OR r.read_at IS NULL)
 ORDER BY n.created_at DESC
@@ -29,7 +30,8 @@ SELECT COUNT(*)::bigint
 FROM admin_notifications n
 LEFT JOIN notification_reads r ON r.notification_id = n.id AND r.admin_id = sqlc.arg(admin_id)
 WHERE (sqlc.arg(bypass)::bool OR n.required_permission = ANY(sqlc.arg(perms)::text[]))
-  AND (sqlc.arg(bypass)::bool OR n.channel_id IS NULL OR n.channel_id = ANY(sqlc.arg(channels)::uuid[]))
+  AND (sqlc.arg(bypass)::bool OR n.channel_id IS NULL OR n.required_permission = ANY(sqlc.arg(global_perms)::text[])
+       OR (n.required_permission || '|' || n.channel_id::text) = ANY(sqlc.arg(perm_channels)::text[]))
   AND NOT (n.category = ANY(COALESCE(sqlc.arg(muted)::text[], '{}')))
   AND r.read_at IS NULL;
 
@@ -44,7 +46,8 @@ SELECT n.id, sqlc.arg(admin_id)
 FROM admin_notifications n
 LEFT JOIN notification_reads r ON r.notification_id = n.id AND r.admin_id = sqlc.arg(admin_id)
 WHERE (sqlc.arg(bypass)::bool OR n.required_permission = ANY(sqlc.arg(perms)::text[]))
-  AND (sqlc.arg(bypass)::bool OR n.channel_id IS NULL OR n.channel_id = ANY(sqlc.arg(channels)::uuid[]))
+  AND (sqlc.arg(bypass)::bool OR n.channel_id IS NULL OR n.required_permission = ANY(sqlc.arg(global_perms)::text[])
+       OR (n.required_permission || '|' || n.channel_id::text) = ANY(sqlc.arg(perm_channels)::text[]))
   AND NOT (n.category = ANY(COALESCE(sqlc.arg(muted)::text[], '{}')))
   AND r.read_at IS NULL
 ON CONFLICT DO NOTHING;

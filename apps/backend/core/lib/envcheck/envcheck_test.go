@@ -259,7 +259,8 @@ func TestSignalsCallerSecret(t *testing.T) {
 		env  map[string]string
 		want string // substring of the one error expected, empty for none
 	}{
-		"no suite dialled":      {map[string]string{"JWT_SECRET": strong}, ""},
+		"enabled, unaddressed":  {map[string]string{"JWT_SECRET": strong}, "SIGNALS_GRPC_ADDR is empty"},
+		"off, unaddressed":      {map[string]string{"SIGNALS_ENABLED": "false"}, ""},
 		"switched off":          {map[string]string{"SIGNALS_GRPC_ADDR": "signals:8092", "SIGNALS_ENABLED": "false"}, ""},
 		"missing":               {map[string]string{"SIGNALS_GRPC_ADDR": "signals:8092"}, "must be a strong secret"},
 		"short":                 {map[string]string{"SIGNALS_GRPC_ADDR": "signals:8092", "SIGNALS_SERVICE_SECRET": "short"}, "at least 32"},

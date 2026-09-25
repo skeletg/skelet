@@ -5,7 +5,10 @@ package admin
 
 import (
 	"context"
+	"strings"
+	"sync"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,7 +28,24 @@ func signalsCtx(ctx context.Context, r *Resolver) (context.Context, error) {
 	if err != nil {
 		return nil, signalsErr(err)
 	}
+	markSignalsRelayed(ctx)
 	return authed, nil
+}
+
+// The dashboard clears its "Signals is not reachable" banner only on a response carrying this
+const signalsRelayedExtension = "signalsRelayed"
+
+var signalsRelayedMu sync.Mutex
+
+func markSignalsRelayed(ctx context.Context) {
+	if graphql.GetFieldContext(ctx) == nil {
+		return
+	}
+	signalsRelayedMu.Lock()
+	defer signalsRelayedMu.Unlock()
+	if _, ok := graphql.GetExtensions(ctx)[signalsRelayedExtension]; !ok {
+		graphql.RegisterExtension(ctx, signalsRelayedExtension, true)
+	}
 }
 
 // A gRPC status is the suite answering, and its code carries the class the dashboard renders on
@@ -36,7 +56,10 @@ func signalsErr(err error) error {
 	if signalsclient.Unreachable(err) {
 		return apperr.New("SIGNALS_UNAVAILABLE", apperr.ClassUnavailable, "the Signals service is unavailable")
 	}
-	st := status.Convert(err)
+	st, ok := status.FromError(err)
+	if !ok {
+		return err // not the suite answering, so its own code and class stand
+	}
 	class := apperr.ClassInternal
 	switch st.Code() {
 	case codes.InvalidArgument, codes.FailedPrecondition, codes.OutOfRange:
@@ -52,7 +75,7 @@ func signalsErr(err error) error {
 	case codes.ResourceExhausted:
 		class = apperr.ClassRateLimited
 	}
-	return apperr.New("SIGNALS_"+st.Code().String(), class, st.Message())
+	return apperr.New("SIGNALS_"+grpcCodeName(st.Code()), class, st.Message())
 }
 
 // The permission gate core can make on its own - the suite gates again on the channel the data belongs to
@@ -76,6 +99,17 @@ func (r *Resolver) signalsChannel(ctx context.Context, perm, channelID string) (
 		return nil, err
 	}
 	return signalsCtx(ctx, r)
+}
+
+func grpcCodeName(c codes.Code) string {
+	var b strings.Builder
+	for i, ch := range c.String() {
+		if i > 0 && ch >= 'A' && ch <= 'Z' {
+			b.WriteByte('_')
+		}
+		b.WriteRune(ch)
+	}
+	return strings.ToUpper(b.String())
 }
 
 func signalsNotFound(err error) bool {

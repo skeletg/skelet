@@ -588,5 +588,8 @@ SET resolved = $2, resolved_by = $3,
 WHERE id = $1
 RETURNING *;
 
+-- name: GetCMSPageComment :one
+SELECT * FROM cms_page_comments WHERE id = $1;
+
 -- name: DeleteCMSPageComment :exec
 DELETE FROM cms_page_comments WHERE id = $1;

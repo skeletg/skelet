@@ -25,12 +25,9 @@ func (s *Service) Register(bus *events.Bus) {
 			return nil
 		}
 		// Guests enroll keyed by the order email, so they get a receipt too
-		if s.flowTook(func(d FlowDispatcher) int {
+		s.deliver(ctx, evt.OrderID, kindConfirmation, "", func(d FlowDispatcher) int {
 			return d.OnOrderPlaced(ctx, evt.ChannelID, customerIDOrNil(evt.CustomerID), evt.Email, evt.OrderID, Snapshot(o))
-		}) {
-			return nil
-		}
-		s.sendOnce(ctx, evt.OrderID, kindConfirmation, "", func() error { return s.sendConfirmation(ctx, o, ch) })
+		}, func() error { return s.sendConfirmation(ctx, o, ch) })
 		return nil
 	})
 
@@ -40,16 +37,13 @@ func (s *Service) Register(bus *events.Bus) {
 		if !ok {
 			return nil
 		}
-		if s.flowTook(func(d FlowDispatcher) int {
+		s.deliver(ctx, evt.OrderID, kindShipment, evt.FulfillmentID.String(), func(d FlowDispatcher) int {
 			ful, ferr := s.orders.GetFulfillment(ctx, evt.FulfillmentID)
 			if ferr != nil {
-				return 0 // no fulfillment, no tracking to show - the direct send below loads it again and reports properly
+				return 0 // no fulfillment, no tracking to show - the direct send loads it again and reports properly
 			}
 			return d.OnOrderShipped(ctx, evt.ChannelID, customerIDOrNil(o.CustomerID), o.Email, evt.OrderID, evt.FulfillmentID, ShipmentSnapshot(o, ful))
-		}) {
-			return nil
-		}
-		s.sendOnce(ctx, evt.OrderID, kindShipment, evt.FulfillmentID.String(), func() error { return s.sendShipment(ctx, o, ch, evt.FulfillmentID) })
+		}, func() error { return s.sendShipment(ctx, o, ch, evt.FulfillmentID) })
 		return nil
 	})
 
@@ -62,12 +56,9 @@ func (s *Service) Register(bus *events.Bus) {
 		if !ok {
 			return nil
 		}
-		if s.flowTook(func(d FlowDispatcher) int {
+		s.deliver(ctx, evt.OrderID, kindCancellation, "", func(d FlowDispatcher) int {
 			return d.OnOrderCancelled(ctx, evt.ChannelID, customerIDOrNil(o.CustomerID), o.Email, evt.OrderID, Snapshot(o))
-		}) {
-			return nil
-		}
-		s.sendOnce(ctx, evt.OrderID, kindCancellation, "", func() error { return s.sendCancellation(ctx, o, ch) })
+		}, func() error { return s.sendCancellation(ctx, o, ch) })
 		return nil
 	})
 
@@ -84,34 +75,45 @@ func (s *Service) Register(bus *events.Bus) {
 		if !ok {
 			return nil
 		}
-		if s.flowTook(func(d FlowDispatcher) int {
+		s.deliver(ctx, evt.OrderID, kindRefund, ref, func(d FlowDispatcher) int {
 			snap := Snapshot(o)
 			snap.RefundedAmount = RefundedAmount(ctx, s.orders, o.ID)
 			return d.OnPaymentRefunded(ctx, evt.ChannelID, customerIDOrNil(o.CustomerID), o.Email, evt.OrderID, ref, snap)
-		}) {
-			return nil
-		}
-		s.sendOnce(ctx, evt.OrderID, kindRefund, ref, func() error { return s.sendRefund(ctx, o, ch) })
+		}, func() error { return s.sendRefund(ctx, o, ch) })
 		return nil
 	})
 }
 
 // The outbox redelivers an event whose handler finished but whose delivery was never marked done, and a second receipt reads to a customer as a second order
-// Recorded after the send, since a row written for mail that never left would suppress the real one
-func (s *Service) sendOnce(ctx context.Context, orderID uuid.UUID, kind, ref string, send func() error) {
-	if s.sendLog == nil {
-		logSend(send())
+// Core's own log is read before any flow is asked, so a replay of mail core already sent can't hand it to a flow as a second copy
+func (s *Service) deliver(ctx context.Context, orderID uuid.UUID, kind, ref string, enroll func(FlowDispatcher) int, send func() error) {
+	if s.alreadySent(ctx, orderID, kind, ref) {
 		return
+	}
+	if s.flowTook(enroll) {
+		return
+	}
+	s.sendAndRecord(ctx, orderID, kind, ref, send)
+}
+
+func (s *Service) alreadySent(ctx context.Context, orderID uuid.UUID, kind, ref string) bool {
+	if s.sendLog == nil {
+		return false
 	}
 	sent, err := s.sendLog.AlreadySent(ctx, orderID, kind, ref)
 	if err != nil {
 		log.Printf("[ordermail] send log read: %v", err) // sends anyway - a missing receipt costs more than a duplicate
 	}
-	if sent {
-		return
-	}
+	return sent
+}
+
+// Recorded after the send, since a row written for mail that never left would suppress the real one
+func (s *Service) sendAndRecord(ctx context.Context, orderID uuid.UUID, kind, ref string, send func() error) {
 	if err := send(); err != nil {
 		logSend(err)
+		return
+	}
+	if s.sendLog == nil {
 		return
 	}
 	if err := s.sendLog.RecordSent(ctx, orderID, kind, ref); err != nil {

@@ -27,8 +27,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM alpine:3.24
 # ca-certificates for outbound TLS, curl for the healthcheck, tzdata for the retention windows' day math
-# postgresql18-client for the pg_dump of the suite's own database (client major >= server major)
-RUN apk add --no-cache ca-certificates curl tzdata postgresql18-client && adduser -D -u 10001 app
+RUN apk add --no-cache ca-certificates curl tzdata && adduser -D -u 10001 app
 WORKDIR /app
 COPY --from=build /out/signals /app/signals
 COPY --from=build /out/ingest /app/ingest

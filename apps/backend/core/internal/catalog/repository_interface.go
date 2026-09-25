@@ -129,6 +129,7 @@ type Repository interface {
 	ListProductChannelListingsByChannel(ctx context.Context, channelID uuid.UUID) ([]ProductChannelListing, error)
 	ListProductChannelListingsByProduct(ctx context.Context, productID uuid.UUID) ([]ProductChannelListing, error)
 	ListProductChannelListingsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error)
+	ListProductChannelListingsByProductIDsForChannel(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error)
 	UpdateProductURL(ctx context.Context, id uuid.UUID, url string) error
 	UpsertProductChannelListing(ctx context.Context, input ProductChannelListingInput) (ProductChannelListing, error)
 	// Tier (customer-group / quantity-break) prices

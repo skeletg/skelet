@@ -294,7 +294,7 @@ type PlaceOrderInput struct {
 
 // Redeems a gift card as a tender in the placement tx, where applied is the cents covered - local so order doesn't import giftcard, which imports order
 type GiftCardTender interface {
-	RedeemTx(ctx context.Context, tx *sql.Tx, code string, amountDue int64, currency string, orderID uuid.UUID) (applied int64, err error)
+	RedeemTx(ctx context.Context, tx *sql.Tx, code string, channelID uuid.UUID, amountDue int64, currency string, orderID uuid.UUID) (applied int64, err error)
 }
 
 // Spends the customer's balance as a tender in the placement tx - local so order doesn't import storecredit
@@ -524,7 +524,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			return err
 		}
 		// Gift-card tenders redeem codes against the full total, since tax was on it, and the provider takes the remainder - in this tx so a failure rolls the debits back
-		giftCardApplied, err := s.applyGiftCardTenders(ctx, sqlTx, orderR, order.ID, in, total, store.CurrencyCode)
+		giftCardApplied, err := s.applyGiftCardTenders(ctx, sqlTx, orderR, order.ID, store.ID, in, total, store.CurrencyCode)
 		if err != nil {
 			return err
 		}

@@ -4,26 +4,31 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/campaign"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/sendlog"
 )
 
 type pulseServer struct {
 	signalsv1.UnimplementedPulseServiceServer
-	rec    *analytics.Recorder
-	sends  *sendlog.Store
-	roster rosterChannels // the customer's own channel, for the per-customer read below
+	rec       *analytics.Recorder
+	sends     *sendlog.Store
+	roster    rosterChannels // the customer's own channel, for the per-customer read below
+	campaigns campaignReader
+}
+
+type campaignReader interface {
+	Get(ctx context.Context, id uuid.UUID) (campaign.Campaign, bool, error)
 }
 
 func (s *pulseServer) GetEngagement(ctx context.Context, req *signalsv1.GetEngagementRequest) (*signalsv1.GetEngagementResponse, error) {
-	if err := requirePermission(ctx, "emails.view"); err != nil {
-		return nil, err
-	}
-	cid, err := parseID("channel_id", req.GetChannelId())
+	cid, err := channelScope(ctx, "emails.view", req.GetChannelId())
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +99,21 @@ func (s *pulseServer) GetCampaignVariantStats(ctx context.Context, req *signalsv
 	id, err := parseID("campaign_id", req.GetCampaignId())
 	if err != nil {
 		return nil, err
+	}
+	if !auth.IsSystemCaller(ctx) {
+		if s.campaigns == nil {
+			return nil, status.Error(codes.FailedPrecondition, "campaigns are not configured")
+		}
+		c, ok, err := s.campaigns.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, notFound("campaign")
+		}
+		if err := requireChannel(ctx, "campaigns.view", c.ChannelID); err != nil {
+			return nil, err
+		}
 	}
 	if s.sends == nil {
 		return &signalsv1.GetCampaignVariantStatsResponse{}, nil

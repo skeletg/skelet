@@ -8,7 +8,7 @@ lint:
 breaking:
   use:
     - FILE
-  # The rollup backfill is gone from the contract - lift this once develop no longer carries the RPC
+  # main still carries the rollup backfill RPC this contract drops - lift once main matches
   ignore_only:
     RPC_NO_DELETE:
       - skelet/signals/v1/maintenance.proto

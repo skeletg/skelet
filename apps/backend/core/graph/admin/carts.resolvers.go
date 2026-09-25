@@ -17,6 +17,9 @@ func (r *mutationResolver) AdminCreateCart(ctx context.Context, channelID string
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "orders.update", chID, nil); err != nil {
 		return nil, err
 	}
+	if err := r.requireCustomerOnChannel(ctx, parseOptionalUUID(customerID), chID); err != nil {
+		return nil, err
+	}
 	c, err := r.CartSvc.AdminCreateCart(ctx, chID, parseOptionalUUID(customerID))
 	if err != nil {
 		return nil, err
@@ -122,6 +125,13 @@ func (r *mutationResolver) AdminDuplicateCart(ctx context.Context, cartID string
 	if err != nil {
 		return nil, err
 	}
+	src, err := r.CartSvc.Repo().GetCartByID(ctx, id)
+	if err != nil {
+		return nil, errNotFound("cart")
+	}
+	if err := r.requireCustomerOnChannel(ctx, parseOptionalUUID(targetCustomerID), src.ChannelID); err != nil {
+		return nil, err
+	}
 	c, err := r.CartSvc.AdminDuplicateCart(ctx, id, parseOptionalUUID(targetCustomerID))
 	if err != nil {
 		return nil, err
@@ -175,6 +185,9 @@ func (r *queryResolver) Carts(ctx context.Context, channelID string, customerID 
 }
 
 func (r *queryResolver) Cart(ctx context.Context, id string) (*model.AdminCart, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.view"); err != nil {
+		return nil, err
+	}
 	cartID, err := parseID(id, "cart")
 	if err != nil {
 		return nil, err

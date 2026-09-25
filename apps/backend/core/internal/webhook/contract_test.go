@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/internal/circuit"
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 )
 
 // --- fakes ---
@@ -25,6 +26,7 @@ type fakeRepo struct {
 	secrets    map[uuid.UUID]string
 	deliveries []Delivery
 	queue      []*QueueItem
+	dedup      map[string]bool
 }
 
 func newFakeRepo(webhooks ...Webhook) *fakeRepo {
@@ -91,9 +93,10 @@ func (r *fakeRepo) ListDeliveries(context.Context, uuid.UUID, int32) ([]Delivery
 func (r *fakeRepo) DeliveryStats(context.Context, uuid.UUID) (DeliveryStats, error) {
 	return DeliveryStats{}, nil
 }
-func (r *fakeRepo) ClearDeliveries(context.Context, uuid.UUID) (int64, error) { return 0, nil }
-func (r *fakeRepo) PruneDeliveries(context.Context, time.Time) (int64, error) { return 0, nil }
-func (r *fakeRepo) WithTx(*sql.Tx) Repository                                 { return r }
+func (r *fakeRepo) ClearDeliveries(context.Context, uuid.UUID) (int64, error)   { return 0, nil }
+func (r *fakeRepo) PruneDeliveries(context.Context, time.Time) (int64, error)   { return 0, nil }
+func (r *fakeRepo) PruneEnqueueDedup(context.Context, time.Time) (int64, error) { return 0, nil }
+func (r *fakeRepo) WithTx(*sql.Tx) Repository                                   { return r }
 
 func (r *fakeRepo) GetByID(_ context.Context, id uuid.UUID) (Webhook, error) {
 	r.mu.Lock()
@@ -119,9 +122,19 @@ func (r *fakeRepo) GetDelivery(_ context.Context, id uuid.UUID) (Delivery, error
 
 // --- in-memory queue mirroring the SQL semantics ---
 
-func (r *fakeRepo) Enqueue(_ context.Context, webhookID uuid.UUID, eventType, payload string) (QueueItem, error) {
+func (r *fakeRepo) Enqueue(_ context.Context, webhookID uuid.UUID, eventType, payload, dedupeKey string) (QueueItem, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if dedupeKey != "" {
+		if r.dedup == nil {
+			r.dedup = map[string]bool{}
+		}
+		k := webhookID.String() + "|" + dedupeKey
+		if r.dedup[k] {
+			return QueueItem{}, nil
+		}
+		r.dedup[k] = true
+	}
 	item := QueueItem{
 		ID: uuid.New(), WebhookID: webhookID, EventType: eventType, Payload: payload,
 		Status: QueuePending, NextAttemptAt: time.Now(),
@@ -571,6 +584,28 @@ func TestQueueWorkerDeliversAndCompletes(t *testing.T) {
 	}
 }
 
+func TestOutboxReplayEnqueuesOnce(t *testing.T) {
+	d, repo := dispatcherFor(asyncWebhook("http://127.0.0.1:1"))
+	row := uuid.New()
+	replay := events.WithOutboxID(context.Background(), row)
+	for range 3 {
+		if err := d.dispatchAsync(replay, &plainEvent{"test.evented"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(repo.queue) != 1 {
+		t.Fatalf("replays of one outbox event queued %d deliveries, want 1", len(repo.queue))
+	}
+	if err := d.dispatchAsync(events.WithOutboxID(context.Background(), uuid.New()), &plainEvent{"test.evented"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = d.dispatchAsync(context.Background(), &plainEvent{"test.evented"})
+	_ = d.dispatchAsync(context.Background(), &plainEvent{"test.evented"})
+	if len(repo.queue) != 4 {
+		t.Fatalf("distinct events queued %d deliveries, want 4", len(repo.queue))
+	}
+}
+
 func TestQueueWorkerDeadLettersAndRedelivery(t *testing.T) {
 	resetCircuits()
 	defer resetCircuits()
@@ -589,7 +624,7 @@ func TestQueueWorkerDeadLettersAndRedelivery(t *testing.T) {
 	worker := NewQueueWorker(svc, d)
 	ctx := context.Background()
 
-	item, err := svc.EnqueueDelivery(ctx, wh.ID, "test.evented", `{"apiVersion":"v1","event":"test.evented"}`)
+	item, err := svc.EnqueueDelivery(ctx, wh.ID, "test.evented", `{"apiVersion":"v1","event":"test.evented"}`, "")
 	if err != nil {
 		t.Fatal(err)
 	}

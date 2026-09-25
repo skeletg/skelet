@@ -56,8 +56,11 @@ func toolExperimentResults(ctx context.Context, r *Resolver, cid uuid.UUID, days
 	// The definition names the experiment and says whose channel it is - the analysis has the numbers
 	exp, err := r.SignalsAPI.Prism.GetExperiment(authed, &signalsv1.GetExperimentRequest{Id: eid.String()})
 	if err != nil {
-		if status.Code(err) == codes.NotFound {
+		switch status.Code(err) {
+		case codes.NotFound:
 			return "Experiment not found."
+		case codes.PermissionDenied:
+			return "That experiment belongs to a channel you cannot view."
 		}
 		return signalsUnavailable(err, "experiment results")
 	}

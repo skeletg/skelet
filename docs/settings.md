@@ -134,9 +134,9 @@ waiting to be written rather than a setting with nothing to say.
 
 | Path | What it does | Type | Scope | Public | Default |
 |---|---|---|---|---|---|
-| `general/urls/auto_redirect_on_change` | Keeps old links working after a slug edit. Off means the previous URL 404s. | bool | channel |  | `true` |
+| `general/urls/auto_redirect_on_change` | Keeps old links working after a slug edit. Off means the previous URL 404s. | bool | global |  | `true` |
 | `general/urls/redirect_type` | Automatic redirect type | select | global |  | `301` |
-| `general/urls/url_template_fallback` | Off means the save is rejected instead, which catches a broken template rather than papering over it. | bool | channel |  | `true` |
+| `general/urls/url_template_fallback` | Off means the save is rejected instead, which catches a broken template rather than papering over it. | bool | global |  | `true` |
 | `general/urls/redirect_retention_days` | Only auto-created redirects are pruned - ones you added by hand are kept. | int | global |  | `365` |
 | `general/urls/variant_own_url` | Each variant becomes its own indexable page. More pages to crawl, but a shopper landing from search arrives on the exact one. | bool | channel | yes | `true` |
 
@@ -269,10 +269,10 @@ waiting to be written rather than a setting with nothing to say.
 
 | Path | What it does | Type | Scope | Public | Default |
 |---|---|---|---|---|---|
-| `outreach/triggers/abandoned_cart_minutes` | How long a cart sits untouched before it counts as abandoned. | int | global |  | `60` |
-| `outreach/triggers/abandoned_cart_max_age_hours` | Past this the cart is too cold to chase and no flow fires - stops a backlog mailing week-old carts after downtime. | int | global |  | `72` |
-| `outreach/triggers/browse_abandoned_minutes` | Idle time after browsing with nothing added to the cart. | int | global |  | `120` |
-| `outreach/triggers/browse_abandoned_max_age_hours` | The same staleness cut-off as abandoned carts. | int | global |  | `48` |
+| `outreach/triggers/abandoned_cart_minutes` | How long a cart sits untouched before it counts as abandoned. | int | channel |  | `60` |
+| `outreach/triggers/abandoned_cart_max_age_hours` | Past this the cart is too cold to chase and no flow fires - stops a backlog mailing week-old carts after downtime. | int | channel |  | `72` |
+| `outreach/triggers/browse_abandoned_minutes` | Idle time after browsing with nothing added to the cart. | int | channel |  | `120` |
+| `outreach/triggers/browse_abandoned_max_age_hours` | The same staleness cut-off as abandoned carts. | int | channel |  | `48` |
 | `outreach/triggers/back_in_stock_min_qty` | Stops a one-unit blip mailing the whole waiting list for something that instantly resells. | int | global |  | `1` |
 
 **Signup Forms**

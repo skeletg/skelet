@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
@@ -269,3 +270,23 @@ func TestTracker_DedupeKeyStable(t *testing.T) {
 }
 
 func hasPrefix(s, p string) bool { return len(s) >= len(p) && s[:len(p)] == p }
+
+func TestAnErasureLeavesNoAccountEventBehind(t *testing.T) {
+	tr, fr := newTracker(order.Order{})
+	_ = tr.onAccountUpdated(context.Background(), &customer.CustomerUpdated{
+		CustomerID: uuid.New(), ChannelID: uuid.New(), ChangedFields: []string{"email"}, Source: customer.SourceGDPR,
+	})
+	if len(fr.calls) != 0 {
+		t.Fatalf("recorded %d spine events for the erasure's own redaction, want none - it names the erased customer", len(fr.calls))
+	}
+}
+
+func TestALogoutLandsOnTheChannelItHappenedOn(t *testing.T) {
+	tr, fr := newTracker(order.Order{})
+	ch := uuid.New()
+	ctx := channel.WithChannel(context.Background(), &channel.Channel{ID: ch})
+	_ = tr.onLogout(ctx, &auth.Logout{Subject: auth.SubjectCustomer, SubjectID: uuid.New()})
+	if len(fr.calls) != 1 || fr.calls[0].ChannelID != ch {
+		t.Fatalf("logout recorded %+v, want it on the storefront's channel - a channel-less event drops out of every per-channel report", fr.calls)
+	}
+}

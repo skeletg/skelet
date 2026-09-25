@@ -30,11 +30,11 @@ func (r *mutationResolver) CreateCMSPage(ctx context.Context, input model.Create
 }
 
 func (r *mutationResolver) UpdateCMSPage(ctx context.Context, input model.UpdateCMSPageInput) (*model.CMSPage, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	in, err := fromUpdateCMSPageInput(input)
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", in.ID, ""); err != nil {
 		return nil, err
 	}
 	p, err := r.CMSSvc.UpdatePage(ctx, in)
@@ -45,12 +45,12 @@ func (r *mutationResolver) UpdateCMSPage(ctx context.Context, input model.Update
 }
 
 func (r *mutationResolver) DeleteCMSPage(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return false, err
-	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return false, errInvalidID("id", err)
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", uid, ""); err != nil {
+		return false, err
 	}
 	if err := r.CMSSvc.DeletePage(ctx, uid); err != nil {
 		return false, err
@@ -59,12 +59,12 @@ func (r *mutationResolver) DeleteCMSPage(ctx context.Context, id string) (bool, 
 }
 
 func (r *mutationResolver) CloneCMSPage(ctx context.Context, id string) (*model.CMSPage, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("id", err)
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", uid, ""); err != nil {
+		return nil, err
 	}
 	p, err := r.CMSSvc.ClonePage(ctx, uid)
 	if err != nil {
@@ -74,11 +74,11 @@ func (r *mutationResolver) CloneCMSPage(ctx context.Context, id string) (*model.
 }
 
 func (r *mutationResolver) BulkPublishCMSPages(ctx context.Context, ids []string, published bool) (*model.BulkCMSPageResult, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	uids, err := parseCMSPageIDs(ids)
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPagesChannels(ctx, "cms.manage", uids); err != nil {
 		return nil, err
 	}
 	n, err := r.CMSSvc.BulkSetPublished(ctx, uids, published)
@@ -89,11 +89,11 @@ func (r *mutationResolver) BulkPublishCMSPages(ctx context.Context, ids []string
 }
 
 func (r *mutationResolver) BulkTagCMSPages(ctx context.Context, ids []string, addTags []string, removeTags []string) (*model.BulkCMSPageResult, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	uids, err := parseCMSPageIDs(ids)
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPagesChannels(ctx, "cms.manage", uids); err != nil {
 		return nil, err
 	}
 	n, err := r.CMSSvc.BulkTag(ctx, uids, addTags, removeTags)
@@ -104,11 +104,11 @@ func (r *mutationResolver) BulkTagCMSPages(ctx context.Context, ids []string, ad
 }
 
 func (r *mutationResolver) BulkDeleteCMSPages(ctx context.Context, ids []string) (*model.BulkCMSPageResult, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	uids, err := parseCMSPageIDs(ids)
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPagesChannels(ctx, "cms.manage", uids); err != nil {
 		return nil, err
 	}
 	n, err := r.CMSSvc.BulkDelete(ctx, uids)
@@ -152,12 +152,12 @@ func (r *mutationResolver) UpsertCMSPageContent(ctx context.Context, input model
 }
 
 func (r *mutationResolver) PublishCMSPage(ctx context.Context, id string) (*model.CMSPage, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("id", err)
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", uid, ""); err != nil {
+		return nil, err
 	}
 	p, err := r.CMSSvc.PublishPage(ctx, uid)
 	if err != nil {
@@ -167,12 +167,12 @@ func (r *mutationResolver) PublishCMSPage(ctx context.Context, id string) (*mode
 }
 
 func (r *mutationResolver) UnpublishCMSPage(ctx context.Context, id string) (*model.CMSPage, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("id", err)
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", uid, ""); err != nil {
+		return nil, err
 	}
 	p, err := r.CMSSvc.UnpublishPage(ctx, uid)
 	if err != nil {
@@ -182,11 +182,11 @@ func (r *mutationResolver) UnpublishCMSPage(ctx context.Context, id string) (*mo
 }
 
 func (r *mutationResolver) SetCMSPageSelections(ctx context.Context, pageID string, attributeID string, valueIds []string) (*model.CMSPage, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(pageID, "page")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", pid, ""); err != nil {
 		return nil, err
 	}
 	aid, err := parseID(attributeID, "attribute")
@@ -205,11 +205,11 @@ func (r *mutationResolver) SetCMSPageSelections(ctx context.Context, pageID stri
 }
 
 func (r *mutationResolver) SetCMSPageRelationships(ctx context.Context, pageID string, attributeID string, refs []*model.CMSRelationshipRefInput) (*model.CMSPage, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(pageID, "page")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", pid, ""); err != nil {
 		return nil, err
 	}
 	aid, err := parseID(attributeID, "attribute")
@@ -237,11 +237,11 @@ func (r *mutationResolver) SetCMSPageRelationships(ctx context.Context, pageID s
 }
 
 func (r *mutationResolver) SetCMSPageExperiment(ctx context.Context, pageID string, experimentKey string) (*model.CMSPage, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(pageID, "page")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", pid, ""); err != nil {
 		return nil, err
 	}
 	p, err := r.CMSSvc.SetPageExperiment(ctx, pid, experimentKey)
@@ -252,11 +252,11 @@ func (r *mutationResolver) SetCMSPageExperiment(ctx context.Context, pageID stri
 }
 
 func (r *mutationResolver) UpsertCMSPageVariantContent(ctx context.Context, pageID string, locale string, variantKey string, body interface{}) (*model.CMSPage, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(pageID, "page")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", pid, locale); err != nil {
 		return nil, err
 	}
 	var raw json.RawMessage
@@ -281,7 +281,7 @@ func (r *mutationResolver) SetCMSPageChannelListing(ctx context.Context, input m
 	if err != nil {
 		return nil, err
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "cms.manage", storeID, nil); err != nil {
+	if err := r.requirePageListingChange(ctx, pageID, storeID, false); err != nil {
 		return nil, err
 	}
 	p, err := r.CMSSvc.SetPageChannelListing(ctx, cms.SetPageChannelListingInput{
@@ -294,7 +294,8 @@ func (r *mutationResolver) SetCMSPageChannelListing(ctx context.Context, input m
 	if err != nil {
 		return nil, err
 	}
-	return toCMSPageModel(p), nil
+	m := toCMSPageModel(p)
+	return m, r.visiblePageListings(ctx, m)
 }
 
 func (r *mutationResolver) DeleteCMSPageChannelListing(ctx context.Context, pageID string, channelID string) (*model.CMSPage, error) {
@@ -306,14 +307,15 @@ func (r *mutationResolver) DeleteCMSPageChannelListing(ctx context.Context, page
 	if err != nil {
 		return nil, err
 	}
-	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "cms.manage", sid, nil); err != nil {
+	if err := r.requirePageListingChange(ctx, pid, sid, true); err != nil {
 		return nil, err
 	}
 	p, err := r.CMSSvc.DeletePageChannelListing(ctx, pid, sid)
 	if err != nil {
 		return nil, err
 	}
-	return toCMSPageModel(p), nil
+	m := toCMSPageModel(p)
+	return m, r.visiblePageListings(ctx, m)
 }
 
 // Mirror of MintBlogPostPreviewToken: gates on cms.view, confirms the page exists (so the mint endpoint can't be used to fish for valid
@@ -332,6 +334,9 @@ func (r *mutationResolver) MintCMSPagePreviewToken(ctx context.Context, input mo
 	// Confirm the page exists before minting - minting tokens for
 	// non-existent pages is a leak vector.
 	if _, err := r.CMSSvc.GetPage(ctx, pageID, ""); err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.view", pageID, ""); err != nil {
 		return nil, err
 	}
 	claims, ok := auth.AdminFromContext(ctx)
@@ -354,14 +359,11 @@ func (r *mutationResolver) MintCMSPagePreviewToken(ctx context.Context, input mo
 }
 
 func (r *queryResolver) CmsPage(ctx context.Context, slug *string, id *string, urlPath *string) (*model.CMSPage, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.view"); err != nil {
+		return nil, err
+	}
 	loc := r.activeLocale(ctx)
-	// Anonymous storefront callers see only published pages. Admins with
-	// cms.view bypass the filter so they can preview drafts in the editor.
-	isAdmin := auth.RequirePermission(ctx, r.AdminSvc, "cms.view") == nil
 	gate := func(p cms.Page) (*model.CMSPage, error) {
-		if !isAdmin && !p.IsPublished {
-			return nil, nil
-		}
 		// Hydrate A/B variant bodies for the active locale so the editor can
 		// populate its variant switcher.
 		if p.ExperimentKey != "" && loc != "" {
@@ -369,7 +371,8 @@ func (r *queryResolver) CmsPage(ctx context.Context, slug *string, id *string, u
 				p.Variants = vs
 			}
 		}
-		return toCMSPageModel(p), nil
+		m := toCMSPageModel(p)
+		return m, r.visiblePageListings(ctx, m)
 	}
 	switch {
 	case id != nil && *id != "":
@@ -399,6 +402,9 @@ func (r *queryResolver) CmsPage(ctx context.Context, slug *string, id *string, u
 }
 
 func (r *queryResolver) CmsPages(ctx context.Context, filter *model.CMSPageFilter, limit *int32, offset *int32) ([]*model.CMSPage, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.view"); err != nil {
+		return nil, err
+	}
 	f := cms.PageListFilter{
 		OnlyPublished: true,
 		Limit:         intDeref(limit, 50),
@@ -406,11 +412,6 @@ func (r *queryResolver) CmsPages(ctx context.Context, filter *model.CMSPageFilte
 	}
 	if filter != nil {
 		if filter.OnlyPublished != nil {
-			if !*filter.OnlyPublished {
-				if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.view"); err != nil {
-					return nil, err
-				}
-			}
 			f.OnlyPublished = *filter.OnlyPublished
 		}
 		if v, err := parseUUIDOpt(filter.PageTypeID); err != nil {
@@ -445,5 +446,5 @@ func (r *queryResolver) CmsPages(ctx context.Context, filter *model.CMSPageFilte
 	for i, p := range pages {
 		out[i] = toCMSPageModel(p)
 	}
-	return out, nil
+	return out, r.visiblePageListings(ctx, out...)
 }

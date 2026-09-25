@@ -129,10 +129,11 @@ func (c *Client) IndexDoc(ctx context.Context, index, id string, doc any) error 
 	return nil
 }
 
-// BulkDoc is one upsert inside a _bulk request
 type BulkDoc struct {
-	ID  string
-	Doc any
+	ID      string
+	Doc     any
+	Routing string
+	Delete  bool
 }
 
 // A batch is one request but many documents, so it can't live inside the 3s read budget - measured at ~2s for 1000 docs
@@ -147,9 +148,19 @@ func (c *Client) Bulk(ctx context.Context, index string, docs []BulkDoc) error {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf) // Encode terminates each value with \n, which is the NDJSON framing _bulk wants
 	for _, d := range docs {
-		action := map[string]any{"index": map[string]any{"_index": index, "_id": d.ID}}
-		if err := enc.Encode(action); err != nil {
+		meta := map[string]any{"_index": index, "_id": d.ID}
+		if d.Routing != "" {
+			meta["routing"] = d.Routing
+		}
+		verb := "index"
+		if d.Delete {
+			verb = "delete"
+		}
+		if err := enc.Encode(map[string]any{verb: meta}); err != nil {
 			return fmt.Errorf("encode bulk action %s: %w", d.ID, err)
+		}
+		if d.Delete {
+			continue
 		}
 		if err := enc.Encode(d.Doc); err != nil {
 			return fmt.Errorf("marshal bulk doc %s: %w", d.ID, err)
@@ -182,6 +193,47 @@ func (c *Client) Bulk(ctx context.Context, index string, docs []BulkDoc) error {
 	return fmt.Errorf("bulk index %s: %d/%d docs failed - first %s: %s", index, failed, len(docs), firstID, firstReason)
 }
 
+func (c *Client) DeleteByQuery(ctx context.Context, index string, query any) error {
+	body, err := json.Marshal(map[string]any{"query": query})
+	if err != nil {
+		return err
+	}
+	if _, err := c.api.DeleteByQuery(ctx, &opensearchapi.DeleteByQueryReq{
+		Indices:    []string{index},
+		BodyReader: bytes.NewReader(body),
+	}); err != nil {
+		return fmt.Errorf("delete by query on %s: %w", index, err)
+	}
+	return nil
+}
+
+func (c *Client) RoutingRequired(ctx context.Context, name string) (bool, error) {
+	resp, err := c.api.Index.GetMapping(ctx, &opensearchapi.IndicesGetMappingReq{Indices: []string{name}})
+	if err != nil {
+		return false, fmt.Errorf("get mapping %s: %w", name, err)
+	}
+	raw, err := json.Marshal(resp.Entries)
+	if err != nil {
+		return false, err
+	}
+	var entries map[string]struct {
+		Mappings struct {
+			Routing struct {
+				Required bool `json:"required"`
+			} `json:"_routing"`
+		} `json:"mappings"`
+	}
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return false, err
+	}
+	for _, e := range entries {
+		if e.Mappings.Routing.Required {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // _id is special metadata that won't take prefix queries, so filter on a regular keyword field (product_id / post_id) that the indexer already stamps onto every doc
 func (c *Client) DeleteByField(ctx context.Context, index, field, value string) error {
 	query := map[string]any{
@@ -202,6 +254,17 @@ func (c *Client) DeleteByField(ctx context.Context, index, field, value string) 
 
 // The unmarshal callback avoids forcing one Doc type through every caller - products and blog posts have different docs but share the transport machinery
 func (c *Client) Search(ctx context.Context, index string, body any, onHit func(raw json.RawMessage) error) (int64, error) {
+	return c.SearchRouted(ctx, index, "", body, onHit)
+}
+
+func searchParams(routing string) *opensearchapi.SearchParams {
+	if routing == "" {
+		return nil
+	}
+	return &opensearchapi.SearchParams{Routing: []string{routing}}
+}
+
+func (c *Client) SearchRouted(ctx context.Context, index, routing string, body any, onHit func(raw json.RawMessage) error) (int64, error) {
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return 0, fmt.Errorf("marshal search body: %w", err)
@@ -209,6 +272,7 @@ func (c *Client) Search(ctx context.Context, index string, body any, onHit func(
 	resp, err := c.api.Search(ctx, &opensearchapi.SearchReq{
 		Indices:    []string{index},
 		BodyReader: bytes.NewReader(bodyBytes),
+		Params:     searchParams(routing),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("search %s: %w", index, err)
@@ -237,6 +301,10 @@ type SearchRawResponse struct {
 }
 
 func (c *Client) SearchRaw(ctx context.Context, index string, body any) (*SearchRawResponse, error) {
+	return c.SearchRawRouted(ctx, index, "", body)
+}
+
+func (c *Client) SearchRawRouted(ctx context.Context, index, routing string, body any) (*SearchRawResponse, error) {
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("marshal search body: %w", err)
@@ -244,6 +312,7 @@ func (c *Client) SearchRaw(ctx context.Context, index string, body any) (*Search
 	resp, err := c.api.Search(ctx, &opensearchapi.SearchReq{
 		Indices:    []string{index},
 		BodyReader: bytes.NewReader(bodyBytes),
+		Params:     searchParams(routing),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("search %s: %w", index, err)

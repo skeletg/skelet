@@ -42,9 +42,11 @@ message ChannelEntry {
   string from_address = 5;
   string from_name = 6;
   string logo_url = 7;
+  // A deactivated channel is still sent, so its Pulse content survives - absent reads as active
+  optional bool is_active = 8;
 }
 
-// The whole of it - channels absent from the set are ones core no longer runs
+// Every channel core has - one absent from the set is one core deleted
 message SyncChannelsRequest {
   repeated ChannelEntry channels = 1;
 }
@@ -60,7 +62,7 @@ message RosterEntry {
   // What a marketing send needs to address this customer - empty where core has nothing on file
   string email = 3;
   string first_name = 4;
-  // A deactivated account is never mailed, and never counts toward an audience estimate
+  // A deactivated account gets transactional mail only, and never counts toward an audience estimate
   bool is_active = 5;
   // Empty unless the customer is in a group, which is what a group-audience campaign filters on
   string customer_group_id = 6;
@@ -76,6 +78,8 @@ message RosterEntry {
   // Every consent core holds for the customer, by kind - the two booleans above are the marketing pair
   // of these, kept so a send path reads one column; a rule can ask about any kind
   repeated Consent consents = 11;
+  // When core read the row, on its own clock - an entry older than the one already held is not applied
+  google.protobuf.Timestamp read_at = 12;
 }
 
 message Consent {
@@ -231,6 +235,8 @@ message EraseCustomerIdentitiesRequest {
   // The address as it stood before core redacted it, so sends from before the customer had an
   // account are erased too - they are the same person, and only this address says so
   string email = 2;
+  // When core erased, on core's clock like read_at - absent uses the suite's clock
+  google.protobuf.Timestamp erased_at = 3;
 }
 
 message EraseCustomerIdentitiesResponse {}

@@ -14,8 +14,9 @@ const (
 	queuePollInterval = 2 * time.Second
 	queueBatchSize    = 50
 	// The lease must exceed the max per-attempt timeout of 30s, with headroom
-	queueLeaseSeconds = 90
-	queueWorkers      = 8
+	queueLeaseSeconds     = 90
+	queueWorkers          = 8
+	enqueueDedupRetention = 48 * time.Hour
 )
 
 // The first attempt plus one per retry delay
@@ -43,12 +44,18 @@ func (w *QueueWorker) SetPollInterval(d time.Duration) {
 func (w *QueueWorker) Run(ctx context.Context) {
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
+	prune := time.NewTicker(time.Hour)
+	defer prune.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			w.RunOnce(ctx)
+		case <-prune.C:
+			if _, err := w.svc.repo.PruneEnqueueDedup(ctx, time.Now().Add(-enqueueDedupRetention)); err != nil {
+				log.Printf("[webhook] prune enqueue dedup: %v", err)
+			}
 		}
 	}
 }

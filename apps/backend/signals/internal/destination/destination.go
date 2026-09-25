@@ -151,6 +151,7 @@ func (s *Service) Update(ctx context.Context, in UpsertInput) (Destination, erro
 	}
 	row, err := s.queries.UpdateEventDestination(ctx, signalsdb.UpdateEventDestinationParams{
 		ID:           *in.ID,
+		ChannelID:    in.ChannelID,
 		Name:         in.Name,
 		Kind:         in.Kind,
 		TargetUrl:    in.TargetURL,
@@ -165,8 +166,16 @@ func (s *Service) Update(ctx context.Context, in UpsertInput) (Destination, erro
 	return toDestination(row), nil
 }
 
-func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.queries.DeleteEventDestination(ctx, id)
+// Update and Delete match on the channel as well as the id, so a row of another channel is never touched
+func (s *Service) Delete(ctx context.Context, channelID, id uuid.UUID) error {
+	n, err := s.queries.DeleteEventDestination(ctx, signalsdb.DeleteEventDestinationParams{ID: id, ChannelID: channelID})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("destination not found")
+	}
+	return nil
 }
 
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (Destination, error) {

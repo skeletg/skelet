@@ -112,7 +112,7 @@ var (
 type Repository interface {
 	Create(ctx context.Context, input CreateInput, signingSecret string) (Provider, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Provider, error)
-	GetBySlug(ctx context.Context, kind Kind, slug string) (Provider, error)
+	GetBySlug(ctx context.Context, kind Kind, slug string, channelID *uuid.UUID) (Provider, error)
 	List(ctx context.Context) ([]Provider, error)
 	ListActiveByKind(ctx context.Context, kind Kind, channelID *uuid.UUID) ([]Provider, error)
 	Update(ctx context.Context, input UpdateInput) (Provider, error)

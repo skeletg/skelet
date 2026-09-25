@@ -19,6 +19,7 @@ type builderServer struct {
 	svc      *emailtemplate.Service
 	stores   emailtemplate.StoreReader
 	contacts previewContacts
+	roster   rosterChannels // a preview renders only a customer of the channel it previews for
 }
 
 // One roster entry, for a preview rendered as a real customer
@@ -117,8 +118,9 @@ func (s *builderServer) ListEmailGroups(ctx context.Context, _ *signalsv1.ListEm
 	return &signalsv1.ListEmailGroupsResponse{Groups: out}, nil
 }
 
+// Groups are shared by every channel's emails, so changing one takes the global grant
 func (s *builderServer) CreateEmailGroup(ctx context.Context, req *signalsv1.CreateEmailGroupRequest) (*signalsv1.CreateEmailGroupResponse, error) {
-	if err := requirePermissionOrSystem(ctx, "emails.manage"); err != nil {
+	if err := requireGlobalOrSystem(ctx, "emails.manage"); err != nil {
 		return nil, err
 	}
 	g, err := s.svc.CreateEmailGroup(ctx, req.GetName())
@@ -129,7 +131,7 @@ func (s *builderServer) CreateEmailGroup(ctx context.Context, req *signalsv1.Cre
 }
 
 func (s *builderServer) RenameEmailGroup(ctx context.Context, req *signalsv1.RenameEmailGroupRequest) (*signalsv1.RenameEmailGroupResponse, error) {
-	if err := requirePermissionOrSystem(ctx, "emails.manage"); err != nil {
+	if err := requireGlobalOrSystem(ctx, "emails.manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID("id", req.GetId())
@@ -144,7 +146,7 @@ func (s *builderServer) RenameEmailGroup(ctx context.Context, req *signalsv1.Ren
 }
 
 func (s *builderServer) DeleteEmailGroup(ctx context.Context, req *signalsv1.DeleteEmailGroupRequest) (*signalsv1.DeleteEmailGroupResponse, error) {
-	if err := requirePermissionOrSystem(ctx, "emails.manage"); err != nil {
+	if err := requireGlobalOrSystem(ctx, "emails.manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID("id", req.GetId())
@@ -226,12 +228,16 @@ func (s *builderServer) RestoreEmailRevision(ctx context.Context, req *signalsv1
 	if err != nil {
 		return nil, err
 	}
-	e, err := s.svc.RestoreRevision(ctx, rid, callingAdmin(ctx))
+	emailID, err := s.svc.RevisionEmailID(ctx, rid)
 	if err != nil {
 		return nil, domainErr(err)
 	}
-	if err := requireChannelOrSystem(ctx, "emails.manage", e.ChannelID); err != nil {
+	if _, err := s.load(ctx, "emails.manage", emailID.String()); err != nil {
 		return nil, err
+	}
+	e, err := s.svc.RestoreRevision(ctx, rid, callingAdmin(ctx))
+	if err != nil {
+		return nil, domainErr(err)
 	}
 	return &signalsv1.RestoreEmailRevisionResponse{Email: libraryEmailProto(e)}, nil
 }
@@ -290,6 +296,12 @@ func (s *builderServer) previewVars(ctx context.Context, channelID uuid.UUID, cu
 		id, err := parseID("customer_id", *customerID)
 		if err != nil {
 			return nil, err
+		}
+		if s.roster == nil {
+			return nil, notFound("customer")
+		}
+		if owner, err := s.roster.ChannelForCustomer(ctx, id); err != nil || owner != channelID {
+			return nil, notFound("customer")
 		}
 		c, ok, err := s.contacts.Get(ctx, id)
 		if err != nil {

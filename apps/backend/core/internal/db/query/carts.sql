@@ -94,21 +94,16 @@ UPDATE cart_lines SET quantity = $2, unit_price = $3, updated_at = NOW() WHERE i
 DELETE FROM cart_lines WHERE id = $1;
 
 -- name: AbandonedCarts :many
--- Active, non-empty carts that are CONTACTABLE - either owned by a known customer, or a guest cart that captured an email at checkout entry - whose last activity is older than `threshold` but newer than `max_age`, not already notified since that activity - last activity = GREATEST(cart.updated_at, MAX(line.updated_at)) - carts.updated_at isn't bumped on line edits, so the line max is authoritative
-SELECT
-    c.id                                                AS id,
-    c.channel_id                                        AS channel_id,
-    c.customer_id                                       AS customer_id,
-    c.email                                             AS email,
-    GREATEST(c.updated_at, MAX(l.updated_at))::timestamptz AS last_activity
+-- Oldest first, so a backlog drains in order
+SELECT c.id, c.channel_id, c.customer_id, c.email, c.last_activity_at AS last_activity
 FROM carts c
-JOIN cart_lines l ON l.cart_id = c.id
-WHERE c.status = 'active' AND (c.customer_id IS NOT NULL OR c.email <> '')
-GROUP BY c.id, c.channel_id, c.customer_id, c.email, c.updated_at, c.abandoned_notified_at
-HAVING GREATEST(c.updated_at, MAX(l.updated_at)) < sqlc.arg(threshold)::timestamptz
-   AND GREATEST(c.updated_at, MAX(l.updated_at)) > sqlc.arg(max_age)::timestamptz
-   AND (c.abandoned_notified_at IS NULL OR c.abandoned_notified_at < GREATEST(c.updated_at, MAX(l.updated_at)))
-ORDER BY last_activity DESC
+WHERE c.channel_id = sqlc.arg(channel_id)
+  AND c.status = 'active' AND (c.customer_id IS NOT NULL OR c.email <> '')
+  AND c.last_activity_at < sqlc.arg(threshold)::timestamptz
+  AND c.last_activity_at > sqlc.arg(max_age)::timestamptz
+  AND (c.abandoned_notified_at IS NULL OR c.abandoned_notified_at < c.last_activity_at)
+  AND EXISTS (SELECT 1 FROM cart_lines l WHERE l.cart_id = c.id)
+ORDER BY c.last_activity_at, c.id
 LIMIT sqlc.arg(lim);
 
 -- name: MarkCartsAbandonedNotified :exec

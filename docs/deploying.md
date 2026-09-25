@@ -20,9 +20,11 @@ docker compose -f docker-compose.small.yml up -d
 ```
 
 `docker-compose.prod.yml` is the full shape: the tiers split into their own
-containers (worker, media, signals, ingest), pgbouncer per database, the split
-Valkey pair, ClickHouse for the spine, and the optional NATS profile. Same env contract -
-secrets in the root `.env`, everything else in `env/prod.env`. `./skelet release`
+containers (worker, media, signals, ingest), pgbouncer per database, three split
+Valkeys (primary, cache, rate limits), ClickHouse for the spine, and the optional
+NATS profile. Same env contract - secrets in the root `.env`, everything else in `env/prod.env`, plus an optional
+`env/prod-signals.env` for what only the Signals process reads (the retention
+archive's bucket, `CORE_FRONT_API_URL`). `./skelet release`
 builds and pushes the four images it reads: the backend (`APP_IMAGE`, also the
 worker and media tiers), the Signals module (`SIGNALS_IMAGE`, the signals and
 ingest tiers plus the ClickHouse schema), the dashboard and each storefront.
@@ -38,8 +40,8 @@ container through `env_file:`. See [env.md](env.md).
 
 ## Managed datastores
 
-The bundled Postgres, Valkey and pgbouncer containers sit behind the `bundled`
-compose profile, and `.env.example` ships `COMPOSE_PROFILES=bundled` - so a
+The bundled Postgres, pgbouncer, Valkey and ClickHouse containers sit behind the
+`bundled` compose profile, and `.env.example` ships `COMPOSE_PROFILES=bundled` - so a
 self-hosted box gets them by default and nothing changes.
 
 Moving to managed services is dropping that line and pointing the URLs outward:
@@ -50,14 +52,27 @@ Moving to managed services is dropping that line and pointing the URLs outward:
 DATABASE_URL=postgres://...@your-managed-pg:5432/skelet?sslmode=require
 SIGNALS_DB_URL=postgres://...@your-managed-pg:5432/skelet_signals?sslmode=require
 VALKEY_URL=rediss://...
+SIGNALS_CH_URL=clickhouse://user:password@your-managed-ch:9440/signals?secure=true
 ```
 
-The six containers then never start, instead of idling beside the databases you
-are actually paying for. Everything else - app, worker, media, signals, ingest -
-is the same image and the same file.
+The eight containers (two Postgres, two pgbouncers, three Valkeys and ClickHouse)
+then never start, instead of idling beside the databases you are actually paying
+for. The `*_PASSWORD` lines go unused too, so leave them empty. Everything else -
+app, worker, media, signals, ingest and the migrate one-shots - is the same image
+and the same file.
+
+The spine's migrate one-shot runs against whatever `SIGNALS_CH_URL` names, so
+the schema lands on the managed server without a second URL. It rewrites that
+URL into golang-migrate's query-parameter form, which only works for the
+`clickhouse://user:password@host:port/db` shape - anything else, set
+`SIGNALS_CH_MIGRATE_URL` outright
+(`clickhouse://host:9440?username=...&password=...&database=signals&secure=true&x-multi-statement=true`).
 
 Two things that bite:
 
+- It's all or nothing: with `bundled` still on, every bundled container starts
+  and refuses an empty password, including the ones whose URL you pointed
+  elsewhere. Going half managed means keeping the passwords set.
 - Every `depends_on` on those services carries `required: false`. Without it
   compose rejects the entire file the moment the profile is off, because the app
   tiers declare a dependency on a service that no longer exists.
@@ -78,7 +93,7 @@ beside the dev stack, but the in-network ports don't move):
 
 | Host | Upstream | Why it exists |
 |---|---|---|
-| apex, e.g. `shop.example.com` | `vetrina-demo:3000` | the storefront |
+| apex, e.g. `shop.example.com` | `vetrina-demo:3000` | the storefront - every channel's host can point at the same upstream |
 | `admin.` | `dashboard:8080` | the admin SPA - its own nginx proxies `/api/*` to the backend in-network, so it needs no API host |
 | `api.` | `app:8080` | **inbound payment webhooks.** Providers POST to `/api/v1/payments/webhook/<provider>`, which is the URL you register with Stripe/Braintree. Skip this host and captures never settle |
 
@@ -105,6 +120,23 @@ docker compose -f docker-compose.small.yml --profile edge up -d
 The vhost map is the one thing no tool can discover, so that file is meant to be
 edited - the storefront upstream in particular names the demo service rather than
 deriving your shop's.
+
+**More than one channel.** One storefront image and one container serve every
+channel: add each channel's host to `STOREFRONT_CHANNEL_HOSTS` in the
+storefront's env file and point the host at the same upstream. The edge has to
+pass the original `Host` through, which Caddy and nginx's
+`proxy_set_header Host $host` both do. Each channel's pages and cache entries
+live under their own path inside the app, so a new channel is a new host, not a
+new deployment. `STOREFRONT_REVALIDATE_URL` pointing at that service purges
+every channel; see [env.md](env.md#storefront-links).
+
+**Keep it to one replica.** The rendered pages and the data cache live in the
+storefront process, and nothing shares them between containers. With two
+replicas behind a load balancer, a purge lands on whichever one answers it and
+the other keeps serving the old page until its own timer runs out. So run one
+storefront replica per deployment, and give it more CPU before you give it a
+twin. More replicas only work once a shared `cacheHandler` (Redis or similar)
+is configured in `next.config.ts`, which the storefront doesn't ship.
 
 ## Operations
 

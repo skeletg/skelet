@@ -103,16 +103,22 @@ func (q *Queries) GetRemoteProviderByID(ctx context.Context, id uuid.UUID) (Remo
 }
 
 const getRemoteProviderBySlug = `-- name: GetRemoteProviderBySlug :one
-SELECT id, kind, slug, name, target_url, signing_secret, config, timeout_ms, cache_ttl_s, failure_policy, channel_id, is_active, created_at, updated_at FROM remote_providers WHERE kind = $1 AND slug = $2
+SELECT id, kind, slug, name, target_url, signing_secret, config, timeout_ms, cache_ttl_s, failure_policy, channel_id, is_active, created_at, updated_at FROM remote_providers
+WHERE kind = $1 AND slug = $2
+  AND (channel_id IS NULL OR channel_id = $3::uuid)
+ORDER BY channel_id NULLS LAST
+LIMIT 1
 `
 
 type GetRemoteProviderBySlugParams struct {
-	Kind string `json:"kind"`
-	Slug string `json:"slug"`
+	Kind      string        `json:"kind"`
+	Slug      string        `json:"slug"`
+	ChannelID uuid.NullUUID `json:"channel_id"`
 }
 
+// A slug names the channel's own provider when it has one, else the global one - NULL channel_id reaches global rows only
 func (q *Queries) GetRemoteProviderBySlug(ctx context.Context, arg GetRemoteProviderBySlugParams) (RemoteProvider, error) {
-	row := q.db.QueryRowContext(ctx, getRemoteProviderBySlug, arg.Kind, arg.Slug)
+	row := q.db.QueryRowContext(ctx, getRemoteProviderBySlug, arg.Kind, arg.Slug, arg.ChannelID)
 	var i RemoteProvider
 	err := row.Scan(
 		&i.ID,

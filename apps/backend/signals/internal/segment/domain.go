@@ -4,6 +4,7 @@ package segment
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,4 +43,27 @@ type Segment struct {
 	LifecycleAtRiskDays *int32
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+}
+
+type ChannelScope struct {
+	All      bool
+	Channels []uuid.UUID
+}
+
+// OwnerChannel is the channel a behavioral definition names, which owns the segment - false for a global one
+func (s Segment) OwnerChannel() (uuid.UUID, bool) {
+	if strings.TrimSpace(s.Definition) == "" {
+		return uuid.Nil, false
+	}
+	var d struct {
+		ChannelID string `json:"channelId"`
+	}
+	if json.Unmarshal([]byte(s.Definition), &d) != nil || d.ChannelID == "" {
+		return uuid.Nil, false
+	}
+	id, err := uuid.Parse(d.ChannelID)
+	if err != nil {
+		return uuid.Nil, true // a channel no one can hold, so only a global grant reaches it
+	}
+	return id, true
 }

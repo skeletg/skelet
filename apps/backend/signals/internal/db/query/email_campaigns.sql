@@ -59,8 +59,8 @@ WHERE id IN (
 RETURNING *;
 
 -- name: ListSendingCampaigns :many
--- Campaigns mid-send (incl. ones resuming after a crash/timeout)
-SELECT * FROM email_campaigns WHERE status = 'sending' AND deleted_at IS NULL ORDER BY scheduled_for;
+-- Least recently advanced first, since each pass touches updated_at
+SELECT * FROM email_campaigns WHERE status = 'sending' AND deleted_at IS NULL ORDER BY updated_at, scheduled_for;
 
 -- name: CountCampaignRecipients :one
 SELECT COUNT(*) FROM email_campaign_recipients WHERE campaign_id = sqlc.arg(campaign_id);

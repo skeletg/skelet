@@ -98,13 +98,8 @@ func provision(raw string) (string, string) {
 		return "", fmt.Sprintf("database unreachable: %v", err)
 	}
 	// Read off the catalog rather than by connecting: a session on the template would block the clone below
-	var settings []string
-	err = db.QueryRow(`SELECT s.setconfig FROM pg_db_role_setting s JOIN pg_database d ON d.oid = s.setdatabase WHERE d.datname = $1 AND s.setrole = 0`, template).Scan(pq.Array(&settings))
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return "", fmt.Sprintf("read disposable marker: %v", err)
-	}
-	if !slices.Contains(settings, marker) {
-		return "", "database not marked as disposable - refusing to write; on a throwaway database run: ALTER DATABASE <name> SET skelet.e2e = 'allowed'"
+	if reason := checkMarked(db, template); reason != "" {
+		return "", reason
 	}
 	suffix := make([]byte, 4)
 	if _, err := rand.Read(suffix); err != nil {
@@ -130,12 +125,25 @@ func shared(raw string) (string, string) {
 	if err := conn.Ping(); err != nil {
 		return "", fmt.Sprintf("database unreachable: %v", err)
 	}
-	var got sql.NullString
-	if err := conn.QueryRow(`SELECT current_setting('skelet.e2e', true)`).Scan(&got); err != nil {
-		return "", fmt.Sprintf("read disposable marker: %v", err)
+	var name string
+	if err := conn.QueryRow(`SELECT current_database()`).Scan(&name); err != nil {
+		return "", fmt.Sprintf("read database name: %v", err)
 	}
-	if got.String != "allowed" {
-		return "", "database not marked as disposable - refusing to write; on a throwaway database run: ALTER DATABASE <name> SET skelet.e2e = 'allowed'"
+	if reason := checkMarked(conn, name); reason != "" {
+		return "", reason
 	}
 	return raw, ""
+}
+
+// checkMarked reads the marker from the catalog, since a DSN option, PGOPTIONS or a role setting could fake it on the session
+func checkMarked(db *sql.DB, name string) string {
+	var settings []string
+	err := db.QueryRow(`SELECT s.setconfig FROM pg_db_role_setting s JOIN pg_database d ON d.oid = s.setdatabase WHERE d.datname = $1 AND s.setrole = 0`, name).Scan(pq.Array(&settings))
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Sprintf("read disposable marker: %v", err)
+	}
+	if !slices.Contains(settings, marker) {
+		return "database not marked as disposable - refusing to write; on a throwaway database run: ALTER DATABASE <name> SET skelet.e2e = 'allowed'"
+	}
+	return ""
 }

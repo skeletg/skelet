@@ -77,7 +77,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (Experimen
 		return Experiment{}, err
 	}
 	ok, err := s.repo.Update(ctx, Experiment{
-		ID: id, Name: in.Name, Status: in.Status, Coverage: in.Coverage,
+		ID: id, ChannelID: in.ChannelID, Name: in.Name, Status: in.Status, Coverage: in.Coverage,
 		GoalEvent: in.GoalEvent, SegmentSlug: in.SegmentSlug, Variations: in.Variations,
 	})
 	if err != nil {
@@ -103,8 +103,9 @@ func (s *Service) Active(ctx context.Context, channelID uuid.UUID) ([]Experiment
 	return s.repo.ListRunning(ctx, channelID)
 }
 
-func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.repo.Delete(ctx, id)
+// Delete and Update match on the channel as well as the id, so a row of another channel is never touched
+func (s *Service) Delete(ctx context.Context, channelID, id uuid.UUID) error {
+	return s.repo.Delete(ctx, channelID, id)
 }
 
 // Results returns the analysed experiment results over the window: per-variation exposed/converted with a Wilson CI,

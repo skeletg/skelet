@@ -156,14 +156,16 @@ type BrowseAbandoner struct {
 	LastBrowseAt time.Time
 }
 
-func (c *Client) BrowseAbandoners(ctx context.Context, idleSince, maxAge time.Time, limit int32) ([]BrowseAbandoner, error) {
+func (c *Client) BrowseAbandoners(ctx context.Context, channelID uuid.UUID, idleSince, maxAge time.Time, limit int32) ([]BrowseAbandoner, error) {
 	sys, err := c.System(ctx)
 	if err != nil {
 		return nil, err
 	}
-	res, err := c.Maintenance.ListBrowseAbandoners(sys, &signalsv1.ListBrowseAbandonersRequest{
-		IdleSince: timestamppb.New(idleSince), MaxAge: timestamppb.New(maxAge), Limit: limit,
-	})
+	req := &signalsv1.ListBrowseAbandonersRequest{IdleSince: timestamppb.New(idleSince), MaxAge: timestamppb.New(maxAge), Limit: limit}
+	if channelID != uuid.Nil {
+		req.ChannelId = channelID.String()
+	}
+	res, err := c.Maintenance.ListBrowseAbandoners(sys, req)
 	if err != nil {
 		return nil, err
 	}

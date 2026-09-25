@@ -31,7 +31,7 @@ func TestRemoteAggregates(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	m, ok := aggSource(t, srv.URL).Aggregates(context.Background(), []uuid.UUID{pid})
+	m, ok := aggSource(t, srv.URL).Aggregates(context.Background(), nil, []uuid.UUID{pid})
 	if !ok {
 		t.Fatal("expected ok")
 	}
@@ -45,7 +45,7 @@ func TestRemoteAggregates(t *testing.T) {
 }
 
 func TestRemoteAggregatesFailOpen(t *testing.T) {
-	if _, ok := aggSource(t, "http://127.0.0.1:9/down").Aggregates(context.Background(), []uuid.UUID{uuid.New()}); ok {
+	if _, ok := aggSource(t, "http://127.0.0.1:9/down").Aggregates(context.Background(), nil, []uuid.UUID{uuid.New()}); ok {
 		t.Fatal("down provider should fall back (ok=false)")
 	}
 }

@@ -207,18 +207,19 @@ UPDATE lens_sessions SET
     rage_count  = rage_count  + (CASE WHEN $1::text = 'rage'  THEN 1 ELSE 0 END),
     dead_count  = dead_count  + (CASE WHEN $1::text = 'dead'  THEN 1 ELSE 0 END),
     error_count = error_count + (CASE WHEN $1::text = 'error' THEN 1 ELSE 0 END)
-WHERE id = $2
+WHERE id = $2 AND channel_id = $3
 `
 
 type LensBumpSessionSignalParams struct {
-	Kind string    `json:"kind"`
-	ID   uuid.UUID `json:"id"`
+	Kind      string    `json:"kind"`
+	ID        uuid.UUID `json:"id"`
+	ChannelID uuid.UUID `json:"channel_id"`
 }
 
 // Increment the matching per-session UX-signal counter (kind = rage|dead|error)
 // when a signal custom event carries this recording's sessionId.
 func (q *Queries) LensBumpSessionSignal(ctx context.Context, arg LensBumpSessionSignalParams) error {
-	_, err := q.db.ExecContext(ctx, lensBumpSessionSignal, arg.Kind, arg.ID)
+	_, err := q.db.ExecContext(ctx, lensBumpSessionSignal, arg.Kind, arg.ID, arg.ChannelID)
 	return err
 }
 
@@ -563,13 +564,16 @@ const lensSessionsForAnon = `-- name: LensSessionsForAnon :many
 SELECT id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, viewport, user_agent, rage_count, error_count
 FROM lens_sessions
 WHERE anon_id = $1
+  AND ($2::boolean OR channel_id = ANY($3::uuid[]))
 ORDER BY started_at DESC
-LIMIT $2
+LIMIT $4
 `
 
 type LensSessionsForAnonParams struct {
-	AnonID string `json:"anon_id"`
-	Lim    int32  `json:"lim"`
+	AnonID      string      `json:"anon_id"`
+	AllChannels bool        `json:"all_channels"`
+	ChannelIds  []uuid.UUID `json:"channel_ids"`
+	Lim         int32       `json:"lim"`
 }
 
 type LensSessionsForAnonRow struct {
@@ -588,7 +592,12 @@ type LensSessionsForAnonRow struct {
 }
 
 func (q *Queries) LensSessionsForAnon(ctx context.Context, arg LensSessionsForAnonParams) ([]LensSessionsForAnonRow, error) {
-	rows, err := q.db.QueryContext(ctx, lensSessionsForAnon, arg.AnonID, arg.Lim)
+	rows, err := q.db.QueryContext(ctx, lensSessionsForAnon,
+		arg.AnonID,
+		arg.AllChannels,
+		pq.Array(arg.ChannelIds),
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -690,15 +699,18 @@ func (q *Queries) LensSessionsForChannel(ctx context.Context, arg LensSessionsFo
 const lensSessionsForCustomer = `-- name: LensSessionsForCustomer :many
 SELECT id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, viewport, user_agent, rage_count, error_count
 FROM lens_sessions
-WHERE customer_id = $1 OR anon_id = ANY($2::text[])
+WHERE (customer_id = $1 OR anon_id = ANY($2::text[]))
+  AND ($3::boolean OR channel_id = ANY($4::uuid[]))
 ORDER BY started_at DESC
-LIMIT $3
+LIMIT $5
 `
 
 type LensSessionsForCustomerParams struct {
-	CustomerID uuid.NullUUID `json:"customer_id"`
-	AnonIds    []string      `json:"anon_ids"`
-	Lim        int32         `json:"lim"`
+	CustomerID  uuid.NullUUID `json:"customer_id"`
+	AnonIds     []string      `json:"anon_ids"`
+	AllChannels bool          `json:"all_channels"`
+	ChannelIds  []uuid.UUID   `json:"channel_ids"`
+	Lim         int32         `json:"lim"`
 }
 
 type LensSessionsForCustomerRow struct {
@@ -719,7 +731,13 @@ type LensSessionsForCustomerRow struct {
 // Every session for a customer: those resolved to the customer id PLUS sessions
 // recorded under any anon id they later identified with (pre-login coverage).
 func (q *Queries) LensSessionsForCustomer(ctx context.Context, arg LensSessionsForCustomerParams) ([]LensSessionsForCustomerRow, error) {
-	rows, err := q.db.QueryContext(ctx, lensSessionsForCustomer, arg.CustomerID, pq.Array(arg.AnonIds), arg.Lim)
+	rows, err := q.db.QueryContext(ctx, lensSessionsForCustomer,
+		arg.CustomerID,
+		pq.Array(arg.AnonIds),
+		arg.AllChannels,
+		pq.Array(arg.ChannelIds),
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1069,7 +1087,7 @@ func (q *Queries) LensTotalViews(ctx context.Context, arg LensTotalViewsParams) 
 	return views, err
 }
 
-const lensUpsertSession = `-- name: LensUpsertSession :exec
+const lensUpsertSession = `-- name: LensUpsertSession :execrows
 INSERT INTO lens_sessions (
     id, channel_id, anon_id, customer_id, started_at, last_event_at,
     event_count, entry_page, exit_page, user_agent, viewport
@@ -1084,6 +1102,7 @@ ON CONFLICT (id) DO UPDATE SET
     last_event_at = GREATEST(lens_sessions.last_event_at, EXCLUDED.last_event_at),
     event_count   = lens_sessions.event_count + EXCLUDED.event_count,
     exit_page     = EXCLUDED.exit_page
+WHERE lens_sessions.channel_id = EXCLUDED.channel_id AND lens_sessions.anon_id = EXCLUDED.anon_id
 `
 
 type LensUpsertSessionParams struct {
@@ -1102,8 +1121,9 @@ type LensUpsertSessionParams struct {
 
 // Roll a flush's metadata onto the session row - the first chunk inserts, later ones bump last_event_at, event_count and exit_page
 // started_at stays the earliest seen, and customer_id fills once the visitor is known
-func (q *Queries) LensUpsertSession(ctx context.Context, arg LensUpsertSessionParams) error {
-	_, err := q.db.ExecContext(ctx, lensUpsertSession,
+// A flush naming another channel's or another visitor's session id touches nothing, so the caller drops its chunk
+func (q *Queries) LensUpsertSession(ctx context.Context, arg LensUpsertSessionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, lensUpsertSession,
 		arg.ID,
 		arg.ChannelID,
 		arg.AnonID,
@@ -1116,7 +1136,10 @@ func (q *Queries) LensUpsertSession(ctx context.Context, arg LensUpsertSessionPa
 		arg.UserAgent,
 		arg.Viewport,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const lensUpsertSnapshot = `-- name: LensUpsertSnapshot :exec

@@ -71,6 +71,21 @@ func (r *postgresRepository) ListProductChannelListingsByProductIDs(ctx context.
 	return out, nil
 }
 
+func (r *postgresRepository) ListProductChannelListingsByProductIDsForChannel(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error) {
+	if len(productIDs) == 0 {
+		return map[uuid.UUID][]ProductChannelListing{}, nil
+	}
+	rows, err := r.queries.ListProductChannelListingsByProductIDsForChannel(ctx, db.ListProductChannelListingsByProductIDsForChannelParams{ProductIds: productIDs, ChannelID: channelID})
+	if err != nil {
+		return nil, fmt.Errorf("list channel listings by product ids: %w", err)
+	}
+	out := make(map[uuid.UUID][]ProductChannelListing, len(productIDs))
+	for _, row := range rows {
+		out[row.ProductID] = append(out[row.ProductID], toListing(row))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ListProductChannelListingsByChannel(ctx context.Context, channelID uuid.UUID) ([]ProductChannelListing, error) {
 	rows, err := r.queries.ListProductChannelListingsByChannel(ctx, channelID)
 	if err != nil {

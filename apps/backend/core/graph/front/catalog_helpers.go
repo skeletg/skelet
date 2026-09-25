@@ -580,11 +580,14 @@ func (r *Resolver) renderProduct(ctx context.Context, p catalog.Product, mediaOv
 	return out, nil
 }
 
-// One batched visibility query, and with no store in context (admin playground, introspection) items come back unchanged - it reuses the input slice's backing array
+// Reuses the input slice's backing array
 // Shared by the single-level children and grouped-member filters; bundles filter per-option inside renderBundleOptions
 func keepVisibleByChannel[T any](ctx context.Context, r *Resolver, items []T, id func(T) uuid.UUID) ([]T, error) {
 	storeID := channelIDFromContext(ctx)
-	if storeID == nil || len(items) == 0 {
+	if storeID == nil {
+		return items[:0], nil
+	}
+	if len(items) == 0 {
 		return items, nil
 	}
 	ids := make([]uuid.UUID, len(items))
@@ -645,7 +648,7 @@ func (r *Resolver) renderChildren(ctx context.Context, children []catalog.Produc
 	sid := channelIDFromContext(ctx)
 	var childListings map[uuid.UUID][]catalog.ProductChannelListing
 	if sid != nil {
-		if childListings, err = r.CatalogSvc.ListProductChannelListingsByProductIDs(ctx, childIDs); err != nil {
+		if childListings, err = r.CatalogSvc.ListProductChannelListingsByProductIDsForChannel(ctx, childIDs, *sid); err != nil {
 			return nil, fmt.Errorf("load child listings: %w", err)
 		}
 	}
@@ -705,7 +708,7 @@ func (r *Resolver) enrichPartProducts(ctx context.Context, parts []*model.Produc
 	var listings map[uuid.UUID][]catalog.ProductChannelListing
 	rowByID := make(map[uuid.UUID]catalog.Product, len(ids))
 	if sid != nil {
-		listings, _ = r.CatalogSvc.ListProductChannelListingsByProductIDs(ctx, ids)
+		listings, _ = r.CatalogSvc.ListProductChannelListingsByProductIDsForChannel(ctx, ids, *sid)
 		// The full rows carry the product-level special-price fields the stubs lack, and the parts were already visibility-filtered so the channel gate inside is a no-op
 		if rows, err := r.CatalogSvc.ListProductsForChannelByIDs(ctx, ids, *sid, r.activeLocale(ctx)); err == nil {
 			for _, row := range rows {
@@ -753,11 +756,15 @@ func (r *Resolver) enrichPartProducts(ctx context.Context, parts []*model.Produc
 
 // Drops selections unpublished on the active store in one batched query across all options - a REQUIRED option left with zero selections makes the bundle unsellable, so ErrProductNotFound, while optional ones may render empty
 func (r *Resolver) renderBundleOptions(ctx context.Context, productID uuid.UUID) ([]*model.BundleOption, error) {
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return nil, catalog.ErrProductNotFound
+	}
 	bundleOpts, err := r.CatalogSvc.GetBundleOptions(ctx, productID, r.activeLocale(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("load bundle options: %w", err)
 	}
-	if storeID := channelIDFromContext(ctx); storeID != nil {
+	{
 		ids := make([]uuid.UUID, 0)
 		for _, o := range bundleOpts {
 			for _, s := range o.Selections {
@@ -1124,15 +1131,18 @@ func toCollectionModels(collections []catalog.Collection) []*model.Collection {
 	return out
 }
 
-// Explicit channelId arg first, then the channel from context - uuid.Nil when neither is present, which callers read as "ungated, no store scope"
+// An explicit channelId may only repeat the request's store
 func (r *Resolver) resolveSalableChannel(ctx context.Context, channelID *string) (uuid.UUID, error) {
+	sv, ok := channel.FromContext(ctx)
+	if !ok || sv == nil {
+		return uuid.Nil, nil
+	}
 	if channelID != nil && *channelID != "" {
-		return uuid.Parse(*channelID)
+		if id, err := uuid.Parse(*channelID); err != nil || id != sv.ID {
+			return uuid.Nil, invalidID("channel")
+		}
 	}
-	if sv, ok := channel.FromContext(ctx); ok {
-		return sv.ID, nil
-	}
-	return uuid.Nil, nil
+	return sv.ID, nil
 }
 
 // Flattens both the per-product categories map and the primary-category map so Products/Product can run one batched visibility check before applying the result back to each
@@ -1215,24 +1225,21 @@ func (r *Resolver) renderTierPrices(ctx context.Context, productID uuid.UUID) []
 }
 
 // For rails (linked, also-bought, recently-viewed) - channel-published filter, requested id order preserved, unrenderable entries silently dropped
+// No store, or a visibility read that failed, shows nothing rather than the unfiltered catalog
 func (r *Resolver) renderProductsByIDs(ctx context.Context, ids []uuid.UUID) []*model.Product {
-	if len(ids) == 0 {
+	sid := channelIDFromContext(ctx)
+	if len(ids) == 0 || sid == nil {
 		return []*model.Product{}
 	}
-	var visible map[uuid.UUID]struct{}
-	if sid := channelIDFromContext(ctx); sid != nil {
-		if pub, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, *sid); err == nil {
-			visible = pub
-		}
+	visible, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, *sid)
+	if err != nil {
+		return []*model.Product{}
 	}
 	keep := make([]uuid.UUID, 0, len(ids)) // requested order kept, entries hidden on this store dropped
 	for _, id := range ids {
-		if visible != nil {
-			if _, ok := visible[id]; !ok {
-				continue
-			}
+		if _, ok := visible[id]; ok {
+			keep = append(keep, id)
 		}
-		keep = append(keep, id)
 	}
 	if len(keep) == 0 {
 		return []*model.Product{}
@@ -1296,6 +1303,16 @@ func visibleIfToAny(g *catalog.OptionConditionGroup) any {
 	var out any
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil
+	}
+	return out
+}
+
+func publishedCollections(cols []catalog.Collection) []catalog.Collection {
+	out := make([]catalog.Collection, 0, len(cols))
+	for _, c := range cols {
+		if c.IsPublished {
+			out = append(out, c)
+		}
 	}
 	return out
 }

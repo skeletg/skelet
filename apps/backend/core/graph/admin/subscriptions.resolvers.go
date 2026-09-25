@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
-	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -83,19 +82,13 @@ func (r *queryResolver) Subscriptions(ctx context.Context, status *model.Subscri
 	if status != nil {
 		statusFilter = strings.ToLower(string(*status))
 	}
-	subs, err := r.SubscriptionSvc.List(ctx, statusFilter, int32Or(limit, 50), int32Or(offset, 0))
-	if err != nil {
-		return nil, err
-	}
 	perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "subscriptions.view") // scope-filter mirrors the orders/customers lists
 	if err != nil {
 		return nil, err
 	}
-	visible := make([]subscription.Subscription, 0, len(subs))
-	for _, sub := range subs {
-		if perm.Bypass() || (sub.ChannelID != nil && perm.Allows(*sub.ChannelID)) {
-			visible = append(visible, sub)
-		}
+	visible, err := r.SubscriptionSvc.ListForChannels(ctx, statusFilter, perm.IDs(), int32Or(limit, 50), int32Or(offset, 0))
+	if err != nil {
+		return nil, err
 	}
 	out := make([]*model.CustomerSubscription, len(visible))
 	for i, s := range visible {

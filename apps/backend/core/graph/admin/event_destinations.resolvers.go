@@ -66,8 +66,16 @@ func (r *mutationResolver) SyncAudience(ctx context.Context, segmentID string, d
 	if _, err := uuid.Parse(destinationID); err != nil {
 		return 0, errInvalidID("destinationId", err)
 	}
+	dest, err := r.SignalsAPI.Destination.GetDestination(authed, &signalsv1.GetDestinationRequest{Id: destinationID})
+	if err != nil {
+		return 0, signalsErr(err)
+	}
+	channelID, err := uuid.Parse(dest.GetDestination().GetChannelId())
+	if err != nil {
+		return 0, errInvalidID("channelId", err)
+	}
 	// The addresses are core's, so core hashes them - the suite forwards identifiers it cannot reverse
-	ids, err := audienceio.Hashes(ctx, r.segmentMembers, r.customerEmails, uuid.Nil, segID) // a live request, so the caller on the context is the actor
+	ids, err := audienceio.Hashes(ctx, r.segmentMembers, r.channelCustomerEmails(channelID), uuid.Nil, segID) // a live request, so the caller on the context is the actor
 	if err != nil {
 		return 0, err
 	}

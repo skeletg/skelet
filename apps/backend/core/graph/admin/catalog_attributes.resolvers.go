@@ -44,7 +44,7 @@ func (r *attributeValueResolver) Descriptions(ctx context.Context, obj *model.At
 }
 
 func (r *mutationResolver) CreateAttribute(ctx context.Context, input model.CreateAttributeInput) (*model.Attribute, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	values := make([]catalog.AttributeValueInput, len(input.Values))
@@ -83,7 +83,7 @@ func (r *mutationResolver) CreateAttribute(ctx context.Context, input model.Crea
 }
 
 func (r *mutationResolver) UpdateAttribute(ctx context.Context, input model.UpdateAttributeInput) (*model.Attribute, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID(input.ID, "attribute")
@@ -139,7 +139,7 @@ func (r *mutationResolver) UpdateAttribute(ctx context.Context, input model.Upda
 }
 
 func (r *mutationResolver) DeleteAttribute(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return false, err
 	}
 	attrID, err := parseID(id, "attribute")
@@ -154,7 +154,7 @@ func (r *mutationResolver) DeleteAttribute(ctx context.Context, id string) (bool
 
 // Cascades to every per-value flag in the same transaction
 func (r *mutationResolver) SetAttributeIndexable(ctx context.Context, attributeID string, isIndexable bool) (*model.CascadeAttributeIndexableResult, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	aid, err := parseID(attributeID, "attribute")
@@ -173,7 +173,7 @@ func (r *mutationResolver) SetAttributeIndexable(ctx context.Context, attributeI
 }
 
 func (r *mutationResolver) SetAttributeValuesIndexable(ctx context.Context, valueIds []string, isIndexable bool) (*model.BulkAttributeValueResult, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	ids := make([]uuid.UUID, 0, len(valueIds))
@@ -192,7 +192,7 @@ func (r *mutationResolver) SetAttributeValuesIndexable(ctx context.Context, valu
 }
 
 func (r *mutationResolver) AddAttributeValue(ctx context.Context, attributeID string, input model.AttributeValueInput) (*model.AttributeValue, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID(attributeID, "attribute")
@@ -207,7 +207,7 @@ func (r *mutationResolver) AddAttributeValue(ctx context.Context, attributeID st
 }
 
 func (r *mutationResolver) UpdateAttributeValue(ctx context.Context, id string, input model.AttributeValueInput) (*model.AttributeValue, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	valueID, err := parseID(id, "attribute value")
@@ -222,7 +222,7 @@ func (r *mutationResolver) UpdateAttributeValue(ctx context.Context, id string, 
 }
 
 func (r *mutationResolver) DeleteAttributeValue(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return false, err
 	}
 	valueID, err := parseID(id, "attribute value")
@@ -237,7 +237,7 @@ func (r *mutationResolver) DeleteAttributeValue(ctx context.Context, id string) 
 
 // An empty description deletes the (attributeId, locale) row rather than storing a blank - the content table stays sparse
 func (r *mutationResolver) SetAttributeDescription(ctx context.Context, attributeID string, locale string, description string, name *string) (*model.AttributeContent, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	aid, err := parseID(attributeID, "attribute")
@@ -257,7 +257,7 @@ func (r *mutationResolver) SetAttributeDescription(ctx context.Context, attribut
 }
 
 func (r *mutationResolver) SetAttributeValueDescription(ctx context.Context, valueID string, locale string, description string, name *string) (*model.AttributeValueContent, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	vid, err := parseID(valueID, "attribute value")
@@ -277,9 +277,6 @@ func (r *mutationResolver) SetAttributeValueDescription(ctx context.Context, val
 }
 
 func (r *mutationResolver) SetProductAttributeSlug(ctx context.Context, input model.SetProductAttributeSlugInput) (*model.ProductAttributeSlug, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	productID, err := parseID(input.ProductID, "product")
 	if err != nil {
 		return nil, err
@@ -300,6 +297,9 @@ func (r *mutationResolver) SetProductAttributeSlug(ctx context.Context, input mo
 		}
 		in.ChannelID = &cid
 	}
+	if err := r.requireProductSlugScope(ctx, productID, in.ChannelID); err != nil {
+		return nil, err
+	}
 	out, err := r.CatalogSvc.SetProductAttributeSlug(ctx, in)
 	if err != nil {
 		return nil, err
@@ -308,9 +308,6 @@ func (r *mutationResolver) SetProductAttributeSlug(ctx context.Context, input mo
 }
 
 func (r *mutationResolver) DeleteProductAttributeSlug(ctx context.Context, productID string, attributeID string, channelID *string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return false, err
-	}
 	pid, err := parseID(productID, "product")
 	if err != nil {
 		return false, err
@@ -327,6 +324,9 @@ func (r *mutationResolver) DeleteProductAttributeSlug(ctx context.Context, produ
 		}
 		cid = &v
 	}
+	if err := r.requireProductSlugScope(ctx, pid, cid); err != nil {
+		return false, err
+	}
 	if err := r.CatalogSvc.DeleteProductAttributeSlug(ctx, pid, aid, cid); err != nil {
 		return false, err
 	}
@@ -334,15 +334,15 @@ func (r *mutationResolver) DeleteProductAttributeSlug(ctx context.Context, produ
 }
 
 func (r *mutationResolver) SetAttributeValueChannelSlug(ctx context.Context, valueID string, channelID string, slug string) (*model.AttributeValueChannelSlug, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	vid, err := parseID(valueID, "attribute value")
 	if err != nil {
 		return nil, err
 	}
 	cid, err := parseID(channelID, "channel")
 	if err != nil {
+		return nil, err
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "catalog.manage", cid, nil); err != nil {
 		return nil, err
 	}
 	out, err := r.CatalogSvc.SetAttributeValueChannelSlug(ctx, vid, cid, slug)
@@ -353,15 +353,15 @@ func (r *mutationResolver) SetAttributeValueChannelSlug(ctx context.Context, val
 }
 
 func (r *mutationResolver) DeleteAttributeValueChannelSlug(ctx context.Context, valueID string, channelID string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return false, err
-	}
 	vid, err := parseID(valueID, "attribute value")
 	if err != nil {
 		return false, err
 	}
 	cid, err := parseID(channelID, "channel")
 	if err != nil {
+		return false, err
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "catalog.manage", cid, nil); err != nil {
 		return false, err
 	}
 	if err := r.CatalogSvc.DeleteAttributeValueChannelSlug(ctx, vid, cid); err != nil {
@@ -371,15 +371,15 @@ func (r *mutationResolver) DeleteAttributeValueChannelSlug(ctx context.Context, 
 }
 
 func (r *mutationResolver) SetProductAttributeLocaleValue(ctx context.Context, productID string, attributeID string, locale string, value string) (*model.ProductAttributeLocaleValue, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(productID, "product")
 	if err != nil {
 		return nil, err
 	}
 	aid, err := parseID(attributeID, "attribute")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnProductChannelsInLocale(ctx, pid, locale); err != nil {
 		return nil, err
 	}
 	out, err := r.CatalogSvc.SetProductAttributeLocaleValue(ctx, pid, aid, locale, value)

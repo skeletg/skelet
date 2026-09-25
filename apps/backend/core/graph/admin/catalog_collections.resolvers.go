@@ -78,7 +78,7 @@ func (r *collectionResolver) FacetOverrides(ctx context.Context, obj *model.Coll
 }
 
 func (r *mutationResolver) CreateCollection(ctx context.Context, input model.CreateCollectionInput) (*model.Collection, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	c, err := r.CatalogSvc.CreateCollection(ctx, catalog.CreateCollectionInput{
@@ -101,7 +101,7 @@ func (r *mutationResolver) CreateCollection(ctx context.Context, input model.Cre
 }
 
 func (r *mutationResolver) UpdateCollection(ctx context.Context, input model.UpdateCollectionInput) (*model.Collection, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID(input.ID, "collection")
@@ -130,7 +130,7 @@ func (r *mutationResolver) UpdateCollection(ctx context.Context, input model.Upd
 }
 
 func (r *mutationResolver) SetCollectionFacetOverrides(ctx context.Context, collectionID string, overrides []*model.FacetOverrideInput) (*model.Collection, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID(collectionID, "collection")
@@ -163,7 +163,7 @@ func (r *mutationResolver) SetCollectionFacetOverrides(ctx context.Context, coll
 }
 
 func (r *mutationResolver) DeleteCollection(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return false, err
 	}
 	cid, err := parseID(id, "collection")
@@ -177,7 +177,7 @@ func (r *mutationResolver) DeleteCollection(ctx context.Context, id string) (boo
 }
 
 func (r *mutationResolver) UpsertCollectionContent(ctx context.Context, collectionID string, locale string, input model.UpsertCollectionContentInput) (*model.Collection, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	cid, err := parseID(collectionID, "collection")
@@ -199,7 +199,7 @@ func (r *mutationResolver) UpsertCollectionContent(ctx context.Context, collecti
 }
 
 func (r *mutationResolver) DeleteCollectionContent(ctx context.Context, collectionID string, locale string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return false, err
 	}
 	cid, err := parseID(collectionID, "collection")
@@ -213,7 +213,7 @@ func (r *mutationResolver) DeleteCollectionContent(ctx context.Context, collecti
 }
 
 func (r *mutationResolver) AddProductToCollection(ctx context.Context, collectionID string, productID string, sortOrder *int32) (*model.Collection, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	cid, err := parseID(collectionID, "collection")
@@ -232,7 +232,7 @@ func (r *mutationResolver) AddProductToCollection(ctx context.Context, collectio
 }
 
 func (r *mutationResolver) RemoveProductFromCollection(ctx context.Context, collectionID string, productID string) (*model.Collection, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	cid, err := parseID(collectionID, "collection")
@@ -251,7 +251,7 @@ func (r *mutationResolver) RemoveProductFromCollection(ctx context.Context, coll
 }
 
 func (r *mutationResolver) ReorderCollectionProducts(ctx context.Context, collectionID string, productIds []string) (*model.Collection, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	cid, err := parseID(collectionID, "collection")
@@ -274,7 +274,7 @@ func (r *mutationResolver) ReorderCollectionProducts(ctx context.Context, collec
 }
 
 func (r *mutationResolver) RequestCollectionCoverUpload(ctx context.Context, input model.RequestCollectionCoverUploadInput) (*model.RequestCoverUploadPayload, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	cid, err := parseID(input.CollectionID, "collection")
@@ -299,7 +299,7 @@ func (r *mutationResolver) RequestCollectionCoverUpload(ctx context.Context, inp
 }
 
 func (r *mutationResolver) ConfirmCollectionCoverUpload(ctx context.Context, collectionID string, width int32, height int32) (*model.Collection, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	cid, err := parseID(collectionID, "collection")
@@ -314,7 +314,7 @@ func (r *mutationResolver) ConfirmCollectionCoverUpload(ctx context.Context, col
 }
 
 func (r *mutationResolver) ClearCollectionCover(ctx context.Context, collectionID string) (*model.Collection, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	cid, err := parseID(collectionID, "collection")

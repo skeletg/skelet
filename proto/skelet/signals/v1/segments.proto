@@ -38,6 +38,8 @@ message CustomerSegment {
   string rules_json = 7;
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp updated_at = 9;
+  // Why the stored rules can't run, so the refresh skips them - empty when they can
+  string rules_problem = 10;
 }
 
 // One row of a segment's membership page

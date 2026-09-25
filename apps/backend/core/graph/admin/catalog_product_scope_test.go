@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -26,8 +27,7 @@ var channelAwareGates = map[string]bool{
 	"RequireGlobalPermission":            true,
 }
 
-// Product TYPES live in catalog_product_types.resolvers.go and are deliberately not here - a type is global
-// configuration with no channel listings of its own, so any-scope catalog.manage is the right gate for it
+// Product TYPES are global configuration shared by every channel, so their writes need the global grant - see globalOnlyResolverFiles
 func TestProductRowMutationsAreChannelScoped(t *testing.T) {
 	funcs, resolvers := parsePackageFuncs(t)
 
@@ -128,4 +128,98 @@ func TestChildRowGateHelpersReachTheProductGate(t *testing.T) {
 			t.Errorf("%s no longer reaches the product-global gate", name)
 		}
 	}
+}
+
+// Content shared across channels: every mutation gates on each channel the row renders on, on the channel it names, or globally
+var sharedContentResolverFiles = []string{
+	"ai.resolvers.go",
+	"blog.resolvers.go",
+	"catalog_attributes.resolvers.go",
+	"catalog_categories.resolvers.go",
+	"cms_pages.resolvers.go",
+	"cms_revisions.resolvers.go",
+	"cms_schema.resolvers.go",
+	"cms_workflow.resolvers.go",
+	"inventory.resolvers.go",
+	"media.resolvers.go",
+	"menus.resolvers.go",
+}
+
+// A new row is listed nowhere yet, and an upload adds an asset without changing any existing one
+var unlistedCreates = map[string]bool{
+	"CreateBlogPost":          true,
+	"CreateCMSPage":           true,
+	"CreateCategory":          true,
+	"CreateMenu":              true,
+	"CreateMediaDirectory":    true,
+	"RequestMediaAssetUpload": true,
+	"ConfirmMediaAssetUpload": true,
+	"GenerateMediaAltText":    true,
+}
+
+func TestSharedContentMutationsAreChannelScoped(t *testing.T) {
+	funcs, resolvers := parsePackageFuncs(t)
+	checked := 0
+	for _, file := range sharedContentResolverFiles {
+		for _, name := range mutationsDeclaredIn(t, file) {
+			if _, ok := resolvers[name]; !ok || unlistedCreates[name] {
+				continue
+			}
+			checked++
+			if !reachesChannelAwareGate(name, funcs, 0, map[string]bool{}) {
+				t.Errorf("%s (%s) gates on an any-scope permission only - the row it writes renders on channels the caller may not manage", name, file)
+			}
+		}
+	}
+	if checked < 100 {
+		t.Fatalf("only checked %d mutations - the parser is not seeing the content resolvers", checked)
+	}
+}
+
+// Install-wide configuration: a channel-scoped grant never reaches it, per docs/permissions.md
+var globalOnlyResolverFiles = []string{
+	"catalog_collections.resolvers.go",
+	"catalog_product_types.resolvers.go",
+	"cms_blocks.resolvers.go",
+	"countries.resolvers.go",
+	"currencies.resolvers.go",
+	"locales.resolvers.go",
+}
+
+func TestGlobalOnlyMutationsNeedTheGlobalGrant(t *testing.T) {
+	funcs, resolvers := parsePackageFuncs(t)
+	for _, file := range globalOnlyResolverFiles {
+		names := mutationsDeclaredIn(t, file)
+		if len(names) == 0 {
+			t.Errorf("%s declares no mutations - update globalOnlyResolverFiles", file)
+		}
+		for _, name := range names {
+			if _, ok := resolvers[name]; !ok {
+				continue
+			}
+			if !reachesGate(name, "RequireGlobalPermission", funcs, 0, map[string]bool{}) {
+				t.Errorf("%s (%s) must gate on RequireGlobalPermission - the row is shared by every channel", name, file)
+			}
+		}
+	}
+}
+
+func reachesGate(name, gate string, funcs map[string]funcInfo, depth int, seen map[string]bool) bool {
+	if depth > 4 || seen[name] {
+		return false
+	}
+	seen[name] = true
+	fn, ok := funcs[name]
+	if !ok {
+		return false
+	}
+	if slices.Contains(fn.authGates, gate) {
+		return true
+	}
+	for _, callee := range fn.calls {
+		if reachesGate(callee, gate, funcs, depth+1, seen) {
+			return true
+		}
+	}
+	return false
 }

@@ -5,10 +5,12 @@ import (
 	"log"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 )
 
-// Merchant HTTP endpoint (remoteprovider kind=recommendation) returning recommended product ids - the escape hatch for Nosto/Dynamic-Yield-class engines without a Go plugin Supplies only the ALGORITHMIC "customers also bought" rail; operator-curated related/upsell/crosssell links stay curated Global, no channel scope - Wire contract: request {productId, strategy, limit}, response {productIds: [...]} Effectively always fail-open - fail_closed is treated the same, since a down rec engine must never blank a product page
+// Merchant HTTP endpoint (remoteprovider kind=recommendation) returning recommended product ids - the escape hatch for Nosto/Dynamic-Yield-class engines without a Go plugin Supplies only the ALGORITHMIC "customers also bought" rail; operator-curated related/upsell/crosssell links stay curated - the storefront request's channel picks its own provider over a global one - Wire contract: request {productId, strategy, limit}, response {productIds: [...]} Effectively always fail-open - fail_closed is treated the same, since a down rec engine must never blank a product page
 
 type RemoteRecommendationSource interface {
 	Recommend(ctx context.Context, productID uuid.UUID, strategy string, limit int32) ([]uuid.UUID, bool)
@@ -47,11 +49,14 @@ func NewRemoteRecommendationSource(svc *remoteprovider.Service, invoker *remotep
 }
 
 func (r *remoteRecommendationSource) Recommend(ctx context.Context, productID uuid.UUID, strategy string, limit int32) ([]uuid.UUID, bool) {
-	providers, err := r.svc.ListActiveByKind(ctx, remoteprovider.KindRecommendation, nil) // account-level
-	if err != nil || len(providers) == 0 {
+	var chID *uuid.UUID
+	if ch, ok := channel.FromContext(ctx); ok && ch != nil {
+		chID = &ch.ID
+	}
+	p, found, err := r.svc.ActiveFor(ctx, remoteprovider.KindRecommendation, chID)
+	if err != nil || !found {
 		return nil, false
 	}
-	p := providers[0]
 
 	var resp remoteRecResponse
 	if err := r.invoker.Invoke(ctx, p, remoteRecRequest{ProductID: productID.String(), Strategy: strategy, Limit: limit}, &resp); err != nil {

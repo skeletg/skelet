@@ -162,8 +162,8 @@ func (s *Service) RecordDelivery(ctx context.Context, d Delivery) (Delivery, err
 	return s.repo.CreateDelivery(ctx, d)
 }
 
-func (s *Service) EnqueueDelivery(ctx context.Context, webhookID uuid.UUID, eventType, payload string) (QueueItem, error) {
-	return s.repo.Enqueue(ctx, webhookID, eventType, payload)
+func (s *Service) EnqueueDelivery(ctx context.Context, webhookID uuid.UUID, eventType, payload, dedupeKey string) (QueueItem, error) {
+	return s.repo.Enqueue(ctx, webhookID, eventType, payload, dedupeKey)
 }
 
 // RedeliverDelivery re-enqueues a historical delivery's exact payload for a fresh delivery cycle through the async queue - Works for sync deliveries too - the redelivered copy is a plain notification (the original operation is long finished, so the response can't mutate anything)
@@ -172,7 +172,7 @@ func (s *Service) RedeliverDelivery(ctx context.Context, deliveryID uuid.UUID) (
 	if err != nil {
 		return QueueItem{}, err
 	}
-	return s.repo.Enqueue(ctx, d.WebhookID, d.EventType, d.RequestBody)
+	return s.repo.Enqueue(ctx, d.WebhookID, d.EventType, d.RequestBody, "")
 }
 
 func (s *Service) ListDeadLetters(ctx context.Context, webhookID uuid.UUID, limit int32) ([]QueueItem, error) {

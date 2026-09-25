@@ -11,8 +11,9 @@ import (
 // fakeRepo is an in-memory Repository for engine state-machine tests (the
 // node executors that need live services are covered by the E2E)
 type fakeRepo struct {
-	flows map[uuid.UUID]Flow
-	runs  map[uuid.UUID]FlowRun
+	flows     map[uuid.UUID]Flow
+	runs      map[uuid.UUID]FlowRun
+	createErr error
 }
 
 func newFakeRepo() *fakeRepo {
@@ -94,12 +95,27 @@ func (r *fakeRepo) CountLiveGuestRuns(_ context.Context, flowID uuid.UUID, email
 	}
 	return n, nil
 }
+func (r *fakeRepo) HasRunForKey(_ context.Context, flowID uuid.UUID, key string) (bool, error) {
+	for _, have := range r.runs {
+		if have.FlowID == flowID && have.EnrollmentKey == key {
+			return true, nil
+		}
+	}
+	return false, nil
+}
 func (r *fakeRepo) CreateRun(_ context.Context, run FlowRun) (FlowRun, error) {
-	if run.EnrollmentKey != "" { // the partial unique index, in memory
-		for _, have := range r.runs {
-			if have.FlowID == run.FlowID && have.EnrollmentKey == run.EnrollmentKey {
-				return FlowRun{}, ErrMomentTaken
-			}
+	if r.createErr != nil {
+		return FlowRun{}, r.createErr
+	}
+	for _, have := range r.runs { // the partial unique indexes, in memory
+		if have.FlowID != run.FlowID {
+			continue
+		}
+		if run.EnrollmentKey != "" && have.EnrollmentKey == run.EnrollmentKey {
+			return FlowRun{}, ErrMomentTaken
+		}
+		if (have.Status == RunActive || have.Status == RunWaiting) && have.CustomerID == run.CustomerID && (run.CustomerID != uuid.Nil || have.Email == run.Email) {
+			return FlowRun{}, ErrAlreadyInFlow
 		}
 	}
 	if run.ID == uuid.Nil {
@@ -108,8 +124,10 @@ func (r *fakeRepo) CreateRun(_ context.Context, run FlowRun) (FlowRun, error) {
 	r.runs[run.ID] = run
 	return run, nil
 }
-func (r *fakeRepo) ClaimRunnable(context.Context, int32) ([]FlowRun, error) { return nil, nil }
-func (r *fakeRepo) UpdateRun(_ context.Context, run FlowRun) error          { r.runs[run.ID] = run; return nil }
+func (r *fakeRepo) ClaimRunnable(context.Context, int32, time.Duration) ([]FlowRun, error) {
+	return nil, nil
+}
+func (r *fakeRepo) UpdateRun(_ context.Context, run FlowRun) error { r.runs[run.ID] = run; return nil }
 func (r *fakeRepo) ListRuns(context.Context, uuid.UUID, int32) ([]FlowRun, error) {
 	return nil, nil
 }
@@ -136,7 +154,7 @@ func TestEnrollAndWaitParkResumeComplete(t *testing.T) {
 	cust := uuid.New()
 
 	// enroll → one active run positioned at the wait node
-	if _, err := svc.enroll(context.Background(), f, cust, "", nil, ""); err != nil {
+	if _, _, err := svc.enroll(context.Background(), f, cust, "", nil, "", false); err != nil {
 		t.Fatalf("enroll: %v", err)
 	}
 	if len(repo.runs) != 1 {
@@ -151,7 +169,7 @@ func TestEnrollAndWaitParkResumeComplete(t *testing.T) {
 	}
 
 	// re-enroll while live → skipped (one-run guard)
-	_, _ = svc.enroll(context.Background(), f, cust, "", nil, "")
+	_, _, _ = svc.enroll(context.Background(), f, cust, "", nil, "", false)
 	if len(repo.runs) != 1 {
 		t.Fatalf("re-enroll should be skipped, got %d runs", len(repo.runs))
 	}
@@ -185,15 +203,15 @@ func TestGuestEnrollmentKeyedByEmail(t *testing.T) {
 	ctx := context.Background()
 
 	// A guest (no customer id) enrolls keyed by email
-	if _, err := svc.enroll(ctx, f, uuid.Nil, "guest@example.com", nil, ""); err != nil {
+	if _, _, err := svc.enroll(ctx, f, uuid.Nil, "guest@example.com", nil, "", false); err != nil {
 		t.Fatalf("guest enroll: %v", err)
 	}
 	// Re-enroll the same guest email while live → deduped (one run)
-	if _, err := svc.enroll(ctx, f, uuid.Nil, "guest@example.com", nil, ""); err != nil {
+	if _, _, err := svc.enroll(ctx, f, uuid.Nil, "guest@example.com", nil, "", false); err != nil {
 		t.Fatalf("guest re-enroll: %v", err)
 	}
 	// A different guest email → a separate run
-	if _, err := svc.enroll(ctx, f, uuid.Nil, "other@example.com", nil, ""); err != nil {
+	if _, _, err := svc.enroll(ctx, f, uuid.Nil, "other@example.com", nil, "", false); err != nil {
 		t.Fatalf("other guest enroll: %v", err)
 	}
 	if len(repo.runs) != 2 {
@@ -214,7 +232,7 @@ func TestSplitBranchAndMissingNode(t *testing.T) {
 		[]Edge{{ID: "e1", Source: "t", Target: "s"}, {ID: "e2", Source: "s", Target: "n", SourceHandle: "no"}},
 	)
 	svc := &Service{repo: repo}
-	if _, err := svc.enroll(context.Background(), f, uuid.New(), "", nil, ""); err != nil {
+	if _, _, err := svc.enroll(context.Background(), f, uuid.New(), "", nil, "", false); err != nil {
 		t.Fatalf("enroll: %v", err)
 	}
 	var run FlowRun

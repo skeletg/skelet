@@ -52,11 +52,12 @@ func (r *postgresRepository) GetByID(ctx context.Context, id uuid.UUID) (Provide
 	return toProvider(row), nil
 }
 
-func (r *postgresRepository) GetBySlug(ctx context.Context, kind Kind, slug string) (Provider, error) {
-	row, err := r.queries.GetRemoteProviderBySlug(ctx, db.GetRemoteProviderBySlugParams{
-		Kind: string(kind),
-		Slug: slug,
-	})
+func (r *postgresRepository) GetBySlug(ctx context.Context, kind Kind, slug string, channelID *uuid.UUID) (Provider, error) {
+	p := db.GetRemoteProviderBySlugParams{Kind: string(kind), Slug: slug}
+	if channelID != nil {
+		p.ChannelID = uuid.NullUUID{UUID: *channelID, Valid: true}
+	}
+	row, err := r.queries.GetRemoteProviderBySlug(ctx, p)
 	if err != nil {
 		return Provider{}, ErrNotFound
 	}

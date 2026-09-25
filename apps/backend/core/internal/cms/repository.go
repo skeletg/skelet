@@ -1918,6 +1918,14 @@ func (r *postgresRepository) ResolveComment(ctx context.Context, id uuid.UUID, r
 	return toPageComment(row), nil
 }
 
+func (r *postgresRepository) GetComment(ctx context.Context, id uuid.UUID) (PageComment, error) {
+	row, err := r.queries.GetCMSPageComment(ctx, id)
+	if err != nil {
+		return PageComment{}, fmt.Errorf("get comment: %w", err)
+	}
+	return toPageComment(row), nil
+}
+
 func (r *postgresRepository) DeleteComment(ctx context.Context, id uuid.UUID) error {
 	if err := r.queries.DeleteCMSPageComment(ctx, id); err != nil {
 		return fmt.Errorf("delete comment: %w", err)

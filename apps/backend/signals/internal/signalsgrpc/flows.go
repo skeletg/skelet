@@ -6,6 +6,7 @@ package signalsgrpc
 import (
 	"context"
 	"encoding/json"
+	"log"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -209,8 +210,20 @@ func (s *flowServer) Enroll(ctx context.Context, req *signalsv1.EnrollRequest) (
 		}
 		payload = json.RawMessage(raw)
 	}
-	n := s.svc.Enroll(ctx, req.GetTriggerType(), channelID, customerID, req.GetEmail(), payload, req.GetIdempotencyKey())
-	return &signalsv1.EnrollResponse{Enrolled: int32(n)}, nil
+	n, err := s.svc.EnrollMoment(ctx, req.GetTriggerType(), channelID, customerID, req.GetEmail(), payload, req.GetIdempotencyKey())
+	return enrollAnswer(req.GetTriggerType(), n, err)
+}
+
+// A flow that took the moment has already sent, so a partial failure still answers the count
+func enrollAnswer(trigger string, n int, err error) (*signalsv1.EnrollResponse, error) {
+	if err == nil {
+		return &signalsv1.EnrollResponse{Enrolled: int32(n)}, nil
+	}
+	if n == 0 {
+		return nil, status.Errorf(codes.Internal, "enroll %s: %v", trigger, err)
+	}
+	log.Printf("[flow] enroll %s taken by %d flows, the rest failed: %v", trigger, n, err)
+	return &signalsv1.EnrollResponse{Enrolled: int32(n), Incomplete: true}, nil
 }
 
 // load is the entity gate: the flow has to exist, and the grant has to cover its channel

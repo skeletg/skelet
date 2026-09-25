@@ -17,6 +17,13 @@ func (r *mutationResolver) RestoreCMSPageRevision(ctx context.Context, id string
 	if err != nil {
 		return nil, err
 	}
+	rev, err := r.CMSSvc.GetRevision(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", rev.PageID, rev.Locale); err != nil {
+		return nil, err
+	}
 	p, err := r.CMSSvc.RestoreRevision(ctx, uid)
 	if err != nil {
 		return nil, err
@@ -25,11 +32,11 @@ func (r *mutationResolver) RestoreCMSPageRevision(ctx context.Context, id string
 }
 
 func (r *mutationResolver) ScheduleCMSPage(ctx context.Context, id string, scheduledAt *time.Time) (*model.CMSPage, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return nil, err
-	}
 	uid, err := parseID(id, "page")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", uid, ""); err != nil {
 		return nil, err
 	}
 	p, err := r.CMSSvc.SchedulePage(ctx, uid, scheduledAt)
@@ -40,15 +47,15 @@ func (r *mutationResolver) ScheduleCMSPage(ctx context.Context, id string, sched
 }
 
 func (r *mutationResolver) RebuildCMSPage(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cms.manage"); err != nil {
-		return false, err
-	}
 	if r.CacheClient == nil {
 		return false, errNotConfigured("cache revalidation")
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return false, errInvalidID("id", err)
+	}
+	if err := r.requireOnPageChannels(ctx, "cms.manage", uid, ""); err != nil {
+		return false, err
 	}
 	page, err := r.CMSSvc.GetPage(ctx, uid, "")
 	if err != nil {

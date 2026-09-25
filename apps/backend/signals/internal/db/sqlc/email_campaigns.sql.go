@@ -489,10 +489,10 @@ func (q *Queries) ListPendingRecipients(ctx context.Context, arg ListPendingReci
 }
 
 const listSendingCampaigns = `-- name: ListSendingCampaigns :many
-SELECT id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at FROM email_campaigns WHERE status = 'sending' AND deleted_at IS NULL ORDER BY scheduled_for
+SELECT id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at FROM email_campaigns WHERE status = 'sending' AND deleted_at IS NULL ORDER BY updated_at, scheduled_for
 `
 
-// Campaigns mid-send (incl. ones resuming after a crash/timeout)
+// Least recently advanced first, since each pass touches updated_at
 func (q *Queries) ListSendingCampaigns(ctx context.Context) ([]EmailCampaign, error) {
 	rows, err := q.db.QueryContext(ctx, listSendingCampaigns)
 	if err != nil {

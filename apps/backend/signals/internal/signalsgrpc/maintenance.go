@@ -220,7 +220,15 @@ func (s *maintenanceServer) ListBrowseAbandoners(ctx context.Context, req *signa
 	if err := requireSystem(ctx); err != nil {
 		return nil, err
 	}
-	cands, err := s.lens.ListBrowseAbandoners(ctx, req.GetIdleSince().AsTime(), req.GetMaxAge().AsTime(), req.GetLimit())
+	var channelID uuid.UUID
+	if raw := req.GetChannelId(); raw != "" {
+		id, err := parseID("channel_id", raw)
+		if err != nil {
+			return nil, err
+		}
+		channelID = id
+	}
+	cands, err := s.lens.ListBrowseAbandoners(ctx, channelID, req.GetIdleSince().AsTime(), req.GetMaxAge().AsTime(), req.GetLimit())
 	if err != nil {
 		return nil, err
 	}

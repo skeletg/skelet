@@ -275,3 +275,22 @@ func TestGuards_NilTokenClaimsIsUnauthenticated(t *testing.T) {
 		t.Errorf("nil token claims = %v, want ErrUnauthenticated", err)
 	}
 }
+
+func TestRequireScopedOrGlobal_AnUntargetedRunNeedsTheGlobalGrant(t *testing.T) {
+	ch := uuid.New()
+	scoped := &stubScoped{store: map[scopeKey]bool{{slug: "customers.manage", channelID: ch}: true}}
+	scoped.granted = map[string]bool{"customers.manage": true}
+	if err := RequireScopedOrGlobal(adminCtx(false), scoped, "customers.manage", ch, false); err != nil {
+		t.Errorf("targeted run on the granted channel = %v, want nil", err)
+	}
+	if err := RequireScopedOrGlobal(adminCtx(false), scoped, "customers.manage", uuid.Nil, false); !errors.Is(err, ErrForbidden) {
+		t.Errorf("untargeted run on a channel-scoped grant = %v, want ErrForbidden - it reaches every channel", err)
+	}
+	if err := RequireScopedOrGlobal(adminCtx(false), scoped, "customers.manage", ch, true); !errors.Is(err, ErrForbidden) {
+		t.Errorf("explicitly global run on a channel-scoped grant = %v, want ErrForbidden", err)
+	}
+	scoped.global = map[string]bool{"customers.manage": true}
+	if err := RequireScopedOrGlobal(adminCtx(false), scoped, "customers.manage", uuid.Nil, false); err != nil {
+		t.Errorf("untargeted run on a global grant = %v, want nil", err)
+	}
+}

@@ -75,6 +75,20 @@ func (g *GrantSet) HasStore(slug string, channelID uuid.UUID, locale *string) bo
 	return false
 }
 
+// Covers reports whether the set holds want at least as widely
+func (g *GrantSet) Covers(want Grant) bool {
+	for _, slug := range EffectiveSlugs(want.Slug) {
+		for _, s := range g.bySlug[slug] {
+			channelOK := s.ChannelID == nil || (want.ChannelID != nil && *s.ChannelID == *want.ChannelID)
+			localeOK := s.Locale == nil || (want.Locale != nil && *s.Locale == *want.Locale)
+			if channelOK && localeOK {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (g *GrantSet) PermittedChannelIDs(slug string) []uuid.UUID { // distinct non-nil channel ids only - a nil row means any and can't be enumerated
 	var out []uuid.UUID
 	seen := make(map[uuid.UUID]struct{})

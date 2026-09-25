@@ -27,10 +27,15 @@ func (s *listingService) SetProductListing(ctx context.Context, input ProductCha
 			return ProductChannelListing{}, ErrListingCurrencyMismatch
 		}
 	}
+	var oldURL *string
+	if prev, err := s.repo.GetProductChannelListing(ctx, input.ProductID, input.ChannelID); err == nil {
+		oldURL = prev.URL
+	}
 	listing, err := s.repo.UpsertProductChannelListing(ctx, input)
 	if err != nil {
 		return ProductChannelListing{}, err
 	}
+	s.forgetChannelPaths(ctx, input.ChannelID, oldURL, listing.URL)
 	if s.bus != nil {
 		s.bus.Publish(ctx, &ProductListingChanged{
 			ProductID:   listing.ProductID,
@@ -60,7 +65,7 @@ func (s *listingService) ResolveProductIDForChannelPath(ctx context.Context, cha
 	if path == "" {
 		return uuid.Nil, ErrListingNotFound
 	}
-	key := "p:" + channelID.String() + ":" + path
+	key := channelPathKey(channelID, path)
 	if s.channelPathCache != nil {
 		if hit, ok := cache.GetJSON[cachedChannelPath](ctx, s.channelPathCache, key); ok {
 			if hit.NotFound {
@@ -82,6 +87,22 @@ func (s *listingService) ResolveProductIDForChannelPath(ctx context.Context, cha
 	return id, err
 }
 
+// A moved override must stop resolving at once, and a new one must not stay hidden behind a cached miss
+func (s *listingService) forgetChannelPaths(ctx context.Context, channelID uuid.UUID, paths ...*string) {
+	if s.channelPathCache == nil {
+		return
+	}
+	for _, p := range paths {
+		if p != nil && *p != "" {
+			s.channelPathCache.Del(ctx, channelPathKey(channelID, *p))
+		}
+	}
+}
+
+func channelPathKey(channelID uuid.UUID, path string) string {
+	return "p:" + channelID.String() + ":" + strings.Trim(strings.TrimSpace(path), "/")
+}
+
 const (
 	channelPathCacheTTL         = 15 * time.Minute
 	channelPathNotFoundCacheTTL = 5 * time.Minute
@@ -98,9 +119,14 @@ func (s *listingService) resolveChannelPathUncached(ctx context.Context, channel
 
 // Removing the listing un-publishes the product on that store
 func (s *listingService) ClearProductListing(ctx context.Context, productID, channelID uuid.UUID) error {
+	var oldURL *string
+	if prev, err := s.repo.GetProductChannelListing(ctx, productID, channelID); err == nil {
+		oldURL = prev.URL
+	}
 	if err := s.repo.DeleteProductChannelListing(ctx, productID, channelID); err != nil {
 		return err
 	}
+	s.forgetChannelPaths(ctx, channelID, oldURL)
 	if s.bus != nil {
 		s.bus.Publish(ctx, &ProductListingChanged{
 			ProductID:   productID,
@@ -118,6 +144,10 @@ func (s *listingService) ListProductChannelListings(ctx context.Context, product
 
 func (s *listingService) ListProductChannelListingsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error) {
 	return s.repo.ListProductChannelListingsByProductIDs(ctx, productIDs)
+}
+
+func (s *listingService) ListProductChannelListingsByProductIDsForChannel(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error) {
+	return s.repo.ListProductChannelListingsByProductIDsForChannel(ctx, productIDs, channelID)
 }
 
 func (s *listingService) ListProductChannelListingsByChannel(ctx context.Context, channelID uuid.UUID) ([]ProductChannelListing, error) {

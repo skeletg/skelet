@@ -772,9 +772,11 @@ func (x *DestinationHealth) GetLastForwardedAt() *timestamppb.Timestamp {
 type ListBrowseAbandonersRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Browses idle since this, and no older than max_age - a colder one is not worth chasing
-	IdleSince     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=idle_since,json=idleSince,proto3" json:"idle_since,omitempty"`
-	MaxAge        *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=max_age,json=maxAge,proto3" json:"max_age,omitempty"`
-	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	IdleSince *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=idle_since,json=idleSince,proto3" json:"idle_since,omitempty"`
+	MaxAge    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=max_age,json=maxAge,proto3" json:"max_age,omitempty"`
+	Limit     int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	// One channel's browses, so a busy store's backlog never fills another's page - empty reads every channel
+	ChannelId     string `protobuf:"bytes,4,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -828,6 +830,13 @@ func (x *ListBrowseAbandonersRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *ListBrowseAbandonersRequest) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
 }
 
 type BrowseAbandoner struct {
@@ -1711,12 +1720,14 @@ const file_skelet_signals_v1_maintenance_proto_rawDesc = "" +
 	"\n" +
 	"last_error\x18\x02 \x01(\tR\tlastError\x12K\n" +
 	"\x11last_forwarded_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\x0flastForwardedAt\x88\x01\x01B\x14\n" +
-	"\x12_last_forwarded_at\"\xa3\x01\n" +
+	"\x12_last_forwarded_at\"\xc2\x01\n" +
 	"\x1bListBrowseAbandonersRequest\x129\n" +
 	"\n" +
 	"idle_since\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tidleSince\x123\n" +
 	"\amax_age\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06maxAge\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\x88\x02\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x04 \x01(\tR\tchannelId\"\x88\x02\n" +
 	"\x0fBrowseAbandoner\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x12\x1d\n" +

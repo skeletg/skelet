@@ -2,6 +2,7 @@ package signalsboot
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -13,8 +14,9 @@ import (
 
 // SpinePruneJob is the analytics-prune body: spine hygiene, then event retention (prune or archive per retention_action)
 func SpinePruneJob(cfgSvc Settings, rec *analytics.Recorder) func(context.Context) error {
-	return func(ctx context.Context) error {
-		rec.Maintain(ctx) // hygiene first and unconditionally - the GDPR erasure sweep must not die with a keep-forever retention setting
+	return func(ctx context.Context) (err error) {
+		maintErr := rec.Maintain(ctx) // hygiene first and unconditionally - the GDPR erasure sweep must not die with a keep-forever retention setting
+		defer func() { err = errors.Join(err, maintErr) }()
 		archive, err := archiveAction(ctx, cfgSvc)
 		if err != nil {
 			return err

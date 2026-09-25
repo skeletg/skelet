@@ -100,6 +100,9 @@ func (r *mutationResolver) UpdateTaxRule(ctx context.Context, input model.Update
 }
 
 func (r *mutationResolver) DeleteTaxRule(ctx context.Context, id string) (bool, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "settings.manage"); err != nil {
+		return false, err
+	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return false, errInvalidID("id", err)

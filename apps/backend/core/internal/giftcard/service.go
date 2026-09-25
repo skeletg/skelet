@@ -89,8 +89,8 @@ func (s *Service) Redeem(ctx context.Context, code string, amount int64, currenc
 
 // Applies the card as a TENDER against an order, joining the caller's placement transaction - it spends min(balance, amountDue), so a gift card pays what it can and the remainder is owed elsewhere
 // Validates active state, expiry and currency, and applies nothing with no ledger row when the card is empty or nothing is due
-func (s *Service) RedeemUpToTx(ctx context.Context, tx *sql.Tx, code string, amountDue int64, currency string, orderID uuid.UUID) (int64, error) {
-	return redeemUpToTx(ctx, s.repo.WithTx(tx), code, amountDue, currency, s.now(), &orderID)
+func (s *Service) RedeemUpToTx(ctx context.Context, tx *sql.Tx, code string, channelID uuid.UUID, amountDue int64, currency string, orderID uuid.UUID) (int64, error) {
+	return redeemUpToTx(ctx, s.repo.WithTx(tx), code, channelID, amountDue, currency, s.now(), &orderID)
 }
 
 func (s *Service) GetByCode(ctx context.Context, code string) (GiftCard, error) {
@@ -165,10 +165,17 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (GiftCard, error) {
 }
 
 func (s *Service) List(ctx context.Context, limit, offset int32) ([]GiftCard, error) {
+	return s.ListForChannels(ctx, nil, limit, offset)
+}
+
+func (s *Service) ListForChannels(ctx context.Context, channelIDs []uuid.UUID, limit, offset int32) ([]GiftCard, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
-	return s.repo.List(ctx, limit, offset)
+	if channelIDs != nil && len(channelIDs) == 0 {
+		return []GiftCard{}, nil
+	}
+	return s.repo.List(ctx, channelIDs, limit, offset)
 }
 
 func (s *Service) Transactions(ctx context.Context, id uuid.UUID) ([]Transaction, error) {
@@ -236,10 +243,13 @@ func redeemTx(ctx context.Context, r Repository, code string, amount int64, curr
 }
 
 // A tender redemption against a transaction-bound repository, spending min(balance, amountDue) - factored out so it's testable with a fake
-func redeemUpToTx(ctx context.Context, r Repository, code string, amountDue int64, currency string, now time.Time, orderID *uuid.UUID) (int64, error) {
+func redeemUpToTx(ctx context.Context, r Repository, code string, channelID uuid.UUID, amountDue int64, currency string, now time.Time, orderID *uuid.UUID) (int64, error) {
 	c, err := r.GetByCodeForUpdate(ctx, code)
 	if err != nil {
 		return 0, err
+	}
+	if !c.SpendsOn(channelID) {
+		return 0, ErrWrongChannel
 	}
 	applied, newBalance, newStatus, err := tenderAmount(c, amountDue, currency, now)
 	if err != nil {

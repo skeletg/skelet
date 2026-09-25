@@ -60,12 +60,7 @@ func orderIDFromRun(run FlowRun) uuid.UUID {
 // node's referenced library email, or one built from its inline content
 func (s *Service) chosenEmail(ctx context.Context, ch Store, node Node) (emailtemplate.LibraryEmail, bool) {
 	if id := strings.TrimSpace(node.Data.EmailID); id != "" {
-		if eid, err := uuid.Parse(id); err == nil {
-			if e, ok, err := s.tmpl.GetLibraryEmail(ctx, eid); err == nil && ok {
-				return e, true
-			}
-		}
-		return emailtemplate.LibraryEmail{}, false
+		return s.ownEmail(ctx, ch.ID, id)
 	}
 	return emailtemplate.LibraryEmail{
 		ChannelID: ch.ID, Subject: node.Data.Subject, Blocks: node.Data.Blocks, Styles: node.Data.Styles,

@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/audienceio"
+	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
 
@@ -45,7 +47,7 @@ func (r *Resolver) signalsWrite(ctx context.Context) (context.Context, error) {
 func (r *Resolver) segmentMembers(ctx context.Context, _ uuid.UUID, segmentID uuid.UUID) ([]uuid.UUID, error) {
 	authed, err := r.SignalsAPI.Authed(ctx)
 	if err != nil {
-		return nil, err
+		return nil, signalsErr(err)
 	}
 	var out []uuid.UUID
 	for token := ""; ; {
@@ -66,6 +68,8 @@ func (r *Resolver) segmentMembers(ctx context.Context, _ uuid.UUID, segmentID uu
 	}
 }
 
-func (r *Resolver) customerEmails(ctx context.Context, ids []uuid.UUID) ([]string, error) {
-	return r.Queries.CustomerEmailsByIDs(ctx, ids)
+func (r *Resolver) channelCustomerEmails(channelID uuid.UUID) audienceio.Emails {
+	return func(ctx context.Context, ids []uuid.UUID) ([]string, error) {
+		return r.Queries.CustomerEmailsByIDsInChannel(ctx, db.CustomerEmailsByIDsInChannelParams{CustomerIds: ids, ChannelID: channelID})
+	}
 }

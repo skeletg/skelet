@@ -94,7 +94,11 @@ func NewServer(d Deps) *grpc.Server {
 	signalsv1.RegisterLensServiceServer(srv, &lensServer{svc: d.Lens})
 	signalsv1.RegisterDestinationServiceServer(srv, &destinationServer{svc: d.Destination})
 	signalsv1.RegisterSegmentServiceServer(srv, &segmentServer{svc: d.Segment})
-	signalsv1.RegisterPulseServiceServer(srv, &pulseServer{rec: d.Analytics, sends: d.SendLog, roster: rosterOrNil(d.Roster)})
+	pulse := &pulseServer{rec: d.Analytics, sends: d.SendLog, roster: rosterOrNil(d.Roster)}
+	if d.Campaigns != nil {
+		pulse.campaigns = d.Campaigns
+	}
+	signalsv1.RegisterPulseServiceServer(srv, pulse)
 	signalsv1.RegisterIngestServiceServer(srv, &ingestServer{
 		rec: d.Analytics, roster: d.CustomerRoster, channels: d.Channels, sends: d.SendLog, track: engagement.New(d.Analytics, d.SendLog),
 	})
@@ -112,7 +116,7 @@ func NewServer(d Deps) *grpc.Server {
 		signalsv1.RegisterCampaignServiceServer(srv, &campaignServer{svc: d.Campaigns})
 	}
 	if d.Builder != nil {
-		signalsv1.RegisterEmailBuilderServiceServer(srv, &builderServer{svc: d.Builder, stores: d.Stores, contacts: d.Contacts})
+		signalsv1.RegisterEmailBuilderServiceServer(srv, &builderServer{svc: d.Builder, stores: d.Stores, contacts: d.Contacts, roster: rosterOrNil(d.Roster)})
 	}
 	signalsv1.RegisterMaintenanceServiceServer(srv, maint)
 	signalsv1.RegisterSuppressionServiceServer(srv, &suppressionServer{svc: d.Suppression})
@@ -171,6 +175,24 @@ func requirePermissionOrSystem(ctx context.Context, perms ...string) error {
 		}
 	}
 	return nil
+}
+
+// Install-wide state takes the grant held at every channel, not one held somewhere
+func requireGlobal(ctx context.Context, perm string) error {
+	if err := auth.RequireGlobalPermission(ctx, auth.GrantCheckerFrom(ctx), perm); err != nil {
+		if errors.Is(err, auth.ErrUnauthenticated) {
+			return status.Error(codes.Unauthenticated, "no valid service token")
+		}
+		return status.Errorf(codes.PermissionDenied, "%s is required across every channel", perm)
+	}
+	return nil
+}
+
+func requireGlobalOrSystem(ctx context.Context, perm string) error {
+	if auth.IsSystemCaller(ctx) {
+		return nil
+	}
+	return requireGlobal(ctx, perm)
 }
 
 func requireChannel(ctx context.Context, perm string, channelID uuid.UUID) error {

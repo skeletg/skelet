@@ -24,6 +24,9 @@ func (r *mutationResolver) CreateSignupForm(ctx context.Context, input model.Sav
 }
 
 func (r *mutationResolver) UpdateSignupForm(ctx context.Context, id string, input model.SaveSignupFormInput) (*model.SignupForm, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "forms.manage"); err != nil {
+		return nil, err
+	}
 	fid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("id", err)
@@ -44,6 +47,9 @@ func (r *mutationResolver) UpdateSignupForm(ctx context.Context, id string, inpu
 }
 
 func (r *mutationResolver) DeleteSignupForm(ctx context.Context, id string) (bool, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "forms.manage"); err != nil {
+		return false, err
+	}
 	fid, err := uuid.Parse(id)
 	if err != nil {
 		return false, errInvalidID("id", err)
@@ -82,6 +88,9 @@ func (r *queryResolver) SignupForms(ctx context.Context, channelID string) ([]*m
 }
 
 func (r *queryResolver) SignupForm(ctx context.Context, id string) (*model.SignupForm, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "forms.view"); err != nil {
+		return nil, err
+	}
 	fid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("id", err)
@@ -98,6 +107,9 @@ func (r *queryResolver) SignupForm(ctx context.Context, id string) (*model.Signu
 }
 
 func (r *queryResolver) SignupFormSubmissions(ctx context.Context, formID string, limit *int32) ([]*model.SignupFormSubmission, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "forms.view"); err != nil {
+		return nil, err
+	}
 	fid, err := uuid.Parse(formID)
 	if err != nil {
 		return nil, errInvalidID("formId", err)

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
 
 	db "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 )
@@ -26,9 +28,10 @@ type Repository interface {
 
 	CountLiveRuns(ctx context.Context, flowID, customerID uuid.UUID) (int64, error)
 	CountLiveGuestRuns(ctx context.Context, flowID uuid.UUID, email string) (int64, error)
-	// ErrMomentTaken when the run's EnrollmentKey already names a run in the flow
+	HasRunForKey(ctx context.Context, flowID uuid.UUID, key string) (bool, error)
+	// ErrMomentTaken when the run's EnrollmentKey already names a run in the flow, ErrAlreadyInFlow when the customer holds a live one
 	CreateRun(ctx context.Context, r FlowRun) (FlowRun, error)
-	ClaimRunnable(ctx context.Context, limit int32) ([]FlowRun, error)
+	ClaimRunnable(ctx context.Context, limit int32, lease time.Duration) ([]FlowRun, error)
 	UpdateRun(ctx context.Context, r FlowRun) error
 	ListRuns(ctx context.Context, flowID uuid.UUID, limit int32) ([]FlowRun, error)
 	RunsForCustomer(ctx context.Context, customerID uuid.UUID) ([]CustomerRun, error)
@@ -148,6 +151,10 @@ func (r *repo) CountLiveGuestRuns(ctx context.Context, flowID uuid.UUID, email s
 	return r.q.CountLiveGuestRuns(ctx, db.CountLiveGuestRunsParams{FlowID: flowID, Email: email})
 }
 
+func (r *repo) HasRunForKey(ctx context.Context, flowID uuid.UUID, key string) (bool, error) {
+	return r.q.FlowRunExistsForKey(ctx, db.FlowRunExistsForKeyParams{FlowID: flowID, EnrollmentKey: key})
+}
+
 func (r *repo) CreateRun(ctx context.Context, rn FlowRun) (FlowRun, error) {
 	ctxBytes := rn.Context
 	if len(ctxBytes) == 0 {
@@ -166,14 +173,17 @@ func (r *repo) CreateRun(ctx context.Context, rn FlowRun) (FlowRun, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		return FlowRun{}, ErrMomentTaken // the keyed insert hit its unique index and inserted nothing
 	}
+	if isLiveRunConflict(err) {
+		return FlowRun{}, ErrAlreadyInFlow
+	}
 	if err != nil {
 		return FlowRun{}, err
 	}
 	return toRun(row), nil
 }
 
-func (r *repo) ClaimRunnable(ctx context.Context, limit int32) ([]FlowRun, error) {
-	rows, err := r.q.ClaimRunnableFlowRuns(ctx, limit)
+func (r *repo) ClaimRunnable(ctx context.Context, limit int32, lease time.Duration) ([]FlowRun, error) {
+	rows, err := r.q.ClaimRunnableFlowRuns(ctx, db.ClaimRunnableFlowRunsParams{Lim: limit, LeaseSeconds: lease.Seconds()})
 	if err != nil {
 		return nil, err
 	}
@@ -284,6 +294,21 @@ func toRun(row db.FlowRun) FlowRun {
 		r.ResumeAt = &t
 	}
 	return r
+}
+
+func isLiveRunConflict(err error) bool {
+	var constraint string
+	var pgErr *pgconn.PgError
+	var pqErr *pq.Error
+	switch {
+	case errors.As(err, &pgErr) && pgErr.Code == "23505":
+		constraint = pgErr.ConstraintName
+	case errors.As(err, &pqErr) && pqErr.Code == "23505":
+		constraint = pqErr.Constraint
+	default:
+		return false
+	}
+	return constraint == "flow_runs_one_live" || constraint == "flow_runs_one_live_guest"
 }
 
 func nullTime(t *time.Time) sql.NullTime {

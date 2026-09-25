@@ -60,13 +60,16 @@ const uploadTTL = 15 * time.Minute
 
 // PresignUpload issues a presigned PUT URL for a file field on a form - The object key is server-built under a per-form/field prefix from a
 // sanitized filename (no path traversal) - Returns the URL + the object key the client echoes back on submit
-func (s *Service) PresignUpload(ctx context.Context, formID uuid.UUID, fieldKey, filename, contentType string, sizeBytes int64) (url, objectKey string, err error) {
+func (s *Service) PresignUpload(ctx context.Context, formID, channelID uuid.UUID, fieldKey, filename, contentType string, sizeBytes int64) (url, objectKey string, err error) {
 	if s.files == nil {
 		return "", "", fmt.Errorf("%w: uploads are not configured", ErrInvalidSubmission)
 	}
 	form, err := s.repo.Get(ctx, formID)
 	if err != nil {
 		return "", "", err
+	}
+	if form.ChannelID != channelID {
+		return "", "", ErrFormNotFound
 	}
 	if form.Status != StatusActive {
 		return "", "", ErrFormInactive

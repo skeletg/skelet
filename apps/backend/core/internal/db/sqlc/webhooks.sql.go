@@ -257,6 +257,65 @@ func (q *Queries) EnqueueWebhookDelivery(ctx context.Context, arg EnqueueWebhook
 	return i, err
 }
 
+const enqueueWebhookDeliveryOnce = `-- name: EnqueueWebhookDeliveryOnce :many
+WITH claimed AS (
+    INSERT INTO webhook_enqueue_dedup (webhook_id, dedupe_key)
+    VALUES ($3::uuid, $4::text)
+    ON CONFLICT DO NOTHING
+    RETURNING webhook_id
+)
+INSERT INTO webhook_queue (webhook_id, event_type, payload)
+SELECT claimed.webhook_id, $1::text, $2::text FROM claimed
+RETURNING id, webhook_id, event_type, payload, status, attempts, next_attempt_at, last_error, created_at, updated_at
+`
+
+type EnqueueWebhookDeliveryOnceParams struct {
+	EventType string    `json:"event_type"`
+	Payload   string    `json:"payload"`
+	WebhookID uuid.UUID `json:"webhook_id"`
+	DedupeKey string    `json:"dedupe_key"`
+}
+
+// Enqueues only when the (webhook, dedupe key) marker is new - an outbox replay of the same event returns no row
+func (q *Queries) EnqueueWebhookDeliveryOnce(ctx context.Context, arg EnqueueWebhookDeliveryOnceParams) ([]WebhookQueue, error) {
+	rows, err := q.db.QueryContext(ctx, enqueueWebhookDeliveryOnce,
+		arg.EventType,
+		arg.Payload,
+		arg.WebhookID,
+		arg.DedupeKey,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WebhookQueue{}
+	for rows.Next() {
+		var i WebhookQueue
+		if err := rows.Scan(
+			&i.ID,
+			&i.WebhookID,
+			&i.EventType,
+			&i.Payload,
+			&i.Status,
+			&i.Attempts,
+			&i.NextAttemptAt,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWebhookByID = `-- name: GetWebhookByID :one
 SELECT id, name, target_url, signing_secret, is_active, event_types, created_at, updated_at, kind, channel_id, failure_policy, timeout_ms, custom_headers, payload_version FROM webhooks WHERE id = $1
 `
@@ -307,6 +366,17 @@ func (q *Queries) GetWebhookDelivery(ctx context.Context, id uuid.UUID) (Webhook
 		&i.ResponseHeaders,
 	)
 	return i, err
+}
+
+const getWebhookQueueItemWebhookID = `-- name: GetWebhookQueueItemWebhookID :one
+SELECT webhook_id FROM webhook_queue WHERE id = $1
+`
+
+func (q *Queries) GetWebhookQueueItemWebhookID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getWebhookQueueItemWebhookID, id)
+	var webhook_id uuid.UUID
+	err := row.Scan(&webhook_id)
+	return webhook_id, err
 }
 
 const getWebhookSigningSecret = `-- name: GetWebhookSigningSecret :one
@@ -540,6 +610,18 @@ DELETE FROM webhook_deliveries WHERE created_at < $1
 // (rides the daily webhook-deliveries-prune job, window from config)
 func (q *Queries) PruneWebhookDeliveries(ctx context.Context, createdAt time.Time) (int64, error) {
 	result, err := q.db.ExecContext(ctx, pruneWebhookDeliveries, createdAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const pruneWebhookEnqueueDedup = `-- name: PruneWebhookEnqueueDedup :execrows
+DELETE FROM webhook_enqueue_dedup WHERE created_at < $1
+`
+
+func (q *Queries) PruneWebhookEnqueueDedup(ctx context.Context, createdAt time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneWebhookEnqueueDedup, createdAt)
 	if err != nil {
 		return 0, err
 	}

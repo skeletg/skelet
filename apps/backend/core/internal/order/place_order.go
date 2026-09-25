@@ -97,6 +97,11 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 	// Reprice BEFORE the subtotal so promotions, tax and fraud all see today's prices - the fail-open contract lives in the repricer
 	if s.repricer != nil {
 		cartObj = s.repricer.RepriceCartLines(ctx, cartObj)
+		if v, ok := s.repricer.(bundleValidator); ok {
+			if err := v.ValidateBundleLines(ctx, cartObj); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	var subtotal int64
@@ -402,7 +407,7 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 }
 
 // Redeems checkout gift-card codes against the total in the placement tx - each covers what it can, the provider takes the remainder, and payment_status flips to paid when they cover the whole total
-func (s *Service) applyGiftCardTenders(ctx context.Context, sqlTx *sql.Tx, orderR Repository, orderID uuid.UUID, in PlaceOrderInput, total int64, currency string) (int64, error) {
+func (s *Service) applyGiftCardTenders(ctx context.Context, sqlTx *sql.Tx, orderR Repository, orderID, channelID uuid.UUID, in PlaceOrderInput, total int64, currency string) (int64, error) {
 	if s.giftcard == nil || len(in.GiftCardCodes) == 0 {
 		return 0, nil
 	}
@@ -413,7 +418,7 @@ func (s *Service) applyGiftCardTenders(ctx context.Context, sqlTx *sql.Tx, order
 		if code == "" || remaining <= 0 {
 			continue
 		}
-		applied, err := s.giftcard.RedeemTx(ctx, sqlTx, code, remaining, currency, orderID)
+		applied, err := s.giftcard.RedeemTx(ctx, sqlTx, code, channelID, remaining, currency, orderID)
 		if err != nil {
 			return 0, fmt.Errorf("redeem gift card: %w", err)
 		}
@@ -622,4 +627,8 @@ func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput
 		}
 	}
 	return outcome
+}
+
+type bundleValidator interface {
+	ValidateBundleLines(context.Context, cart.Cart) error
 }

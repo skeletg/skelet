@@ -23,15 +23,22 @@ import {
 } from "react";
 
 const DefaultLocaleContext = createContext<string>("");
+const ChannelSegmentContext = createContext<string>("");
 
 export function DefaultLocaleProvider({
   value,
+  channelId = "",
   children,
 }: {
   value: string;
+  channelId?: string;
   children: React.ReactNode;
 }) {
-  return <DefaultLocaleContext.Provider value={value}>{children}</DefaultLocaleContext.Provider>;
+  return (
+    <DefaultLocaleContext.Provider value={value}>
+      <ChannelSegmentContext.Provider value={channelId}>{children}</ChannelSegmentContext.Provider>
+    </DefaultLocaleContext.Provider>
+  );
 }
 
 export function useDefaultLocale(): string {
@@ -94,8 +101,11 @@ export function useRouter() {
 // and builds hrefs in one consistent space and the prefix only reappears at the navigation
 // boundary. Without this, `pathname === "/compare"` and the account nav's active-state checks all
 // silently stop matching the moment you are on a prefixed url
+// The server render sees the rewritten /<channel>/<locale>/... path, so the channel segment goes first
 export function usePathname(): string {
-  const pathname = useNextPathname();
+  const channelId = useContext(ChannelSegmentContext);
+  let pathname = useNextPathname();
+  if (channelId && pathname.split("/")[1] === channelId) pathname = pathname.slice(channelId.length + 1) || "/";
   const locale = useLocale();
   const first = pathname.split("/")[1] ?? "";
   if (locale && first === locale) return pathname.slice(locale.length + 1) || "/";

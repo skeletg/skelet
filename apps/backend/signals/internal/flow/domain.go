@@ -157,6 +157,8 @@ type FlowRun struct {
 // ErrMomentTaken is CreateRun refusing a keyed moment that already has its run in this flow
 var ErrMomentTaken = errors.New("flow: this moment already started its run")
 
+var ErrAlreadyInFlow = errors.New("flow: already in this flow")
+
 func (r FlowRun) IsGuest() bool { return r.CustomerID == uuid.Nil }
 
 // A flow enrollment enriched with the flow's name and trigger, for listing every flow a customer has been through

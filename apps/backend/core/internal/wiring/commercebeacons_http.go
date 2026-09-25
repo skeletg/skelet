@@ -74,19 +74,15 @@ func (d commerceBeaconDeps) backInStock(w http.ResponseWriter, r *http.Request, 
 	}
 	var b struct {
 		ProductID string `json:"productId"`
-		SKU       string `json:"sku"`
 		Email     string `json:"email"`
-		Name      string `json:"name"`
-		Image     string `json:"image"`
-		URL       string `json:"url"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&b); err == nil {
 		if pid, perr := uuid.Parse(b.ProductID); perr == nil && strings.TrimSpace(b.Email) != "" {
 			req := backinstock.Request{
-				ChannelID: channelID, ProductID: pid, SKU: b.SKU, Email: b.Email,
-				AnonID: auth.SanitizeAnonID(r.Header.Get(auth.AnonHeader)), Name: b.Name, Image: b.Image, URL: b.URL,
+				ChannelID: channelID, ProductID: pid, Email: b.Email,
+				AnonID: auth.SanitizeAnonID(r.Header.Get(auth.AnonHeader)),
 			}
-			if cid := auth.VerifiedStorefrontCustomer(r, d.JWTSecret); cid != uuid.Nil {
+			if cid := auth.VerifiedStorefrontCustomer(r, d.JWTSecret, channelID); cid != uuid.Nil {
 				req.CustomerID = &cid
 			}
 			_ = d.BackInStock.Record(r.Context(), req)

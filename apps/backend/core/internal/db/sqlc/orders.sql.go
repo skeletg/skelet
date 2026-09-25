@@ -51,18 +51,50 @@ func (q *Queries) CountOrdersByCustomer(ctx context.Context, customerID uuid.Nul
 
 const countOrdersPaged = `-- name: CountOrdersPaged :one
 SELECT COUNT(*) FROM orders o
-WHERE  ($1::boolean OR o.channel_id = ANY($2::uuid[]))
-  AND  ($3::text = '' OR
-        o.number ILIKE '%' || $3::text || '%' OR
-        o.email ILIKE '%' || $3::text || '%' OR
-        o.shipping_last_name ILIKE '%' || $3::text || '%' OR
-        o.billing_last_name ILIKE '%' || $3::text || '%')
-  AND  ($4::boolean OR o.status = ANY($5::text[]))
-  AND  ($6::boolean OR o.payment_status = ANY($7::text[]))
+WHERE  TRUE
+  AND  ($1::text = '' OR
+        o.number ILIKE '%' || $1::text || '%' OR
+        o.email ILIKE '%' || $1::text || '%' OR
+        o.shipping_last_name ILIKE '%' || $1::text || '%' OR
+        o.billing_last_name ILIKE '%' || $1::text || '%')
+  AND  ($2::boolean OR o.status = ANY($3::text[]))
+  AND  ($4::boolean OR o.payment_status = ANY($5::text[]))
 `
 
 type CountOrdersPagedParams struct {
-	AllChannels     bool        `json:"all_channels"`
+	Search          string   `json:"search"`
+	AllStatuses     bool     `json:"all_statuses"`
+	Statuses        []string `json:"statuses"`
+	AllPayment      bool     `json:"all_payment"`
+	PaymentStatuses []string `json:"payment_statuses"`
+}
+
+func (q *Queries) CountOrdersPaged(ctx context.Context, arg CountOrdersPagedParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOrdersPaged,
+		arg.Search,
+		arg.AllStatuses,
+		pq.Array(arg.Statuses),
+		arg.AllPayment,
+		pq.Array(arg.PaymentStatuses),
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countOrdersPagedInChannels = `-- name: CountOrdersPagedInChannels :one
+SELECT COUNT(*) FROM orders o
+WHERE  o.channel_id = ANY($1::uuid[])
+  AND  ($2::text = '' OR
+        o.number ILIKE '%' || $2::text || '%' OR
+        o.email ILIKE '%' || $2::text || '%' OR
+        o.shipping_last_name ILIKE '%' || $2::text || '%' OR
+        o.billing_last_name ILIKE '%' || $2::text || '%')
+  AND  ($3::boolean OR o.status = ANY($4::text[]))
+  AND  ($5::boolean OR o.payment_status = ANY($6::text[]))
+`
+
+type CountOrdersPagedInChannelsParams struct {
 	ChannelIds      []uuid.UUID `json:"channel_ids"`
 	Search          string      `json:"search"`
 	AllStatuses     bool        `json:"all_statuses"`
@@ -71,9 +103,8 @@ type CountOrdersPagedParams struct {
 	PaymentStatuses []string    `json:"payment_statuses"`
 }
 
-func (q *Queries) CountOrdersPaged(ctx context.Context, arg CountOrdersPagedParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countOrdersPaged,
-		arg.AllChannels,
+func (q *Queries) CountOrdersPagedInChannels(ctx context.Context, arg CountOrdersPagedInChannelsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOrdersPagedInChannels,
 		pq.Array(arg.ChannelIds),
 		arg.Search,
 		arg.AllStatuses,
@@ -962,20 +993,125 @@ func (q *Queries) ListOrdersByCustomer(ctx context.Context, customerID uuid.Null
 
 const listOrdersPaged = `-- name: ListOrdersPaged :many
 SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status FROM orders o
-WHERE  ($1::boolean OR o.channel_id = ANY($2::uuid[]))
-  AND  ($3::text = '' OR
-        o.number ILIKE '%' || $3::text || '%' OR
-        o.email ILIKE '%' || $3::text || '%' OR
-        o.shipping_last_name ILIKE '%' || $3::text || '%' OR
-        o.billing_last_name ILIKE '%' || $3::text || '%')
-  AND  ($4::boolean OR o.status = ANY($5::text[]))
-  AND  ($6::boolean OR o.payment_status = ANY($7::text[]))
+WHERE  TRUE
+  AND  ($1::text = '' OR
+        o.number ILIKE '%' || $1::text || '%' OR
+        o.email ILIKE '%' || $1::text || '%' OR
+        o.shipping_last_name ILIKE '%' || $1::text || '%' OR
+        o.billing_last_name ILIKE '%' || $1::text || '%')
+  AND  ($2::boolean OR o.status = ANY($3::text[]))
+  AND  ($4::boolean OR o.payment_status = ANY($5::text[]))
 ORDER  BY o.created_at DESC
-LIMIT  $9 OFFSET $8
+LIMIT  $7 OFFSET $6
 `
 
 type ListOrdersPagedParams struct {
-	AllChannels     bool        `json:"all_channels"`
+	Search          string   `json:"search"`
+	AllStatuses     bool     `json:"all_statuses"`
+	Statuses        []string `json:"statuses"`
+	AllPayment      bool     `json:"all_payment"`
+	PaymentStatuses []string `json:"payment_statuses"`
+	Off             int32    `json:"off"`
+	Lim             int32    `json:"lim"`
+}
+
+// Every channel's page - the scoped caller has its own statement, so neither shares a plan that reads the whole created_at index
+// SELECT * (not window-count) so the repo maps rows through toOrder verbatim - CountOrdersPaged shares the WHERE and must stay in lockstep
+func (q *Queries) ListOrdersPaged(ctx context.Context, arg ListOrdersPagedParams) ([]Order, error) {
+	rows, err := q.db.QueryContext(ctx, listOrdersPaged,
+		arg.Search,
+		arg.AllStatuses,
+		pq.Array(arg.Statuses),
+		arg.AllPayment,
+		pq.Array(arg.PaymentStatuses),
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Order{}
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.ID,
+			&i.Number,
+			&i.CustomerID,
+			&i.Status,
+			&i.PaymentStatus,
+			&i.BillingFirstName,
+			&i.BillingLastName,
+			&i.BillingCompany,
+			&i.BillingStreet1,
+			&i.BillingStreet2,
+			&i.BillingCity,
+			&i.BillingState,
+			&i.BillingPostalCode,
+			&i.BillingCountry,
+			&i.BillingPhone,
+			&i.ShippingFirstName,
+			&i.ShippingLastName,
+			&i.ShippingCompany,
+			&i.ShippingStreet1,
+			&i.ShippingStreet2,
+			&i.ShippingCity,
+			&i.ShippingState,
+			&i.ShippingPostalCode,
+			&i.ShippingCountry,
+			&i.ShippingPhone,
+			&i.SubtotalAmount,
+			&i.ShippingAmount,
+			&i.DiscountAmount,
+			&i.TaxAmount,
+			&i.TotalAmount,
+			&i.CurrencyCode,
+			&i.CustomerNote,
+			&i.Metadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ChannelID,
+			&i.Email,
+			&i.Carrier,
+			&i.TrackingNumber,
+			&i.PaymentProvider,
+			&i.GiftCardAmount,
+			&i.PaymentReference,
+			&i.ShippingMethodID,
+			&i.ShippingCarrierSlug,
+			&i.ShippingMethodCode,
+			&i.StoreCreditAmount,
+			&i.PoNumber,
+			&i.HeldFromStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrdersPagedInChannels = `-- name: ListOrdersPagedInChannels :many
+SELECT id, number, customer_id, status, payment_status, billing_first_name, billing_last_name, billing_company, billing_street_1, billing_street_2, billing_city, billing_state, billing_postal_code, billing_country, billing_phone, shipping_first_name, shipping_last_name, shipping_company, shipping_street_1, shipping_street_2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_phone, subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount, currency_code, customer_note, metadata, created_at, updated_at, channel_id, email, carrier, tracking_number, payment_provider, gift_card_amount, payment_reference, shipping_method_id, shipping_carrier_slug, shipping_method_code, store_credit_amount, po_number, held_from_status FROM orders o
+WHERE  o.channel_id = ANY($1::uuid[])
+  AND  ($2::text = '' OR
+        o.number ILIKE '%' || $2::text || '%' OR
+        o.email ILIKE '%' || $2::text || '%' OR
+        o.shipping_last_name ILIKE '%' || $2::text || '%' OR
+        o.billing_last_name ILIKE '%' || $2::text || '%')
+  AND  ($3::boolean OR o.status = ANY($4::text[]))
+  AND  ($5::boolean OR o.payment_status = ANY($6::text[]))
+ORDER  BY o.created_at DESC
+LIMIT  $8 OFFSET $7
+`
+
+type ListOrdersPagedInChannelsParams struct {
 	ChannelIds      []uuid.UUID `json:"channel_ids"`
 	Search          string      `json:"search"`
 	AllStatuses     bool        `json:"all_statuses"`
@@ -986,11 +1122,9 @@ type ListOrdersPagedParams struct {
 	Lim             int32       `json:"lim"`
 }
 
-// Server-side page for the admin list - ListOrders returns the WHOLE table, which the dashboard then paged in the browser
-// orders is the one table that grows forever, so that was a full-table read per page view Channel scoping applies here rather than post-filtered in the resolver, or LIMIT would run before the permission filter and pages would come back short SELECT * (not window-count) so the repo maps rows through toOrder verbatim - CountOrdersPaged shares the WHERE and must stay in lockstep
-func (q *Queries) ListOrdersPaged(ctx context.Context, arg ListOrdersPagedParams) ([]Order, error) {
-	rows, err := q.db.QueryContext(ctx, listOrdersPaged,
-		arg.AllChannels,
+// Scoped in SQL, so LIMIT runs after the permission filter
+func (q *Queries) ListOrdersPagedInChannels(ctx context.Context, arg ListOrdersPagedInChannelsParams) ([]Order, error) {
+	rows, err := q.db.QueryContext(ctx, listOrdersPagedInChannels,
 		pq.Array(arg.ChannelIds),
 		arg.Search,
 		arg.AllStatuses,

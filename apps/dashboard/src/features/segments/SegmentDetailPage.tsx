@@ -38,7 +38,8 @@ import {
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { SaveRegistryContext, useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
 import { changed, fieldDiff } from '@/shared/saving/diff'
-import { CustomersDocument } from '@/features/customers/Customers.gql'
+import { CustomersPagedDocument } from '@/features/customers/Customers.gql'
+import { useDebounced } from '@/shared/hooks/useDebounced'
 import { AssignCustomersToSegmentDocument, ClearSegmentMembershipDocument, RefreshSegmentMembershipDocument, RemoveCustomerFromSegmentDocument, SegmentDetailDocument, SetSegmentRulesDocument, UpdateSegmentDocument } from './Segments.gql'
 import { useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { RulesBuilder } from './RulesBuilder'
@@ -53,6 +54,7 @@ type Segment = {
   isActive: boolean
   memberCount: number
   rules: unknown
+  rulesProblem?: string | null
   updatedAt: string
   members: { id: string; joinedAt: string }[]
 }
@@ -287,6 +289,11 @@ function RulesSection({ segment, refetch }: { segment: Segment; refetch: () => v
             Dynamic membership (rule-based)
           </Label>
         </div>
+        {segment.rulesProblem && (
+          <p className="rounded-md border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            These rules can't run, so membership isn't refreshing: {segment.rulesProblem}
+          </p>
+        )}
         {draft !== null && <RulesBuilder value={draft} onChange={setDraft} />}
         {draft !== null && draft.conditions.length === 0 && (
           <p className="text-xs text-muted-foreground">
@@ -453,9 +460,10 @@ function AssignCustomersDialog({
   segmentId: string
   onAssigned: () => void
 }) {
-  const { data, loading } = useQuery(CustomersDocument, { skip: !open })
-  const [assign, { loading: assigning }] = useMutation(AssignCustomersToSegmentDocument)
   const [filter, setFilter] = useState('')
+  const search = useDebounced(filter.trim(), 250)
+  const { data, loading } = useQuery(CustomersPagedDocument, { variables: { search, limit: 50, offset: 0 }, skip: !open })
+  const [assign, { loading: assigning }] = useMutation(AssignCustomersToSegmentDocument)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
@@ -470,18 +478,7 @@ function AssignCustomersDialog({
     }
   }
 
-  const customers = useMemo(() => {
-    const all = data?.customers ?? []
-    const q = filter.trim().toLowerCase()
-    if (!q) return all.slice(0, 50)
-    return all
-      .filter(
-        (c) =>
-          c.email.toLowerCase().includes(q) ||
-          `${c.firstName} ${c.lastName}`.toLowerCase().includes(q),
-      )
-      .slice(0, 50)
-  }, [data, filter])
+  const customers = data?.customersPaged.items ?? []
 
   const toggle = (id: string) =>
     setSelected((prev) => {

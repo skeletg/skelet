@@ -114,7 +114,7 @@ func ValidateServiceToken(tokenStr, audience, secret string) (*ServiceClaims, er
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
 		return []byte(secret), nil
-	})
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 	if err != nil {
 		return nil, fmt.Errorf("validate service token: %w", err)
 	}

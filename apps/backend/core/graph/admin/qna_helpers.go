@@ -11,6 +11,9 @@ import (
 )
 
 func (r *Resolver) qnaModerationTarget(ctx context.Context, id string) (qna.Question, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "qna.moderate"); err != nil {
+		return qna.Question{}, err
+	}
 	qid, err := uuid.Parse(id)
 	if err != nil {
 		return qna.Question{}, qna.ErrNotFound

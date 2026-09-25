@@ -134,7 +134,7 @@ func newHarness(t *testing.T) *harness {
 func (h *harness) channel(t *testing.T) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
-	if _, _, err := h.d.Channels.SyncChannels(h.ctx, []analytics.ChannelEntry{{ID: id, IsDefault: true, Name: "E2E"}}); err != nil {
+	if _, _, err := h.d.Channels.SyncChannels(h.ctx, []analytics.ChannelEntry{{ID: id, IsDefault: true, IsActive: true, Name: "E2E"}}); err != nil {
 		t.Fatalf("push channel: %v", err)
 	}
 	return id

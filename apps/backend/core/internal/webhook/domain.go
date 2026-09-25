@@ -165,7 +165,9 @@ type Repository interface {
 	ClearDeliveries(ctx context.Context, webhookID uuid.UUID) (int64, error)
 	// age-based retention across all webhooks (the daily prune job)
 	PruneDeliveries(ctx context.Context, before time.Time) (int64, error)
-	Enqueue(ctx context.Context, webhookID uuid.UUID, eventType, payload string) (QueueItem, error)
+	// a non-empty dedupeKey enqueues at most once per webhook, returning a zero QueueItem on a repeat
+	Enqueue(ctx context.Context, webhookID uuid.UUID, eventType, payload, dedupeKey string) (QueueItem, error)
+	PruneEnqueueDedup(ctx context.Context, before time.Time) (int64, error)
 	ClaimDueQueue(ctx context.Context, batchSize, leaseSeconds int32) ([]QueueItem, error)
 	DeleteQueueItem(ctx context.Context, id uuid.UUID) error
 	RescheduleQueueItem(ctx context.Context, id uuid.UUID, nextAttemptAt time.Time, lastError string) error

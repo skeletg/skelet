@@ -13,8 +13,8 @@ import (
 // A merchant HTTP endpoint (remoteprovider kind=reviews) supplying rating aggregates from an external platform - the escape hatch for Yotpo, Bazaarvoice, Okendo or Trustpilot without a Go plugin It covers only the headline RATING AGGREGATE - count, average, 5-bucket distribution - and does NOT replace the native workflow of submission, per-question ratings, voting and moderation - PerQuestion stays native and empty here, which is correct since those platforms have no per-question model Wire contract: request {productIds}, response {aggregates: {"<productId>": {count, average, distribution}}} Account-level, and fail_open - no provider, a missing product or an error all fall back to native, since a down reviews API must never blank a product page
 
 type RemoteAggregateSource interface {
-	// Rating aggregates by product id - ok=false falls back to native, and products the provider omits keep their native aggregate
-	Aggregates(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID]Aggregates, bool)
+	// Rating aggregates by product id for the channel (nil for none) - ok=false falls back to native, and products the provider omits keep their native aggregate
+	Aggregates(ctx context.Context, channelID *uuid.UUID, productIDs []uuid.UUID) (map[uuid.UUID]Aggregates, bool)
 }
 
 // Optional - nil leaves aggregates on native review data
@@ -22,24 +22,26 @@ func (s *Service) SetRemoteAggregates(src RemoteAggregateSource) { s.remoteAggs 
 
 // One product's aggregate, remote-first
 func (s *Service) GetAggregates(ctx context.Context, productID uuid.UUID) (Aggregates, error) {
+	ch := storeScope(ctx)
 	if s.remoteAggs != nil {
-		if m, ok := s.remoteAggs.Aggregates(ctx, []uuid.UUID{productID}); ok {
+		if m, ok := s.remoteAggs.Aggregates(ctx, ch, []uuid.UUID{productID}); ok {
 			if agg, present := m[productID]; present {
 				return agg, nil
 			}
 		}
 	}
-	return s.repo.GetAggregates(ctx, productID)
+	return s.repo.GetAggregates(ctx, productID, ch)
 }
 
 // The batched form - remote overrides native per product, and omitted products fall back to native, so a mixed catalog renders right
 func (s *Service) GetAggregatesByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID]Aggregates, error) {
-	native, err := s.repo.GetAggregatesByProductIDs(ctx, productIDs)
+	ch := storeScope(ctx)
+	native, err := s.repo.GetAggregatesByProductIDs(ctx, productIDs, ch)
 	if err != nil {
 		return nil, err
 	}
 	if s.remoteAggs != nil {
-		if remote, ok := s.remoteAggs.Aggregates(ctx, productIDs); ok {
+		if remote, ok := s.remoteAggs.Aggregates(ctx, ch, productIDs); ok {
 			if native == nil {
 				native = make(map[uuid.UUID]Aggregates, len(remote))
 			}
@@ -72,12 +74,11 @@ func NewRemoteAggregateSource(svc *remoteprovider.Service, invoker *remoteprovid
 	return &remoteAggregateSource{svc: svc, invoker: invoker}
 }
 
-func (r *remoteAggregateSource) Aggregates(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID]Aggregates, bool) {
-	providers, err := r.svc.ListActiveByKind(ctx, remoteprovider.KindReviews, nil) // account-level
-	if err != nil || len(providers) == 0 {
+func (r *remoteAggregateSource) Aggregates(ctx context.Context, channelID *uuid.UUID, productIDs []uuid.UUID) (map[uuid.UUID]Aggregates, bool) {
+	p, ok, err := r.svc.ActiveFor(ctx, remoteprovider.KindReviews, channelID)
+	if err != nil || !ok {
 		return nil, false
 	}
-	p := providers[0]
 
 	ids := make([]string, len(productIDs))
 	for i, id := range productIDs {

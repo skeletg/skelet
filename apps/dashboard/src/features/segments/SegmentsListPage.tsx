@@ -42,7 +42,7 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { CreateSegmentDocument, DeleteSegmentDocument, SegmentsPageDocument } from './Segments.gql'
-import { summarizeRules, type Rules } from './rules'
+import { segmentType, summarizeRules, type Rules } from './rules'
 
 type SegmentRow = {
   id: string
@@ -52,6 +52,7 @@ type SegmentRow = {
   isActive: boolean
   memberCount: number
   rules: unknown
+  rulesProblem?: string | null
   updatedAt: string
 }
 
@@ -106,9 +107,16 @@ export function SegmentsListPage() {
         id: 'type',
         header: 'Type',
         size: 90,
-        cell: ({ row }) => (
-          <Badge variant="outline">{row.original.rules ? 'Dynamic' : 'Manual'}</Badge>
-        ),
+        cell: ({ row }) => {
+          const kind = segmentType(row.original.rules, row.original.rulesProblem)
+          return kind === 'needs-attention' ? (
+            <Badge variant="destructive" title={row.original.rulesProblem ?? undefined}>
+              Needs attention
+            </Badge>
+          ) : (
+            <Badge variant="outline">{kind === 'dynamic' ? 'Dynamic' : 'Manual'}</Badge>
+          )
+        },
       },
       {
         accessorKey: 'memberCount',

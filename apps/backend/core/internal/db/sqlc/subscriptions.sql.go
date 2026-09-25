@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const advanceSubscriptionPeriod = `-- name: AdvanceSubscriptionPeriod :one
@@ -573,6 +574,70 @@ SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_co
 
 func (q *Queries) ListSubscriptionsByOrder(ctx context.Context, orderID uuid.NullUUID) ([]Subscription, error) {
 	rows, err := q.db.QueryContext(ctx, listSubscriptionsByOrder, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Subscription{}
+	for rows.Next() {
+		var i Subscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.CustomerID,
+			&i.ProductID,
+			&i.OrderID,
+			&i.Status,
+			&i.IntervalUnit,
+			&i.IntervalCount,
+			&i.Price,
+			&i.CurrencyCode,
+			&i.Quantity,
+			&i.Sku,
+			&i.Title,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.NextBillingAt,
+			&i.CanceledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ChannelID,
+			&i.PaymentMethodID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSubscriptionsForChannels = `-- name: ListSubscriptionsForChannels :many
+SELECT id, customer_id, product_id, order_id, status, interval_unit, interval_count, price, currency_code, quantity, sku, title, current_period_start, current_period_end, next_billing_at, canceled_at, created_at, updated_at, channel_id, payment_method_id FROM subscriptions
+WHERE ($1::text IS NULL OR status = $1::text)
+  AND channel_id = ANY($2::uuid[])
+ORDER BY created_at DESC
+LIMIT $4 OFFSET $3
+`
+
+type ListSubscriptionsForChannelsParams struct {
+	Status     sql.NullString `json:"status"`
+	ChannelIds []uuid.UUID    `json:"channel_ids"`
+	Off        int32          `json:"off"`
+	Lim        int32          `json:"lim"`
+}
+
+func (q *Queries) ListSubscriptionsForChannels(ctx context.Context, arg ListSubscriptionsForChannelsParams) ([]Subscription, error) {
+	rows, err := q.db.QueryContext(ctx, listSubscriptionsForChannels,
+		arg.Status,
+		pq.Array(arg.ChannelIds),
+		arg.Off,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}

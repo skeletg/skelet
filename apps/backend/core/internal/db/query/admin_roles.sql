@@ -27,6 +27,9 @@ ORDER BY r.name;
 -- name: CountRoleMembers :one
 SELECT COUNT(*) FROM admin_user_roles WHERE role_id = $1;
 
+-- name: ListRoleMemberIDs :many
+SELECT admin_user_id FROM admin_user_roles WHERE role_id = $1;
+
 -- name: GetAdminUserRoles :many
 SELECT r.* FROM admin_roles r
 JOIN admin_user_roles aur ON aur.role_id = r.id

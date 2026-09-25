@@ -35,9 +35,11 @@ type CustomerSegment struct {
 	MemberCount int32                  `protobuf:"varint,6,opt,name=member_count,json=memberCount,proto3" json:"member_count,omitempty"`
 	// The dynamic condition tree as JSON, empty for static membership - compiled to parameterized SQL server-side, since operators never write SQL
 	// Opaque on this side of the wire, so core stores and forwards it without knowing the grammar
-	RulesJson     string                 `protobuf:"bytes,7,opt,name=rules_json,json=rulesJson,proto3" json:"rules_json,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	RulesJson string                 `protobuf:"bytes,7,opt,name=rules_json,json=rulesJson,proto3" json:"rules_json,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// Why the stored rules can't run, so the refresh skips them - empty when they can
+	RulesProblem  string `protobuf:"bytes,10,opt,name=rules_problem,json=rulesProblem,proto3" json:"rules_problem,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -133,6 +135,13 @@ func (x *CustomerSegment) GetUpdatedAt() *timestamppb.Timestamp {
 		return x.UpdatedAt
 	}
 	return nil
+}
+
+func (x *CustomerSegment) GetRulesProblem() string {
+	if x != nil {
+		return x.RulesProblem
+	}
+	return ""
 }
 
 // One row of a segment's membership page
@@ -1595,7 +1604,7 @@ var File_skelet_signals_v1_segments_proto protoreflect.FileDescriptor
 
 const file_skelet_signals_v1_segments_proto_rawDesc = "" +
 	"\n" +
-	" skelet/signals/v1/segments.proto\x12\x11skelet.signals.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc0\x02\n" +
+	" skelet/signals/v1/segments.proto\x12\x11skelet.signals.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe5\x02\n" +
 	"\x0fCustomerSegment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x12\n" +
@@ -1608,7 +1617,9 @@ const file_skelet_signals_v1_segments_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"i\n" +
+	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12#\n" +
+	"\rrules_problem\x18\n" +
+	" \x01(\tR\frulesProblem\"i\n" +
 	"\rSegmentMember\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x127\n" +

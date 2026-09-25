@@ -16,7 +16,7 @@ type stubResolver struct{ price int64 }
 func (s stubResolver) ResolveSimplePricing(context.Context, uuid.UUID, string, *uuid.UUID) (SimplePricing, error) {
 	return SimplePricing{ProductName: "Widget", UnitPrice: s.price}, nil
 }
-func (stubResolver) ResolveBundleBySKU(context.Context, string) (BundleSnapshot, error) {
+func (stubResolver) ResolveBundleBySKU(context.Context, uuid.UUID, string) (BundleSnapshot, error) {
 	return BundleSnapshot{}, nil
 }
 func (stubResolver) ResolveProductOptions(context.Context, uuid.UUID, string, *uuid.UUID) (ProductOptionsResolution, error) {
