@@ -50,9 +50,7 @@ import {
 } from '@/components/layout/detail-page'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
-import { useFormSection } from '@/shared/saving/useFormSection'
-import { usePersistedForm } from '@/shared/saving/usePersistedForm'
-import { useAppForm } from '@/components/form/form'
+import { useSectionForm } from '@/shared/saving/useSectionForm'
 import { useStore } from '@tanstack/react-form'
 import {
   PRODUCT_TYPE_LABELS,
@@ -954,24 +952,21 @@ function GeneralProductTypeSection({ productType, canManage }: { productType: Ex
   const [setUrlTemplate] = useMutation(SetProductTypeUrlPathTemplateDocument, { refetchQueries })
 
   const baseline = useMemo(() => toProductTypeValues(productType), [productType])
-  const form = useAppForm({
-    defaultValues: baseline,
-    validators: { onChange: productTypeSchema },
-    onSubmit: async ({ value }) => {
+  const { form, draft } = useSectionForm({
+    id: 'general',
+    title: 'General',
+    baseline,
+    schema: productTypeSchema,
+    diff: productTypeDiff,
+    routeKey: `product-type:${productType.id}`,
+    label: `Product type · ${productType.name}`,
+    submit: async (value) => {
       // A changed template goes through its own mutation, which also recomputes the products' paths
       const { input, newTemplate } = toProductTypeUpdateInput(value, productType)
       await updateProductType({ variables: { input } })
       if (newTemplate !== null) await setUrlTemplate({ variables: { productTypeId: productType.id, template: newTemplate } })
-      draft.saved()
-      form.reset(value)
     },
   })
-  const draft = usePersistedForm(form, {
-    routeKey: `product-type:${productType.id}`,
-    baseline,
-    label: `Product type · ${productType.name}`,
-  })
-  useFormSection({ id: 'general', title: 'General', form, baseline, diff: productTypeDiff, persisted: true })
   const isDigital = useStore(form.store, (s) => s.values.isDigital)
 
   return (
