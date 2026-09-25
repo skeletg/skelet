@@ -10,7 +10,6 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   ProductDocument,
   UpdateProductDocument,
-  UpsertProductContentDocument,
 } from '../Catalog.gql'
 import {
   useProductSaveSection,
@@ -18,6 +17,7 @@ import {
 } from '../productSaveRegistry'
 import { UrlRewritesSection } from '../UrlRewritesSection'
 import type { ContentProduct } from './shared'
+import { useProductContentWrite } from './productContent'
 
 export function ProductSeoEditor({
   product,
@@ -61,7 +61,7 @@ export function ProductSeoEditor({
     { query: ProductDocument, variables: productVariables },
   ]
   const [updateProduct] = useMutation(UpdateProductDocument, { refetchQueries })
-  const [upsertContent] = useMutation(UpsertProductContentDocument, { refetchQueries })
+  const writeContent = useProductContentWrite(product.id, locale)
 
   // Diff (only includes URL + SEO changes - content meta is diffed separately below)
   const productDirty =
@@ -151,23 +151,16 @@ export function ProductSeoEditor({
       })
     }
     if (contentDirty) {
-      await upsertContent({
-        variables: {
-          productId: product.id,
-          locale,
-          input: {
-            name: existingName,
-            metaTitle: metaTitle.trim() || undefined,
-            metaDescription: metaDescription.trim() || undefined,
-            metaKeywords: metaKeywords.trim() || undefined,
-          },
-        },
+      await writeContent({
+        metaTitle: metaTitle.trim() || undefined,
+        metaDescription: metaDescription.trim() || undefined,
+        metaKeywords: metaKeywords.trim() || undefined,
       })
     }
   }, [
     productDirty, contentDirty, urlAuto, url,
     urlTemplateOverride, canonicalUrl, seoNoindex, metaTitle, metaDescription,
-    metaKeywords, product.id, locale, existingName, updateProduct, upsertContent,
+    metaKeywords, product.id, updateProduct, writeContent,
   ])
 
   useProductSaveSection({ id: 'seo', title: 'SEO', diff, save })

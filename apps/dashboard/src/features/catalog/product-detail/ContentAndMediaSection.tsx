@@ -10,7 +10,6 @@ import {
   ConfirmProductMediaUploadDocument,
   ProductDocument,
   RequestProductMediaUploadDocument,
-  UpsertProductContentDocument,
 } from '../Catalog.gql'
 import { LexicalRichTextEditor, type RichTextImageUploadResult, type RichTextValue } from '../LexicalRichTextEditor'
 import {
@@ -20,6 +19,7 @@ import {
 import { Section, type ContentProduct } from './shared'
 import { readImageDimensions } from './media-utils'
 import { ProductMediaPanel } from './ProductMediaPanel'
+import { useProductContentWrite } from './productContent'
 
 const DESCRIPTION_UPLOAD_TARGET: ProductMediaUploadTarget = 'DESCRIPTION'
 const SHORT_DESCRIPTION_UPLOAD_TARGET: ProductMediaUploadTarget = 'SHORT_DESCRIPTION'
@@ -47,13 +47,12 @@ export function ContentAndMediaSection({
   const [shortDescription, setShortDescription] = useState<RichTextValue>(originalShortDescription)
   const [descriptionRichText, setDescriptionRichText] = useState<RichTextValue>(originalDescriptionRichText)
   const [mediaOpen, setMediaOpen] = useState(false)
-  const existingName = content?.name ?? product.name ?? product.content[0]?.name ?? 'Untitled product'
 
   const refetchQueries = [
     'ProductsPaged',
     { query: ProductDocument, variables: productVariables },
   ]
-  const [upsertContent] = useMutation(UpsertProductContentDocument, { refetchQueries })
+  const writeContent = useProductContentWrite(product.id, locale)
   const [requestUpload] = useMutation(RequestProductMediaUploadDocument)
   const [confirmUpload] = useMutation(ConfirmProductMediaUploadDocument, { refetchQueries })
 
@@ -135,18 +134,11 @@ export function ContentAndMediaSection({
 
   const save = useCallback(async () => {
     if (!shortDescriptionDirty && !descriptionDirty) return
-    await upsertContent({
-      variables: {
-        productId: product.id,
-        locale,
-        input: {
-          name: existingName,
-          shortDescription: shortDescription ?? undefined,
-          descriptionRichText: descriptionRichText ?? undefined,
-        },
-      },
+    await writeContent({
+      shortDescription: shortDescription ?? undefined,
+      descriptionRichText: descriptionRichText ?? undefined,
     })
-  }, [shortDescriptionDirty, descriptionDirty, shortDescription, descriptionRichText, existingName, product.id, locale, upsertContent])
+  }, [shortDescriptionDirty, descriptionDirty, shortDescription, descriptionRichText, writeContent])
 
   useProductSaveSection({ id: 'content', title: 'Content & media', diff, save })
 
