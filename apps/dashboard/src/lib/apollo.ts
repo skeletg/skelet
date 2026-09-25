@@ -17,6 +17,7 @@ import { getEffectiveLocale } from '@/lib/locale-store'
 import { getEffectiveChannelId } from '@/lib/channel-store'
 import { devMonitorLink } from '@/lib/dev-monitor'
 import { ADMIN_GRAPHQL_ENDPOINT } from '@/lib/api-endpoint'
+import { typePolicies } from '@/lib/apollo-type-policies'
 import { setSignalsDown } from '@/shared/signals/health'
 
 const ENDPOINT = ADMIN_GRAPHQL_ENDPOINT
@@ -218,7 +219,7 @@ const transportLink = ApolloLink.split(
 
 export const apolloClient = new ApolloClient({
   link: errorLink.concat(authLink).concat(localeLink).concat(channelLink).concat(transportLink),
-  cache: new InMemoryCache(),
+  cache: new InMemoryCache({ typePolicies }),
   // Admin panel - both useQuery and client.query() skip cached reads and always hit the
   // network, while the cache still fills so refetchQueries and post-mutation writes work
   defaultOptions: {
