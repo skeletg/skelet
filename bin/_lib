@@ -45,3 +45,22 @@ if [ -z "${SKELET_UID:-}" ]; then
         export SKELET_UID="$(id -u)" SKELET_GID="$(id -g)"
     fi
 fi
+
+# env/signals.env from its template, with the two secrets it must share with core copied from env/go.env
+sync_signals_env() {
+    local go="$_skelet_root/env/go.env" sig="$_skelet_root/env/signals.env" key val tmp
+    [ -f "$go" ] || return 0
+    if [ ! -f "$sig" ]; then
+        cp "$_skelet_root/env/signals.env.example" "$sig"
+        echo "==> wrote env/signals.env from its template"
+    fi
+    for key in JWT_SECRET SIGNALS_SERVICE_SECRET; do
+        val="$(grep -E "^${key}=" "$go" | head -1 | cut -d= -f2-)"
+        [ -n "$val" ] || continue
+        tmp="$sig.tmp.$$"
+        _k="$key" _v="$val" awk 'BEGIN { k = ENVIRON["_k"]; v = ENVIRON["_v"] }
+            index($0, k "=") == 1 { print k "=" v; done = 1; next } { print }
+            END { if (!done) print k "=" v }' "$sig" > "$tmp" && cat "$tmp" > "$sig"
+        rm -f "$tmp"
+    done
+}

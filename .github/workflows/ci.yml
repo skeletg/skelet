@@ -31,7 +31,7 @@ jobs:
       clickhouse:
         image: clickhouse/clickhouse-server:26.7.5
         env:
-          CLICKHOUSE_DB: signals
+          CLICKHOUSE_DB: skelet_test_signals
           CLICKHOUSE_USER: skelet
           CLICKHOUSE_PASSWORD: skelet
         ports: ["9000:9000"]
@@ -43,8 +43,8 @@ jobs:
     env:
       DATABASE_URL: postgres://skelet:skelet@localhost:5432/skelet?sslmode=disable
       SIGNALS_DB_URL: postgres://skelet:skelet@localhost:5432/skelet_signals?sslmode=disable
-      SIGNALS_CH_TEST_DSN: clickhouse://skelet:skelet@localhost:9000/signals
-      SIGNALS_CH_MIGRATE_URL: clickhouse://localhost:9000?username=skelet&password=skelet&database=signals&x-multi-statement=true
+      SIGNALS_CH_TEST_DSN: clickhouse://skelet:skelet@localhost:9000/skelet_test_signals
+      SIGNALS_CH_MIGRATE_URL: clickhouse://localhost:9000?username=skelet&password=skelet&database=skelet_test_signals&x-multi-statement=true
     steps:
       # Full history + tags: the SDK's apidiff gate compares the surface against the last v* tag,
       # and a depth-1 checkout has none, which silently downgrades it to a skip
@@ -76,6 +76,8 @@ jobs:
           psql "$DATABASE_URL" -c "ALTER DATABASE skelet_signals SET skelet.e2e = 'allowed'"
         env:
           PGPASSWORD: skelet
+      - name: Mark the spine database as test-disposable
+        run: docker exec ${{ job.services.clickhouse.id }} clickhouse-client --user=skelet --password=skelet --query "ALTER DATABASE skelet_test_signals MODIFY COMMENT 'skelet.e2e=allowed'"
       - name: Migrate commerce
         working-directory: apps/backend/core
         run: migrate -path internal/db/migrations -database "$DATABASE_URL" up
@@ -95,7 +97,8 @@ jobs:
         working-directory: apps/backend/core
         # -race, because the bus dispatches to detached goroutines and the outbox relay runs eight concurrent workers
         # -timeout past go's 10m default - CI builds its databases fresh, but -race is a different animal
-        run: go test ./... -count=1 -race -timeout 60m
+        # internal/e2e sits out, as in bin/test - bin/test-e2e gives it its own databases and a Signals process
+        run: go test $(go list ./... | grep -v '/internal/e2e$') -count=1 -race -timeout 60m
       # The Signals module is its own go.mod, replacing core's by relative path - a change in a core
       # package the suite imports has to fail here, not on the suite's image build
       - name: Build (signals)
@@ -106,7 +109,7 @@ jobs:
         run: go vet ./...
       - name: Test (signals)
         working-directory: apps/backend/signals
-        run: go test ./... -count=1 -race -timeout 60m
+        run: go test $(go list ./... | grep -v '/internal/e2e$') -count=1 -race -timeout 60m
       # The SDK is the third module - its surface gate compares against the last tag, which the full-depth checkout above provides
       - name: Test (sdk)
         working-directory: apps/backend/sdk
@@ -243,8 +246,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      # context = the app dir, matching docker-compose.prod.yml - except the Signals image, whose context
-      # is apps/ and whose Dockerfile the matrix names outright
       matrix: ${{ fromJSON(needs.discover.outputs.images) }}
     steps:
       - uses: actions/checkout@v4
@@ -270,7 +271,6 @@ jobs:
             apps/backend/core/go.sum
             apps/backend/signals/go.sum
             apps/backend/sdk/go.sum
-      # Both Go modules, like bin/lint
       - name: gofmt
         run: |
           for mod in apps/backend/core apps/backend/signals apps/backend/sdk; do
@@ -295,10 +295,37 @@ jobs:
           git diff --exit-code plugins/firstparty
 
   # The same command the pre-commit hook runs, so "bin/check passes" means the same
-  # thing locally and here. No toolchain, no containers - three greps
+  # thing locally and here. Greps, plus buf's compatibility check of the proto against main, which
+  # needs main's history and runs on the host Go here (in the app container on a workstation)
   gates:
     name: bin/check (pins, structure, contracts)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/core/go.mod
+          cache-dependency-path: apps/backend/core/go.sum
       - run: bin/check
+
+  # The backend half of bin/codegen --check (the TS half needs a running server) - regenerates in place and fails on any diff
+  codegen:
+    name: Codegen drift (backend half)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/core/go.mod
+          cache-dependency-path: |
+            apps/backend/core/go.sum
+            apps/backend/signals/go.sum
+            apps/backend/sdk/go.sum
+      - name: Environment files
+        run: |
+          cp env/go.env.example env/go.env
+          cp env/db.env.example env/db.env
+      - name: bin/codegen --check --no-frontend
+        run: bin/codegen --check --no-frontend

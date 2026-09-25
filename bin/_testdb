@@ -35,6 +35,13 @@ ensure_ch_db() { # <dbname> <fresh: true|false>
         ch_sql "DROP DATABASE IF EXISTS $1" >/dev/null
     fi
     ch_sql "CREATE DATABASE IF NOT EXISTS $1" >/dev/null
+    ch_sql "ALTER DATABASE $1 MODIFY COMMENT 'skelet.e2e=allowed'" >/dev/null
+}
+
+drop_ch_clones() { # <template>
+    for name in $(ch_sql "SELECT name FROM system.databases WHERE startsWith(name, '${1}__pkg')"); do
+        ch_sql "DROP DATABASE IF EXISTS \`$name\`" >/dev/null
+    done
 }
 
 # Keep the dev DBs unmarked so a stray `go test` against dev refuses instead of writing test rows
@@ -52,4 +59,32 @@ drop_clones() { # <service> <template>
 
 service_running() { # <service>
     docker compose ps --status running --services 2>/dev/null | grep -qx "$1"
+}
+
+# One run per suite and checkout, or a second run's DROP ... WITH (FORCE) pulls the databases from under the first - mkdir is the atomic lock
+acquire_test_lock() { # <suite>
+    TESTDB_LOCK="${TMPDIR:-/tmp}/skelet-$1-$(printf '%s' "$PWD" | cksum | cut -d' ' -f1).lock"
+    if ! mkdir "$TESTDB_LOCK" 2>/dev/null; then
+        local holder
+        holder="$(cat "$TESTDB_LOCK/pid" 2>/dev/null || true)"
+        if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then
+            echo "another $1 run (pid $holder) is using the test databases - wait for it to finish" >&2
+            exit 1
+        fi
+        mkdir "$TESTDB_LOCK.takeover" 2>/dev/null || { echo "another $1 run just started - wait for it to finish" >&2; exit 1; }
+        if [ "$(cat "$TESTDB_LOCK/pid" 2>/dev/null || true)" != "$holder" ]; then
+            rmdir "$TESTDB_LOCK.takeover"
+            echo "another $1 run just started - wait for it to finish" >&2
+            exit 1
+        fi
+        rm -rf "$TESTDB_LOCK"
+        mkdir "$TESTDB_LOCK"
+        rmdir "$TESTDB_LOCK.takeover"
+    fi
+    echo "$$" > "$TESTDB_LOCK/pid"
+}
+
+release_test_lock() {
+    [ -n "${TESTDB_LOCK:-}" ] && rm -rf "$TESTDB_LOCK"
+    return 0
 }

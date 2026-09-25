@@ -10,9 +10,15 @@ run() {
     if docker compose ps --status running | grep -q "skelet-app"; then
         docker compose exec "${USER_FLAG[@]}" app sh -c "$1"
     else
-        docker compose run --rm "${USER_FLAG[@]}" app sh -c "$1"
+        docker compose run --rm --no-deps "${USER_FLAG[@]}" app sh -c "$1"
     fi
 }
+
+# No arguments means what bin/codegen does with it: lint the contract, then generate into the backend
+if [ $# -eq 0 ]; then
+    "$0" lint /var/www/proto
+    exec "$0" generate --template /var/www/proto/buf.gen.yaml /var/www/proto
+fi
 
 run 'set -e
      mkdir -p /tmp/protoc-plugins
