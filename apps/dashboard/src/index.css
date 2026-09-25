@@ -25,6 +25,26 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-destructive-soft: var(--destructive-soft);
+    --color-success: var(--success);
+    --color-success-foreground: var(--success-foreground);
+    --color-success-soft: var(--success-soft);
+    --color-warning: var(--warning);
+    --color-warning-foreground: var(--warning-foreground);
+    --color-warning-soft: var(--warning-soft);
+    --color-info: var(--info);
+    --color-info-foreground: var(--info-foreground);
+    --color-info-soft: var(--info-soft);
+    --color-series-1: var(--series-1);
+    --color-series-2: var(--series-2);
+    --color-series-3: var(--series-3);
+    --color-series-4: var(--series-4);
+    --color-series-5: var(--series-5);
+    --color-series-6: var(--series-6);
+    --color-series-7: var(--series-7);
+    --color-series-8: var(--series-8);
+    --color-series-other: var(--series-other);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -1056,6 +1076,75 @@ body[data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
     --sidebar-accent-foreground: oklch(0.22 0 0);
     --sidebar-border: oklch(0.9 0 0);
     --sidebar-ring: oklch(0.61 0.19 25);
+}
+
+/* State colours - what a status means, not what the brand looks like, so they sit outside the
+   palettes and no palette restates them. `primary` / `accent` are admin-recolourable and must never
+   carry state; these do. Three roles per state, each a plain utility:
+     text-success / bg-success / border-success   the colour itself - text, icons, dots, strong lines
+     text-success-foreground                      text on a solid bg-success fill
+     bg-success-soft                              tinted badge or banner background
+   `--destructive` itself stays per palette; only its -foreground and -soft live here, and -soft
+   derives from whichever red the palette set. [data-theme] repeats the selectors so a sidebar with
+   its own base picks up the matching mode. */
+:root,
+[data-theme] {
+    --success: oklch(0.596 0.145 163);
+    --success-foreground: oklch(0.99 0 0);
+    --warning: oklch(0.64 0.17 58);
+    --warning-foreground: oklch(0.25 0.06 58);
+    --info: oklch(0.588 0.158 242);
+    --info-foreground: oklch(0.99 0 0);
+    --destructive-foreground: oklch(0.99 0 0);
+    --success-soft: color-mix(in oklch, var(--success) 12%, transparent);
+    --warning-soft: color-mix(in oklch, var(--warning) 12%, transparent);
+    --info-soft: color-mix(in oklch, var(--info) 12%, transparent);
+    --destructive-soft: color-mix(in oklch, var(--destructive) 12%, transparent);
+}
+
+.dark,
+.dark[data-theme] {
+    --success: oklch(0.765 0.177 163);
+    --success-foreground: oklch(0.2 0.04 163);
+    --warning: oklch(0.828 0.189 84);
+    --warning-foreground: oklch(0.25 0.06 70);
+    --info: oklch(0.746 0.16 233);
+    --info-foreground: oklch(0.2 0.04 240);
+    --destructive-foreground: oklch(0.99 0 0);
+    --success-soft: color-mix(in oklch, var(--success) 18%, transparent);
+    --warning-soft: color-mix(in oklch, var(--warning) 18%, transparent);
+    --info-soft: color-mix(in oklch, var(--info) 18%, transparent);
+    --destructive-soft: color-mix(in oklch, var(--destructive) 20%, transparent);
+}
+
+/* Series colours - telling categories apart in charts and legends, where no value means good or
+   bad. Palette-independent for the same reason as the state colours: --chart-1..5 is per palette,
+   only five long, and plain greys in Neutral. In chart props use var(--color-series-N), or SERIES
+   from lib/chart-colors.ts; in markup, bg-series-N. series-other is the "rest / uncategorised" grey. */
+:root,
+[data-theme] {
+    --series-1: oklch(0.585 0.233 277);
+    --series-2: oklch(0.685 0.169 237);
+    --series-3: oklch(0.696 0.17 163);
+    --series-4: oklch(0.606 0.25 293);
+    --series-5: oklch(0.769 0.188 70);
+    --series-6: oklch(0.637 0.237 25);
+    --series-7: oklch(0.704 0.14 183);
+    --series-8: oklch(0.656 0.241 354);
+    --series-other: oklch(0.704 0.04 257);
+}
+
+.dark,
+.dark[data-theme] {
+    --series-1: oklch(0.673 0.182 277);
+    --series-2: oklch(0.746 0.16 233);
+    --series-3: oklch(0.765 0.177 163);
+    --series-4: oklch(0.702 0.183 294);
+    --series-5: oklch(0.828 0.189 84);
+    --series-6: oklch(0.704 0.191 22);
+    --series-7: oklch(0.777 0.152 182);
+    --series-8: oklch(0.718 0.202 350);
+    --series-other: oklch(0.554 0.046 257);
 }
 
 @utility scrollbar-accent {
