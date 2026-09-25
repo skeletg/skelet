@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from '@tanstack/react-form'
 import { useAppForm } from '@/components/form/form'
-import type { SectionDiffEntry } from './saveRegistry'
+import type { SaveRegistryValue, SectionDiffEntry } from './saveRegistry'
 import { useFormSection } from './useFormSection'
 import { usePersistedForm } from './usePersistedForm'
 
@@ -24,6 +24,10 @@ export function useSectionForm<T extends object>(opts: {
   label?: string
   /** The mutations - throw on failure, the confirm dialog shows the message */
   submit: (values: T) => Promise<void>
+  /** The page's own registry, when this runs in the component that renders its Provider */
+  registry?: SaveRegistryValue
+  /** False lists nothing and keeps no draft - a read-only view of the section */
+  enabled?: boolean
 }) {
   const form = useAppForm({
     defaultValues: opts.baseline,
@@ -34,7 +38,17 @@ export function useSectionForm<T extends object>(opts: {
       form.reset(value)
     },
   })
-  const draft = usePersistedForm(form, { routeKey: opts.routeKey, baseline: opts.baseline, label: opts.label })
-  useFormSection({ id: opts.id, title: opts.title, form, baseline: opts.baseline, diff: opts.diff, persisted: true })
+  const enabled = opts.enabled ?? true
+  const draft = usePersistedForm(form, { routeKey: opts.routeKey, baseline: opts.baseline, label: opts.label, enabled })
+  useFormSection({
+    id: opts.id,
+    title: opts.title,
+    form,
+    baseline: opts.baseline,
+    diff: opts.diff,
+    enabled,
+    registry: opts.registry,
+    persisted: true,
+  })
   return { form, draft }
 }

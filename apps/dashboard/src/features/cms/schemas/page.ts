@@ -155,3 +155,66 @@ export function pageChannelsDiff(channelName: (id: string) => string) {
       after: listingStateLabel(listingOf(draft, id)),
     }))
 }
+
+// ---------- Content: the edited locale's title, SEO, translatable fields and block layout ----------
+
+export const pageContentSchema = z.object({
+  // The service refuses a content row without one
+  title: z.string().trim().min(1, 'Title is required'),
+  metaTitle: z.string(),
+  metaDescription: z.string(),
+  data: z.record(z.string(), z.unknown()),
+  // Opaque to the form - the block tree's recursive type would blow up TanStack's deep field paths
+  blocks: z.array(z.unknown()),
+})
+
+export type PageContentValues = z.infer<typeof pageContentSchema>
+
+export const PAGE_CONTENT_LABELS: Record<keyof PageContentValues, string> = {
+  title: 'Title',
+  metaTitle: 'Meta title',
+  metaDescription: 'Meta description',
+  data: 'Fields',
+  blocks: 'Page layout',
+}
+
+type ExistingContent = { locale: string; title: string; body?: unknown; metaTitle?: string | null; metaDescription?: string | null; data?: unknown }
+
+// A freeform (Lexical) body parses to no blocks - the builder starts empty
+export function toPageContentValues(allContent: ExistingContent[], locale: string, parseBlocks: (body: unknown) => unknown[]): PageContentValues {
+  const c = allContent.find((x) => x.locale === locale)
+  return {
+    title: c?.title ?? '',
+    metaTitle: c?.metaTitle ?? '',
+    metaDescription: c?.metaDescription ?? '',
+    data: (c?.data as Record<string, FieldValue> | null) ?? {},
+    blocks: parseBlocks(c?.body),
+  }
+}
+
+// Blocks carry ids, so the summary says what happened to them - a props-only edit still reads as a
+// change ("3 blocks -> 3 blocks (1 edited)") rather than an identical before/after the registry drops
+function blocksEntry(before: unknown[], after: unknown[]): SectionDiffEntry | null {
+  if (JSON.stringify(before) === JSON.stringify(after)) return null
+  const idOf = (b: unknown) => (b as { id: string }).id
+  const was = new Map(before.map((b) => [idOf(b), JSON.stringify(b)]))
+  const now = new Set(after.map(idOf))
+  const addedN = after.filter((b) => !was.has(idOf(b))).length
+  const removedN = before.filter((b) => !now.has(idOf(b))).length
+  const editedN = after.filter((b) => was.has(idOf(b)) && was.get(idOf(b)) !== JSON.stringify(b)).length
+  const parts = [addedN && `${addedN} added`, removedN && `${removedN} removed`, editedN && `${editedN} edited`].filter(Boolean)
+  const count = (n: number) => `${n} block${n === 1 ? '' : 's'}`
+  return { kind: 'change', label: PAGE_CONTENT_LABELS.blocks, before: count(before.length), after: `${count(after.length)} (${parts.length ? parts.join(', ') : 'reordered'})` }
+}
+
+export function pageContentDiff(translatableAttrs: PageTypeAttr[]) {
+  return (original: PageContentValues, draft: PageContentValues): SectionDiffEntry[] => [
+    ...fieldDiff(original, draft, [
+      { label: PAGE_CONTENT_LABELS.title, value: (v) => v.title },
+      { label: PAGE_CONTENT_LABELS.metaTitle, value: (v) => v.metaTitle },
+      { label: PAGE_CONTENT_LABELS.metaDescription, value: (v) => v.metaDescription },
+    ]),
+    ...[blocksEntry(original.blocks, draft.blocks)].filter((e) => e !== null),
+    ...dynamicFieldDiff(translatableAttrs, original.data as Record<string, FieldValue>, draft.data as Record<string, FieldValue>),
+  ]
+}
