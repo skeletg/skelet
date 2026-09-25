@@ -52,7 +52,7 @@ export function ChannelUrlOverridesEditor({
           Optional. Give this product a different URL path on a specific store. Blank inherits the product&rsquo;s own URL set above.
         </p>
       </div>
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_CHANNEL_URL_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_CHANNEL_URL_LABELS} />}
       {listings.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
           Not listed on any store yet. Publish this product on a store to set a per-store URL.

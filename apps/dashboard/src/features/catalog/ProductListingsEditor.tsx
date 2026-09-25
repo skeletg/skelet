@@ -120,7 +120,7 @@ export function ProductListingsEditor({
           {channelId ? ' Header scope is limiting this table to the selected channel.' : ''}
         </AlertDescription>
       </Alert>
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_LISTING_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_LISTING_LABELS} />}
 
       <div className="rounded-md border">
         <Table>

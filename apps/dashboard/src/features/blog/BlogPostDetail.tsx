@@ -438,7 +438,7 @@ function PostForm({
 
         {/* Body - edge-to-edge sections divided by horizontal rules, no box wrappers */}
         <div className="divide-y pb-16">
-          {draft.restoredAt !== null && (
+          {draft.offer !== null && (
             <div className="px-6 pt-4">
               <RestoredDraftBanner draft={draft} labels={POST_LABELS} />
             </div>

@@ -80,7 +80,7 @@ export function ConfigurableVariantsCard({
 
   return (
     <div className="grid gap-3">
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_VARIANT_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_VARIANT_LABELS} />}
       <div className="grid gap-1">
         <h3 className="text-sm font-medium">Variant mode</h3>
         <p className="text-sm text-muted-foreground">How shoppers pick a variant. Changes are queued and applied when you click Save.</p>

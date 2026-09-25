@@ -49,7 +49,7 @@ export function AdvancedInventoryPricingSection({
 
   return (
     <fieldset disabled={!canManage} className="grid gap-4">
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_ADVANCED_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_ADVANCED_LABELS} />}
       <div className="grid gap-3 rounded-lg border border-dashed p-4">
         <div>
           <div className="text-sm font-medium">Cost &amp; sale pricing</div>

@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, globalScope, renderPage } from '@/test/page-harness'
 import { draftKey, writeDraft } from '@/lib/form-drafts'
@@ -64,8 +64,14 @@ describe('DraftOrderCreate', () => {
     })
     const writes = renderDraft()
 
-    expect(await screen.findByText(/Restored unsaved changes/)).toBeDefined()
-    expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe('jane@example.com')
+    // Offered, not applied: the form keeps its empty values until the admin restores
+    const reviewButton = await screen.findByRole('button', { name: 'Review' })
+    expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe('')
+    fireEvent.click(reviewButton)
+    const review = await screen.findByRole('alertdialog')
+    expect(within(review).getByText('jane@example.com')).toBeDefined()
+    fireEvent.click(within(review).getByRole('button', { name: 'Restore' }))
+    await vi.waitFor(() => expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe('jane@example.com'))
     fireEvent.click(screen.getByRole('button', { name: 'Save & place' }))
 
     expect(await screen.findByText('order page', {}, SLOW)).toBeDefined()

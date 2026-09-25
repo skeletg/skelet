@@ -124,7 +124,7 @@ export function CmsPageChannelsSection({
 
   return (
     <div className="grid gap-3">
-      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PAGE_CHANNELS_LABELS} />}
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PAGE_CHANNELS_LABELS} />}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <Badge variant="secondary">
           Published on {publishedCount} of {active.length}

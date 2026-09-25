@@ -140,7 +140,7 @@ export function ContentAndMediaSection({
       }
     >
       <div className="grid gap-6">
-        {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_CONTENT_LABELS} />}
+        {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_CONTENT_LABELS} />}
         <div className="grid gap-4">
           <div className="grid gap-2">
             <Label>Short description</Label>

@@ -212,7 +212,7 @@ function QuestionEditor({ question }: { question: ReviewQuestionFieldsFragment }
       />
 
       <DetailPageBody>
-        {draft.restoredAt !== null && (
+        {draft.offer !== null && (
           <div className="px-6 py-4">
             <RestoredDraftBanner draft={draft} labels={QUESTION_TRANSLATIONS_LABELS} />
           </div>

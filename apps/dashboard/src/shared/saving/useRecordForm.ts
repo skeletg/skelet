@@ -64,6 +64,7 @@ export function useRecordForm<T extends object>(opts: RecordFormOptions<T>) {
     baseline,
     label: opts.label,
     enabled: persist !== false,
+    diff: opts.diff,
   })
 
   // Registered straight into the page's own registry - this hook runs in the component that renders

@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, meMock, renderPage } from '@/test/page-harness'
 import { draftKey, writeDraft } from '@/lib/form-drafts'
@@ -83,7 +83,9 @@ describe('ProductCreate', () => {
       ],
     })
 
-    expect(await screen.findByText(/Restored unsaved changes/)).toBeDefined()
+    // The draft is offered, and the admin restores it
+    fireEvent.click(await screen.findByRole('button', { name: 'Review' }))
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Restore' }))
     // The type's attributes arrive a beat after the draft - wait for them the way a person would
     await screen.findByPlaceholderText('Enter a value')
     fireEvent.click(screen.getByRole('button', { name: 'Create product' }))

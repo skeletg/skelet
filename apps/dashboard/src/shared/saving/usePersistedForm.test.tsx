@@ -9,9 +9,10 @@ import { draftKey, readDraft, writeDraft } from '@/lib/form-drafts'
 import { hasUnsavedChanges } from '@/lib/unsaved-changes'
 import { usePersistedForm, type PersistedForm } from './usePersistedForm'
 
-// What these pin: typed work survives a remount (the stand-in for a refresh) in the same tab, a
-// record the server changed meanwhile is reported rather than silently overwritten, saving and
-// discarding both drop the draft, and excluded fields never reach storage
+// What these pin: typed work survives a remount (the stand-in for a refresh) in the same tab as an
+// OFFER - the form keeps the stored values until the admin restores - a record the server changed
+// meanwhile is reported rather than silently overwritten, an edit made instead of deciding replaces
+// the draft, saving and discarding both drop it, and excluded fields never reach storage
 
 type Values = { name: string; city: string; apiKey: string }
 const KEY = draftKey('admin-1', 'tab-a', 'loc:1')
@@ -67,30 +68,55 @@ describe('usePersistedForm', () => {
     view.unmount()
   })
 
-  it('restores into a fresh mount and marks the work persisted', () => {
+  it('offers a stored draft on a fresh mount without applying it', () => {
     writeDraft(KEY, { city: { base: 'Berlin', value: 'Hamburg' } })
     const { view, get } = mount(server)
+    expect(get().form.state.values.city).toBe('Berlin')
+    expect(get().draft.offer?.rows).toEqual([expect.objectContaining({ label: 'city', before: 'Berlin', after: 'Hamburg' })])
+    // an offer is not unsaved work yet - nothing prompts for it
+    expect(hasUnsavedChanges('tab-a', { includePersisted: true })).toBe(false)
+    // and a reload before deciding offers it again
+    settle()
+    expect(readDraft(KEY)?.touched).toEqual({ city: { base: 'Berlin', value: 'Hamburg' } })
+    view.unmount()
+  })
+
+  it('restore puts the draft into the form and marks the work persisted', () => {
+    writeDraft(KEY, { city: { base: 'Berlin', value: 'Hamburg' } })
+    const { view, get } = mount(server)
+    act(() => get().draft.restore())
     expect(get().form.state.values.city).toBe('Hamburg')
-    expect(get().draft.restoredAt).not.toBeNull()
-    expect(get().draft.clashes).toEqual([])
+    expect(get().draft.offer).toBeNull()
     // refresh/close don't prompt for it - closing the tab still does
     expect(hasUnsavedChanges()).toBe(false)
     expect(hasUnsavedChanges('tab-a', { includePersisted: true })).toBe(true)
     view.unmount()
   })
 
-  it('keeps the admin value on a clash and reports what the server holds now', () => {
+  it('reports a clash before restoring and keeps the admin value after', () => {
     writeDraft(KEY, { city: { base: 'Berlin', value: 'Hamburg' } })
     const { view, get } = mount({ ...server, city: 'Munich' })
+    expect(get().draft.offer?.clashes).toEqual([{ field: 'city', server: 'Munich' }])
+    act(() => get().draft.restore())
     expect(get().form.state.values.city).toBe('Hamburg')
     expect(get().draft.clashes).toEqual([{ field: 'city', server: 'Munich' }])
+    view.unmount()
+  })
+
+  it('an edit made instead of deciding drops the offer and becomes the draft', () => {
+    writeDraft(KEY, { city: { base: 'Berlin', value: 'Hamburg' } })
+    const { view, get } = mount(server)
+    act(() => get().form.setFieldValue('name', 'Annex'))
+    expect(get().draft.offer).toBeNull()
+    settle()
+    expect(readDraft(KEY)?.touched).toEqual({ name: { base: 'Main', value: 'Annex' } })
     view.unmount()
   })
 
   it('drops a draft the server already caught up with', () => {
     writeDraft(KEY, { city: { base: 'Berlin', value: 'Hamburg' } })
     const { view, get } = mount({ ...server, city: 'Hamburg' })
-    expect(get().draft.restoredAt).toBeNull()
+    expect(get().draft.offer).toBeNull()
     expect(readDraft(KEY)).toBeNull()
     view.unmount()
   })
@@ -98,10 +124,11 @@ describe('usePersistedForm', () => {
   it('discard goes back to the baseline and forgets the draft', () => {
     writeDraft(KEY, { city: { base: 'Berlin', value: 'Hamburg' } })
     const { view, get } = mount(server)
+    act(() => get().draft.restore())
     act(() => get().draft.discard())
     settle()
     expect(get().form.state.values.city).toBe('Berlin')
-    expect(get().draft.restoredAt).toBeNull()
+    expect(get().draft.offer).toBeNull()
     expect(readDraft(KEY)).toBeNull()
     view.unmount()
   })
