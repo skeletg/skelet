@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { productContentChanges, productContentDiff, type ProductContentValues } from './product'
+import {
+  clearedStore,
+  productContentChanges,
+  productContentDiff,
+  productListingChanges,
+  productListingsSchema,
+  toProductListingValues,
+  type ProductContentValues,
+} from './product'
 
 // What these pin: only a description that changed is written (the content writer keeps the rest of
-// the row), and a formatting-only edit still shows in the review dialog
+// the row), and a formatting-only edit still shows in the review dialog. Per store, an equal price
+// typed differently is no change, and a blank price is refused
 
 const doc = (text: string, format = 0) => ({ root: { children: [{ children: [{ text, format }] }] } })
 
@@ -25,5 +34,21 @@ describe('product content', () => {
     expect(productContentDiff(before, after)).toEqual([
       expect.objectContaining({ label: 'Short description', before: 'previous formatting', after: 'updated formatting' }),
     ])
+  })
+})
+
+describe('per-store listings', () => {
+  const before = toProductListingValues(['c1', 'c2'], [{ isPublished: true, price: 1250, channel: { id: 'c1' } }])
+
+  it('writes only the stores that changed, and clears only a store that has a listing', () => {
+    const after = { stores: [{ ...before.stores[0], price: '12.5' }, clearedStore('c2')] }
+    expect(productListingChanges(before, after, (id) => id === 'c1')).toEqual([])
+    const repriced = { stores: [{ ...before.stores[0], price: '9' }, before.stores[1]] }
+    expect(productListingChanges(before, repriced, (id) => id === 'c1')).toEqual([{ channelId: 'c1', clear: false, isPublished: true, price: 900 }])
+  })
+
+  it('refuses a blank store price instead of saving it as zero', () => {
+    const after = { stores: [{ ...before.stores[0], price: '' }, before.stores[1]] }
+    expect(productListingsSchema.safeParse(after).success).toBe(false)
   })
 })

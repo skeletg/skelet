@@ -1,240 +1,126 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { useStore } from '@tanstack/react-form'
 import { EraserIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCents } from '@/lib/format'
 import { ChannelsDocument } from '@/features/channels/Channels.gql'
-import {
-  ClearProductListingDocument,
-  ProductDocument,
-} from './Catalog.gql'
-import { useProductSaveSection, type SectionDiffEntry } from './productSaveRegistry'
+import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
+import { useSectionForm } from '@/shared/saving/useSectionForm'
+import { ClearProductListingDocument, ProductDocument } from './Catalog.gql'
 import { useProductListingWrite } from './product-detail/productListing'
+import {
+  PRODUCT_LISTING_LABELS,
+  productListingChanges,
+  productListingsDiff,
+  productListingsSchema,
+  toProductListingValues,
+  clearedStore,
+} from './schemas/product'
+
+// Per-store price and published flag - one staged section over every store in scope. A store with
+// no listing inherits the product's default price and is unpublished; "Clear" stages removing the
+// listing, which puts it back to that
 
 type Listing = {
   isPublished: boolean
   price?: number | null
-  url?: string | null
   effectivePrice?: number | null
   effectiveCurrency: string
-  channel: { id: string; slug: string; name: string; currencyCode: string }
+  channel: { id: string }
 }
 
 type ProductForListings = {
   id: string
-  defaultPrice: number
   listings: Listing[]
-}
-
-type RowState = {
-  channel: { id: string; slug: string; name: string; currencyCode: string }
-  isPublished: boolean
-  inheritPrice: boolean
-  priceDollars: string
-  // Per-channel URL override - Empty string = inherit the product's
-  // global url on this channel
-  url: string
-  // Original values from the loaded product, used for diffing
-  originalIsPublished: boolean
-  originalInheritPrice: boolean
-  originalPriceDollars: string
-  originalUrl: string
-  hadExistingListing: boolean
-  // True when the user has explicitly clicked "Clear" for this row - the row's state is reset to defaults and the global Save will issue a
-  // ClearProductListing mutation - Resetting fields by hand also produces a clean state but doesn't issue Clear unless this is true
-  clearRequested: boolean
-}
-
-function dollarsToCents(input: string): number {
-  const n = Number(input)
-  if (!Number.isFinite(n)) return 0
-  return Math.round(n * 100)
-}
-
-function centsToDollars(cents: number): string {
-  return (cents / 100).toFixed(2)
 }
 
 export function ProductListingsEditor({
   product,
   canManage,
   channelId,
-  productQueryVariables,
 }: {
   product: ProductForListings
   canManage: boolean
   channelId?: string
-  productQueryVariables?: { id: string; locale?: string }
 }) {
   const channelsQuery = useQuery(ChannelsDocument)
-  const allChannels = useMemo(() => {
+  const stores = useMemo(() => {
     const channels = channelsQuery.data?.channels ?? []
     return channelId ? channels.filter((channel) => channel.id === channelId) : channels
   }, [channelId, channelsQuery.data])
 
-  // Build a row per known channel - A listing exists in product.listings when the admin has saved at least one explicit
-  // value for it; otherwise we render a default row that inherits price + is unpublished
-  const initialRows = useMemo<RowState[]>(() => {
-    const byId = new Map(product.listings.map((l) => [l.channel.id, l]))
-    return allChannels.map((sv) => {
-      const existing = byId.get(sv.id)
-      const isPublished = existing?.isPublished ?? false
-      const inheritPrice = existing ? existing.price == null : true
-      const priceDollars = existing?.price != null ? centsToDollars(existing.price) : ''
-      const url = existing?.url ?? ''
-      return {
-        channel: { id: sv.id, slug: sv.slug, name: sv.name, currencyCode: sv.currencyCode },
-        isPublished,
-        inheritPrice,
-        priceDollars,
-        url,
-        originalIsPublished: isPublished,
-        originalInheritPrice: inheritPrice,
-        originalPriceDollars: priceDollars,
-        originalUrl: url,
-        hadExistingListing: !!existing,
-        clearRequested: false,
-      }
-    })
-  }, [allChannels, product.listings])
-
-  const [rows, setRows] = useState<RowState[]>(initialRows)
-  // Reset row state whenever the product/listings change underneath
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRows(initialRows)
-  }, [initialRows])
-
-  const refetch = [{ query: ProductDocument, variables: productQueryVariables ?? { id: product.id } }]
   const writeListing = useProductListingWrite(product.id)
-  const [clearListing] = useMutation(ClearProductListingDocument, { refetchQueries: refetch })
-
-  function patchRow(id: string, patch: Partial<RowState>) {
-    setRows((prev) =>
-      prev.map((r) => {
-        if (r.channel.id !== id) return r
-        // Any manual edit cancels a pending clear request
-        const next = { ...r, ...patch }
-        if (patch.clearRequested === undefined) next.clearRequested = false
-        return next
-      }),
-    )
-  }
-
-  function rowIsDirty(r: RowState): boolean {
-    if (r.clearRequested) return r.hadExistingListing
-    return (
-      r.isPublished !== r.originalIsPublished ||
-      r.inheritPrice !== r.originalInheritPrice ||
-      (!r.inheritPrice && r.priceDollars !== r.originalPriceDollars) ||
-      r.url !== r.originalUrl
-    )
-  }
-
-  function rowDescribePrice(r: RowState, useDraft: boolean): string {
-    const inheritPrice = useDraft ? r.inheritPrice : r.originalInheritPrice
-    const priceDollars = useDraft ? r.priceDollars : r.originalPriceDollars
-    if (inheritPrice) return 'inherit default'
-    const cents = dollarsToCents(priceDollars)
-    return formatCents(cents, r.channel.currencyCode)
-  }
-
-  const diff = useMemo<SectionDiffEntry[]>(() => {
-    const entries: SectionDiffEntry[] = []
-    for (const r of rows) {
-      if (!rowIsDirty(r)) continue
-      if (r.clearRequested) {
-        entries.push({
-          label: r.channel.name,
-          before: `${rowDescribePrice(r, false)} · ${r.originalIsPublished ? 'published' : 'unpublished'}`,
-          after: 'cleared (revert to default)',
-        })
-        continue
-      }
-      const beforePub = r.originalIsPublished ? 'published' : 'unpublished'
-      const afterPub = r.isPublished ? 'published' : 'unpublished'
-      entries.push({
-        label: r.channel.name,
-        before: `${rowDescribePrice(r, false)} · ${beforePub}`,
-        after: `${rowDescribePrice(r, true)} · ${afterPub}`,
-      })
-    }
-    return entries
-  }, [rows])
-
-  const save = useCallback(async () => {
-    for (const r of rows) {
-      if (!rowIsDirty(r)) continue
-      if (r.clearRequested) {
-        await clearListing({
-          variables: { productId: product.id, channelId: r.channel.id },
-        })
-        continue
-      }
-      // The store's URL is the per-store URL section's - this one only prices and publishes
-      await writeListing(r.channel.id, {
-        isPublished: r.isPublished,
-        price: r.inheritPrice ? null : dollarsToCents(r.priceDollars),
-      })
-    }
-  }, [rows, product.id, writeListing, clearListing])
-
-  useProductSaveSection({
-    id: 'listings',
-    title: 'Per-store pricing & publishing',
-    diff,
-    save,
+  const [clearListing] = useMutation(ClearProductListingDocument, {
+    refetchQueries: [{ query: ProductDocument, variables: { id: product.id } }],
   })
 
-  function onClear(row: RowState) {
-    // Reset visible fields to the inherited / unpublished baseline AND mark
-    // the row for explicit clear (if it had an existing listing)
-    patchRow(row.channel.id, {
-      isPublished: false,
-      inheritPrice: true,
-      priceDollars: '',
-      url: '',
-      clearRequested: row.hadExistingListing,
-    })
-  }
+  const listingFor = (id: string) => product.listings.find((l) => l.channel.id === id)
+  const hasListing = (id: string) => !!listingFor(id)
+  const baseline = useMemo(
+    () =>
+      toProductListingValues(
+        stores.map((s) => s.id),
+        product.listings,
+      ),
+    [stores, product.listings],
+  )
+  const diff = useMemo(
+    () =>
+      productListingsDiff(
+        (id) => stores.find((s) => s.id === id) ?? { name: 'Store', currencyCode: '' },
+        (id) => product.listings.some((l) => l.channel.id === id),
+      ),
+    [stores, product.listings],
+  )
+  const { form, draft } = useSectionForm({
+    id: 'listings',
+    title: 'Per-store pricing & publishing',
+    baseline,
+    schema: productListingsSchema,
+    diff,
+    routeKey: `product-listings:${product.id}`,
+    enabled: !!channelsQuery.data,
+    submit: async (v) => {
+      for (const change of productListingChanges(baseline, v, hasListing)) {
+        if (change.clear) await clearListing({ variables: { productId: product.id, channelId: change.channelId } })
+        else await writeListing(change.channelId, { isPublished: change.isPublished, price: change.price })
+      }
+    },
+  })
+  const values = useStore(form.store, (s) => s.values.stores)
 
   if (channelsQuery.loading) {
     return <p className="text-sm text-muted-foreground">Loading stores…</p>
   }
-  if (allChannels.length === 0) {
+  if (stores.length === 0) {
     return (
       <Alert>
         <AlertTitle>No channels</AlertTitle>
-        <AlertDescription>
-          Create at least one channel to manage per-store pricing and publishing.
-        </AlertDescription>
+        <AlertDescription>Create at least one channel to manage per-store pricing and publishing.</AlertDescription>
       </Alert>
     )
   }
+
+  // Any edit to a row takes back its staged clear
+  const edit = (i: number) => form.setFieldValue(`stores[${i}].clear`, false)
 
   return (
     <div className="grid gap-3">
       <Alert>
         <AlertTitle className="text-xs uppercase tracking-wider">How pricing works</AlertTitle>
         <AlertDescription className="text-xs">
-          Each store either inherits the product's default amount in the store currency or has an
-          explicit store price. Stores marked unpublished hide this product on the channel.
+          Each store either inherits the product's default amount in the store currency or has an explicit store price. Stores marked
+          unpublished hide this product on the channel.
           {channelId ? ' Header scope is limiting this table to the selected channel.' : ''}
         </AlertDescription>
       </Alert>
+      {draft.restoredAt !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_LISTING_LABELS} />}
 
       <div className="rounded-md border">
         <Table>
@@ -249,77 +135,91 @@ export function ProductListingsEditor({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row) => {
-              const existingListing = product.listings.find(
-                (l) => l.channel.id === row.channel.id,
-              )
-              const dirty = rowIsDirty(row)
+            {stores.map((store, i) => {
+              const row = values[i]
+              if (row?.channelId !== store.id) return null
+              const existing = listingFor(store.id)
+              const dirty = productListingChanges(baseline, { stores: [row] }, hasListing).length > 0
               return (
-                <TableRow key={row.channel.id} className={dirty ? 'bg-primary/5' : undefined}>
+                <TableRow key={store.id} className={dirty ? 'bg-amber-500/5' : undefined}>
                   <TableCell className="font-medium">
-                    {row.channel.name}
+                    {store.name}
                     {dirty ? (
                       <Badge variant="outline" className="ml-2 text-[10px] uppercase tracking-wide">
-                        {row.clearRequested ? 'pending clear' : 'pending'}
+                        {row.clear ? 'pending clear' : 'pending'}
                       </Badge>
                     ) : null}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="font-mono font-normal">
-                      {row.channel.currencyCode}
+                      {store.currencyCode}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="grid gap-1.5">
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          id={`inherit-${row.channel.id}`}
-                          checked={row.inheritPrice}
-                          onCheckedChange={(v) => patchRow(row.channel.id, { inheritPrice: v })}
-                          disabled={!canManage}
-                        />
-                        <Label htmlFor={`inherit-${row.channel.id}`} className="text-xs">
-                          Use default
-                        </Label>
-                      </div>
+                      <form.Field name={`stores[${i}].inheritPrice`}>
+                        {(f) => (
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              id={`inherit-${store.id}`}
+                              checked={f.state.value}
+                              onCheckedChange={(v) => {
+                                f.handleChange(v)
+                                edit(i)
+                              }}
+                              disabled={!canManage}
+                            />
+                            <Label htmlFor={`inherit-${store.id}`} className="text-xs">
+                              Use default
+                            </Label>
+                          </div>
+                        )}
+                      </form.Field>
                       {!row.inheritPrice && (
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          inputMode="decimal"
-                          value={row.priceDollars}
-                          onChange={(e) =>
-                            patchRow(row.channel.id, { priceDollars: e.target.value })
-                          }
-                          disabled={!canManage}
-                        />
+                        <form.AppField name={`stores[${i}].price`}>
+                          {(f) => (
+                            <f.TextField
+                              aria-label={`${store.name} price`}
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              inputMode="decimal"
+                              disabled={!canManage}
+                              onValueChange={() => edit(i)}
+                            />
+                          )}
+                        </form.AppField>
                       )}
                     </div>
                   </TableCell>
                   <TableCell className="font-mono text-xs">
-                    {existingListing?.effectivePrice != null
-                      ? formatCents(
-                          existingListing.effectivePrice,
-                          existingListing.effectiveCurrency,
-                        )
-                      : '-'}
+                    {existing?.effectivePrice != null ? formatCents(existing.effectivePrice, existing.effectiveCurrency) : '-'}
                   </TableCell>
                   <TableCell>
-                    <Switch
-                      checked={row.isPublished}
-                      onCheckedChange={(v) => patchRow(row.channel.id, { isPublished: v })}
-                      disabled={!canManage}
-                    />
+                    <form.Field name={`stores[${i}].isPublished`}>
+                      {(f) => (
+                        <Switch
+                          aria-label={`${store.name} published`}
+                          checked={f.state.value}
+                          onCheckedChange={(v) => {
+                            f.handleChange(v)
+                            edit(i)
+                          }}
+                          disabled={!canManage}
+                        />
+                      )}
+                    </form.Field>
                   </TableCell>
                   {canManage && (
                     <TableCell>
                       <div className="flex justify-end gap-2">
-                        {existingListing && !row.clearRequested && (
+                        {existing && !row.clear && (
                           <Button
+                            type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => onClear(row)}
+                            onClick={() => form.setFieldValue(`stores[${i}]`, clearedStore(store.id))}
+                            aria-label={`Clear ${store.name}`}
                             title="Stage a clear - applied on Save (reverts to inherited default + unpublished)"
                           >
                             <EraserIcon className="size-3.5" />
@@ -334,7 +234,6 @@ export function ProductListingsEditor({
           </TableBody>
         </Table>
       </div>
-
     </div>
   )
 }

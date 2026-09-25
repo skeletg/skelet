@@ -304,7 +304,6 @@ export function ProductDetail() {
                     product={product}
                     canManage={canManage}
                     channelId={scope.channelId}
-                    productQueryVariables={productVariables}
                   />
                 ) : (
                   <div className="rounded-md border bg-muted/30 p-4 text-sm">
