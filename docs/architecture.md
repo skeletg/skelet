@@ -39,8 +39,8 @@ skelet/
 │   │   │   ├── lib/                 ← the infrastructure the Signals module builds on - see below
 │   │   │   │   ├── apperr/, auth/, config/, applog/, envcheck/, httpx/, observability/,
 │   │   │   │   │   ratelimit/, testdb/
-│   │   │   │   └── tx/, cache/, secrets/, urlguard/, otelx/, pgconn/, objstore/, email/,
-│   │   │   │       emailtrack/, backup/
+│   │   │   │   └── txrunner/, cache/, secrets/, urlguard/, otelx/, dbconn/, objstore/, email/,
+│   │   │   │       emailtrack/, consentkind/
 │   │   │   └── signalsapi/          ← the wire contract's vocabulary, its generated code under v1/
 │   │   ├── sdk/                     ← the plugin SDK - go.mod github.com/skeletg/skelet/apps/backend/sdk
 │   │   │   └── sdktest/, httpx/, api.json
@@ -140,14 +140,17 @@ layout keeps them apart because they carry different promises:
   core's gqlgen model packages, which is the one other door.
 - `signalsapi/` is the wire contract: the vocabulary both modules share, with the
   code generated from `proto/` under `signalsapi/v1/`, checked for breaking changes
-  against `develop`.
+  against `main` - the deployed core that a new Signals has to keep answering.
+  `bin/contract-check` runs it in CI against `origin/main` and fails when that ref
+  is missing, rather than passing with nothing to compare. Until `main` carries the
+  proto, it compares against `develop` instead.
 - `lib/` is the infrastructure the Signals module builds on: `apperr`, `auth`,
   `config`, `applog`, `envcheck`, `httpx`, `observability` (Sentry and the telemetry
-  facade), `ratelimit`, `testdb`, `tx`, `cache`, `secrets`, `urlguard`, `otelx`, `pgconn`
-  for opening a pool, `objstore` for the S3 client, `email` for the SMTP sender and
-  the order snapshot a flow renders from, `emailtrack` for the tracking and
-  unsubscribe tokens the suite signs and core verifies, `backup` for the pg_dump each
-  process streams of its own database. Public to the compiler, internal in intent: it
+  facade), `ratelimit`, `testdb`, `txrunner`, `cache`, `secrets`, `urlguard`, `otelx`,
+  `dbconn` for opening a pool, `objstore` for the S3 client, `email` for the SMTP
+  sender and the order snapshot a flow renders from, `emailtrack` for the tracking and
+  unsubscribe tokens the suite signs and core verifies, `consentkind` for the consent
+  kinds both sides name. Public to the compiler, internal in intent: it
   is the suite's slice of core, not an API for plugins or anyone else, and it is
   plumbing with no commerce knowledge.
 
@@ -220,8 +223,7 @@ stay in sync; the storefront has its own codegen step
   `next: { tags, revalidate }` when the caller opts into ISR. **Caveat:** Next.js 16 has breaking changes vs.
   the version in your training data - read
   `apps/channels/vetrina-demo/node_modules/next/dist/docs/` before writing code,
-  and heed the deprecation notices (see
-  `apps/channels/vetrina-demo/AGENTS.md`).
+  and heed the deprecation notices.
 
 ### Datastores and sidecars
 
