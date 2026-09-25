@@ -369,3 +369,89 @@ export function productContentDiff(original: ProductContentValues, draft: Produc
     richTextEntry(PRODUCT_CONTENT_LABELS.descriptionRichText, original.descriptionText, draft.descriptionText, original.descriptionRichText, draft.descriptionRichText),
   ].filter((e) => e !== null)
 }
+
+// ---------- SEO: the URL, canonical and noindex on the product, the locale's meta copy ----------
+
+export const productSeoSchema = z.object({
+  // On, the URL comes from the template; off, `url` is the full path (blank = generate once from the name)
+  urlAuto: z.boolean(),
+  url: z.string(),
+  urlTemplateOverride: z.string(),
+  canonicalUrl: z.string(),
+  seoNoindex: z.boolean(),
+  metaTitle: z.string(),
+  metaDescription: z.string(),
+  metaKeywords: z.string(),
+})
+
+export type ProductSeoValues = z.infer<typeof productSeoSchema>
+
+export const PRODUCT_SEO_LABELS: Record<keyof ProductSeoValues, string> = {
+  urlAuto: 'Auto-generate URL',
+  url: 'URL',
+  urlTemplateOverride: 'URL template override',
+  canonicalUrl: 'Canonical URL',
+  seoNoindex: 'Noindex',
+  metaTitle: 'Meta title',
+  metaDescription: 'Meta description',
+  metaKeywords: 'Meta keywords',
+}
+
+type SeoProduct = {
+  url?: string | null
+  urlAuto: boolean
+  urlTemplateOverride?: string | null
+  canonicalUrl?: string | null
+  seoNoindex: boolean
+  metaTitle?: string | null
+  metaDescription?: string | null
+  content: { locale: string; metaTitle?: string | null; metaDescription?: string | null; metaKeywords?: string | null }[]
+}
+
+export function toProductSeoValues(product: SeoProduct, locale: string): ProductSeoValues {
+  const content = product.content.find((c) => c.locale === locale)
+  return {
+    urlAuto: product.urlAuto,
+    url: product.url ?? '',
+    urlTemplateOverride: product.urlTemplateOverride ?? '',
+    canonicalUrl: product.canonicalUrl ?? '',
+    seoNoindex: product.seoNoindex,
+    metaTitle: content?.metaTitle ?? product.metaTitle ?? '',
+    metaDescription: content?.metaDescription ?? product.metaDescription ?? '',
+    metaKeywords: content?.metaKeywords ?? '',
+  }
+}
+
+const META = ['metaTitle', 'metaDescription', 'metaKeywords'] as const
+
+// The product update carries only what changed (nil is "no change" there, '' clears); the meta copy
+// goes to the locale's content row. A manual URL is sent only with auto off - the backend refuses one
+// while auto is on
+export function productSeoChanges(before: ProductSeoValues, after: ProductSeoValues) {
+  const t = (s: string) => s.trim()
+  const update = {
+    ...(before.urlAuto !== after.urlAuto ? { urlAuto: after.urlAuto } : {}),
+    ...(!after.urlAuto && (before.urlAuto || t(before.url) !== t(after.url)) ? { url: t(after.url) } : {}),
+    ...(t(before.urlTemplateOverride) !== t(after.urlTemplateOverride) ? { urlTemplateOverride: t(after.urlTemplateOverride) } : {}),
+    ...(t(before.canonicalUrl) !== t(after.canonicalUrl) ? { canonicalUrl: t(after.canonicalUrl) } : {}),
+    ...(before.seoNoindex !== after.seoNoindex ? { seoNoindex: after.seoNoindex } : {}),
+  }
+  return {
+    update: Object.keys(update).length > 0 ? update : null,
+    content: META.some((k) => t(before[k]) !== t(after[k])) ? { metaTitle: t(after.metaTitle), metaDescription: t(after.metaDescription), metaKeywords: t(after.metaKeywords) } : null,
+  }
+}
+
+export function productSeoDiff(original: ProductSeoValues, draft: ProductSeoValues): SectionDiffEntry[] {
+  return fieldDiff(original, draft, [
+    { label: PRODUCT_SEO_LABELS.urlAuto, value: (v) => (v.urlAuto ? 'on' : 'off') },
+    // The manual URL only means something with auto off
+    { label: PRODUCT_SEO_LABELS.url, value: (v) => (v.urlAuto ? original.url : v.url) },
+    { label: PRODUCT_SEO_LABELS.urlTemplateOverride, value: (v) => v.urlTemplateOverride },
+    { label: PRODUCT_SEO_LABELS.canonicalUrl, value: (v) => v.canonicalUrl },
+    { label: PRODUCT_SEO_LABELS.seoNoindex, value: (v) => v.seoNoindex },
+    { label: PRODUCT_SEO_LABELS.metaTitle, value: (v) => v.metaTitle },
+    { label: PRODUCT_SEO_LABELS.metaDescription, value: (v) => clip(v.metaDescription) },
+    { label: PRODUCT_SEO_LABELS.metaKeywords, value: (v) => v.metaKeywords },
+  ])
+}
