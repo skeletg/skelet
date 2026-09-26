@@ -255,6 +255,15 @@ func rosterEntry(e *signalsv1.RosterEntry) (analytics.RosterEntry, error) {
 	if e.GetReadAt() != nil {
 		out.ReadAt = e.GetReadAt().AsTime()
 	}
+	out.OrderCount, out.MonetaryCents = e.GetOrderCount(), e.GetMonetaryCents()
+	if t := e.GetFirstOrderAt(); t != nil {
+		v := t.AsTime()
+		out.FirstOrderAt = &v
+	}
+	if t := e.GetLastOrderAt(); t != nil {
+		v := t.AsTime()
+		out.LastOrderAt = &v
+	}
 	if cs := e.GetConsents(); len(cs) > 0 {
 		out.Consents = make(map[string]bool, len(cs))
 		for _, c := range cs {

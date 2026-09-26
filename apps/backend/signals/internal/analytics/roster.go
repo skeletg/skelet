@@ -17,7 +17,7 @@ import (
 // Core streams customers here, and one gone from the stream is what tells the recompute to drop their traits
 
 // RosterVersion moves with every migration that adds a roster column - a full sync stamps it, and until one has, the roster reads as behind
-const RosterVersion int32 = 3
+const RosterVersion int32 = 4
 
 const rosterTombstoneTTL = 24 * time.Hour
 
@@ -48,6 +48,10 @@ type RosterEntry struct {
 	SMSOptedIn       bool
 	Consents         map[string]bool
 	ReadAt           time.Time // when core read the row, on core's clock - zero when the caller did not say
+	OrderCount       int32
+	MonetaryCents    int64
+	FirstOrderAt     *time.Time
+	LastOrderAt      *time.Time
 }
 
 func consentsJSON(m map[string]bool) string {
@@ -90,6 +94,10 @@ func (s *RosterSync) Page(ctx context.Context, entries []RosterEntry) error {
 		p.SmsOptedIn = append(p.SmsOptedIn, e.SMSOptedIn)
 		p.Consents = append(p.Consents, consentsJSON(e.Consents))
 		p.ReadAts = append(p.ReadAts, e.ReadAt)
+		p.OrderCounts = append(p.OrderCounts, e.OrderCount)
+		p.MonetaryCents = append(p.MonetaryCents, e.MonetaryCents)
+		p.FirstOrderAts = append(p.FirstOrderAts, timeOrZero(e.FirstOrderAt)) // zero lands as NULL
+		p.LastOrderAts = append(p.LastOrderAts, timeOrZero(e.LastOrderAt))
 	}
 	if err := s.r.qs.UpsertCustomerRoster(ctx, p); err != nil {
 		return fmt.Errorf("upsert roster: %w", err)
@@ -170,6 +178,8 @@ func (r *Roster) UpsertRosterEntry(ctx context.Context, e RosterEntry) error {
 		Phone: e.Phone, IsActive: e.IsActive, CustomerGroupID: e.GroupID, CustomerGroupSlug: e.GroupSlug,
 		MarketingOptedIn: e.MarketingOptedIn, SmsOptedIn: e.SMSOptedIn,
 		Consents: json.RawMessage(consentsJSON(e.Consents)), ReadAt: e.ReadAt,
+		OrderCount: e.OrderCount, MonetaryCents: e.MonetaryCents,
+		FirstOrderAt: nullTime(e.FirstOrderAt), LastOrderAt: nullTime(e.LastOrderAt),
 	})
 }
 
@@ -268,4 +278,18 @@ func (r *Roster) EraseCustomer(ctx context.Context, customerID uuid.UUID, email 
 		return fmt.Errorf("detach lens sessions: %w", err)
 	}
 	return nil
+}
+
+func timeOrZero(t *time.Time) time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	return *t
+}
+
+func nullTime(t *time.Time) sql.NullTime {
+	if t == nil {
+		return sql.NullTime{}
+	}
+	return sql.NullTime{Time: *t, Valid: true}
 }
