@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, renderPage } from '@/test/page-harness'
 import { LocalesPickerDocument } from '@/features/locales/Locales.gql'
 import { BlogPostCreate } from './BlogPostCreate'
-import { BlogPostsDocument, CreateBlogPostDocument } from './Blog.gql'
+import { CreateBlogPostDocument } from './Blog.gql'
 
 describe('BlogPostCreate', () => {
   it('derives the slug from the title and wraps the excerpt as rich text', async () => {
@@ -17,7 +17,6 @@ describe('BlogPostCreate', () => {
           request: { query: CreateBlogPostDocument, variables: captureInput(onCreate) },
           result: { data: { createBlogPost: { __typename: 'BlogPost', id: 'bp1' } } },
         },
-        { request: { query: BlogPostsDocument, variables: () => true }, result: { data: { blogPosts: [] } }, maxUsageCount: 3 },
       ],
     })
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Hello World' } })

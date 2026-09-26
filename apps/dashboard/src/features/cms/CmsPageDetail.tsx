@@ -42,7 +42,6 @@ import {
   AiStatusDocument,
   CloneCmsPageDocument,
   CmsPageDocument,
-  CmsPagesDocument,
   TranslateCmsPageDocument,
   CmsPageTypeDocument,
   DeleteCmsPageDocument,
@@ -54,6 +53,7 @@ import {
   UpdateCmsPageDocument,
   UpsertCmsPageContentDocument,
   type CmsPageRowFragment,
+  CmsPagesDocument,
 } from './Cms.gql'
 import { PageBlockCanvas } from './PageBlockCanvas'
 import { CmsPreviewPanel } from './CmsPreviewPanel'
@@ -115,7 +115,7 @@ function CmsPageEditor({
   const canApprove = has('cms.approve')
   const { selectedChannel } = useConfigScope()
 
-  const refetchList = [{ query: CmsPagesDocument, variables: { filter: { onlyPublished: false }, limit: 200, offset: 0 } }]
+  const refetchList = [CmsPagesDocument]
   const refetchPage = [{ query: CmsPageDocument, variables }]
 
   const { data: ptData } = useQuery(CmsPageTypeDocument, { variables: { id: p.pageTypeId ?? '' }, skip: !p.pageTypeId })

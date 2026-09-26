@@ -38,6 +38,7 @@ import {
   SetProductVariantModeDocument,
   SetProductAttributesDocument,
   UpdateProductDocument,
+  ProductsPagedDocument,
 } from './Catalog.gql'
 import { AttributesEditor } from './AttributesEditor'
 import { ProductReferencesCard } from './ProductReferencesCard'
@@ -94,7 +95,7 @@ export function ProductDetail() {
 
   const productRefetch = [{ query: ProductDocument, variables: productVariables }]
   const [deleteProduct, { loading: deleting }] = useMutation(DeleteProductDocument, {
-    refetchQueries: ['ProductsPaged'],
+    refetchQueries: [ProductsPagedDocument],
   })
   const [setAttrs, { loading: savingAttrs }] = useMutation(SetProductAttributesDocument, {
     refetchQueries: productRefetch,

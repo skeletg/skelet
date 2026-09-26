@@ -30,7 +30,7 @@ import { CurrenciesPickerDocument } from '@/features/currencies/Currencies.gql'
 import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { AttributeControl, emptyAttrState, type AttrState, type AttributeSummary } from './AttributesEditor'
 import { AttributeInputTypeBadge } from './AttributeInputTypeBadge'
-import { CreateProductDocument, ProductTypeDocument, ProductTypesDocument, SetProductAttributesDocument } from './Catalog.gql'
+import { CreateProductDocument, ProductsPagedDocument, ProductTypeDocument, ProductTypesDocument, SetProductAttributesDocument } from './Catalog.gql'
 import { FormRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
 import { ProductTypeFormDialog } from './ProductTypeFormDialog'
 import {
@@ -104,7 +104,7 @@ export function ProductCreate() {
   const fallbackLocale =
     globalDefaultLocale && (locales.length === 0 || locales.includes(globalDefaultLocale)) ? globalDefaultLocale : (locales[0] ?? '')
 
-  const [createProduct] = useMutation(CreateProductDocument, { refetchQueries: ['ProductsPaged'] })
+  const [createProduct] = useMutation(CreateProductDocument, { refetchQueries: [ProductsPagedDocument] })
   const [setAttrs] = useMutation(SetProductAttributesDocument)
   const createdId = useRef('')
 

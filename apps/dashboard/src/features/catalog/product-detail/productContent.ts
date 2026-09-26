@@ -1,6 +1,6 @@
 import { useApolloClient, useMutation } from '@apollo/client/react'
 import type { UpsertProductContentInput } from '@/graphql/schema.types'
-import { ProductDocument, UpsertProductContentDocument } from '../Catalog.gql'
+import { ProductDocument, ProductsPagedDocument, UpsertProductContentDocument } from '../Catalog.gql'
 
 // upsertProductContent replaces the locale's whole row, while the General, Content and SEO sections
 // each own a slice of it. So every write sends the full row: the row as it is when the write runs,
@@ -10,7 +10,7 @@ export function useProductContentWrite(productId: string, locale: string) {
   const client = useApolloClient()
   const variables = { id: productId }
   const [upsert] = useMutation(UpsertProductContentDocument, {
-    refetchQueries: ['ProductsPaged', { query: ProductDocument, variables }],
+    refetchQueries: [ProductsPagedDocument, { query: ProductDocument, variables }],
   })
   return async (patch: Partial<UpsertProductContentInput>) => {
     // Partial is enough - only the name and the content rows are needed

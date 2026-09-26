@@ -51,7 +51,6 @@ import {
   ArchiveBlogPostDocument,
   BlogCategoriesDocument,
   BlogPostDocument,
-  BlogPostsDocument,
   BlogTagsDocument,
   DeleteBlogPostContentDocument,
   DeleteBlogPostDocument,
@@ -65,6 +64,7 @@ import {
   UpdateBlogPostDocument,
   UpsertBlogPostContentDocument,
   type BlogPostQuery,
+  BlogPostsDocument,
 } from './Blog.gql'
 import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { slugify } from '@/lib/slug'
@@ -167,7 +167,7 @@ function PostForm({
   const { has } = usePermissions()
   const canManage = has('blog.manage')
 
-  const refetchList = [{ query: BlogPostsDocument, variables: { filter: { includeUnpublished: true }, limit: 200, offset: 0 } }]
+  const refetchList = [BlogPostsDocument]
   const refetchPost = [{ query: BlogPostDocument, variables }]
   const [updatePost] = useMutation(UpdateBlogPostDocument, { refetchQueries: refetchPost })
   const [upsertContent] = useMutation(UpsertBlogPostContentDocument, { refetchQueries: refetchPost })

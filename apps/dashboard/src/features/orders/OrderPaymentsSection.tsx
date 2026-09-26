@@ -41,8 +41,8 @@ import {
   VoidPaymentDocument,
   RecordOfflinePaymentDocument,
   OrderDocument,
-  OrdersDocument,
   type OrderQuery,
+  OrdersPagedDocument,
 } from './Orders.gql'
 
 type OrderData = OrderQuery['order']
@@ -54,7 +54,7 @@ type OrderData = OrderQuery['order']
 export function OrderPaymentsSection({ order }: { order: OrderData }) {
   const permissions = usePermissions()
   const canManage = permissions.canAccessChannelScope('orders.update', order.channelId)
-  const refetch = [{ query: OrderDocument, variables: { id: order.id } }, { query: OrdersDocument }]
+  const refetch = [{ query: OrderDocument, variables: { id: order.id } }, OrdersPagedDocument]
 
   const [capture, captureState] = useMutation(CapturePaymentDocument, { refetchQueries: refetch })
   const [refund, refundState] = useMutation(RefundPaymentDocument, { refetchQueries: refetch })

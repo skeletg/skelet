@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, renderPage } from '@/test/page-harness'
 import { LocalesPickerDocument } from '@/features/locales/Locales.gql'
 import { CmsPageCreate } from './CmsPageCreate'
-import { CmsPageTypesDocument, CmsPagesDocument, CreateCmsPageDocument } from './Cms.gql'
+import { CmsPageTypesDocument, CreateCmsPageDocument } from './Cms.gql'
 
 const pageType = (id: string, name: string) => ({
   __typename: 'CMSPageType' as const,
@@ -39,7 +39,6 @@ describe('CmsPageCreate', () => {
           request: { query: CreateCmsPageDocument, variables: captureInput(onCreate) },
           result: { data: { createCMSPage: { __typename: 'CMSPage', id: 'p1' } } },
         },
-        { request: { query: CmsPagesDocument, variables: () => true }, result: { data: { cmsPages: [] } }, maxUsageCount: 3 },
       ],
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Create page' }))

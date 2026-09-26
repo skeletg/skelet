@@ -2,7 +2,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, renderDialog } from '@/test/page-harness'
 import { EditOrderDialog } from './EditOrderDialog'
-import { EditOrderDocument, OrderDocument, OrdersDocument } from './Orders.gql'
+import { EditOrderDocument, OrderDocument } from './Orders.gql'
 
 const order = {
   id: 'o1',
@@ -22,7 +22,6 @@ describe('EditOrderDialog', () => {
         result: { data: { editOrder: { __typename: 'Order', id: 'o1' } } },
       },
       { request: { query: OrderDocument, variables: () => true }, result: { data: { order: null } }, maxUsageCount: 3 },
-      { request: { query: OrdersDocument, variables: () => true }, result: { data: { orders: [] } }, maxUsageCount: 3 },
     ])
     const apply = screen.getByRole('button', { name: 'Apply changes' }) as HTMLButtonElement
     expect(apply.disabled).toBe(true)
