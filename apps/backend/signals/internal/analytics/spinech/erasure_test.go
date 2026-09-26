@@ -20,6 +20,9 @@ func TestAFullSweepPageOfErasuresFitsClickHousesQueryLimit(t *testing.T) {
 	if err := st.UpsertIdentity(ctx, anon, cust, uuid.New()); err != nil {
 		t.Fatal(err)
 	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
 	ids := make([]uuid.UUID, 10000)
 	for i := range ids {
 		ids[i] = uuid.New()

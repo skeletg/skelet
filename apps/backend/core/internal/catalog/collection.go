@@ -16,7 +16,6 @@ type Collection struct {
 	Content         *CollectionContent  // resolved for requested locale - nil if absent
 	AllContent      []CollectionContent // all available translations (admin)
 	CoverImage      *CollectionCover    // nil when no cover has been uploaded
-	Products        []Product
 	Metadata        Metadata
 	PrivateMetadata Metadata
 	CreatedAt       time.Time

@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { EditOrderDocument, OrderDocument, OrdersDocument, type OrderQuery } from './Orders.gql'
+import { EditOrderDocument, OrderDocument, type OrderQuery } from './Orders.gql'
 
 type OrderData = OrderQuery['order']
 type AddRow = { sku: string; quantity: string }
@@ -31,7 +31,7 @@ export function EditOrderDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const refetch = [{ query: OrderDocument, variables: { id: order.id } }, { query: OrdersDocument }]
+  const refetch = [{ query: OrderDocument, variables: { id: order.id } }, 'OrdersPaged']
   const [editOrder, state] = useMutation(EditOrderDocument, { refetchQueries: refetch })
 
   const [qty, setQty] = useState<Record<string, string>>({})

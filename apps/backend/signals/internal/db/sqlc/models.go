@@ -200,6 +200,7 @@ type EmailCampaign struct {
 	AbWinner        string          `json:"ab_winner"`
 	AbTestStartedAt sql.NullTime    `json:"ab_test_started_at"`
 	DeletedAt       sql.NullTime    `json:"deleted_at"`
+	MaterializedAt  sql.NullTime    `json:"materialized_at"`
 }
 
 type EmailCampaignRecipient struct {

@@ -1001,10 +1001,17 @@ FROM catalog_product_categories pc
 JOIN catalog_products p ON p.id = pc.product_id
 WHERE pc.category_id = $1
 ORDER BY pc.position, p.url
+LIMIT NULLIF($2::int, 0)
 `
 
-func (q *Queries) ListProductsByCategory(ctx context.Context, categoryID uuid.UUID) ([]Product, error) {
-	rows, err := q.db.QueryContext(ctx, listProductsByCategory, categoryID)
+type ListProductsByCategoryParams struct {
+	CategoryID uuid.UUID `json:"category_id"`
+	RowLimit   int32     `json:"row_limit"`
+}
+
+// row_limit 0 means every member
+func (q *Queries) ListProductsByCategory(ctx context.Context, arg ListProductsByCategoryParams) ([]Product, error) {
+	rows, err := q.db.QueryContext(ctx, listProductsByCategory, arg.CategoryID, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}

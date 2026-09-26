@@ -107,29 +107,36 @@ func (s *RosterSync) Commit(ctx context.Context) (synced, pruned int, err error)
 	if s.r.qs == nil {
 		return s.synced, 0, nil
 	}
-	gone, err := s.r.qs.PruneCustomerRoster(ctx, s.startedAt)
+	goneIDs, err := s.r.qs.PruneCustomerRoster(ctx, s.startedAt)
+	gone := len(goneIDs)
 	if err != nil {
 		return s.synced, 0, fmt.Errorf("prune roster: %w", err)
 	}
 	if gone > 0 {
 		// Their traits and memberships go with them, since an FK cascade cannot cross databases
 		if _, err := s.r.qs.PruneOrphanedTraits(ctx); err != nil {
-			return s.synced, int(gone), fmt.Errorf("prune orphaned traits: %w", err)
+			return s.synced, gone, fmt.Errorf("prune orphaned traits: %w", err)
 		}
 		if _, err := s.r.qs.PruneOrphanedMemberships(ctx); err != nil {
-			return s.synced, int(gone), fmt.Errorf("prune orphaned memberships: %w", err)
+			return s.synced, gone, fmt.Errorf("prune orphaned memberships: %w", err)
 		}
-		if err := s.r.pruneOrphanedMarketing(ctx); err != nil {
-			return s.synced, int(gone), err
+		if err := s.r.pruneOrphanedMarketing(ctx, goneIDs); err != nil {
+			return s.synced, gone, err
 		}
+	}
+	if _, err := s.r.qs.DeleteOrphanedLiveFlowRuns(ctx, s.startedAt); err != nil {
+		return s.synced, gone, fmt.Errorf("prune orphaned live runs: %w", err)
+	}
+	if _, err := s.r.qs.DetachOrphanedPendingRecipients(ctx); err != nil {
+		return s.synced, gone, fmt.Errorf("detach orphaned pending recipients: %w", err)
 	}
 	if _, err := s.r.qs.PruneRosterTombstones(ctx, s.startedAt.Add(-rosterTombstoneTTL)); err != nil {
-		return s.synced, int(gone), fmt.Errorf("prune roster tombstones: %w", err)
+		return s.synced, gone, fmt.Errorf("prune roster tombstones: %w", err)
 	}
 	if err := s.r.qs.SetRosterFilled(ctx, RosterVersion); err != nil {
-		return s.synced, int(gone), fmt.Errorf("stamp roster version: %w", err)
+		return s.synced, gone, fmt.Errorf("stamp roster version: %w", err)
 	}
-	return s.synced, int(gone), nil
+	return s.synced, gone, nil
 }
 
 func (r *Roster) RosterStatus(ctx context.Context) (RosterStatus, error) {
@@ -193,12 +200,12 @@ func (r *Roster) DeleteRosterEntry(ctx context.Context, customerID uuid.UUID) er
 	return nil
 }
 
-// A live run or a targeted row for a customer core deleted would otherwise sit here and keep trying to reach them
-func (r *Roster) pruneOrphanedMarketing(ctx context.Context) error {
-	if _, err := r.qs.PruneOrphanedFlowRuns(ctx); err != nil {
+// A live run for a customer core deleted would keep trying to reach them - only the ids this prune removed are touched
+func (r *Roster) pruneOrphanedMarketing(ctx context.Context, customerIDs []uuid.UUID) error {
+	if _, err := r.qs.DeleteFlowRunsForCustomers(ctx, customerIDs); err != nil {
 		return fmt.Errorf("prune orphaned flow runs: %w", err)
 	}
-	if _, err := r.qs.DetachOrphanedCampaignRecipients(ctx); err != nil {
+	if _, err := r.qs.DetachCampaignRecipientsForCustomers(ctx, customerIDs); err != nil {
 		return fmt.Errorf("detach orphaned campaign recipients: %w", err)
 	}
 	return nil

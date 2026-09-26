@@ -1,5 +1,4 @@
-// Package sqlnull converts between Go values and the database/sql null types sqlc generates
-// Into the database a nil pointer is NULL; the NonZero and NonEmpty variants also store a zero value as NULL, so pick by the column's meaning, not by name
+// Package sqlnull converts between Go values and sqlc's null types - nil is NULL, and the NonZero/NonEmpty variants also store a zero value as NULL
 package sqlnull
 
 import (

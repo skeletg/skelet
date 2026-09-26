@@ -37,17 +37,6 @@ func (q *Queries) GetPendingReferralByReferee(ctx context.Context, refereeCustom
 	return i, err
 }
 
-const getReferralCodeByCode = `-- name: GetReferralCodeByCode :one
-SELECT customer_id, code, created_at FROM referral_codes WHERE code = $1
-`
-
-func (q *Queries) GetReferralCodeByCode(ctx context.Context, code string) (ReferralCode, error) {
-	row := q.db.QueryRowContext(ctx, getReferralCodeByCode, code)
-	var i ReferralCode
-	err := row.Scan(&i.CustomerID, &i.Code, &i.CreatedAt)
-	return i, err
-}
-
 const getReferralCodeByCustomer = `-- name: GetReferralCodeByCustomer :one
 SELECT customer_id, code, created_at FROM referral_codes WHERE customer_id = $1
 `

@@ -63,10 +63,11 @@ WITH candidates AS (
     SELECT c.id, c.created_at, row_number() OVER (PARTITION BY f.channel_id ORDER BY c.created_at) AS turn
     FROM flows f
     CROSS JOIN LATERAL (
+        -- Due order, on flow_runs_flow_due - an active run with no resume_at is due immediately
         SELECT r.id, r.created_at FROM flow_runs r
         WHERE r.flow_id = f.id AND r.status IN ('active', 'waiting')
-          AND (r.resume_at <= NOW() OR (r.status = 'active' AND r.resume_at IS NULL))
-        ORDER BY r.created_at
+          AND COALESCE(r.resume_at, CASE WHEN r.status = 'active' THEN '-infinity'::timestamptz END) <= NOW()
+        ORDER BY COALESCE(r.resume_at, CASE WHEN r.status = 'active' THEN '-infinity'::timestamptz END)
         LIMIT sqlc.arg('lim')
     ) c
     WHERE f.status = 'active' AND f.deleted_at IS NULL
@@ -86,6 +87,14 @@ UPDATE flow_runs
 SET current_node_id = sqlc.arg(current_node_id), status = sqlc.arg(status),
     resume_at = sqlc.narg(resume_at), context = sqlc.arg(context), error = sqlc.arg(error), updated_at = NOW()
 WHERE id = sqlc.arg(id);
+
+-- name: PruneFinishedFlowRuns :execrows
+-- Finished runs past the send-history window - live runs are never touched
+DELETE FROM flow_runs WHERE status IN ('completed', 'cancelled', 'failed') AND updated_at < sqlc.arg(before);
+
+-- name: DeleteFlowRunsForCustomers :execrows
+-- Runs for customers the roster just dropped - a live run for a deleted customer would keep trying to mail them
+DELETE FROM flow_runs WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]);
 
 -- name: ListFlowRunsByFlow :many
 SELECT * FROM flow_runs WHERE flow_id = sqlc.arg(flow_id) ORDER BY created_at DESC LIMIT sqlc.arg('lim');

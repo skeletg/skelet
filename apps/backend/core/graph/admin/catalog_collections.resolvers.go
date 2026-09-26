@@ -18,7 +18,7 @@ func (r *collectionResolver) Products(ctx context.Context, obj *model.Collection
 	if err != nil {
 		return nil, err
 	}
-	products, err := r.CatalogSvc.ListProductsByCollection(ctx, cid, r.activeLocale(ctx))
+	products, err := r.CatalogSvc.ListProductsByCollection(ctx, cid, r.activeLocale(ctx), 0) // whole list - the editor saves its order from what it loaded
 	if err != nil {
 		return nil, err
 	}

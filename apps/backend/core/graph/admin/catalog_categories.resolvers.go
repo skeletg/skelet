@@ -9,6 +9,25 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
+func (r *categoryResolver) Products(ctx context.Context, obj *model.Category) ([]*model.Product, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
+		return nil, err
+	}
+	cid, err := parseID(obj.ID, "category")
+	if err != nil {
+		return nil, err
+	}
+	products, err := r.CatalogSvc.ListProductsByCategory(ctx, cid, r.activeLocale(ctx), 0) // whole list - the assign picker hides members from it
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.Product, len(products))
+	for i, p := range products {
+		out[i] = toProductBaseModel(p, nil, nil, nil, nil, nil, nil, nil)
+	}
+	return out, nil
+}
+
 // ProductCount is the resolver for the productCount field. A cheap indexed COUNT of direct memberships (descendants
 // excluded) - safe to select across a category tree (e.g. picker hints), unlike the full `products` list
 func (r *categoryResolver) ProductCount(ctx context.Context, obj *model.Category) (int32, error) {

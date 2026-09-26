@@ -27,19 +27,22 @@ type Repository interface {
 	ClaimDue(ctx context.Context, limit int32) ([]Campaign, error)
 	ListSending(ctx context.Context) ([]Campaign, error)
 
-	CountRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error)
-	InsertRecipient(ctx context.Context, campaignID uuid.UUID, customerID *uuid.UUID, email, firstName, variant, phase string) error
+	// Claimed but never fully materialized - retried until MarkMaterialized lands
+	ListUnmaterialized(ctx context.Context) ([]Campaign, error)
+	InsertRecipients(ctx context.Context, campaignID uuid.UUID, rows []NewRecipient) error // a recipient already present is left as it is
+	MarkMaterialized(ctx context.Context, campaignID uuid.UUID) error
 	ListPending(ctx context.Context, campaignID uuid.UUID, limit int32) ([]Recipient, error)
-	CountPending(ctx context.Context, campaignID uuid.UUID) (int64, error)
-	CountPendingNonHoldout(ctx context.Context, campaignID uuid.UUID) (int64, error)
+	HasPending(ctx context.Context, campaignID uuid.UUID) (bool, error)
+	HasPendingNonHoldout(ctx context.Context, campaignID uuid.UUID) (bool, error)
 	// Taken BEFORE the send - false means a concurrent sweep already owns this recipient
 	ClaimForSend(ctx context.Context, recipientID uuid.UUID) (bool, error)
 	ReleaseClaimFailed(ctx context.Context, recipientID uuid.UUID, msg string) error
+	ReleaseClaim(ctx context.Context, recipientID uuid.UUID) error // back to pending, for a send abandoned before any mail went out
 	MarkFailed(ctx context.Context, recipientID uuid.UUID, msg string) error
 	MarkSkipped(ctx context.Context, recipientID uuid.UUID, msg string) error
 
-	SetTotal(ctx context.Context, campaignID uuid.UUID, total int32) error
-	RefreshCounts(ctx context.Context, campaignID uuid.UUID) error
+	AddCounts(ctx context.Context, campaignID uuid.UUID, sent, failed, skipped int) error // one pass's outcomes
+	RefreshCounts(ctx context.Context, campaignID uuid.UUID) error                        // a full recount, for state changes
 	Finalize(ctx context.Context, campaignID uuid.UUID) error
 
 	// A/B subject test
@@ -54,6 +57,8 @@ type Repository interface {
 	RecordClick(ctx context.Context, recipientID uuid.UUID) (firstTime bool, err error)
 	BumpOpened(ctx context.Context, campaignID uuid.UUID) error
 	BumpClicked(ctx context.Context, campaignID uuid.UUID) error
+	// One campaign at a time - the campaign row keeps the counts
+	PruneSentRecipients(ctx context.Context, before time.Time) (int64, error)
 }
 
 type repo struct {
@@ -195,23 +200,32 @@ func (r *repo) ListSending(ctx context.Context) ([]Campaign, error) {
 	return toCampaigns(rows)
 }
 
-func (r *repo) CountRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error) {
-	return r.q.CountCampaignRecipients(ctx, campaignID)
+func (r *repo) ListUnmaterialized(ctx context.Context) ([]Campaign, error) {
+	rows, err := r.q.ListUnmaterializedCampaigns(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return toCampaigns(rows)
 }
 
-func (r *repo) InsertRecipient(ctx context.Context, campaignID uuid.UUID, customerID *uuid.UUID, email, firstName, variant, phase string) error {
-	return r.q.InsertCampaignRecipient(ctx, db.InsertCampaignRecipientParams{
-		CampaignID: campaignID,
-		CustomerID: nullUUID(customerID),
-		Email:      email,
-		FirstName:  firstName,
-		Variant:    variant,
-		Phase:      phase,
-	})
+func (r *repo) InsertRecipients(ctx context.Context, campaignID uuid.UUID, rows []NewRecipient) error {
+	p := db.InsertCampaignRecipientsParams{CampaignID: campaignID}
+	for _, n := range rows {
+		p.CustomerIds = append(p.CustomerIds, n.CustomerID)
+		p.Emails = append(p.Emails, n.Email)
+		p.FirstNames = append(p.FirstNames, n.FirstName)
+		p.Variants = append(p.Variants, n.Variant)
+		p.Phases = append(p.Phases, n.Phase)
+	}
+	return r.q.InsertCampaignRecipients(ctx, p)
 }
 
-func (r *repo) CountPendingNonHoldout(ctx context.Context, campaignID uuid.UUID) (int64, error) {
-	return r.q.CountPendingNonHoldoutRecipients(ctx, campaignID)
+func (r *repo) MarkMaterialized(ctx context.Context, campaignID uuid.UUID) error {
+	return r.q.MarkCampaignMaterialized(ctx, campaignID)
+}
+
+func (r *repo) HasPendingNonHoldout(ctx context.Context, campaignID uuid.UUID) (bool, error) {
+	return r.q.HasPendingNonHoldoutRecipients(ctx, campaignID)
 }
 
 func (r *repo) MarkTesting(ctx context.Context, campaignID uuid.UUID) (bool, error) {
@@ -248,8 +262,8 @@ func (r *repo) ListPending(ctx context.Context, campaignID uuid.UUID, limit int3
 	return out, nil
 }
 
-func (r *repo) CountPending(ctx context.Context, campaignID uuid.UUID) (int64, error) {
-	return r.q.CountPendingRecipients(ctx, campaignID)
+func (r *repo) HasPending(ctx context.Context, campaignID uuid.UUID) (bool, error) {
+	return r.q.HasPendingRecipients(ctx, campaignID)
 }
 
 func (r *repo) ClaimForSend(ctx context.Context, recipientID uuid.UUID) (bool, error) {
@@ -261,6 +275,10 @@ func (r *repo) ReleaseClaimFailed(ctx context.Context, recipientID uuid.UUID, ms
 	return r.q.MarkRecipientSendFailed(ctx, db.MarkRecipientSendFailedParams{Error: msg, ID: recipientID})
 }
 
+func (r *repo) ReleaseClaim(ctx context.Context, recipientID uuid.UUID) error {
+	return r.q.ReleaseRecipientClaim(ctx, recipientID)
+}
+
 func (r *repo) MarkFailed(ctx context.Context, recipientID uuid.UUID, msg string) error {
 	return r.q.MarkRecipientFailed(ctx, db.MarkRecipientFailedParams{Error: msg, ID: recipientID})
 }
@@ -269,8 +287,8 @@ func (r *repo) MarkSkipped(ctx context.Context, recipientID uuid.UUID, msg strin
 	return r.q.MarkRecipientSkipped(ctx, db.MarkRecipientSkippedParams{Error: msg, ID: recipientID})
 }
 
-func (r *repo) SetTotal(ctx context.Context, campaignID uuid.UUID, total int32) error {
-	return r.q.SetCampaignTotal(ctx, db.SetCampaignTotalParams{TotalRecipients: total, ID: campaignID})
+func (r *repo) AddCounts(ctx context.Context, campaignID uuid.UUID, sent, failed, skipped int) error {
+	return r.q.AddCampaignCounts(ctx, db.AddCampaignCountsParams{Sent: int32(sent), Failed: int32(failed), Skipped: int32(skipped), ID: campaignID})
 }
 
 func (r *repo) RefreshCounts(ctx context.Context, campaignID uuid.UUID) error {
@@ -348,6 +366,7 @@ func toCampaign(row db.EmailCampaign) (Campaign, error) {
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,
 		DeletedAt:       nullTimePtr(row.DeletedAt),
+		MaterializedAt:  nullTimePtr(row.MaterializedAt),
 	}
 	if row.AbTestStartedAt.Valid {
 		t := row.AbTestStartedAt.Time
@@ -415,4 +434,20 @@ func nullTimePtr(t sql.NullTime) *time.Time {
 	}
 	v := t.Time
 	return &v
+}
+
+func (r *repo) PruneSentRecipients(ctx context.Context, before time.Time) (int64, error) {
+	ids, err := r.q.ListCampaignsWithRecipientsSentBefore(ctx, sql.NullTime{Time: before, Valid: true})
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	for _, id := range ids {
+		n, err := r.q.DeleteCampaignRecipients(ctx, id)
+		if err != nil {
+			return total, err
+		}
+		total += n
+	}
+	return total, nil
 }

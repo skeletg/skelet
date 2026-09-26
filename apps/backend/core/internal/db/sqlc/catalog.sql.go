@@ -373,15 +373,6 @@ func (q *Queries) DeleteProductAttributeLocaleValuesForAttribute(ctx context.Con
 	return err
 }
 
-const deleteProductAttributeSlug = `-- name: DeleteProductAttributeSlug :exec
-DELETE FROM catalog_product_attribute_slugs WHERE id = $1
-`
-
-func (q *Queries) DeleteProductAttributeSlug(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteProductAttributeSlug, id)
-	return err
-}
-
 const deleteProductAttributeSlugByProductAttribute = `-- name: DeleteProductAttributeSlugByProductAttribute :exec
 DELETE FROM catalog_product_attribute_slugs
 WHERE product_id = $1 AND attribute_id = $2
@@ -1544,38 +1535,6 @@ func (q *Queries) SetAttributeValuesIndexable(ctx context.Context, arg SetAttrib
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const setProductTypeURLPathTemplate = `-- name: SetProductTypeURLPathTemplate :one
-UPDATE catalog_product_types
-SET url_template = $2,
-    updated_at   = NOW()
-WHERE id = $1
-RETURNING id, slug, name, is_digital, is_shipping_required, metadata, private_metadata, created_at, updated_at, url_template, tracks_inventory
-`
-
-type SetProductTypeURLPathTemplateParams struct {
-	ID          uuid.UUID `json:"id"`
-	UrlTemplate string    `json:"url_template"`
-}
-
-func (q *Queries) SetProductTypeURLPathTemplate(ctx context.Context, arg SetProductTypeURLPathTemplateParams) (ProductType, error) {
-	row := q.db.QueryRowContext(ctx, setProductTypeURLPathTemplate, arg.ID, arg.UrlTemplate)
-	var i ProductType
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.Name,
-		&i.IsDigital,
-		&i.IsShippingRequired,
-		&i.Metadata,
-		&i.PrivateMetadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.UrlTemplate,
-		&i.TracksInventory,
-	)
-	return i, err
 }
 
 const unassignAttributeFromProductType = `-- name: UnassignAttributeFromProductType :execrows

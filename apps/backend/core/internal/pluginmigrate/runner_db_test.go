@@ -9,7 +9,6 @@ import (
 	"testing"
 	"testing/fstest"
 
-	_ "github.com/lib/pq"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 )
 

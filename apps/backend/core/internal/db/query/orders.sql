@@ -22,9 +22,6 @@ INSERT INTO orders (
 -- name: GetOrderByID :one
 SELECT * FROM orders WHERE id = $1 LIMIT 1;
 
--- name: ListOrders :many
-SELECT * FROM orders ORDER BY created_at DESC;
-
 -- name: ListOrdersPaged :many
 -- Every channel's page - the scoped caller has its own statement, so neither shares a plan that reads the whole created_at index
 -- SELECT * (not window-count) so the repo maps rows through toOrder verbatim - CountOrdersPaged shares the WHERE and must stay in lockstep

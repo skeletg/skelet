@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 )
 
 // entityLookupSignalTools returns the page-aware entity lookups (operational, not Signals).
@@ -223,36 +224,25 @@ func toolCustomer(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) s
 // ---- orders / inventory / promotions / reviews formatters ----
 
 func toolSearchOrders(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) string {
-	all, err := r.OrderSvc.ListOrders(ctx)
+	f := order.ListPageFilter{
+		ChannelIDs: []uuid.UUID{cid},
+		Search:     strings.TrimSpace(a.Query),
+		Limit:      int32(clampLimit(a.Limit, 20, 50)),
+	}
+	if status := strings.ToLower(strings.TrimSpace(a.Status)); status != "" {
+		f.Statuses = []string{status}
+	}
+	rows, _, err := r.OrderSvc.ListOrdersPage(ctx, f)
 	if err != nil {
 		return "Could not load orders."
 	}
-	q := strings.ToLower(strings.TrimSpace(a.Query))
-	status := strings.ToLower(strings.TrimSpace(a.Status))
-	limit := clampLimit(a.Limit, 20, 50)
-	var b strings.Builder
-	n := 0
-	for _, o := range all {
-		if o.ChannelID != cid {
-			continue
-		}
-		if status != "" && strings.ToLower(o.Status) != status {
-			continue
-		}
-		if q != "" && !strings.Contains(strings.ToLower(o.Number), q) && !strings.Contains(strings.ToLower(o.Email), q) {
-			continue
-		}
-		if n == 0 {
-			b.WriteString("Orders (number - status - total - customer):\n")
-		}
-		fmt.Fprintf(&b, "- %s - %s - %s - %s [id %s]\n", o.Number, o.Status, fmtMoney(o.TotalAmount, o.CurrencyCode), o.Email, o.ID)
-		n++
-		if n >= limit {
-			break
-		}
-	}
-	if n == 0 {
+	if len(rows) == 0 {
 		return "No matching orders in this channel."
+	}
+	var b strings.Builder
+	b.WriteString("Orders (number - status - total - customer):\n")
+	for _, o := range rows {
+		fmt.Fprintf(&b, "- %s - %s - %s - %s [id %s]\n", o.Number, o.Status, fmtMoney(o.TotalAmount, o.CurrencyCode), o.Email, o.ID)
 	}
 	return b.String()
 }

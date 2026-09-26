@@ -6,6 +6,7 @@ package signalsgrpc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -43,12 +44,14 @@ type maintenanceServer struct {
 // The engine ticks core's scheduler drives - one advance of the runnable runs, one pass over the due campaigns
 type flowEngine interface {
 	Drain(ctx context.Context, budget time.Duration) (int, error)
+	PruneFinishedRuns(ctx context.Context, before time.Time) (int64, error)
 	// The segment_entered moments start off the refresh that found them
 	Enroll(ctx context.Context, trigger string, channelID, customerID uuid.UUID, email string, payload json.RawMessage, key string) int
 }
 
 type campaignPipeline interface {
 	Drain(ctx context.Context, budget time.Duration) (int, error)
+	PruneRecipients(ctx context.Context, before time.Time) (int64, error)
 }
 
 // The slice of the send log the retention sweep drives
@@ -97,6 +100,21 @@ func (s *maintenanceServer) PruneSendLog(ctx context.Context, _ *signalsv1.Prune
 	}
 	if err := signalsboot.SendLogRetentionJob(s.settings, s.sends)(ctx); err != nil {
 		return nil, err
+	}
+	// The marketing history behind those sends ages out on the same window
+	cutoff, ok, err := signalsboot.SendHistoryCutoff(ctx, s.settings)
+	if err != nil || !ok {
+		return &signalsv1.PruneSendLogResponse{}, err
+	}
+	if s.flows != nil {
+		if _, err := s.flows.PruneFinishedRuns(ctx, cutoff); err != nil {
+			return nil, fmt.Errorf("prune finished flow runs: %w", err)
+		}
+	}
+	if s.campaigns != nil {
+		if _, err := s.campaigns.PruneRecipients(ctx, cutoff); err != nil {
+			return nil, fmt.Errorf("prune campaign recipients: %w", err)
+		}
 	}
 	return &signalsv1.PruneSendLogResponse{}, nil
 }

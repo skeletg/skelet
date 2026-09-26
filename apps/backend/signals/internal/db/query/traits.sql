@@ -73,9 +73,9 @@ SET customer_id = NULL, email = 'redacted-' || id::text || '@anonymized.invalid'
     status = CASE WHEN status = 'pending' THEN 'skipped' ELSE status END
 WHERE customer_id = sqlc.arg(customer_id)::uuid;
 
--- name: PruneCustomerRoster :execrows
--- Customers gone from commerce since this sync started - an FK cascade to customers cannot cross databases, so this stands in for one
-DELETE FROM customer_roster WHERE synced_at < sqlc.arg(before);
+-- name: PruneCustomerRoster :many
+-- Customers gone from commerce since this sync started - stands in for an FK cascade that can't cross databases, and the ids scope the cleanup after
+DELETE FROM customer_roster WHERE synced_at < sqlc.arg(before) RETURNING customer_id;
 
 -- name: PruneOrphanedTraits :execrows
 -- Traits for customers no longer on the roster - the recompute only upserts, so without this a
@@ -387,21 +387,14 @@ DELETE FROM channel_roster_tombstones WHERE channel_id = ANY(sqlc.arg(channel_id
 -- name: ChannelRoster :many
 SELECT channel_id, is_default, is_active, name, public_url, from_address, from_name, logo_url FROM channel_roster;
 
--- name: PruneOrphanedFlowRuns :execrows
--- Runs for customers no longer on the roster - a live run for a deleted customer would keep trying to mail them
-DELETE FROM flow_runs r WHERE r.customer_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM customer_roster c WHERE c.customer_id = r.customer_id
-);
 
--- name: DetachOrphanedCampaignRecipients :execrows
--- DetachCustomerCampaignRecipients for everyone off the roster - a guest row keeps its address, having no account to delete
+-- name: DetachCampaignRecipientsForCustomers :execrows
+-- DetachCustomerCampaignRecipients for everyone the roster just dropped - a guest row keeps its address, having no account to delete
 UPDATE email_campaign_recipients cr
 SET customer_id = NULL, email = 'redacted-' || id::text || '@anonymized.invalid', first_name = '',
     error = CASE WHEN cr.status = 'pending' THEN 'customer deleted' ELSE cr.error END,
     status = CASE WHEN cr.status = 'pending' THEN 'skipped' ELSE cr.status END
-WHERE cr.customer_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM customer_roster c WHERE c.customer_id = cr.customer_id
-);
+WHERE cr.customer_id = ANY(sqlc.arg(customer_ids)::uuid[]);
 
 -- name: PruneOrphanedFlows :execrows
 -- Flows for channels core no longer runs, the channel roster being what says which ones still exist
@@ -500,3 +493,15 @@ DELETE FROM browse_notified b WHERE NOT EXISTS (SELECT 1 FROM channel_roster c W
 
 -- name: PruneOrphanedTraitRuns :execrows
 DELETE FROM trait_compute_runs t WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = t.channel_id);
+
+-- name: DeleteOrphanedLiveFlowRuns :execrows
+-- Backstop for a cleanup that died before reaching its ids - live runs only, which stay small, and none enrolled during this sync
+DELETE FROM flow_runs r
+WHERE r.status IN ('active', 'waiting') AND r.customer_id IS NOT NULL AND r.created_at < sqlc.arg(before)
+  AND NOT EXISTS (SELECT 1 FROM customer_roster c WHERE c.customer_id = r.customer_id);
+
+-- name: DetachOrphanedPendingRecipients :execrows
+UPDATE email_campaign_recipients cr
+SET customer_id = NULL, email = 'redacted-' || id::text || '@anonymized.invalid', first_name = '', error = 'customer deleted', status = 'skipped'
+WHERE cr.status = 'pending' AND cr.customer_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM customer_roster c WHERE c.customer_id = cr.customer_id);

@@ -38,6 +38,7 @@ type Repository interface {
 	BulkAddMembers(ctx context.Context, segmentID uuid.UUID, customerIDs []uuid.UUID) error
 	RemoveMember(ctx context.Context, customerID, segmentID uuid.UUID) error
 	ClearMembership(ctx context.Context, segmentID uuid.UUID) error
+	RemoveMembersNotIn(ctx context.Context, segmentID uuid.UUID, keep []uuid.UUID) error
 	CountMembers(ctx context.Context, segmentID uuid.UUID) (int32, error)
 	CountMembersByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]int32, error)
 	MemberIDs(ctx context.Context, segmentID uuid.UUID) ([]uuid.UUID, error)
@@ -179,6 +180,13 @@ func (r *postgresRepository) RemoveMember(ctx context.Context, customerID, segme
 
 func (r *postgresRepository) ClearMembership(ctx context.Context, segmentID uuid.UUID) error {
 	return r.queries.ClearSegmentMembership(ctx, segmentID)
+}
+
+func (r *postgresRepository) RemoveMembersNotIn(ctx context.Context, segmentID uuid.UUID, keep []uuid.UUID) error {
+	if keep == nil {
+		keep = []uuid.UUID{}
+	}
+	return r.queries.RemoveSegmentMembersNotIn(ctx, db.RemoveSegmentMembersNotInParams{SegmentID: segmentID, KeepIds: keep})
 }
 
 func (r *postgresRepository) ListMembers(ctx context.Context, segmentID uuid.UUID, limit, offset int32, channelIDs []uuid.UUID) ([]Member, error) {

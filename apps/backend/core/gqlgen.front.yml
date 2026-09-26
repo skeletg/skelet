@@ -80,6 +80,13 @@ models:
         resolver: true
       storeCreditBalance:
         resolver: true
+  # Lazy and capped - storefront grids page through browseProducts
+  Category:
+    fields:
+      products: { resolver: true }
+  Collection:
+    fields:
+      products: { resolver: true }
   Review:
     fields:
       # Vote-related fields are not on the admin Review struct; each is its own resolver so the storefront review list

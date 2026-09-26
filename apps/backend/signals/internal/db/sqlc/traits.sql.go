@@ -259,6 +259,38 @@ func (q *Queries) DeleteCustomerTraits(ctx context.Context, customerID uuid.UUID
 	return err
 }
 
+const deleteOrphanedLiveFlowRuns = `-- name: DeleteOrphanedLiveFlowRuns :execrows
+DELETE FROM flow_runs r
+WHERE r.status IN ('active', 'waiting') AND r.customer_id IS NOT NULL AND r.created_at < $1
+  AND NOT EXISTS (SELECT 1 FROM customer_roster c WHERE c.customer_id = r.customer_id)
+`
+
+// Backstop for a cleanup that died before reaching its ids - live runs only, which stay small, and none enrolled during this sync
+func (q *Queries) DeleteOrphanedLiveFlowRuns(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOrphanedLiveFlowRuns, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const detachCampaignRecipientsForCustomers = `-- name: DetachCampaignRecipientsForCustomers :execrows
+UPDATE email_campaign_recipients cr
+SET customer_id = NULL, email = 'redacted-' || id::text || '@anonymized.invalid', first_name = '',
+    error = CASE WHEN cr.status = 'pending' THEN 'customer deleted' ELSE cr.error END,
+    status = CASE WHEN cr.status = 'pending' THEN 'skipped' ELSE cr.status END
+WHERE cr.customer_id = ANY($1::uuid[])
+`
+
+// DetachCustomerCampaignRecipients for everyone the roster just dropped - a guest row keeps its address, having no account to delete
+func (q *Queries) DetachCampaignRecipientsForCustomers(ctx context.Context, customerIds []uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, detachCampaignRecipientsForCustomers, pq.Array(customerIds))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const detachCustomerCampaignRecipients = `-- name: DetachCustomerCampaignRecipients :exec
 UPDATE email_campaign_recipients
 SET customer_id = NULL, email = 'redacted-' || id::text || '@anonymized.invalid', first_name = '',
@@ -273,19 +305,15 @@ func (q *Queries) DetachCustomerCampaignRecipients(ctx context.Context, customer
 	return err
 }
 
-const detachOrphanedCampaignRecipients = `-- name: DetachOrphanedCampaignRecipients :execrows
+const detachOrphanedPendingRecipients = `-- name: DetachOrphanedPendingRecipients :execrows
 UPDATE email_campaign_recipients cr
-SET customer_id = NULL, email = 'redacted-' || id::text || '@anonymized.invalid', first_name = '',
-    error = CASE WHEN cr.status = 'pending' THEN 'customer deleted' ELSE cr.error END,
-    status = CASE WHEN cr.status = 'pending' THEN 'skipped' ELSE cr.status END
-WHERE cr.customer_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM customer_roster c WHERE c.customer_id = cr.customer_id
-)
+SET customer_id = NULL, email = 'redacted-' || id::text || '@anonymized.invalid', first_name = '', error = 'customer deleted', status = 'skipped'
+WHERE cr.status = 'pending' AND cr.customer_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM customer_roster c WHERE c.customer_id = cr.customer_id)
 `
 
-// DetachCustomerCampaignRecipients for everyone off the roster - a guest row keeps its address, having no account to delete
-func (q *Queries) DetachOrphanedCampaignRecipients(ctx context.Context) (int64, error) {
-	result, err := q.db.ExecContext(ctx, detachOrphanedCampaignRecipients)
+func (q *Queries) DetachOrphanedPendingRecipients(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, detachOrphanedPendingRecipients)
 	if err != nil {
 		return 0, err
 	}
@@ -534,17 +562,32 @@ func (q *Queries) PruneChannelRoster(ctx context.Context, keep []uuid.UUID) (int
 	return result.RowsAffected()
 }
 
-const pruneCustomerRoster = `-- name: PruneCustomerRoster :execrows
-DELETE FROM customer_roster WHERE synced_at < $1
+const pruneCustomerRoster = `-- name: PruneCustomerRoster :many
+DELETE FROM customer_roster WHERE synced_at < $1 RETURNING customer_id
 `
 
-// Customers gone from commerce since this sync started - an FK cascade to customers cannot cross databases, so this stands in for one
-func (q *Queries) PruneCustomerRoster(ctx context.Context, before time.Time) (int64, error) {
-	result, err := q.db.ExecContext(ctx, pruneCustomerRoster, before)
+// Customers gone from commerce since this sync started - stands in for an FK cascade that can't cross databases, and the ids scope the cleanup after
+func (q *Queries) PruneCustomerRoster(ctx context.Context, before time.Time) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, pruneCustomerRoster, before)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected()
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var customer_id uuid.UUID
+		if err := rows.Scan(&customer_id); err != nil {
+			return nil, err
+		}
+		items = append(items, customer_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const pruneOrphanedBrowseNotified = `-- name: PruneOrphanedBrowseNotified :execrows
@@ -663,21 +706,6 @@ DELETE FROM experiments e WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE
 
 func (q *Queries) PruneOrphanedExperiments(ctx context.Context) (int64, error) {
 	result, err := q.db.ExecContext(ctx, pruneOrphanedExperiments)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const pruneOrphanedFlowRuns = `-- name: PruneOrphanedFlowRuns :execrows
-DELETE FROM flow_runs r WHERE r.customer_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM customer_roster c WHERE c.customer_id = r.customer_id
-)
-`
-
-// Runs for customers no longer on the roster - a live run for a deleted customer would keep trying to mail them
-func (q *Queries) PruneOrphanedFlowRuns(ctx context.Context) (int64, error) {
-	result, err := q.db.ExecContext(ctx, pruneOrphanedFlowRuns)
 	if err != nil {
 		return 0, err
 	}

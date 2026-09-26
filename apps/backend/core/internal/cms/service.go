@@ -13,7 +13,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
-// The slice of the repository the helpers on *core reach - kept to what more than one sub-service shares
+// Only what more than one sub-service reaches through *core
 type coreStore interface {
 	ListBlockTypes(ctx context.Context) ([]BlockType, error)
 	UpdatePagePaths(ctx context.Context, id uuid.UUID, basePath, urlPath string) error
@@ -68,7 +68,7 @@ type ConfigReader interface {
 const cfgRequireApproval = "cms/workflow/require_approval"
 
 // Per-entity sub-services, each embedding *core - none calls another, and the only shared methods live on *core, so there's no embedding cycle
-// Each one's repo field shadows core's, so the compiler holds a sub-service to its own store interface
+// Each repo field shadows core's, so a sub-service can only reach its own store
 type (
 	attributeService struct { // attributes, values, groups, page-type assignment
 		*core
@@ -97,7 +97,7 @@ type (
 )
 
 // The facade - it embeds *core directly so core's fields resolve at depth 1, unambiguously over the copies reached through each sub-service
-// That makes a bare s.repo on *Service ambiguous, which is the point: facade methods delegate, they don't query
+// So a bare s.repo on *Service doesn't compile - facade methods delegate
 type Service struct {
 	*core
 	*attributeService

@@ -266,8 +266,8 @@ type OrderEvent {
 }
 
 extend type Query {
-  # channelId scopes the result to orders placed on that channel -
-  # header-driven scope uses this. Omit for the global list.
+  # channelId scopes to one channel's orders, omit it for the global list
+  # At most the newest 1000 - ordersPaged pages through the rest
   orders(channelId: ID): [Order!]!
   # Server-side page for the orders grid - statuses/paymentStatuses take the
   # SCREAMING enum spellings, search matches number, email and last names

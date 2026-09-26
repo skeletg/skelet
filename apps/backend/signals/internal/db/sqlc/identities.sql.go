@@ -7,6 +7,7 @@ package signalsdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -36,11 +37,17 @@ func (q *Queries) EnqueueIdentityErasure(ctx context.Context, customerID uuid.UU
 }
 
 const queuedIdentityErasures = `-- name: QueuedIdentityErasures :many
-SELECT customer_id FROM gdpr_identity_erasures ORDER BY requested_at LIMIT $1
+SELECT customer_id FROM gdpr_identity_erasures WHERE requested_at < $1 ORDER BY requested_at LIMIT $2
 `
 
-func (q *Queries) QueuedIdentityErasures(ctx context.Context, lim int32) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, queuedIdentityErasures, lim)
+type QueuedIdentityErasuresParams struct {
+	OlderThan time.Time `json:"older_than"`
+	Lim       int32     `json:"lim"`
+}
+
+// older_than holds back fresh requests until every process's buffered identifies have flushed
+func (q *Queries) QueuedIdentityErasures(ctx context.Context, arg QueuedIdentityErasuresParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, queuedIdentityErasures, arg.OlderThan, arg.Lim)
 	if err != nil {
 		return nil, err
 	}

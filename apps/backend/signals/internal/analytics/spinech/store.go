@@ -4,7 +4,6 @@ package spinech
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,11 +28,17 @@ const ( // ClickHouse wants few, large INSERTs since each makes a part, so Appen
 	chFlushRetry   = 3                      // in-loop retries before re-buffering a failed batch
 	chRecentKeys   = 200_000                // dedupe keys remembered for the was-new answer
 	chFlushBackoff = 250 * time.Millisecond // multiplied by attempt number
+	identityMaxAge = 2 * time.Minute        // a failing identify is dropped after this, well inside analytics.erasureGrace
 )
 
 type bufEvent struct {
 	e     analytics.SpineEvent
 	props string // marshalled at ingest - a poison Props map is rejected where it entered, not as a whole failed batch at flush
+}
+
+type pendingIdentity struct {
+	customerID, channelID uuid.UUID
+	lastSeen              time.Time
 }
 
 type Store struct { // ingest is batched by a background flusher, and Close drains it
@@ -46,6 +51,9 @@ type Store struct { // ingest is batched by a background flusher, and Close drai
 	wg     sync.WaitGroup
 
 	flushMu sync.Mutex // serializes flush end-to-end - an explicit Flush (the consumer's ack gate) must never see an empty buffer while a ticker flush of those events is failing elsewhere
+
+	idMu sync.Mutex
+	ids  map[string]pendingIdentity // identify upserts waiting for the flusher, newest per anon id
 
 	seen     map[string]struct{} // recently-seen dedupe keys, so AppendEvent answers "was new" without a round-trip - see its doc for what that does and doesn't guarantee
 	seenRing []string            // insertion order, for O(1) eviction at chRecentKeys
@@ -92,6 +100,7 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 		conn:     conn,
 		notify:   make(chan struct{}, 1),
 		closed:   make(chan struct{}),
+		ids:      map[string]pendingIdentity{},
 		seen:     make(map[string]struct{}, chRecentKeys),
 		seenRing: make([]string, chRecentKeys),
 	}
@@ -223,10 +232,18 @@ func (s *Store) logFlush() {
 	}
 }
 
-// Writes the buffered events as one INSERT - on failure the batch is re-buffered, bounded by chMaxBuffer, so a transient blip retries with backoff
 func (s *Store) flush(ctx context.Context) error {
 	s.flushMu.Lock()
 	defer s.flushMu.Unlock()
+	// Only the events gate the result - the queue acks on it, and identifies are not on the stream
+	if err := s.flushIdentities(ctx); err != nil {
+		log.Printf("[spinech] %v", err)
+	}
+	return s.flushEvents(ctx)
+}
+
+// Writes the buffered events as one INSERT - on failure the batch is re-buffered, bounded by chMaxBuffer, so a transient blip retries with backoff
+func (s *Store) flushEvents(ctx context.Context) error {
 	s.mu.Lock()
 	batch := s.buf
 	s.buf = nil
@@ -303,51 +320,161 @@ func (s *Store) PruneEvents(ctx context.Context, before time.Time) (int64, error
 }
 
 func (s *Store) PruneEventsBySource(ctx context.Context, source string, before time.Time) (int64, error) { // source-scoped retention (the shorter Lens window on web events) - a lightweight DELETE on occurred_at, since a source subset can't be a partition drop
-	var rows uint64
-	if err := s.conn.QueryRow(ctx,
-		"SELECT count() FROM analytics_events WHERE source = ? AND occurred_at < ?", source, before,
-	).Scan(&rows); err != nil {
-		return 0, err
-	}
-	if rows == 0 {
-		return 0, nil
-	}
-	if err := s.conn.Exec(ctx, "DELETE FROM analytics_events WHERE source = ? AND occurred_at < ?", source, before); err != nil {
-		return 0, err
-	}
-	return int64(rows), nil
+	return s.deleteSourceBefore(ctx, source, before)
 }
 
-// Stitches an anon id to a customer - ReplacingMergeTree keeps the latest last_seen per anon_id, so last-write-wins
-// Postgres updates in place and so leaves first_seen alone and COALESCEs channel_id; a bare insert here would instead reset first_seen to now and let a zero channel clobber a real one, so the current row is read forward first
-func (s *Store) UpsertIdentity(ctx context.Context, anonID string, customerID, channelID uuid.UUID) error {
-	firstSeen := time.Now().UTC()
-	var (
-		prevFirst   time.Time
-		prevChannel uuid.UUID
-	)
-	switch err := s.conn.QueryRow(ctx,
-		"SELECT first_seen, channel_id FROM analytics_identities FINAL WHERE anon_id = ? LIMIT 1", anonID,
-	).Scan(&prevFirst, &prevChannel); {
-	case err == nil:
-		firstSeen = prevFirst
-		if channelID == uuid.Nil {
-			channelID = prevChannel
-		}
-	case errors.Is(err, sql.ErrNoRows):
-		// first sighting - keep the defaults above
-	default:
-		return err
+// One partition at a time, only where rows remain - an unscoped DELETE would rewrite every older partition's row mask daily
+func (s *Store) deleteSourceBefore(ctx context.Context, source string, before time.Time) (int64, error) {
+	rows, err := s.conn.Query(ctx,
+		"SELECT _partition_id, count() FROM analytics_events WHERE source = ? AND occurred_at < ? GROUP BY _partition_id", source, before)
+	if err != nil {
+		return 0, err
 	}
+	type part struct {
+		id string
+		n  uint64
+	}
+	var parts []part
+	for rows.Next() {
+		var p part
+		if err := rows.Scan(&p.id, &p.n); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		parts = append(parts, p)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	var total int64
+	for _, p := range parts {
+		if err := s.conn.Exec(ctx, "DELETE FROM analytics_events IN PARTITION ID ? WHERE source = ? AND occurred_at < ?", p.id, source, before); err != nil {
+			return total, err
+		}
+		total += int64(p.n)
+	}
+	return total, nil
+}
 
-	batch, err := s.conn.PrepareBatch(ctx, "INSERT INTO analytics_identities (anon_id, customer_id, channel_id, first_seen, last_seen)")
+// Buffered like events - identify fires on every logged-in page view
+// Repeats within a flush collapse to the newest, and a zero channel never replaces a real one; the flusher carries first_seen and channel forward from the stored row
+func (s *Store) UpsertIdentity(_ context.Context, anonID string, customerID, channelID uuid.UUID) error {
+	s.idMu.Lock()
+	prev, had := s.ids[anonID]
+	if !had && len(s.ids) >= chMaxBuffer {
+		s.idMu.Unlock()
+		return errBufferFull
+	}
+	if channelID == uuid.Nil {
+		channelID = prev.channelID
+	}
+	s.ids[anonID] = pendingIdentity{customerID: customerID, channelID: channelID, lastSeen: time.Now().UTC()}
+	full := len(s.ids) >= chFlushBatch
+	s.idMu.Unlock()
+	if full {
+		select {
+		case s.notify <- struct{}{}:
+		default:
+		}
+	}
+	return nil
+}
+
+// One keyed read, then one INSERT - a bare insert would reset first_seen and let a zero channel clobber a real one
+func (s *Store) flushIdentities(ctx context.Context) error {
+	s.idMu.Lock()
+	pending := s.ids
+	s.ids = map[string]pendingIdentity{}
+	s.idMu.Unlock()
+	if len(pending) == 0 {
+		return nil
+	}
+	if err := s.writeIdentities(ctx, pending); err != nil {
+		stale := time.Now().Add(-identityMaxAge)
+		s.idMu.Lock()
+		for anon, p := range pending {
+			if p.lastSeen.Before(stale) { // the next page view re-sends it, and an erasure waits out this window
+				continue
+			}
+			if cur, newer := s.ids[anon]; newer { // a newer identify wins but keeps a channel it lacks
+				if cur.channelID == uuid.Nil {
+					cur.channelID = p.channelID
+					s.ids[anon] = cur
+				}
+				continue
+			}
+			s.ids[anon] = p
+		}
+		s.idMu.Unlock()
+		return fmt.Errorf("flush %d identities failed, re-buffering: %w", len(pending), err)
+	}
+	return nil
+}
+
+func (s *Store) writeIdentities(ctx context.Context, pending map[string]pendingIdentity) error {
+	anons := make([]string, 0, len(pending))
+	for anon := range pending {
+		anons = append(anons, anon)
+	}
+	type stored struct {
+		first   time.Time
+		channel uuid.UUID
+	}
+	prior := make(map[string]stored, len(anons))
+	for start := 0; start < len(anons); start += 1000 {
+		rows, err := s.conn.Query(ctx, "SELECT anon_id, first_seen, channel_id FROM analytics_identities FINAL WHERE anon_id IN ?", anons[start:min(start+1000, len(anons))])
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var anon string
+			var st stored
+			if err := rows.Scan(&anon, &st.first, &st.channel); err != nil {
+				rows.Close()
+				return err
+			}
+			prior[anon] = st
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+	}
+	now := time.Now().UTC() // write time, so the dictionary's incremental refresh sees rows that waited out an outage
+	b, err := s.conn.PrepareBatch(ctx, "INSERT INTO analytics_identities (anon_id, customer_id, channel_id, first_seen, last_seen)")
 	if err != nil {
 		return err
 	}
-	if err := batch.Append(anonID, customerID, channelID, firstSeen, time.Now().UTC()); err != nil {
-		return err
+	for anon, p := range pending {
+		first, channel := p.lastSeen, p.channelID
+		if st, ok := prior[anon]; ok {
+			first = st.first
+			if channel == uuid.Nil {
+				channel = st.channel
+			}
+		}
+		if err := b.Append(anon, p.customerID, channel, first, now); err != nil {
+			_ = b.Abort()
+			return err
+		}
 	}
-	return batch.Send()
+	return b.Send()
+}
+
+// Drops buffered identifies for the erased customers, so a flush after the erasure can't stitch them back
+func (s *Store) forgetPendingIdentities(customerIDs []uuid.UUID) {
+	gone := make(map[uuid.UUID]bool, len(customerIDs))
+	for _, id := range customerIDs {
+		gone[id] = true
+	}
+	s.idMu.Lock()
+	for anon, p := range s.ids {
+		if gone[p.customerID] {
+			delete(s.ids, anon)
+		}
+	}
+	s.idMu.Unlock()
 }
 
 // customer_id sits outside the sort key, so events are detached in place - except those whose dedupe key embeds the id, which are deleted
@@ -355,6 +482,7 @@ func (s *Store) DeleteCustomerIdentities(ctx context.Context, customerIDs []uuid
 	if len(customerIDs) == 0 {
 		return nil
 	}
+	s.forgetPendingIdentities(customerIDs)
 	var running uint64
 	if err := s.conn.QueryRow(ctx, "SELECT count() FROM system.mutations WHERE database = currentDatabase() AND table = 'analytics_events' AND NOT is_done AND position(command, 'UPDATE customer_id') > 0").Scan(&running); err != nil {
 		return err
@@ -364,18 +492,15 @@ func (s *Store) DeleteCustomerIdentities(ctx context.Context, customerIDs []uuid
 	}
 	sync := clickhouse.Context(ctx, clickhouse.WithSettings(clickhouse.Settings{"mutations_sync": 1}))
 	for start := 0; start < len(customerIDs); start += erasureChunk {
+		// customer_id stays bare so the idx_customer bloom filter applies
 		chunk := customerIDs[start:min(start+erasureChunk, len(customerIDs))]
-		ids := make([]string, len(chunk))
-		for i, id := range chunk {
-			ids[i] = id.String()
-		}
-		if err := s.conn.Exec(ctx, "DELETE FROM analytics_identities WHERE has(?, toString(customer_id))", ids); err != nil {
+		if err := s.conn.Exec(ctx, "DELETE FROM analytics_identities WHERE customer_id IN ?", chunk); err != nil {
 			return err
 		}
-		if err := s.conn.Exec(ctx, "DELETE FROM analytics_events WHERE has(?, toString(customer_id)) AND position(dedupe_key, toString(customer_id)) > 0", ids); err != nil {
+		if err := s.conn.Exec(ctx, "DELETE FROM analytics_events WHERE customer_id IN ? AND position(dedupe_key, toString(customer_id)) > 0", chunk); err != nil {
 			return err
 		}
-		if err := s.conn.Exec(sync, "ALTER TABLE analytics_events UPDATE customer_id = toUUID('00000000-0000-0000-0000-000000000000') WHERE has(?, toString(customer_id))", ids); err != nil {
+		if err := s.conn.Exec(sync, "ALTER TABLE analytics_events UPDATE customer_id = toUUID('00000000-0000-0000-0000-000000000000') WHERE customer_id IN ?", chunk); err != nil {
 			return err
 		}
 	}

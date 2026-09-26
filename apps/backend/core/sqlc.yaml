@@ -8,9 +8,9 @@ sql:
         package: "db"
         out: "internal/db/sqlc"
         emit_json_tags: true
-        emit_interface: true
+        emit_interface: false
         emit_empty_slices: true
-        # NUMERIC is used throughout for quantity columns (see migration 000109). Default sqlc mapping is string -
+        # NUMERIC is used throughout for quantity columns. Default sqlc mapping is string -
         # float64 is what every caller wants. Money stays in int64 cents; this override is only quantity-shaped
         overrides:
           - db_type: "numeric"

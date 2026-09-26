@@ -55,6 +55,17 @@ type SendLogMaintainer interface {
 	Prune(ctx context.Context, before time.Time, archive bool) (int64, error)
 }
 
+// The send log's retention edge, shared by the history that points at it - ok is false when retention is off
+// Whole months only, the partition unit - anchored to the first of this month so a run is idempotent within a day
+func SendHistoryCutoff(ctx context.Context, cfgSvc Settings) (time.Time, bool, error) {
+	months, err := cfgSvc.Int(ctx, "signals/analytics/send_log_retention_months", nil)
+	if err != nil || months <= 0 {
+		return time.Time{}, false, err
+	}
+	now := time.Now().UTC()
+	return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -int(months), 0), true, nil
+}
+
 // SendLogRetentionJob is the send-log body: partitions first and unconditionally, then whole months past the window
 func SendLogRetentionJob(cfgSvc Settings, m SendLogMaintainer) func(context.Context) error {
 	return func(ctx context.Context) error {
@@ -62,17 +73,14 @@ func SendLogRetentionJob(cfgSvc Settings, m SendLogMaintainer) func(context.Cont
 		if err := m.EnsurePartitions(ctx); err != nil {
 			return err
 		}
-		months, err := cfgSvc.Int(ctx, "signals/analytics/send_log_retention_months", nil)
-		if err != nil || months <= 0 {
+		cutoff, ok, err := SendHistoryCutoff(ctx, cfgSvc)
+		if err != nil || !ok {
 			return err
 		}
 		archive, err := archiveAction(ctx, cfgSvc)
 		if err != nil {
 			return err
 		}
-		// Whole months only, the partition unit - anchored to the first of this month so a run is idempotent within a day
-		now := time.Now().UTC()
-		cutoff := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -int(months), 0)
 		n, err := m.Prune(ctx, cutoff, archive)
 		if err != nil {
 			return err

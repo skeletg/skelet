@@ -50,12 +50,12 @@ func (s *pageService) PromoteDuePages(ctx context.Context) (int, error) {
 	gate := s.requireApproval(ctx)
 	n := 0
 	for _, p := range due {
-		// A page the approval gate or a publishing hook holds back stays scheduled rather than failing the run, and is asked again next time
+		// Held back by the gate or a hook - it stays scheduled and gets asked again next run
 		if err := s.admitPublish(ctx, p, gate); err != nil {
 			log.Printf("[cms-publish] skipping due page %s (workflow_state=%s): %v", p.ID, p.WorkflowState, err)
 			continue
 		}
-		// A first go-live is dated when it was scheduled for, not when the job got round to it
+		// A first go-live is dated when it was scheduled for, not when the job ran
 		firstLive := time.Now()
 		if p.ScheduledAt != nil {
 			firstLive = *p.ScheduledAt

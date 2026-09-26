@@ -65,6 +65,7 @@ type Campaign struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	DeletedAt       *time.Time
+	MaterializedAt  *time.Time // set once the whole audience is written as recipients - nil means sending may not start
 }
 
 type Recipient struct { // one targeted address, and also the at-least-once send-log row
@@ -92,4 +93,13 @@ func validAudience(kind string) bool {
 		return true
 	}
 	return false
+}
+
+// One row of an audience snapshot, as materialization writes it
+type NewRecipient struct {
+	CustomerID uuid.UUID
+	Email      string
+	FirstName  string
+	Variant    string
+	Phase      string
 }
