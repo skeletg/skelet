@@ -188,7 +188,9 @@ export function OrderDetail() {
     }
   }
 
-  if (loading) return <p className="text-sm text-muted-foreground">Loading order…</p>
+  // First load only - a refetch (every mutation here triggers one) swapped the page out and back,
+  // which re-opened any open dialog as a fresh form and threw away what the admin had typed
+  if (loading && !order) return <p className="text-sm text-muted-foreground">Loading order…</p>
   if (error) {
     // Channel-scoped roles get `forbidden` when the order belongs to a channel outside their scopes - show the
     // permissions page, not a retryable error
