@@ -6,7 +6,7 @@ import { FieldError } from '@/components/form/fields'
 import { useDialogForm } from '@/components/form/useDialogForm'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { CreateFulfillmentDocument, OrderDocument, OrdersDocument, type OrderQuery } from './Orders.gql'
+import { CreateFulfillmentDocument, OrderDocument, OrdersPagedDocument, type OrderQuery } from './Orders.gql'
 import { remainingByLine, shipmentSchema, toShipmentInput, toShipmentValues } from './schemas/shipment'
 
 type OrderData = OrderQuery['order']
@@ -23,7 +23,7 @@ export function CreateShipmentDialog({ order, open, onOpenChange }: { order: Ord
 
 function CreateShipmentForm({ order, onClose }: { order: OrderData; onClose: () => void }) {
   const [createFulfillment] = useMutation(CreateFulfillmentDocument, {
-    refetchQueries: [{ query: OrderDocument, variables: { id: order.id } }, { query: OrdersDocument }],
+    refetchQueries: [{ query: OrderDocument, variables: { id: order.id } }, OrdersPagedDocument],
   })
   const remaining = useMemo(() => remainingByLine(order.lines, order.fulfillments), [order.lines, order.fulfillments])
   const byId = new Map(order.lines.map((l) => [l.id, l]))

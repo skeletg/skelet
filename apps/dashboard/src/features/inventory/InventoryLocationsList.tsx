@@ -89,7 +89,7 @@ export function InventoryLocationsList() {
   const [confirmingDelete, setConfirmingDelete] = useState<LocationRow | null>(null)
 
   const [deleteLocation] = useMutation(DeleteInventoryLocationDocument, {
-    refetchQueries: ['InventoryLocationsPaged'],
+    refetchQueries: [InventoryLocationsPagedDocument],
   })
 
   // Throws on failure - ConfirmDialog keeps itself open and shows the message

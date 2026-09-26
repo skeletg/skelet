@@ -3,7 +3,7 @@ import { useMutation } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
 import { useSectionForm } from '@/shared/saving/useSectionForm'
-import { ProductDocument, UpdateProductDocument } from '../Catalog.gql'
+import { ProductDocument, ProductsPagedDocument, UpdateProductDocument } from '../Catalog.gql'
 import {
   PRODUCT_ADVANCED_LABELS,
   productAdvancedDiff,
@@ -28,7 +28,7 @@ export function AdvancedInventoryPricingSection({
   productVariables: { id: string }
 }) {
   const [updateProduct] = useMutation(UpdateProductDocument, {
-    refetchQueries: ['ProductsPaged', { query: ProductDocument, variables: productVariables }],
+    refetchQueries: [ProductsPagedDocument, { query: ProductDocument, variables: productVariables }],
   })
   const baseline = useMemo(() => toProductAdvancedValues(product), [product])
   const { form, draft } = useSectionForm({

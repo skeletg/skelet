@@ -2,7 +2,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, renderDialog } from '@/test/page-harness'
 import { CreateShipmentDialog } from './CreateShipmentDialog'
-import { CreateFulfillmentDocument, OrderDocument, OrdersDocument } from './Orders.gql'
+import { CreateFulfillmentDocument, OrderDocument } from './Orders.gql'
 
 // Two of the three tees already shipped; the cancelled shipment of the mug doesn't count
 const order = {
@@ -27,7 +27,6 @@ describe('CreateShipmentDialog', () => {
         result: { data: { createFulfillment: { __typename: 'Fulfillment', id: 'f1' } } },
       },
       { request: { query: OrderDocument, variables: () => true }, result: { data: { order: null } }, maxUsageCount: 3 },
-      { request: { query: OrdersDocument, variables: () => true }, result: { data: { orders: [] } }, maxUsageCount: 3 },
     ])
     expect((screen.getByLabelText('Tee quantity') as HTMLInputElement).value).toBe('1')
     expect(screen.getByText('TEE-1 · 1 unshipped')).toBeDefined()

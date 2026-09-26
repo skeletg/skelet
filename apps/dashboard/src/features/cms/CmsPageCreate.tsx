@@ -7,7 +7,7 @@ import { LocalesPickerDocument } from '@/features/locales/Locales.gql'
 import { useEditingLocale } from '@/lib/editing-locale'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
-import { CmsPageTypesDocument, CmsPagesDocument, CreateCmsPageDocument } from './Cms.gql'
+import { CmsPagesDocument, CmsPageTypesDocument, CreateCmsPageDocument } from './Cms.gql'
 import { newPageSchema, toNewPageInput } from './schemas/newPage'
 
 export function CmsPageCreate() {
@@ -21,7 +21,7 @@ export function CmsPageCreate() {
   const presetType = searchParams.get('pageTypeId') ?? ''
 
   const [createPage] = useMutation(CreateCmsPageDocument, {
-    refetchQueries: [{ query: CmsPagesDocument, variables: { filter: { onlyPublished: false }, limit: 200, offset: 0 } }],
+    refetchQueries: [CmsPagesDocument],
   })
   const createdId = useRef<string | null>(null)
 

@@ -7,7 +7,7 @@ import { FormDialogBody } from '@/components/form/FormDialogBody'
 import { useDialogForm } from '@/components/form/useDialogForm'
 import { formatCents } from '@/lib/format'
 import { addressChanged, toAddressValues } from '@/shared/schemas/address'
-import { EditOrderAddressDocument, OrderDocument, type OrderQuery } from './Orders.gql'
+import { EditOrderAddressDocument, OrderDocument, OrdersPagedDocument, type OrderQuery } from './Orders.gql'
 import { orderAddressSchema, toOrderAddressInput, type OrderAddressValues } from './schemas/editOrderAddress'
 
 type OrderData = OrderQuery['order']
@@ -34,7 +34,7 @@ export function EditOrderAddressDialog({
 
 function EditOrderAddressForm({ order, onSaved, onClose }: { order: OrderData; onSaved: (summary: string) => void; onClose: () => void }) {
   const [editAddress] = useMutation(EditOrderAddressDocument, {
-    refetchQueries: [{ query: OrderDocument, variables: { id: order.id } }, 'OrdersPaged'],
+    refetchQueries: [{ query: OrderDocument, variables: { id: order.id } }, OrdersPagedDocument],
   })
   const stored = useMemo<OrderAddressValues>(
     () => ({ shipping: toAddressValues(order.shippingAddress), billing: toAddressValues(order.billingAddress) }),

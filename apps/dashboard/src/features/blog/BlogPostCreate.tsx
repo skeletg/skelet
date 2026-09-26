@@ -19,7 +19,7 @@ export function BlogPostCreate() {
   // Until the title is typed into the slug by hand, the slug follows the title
   const [slugTouched, setSlugTouched] = useState(false)
   const [createPost] = useMutation(CreateBlogPostDocument, {
-    refetchQueries: [{ query: BlogPostsDocument, variables: { filter: { includeUnpublished: true }, limit: 200, offset: 0 } }],
+    refetchQueries: [BlogPostsDocument],
   })
   const createdId = useRef<string | null>(null)
 

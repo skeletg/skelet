@@ -10,6 +10,7 @@ import {
   ConfirmProductMediaUploadDocument,
   ProductDocument,
   RequestProductMediaUploadDocument,
+  ProductsPagedDocument,
 } from '../Catalog.gql'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
 import { useSectionForm } from '@/shared/saving/useSectionForm'
@@ -45,7 +46,7 @@ export function ContentAndMediaSection({
   const [mediaOpen, setMediaOpen] = useState(false)
 
   const refetchQueries = [
-    'ProductsPaged',
+    ProductsPagedDocument,
     { query: ProductDocument, variables: productVariables },
   ]
   const writeContent = useProductContentWrite(product.id, locale)

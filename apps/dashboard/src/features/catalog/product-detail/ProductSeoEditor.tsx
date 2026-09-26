@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Separator } from '@/components/ui/separator'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
 import { useSectionForm } from '@/shared/saving/useSectionForm'
-import { ProductDocument, UpdateProductDocument } from '../Catalog.gql'
+import { ProductDocument, ProductsPagedDocument, UpdateProductDocument } from '../Catalog.gql'
 import { PRODUCT_SEO_LABELS, productSeoChanges, productSeoDiff, productSeoSchema, toProductSeoValues } from '../schemas/product'
 import { UrlRewritesSection } from '../UrlRewritesSection'
 import type { ContentProduct } from './shared'
@@ -31,7 +31,7 @@ export function ProductSeoEditor({
   const [urlRewritesOpen, setUrlRewritesOpen] = useState(false)
 
   const [updateProduct] = useMutation(UpdateProductDocument, {
-    refetchQueries: ['ProductsPaged', { query: ProductDocument, variables: productVariables }],
+    refetchQueries: [ProductsPagedDocument, { query: ProductDocument, variables: productVariables }],
   })
   const writeContent = useProductContentWrite(product.id, locale)
 

@@ -17,7 +17,7 @@ import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { CartDocument } from '@/features/carts/Carts.gql'
 import { CustomerSearch, ProductSearch } from '@/features/carts/pickers'
-import { CreateDraftOrderDocument, PlaceDraftOrderDocument } from './Orders.gql'
+import { CreateDraftOrderDocument, OrdersPagedDocument, PlaceDraftOrderDocument } from './Orders.gql'
 import {
   addDraftLine,
   discountCents,
@@ -70,8 +70,8 @@ function DraftOrderForm({
 }) {
   const navigate = useNavigate()
   const { effectiveChannelId, selectedChannel, scope } = useConfigScope()
-  const [createDraft] = useMutation(CreateDraftOrderDocument, { refetchQueries: ['OrdersPaged'] })
-  const [placeDraft] = useMutation(PlaceDraftOrderDocument, { refetchQueries: ['OrdersPaged'] })
+  const [createDraft] = useMutation(CreateDraftOrderDocument, { refetchQueries: [OrdersPagedDocument] })
+  const [placeDraft] = useMutation(PlaceDraftOrderDocument, { refetchQueries: [OrdersPagedDocument] })
   // Which of the two header buttons submitted, and the id the create came back with
   const placeOnSave = useRef(false)
   const createdId = useRef('')

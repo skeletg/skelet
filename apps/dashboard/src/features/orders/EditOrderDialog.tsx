@@ -7,7 +7,7 @@ import { FieldError } from '@/components/form/fields'
 import { useDialogForm } from '@/components/form/useDialogForm'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { EditOrderDocument, OrderDocument, OrdersDocument, type OrderQuery } from './Orders.gql'
+import { EditOrderDocument, OrderDocument, OrdersPagedDocument, type OrderQuery } from './Orders.gql'
 import { editOrderSchema, hasOrderChanges, toEditOrderInput, toEditOrderValues } from './schemas/editOrder'
 
 type OrderData = OrderQuery['order']
@@ -23,7 +23,7 @@ export function EditOrderDialog({ order, open, onOpenChange }: { order: OrderDat
 
 function EditOrderForm({ order, onClose }: { order: OrderData; onClose: () => void }) {
   const [editOrder] = useMutation(EditOrderDocument, {
-    refetchQueries: [{ query: OrderDocument, variables: { id: order.id } }, { query: OrdersDocument }],
+    refetchQueries: [{ query: OrderDocument, variables: { id: order.id } }, OrdersPagedDocument],
   })
   const dialog = useDialogForm({
     baseline: toEditOrderValues(order.lines),
