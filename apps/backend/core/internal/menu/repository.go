@@ -10,6 +10,7 @@ import (
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 type postgresRepository struct {
@@ -118,11 +119,11 @@ func (r *postgresRepository) DeleteMenu(ctx context.Context, id uuid.UUID) error
 func (r *postgresRepository) CreateMenuItem(ctx context.Context, input CreateMenuItemInput) (MenuItem, error) {
 	row, err := r.queries.CreateMenuItem(ctx, db.CreateMenuItemParams{
 		MenuID:     input.MenuID,
-		ParentID:   nullableUUID(input.ParentID),
+		ParentID:   sqlnull.UUID(input.ParentID),
 		Label:      input.Label,
-		TargetType: nullableString(string(input.TargetType)),
-		TargetID:   nullableUUID(input.TargetID),
-		Url:        nullableString(input.URL),
+		TargetType: sqlnull.StringValueNonEmpty(string(input.TargetType)),
+		TargetID:   sqlnull.UUID(input.TargetID),
+		Url:        sqlnull.StringValueNonEmpty(input.URL),
 		SortOrder:  input.SortOrder,
 	})
 	if err != nil {
@@ -168,21 +169,21 @@ func (r *postgresRepository) UpdateMenuItem(ctx context.Context, input UpdateMen
 	}
 	tt := current.TargetType
 	if input.TargetType != nil {
-		tt = nullableString(string(*input.TargetType))
+		tt = sqlnull.StringValueNonEmpty(string(*input.TargetType))
 	}
 	tid := current.TargetID
 	if input.TargetID != nil {
-		tid = nullableUUID(input.TargetID)
+		tid = sqlnull.UUID(input.TargetID)
 	}
 	url := current.Url
 	if input.URL != nil {
-		url = nullableString(*input.URL)
+		url = sqlnull.StringValueNonEmpty(*input.URL)
 	}
 	parent := current.ParentID
 	if input.ClearParent {
 		parent = uuid.NullUUID{}
 	} else if input.ParentID != nil {
-		parent = nullableUUID(input.ParentID)
+		parent = sqlnull.UUID(input.ParentID)
 	}
 	sortOrder := current.SortOrder
 	if input.SortOrder != nil {
@@ -384,20 +385,6 @@ func toMenuItem(row db.MenuItem) MenuItem {
 		out.URL = row.Url.String
 	}
 	return out
-}
-
-func nullableString(s string) sql.NullString {
-	if s == "" {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: s, Valid: true}
-}
-
-func nullableUUID(id *uuid.UUID) uuid.NullUUID {
-	if id == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *id, Valid: true}
 }
 
 func isUniqueViolation(err error) bool { return pgdb.IsUniqueViolation(err) } // shared SQLSTATE-based check - the per-package copies drifted into fragile message matching

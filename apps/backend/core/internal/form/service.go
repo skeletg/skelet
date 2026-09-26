@@ -12,6 +12,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 // Dependency seams (accept interfaces) - set the customer/consent/segment/flow
@@ -128,7 +129,7 @@ func (s *Service) Create(ctx context.Context, in SaveInput) (Form, error) {
 		ChannelID: in.ChannelID, Slug: slugify(in.Slug), Name: in.Name, Status: normStatus(in.Status),
 		FormType: normType(in.Type), Heading: in.Heading, Body: in.Body, ButtonLabel: orDefault(in.ButtonLabel, "Subscribe"),
 		SuccessMessage: orDefault(in.SuccessMessage, "Thanks for subscribing!"), CollectName: in.CollectName,
-		ConsentKind: orDefault(in.ConsentKind, "marketing_email"), TargetSegmentID: nullUUID(in.TargetSegmentID),
+		ConsentKind: orDefault(in.ConsentKind, "marketing_email"), TargetSegmentID: sqlnull.UUIDNonZero(in.TargetSegmentID),
 		TriggerFlow: in.TriggerFlow, DisplayConfig: dc,
 	})
 	if err != nil {
@@ -143,7 +144,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in SaveInput) (Form,
 		ID: id, Name: in.Name, Status: normStatus(in.Status), FormType: normType(in.Type),
 		Heading: in.Heading, Body: in.Body, ButtonLabel: orDefault(in.ButtonLabel, "Subscribe"),
 		SuccessMessage: orDefault(in.SuccessMessage, "Thanks for subscribing!"), CollectName: in.CollectName,
-		ConsentKind: orDefault(in.ConsentKind, "marketing_email"), TargetSegmentID: nullUUID(in.TargetSegmentID),
+		ConsentKind: orDefault(in.ConsentKind, "marketing_email"), TargetSegmentID: sqlnull.UUIDNonZero(in.TargetSegmentID),
 		TriggerFlow: in.TriggerFlow, DisplayConfig: dc,
 	})
 	if err != nil {
@@ -213,7 +214,7 @@ func (s *Service) Submit(ctx context.Context, channelID uuid.UUID, formSlugOrID,
 	}
 
 	if err := s.q.RecordSignupSubmission(ctx, db.RecordSignupSubmissionParams{
-		FormID: f.ID, ChannelID: channelID, Email: em, CustomerID: nullUUIDv(custID),
+		FormID: f.ID, ChannelID: channelID, Email: em, CustomerID: sqlnull.UUIDValueNonZero(custID),
 	}); err != nil {
 		log.Printf("[form] record signup submission for %s: %v", f.Slug, err)
 	}
@@ -270,20 +271,6 @@ func orDefault(s, def string) string {
 		return def
 	}
 	return s
-}
-
-func nullUUID(p *uuid.UUID) uuid.NullUUID {
-	if p == nil || *p == uuid.Nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *p, Valid: true}
-}
-
-func nullUUIDv(id uuid.UUID) uuid.NullUUID {
-	if id == uuid.Nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: id, Valid: true}
 }
 
 func slugify(s string) string {

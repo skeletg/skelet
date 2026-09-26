@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -43,7 +44,7 @@ func (r *postgresRepository) CreateProduct(ctx context.Context, input CreateProd
 		DefaultCurrencyCode:     input.DefaultCurrencyCode,
 		Sku:                     input.SKU,
 		SeoNoindex:              input.SEONoindex,
-		CanonicalUrl:            nullableString(input.CanonicalURL),
+		CanonicalUrl:            sqlnull.StringValueNonEmpty(input.CanonicalURL),
 		Url:                     initialURL,
 		UrlAuto:                 urlPathAuto,
 		UrlTemplateOverride:     input.URLTemplateOverride,
@@ -518,7 +519,7 @@ func (r *postgresRepository) UpdateProduct(ctx context.Context, input UpdateProd
 	}
 	canonicalURL := current.CanonicalUrl
 	if input.CanonicalURL != nil {
-		canonicalURL = nullableString(*input.CanonicalURL)
+		canonicalURL = sqlnull.StringValueNonEmpty(*input.CanonicalURL)
 	}
 	url := current.Url
 	if input.URL != nil {
@@ -987,13 +988,6 @@ func toProductContent(row db.ProductContent) ProductContent {
 	return c
 }
 
-func nullableStringPtr(s *string) sql.NullString {
-	if s == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *s, Valid: true}
-}
-
 // nullableString converts an empty string to a null NullString and a
 // non-empty string to a valid NullString - Used for optional text columns
 func (r *postgresRepository) SetProductVariantMode(ctx context.Context, id uuid.UUID, mode VariantMode) (Product, error) {
@@ -1018,13 +1012,6 @@ func variantModeFromRow(s sql.NullString) *VariantMode {
 	}
 	m := VariantMode(s.String)
 	return &m
-}
-
-func nullableString(s string) sql.NullString {
-	if s == "" {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: s, Valid: true}
 }
 
 func toProductFromChildRow(row db.ListProductChildrenByParentIDsRow) Product {
@@ -1071,9 +1058,9 @@ func (r *postgresRepository) UpsertProductContent(ctx context.Context, productID
 		Name:             input.Name,
 		ShortDescription: pqtype.NullRawMessage{RawMessage: input.ShortDescription, Valid: len(input.ShortDescription) > 0},
 		Description:      pqtype.NullRawMessage{RawMessage: input.Description, Valid: len(input.Description) > 0},
-		MetaTitle:        nullableString(input.MetaTitle),
-		MetaDescription:  nullableString(input.MetaDescription),
-		MetaKeywords:     nullableString(input.MetaKeywords),
+		MetaTitle:        sqlnull.StringValueNonEmpty(input.MetaTitle),
+		MetaDescription:  sqlnull.StringValueNonEmpty(input.MetaDescription),
+		MetaKeywords:     sqlnull.StringValueNonEmpty(input.MetaKeywords),
 	})
 	if err != nil {
 		return ProductContent{}, fmt.Errorf("upsert product content: %w", err)

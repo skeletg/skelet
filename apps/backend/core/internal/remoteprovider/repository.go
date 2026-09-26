@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
-	"github.com/sqlc-dev/pqtype"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 type postgresRepository struct {
@@ -29,7 +29,7 @@ func (r *postgresRepository) Create(ctx context.Context, input CreateInput, sign
 		Name:          input.Name,
 		TargetUrl:     input.TargetURL,
 		SigningSecret: signingSecret,
-		Config:        configToJSON(input.Config),
+		Config:        sqlnull.Raw(input.Config),
 		TimeoutMs:     input.TimeoutMs,
 		CacheTtlS:     input.CacheTTLs,
 		FailurePolicy: string(input.FailurePolicy),
@@ -120,7 +120,7 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateInput) (Pro
 		ID:            input.ID,
 		Name:          name,
 		TargetUrl:     targetURL,
-		Config:        configToJSON(config),
+		Config:        sqlnull.Raw(config),
 		TimeoutMs:     timeoutMs,
 		CacheTtlS:     cacheTTLs,
 		FailurePolicy: string(policy),
@@ -166,13 +166,6 @@ func (r *postgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("delete remote provider: %w", err)
 	}
 	return nil
-}
-
-func configToJSON(config []byte) pqtype.NullRawMessage {
-	if len(config) == 0 {
-		return pqtype.NullRawMessage{}
-	}
-	return pqtype.NullRawMessage{RawMessage: config, Valid: true}
 }
 
 func toProvider(row db.RemoteProvider) Provider {

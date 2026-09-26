@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 type postgresRepository struct {
@@ -58,50 +59,13 @@ func (r *postgresRepository) CreateCart(ctx context.Context, customerID *uuid.UU
 	return toCart(row), nil
 }
 
-func nullableUUID(p *uuid.UUID) uuid.NullUUID {
-	if p == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *p, Valid: true}
-}
-
-func nullableString(p *string) sql.NullString {
-	if p == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *p, Valid: true}
-}
-
-func nullableTime(p *time.Time) sql.NullTime {
-	if p == nil {
-		return sql.NullTime{}
-	}
-	return sql.NullTime{Time: *p, Valid: true}
-}
-
-func ptrString(ns sql.NullString) *string {
-	if !ns.Valid {
-		return nil
-	}
-	s := ns.String
-	return &s
-}
-
-func ptrUUID(nu uuid.NullUUID) *uuid.UUID {
-	if !nu.Valid {
-		return nil
-	}
-	id := nu.UUID
-	return &id
-}
-
 func (r *postgresRepository) ListCarts(ctx context.Context, f CartFilter) ([]CartListItem, error) {
 	rows, err := r.queries.ListCarts(ctx, db.ListCartsParams{
 		ChannelID:     f.ChannelID,
-		CustomerID:    nullableUUID(f.CustomerID),
-		Status:        nullableString(f.Status),
-		UpdatedBefore: nullableTime(f.UpdatedBefore),
-		Search:        nullableString(f.Search),
+		CustomerID:    sqlnull.UUID(f.CustomerID),
+		Status:        sqlnull.String(f.Status),
+		UpdatedBefore: sqlnull.Time(f.UpdatedBefore),
+		Search:        sqlnull.String(f.Search),
 		Off:           f.Offset,
 		Lim:           f.Limit,
 	})
@@ -112,12 +76,12 @@ func (r *postgresRepository) ListCarts(ctx context.Context, f CartFilter) ([]Car
 	for i, row := range rows {
 		out[i] = CartListItem{
 			ID:                row.ID,
-			CustomerID:        ptrUUID(row.CustomerID),
+			CustomerID:        sqlnull.UUIDPtr(row.CustomerID),
 			ChannelID:         row.ChannelID,
 			Status:            row.Status,
-			CustomerEmail:     ptrString(row.CustomerEmail),
-			CustomerFirstName: ptrString(row.CustomerFirstName),
-			CustomerLastName:  ptrString(row.CustomerLastName),
+			CustomerEmail:     sqlnull.StringPtr(row.CustomerEmail),
+			CustomerFirstName: sqlnull.StringPtr(row.CustomerFirstName),
+			CustomerLastName:  sqlnull.StringPtr(row.CustomerLastName),
 			ItemCount:         row.ItemCount,
 			Subtotal:          row.Subtotal,
 			CreatedAt:         row.CreatedAt,
@@ -130,10 +94,10 @@ func (r *postgresRepository) ListCarts(ctx context.Context, f CartFilter) ([]Car
 func (r *postgresRepository) CountCarts(ctx context.Context, f CartFilter) (int32, error) {
 	n, err := r.queries.CountCarts(ctx, db.CountCartsParams{
 		ChannelID:     f.ChannelID,
-		CustomerID:    nullableUUID(f.CustomerID),
-		Status:        nullableString(f.Status),
-		UpdatedBefore: nullableTime(f.UpdatedBefore),
-		Search:        nullableString(f.Search),
+		CustomerID:    sqlnull.UUID(f.CustomerID),
+		Status:        sqlnull.String(f.Status),
+		UpdatedBefore: sqlnull.Time(f.UpdatedBefore),
+		Search:        sqlnull.String(f.Search),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("count carts: %w", err)

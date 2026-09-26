@@ -9,6 +9,7 @@ import (
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 type postgresRepository struct {
@@ -104,7 +105,7 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateLocaleInput
 		DecimalSeparator:      current.DecimalSeparator,
 		ThousandsSeparator:    current.ThousandsSeparator,
 		FirstDayOfWeek:        current.FirstDayOfWeek,
-		Upper:                 nullStringValue(current.DefaultCountryCode),
+		Upper:                 sqlnull.StringValue(current.DefaultCountryCode),
 		FlagEmoji:             current.FlagEmoji,
 		Lower_2:               current.HreflangValue,
 		Script:                current.Script,
@@ -202,7 +203,7 @@ func toLocale(row db.Locale) Locale {
 		DecimalSeparator:      row.DecimalSeparator,
 		ThousandsSeparator:    row.ThousandsSeparator,
 		FirstDayOfWeek:        row.FirstDayOfWeek,
-		DefaultCountryCode:    nullStringValue(row.DefaultCountryCode),
+		DefaultCountryCode:    sqlnull.StringValue(row.DefaultCountryCode),
 		FlagEmoji:             row.FlagEmoji,
 		HreflangValue:         row.HreflangValue,
 		Script:                row.Script,
@@ -246,15 +247,6 @@ func nullableUpper(s string) any {
 		return nil
 	}
 	return s
-}
-
-// nullStringValue extracts the underlying string from sql.NullString or
-// returns "" when the column was NULL
-func nullStringValue(n sql.NullString) string {
-	if n.Valid {
-		return n.String
-	}
-	return ""
 }
 
 func isUniqueViolation(err error) bool { return pgdb.IsUniqueViolation(err) } // shared SQLSTATE-based check - the per-package copies drifted into fragile message matching

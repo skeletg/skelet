@@ -3,9 +3,6 @@ package cms
 import (
 	"database/sql"
 	"encoding/json"
-	"time"
-
-	"github.com/google/uuid"
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
@@ -23,60 +20,6 @@ func NewRepository(queries *db.Queries, txMgr *txrunner.Manager) *postgresReposi
 
 func (r *postgresRepository) WithTx(t *sql.Tx) *postgresRepository {
 	return &postgresRepository{queries: r.queries.WithTx(t), tx: r.tx}
-}
-
-func nullStr(s sql.NullString) string {
-	if s.Valid {
-		return s.String
-	}
-	return ""
-}
-
-// nullTimePtr converts a nullable timestamp read into a *time.Time (nil when
-// NULL), the domain representation for optional times
-func nullTimePtr(n sql.NullTime) *time.Time {
-	if !n.Valid {
-		return nil
-	}
-	t := n.Time
-	return &t
-}
-
-func nullableString(s string) sql.NullString {
-	if s == "" {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: s, Valid: true}
-}
-
-func nullStringPtr(s sql.NullString) *string {
-	if !s.Valid {
-		return nil
-	}
-	v := s.String
-	return &v
-}
-
-func nullUUID(id *uuid.UUID) uuid.NullUUID {
-	if id == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *id, Valid: true}
-}
-
-func nullUUIDPtr(n uuid.NullUUID) *uuid.UUID {
-	if !n.Valid {
-		return nil
-	}
-	v := n.UUID
-	return &v
-}
-
-func nullTime(t *time.Time) sql.NullTime {
-	if t == nil {
-		return sql.NullTime{}
-	}
-	return sql.NullTime{Time: *t, Valid: true}
 }
 
 func emptyJSON(raw json.RawMessage) json.RawMessage {

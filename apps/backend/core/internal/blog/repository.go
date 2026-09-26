@@ -13,6 +13,7 @@ import (
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
@@ -36,9 +37,9 @@ func (r *postgresRepository) CreateAuthor(ctx context.Context, in CreateAuthorIn
 	row, err := r.queries.CreateBlogAuthor(ctx, db.CreateBlogAuthorParams{
 		Slug:          in.Slug,
 		DisplayName:   in.DisplayName,
-		Email:         nullableString(ptr.Deref(in.Email)),
-		AvatarAssetID: nullUUID(in.AvatarAssetID),
-		LinkedAdminID: nullUUID(in.LinkedAdminID),
+		Email:         sqlnull.StringValueNonEmpty(ptr.Deref(in.Email)),
+		AvatarAssetID: sqlnull.UUID(in.AvatarAssetID),
+		LinkedAdminID: sqlnull.UUID(in.LinkedAdminID),
 		Metadata:      metadataToJSON(in.Metadata),
 	})
 	if err != nil {
@@ -132,7 +133,7 @@ func (r *postgresRepository) UpdateAuthor(ctx context.Context, in UpdateAuthorIn
 	if in.ClearEmail {
 		email = sql.NullString{}
 	} else if in.Email != nil {
-		email = nullableString(*in.Email)
+		email = sqlnull.StringValueNonEmpty(*in.Email)
 	}
 	avatar := current.AvatarAssetID
 	if in.ClearAvatar {
@@ -246,7 +247,7 @@ func (r *postgresRepository) DeleteAuthorContent(ctx context.Context, authorID u
 
 func (r *postgresRepository) CreateCategory(ctx context.Context, in CreateCategoryInput) (Category, error) {
 	row, err := r.queries.CreateBlogCategory(ctx, db.CreateBlogCategoryParams{
-		ParentID:    nullUUID(in.ParentID),
+		ParentID:    sqlnull.UUID(in.ParentID),
 		Slug:        in.Slug,
 		UrlPath:     in.Slug, // overwritten by the service after parent path is computed
 		Position:    in.Position,
@@ -401,9 +402,9 @@ func (r *postgresRepository) UpsertCategoryContent(ctx context.Context, category
 		Locale:          in.Locale,
 		Name:            in.Name,
 		Description:     pqtype.NullRawMessage{RawMessage: in.Description, Valid: len(in.Description) > 0},
-		MetaTitle:       nullableString(in.MetaTitle),
-		MetaDescription: nullableString(in.MetaDescription),
-		MetaKeywords:    nullableString(in.MetaKeywords),
+		MetaTitle:       sqlnull.StringValueNonEmpty(in.MetaTitle),
+		MetaDescription: sqlnull.StringValueNonEmpty(in.MetaDescription),
+		MetaKeywords:    sqlnull.StringValueNonEmpty(in.MetaKeywords),
 	})
 	if err != nil {
 		return CategoryContent{}, fmt.Errorf("upsert blog category content: %w", err)
@@ -564,9 +565,9 @@ func (r *postgresRepository) UpsertTagContent(ctx context.Context, tagID uuid.UU
 		Locale:          in.Locale,
 		Name:            in.Name,
 		Description:     pqtype.NullRawMessage{RawMessage: in.Description, Valid: len(in.Description) > 0},
-		MetaTitle:       nullableString(in.MetaTitle),
-		MetaDescription: nullableString(in.MetaDescription),
-		MetaKeywords:    nullableString(in.MetaKeywords),
+		MetaTitle:       sqlnull.StringValueNonEmpty(in.MetaTitle),
+		MetaDescription: sqlnull.StringValueNonEmpty(in.MetaDescription),
+		MetaKeywords:    sqlnull.StringValueNonEmpty(in.MetaKeywords),
 	})
 	if err != nil {
 		return TagContent{}, fmt.Errorf("upsert blog tag content: %w", err)
@@ -632,12 +633,12 @@ func (r *postgresRepository) DeleteTagContent(ctx context.Context, tagID uuid.UU
 func (r *postgresRepository) CreatePost(ctx context.Context, in CreatePostInput) (Post, error) {
 	row, err := r.queries.CreateBlogPost(ctx, db.CreateBlogPostParams{
 		Slug:               in.Slug,
-		AuthorID:           nullUUID(in.AuthorID),
-		CoverAssetID:       nullUUID(in.CoverAssetID),
+		AuthorID:           sqlnull.UUID(in.AuthorID),
+		CoverAssetID:       sqlnull.UUID(in.CoverAssetID),
 		Status:             string(in.Status),
-		PublishedAt:        nullTime(in.PublishedAt),
+		PublishedAt:        sqlnull.Time(in.PublishedAt),
 		SeoNoindex:         in.SEONoindex,
-		ReadingTimeMinutes: nullInt32(in.ReadingTimeMinutes),
+		ReadingTimeMinutes: sqlnull.Int32(in.ReadingTimeMinutes),
 		Metadata:           metadataToJSON(in.Metadata),
 		PrivateMetadata:    metadataToJSON(in.PrivateMetadata),
 	})
@@ -871,7 +872,7 @@ func (r *postgresRepository) SetPostStatus(ctx context.Context, id uuid.UUID, st
 	row, err := r.queries.SetBlogPostStatus(ctx, db.SetBlogPostStatusParams{
 		ID:          id,
 		Status:      string(status),
-		PublishedAt: nullTime(publishedAt),
+		PublishedAt: sqlnull.Time(publishedAt),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -896,9 +897,9 @@ func (r *postgresRepository) UpsertPostContent(ctx context.Context, postID uuid.
 		Title:           in.Title,
 		Excerpt:         pqtype.NullRawMessage{RawMessage: in.Excerpt, Valid: len(in.Excerpt) > 0},
 		Body:            pqtype.NullRawMessage{RawMessage: in.Body, Valid: len(in.Body) > 0},
-		MetaTitle:       nullableString(in.MetaTitle),
-		MetaDescription: nullableString(in.MetaDescription),
-		MetaKeywords:    nullableString(in.MetaKeywords),
+		MetaTitle:       sqlnull.StringValueNonEmpty(in.MetaTitle),
+		MetaDescription: sqlnull.StringValueNonEmpty(in.MetaDescription),
+		MetaKeywords:    sqlnull.StringValueNonEmpty(in.MetaKeywords),
 	})
 	if err != nil {
 		return PostContent{}, fmt.Errorf("upsert blog post content: %w", err)
@@ -1089,7 +1090,7 @@ func (r *postgresRepository) ListCategoriesByPostIDs(ctx context.Context, postID
 	for _, row := range rows {
 		c := Category{
 			ID:          row.ID,
-			ParentID:    nullUUIDPtr(row.ParentID),
+			ParentID:    sqlnull.UUIDPtr(row.ParentID),
 			Slug:        row.Slug,
 			URLPath:     row.UrlPath,
 			Position:    row.Position,
@@ -1170,9 +1171,9 @@ func toAuthor(row db.BlogAuthor) Author {
 		ID:            row.ID,
 		Slug:          row.Slug,
 		DisplayName:   row.DisplayName,
-		Email:         nullStringPtr(row.Email),
-		AvatarAssetID: nullUUIDPtr(row.AvatarAssetID),
-		LinkedAdminID: nullUUIDPtr(row.LinkedAdminID),
+		Email:         sqlnull.StringPtr(row.Email),
+		AvatarAssetID: sqlnull.UUIDPtr(row.AvatarAssetID),
+		LinkedAdminID: sqlnull.UUIDPtr(row.LinkedAdminID),
 		Metadata:      metadataFromJSON(row.Metadata),
 		CreatedAt:     row.CreatedAt,
 		UpdatedAt:     row.UpdatedAt,
@@ -1183,7 +1184,7 @@ func toAuthorContent(row db.BlogAuthorContent) AuthorContent {
 	return AuthorContent{
 		Locale:    row.Locale,
 		Name:      row.Name,
-		Bio:       nullRawMessage(row.Bio),
+		Bio:       sqlnull.RawMessage(row.Bio),
 		UpdatedAt: row.UpdatedAt,
 	}
 }
@@ -1191,7 +1192,7 @@ func toAuthorContent(row db.BlogAuthorContent) AuthorContent {
 func toCategory(row db.BlogCategory) Category {
 	return Category{
 		ID:          row.ID,
-		ParentID:    nullUUIDPtr(row.ParentID),
+		ParentID:    sqlnull.UUIDPtr(row.ParentID),
 		Slug:        row.Slug,
 		URLPath:     row.UrlPath,
 		Position:    row.Position,
@@ -1206,10 +1207,10 @@ func toCategoryContent(row db.BlogCategoryContent) CategoryContent {
 	return CategoryContent{
 		Locale:          row.Locale,
 		Name:            row.Name,
-		Description:     nullRawMessage(row.Description),
-		MetaTitle:       nullStringPtr(row.MetaTitle),
-		MetaDescription: nullStringPtr(row.MetaDescription),
-		MetaKeywords:    nullStringPtr(row.MetaKeywords),
+		Description:     sqlnull.RawMessage(row.Description),
+		MetaTitle:       sqlnull.StringPtr(row.MetaTitle),
+		MetaDescription: sqlnull.StringPtr(row.MetaDescription),
+		MetaKeywords:    sqlnull.StringPtr(row.MetaKeywords),
 		UpdatedAt:       row.UpdatedAt,
 	}
 }
@@ -1228,10 +1229,10 @@ func toTagContent(row db.BlogTagContent) TagContent {
 	return TagContent{
 		Locale:          row.Locale,
 		Name:            row.Name,
-		Description:     nullRawMessage(row.Description),
-		MetaTitle:       nullStringPtr(row.MetaTitle),
-		MetaDescription: nullStringPtr(row.MetaDescription),
-		MetaKeywords:    nullStringPtr(row.MetaKeywords),
+		Description:     sqlnull.RawMessage(row.Description),
+		MetaTitle:       sqlnull.StringPtr(row.MetaTitle),
+		MetaDescription: sqlnull.StringPtr(row.MetaDescription),
+		MetaKeywords:    sqlnull.StringPtr(row.MetaKeywords),
 		UpdatedAt:       row.UpdatedAt,
 	}
 }
@@ -1250,8 +1251,8 @@ func toPost(row db.BlogPost) Post {
 	return Post{
 		ID:                 row.ID,
 		Slug:               row.Slug,
-		AuthorID:           nullUUIDPtr(row.AuthorID),
-		CoverAssetID:       nullUUIDPtr(row.CoverAssetID),
+		AuthorID:           sqlnull.UUIDPtr(row.AuthorID),
+		CoverAssetID:       sqlnull.UUIDPtr(row.CoverAssetID),
 		Status:             PostStatus(row.Status),
 		PublishedAt:        publishedAt,
 		SEONoindex:         row.SeoNoindex,
@@ -1277,67 +1278,16 @@ func toPostContent(row db.BlogPostContent) PostContent {
 	return PostContent{
 		Locale:          row.Locale,
 		Title:           row.Title,
-		Excerpt:         nullRawMessage(row.Excerpt),
-		Body:            nullRawMessage(row.Body),
-		MetaTitle:       nullStringPtr(row.MetaTitle),
-		MetaDescription: nullStringPtr(row.MetaDescription),
-		MetaKeywords:    nullStringPtr(row.MetaKeywords),
+		Excerpt:         sqlnull.RawMessage(row.Excerpt),
+		Body:            sqlnull.RawMessage(row.Body),
+		MetaTitle:       sqlnull.StringPtr(row.MetaTitle),
+		MetaDescription: sqlnull.StringPtr(row.MetaDescription),
+		MetaKeywords:    sqlnull.StringPtr(row.MetaKeywords),
 		UpdatedAt:       row.UpdatedAt,
 	}
 }
 
 // ==================== helpers ====================
-
-func nullableString(s string) sql.NullString {
-	if s == "" {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: s, Valid: true}
-}
-
-func nullStringPtr(s sql.NullString) *string {
-	if !s.Valid {
-		return nil
-	}
-	v := s.String
-	return &v
-}
-
-func nullUUID(id *uuid.UUID) uuid.NullUUID {
-	if id == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *id, Valid: true}
-}
-
-func nullUUIDPtr(n uuid.NullUUID) *uuid.UUID {
-	if !n.Valid {
-		return nil
-	}
-	v := n.UUID
-	return &v
-}
-
-func nullTime(t *time.Time) sql.NullTime {
-	if t == nil {
-		return sql.NullTime{}
-	}
-	return sql.NullTime{Time: *t, Valid: true}
-}
-
-func nullInt32(n *int32) sql.NullInt32 {
-	if n == nil {
-		return sql.NullInt32{}
-	}
-	return sql.NullInt32{Int32: *n, Valid: true}
-}
-
-func nullRawMessage(n pqtype.NullRawMessage) json.RawMessage {
-	if !n.Valid {
-		return nil
-	}
-	return n.RawMessage
-}
 
 func metadataToJSON(m Metadata) json.RawMessage {
 	if len(m) == 0 {

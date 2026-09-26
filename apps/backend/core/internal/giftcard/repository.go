@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 type postgresRepository struct {
@@ -33,11 +33,11 @@ func (r *postgresRepository) CreateGiftCard(ctx context.Context, code string, in
 		InitialBalance: in.Amount,
 		RecipientEmail: in.RecipientEmail,
 		Message:        in.Message,
-		IssuedOrderID:  nullableUUID(in.IssuedOrderID),
-		CustomerID:     nullableUUID(in.CustomerID),
-		ExpiresAt:      nullableTime(in.ExpiresAt),
+		IssuedOrderID:  sqlnull.UUID(in.IssuedOrderID),
+		CustomerID:     sqlnull.UUID(in.CustomerID),
+		ExpiresAt:      sqlnull.Time(in.ExpiresAt),
 		IssueRef:       in.IssueRef,
-		ChannelID:      nullableUUID(in.ChannelID),
+		ChannelID:      sqlnull.UUID(in.ChannelID),
 	})
 	if err != nil {
 		if pgdb.IsUniqueViolation(err) {
@@ -156,7 +156,7 @@ func (r *postgresRepository) InsertTransaction(ctx context.Context, t Transactio
 		GiftCardID: t.GiftCardID,
 		Amount:     t.Amount,
 		Reason:     t.Reason,
-		OrderID:    nullableUUID(t.OrderID),
+		OrderID:    sqlnull.UUID(t.OrderID),
 		Note:       t.Note,
 	})
 	if err != nil {
@@ -225,18 +225,4 @@ func toTransaction(row db.GiftCardTransaction) Transaction {
 		t.OrderID = &id
 	}
 	return t
-}
-
-func nullableUUID(p *uuid.UUID) uuid.NullUUID {
-	if p == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *p, Valid: true}
-}
-
-func nullableTime(p *time.Time) sql.NullTime {
-	if p == nil {
-		return sql.NullTime{}
-	}
-	return sql.NullTime{Time: *p, Valid: true}
 }

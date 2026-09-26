@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"github.com/sqlc-dev/pqtype"
 
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 // ==================== Product options ====================
@@ -24,11 +26,11 @@ func (r *postgresRepository) CreateProductOption(ctx context.Context, input AddP
 			InputType:      db.CatalogProductOptionInputType(input.InputType),
 			IsRequired:     input.IsRequired,
 			SortOrder:      input.SortOrder,
-			PriceValue:     nullInt32FromPtr(input.PriceValue),
+			PriceValue:     sqlnull.Int32(input.PriceValue),
 			PriceType:      nullPriceType(input.PriceType),
-			MaxChars:       nullInt32FromPtr(input.MaxChars),
-			MaxFileBytes:   nullInt64FromPtr(input.MaxFileBytes),
-			FileExtensions: nullStringFromStr(input.FileExtensions),
+			MaxChars:       sqlnull.Int32(input.MaxChars),
+			MaxFileBytes:   sqlnull.Int64(input.MaxFileBytes),
+			FileExtensions: sqlnull.StringValueNonEmpty(input.FileExtensions),
 			VisibleIf:      nullRawFromGroup(input.VisibleIf),
 		})
 		if err != nil {
@@ -84,11 +86,11 @@ func (r *postgresRepository) UpdateProductOption(ctx context.Context, id uuid.UU
 		InputType:      db.CatalogProductOptionInputType(params.InputType),
 		IsRequired:     params.IsRequired,
 		SortOrder:      params.SortOrder,
-		PriceValue:     nullInt32FromPtr(params.PriceValue),
+		PriceValue:     sqlnull.Int32(params.PriceValue),
 		PriceType:      nullPriceType(params.PriceType),
-		MaxChars:       nullInt32FromPtr(params.MaxChars),
-		MaxFileBytes:   nullInt64FromPtr(params.MaxFileBytes),
-		FileExtensions: nullStringFromStr(params.FileExtensions),
+		MaxChars:       sqlnull.Int32(params.MaxChars),
+		MaxFileBytes:   sqlnull.Int64(params.MaxFileBytes),
+		FileExtensions: sqlnull.StringValueNonEmpty(params.FileExtensions),
 		VisibleIf:      nullRawFromGroup(params.VisibleIf),
 	})
 	if err != nil {
@@ -170,9 +172,9 @@ func (r *postgresRepository) CreateProductOptionValue(ctx context.Context, input
 			PriceValue:      input.PriceValue,
 			PriceType:       db.CatalogProductOptionPriceType(input.PriceType),
 			IsDefault:       input.IsDefault,
-			SourceProductID: nullUUIDFromPtr(input.SourceProductID),
+			SourceProductID: sqlnull.UUIDNonZero(input.SourceProductID),
 			Quantity:        qty,
-			ForcedLineQty:   nullFloatFromPtr(input.ForcedLineQty),
+			ForcedLineQty:   sqlnull.Float64(input.ForcedLineQty),
 		})
 		if err != nil {
 			return fmt.Errorf("create product option value: %w", err)
@@ -252,9 +254,9 @@ func (r *postgresRepository) UpdateProductOptionValue(ctx context.Context, id uu
 		PriceValue:      priceValue,
 		PriceType:       db.CatalogProductOptionPriceType(priceType),
 		IsDefault:       isDefault,
-		SourceProductID: nullUUIDFromPtr(sourceProductID),
+		SourceProductID: sqlnull.UUIDNonZero(sourceProductID),
 		Quantity:        quantity,
-		ForcedLineQty:   nullFloatFromPtr(forcedLineQty),
+		ForcedLineQty:   sqlnull.Float64(forcedLineQty),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -394,14 +396,6 @@ type UpdateProductOptionFields struct {
 	VisibleIf      *OptionConditionGroup
 }
 
-// nullFloatFromPtr maps nil -> SQL NULL, else the pointed-at value
-func nullFloatFromPtr(f *float64) sql.NullFloat64 {
-	if f == nil {
-		return sql.NullFloat64{}
-	}
-	return sql.NullFloat64{Float64: *f, Valid: true}
-}
-
 // --- null-helpers (local to options for now) ---
 
 // nullRawFromGroup marshals a visibility condition to JSONB (NULL when nil)
@@ -414,34 +408,6 @@ func nullRawFromGroup(g *OptionConditionGroup) pqtype.NullRawMessage {
 		return pqtype.NullRawMessage{}
 	}
 	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}
-}
-
-func nullInt32FromPtr(p *int32) sql.NullInt32 {
-	if p == nil {
-		return sql.NullInt32{}
-	}
-	return sql.NullInt32{Valid: true, Int32: *p}
-}
-
-func nullInt64FromPtr(p *int64) sql.NullInt64 {
-	if p == nil {
-		return sql.NullInt64{}
-	}
-	return sql.NullInt64{Valid: true, Int64: *p}
-}
-
-func nullStringFromStr(s string) sql.NullString {
-	if s == "" {
-		return sql.NullString{}
-	}
-	return sql.NullString{Valid: true, String: s}
-}
-
-func nullUUIDFromPtr(p *uuid.UUID) uuid.NullUUID {
-	if p == nil || *p == (uuid.UUID{}) {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{Valid: true, UUID: *p}
 }
 
 func nullPriceType(t *ProductOptionPriceType) db.NullCatalogProductOptionPriceType {

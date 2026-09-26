@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 // The slug is the public handle the storefront resolves a form by, so it has to come out URL-safe
@@ -107,21 +109,21 @@ func TestNullUUIDTreatsTheZeroValueAsUnset(t *testing.T) {
 	id := uuid.New()
 	nilID := uuid.Nil
 
-	if got := nullUUID(nil); got.Valid {
+	if got := sqlnull.UUIDNonZero(nil); got.Valid {
 		t.Error("nullUUID(nil) is Valid, want NULL")
 	}
-	if got := nullUUID(&nilID); got.Valid {
+	if got := sqlnull.UUIDNonZero(&nilID); got.Valid {
 		t.Error("nullUUID(&uuid.Nil) is Valid, want NULL rather than a zero foreign key")
 	}
-	got := nullUUID(&id)
+	got := sqlnull.UUIDNonZero(&id)
 	if !got.Valid || got.UUID != id {
 		t.Errorf("nullUUID(&id) = %v, want the id", got)
 	}
 
-	if got := nullUUIDv(uuid.Nil); got.Valid {
+	if got := sqlnull.UUIDValueNonZero(uuid.Nil); got.Valid {
 		t.Error("nullUUIDv(uuid.Nil) is Valid, want NULL")
 	}
-	if got := nullUUIDv(id); !got.Valid || got.UUID != id {
+	if got := sqlnull.UUIDValueNonZero(id); !got.Valid || got.UUID != id {
 		t.Errorf("nullUUIDv(id) = %v, want the id", got)
 	}
 }

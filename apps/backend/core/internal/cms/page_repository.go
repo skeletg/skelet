@@ -14,6 +14,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/blockkit"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 func (r *postgresRepository) ListPagesByType(ctx context.Context, pageTypeID uuid.UUID) ([]Page, error) {
@@ -68,14 +69,14 @@ func (r *postgresRepository) DeletePageVariantContent(ctx context.Context, pageI
 func (r *postgresRepository) CreatePage(ctx context.Context, in CreatePageInput) (Page, error) {
 	row, err := r.queries.CreateCMSPage(ctx, db.CreateCMSPageParams{
 		PageTypeID:      in.PageTypeID,
-		ParentID:        nullUUID(in.ParentID),
+		ParentID:        sqlnull.UUID(in.ParentID),
 		Slug:            in.Slug,
 		BasePath:        in.Slug, // overwritten by service after base/url paths are computed
 		UrlPath:         in.Slug,
 		Position:        in.Position,
 		IsPublished:     in.IsPublished,
 		SeoNoindex:      in.SEONoindex,
-		PublishedAt:     nullTime(in.PublishedAt),
+		PublishedAt:     sqlnull.Time(in.PublishedAt),
 		Data:            emptyJSON(in.Data),
 		Metadata:        metadataToJSON(in.Metadata),
 		PrivateMetadata: metadataToJSON(in.PrivateMetadata),
@@ -193,7 +194,7 @@ func (r *postgresRepository) ListPages(ctx context.Context, filter PageListFilte
 		PageTypeID:    pageTypeID,
 		ParentID:      parentID,
 		OnlyPublished: sql.NullBool{Bool: filter.OnlyPublished, Valid: true},
-		WorkflowState: nullableStringPtr(filter.WorkflowState),
+		WorkflowState: sqlnull.StringNonEmpty(filter.WorkflowState),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list pages: %w", err)
@@ -237,7 +238,7 @@ func (r *postgresRepository) ListPagesSearch(ctx context.Context, filter PageLis
 		PageTypeID:    pageTypeID,
 		ParentID:      parentID,
 		OnlyPublished: sql.NullBool{Bool: filter.OnlyPublished, Valid: true},
-		WorkflowState: nullableStringPtr(filter.WorkflowState),
+		WorkflowState: sqlnull.StringNonEmpty(filter.WorkflowState),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("search pages: %w", err)
@@ -365,7 +366,7 @@ func (r *postgresRepository) UpdatePageURLPath(ctx context.Context, id uuid.UUID
 
 func (r *postgresRepository) SetPagePublished(ctx context.Context, id uuid.UUID, isPublished bool, publishedAt *time.Time) (Page, error) {
 	row, err := r.queries.SetCMSPagePublished(ctx, db.SetCMSPagePublishedParams{
-		ID: id, IsPublished: isPublished, PublishedAt: nullTime(publishedAt),
+		ID: id, IsPublished: isPublished, PublishedAt: sqlnull.Time(publishedAt),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -389,9 +390,9 @@ func (r *postgresRepository) UpsertPageContent(ctx context.Context, pageID uuid.
 		Locale:          in.Locale,
 		Title:           in.Title,
 		Body:            pqtype.NullRawMessage{RawMessage: in.Body, Valid: len(in.Body) > 0},
-		MetaTitle:       nullableString(in.MetaTitle),
-		MetaDescription: nullableString(in.MetaDescription),
-		MetaKeywords:    nullableString(in.MetaKeywords),
+		MetaTitle:       sqlnull.StringValueNonEmpty(in.MetaTitle),
+		MetaDescription: sqlnull.StringValueNonEmpty(in.MetaDescription),
+		MetaKeywords:    sqlnull.StringValueNonEmpty(in.MetaKeywords),
 		Data:            emptyJSON(in.Data),
 	})
 	if err != nil {
@@ -553,7 +554,7 @@ func toPage(row db.CmsPage) Page {
 	return Page{
 		ID:              row.ID,
 		PageTypeID:      row.PageTypeID,
-		ParentID:        nullUUIDPtr(row.ParentID),
+		ParentID:        sqlnull.UUIDPtr(row.ParentID),
 		Slug:            row.Slug,
 		BasePath:        row.BasePath,
 		URLPath:         row.UrlPath,
@@ -568,11 +569,11 @@ func toPage(row db.CmsPage) Page {
 		PrivateMetadata: metadataFromJSON(row.PrivateMetadata),
 		Tags:            tagsOrEmpty(row.Tags),
 		WorkflowState:   WorkflowState(row.WorkflowState),
-		AssignedTo:      nullUUIDPtr(row.AssignedTo),
-		SubmittedBy:     nullUUIDPtr(row.SubmittedBy),
-		SubmittedAt:     nullTimePtr(row.SubmittedAt),
-		ApprovedBy:      nullUUIDPtr(row.ApprovedBy),
-		ApprovedAt:      nullTimePtr(row.ApprovedAt),
+		AssignedTo:      sqlnull.UUIDPtr(row.AssignedTo),
+		SubmittedBy:     sqlnull.UUIDPtr(row.SubmittedBy),
+		SubmittedAt:     sqlnull.TimePtr(row.SubmittedAt),
+		ApprovedBy:      sqlnull.UUIDPtr(row.ApprovedBy),
+		ApprovedAt:      sqlnull.TimePtr(row.ApprovedAt),
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,
 	}
@@ -617,9 +618,9 @@ func toPageContent(row db.CmsPageContent) PageContent {
 	}
 	return PageContent{
 		Locale: row.Locale, Title: row.Title, Body: body,
-		MetaTitle:       nullStringPtr(row.MetaTitle),
-		MetaDescription: nullStringPtr(row.MetaDescription),
-		MetaKeywords:    nullStringPtr(row.MetaKeywords),
+		MetaTitle:       sqlnull.StringPtr(row.MetaTitle),
+		MetaDescription: sqlnull.StringPtr(row.MetaDescription),
+		MetaKeywords:    sqlnull.StringPtr(row.MetaKeywords),
 		Data:            row.Data,
 		UpdatedAt:       row.UpdatedAt,
 	}

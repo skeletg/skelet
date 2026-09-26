@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 // ==================== Bundle options ====================
@@ -23,7 +24,7 @@ func (r *postgresRepository) CreateBundleOption(ctx context.Context, input AddBu
 			IsRequired:    input.IsRequired,
 			SortOrder:     input.SortOrder,
 			MinSelections: input.MinSelections,
-			MaxSelections: nullInt32(input.MaxSelections),
+			MaxSelections: sqlnull.Int32(input.MaxSelections),
 		})
 		if err != nil {
 			return fmt.Errorf("create bundle option: %w", err)
@@ -77,7 +78,7 @@ func (r *postgresRepository) UpdateBundleOption(ctx context.Context, id uuid.UUI
 		IsRequired:    isRequired,
 		SortOrder:     sortOrder,
 		MinSelections: minSelections,
-		MaxSelections: nullInt32(maxSelections),
+		MaxSelections: sqlnull.Int32(maxSelections),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -268,14 +269,6 @@ func toBundleOption(row db.CatalogProductBundleOption) BundleOption {
 		o.MaxSelections = &v
 	}
 	return o
-}
-
-// nullInt32 converts an optional int32 to the sql.NullInt32 sqlc expects for a nullable INT column
-func nullInt32(p *int32) sql.NullInt32 {
-	if p == nil {
-		return sql.NullInt32{}
-	}
-	return sql.NullInt32{Int32: *p, Valid: true}
 }
 
 func toBundleSelection(row db.CatalogProductBundleSelection) BundleSelection {
