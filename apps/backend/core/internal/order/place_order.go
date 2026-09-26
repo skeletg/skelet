@@ -9,11 +9,13 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/skeletg/skelet/apps/backend/core/internal/address"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	shippingpkg "github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -74,6 +76,10 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 		}
 	}
 
+	if err := s.checkStrictAddress(ctx, store.ID, shipping); err != nil {
+		return nil, err
+	}
+
 	// Resolve + validate the payment provider - optional (no slug = no provider),
 	// but when supplied it must be enabled for the channel and accept the shipping country
 	var paymentProvider string
@@ -126,6 +132,33 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 	}, nil
 }
 
+// Strict channels refuse a shipping address the validator marks invalid - a validator outage never blocks, same as the storefront
+func (s *Service) checkStrictAddress(ctx context.Context, channelID uuid.UUID, a OrderAddress) error {
+	if s.addresses == nil || !s.addresses.Strict(ctx, channelID) {
+		return nil
+	}
+	res, err := s.addresses.Validate(ctx, channelID, address.Input{
+		Street1:     a.Street1,
+		Street2:     ptr.Deref(a.Street2),
+		City:        a.City,
+		State:       ptr.Deref(a.State),
+		PostalCode:  a.PostalCode,
+		CountryCode: a.CountryCode,
+	})
+	if err != nil {
+		log.Printf("[order] address validator failed on channel %s, not blocking: %v", channelID, err)
+		return nil
+	}
+	if res.Valid {
+		return nil
+	}
+	msg := "Please check the shipping address"
+	if len(res.Messages) > 0 {
+		msg += ": " + strings.Join(res.Messages, "; ")
+	}
+	return apperr.New("ADDRESS_INVALID", apperr.ClassValidation, msg+".")
+}
+
 // resolveCheckoutCart loads the cart to place - an explicit id (checked for store
 // match + ownership) is preferred, else a logged-in customer's active cart
 func (s *Service) resolveCheckoutCart(ctx context.Context, in PlaceOrderInput, storeID uuid.UUID) (cart.Cart, error) {
@@ -157,7 +190,7 @@ func (s *Service) resolveCheckoutCart(ctx context.Context, in PlaceOrderInput, s
 }
 
 // Runs the core per-line tax when no plugin claimed the seam - resolves each line's tax class by SKU, distributes the discount across lines, and asks the tax service for the total. totalDiscount floors at zero Also records the per-rule breakdown on cc.taxLines - the engine resolves it anyway, and dropping it left orders with a tax_amount nothing could explain
-func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, totalDiscount int64) (int64, error) {
+func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, totalDiscount, shippingCents int64) (int64, error) {
 	cc.taxLines = nil
 	// Tax-exempt customers pay zero core tax on every recompute path - a TaxCents plugin is still authoritative, this only gates core
 	if cc.customer.TaxExempt {
@@ -187,6 +220,15 @@ func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, total
 	}
 
 	lines := allocateLineTaxInputs(cc.cart.Lines, cc.subtotal, totalDiscount, classByLine)
+	if shippingCents > 0 {
+		class, taxable := "", true
+		if s.shippingTax != nil {
+			class, taxable = s.shippingTax(ctx, cc.store.ID)
+		}
+		if taxable {
+			lines = append(lines, tax.LineTaxInput{ProductTaxClass: class, TaxableCents: shippingCents})
+		}
+	}
 	res, err := s.tax.ComputeOrder(ctx, tax.ComputeOrderInput{
 		ChannelID:         cc.store.ID,
 		CountryCode:       cc.shipping.CountryCode,
