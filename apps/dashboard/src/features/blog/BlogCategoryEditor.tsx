@@ -44,14 +44,17 @@ export function BlogCategoryEditor() {
 }
 
 function CategoryForm({ category }: { category?: BlogCategoryNodeFragment }) {
+  // Unlike tags and authors the detail is fetched again after a write - updates answer with
+  // `content: null`, and the category tree stops three levels down, so for a deeper category the
+  // list refetch wouldn't put it back
   const lists = [{ query: BlogCategoriesDocument }]
   const afterWrite = category ? [...lists, { query: BlogCategoryDocument, variables: { id: category.id } }] : lists
   const [createCategory] = useMutation(CreateBlogCategoryDocument, { refetchQueries: lists })
   const [updateCategory] = useMutation(UpdateBlogCategoryDocument, { refetchQueries: afterWrite })
   const [upsertContent] = useMutation(UpsertBlogCategoryContentDocument, { refetchQueries: afterWrite })
   const [deleteCategory] = useMutation(DeleteBlogCategoryDocument, { refetchQueries: lists })
-  // Detail query only - the list resolvers return allContent: [], so refetching a list here would
-  // blank the locale pills
+  // Answers with a Boolean, so the detail is fetched again - the category is normalised, so the
+  // tree loses the removed locale too
   const [deleteContent] = useMutation(DeleteBlogCategoryContentDocument, {
     refetchQueries: category ? [{ query: BlogCategoryDocument, variables: { id: category.id } }] : [],
     awaitRefetchQueries: true,
