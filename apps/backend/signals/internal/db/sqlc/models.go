@@ -78,16 +78,6 @@ type CustomerEngagementRefresh struct {
 	RanAt     time.Time `json:"ran_at"`
 }
 
-type CustomerOrderAgg struct {
-	CustomerID    uuid.UUID    `json:"customer_id"`
-	ChannelID     uuid.UUID    `json:"channel_id"`
-	OrderCount    int32        `json:"order_count"`
-	MonetaryCents int64        `json:"monetary_cents"`
-	FirstOrderAt  sql.NullTime `json:"first_order_at"`
-	LastOrderAt   sql.NullTime `json:"last_order_at"`
-	ComputedAt    time.Time    `json:"computed_at"`
-}
-
 type CustomerRoster struct {
 	CustomerID          uuid.UUID       `json:"customer_id"`
 	ChannelID           uuid.UUID       `json:"channel_id"`
@@ -105,6 +95,10 @@ type CustomerRoster struct {
 	CustomerGroupSlug   string          `json:"customer_group_slug"`
 	Consents            json.RawMessage `json:"consents"`
 	SourceReadAt        sql.NullTime    `json:"source_read_at"`
+	OrderCount          int32           `json:"order_count"`
+	MonetaryCents       int64           `json:"monetary_cents"`
+	FirstOrderAt        sql.NullTime    `json:"first_order_at"`
+	LastOrderAt         sql.NullTime    `json:"last_order_at"`
 }
 
 type CustomerRosterState struct {

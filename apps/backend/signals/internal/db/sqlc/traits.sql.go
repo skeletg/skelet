@@ -190,16 +190,6 @@ func (q *Queries) ClearChannelEngagement(ctx context.Context, channelID uuid.UUI
 	return err
 }
 
-const clearChannelOrderAgg = `-- name: ClearChannelOrderAgg :exec
-DELETE FROM customer_order_agg WHERE channel_id = $1
-`
-
-// The empty-refresh case: a channel whose spine holds no surviving orders
-func (q *Queries) ClearChannelOrderAgg(ctx context.Context, channelID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, clearChannelOrderAgg, channelID)
-	return err
-}
-
 const clearChannelRosterTombstones = `-- name: ClearChannelRosterTombstones :exec
 DELETE FROM channel_roster_tombstones WHERE channel_id = ANY($1::uuid[])
 `
@@ -844,12 +834,12 @@ func (q *Queries) PruneRosterTombstones(ctx context.Context, before time.Time) (
 
 const recomputeChannelTraits = `-- name: RecomputeChannelTraits :execrows
 WITH agg AS (
-    -- Every input is local now: the roster is synced from commerce, and the order aggregate is fed by the spine Driven by the roster rather than customers, so a never-ordered customer still keeps a row and lands as a prospect, and the lifecycle override rides along on it rather than being derived from segments here
+    -- Driven by the roster, which carries core's lifetime order totals - a never-ordered customer still keeps a row and lands as a prospect, and the lifecycle override rides along rather than being derived from segments here
     SELECT c.customer_id                            AS customer_id,
-           COALESCE(a.order_count, 0)::int          AS order_count,
-           COALESCE(a.monetary_cents, 0)::bigint    AS monetary_cents,
-           a.last_order_at                          AS last_order_at,
-           a.first_order_at                         AS first_order_at,
+           c.order_count::int                       AS order_count,
+           c.monetary_cents::bigint                 AS monetary_cents,
+           c.last_order_at                          AS last_order_at,
+           c.first_order_at                         AS first_order_at,
            o.new_days, o.active_days, o.at_risk_days
     FROM customer_roster c
     LEFT JOIN LATERAL (
@@ -861,7 +851,6 @@ WITH agg AS (
         ORDER BY s.lifecycle_at_risk_days ASC, s.id
         LIMIT 1
     ) o ON TRUE
-    LEFT JOIN customer_order_agg a ON a.customer_id = c.customer_id
     WHERE c.channel_id = $1::uuid
 ),
 act AS (
@@ -1024,44 +1013,6 @@ func (q *Queries) ReplaceChannelEngagement(ctx context.Context, arg ReplaceChann
 	return err
 }
 
-const replaceChannelOrderAgg = `-- name: ReplaceChannelOrderAgg :exec
-WITH pruned AS (
-    DELETE FROM customer_order_agg
-    WHERE channel_id = $2::uuid
-      AND NOT (customer_id = ANY($1::uuid[]))
-)
-INSERT INTO customer_order_agg (customer_id, channel_id, order_count, monetary_cents, first_order_at, last_order_at)
-SELECT unnest($1::uuid[]), $2::uuid,
-       unnest($3::int[]), unnest($4::bigint[]),
-       unnest($5::timestamptz[]), unnest($6::timestamptz[])
-ON CONFLICT (customer_id) DO UPDATE
-    SET channel_id = EXCLUDED.channel_id, order_count = EXCLUDED.order_count,
-        monetary_cents = EXCLUDED.monetary_cents, first_order_at = EXCLUDED.first_order_at,
-        last_order_at = EXCLUDED.last_order_at, computed_at = now()
-`
-
-type ReplaceChannelOrderAggParams struct {
-	CustomerIds   []uuid.UUID `json:"customer_ids"`
-	ChannelID     uuid.UUID   `json:"channel_id"`
-	OrderCounts   []int32     `json:"order_counts"`
-	MonetaryCents []int64     `json:"monetary_cents"`
-	FirstOrderAts []time.Time `json:"first_order_ats"`
-	LastOrderAts  []time.Time `json:"last_order_ats"`
-}
-
-// Atomically swap a channel's order projection to the given per-customer aggregates (paired arrays), one statement for the same reason the engagement swap is one: a crash must not leave it half-cleared before RecomputeChannelTraits reads it and zeroes everyone's RFM
-func (q *Queries) ReplaceChannelOrderAgg(ctx context.Context, arg ReplaceChannelOrderAggParams) error {
-	_, err := q.db.ExecContext(ctx, replaceChannelOrderAgg,
-		pq.Array(arg.CustomerIds),
-		arg.ChannelID,
-		pq.Array(arg.OrderCounts),
-		pq.Array(arg.MonetaryCents),
-		pq.Array(arg.FirstOrderAts),
-		pq.Array(arg.LastOrderAts),
-	)
-	return err
-}
-
 const rfmDistributionForCustomers = `-- name: RfmDistributionForCustomers :many
 SELECT x.dimension::text AS dimension, x.score::int AS score, COUNT(*)::int AS count
 FROM (
@@ -1205,7 +1156,7 @@ SELECT customer_id,
        order_count::int        AS orders,
        monetary_cents::bigint  AS spend_cents,
        last_order_at
-FROM customer_order_agg
+FROM customer_roster
 WHERE customer_id = ANY($1::uuid[])
 `
 
@@ -1216,8 +1167,7 @@ type SegmentMemberOrderStatsRow struct {
 	LastOrderAt sql.NullTime `json:"last_order_at"`
 }
 
-// The order half of a segment's member panel, off the same projection the RFM scores beside it derive
-// from, so a member's orders and spend agree with their recency/frequency/monetary
+// The order half of a segment's member panel, off the same roster totals the RFM scores beside it derive from
 func (q *Queries) SegmentMemberOrderStats(ctx context.Context, customerIds []uuid.UUID) ([]SegmentMemberOrderStatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, segmentMemberOrderStats, pq.Array(customerIds))
 	if err != nil {
@@ -1249,7 +1199,7 @@ func (q *Queries) SegmentMemberOrderStats(ctx context.Context, customerIds []uui
 const segmentOrderRollup = `-- name: SegmentOrderRollup :one
 SELECT COALESCE(SUM(order_count), 0)::bigint    AS orders,
        COALESCE(SUM(monetary_cents), 0)::bigint AS revenue_cents
-FROM customer_order_agg
+FROM customer_roster
 WHERE customer_id = ANY($1::uuid[])
 `
 
@@ -1450,41 +1400,53 @@ func (q *Queries) UpsertChannelRoster(ctx context.Context, arg UpsertChannelRost
 
 const upsertCustomerRoster = `-- name: UpsertCustomerRoster :exec
 
-INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at)
+INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at,
+                             order_count, monetary_cents, first_order_at, last_order_at)
 SELECT u.customer_id, u.channel_id, u.email, u.first_name, u.phone, u.is_active, u.group_id, u.group_slug,
        u.opted_in, u.sms_opted_in, u.consents::jsonb,
-       CASE WHEN u.read_at > 'epoch'::timestamptz THEN u.read_at END, $1
+       CASE WHEN u.read_at > 'epoch'::timestamptz THEN u.read_at END, $1,
+       u.order_count, u.monetary_cents,
+       CASE WHEN u.first_order_at > 'epoch'::timestamptz THEN u.first_order_at END,
+       CASE WHEN u.last_order_at > 'epoch'::timestamptz THEN u.last_order_at END
 FROM (SELECT unnest($2::uuid[]) AS customer_id, unnest($3::uuid[]) AS channel_id,
              unnest($4::text[]) AS email, unnest($5::text[]) AS first_name,
              unnest($6::text[]) AS phone, unnest($7::boolean[]) AS is_active,
              unnest($8::uuid[]) AS group_id, unnest($9::text[]) AS group_slug,
              unnest($10::boolean[]) AS opted_in, unnest($11::boolean[]) AS sms_opted_in,
-             unnest($12::text[]) AS consents, unnest($13::timestamptz[]) AS read_at) u
+             unnest($12::text[]) AS consents, unnest($13::timestamptz[]) AS read_at,
+             unnest($14::int[]) AS order_count, unnest($15::bigint[]) AS monetary_cents,
+             unnest($16::timestamptz[]) AS first_order_at, unnest($17::timestamptz[]) AS last_order_at) u
 WHERE NOT EXISTS (SELECT 1 FROM customer_roster_tombstones t WHERE t.customer_id = u.customer_id)
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
         phone = EXCLUDED.phone, is_active = EXCLUDED.is_active, customer_group_id = EXCLUDED.customer_group_id,
         customer_group_slug = EXCLUDED.customer_group_slug,
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
-        consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at
+        consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at,
+        order_count = EXCLUDED.order_count, monetary_cents = EXCLUDED.monetary_cents,
+        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at
     WHERE customer_roster.source_read_at IS NULL OR EXCLUDED.source_read_at IS NULL
        OR EXCLUDED.source_read_at >= customer_roster.source_read_at
 `
 
 type UpsertCustomerRosterParams struct {
-	SyncedAt    time.Time   `json:"synced_at"`
-	CustomerIds []uuid.UUID `json:"customer_ids"`
-	ChannelIds  []uuid.UUID `json:"channel_ids"`
-	Emails      []string    `json:"emails"`
-	FirstNames  []string    `json:"first_names"`
-	Phones      []string    `json:"phones"`
-	Actives     []bool      `json:"actives"`
-	GroupIds    []uuid.UUID `json:"group_ids"`
-	GroupSlugs  []string    `json:"group_slugs"`
-	OptedIn     []bool      `json:"opted_in"`
-	SmsOptedIn  []bool      `json:"sms_opted_in"`
-	Consents    []string    `json:"consents"`
-	ReadAts     []time.Time `json:"read_ats"`
+	SyncedAt      time.Time   `json:"synced_at"`
+	CustomerIds   []uuid.UUID `json:"customer_ids"`
+	ChannelIds    []uuid.UUID `json:"channel_ids"`
+	Emails        []string    `json:"emails"`
+	FirstNames    []string    `json:"first_names"`
+	Phones        []string    `json:"phones"`
+	Actives       []bool      `json:"actives"`
+	GroupIds      []uuid.UUID `json:"group_ids"`
+	GroupSlugs    []string    `json:"group_slugs"`
+	OptedIn       []bool      `json:"opted_in"`
+	SmsOptedIn    []bool      `json:"sms_opted_in"`
+	Consents      []string    `json:"consents"`
+	ReadAts       []time.Time `json:"read_ats"`
+	OrderCounts   []int32     `json:"order_counts"`
+	MonetaryCents []int64     `json:"monetary_cents"`
+	FirstOrderAts []time.Time `json:"first_order_ats"`
+	LastOrderAts  []time.Time `json:"last_order_ats"`
 }
 
 // Spine half of trait compute (the `act` CTE), split out of the commerce RecomputeChannelTraits - feeds the
@@ -1506,23 +1468,31 @@ func (q *Queries) UpsertCustomerRoster(ctx context.Context, arg UpsertCustomerRo
 		pq.Array(arg.SmsOptedIn),
 		pq.Array(arg.Consents),
 		pq.Array(arg.ReadAts),
+		pq.Array(arg.OrderCounts),
+		pq.Array(arg.MonetaryCents),
+		pq.Array(arg.FirstOrderAts),
+		pq.Array(arg.LastOrderAts),
 	)
 	return err
 }
 
 const upsertCustomerRosterEntry = `-- name: UpsertCustomerRosterEntry :exec
-INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at)
+INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at,
+                             order_count, monetary_cents, first_order_at, last_order_at)
 SELECT $1::uuid, $2::uuid, $3::text, $4::text,
        $5::text, $6::boolean, $7::uuid, $8::text,
        $9::boolean, $10::boolean, $11::jsonb,
-       CASE WHEN $12::timestamptz > 'epoch'::timestamptz THEN $12::timestamptz END, now()
+       CASE WHEN $12::timestamptz > 'epoch'::timestamptz THEN $12::timestamptz END, now(),
+       $13::int, $14::bigint, $15::timestamptz, $16::timestamptz
 WHERE NOT EXISTS (SELECT 1 FROM customer_roster_tombstones t WHERE t.customer_id = $1::uuid)
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
         phone = EXCLUDED.phone, is_active = EXCLUDED.is_active, customer_group_id = EXCLUDED.customer_group_id,
         customer_group_slug = EXCLUDED.customer_group_slug,
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
-        consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at
+        consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at,
+        order_count = EXCLUDED.order_count, monetary_cents = EXCLUDED.monetary_cents,
+        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at
     WHERE customer_roster.source_read_at IS NULL OR EXCLUDED.source_read_at IS NULL
        OR EXCLUDED.source_read_at >= customer_roster.source_read_at
 `
@@ -1540,6 +1510,10 @@ type UpsertCustomerRosterEntryParams struct {
 	SmsOptedIn        bool            `json:"sms_opted_in"`
 	Consents          json.RawMessage `json:"consents"`
 	ReadAt            time.Time       `json:"read_at"`
+	OrderCount        int32           `json:"order_count"`
+	MonetaryCents     int64           `json:"monetary_cents"`
+	FirstOrderAt      sql.NullTime    `json:"first_order_at"`
+	LastOrderAt       sql.NullTime    `json:"last_order_at"`
 }
 
 // One customer, arriving on a change rather than a sweep - synced_at moves too, so the next sweep does not prune a row that just landed
@@ -1557,6 +1531,10 @@ func (q *Queries) UpsertCustomerRosterEntry(ctx context.Context, arg UpsertCusto
 		arg.SmsOptedIn,
 		arg.Consents,
 		arg.ReadAt,
+		arg.OrderCount,
+		arg.MonetaryCents,
+		arg.FirstOrderAt,
+		arg.LastOrderAt,
 	)
 	return err
 }

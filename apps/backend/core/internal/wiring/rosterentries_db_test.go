@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 )
 
@@ -158,4 +160,39 @@ func TestRosterSweepSurvivesDeleteBetweenPages(t *testing.T) {
 		}
 	}
 	t.Fatal("the next live customer after a deleted one was skipped")
+}
+
+// The lifetime totals the suite scores customers on - drafts and cancellations never count, and the sweep and the push agree
+func TestRosterCarriesLifetimeOrderTotals(t *testing.T) {
+	s := rosterSourceFixture(t)
+	buyer, other := s.customer(), s.customer()
+	first, last := time.Date(2023, 3, 1, 12, 0, 0, 0, time.UTC), time.Date(2026, 1, 5, 12, 0, 0, 0, time.UTC)
+	order := func(customer uuid.UUID, status string, cents int64, at time.Time) {
+		t.Helper()
+		if _, err := s.conn.Exec(`INSERT INTO orders (channel_id, customer_id, currency_code, status, total_amount, created_at) VALUES ($1, $2, 'USD', $3, $4, $5)`,
+			s.channel, customer, status, cents, at); err != nil {
+			t.Fatalf("seed %s order: %v", status, err)
+		}
+	}
+	t.Cleanup(func() { _, _ = s.conn.Exec(`DELETE FROM orders WHERE channel_id = $1`, s.channel) })
+	order(buyer, "fulfilled", 5000, first)
+	order(buyer, "pending", 2500, last)
+	order(buyer, "cancelled", 9000, last.Add(time.Hour))
+	order(buyer, "draft", 7000, last.Add(2*time.Hour))
+	order(other, "fulfilled", 100, last)
+
+	swept, pushed := s.swept(buyer), s.pushed(buyer)
+	for name, got := range map[string][4]any{
+		"sweep": {swept.OrderCount, swept.MonetaryCents, signalsclient.TimeFromAny(swept.FirstOrderAt), signalsclient.TimeFromAny(swept.LastOrderAt)},
+		"push":  {pushed.OrderCount, pushed.MonetaryCents, signalsclient.TimeFromAny(pushed.FirstOrderAt), signalsclient.TimeFromAny(pushed.LastOrderAt)},
+	} {
+		f, l := got[2].(*time.Time), got[3].(*time.Time)
+		if got[0].(int32) != 2 || got[1].(int64) != 7500 || f == nil || !f.Equal(first) || l == nil || !l.Equal(last) {
+			t.Errorf("%s: %d orders, %d cents, first %v, last %v - want 2, 7500, %v, %v", name, got[0], got[1], f, l, first, last)
+		}
+	}
+	none := s.pushed(s.customer())
+	if none.OrderCount != 0 || none.MonetaryCents != 0 || signalsclient.TimeFromAny(none.LastOrderAt) != nil {
+		t.Errorf("a customer who never ordered: %d orders, %d cents, last %v", none.OrderCount, none.MonetaryCents, none.LastOrderAt)
+	}
 }
