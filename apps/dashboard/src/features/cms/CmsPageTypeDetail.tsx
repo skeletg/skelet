@@ -116,6 +116,9 @@ function PageTypeForm({ type, locale }: { type: CmsPageTypeRowFragment; locale: 
   const { data: chData } = useQuery(ChannelsDocument)
   const channels = useMemo(() => (chData?.channels ?? []).filter((c) => c.isActive), [chData])
   const [updateType] = useMutation(UpdateCmsPageTypeDocument, { refetchQueries })
+  // These answer with the type hydrated exactly as the list hydrates it, but still refetch: they run
+  // after updateType in the same save, and its bare-row answer can otherwise land last through its
+  // own refetch
   const [upsertContent] = useMutation(UpsertCmsPageTypeContentDocument, { refetchQueries })
   const [updateStructure] = useMutation(UpdateCmsPageTypeStructureDocument, { refetchQueries })
   const [setChannelRoot] = useMutation(SetCmsPageTypeChannelRootDocument, { refetchQueries })
@@ -392,12 +395,8 @@ function PageTypeAttributesPanel({
 }) {
   const { data: attrsData } = useQuery(CmsAttributesDocument)
   const allAttrs = attrsData?.cmsAttributes ?? []
-  const [assignMut] = useMutation(AssignCmsAttributeDocument, {
-    refetchQueries: [{ query: CmsPageTypesDocument }, { query: CmsAttributesDocument }],
-  })
-  const [unassignMut] = useMutation(UnassignCmsAttributeDocument, {
-    refetchQueries: [{ query: CmsPageTypesDocument }, { query: CmsAttributesDocument }],
-  })
+  const [assignMut] = useMutation(AssignCmsAttributeDocument, { refetchQueries: [{ query: CmsAttributesDocument }] })
+  const [unassignMut] = useMutation(UnassignCmsAttributeDocument, { refetchQueries: [{ query: CmsAttributesDocument }] })
 
   const [picked, setPicked] = useState('')
   const [required, setRequired] = useState(false)

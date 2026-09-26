@@ -55,14 +55,15 @@ function AuthorForm({ author }: { author?: BlogAuthorRowFragment }) {
   const [slugTouched, setSlugTouched] = useState(!isNew)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  // Writes answer with the whole author, allContent included, so the detail needs no refetch - only
+  // `content` comes back for the wrong locale, and the list refetch puts it right
   const lists = [{ query: BlogAuthorsDocument }]
-  const afterWrite = author ? [...lists, { query: BlogAuthorDocument, variables: { id: author.id } }] : lists
   const [createAuthor] = useMutation(CreateBlogAuthorDocument, { refetchQueries: lists })
-  const [updateAuthor] = useMutation(UpdateBlogAuthorDocument, { refetchQueries: afterWrite })
-  const [upsertContent] = useMutation(UpsertBlogAuthorContentDocument, { refetchQueries: afterWrite })
+  const [updateAuthor] = useMutation(UpdateBlogAuthorDocument, { refetchQueries: lists })
+  const [upsertContent] = useMutation(UpsertBlogAuthorContentDocument, { refetchQueries: lists })
   const [deleteAuthor] = useMutation(DeleteBlogAuthorDocument, { refetchQueries: lists })
-  // Detail query only - the list resolvers return allContent: [], so refetching a list here would
-  // blank the locale pills
+  // Answers with a Boolean, so the detail is fetched again - the author is normalised, so every
+  // list showing it loses the removed locale too
   const [deleteContent] = useMutation(DeleteBlogAuthorContentDocument, {
     refetchQueries: author ? [{ query: BlogAuthorDocument, variables: { id: author.id } }] : [],
     awaitRefetchQueries: true,
