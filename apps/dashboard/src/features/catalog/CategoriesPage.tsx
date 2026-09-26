@@ -670,8 +670,8 @@ function CategoryRecordForm({
   const [updateCategory] = useMutation(UpdateCategoryDocument, { refetchQueries: [...refetchQueries, ...detailRefetch] })
   const [upsertContent] = useMutation(UpsertCategoryContentDocument, { refetchQueries: [...refetchQueries, ...detailRefetch] })
   const [deleteCategory] = useMutation(DeleteCategoryDocument, { refetchQueries })
-  // Detail query only - rootCategories returns content: [], so pulling the tree in here would blank
-  // the locale pills
+  // Answers with a Boolean, so the detail is fetched again - the category is normalised, so the tree
+  // loses the removed locale too
   const [deleteContent] = useMutation(DeleteCategoryContentDocument, { refetchQueries: detailRefetch, awaitRefetchQueries: true })
   const [addToCategory] = useMutation(AddProductToCategoryDocument, { refetchQueries: detailRefetch })
   const [removeFromCategory] = useMutation(RemoveProductFromCategoryDocument, { refetchQueries: detailRefetch })
