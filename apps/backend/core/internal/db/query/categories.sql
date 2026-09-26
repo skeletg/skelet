@@ -106,6 +106,12 @@ WHERE category_id = ANY(sqlc.arg(category_ids)::uuid[])
   AND locale      = sqlc.arg(locale)::text
 ORDER BY category_id;
 
+-- name: ListCategoryContentForCategories :many
+-- Every locale's row for a set of categories - the admin tree and child lists answer Category.content in one query
+SELECT * FROM catalog_category_content
+WHERE category_id = ANY(sqlc.arg(category_ids)::uuid[])
+ORDER BY category_id, locale;
+
 -- name: DeleteCategoryContent :execrows
 DELETE FROM catalog_category_content WHERE category_id = $1 AND locale = $2;
 

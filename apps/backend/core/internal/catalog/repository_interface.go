@@ -119,6 +119,7 @@ type Repository interface {
 	GetProductContent(ctx context.Context, productID uuid.UUID, locale string) (ProductContent, error)
 	ListProductContent(ctx context.Context, productID uuid.UUID) ([]ProductContent, error)
 	ListProductContentByScope(ctx context.Context, productIDs []uuid.UUID, locale string) (map[uuid.UUID]ProductContent, error)
+	ListProductContentForProducts(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductContent, error)
 	UpsertProductContent(ctx context.Context, productID uuid.UUID, input ProductContentInput) (ProductContent, error)
 
 	// Product channel listings and URL paths
@@ -166,6 +167,7 @@ type Repository interface {
 	ListCategoryChildren(ctx context.Context, parentID uuid.UUID) ([]Category, error)
 	ListCategoryContent(ctx context.Context, categoryID uuid.UUID) ([]CategoryContent, error)
 	ListCategoryContentByScope(ctx context.Context, categoryIDs []uuid.UUID, locale string) (map[uuid.UUID]CategoryContent, error)
+	ListCategoryContentForCategories(ctx context.Context, categoryIDs []uuid.UUID) (map[uuid.UUID][]CategoryContent, error)
 	ListPrimaryCategoryByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID]*Category, error)
 	ListPublishedCategoriesForChannel(ctx context.Context, channelID uuid.UUID) ([]Category, error)
 	ListPublishedCategoryChildrenForChannel(ctx context.Context, channelID, parentID uuid.UUID) ([]Category, error)
@@ -189,6 +191,7 @@ type Repository interface {
 	GetCollectionByID(ctx context.Context, id uuid.UUID) (Collection, error)
 	GetCollectionContent(ctx context.Context, collectionID uuid.UUID, locale string) (CollectionContent, error)
 	ListCollectionContent(ctx context.Context, collectionID uuid.UUID) ([]CollectionContent, error)
+	ListCollectionContentForCollections(ctx context.Context, collectionIDs []uuid.UUID) (map[uuid.UUID][]CollectionContent, error)
 	ListCollectionContentByScope(ctx context.Context, collectionIDs []uuid.UUID, locale string) (map[uuid.UUID]CollectionContent, error)
 	ListCollectionFacetOverrides(ctx context.Context, collectionID uuid.UUID) ([]FacetOverride, error)
 	ReplaceCollectionFacetOverrides(ctx context.Context, collectionID uuid.UUID, overrides []FacetOverride) error

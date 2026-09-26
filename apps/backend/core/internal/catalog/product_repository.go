@@ -1125,6 +1125,22 @@ func (r *postgresRepository) ListProductContentByScope(ctx context.Context, prod
 	return out, nil
 }
 
+// Every locale's row per product, keyed by product - a product with no rows is simply absent
+func (r *postgresRepository) ListProductContentForProducts(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductContent, error) {
+	out := make(map[uuid.UUID][]ProductContent, len(productIDs))
+	if len(productIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListProductContentForProducts(ctx, productIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list product content for products: %w", err)
+	}
+	for _, row := range rows {
+		out[row.ProductID] = append(out[row.ProductID], toProductContent(row))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) DeleteProductContent(ctx context.Context, productID uuid.UUID, locale string) error {
 	n, err := r.queries.DeleteProductContent(ctx, db.DeleteProductContentParams{
 		ProductID: productID,

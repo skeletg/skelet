@@ -171,6 +171,11 @@ func (s *productService) CreateProduct(ctx context.Context, input CreateProductI
 	return s.repo.GetProductWithAttributes(ctx, p.ID)
 }
 
+// ListProductTranslations returns every locale's content row for each product, in one query - list paths only carry the resolved locale, so a caller wanting the full set (the admin Product.content field) reads it here
+func (s *productService) ListProductTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]ProductContent, error) {
+	return s.repo.ListProductContentForProducts(ctx, ids)
+}
+
 func (s *productService) GetProductByID(ctx context.Context, id uuid.UUID) (Product, error) {
 	return s.repo.GetProductByID(ctx, id)
 }

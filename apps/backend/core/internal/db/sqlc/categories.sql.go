@@ -782,6 +782,46 @@ func (q *Queries) ListCategoryContentByScope(ctx context.Context, arg ListCatego
 	return items, nil
 }
 
+const listCategoryContentForCategories = `-- name: ListCategoryContentForCategories :many
+SELECT category_id, locale, name, description, meta_title, meta_description, meta_keywords, updated_at, short_description FROM catalog_category_content
+WHERE category_id = ANY($1::uuid[])
+ORDER BY category_id, locale
+`
+
+// Every locale's row for a set of categories - the admin tree and child lists answer Category.content in one query
+func (q *Queries) ListCategoryContentForCategories(ctx context.Context, categoryIds []uuid.UUID) ([]CatalogCategoryContent, error) {
+	rows, err := q.db.QueryContext(ctx, listCategoryContentForCategories, pq.Array(categoryIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CatalogCategoryContent{}
+	for rows.Next() {
+		var i CatalogCategoryContent
+		if err := rows.Scan(
+			&i.CategoryID,
+			&i.Locale,
+			&i.Name,
+			&i.Description,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.MetaKeywords,
+			&i.UpdatedAt,
+			&i.ShortDescription,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCategoryFacetOverrides = `-- name: ListCategoryFacetOverrides :many
 SELECT o.attribute_id, a.slug AS attribute_slug, o.sort_order, o.is_hidden
   FROM category_facet_overrides o

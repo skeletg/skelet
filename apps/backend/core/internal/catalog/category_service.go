@@ -146,6 +146,11 @@ func (s *categoryService) GetCategoryBySlug(ctx context.Context, slug string) (C
 	return s.repo.GetCategoryBySlug(ctx, slug)
 }
 
+// ListCategoryTranslations returns every locale's content row for each category, in one query - list paths only carry the resolved locale, so a caller wanting the full set (the admin Category.content field) reads it here
+func (s *categoryService) ListCategoryTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]CategoryContent, error) {
+	return s.repo.ListCategoryContentForCategories(ctx, ids)
+}
+
 // CountProductsInCategory returns how many products are directly assigned to a category (its own membership - descendant categories are not rolled up) - Backs the admin Category.productCount field
 func (s *categoryService) CountProductsInCategory(ctx context.Context, id uuid.UUID) (int64, error) {
 	return s.repo.CountProductsInCategory(ctx, id)

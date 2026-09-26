@@ -354,6 +354,45 @@ func (q *Queries) ListCollectionContentByScope(ctx context.Context, arg ListColl
 	return items, nil
 }
 
+const listCollectionContentForCollections = `-- name: ListCollectionContentForCollections :many
+SELECT collection_id, locale, name, description, meta_title, meta_description, meta_keywords, updated_at FROM catalog_collection_content
+WHERE collection_id = ANY($1::uuid[])
+ORDER BY collection_id, locale
+`
+
+// Every locale's row for a set of collections - admin collection lists answer Collection.content in one query
+func (q *Queries) ListCollectionContentForCollections(ctx context.Context, collectionIds []uuid.UUID) ([]CollectionContent, error) {
+	rows, err := q.db.QueryContext(ctx, listCollectionContentForCollections, pq.Array(collectionIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CollectionContent{}
+	for rows.Next() {
+		var i CollectionContent
+		if err := rows.Scan(
+			&i.CollectionID,
+			&i.Locale,
+			&i.Name,
+			&i.Description,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.MetaKeywords,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCollectionFacetOverrides = `-- name: ListCollectionFacetOverrides :many
 SELECT o.attribute_id, a.slug AS attribute_slug, o.sort_order, o.is_hidden
   FROM collection_facet_overrides o
