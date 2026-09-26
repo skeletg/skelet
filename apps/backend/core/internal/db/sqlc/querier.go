@@ -772,6 +772,8 @@ type Querier interface {
 	GetWebhookSigningSecret(ctx context.Context, id uuid.UUID) (string, error)
 	GetWishlistShareByCustomer(ctx context.Context, customerID uuid.UUID) (WishlistShare, error)
 	GetWishlistShareByToken(ctx context.Context, token string) (WishlistShare, error)
+	// Every column a publish changes, in one statement, so a page is never live with a stale workflow state or unscheduled without being live
+	GoLiveCMSPage(ctx context.Context, arg GoLiveCMSPageParams) (CmsPage, error)
 	// Ensures the administrator role holds every permission at global scope (channel + locale both NULL) - run at startup after upserting registered permissions so newly-registered ones are immediately available to administrators - idempotent via the unique index
 	GrantAllPermissionsToAdministrator(ctx context.Context) error
 	// ==================== Verified-purchase check ====================

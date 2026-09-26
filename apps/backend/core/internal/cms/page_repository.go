@@ -377,6 +377,20 @@ func (r *postgresRepository) SetPagePublished(ctx context.Context, id uuid.UUID,
 	return toPage(row), nil
 }
 
+// Every column a publish changes, in one statement - clearSchedule is for the scheduler, which consumes the schedule it acted on
+func (r *postgresRepository) GoLive(ctx context.Context, id uuid.UUID, publishedAt time.Time, clearSchedule bool) (Page, error) {
+	row, err := r.queries.GoLiveCMSPage(ctx, db.GoLiveCMSPageParams{
+		ID: id, PublishedAt: sql.NullTime{Time: publishedAt, Valid: true}, ClearSchedule: clearSchedule,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Page{}, ErrPageNotFound
+		}
+		return Page{}, fmt.Errorf("publish page: %w", err)
+	}
+	return toPage(row), nil
+}
+
 func (r *postgresRepository) DeletePage(ctx context.Context, id uuid.UUID) error {
 	if err := r.queries.DeleteCMSPage(ctx, id); err != nil {
 		return fmt.Errorf("delete page: %w", err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -33,6 +34,7 @@ type pageStore interface {
 	GetPublishedPageByURLPathForChannel(ctx context.Context, urlPath string, channelID uuid.UUID) (Page, error)
 	GetPublishedPageForChannel(ctx context.Context, pageID, channelID uuid.UUID) (Page, error)
 	GetRevision(ctx context.Context, id uuid.UUID) (PageRevision, error)
+	GoLive(ctx context.Context, id uuid.UUID, publishedAt time.Time, clearSchedule bool) (Page, error)
 	ListDueScheduledPages(ctx context.Context) ([]Page, error)
 	ListPageChannelListings(ctx context.Context, pageID uuid.UUID) ([]PageChannelListing, error)
 	ListPageChildren(ctx context.Context, parentID uuid.UUID) ([]Page, error)
@@ -46,7 +48,6 @@ type pageStore interface {
 	SetPagePublished(ctx context.Context, id uuid.UUID, isPublished bool, publishedAt *time.Time) (Page, error)
 	SetPageRelationships(ctx context.Context, pageID, attributeID uuid.UUID, refs []PageRelationship) error
 	SetPageSelections(ctx context.Context, pageID, attributeID uuid.UUID, valueIDs []uuid.UUID) error
-	SetPageWorkflowState(ctx context.Context, id uuid.UUID, state WorkflowState) (Page, error)
 	SetScheduledAt(ctx context.Context, pageID uuid.UUID, at *time.Time) (Page, error)
 	UpdatePage(ctx context.Context, in UpdatePageInput) (Page, error)
 	UpdatePageExperimentKey(ctx context.Context, id uuid.UUID, key string) error
@@ -498,45 +499,44 @@ func (s *pageService) propagatePageURLPaths(ctx context.Context, parentID uuid.U
 	return nil
 }
 
+// The checks every path to live passes - with require-approval on, only an approved or already-published page may go live, and the pre-publish hooks fire only for a real transition
+func (s *pageService) admitPublish(ctx context.Context, p Page, gate bool) error {
+	if gate && p.WorkflowState != WorkflowApproved && p.WorkflowState != WorkflowPublished {
+		return ErrApprovalRequired
+	}
+	if s.bus != nil && !p.IsPublished {
+		return s.bus.PublishSync(ctx, &PagePublishing{PageID: p.ID, PageTypeID: p.PageTypeID, Slug: p.Slug, URLPath: p.URLPath})
+	}
+	return nil
+}
+
+// A page keeps the date it first went live, otherwise it is dated firstLive
+func publishDate(p Page, firstLive time.Time) time.Time {
+	if p.PublishedAt != nil {
+		return *p.PublishedAt
+	}
+	return firstLive
+}
+
+func (s *pageService) announcePublished(ctx context.Context, p Page) {
+	if s.bus != nil {
+		s.bus.Publish(ctx, &PagePublished{PageID: p.ID, PageTypeID: p.PageTypeID, Slug: p.Slug, URLPath: p.URLPath})
+	}
+}
+
 func (s *pageService) PublishPage(ctx context.Context, id uuid.UUID) (Page, error) {
 	current, err := s.repo.GetPageByID(ctx, id)
 	if err != nil {
 		return Page{}, err
 	}
-	// Editorial gate - with require-approval on, a page can only go live from the approved or already-published state
-	if s.requireApproval(ctx) &&
-		current.WorkflowState != WorkflowApproved && current.WorkflowState != WorkflowPublished {
-		return Page{}, ErrApprovalRequired
-	}
-	if s.bus != nil && !current.IsPublished {
-		ing := &PagePublishing{
-			PageID:     current.ID,
-			PageTypeID: current.PageTypeID,
-			Slug:       current.Slug,
-			URLPath:    current.URLPath,
-		}
-		if err := s.bus.PublishSync(ctx, ing); err != nil {
-			return Page{}, err
-		}
-	}
-	publishedAt := current.PublishedAt
-	if publishedAt == nil {
-		now := time.Now()
-		publishedAt = &now
-	}
-	_, err = s.repo.SetPagePublished(ctx, id, true, publishedAt)
-	if err != nil {
+	if err := s.admitPublish(ctx, current, s.requireApproval(ctx)); err != nil {
 		return Page{}, err
 	}
-	// Reaching live is the terminal editorial state
-	_, _ = s.repo.SetPageWorkflowState(ctx, id, WorkflowPublished)
-	if s.bus != nil && !current.IsPublished {
-		s.bus.Publish(ctx, &PagePublished{
-			PageID:     current.ID,
-			PageTypeID: current.PageTypeID,
-			Slug:       current.Slug,
-			URLPath:    current.URLPath,
-		})
+	if _, err := s.repo.GoLive(ctx, id, publishDate(current, time.Now()), false); err != nil {
+		return Page{}, err
+	}
+	if !current.IsPublished {
+		s.announcePublished(ctx, current)
 	}
 	return s.repo.GetPageByID(ctx, id)
 }
@@ -572,49 +572,58 @@ func (s *pageService) DeletePage(ctx context.Context, id uuid.UUID) error {
 }
 
 // Publishes or unpublishes many pages in one all-or-nothing transaction, so if any page can't transition - the approval gate rejecting it, say - nothing changes - Pages already in the target state are skipped
+// Every page is checked and its hooks asked before the transaction opens, so a hook never waits on a row lock the batch holds, and never hears of a publish that then rolls back
 // Domain events fire only after commit and only for pages that actually changed
 func (s *pageService) BulkSetPublished(ctx context.Context, ids []uuid.UUID, published bool) (int, error) {
-	requireApproval := s.requireApproval(ctx)
+	var admitted []Page
+	if published {
+		gate := s.requireApproval(ctx)
+		seen := make(map[uuid.UUID]bool, len(ids))
+		for _, id := range ids {
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			current, err := s.repo.GetPageByID(ctx, id)
+			if err != nil {
+				return 0, err
+			}
+			if current.IsPublished {
+				continue
+			}
+			if err := s.admitPublish(ctx, current, gate); err != nil {
+				if errors.Is(err, ErrApprovalRequired) {
+					return 0, fmt.Errorf("page %q: %w", current.Slug, err)
+				}
+				return 0, err
+			}
+			admitted = append(admitted, current)
+		}
+	}
 	var changed []Page
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		r := s.repo.WithTx(t)
+		changed = changed[:0]
+		if published {
+			now := time.Now()
+			for _, p := range admitted {
+				if _, err := r.GoLive(ctx, p.ID, publishDate(p, now), false); err != nil {
+					return err
+				}
+				changed = append(changed, p)
+			}
+			return nil
+		}
 		for _, id := range ids {
 			current, err := r.GetPageByID(ctx, id)
 			if err != nil {
 				return err
 			}
-			if published {
-				if current.IsPublished {
-					continue
-				}
-				if requireApproval && current.WorkflowState != WorkflowApproved && current.WorkflowState != WorkflowPublished {
-					return fmt.Errorf("page %q: %w", current.Slug, ErrApprovalRequired)
-				}
-				if s.bus != nil {
-					if err := s.bus.PublishSync(ctx, &PagePublishing{
-						PageID: current.ID, PageTypeID: current.PageTypeID, Slug: current.Slug, URLPath: current.URLPath,
-					}); err != nil {
-						return err
-					}
-				}
-				publishedAt := current.PublishedAt
-				if publishedAt == nil {
-					now := time.Now()
-					publishedAt = &now
-				}
-				if _, err := r.SetPagePublished(ctx, id, true, publishedAt); err != nil {
-					return err
-				}
-				if _, err := r.SetPageWorkflowState(ctx, id, WorkflowPublished); err != nil {
-					return err
-				}
-			} else {
-				if !current.IsPublished {
-					continue
-				}
-				if _, err := r.SetPagePublished(ctx, id, false, current.PublishedAt); err != nil {
-					return err
-				}
+			if !current.IsPublished {
+				continue
+			}
+			if _, err := r.SetPagePublished(ctx, id, false, current.PublishedAt); err != nil {
+				return err
 			}
 			changed = append(changed, current)
 		}
@@ -625,7 +634,7 @@ func (s *pageService) BulkSetPublished(ctx context.Context, ids []uuid.UUID, pub
 	if s.bus != nil {
 		for _, p := range changed {
 			if published {
-				s.bus.Publish(ctx, &PagePublished{PageID: p.ID, PageTypeID: p.PageTypeID, Slug: p.Slug, URLPath: p.URLPath})
+				s.announcePublished(ctx, p)
 			} else {
 				s.bus.Publish(ctx, &PageUnpublished{PageID: p.ID, PageTypeID: p.PageTypeID, Slug: p.Slug, URLPath: p.URLPath})
 			}

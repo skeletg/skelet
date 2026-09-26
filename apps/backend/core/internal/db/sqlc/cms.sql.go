@@ -1330,6 +1330,54 @@ func (q *Queries) GetPublishedCMSPageForChannel(ctx context.Context, arg GetPubl
 	return i, err
 }
 
+const goLiveCMSPage = `-- name: GoLiveCMSPage :one
+UPDATE cms_pages
+SET is_published = TRUE, published_at = $1, workflow_state = 'published',
+    scheduled_at = CASE WHEN $2::bool THEN NULL ELSE scheduled_at END,
+    updated_at = NOW()
+WHERE id = $3
+RETURNING id, page_type_id, parent_id, slug, url_path, position, is_published, seo_noindex, published_at, data, metadata, private_metadata, created_at, updated_at, scheduled_at, base_path, experiment_key, tags, workflow_state, assigned_to, submitted_by, submitted_at, approved_by, approved_at
+`
+
+type GoLiveCMSPageParams struct {
+	PublishedAt   sql.NullTime `json:"published_at"`
+	ClearSchedule bool         `json:"clear_schedule"`
+	ID            uuid.UUID    `json:"id"`
+}
+
+// Every column a publish changes, in one statement, so a page is never live with a stale workflow state or unscheduled without being live
+func (q *Queries) GoLiveCMSPage(ctx context.Context, arg GoLiveCMSPageParams) (CmsPage, error) {
+	row := q.db.QueryRowContext(ctx, goLiveCMSPage, arg.PublishedAt, arg.ClearSchedule, arg.ID)
+	var i CmsPage
+	err := row.Scan(
+		&i.ID,
+		&i.PageTypeID,
+		&i.ParentID,
+		&i.Slug,
+		&i.UrlPath,
+		&i.Position,
+		&i.IsPublished,
+		&i.SeoNoindex,
+		&i.PublishedAt,
+		&i.Data,
+		&i.Metadata,
+		&i.PrivateMetadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ScheduledAt,
+		&i.BasePath,
+		&i.ExperimentKey,
+		pq.Array(&i.Tags),
+		&i.WorkflowState,
+		&i.AssignedTo,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
 const listAllCMSPages = `-- name: ListAllCMSPages :many
 SELECT id, page_type_id, parent_id, slug, url_path, position, is_published, seo_noindex, published_at, data, metadata, private_metadata, created_at, updated_at, scheduled_at, base_path, experiment_key, tags, workflow_state, assigned_to, submitted_by, submitted_at, approved_by, approved_at FROM cms_pages ORDER BY url_path
 `

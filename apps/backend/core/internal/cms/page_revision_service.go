@@ -50,44 +50,20 @@ func (s *pageService) PromoteDuePages(ctx context.Context) (int, error) {
 	gate := s.requireApproval(ctx)
 	n := 0
 	for _, p := range due {
-		// Respect the editorial gate - a scheduled page that isn't approved stays scheduled rather than erroring, and the operator must approve it
-		if gate && p.WorkflowState != WorkflowApproved && p.WorkflowState != WorkflowPublished {
-			log.Printf("[cms-publish] skipping due page %s: workflow_state=%s (approval required)", p.ID, p.WorkflowState)
+		// A page the approval gate or a publishing hook holds back stays scheduled rather than failing the run, and is asked again next time
+		if err := s.admitPublish(ctx, p, gate); err != nil {
+			log.Printf("[cms-publish] skipping due page %s (workflow_state=%s): %v", p.ID, p.WorkflowState, err)
 			continue
 		}
-		// The same pre-publish hooks a manual publish passes - a vetoed page stays scheduled and is asked again next run
-		if s.bus != nil {
-			if err := s.bus.PublishSync(ctx, &PagePublishing{
-				PageID: p.ID, PageTypeID: p.PageTypeID, Slug: p.Slug, URLPath: p.URLPath,
-			}); err != nil {
-				log.Printf("[cms-publish] skipping due page %s: publishing hook refused: %v", p.ID, err)
-				continue
-			}
-		}
-		if _, err := s.repo.SetScheduledAt(ctx, p.ID, nil); err != nil {
-			return n, err
-		}
 		// A first go-live is dated when it was scheduled for, not when the job got round to it
-		publishedAt := p.PublishedAt
-		if publishedAt == nil {
-			publishedAt = p.ScheduledAt
+		firstLive := time.Now()
+		if p.ScheduledAt != nil {
+			firstLive = *p.ScheduledAt
 		}
-		if publishedAt == nil {
-			now := time.Now()
-			publishedAt = &now
-		}
-		if _, err := s.repo.SetPagePublished(ctx, p.ID, true, publishedAt); err != nil {
+		if _, err := s.repo.GoLive(ctx, p.ID, publishDate(p, firstLive), true); err != nil {
 			return n, err
 		}
-		_, _ = s.repo.SetPageWorkflowState(ctx, p.ID, WorkflowPublished)
-		if s.bus != nil {
-			s.bus.Publish(ctx, &PagePublished{
-				PageID:     p.ID,
-				PageTypeID: p.PageTypeID,
-				Slug:       p.Slug,
-				URLPath:    p.URLPath,
-			})
-		}
+		s.announcePublished(ctx, p)
 		n++
 	}
 	return n, nil
