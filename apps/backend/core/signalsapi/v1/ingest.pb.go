@@ -249,7 +249,12 @@ type RosterEntry struct {
 	// of these, kept so a send path reads one column; a rule can ask about any kind
 	Consents []*Consent `protobuf:"bytes,11,rep,name=consents,proto3" json:"consents,omitempty"`
 	// When core read the row, on its own clock - an entry older than the one already held is not applied
-	ReadAt        *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=read_at,json=readAt,proto3" json:"read_at,omitempty"`
+	ReadAt *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=read_at,json=readAt,proto3" json:"read_at,omitempty"`
+	// Lifetime orders from core's own table, drafts and cancellations excluded - the suite's event log only keeps a year
+	OrderCount    int32                  `protobuf:"varint,13,opt,name=order_count,json=orderCount,proto3" json:"order_count,omitempty"`
+	MonetaryCents int64                  `protobuf:"varint,14,opt,name=monetary_cents,json=monetaryCents,proto3" json:"monetary_cents,omitempty"`
+	FirstOrderAt  *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=first_order_at,json=firstOrderAt,proto3" json:"first_order_at,omitempty"`
+	LastOrderAt   *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=last_order_at,json=lastOrderAt,proto3" json:"last_order_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -364,6 +369,34 @@ func (x *RosterEntry) GetConsents() []*Consent {
 func (x *RosterEntry) GetReadAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.ReadAt
+	}
+	return nil
+}
+
+func (x *RosterEntry) GetOrderCount() int32 {
+	if x != nil {
+		return x.OrderCount
+	}
+	return 0
+}
+
+func (x *RosterEntry) GetMonetaryCents() int64 {
+	if x != nil {
+		return x.MonetaryCents
+	}
+	return 0
+}
+
+func (x *RosterEntry) GetFirstOrderAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FirstOrderAt
+	}
+	return nil
+}
+
+func (x *RosterEntry) GetLastOrderAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastOrderAt
 	}
 	return nil
 }
@@ -1774,7 +1807,7 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\bchannels\x18\x01 \x03(\v2\x1f.skelet.signals.v1.ChannelEntryR\bchannels\"F\n" +
 	"\x14SyncChannelsResponse\x12\x16\n" +
 	"\x06synced\x18\x01 \x01(\x05R\x06synced\x12\x16\n" +
-	"\x06pruned\x18\x02 \x01(\x05R\x06pruned\"\xce\x03\n" +
+	"\x06pruned\x18\x02 \x01(\x05R\x06pruned\"\x98\x05\n" +
 	"\vRosterEntry\x12\x1f\n" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x12\x1d\n" +
@@ -1792,7 +1825,12 @@ const file_skelet_signals_v1_ingest_proto_rawDesc = "" +
 	"\x13customer_group_slug\x18\n" +
 	" \x01(\tR\x11customerGroupSlug\x126\n" +
 	"\bconsents\x18\v \x03(\v2\x1a.skelet.signals.v1.ConsentR\bconsents\x123\n" +
-	"\aread_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\x06readAt\"8\n" +
+	"\aread_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\x06readAt\x12\x1f\n" +
+	"\vorder_count\x18\r \x01(\x05R\n" +
+	"orderCount\x12%\n" +
+	"\x0emonetary_cents\x18\x0e \x01(\x03R\rmonetaryCents\x12@\n" +
+	"\x0efirst_order_at\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\ffirstOrderAt\x12>\n" +
+	"\rlast_order_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\vlastOrderAt\"8\n" +
 	"\aConsent\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bopted_in\x18\x02 \x01(\bR\aoptedIn\"Y\n" +
@@ -1968,48 +2006,50 @@ var file_skelet_signals_v1_ingest_proto_depIdxs = []int32{
 	0,  // 0: skelet.signals.v1.SyncChannelsRequest.channels:type_name -> skelet.signals.v1.ChannelEntry
 	4,  // 1: skelet.signals.v1.RosterEntry.consents:type_name -> skelet.signals.v1.Consent
 	27, // 2: skelet.signals.v1.RosterEntry.read_at:type_name -> google.protobuf.Timestamp
-	3,  // 3: skelet.signals.v1.SyncCustomerRosterRequest.customers:type_name -> skelet.signals.v1.RosterEntry
-	3,  // 4: skelet.signals.v1.UpsertRosterEntryRequest.customer:type_name -> skelet.signals.v1.RosterEntry
-	27, // 5: skelet.signals.v1.RosterStatusResponse.filled_at:type_name -> google.protobuf.Timestamp
-	27, // 6: skelet.signals.v1.EmailSendRef.sent_at:type_name -> google.protobuf.Timestamp
-	27, // 7: skelet.signals.v1.EmailHit.at:type_name -> google.protobuf.Timestamp
-	27, // 8: skelet.signals.v1.RecordActivityRequest.at:type_name -> google.protobuf.Timestamp
-	27, // 9: skelet.signals.v1.RecordConversionRequest.at:type_name -> google.protobuf.Timestamp
-	13, // 10: skelet.signals.v1.RecordEmailSentRequest.send:type_name -> skelet.signals.v1.EmailSendRef
-	13, // 11: skelet.signals.v1.RecordEmailOpenRequest.send:type_name -> skelet.signals.v1.EmailSendRef
-	14, // 12: skelet.signals.v1.RecordEmailOpenRequest.hit:type_name -> skelet.signals.v1.EmailHit
-	13, // 13: skelet.signals.v1.RecordEmailOpenResponse.send:type_name -> skelet.signals.v1.EmailSendRef
-	13, // 14: skelet.signals.v1.RecordEmailClickRequest.send:type_name -> skelet.signals.v1.EmailSendRef
-	14, // 15: skelet.signals.v1.RecordEmailClickRequest.hit:type_name -> skelet.signals.v1.EmailHit
-	13, // 16: skelet.signals.v1.RecordEmailClickResponse.send:type_name -> skelet.signals.v1.EmailSendRef
-	27, // 17: skelet.signals.v1.EraseCustomerIdentitiesRequest.erased_at:type_name -> google.protobuf.Timestamp
-	15, // 18: skelet.signals.v1.IngestService.RecordActivity:input_type -> skelet.signals.v1.RecordActivityRequest
-	17, // 19: skelet.signals.v1.IngestService.RecordConversion:input_type -> skelet.signals.v1.RecordConversionRequest
-	19, // 20: skelet.signals.v1.IngestService.RecordEmailSent:input_type -> skelet.signals.v1.RecordEmailSentRequest
-	21, // 21: skelet.signals.v1.IngestService.RecordEmailOpen:input_type -> skelet.signals.v1.RecordEmailOpenRequest
-	23, // 22: skelet.signals.v1.IngestService.RecordEmailClick:input_type -> skelet.signals.v1.RecordEmailClickRequest
-	5,  // 23: skelet.signals.v1.IngestService.SyncCustomerRoster:input_type -> skelet.signals.v1.SyncCustomerRosterRequest
-	6,  // 24: skelet.signals.v1.IngestService.UpsertRosterEntry:input_type -> skelet.signals.v1.UpsertRosterEntryRequest
-	10, // 25: skelet.signals.v1.IngestService.DeleteRosterEntry:input_type -> skelet.signals.v1.DeleteRosterEntryRequest
-	8,  // 26: skelet.signals.v1.IngestService.RosterStatus:input_type -> skelet.signals.v1.RosterStatusRequest
-	25, // 27: skelet.signals.v1.IngestService.EraseCustomerIdentities:input_type -> skelet.signals.v1.EraseCustomerIdentitiesRequest
-	1,  // 28: skelet.signals.v1.IngestService.SyncChannels:input_type -> skelet.signals.v1.SyncChannelsRequest
-	16, // 29: skelet.signals.v1.IngestService.RecordActivity:output_type -> skelet.signals.v1.RecordActivityResponse
-	18, // 30: skelet.signals.v1.IngestService.RecordConversion:output_type -> skelet.signals.v1.RecordConversionResponse
-	20, // 31: skelet.signals.v1.IngestService.RecordEmailSent:output_type -> skelet.signals.v1.RecordEmailSentResponse
-	22, // 32: skelet.signals.v1.IngestService.RecordEmailOpen:output_type -> skelet.signals.v1.RecordEmailOpenResponse
-	24, // 33: skelet.signals.v1.IngestService.RecordEmailClick:output_type -> skelet.signals.v1.RecordEmailClickResponse
-	12, // 34: skelet.signals.v1.IngestService.SyncCustomerRoster:output_type -> skelet.signals.v1.SyncCustomerRosterResponse
-	7,  // 35: skelet.signals.v1.IngestService.UpsertRosterEntry:output_type -> skelet.signals.v1.UpsertRosterEntryResponse
-	11, // 36: skelet.signals.v1.IngestService.DeleteRosterEntry:output_type -> skelet.signals.v1.DeleteRosterEntryResponse
-	9,  // 37: skelet.signals.v1.IngestService.RosterStatus:output_type -> skelet.signals.v1.RosterStatusResponse
-	26, // 38: skelet.signals.v1.IngestService.EraseCustomerIdentities:output_type -> skelet.signals.v1.EraseCustomerIdentitiesResponse
-	2,  // 39: skelet.signals.v1.IngestService.SyncChannels:output_type -> skelet.signals.v1.SyncChannelsResponse
-	29, // [29:40] is the sub-list for method output_type
-	18, // [18:29] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	27, // 3: skelet.signals.v1.RosterEntry.first_order_at:type_name -> google.protobuf.Timestamp
+	27, // 4: skelet.signals.v1.RosterEntry.last_order_at:type_name -> google.protobuf.Timestamp
+	3,  // 5: skelet.signals.v1.SyncCustomerRosterRequest.customers:type_name -> skelet.signals.v1.RosterEntry
+	3,  // 6: skelet.signals.v1.UpsertRosterEntryRequest.customer:type_name -> skelet.signals.v1.RosterEntry
+	27, // 7: skelet.signals.v1.RosterStatusResponse.filled_at:type_name -> google.protobuf.Timestamp
+	27, // 8: skelet.signals.v1.EmailSendRef.sent_at:type_name -> google.protobuf.Timestamp
+	27, // 9: skelet.signals.v1.EmailHit.at:type_name -> google.protobuf.Timestamp
+	27, // 10: skelet.signals.v1.RecordActivityRequest.at:type_name -> google.protobuf.Timestamp
+	27, // 11: skelet.signals.v1.RecordConversionRequest.at:type_name -> google.protobuf.Timestamp
+	13, // 12: skelet.signals.v1.RecordEmailSentRequest.send:type_name -> skelet.signals.v1.EmailSendRef
+	13, // 13: skelet.signals.v1.RecordEmailOpenRequest.send:type_name -> skelet.signals.v1.EmailSendRef
+	14, // 14: skelet.signals.v1.RecordEmailOpenRequest.hit:type_name -> skelet.signals.v1.EmailHit
+	13, // 15: skelet.signals.v1.RecordEmailOpenResponse.send:type_name -> skelet.signals.v1.EmailSendRef
+	13, // 16: skelet.signals.v1.RecordEmailClickRequest.send:type_name -> skelet.signals.v1.EmailSendRef
+	14, // 17: skelet.signals.v1.RecordEmailClickRequest.hit:type_name -> skelet.signals.v1.EmailHit
+	13, // 18: skelet.signals.v1.RecordEmailClickResponse.send:type_name -> skelet.signals.v1.EmailSendRef
+	27, // 19: skelet.signals.v1.EraseCustomerIdentitiesRequest.erased_at:type_name -> google.protobuf.Timestamp
+	15, // 20: skelet.signals.v1.IngestService.RecordActivity:input_type -> skelet.signals.v1.RecordActivityRequest
+	17, // 21: skelet.signals.v1.IngestService.RecordConversion:input_type -> skelet.signals.v1.RecordConversionRequest
+	19, // 22: skelet.signals.v1.IngestService.RecordEmailSent:input_type -> skelet.signals.v1.RecordEmailSentRequest
+	21, // 23: skelet.signals.v1.IngestService.RecordEmailOpen:input_type -> skelet.signals.v1.RecordEmailOpenRequest
+	23, // 24: skelet.signals.v1.IngestService.RecordEmailClick:input_type -> skelet.signals.v1.RecordEmailClickRequest
+	5,  // 25: skelet.signals.v1.IngestService.SyncCustomerRoster:input_type -> skelet.signals.v1.SyncCustomerRosterRequest
+	6,  // 26: skelet.signals.v1.IngestService.UpsertRosterEntry:input_type -> skelet.signals.v1.UpsertRosterEntryRequest
+	10, // 27: skelet.signals.v1.IngestService.DeleteRosterEntry:input_type -> skelet.signals.v1.DeleteRosterEntryRequest
+	8,  // 28: skelet.signals.v1.IngestService.RosterStatus:input_type -> skelet.signals.v1.RosterStatusRequest
+	25, // 29: skelet.signals.v1.IngestService.EraseCustomerIdentities:input_type -> skelet.signals.v1.EraseCustomerIdentitiesRequest
+	1,  // 30: skelet.signals.v1.IngestService.SyncChannels:input_type -> skelet.signals.v1.SyncChannelsRequest
+	16, // 31: skelet.signals.v1.IngestService.RecordActivity:output_type -> skelet.signals.v1.RecordActivityResponse
+	18, // 32: skelet.signals.v1.IngestService.RecordConversion:output_type -> skelet.signals.v1.RecordConversionResponse
+	20, // 33: skelet.signals.v1.IngestService.RecordEmailSent:output_type -> skelet.signals.v1.RecordEmailSentResponse
+	22, // 34: skelet.signals.v1.IngestService.RecordEmailOpen:output_type -> skelet.signals.v1.RecordEmailOpenResponse
+	24, // 35: skelet.signals.v1.IngestService.RecordEmailClick:output_type -> skelet.signals.v1.RecordEmailClickResponse
+	12, // 36: skelet.signals.v1.IngestService.SyncCustomerRoster:output_type -> skelet.signals.v1.SyncCustomerRosterResponse
+	7,  // 37: skelet.signals.v1.IngestService.UpsertRosterEntry:output_type -> skelet.signals.v1.UpsertRosterEntryResponse
+	11, // 38: skelet.signals.v1.IngestService.DeleteRosterEntry:output_type -> skelet.signals.v1.DeleteRosterEntryResponse
+	9,  // 39: skelet.signals.v1.IngestService.RosterStatus:output_type -> skelet.signals.v1.RosterStatusResponse
+	26, // 40: skelet.signals.v1.IngestService.EraseCustomerIdentities:output_type -> skelet.signals.v1.EraseCustomerIdentitiesResponse
+	2,  // 41: skelet.signals.v1.IngestService.SyncChannels:output_type -> skelet.signals.v1.SyncChannelsResponse
+	31, // [31:42] is the sub-list for method output_type
+	20, // [20:31] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_skelet_signals_v1_ingest_proto_init() }

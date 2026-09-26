@@ -2,15 +2,18 @@ package signalsgrpc
 
 import (
 	"context"
+	"database/sql"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
@@ -222,5 +225,70 @@ func TestRosterAsksForAFullSyncUntilOneLands(t *testing.T) {
 	}
 	if st.GetNeedsFullSync() || st.GetFilledVersion() != analytics.RosterVersion || st.GetFilledAt() == nil {
 		t.Errorf("status after a full sync = %+v, want filled at the current version", st)
+	}
+}
+
+// Core's lifetime order totals land on the roster row - the RFM scores read them from there
+func TestAPushedEntryCarriesItsLifetimeOrders(t *testing.T) {
+	client, _, channelID := rosterServer(t)
+	conn := testdb.RequireSignals(t)
+	buyer, never := uuid.New(), uuid.New()
+	t.Cleanup(func() {
+		_, _ = conn.Exec(`DELETE FROM customer_roster WHERE customer_id = ANY($1)`, pq.Array([]uuid.UUID{buyer, never}))
+	})
+	first, last := time.Date(2023, 3, 1, 12, 0, 0, 0, time.UTC), time.Date(2026, 1, 5, 12, 0, 0, 0, time.UTC)
+	for _, e := range []*signalsv1.RosterEntry{
+		{CustomerId: buyer.String(), ChannelId: channelID.String(), OrderCount: 10, MonetaryCents: 123400,
+			FirstOrderAt: timestamppb.New(first), LastOrderAt: timestamppb.New(last)},
+		{CustomerId: never.String(), ChannelId: channelID.String()},
+	} {
+		if _, err := client.UpsertRosterEntry(rosterCtx(t), &signalsv1.UpsertRosterEntryRequest{Customer: e}); err != nil {
+			t.Fatalf("push: %v", err)
+		}
+	}
+	read := func(id uuid.UUID) (int32, int64, sql.NullTime, sql.NullTime) {
+		var n int32
+		var cents int64
+		var f, l sql.NullTime
+		if err := conn.QueryRow(`SELECT order_count, monetary_cents, first_order_at, last_order_at FROM customer_roster WHERE customer_id = $1`, id).Scan(&n, &cents, &f, &l); err != nil {
+			t.Fatal(err)
+		}
+		return n, cents, f, l
+	}
+	if n, cents, f, l := read(buyer); n != 10 || cents != 123400 || !f.Time.Equal(first) || !l.Time.Equal(last) {
+		t.Errorf("buyer: %d orders, %d cents, first %v, last %v", n, cents, f, l)
+	}
+	if n, cents, f, l := read(never); n != 0 || cents != 0 || f.Valid || l.Valid {
+		t.Errorf("never ordered: %d orders, %d cents, first %v, last %v - want zeros and NULLs", n, cents, f, l)
+	}
+}
+
+// The full sync is what backfills the totals after an upgrade, so a streamed page must carry them too
+func TestAStreamedPageCarriesLifetimeOrders(t *testing.T) {
+	c, _, channelID := rosterServer(t)
+	conn := testdb.RequireSignals(t)
+	buyer := uuid.New()
+	last := time.Date(2026, 1, 5, 12, 0, 0, 0, time.UTC)
+	stream, err := c.SyncCustomerRoster(rosterCtx(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stream.Send(&signalsv1.SyncCustomerRosterRequest{Customers: []*signalsv1.RosterEntry{{
+		CustomerId: buyer.String(), ChannelId: channelID.String(), OrderCount: 3, MonetaryCents: 9900,
+		FirstOrderAt: timestamppb.New(last.AddDate(-2, 0, 0)), LastOrderAt: timestamppb.New(last),
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stream.CloseAndRecv(); err != nil {
+		t.Fatal(err)
+	}
+	var n int32
+	var cents int64
+	var l time.Time
+	if err := conn.QueryRow(`SELECT order_count, monetary_cents, last_order_at FROM customer_roster WHERE customer_id = $1`, buyer).Scan(&n, &cents, &l); err != nil {
+		t.Fatal(err)
+	}
+	if n != 3 || cents != 9900 || !l.Equal(last) {
+		t.Errorf("streamed buyer: %d orders, %d cents, last %v", n, cents, l)
 	}
 }

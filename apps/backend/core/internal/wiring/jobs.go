@@ -322,6 +322,8 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 						GroupSlug:        c.CustomerGroupSlug,
 						Consents:         signalsclient.ConsentsFromJSON(c.Consents),
 						MarketingOptedIn: c.MarketingOptedIn, SMSOptedIn: c.SmsOptedIn, ReadAt: c.ReadAt,
+						OrderCount: c.OrderCount, MonetaryCents: c.MonetaryCents,
+						FirstOrderAt: signalsclient.TimeFromAny(c.FirstOrderAt), LastOrderAt: signalsclient.TimeFromAny(c.LastOrderAt),
 					}
 				}
 				return out, true, nil

@@ -8,8 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// A windowed order condition ("at least 3 orders in the last 90 days") cannot be answered from customer_order_agg, which
-// holds lifetime totals - so it is answered by the spine, one read per channel and window, and handed to Compile as an id set
+// A windowed order condition ("at least 3 orders in the last 90 days") can't come from the roster's lifetime totals, so the spine answers it, one read per channel and window, handed to Compile as an id set
 
 // WindowedOrders is who ordered what from an instant on, per channel - the spine engine in production, a fixture in tests
 type WindowedOrders interface {

@@ -19,11 +19,18 @@ SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name,
        COALESCE(k.opted_in, false)::boolean AS marketing_opted_in,
        COALESCE(s.opted_in, false)::boolean AS sms_opted_in,
        COALESCE((SELECT jsonb_object_agg(cc.kind, cc.opted_in) FROM customer_consents cc WHERE cc.customer_id = c.id), '{}'::jsonb) AS consents,
-       statement_timestamp()::timestamptz AS read_at
+       statement_timestamp()::timestamptz AS read_at,
+       oa.order_count::int AS order_count, oa.monetary_cents::bigint AS monetary_cents,
+       oa.first_order_at, oa.last_order_at
 FROM customers c
 LEFT JOIN customer_groups g ON g.id = c.customer_group_id
 LEFT JOIN customer_consents k ON k.customer_id = c.id AND k.kind = 'marketing_email'
 LEFT JOIN customer_consents s ON s.customer_id = c.id AND s.kind = 'marketing_sms'
+CROSS JOIN LATERAL (
+    SELECT count(*) AS order_count, COALESCE(sum(o.total_amount), 0) AS monetary_cents,
+           min(o.created_at) AS first_order_at, max(o.created_at) AS last_order_at
+    FROM orders o WHERE o.customer_id = c.id AND o.status NOT IN ('draft', 'cancelled')
+) oa
 WHERE c.id = $1
 `
 
@@ -40,6 +47,10 @@ type CustomerRosterEntryRow struct {
 	SmsOptedIn        bool        `json:"sms_opted_in"`
 	Consents          interface{} `json:"consents"`
 	ReadAt            time.Time   `json:"read_at"`
+	OrderCount        int32       `json:"order_count"`
+	MonetaryCents     int64       `json:"monetary_cents"`
+	FirstOrderAt      interface{} `json:"first_order_at"`
+	LastOrderAt       interface{} `json:"last_order_at"`
 }
 
 // One customer for the event-driven push, shaped exactly like a page row
@@ -59,6 +70,10 @@ func (q *Queries) CustomerRosterEntry(ctx context.Context, customerID uuid.UUID)
 		&i.SmsOptedIn,
 		&i.Consents,
 		&i.ReadAt,
+		&i.OrderCount,
+		&i.MonetaryCents,
+		&i.FirstOrderAt,
+		&i.LastOrderAt,
 	)
 	return i, err
 }
@@ -70,11 +85,18 @@ SELECT c.id AS customer_id, c.channel_id, c.email, c.first_name,
        COALESCE(k.opted_in, false)::boolean AS marketing_opted_in,
        COALESCE(s.opted_in, false)::boolean AS sms_opted_in,
        COALESCE((SELECT jsonb_object_agg(cc.kind, cc.opted_in) FROM customer_consents cc WHERE cc.customer_id = c.id), '{}'::jsonb) AS consents,
-       statement_timestamp()::timestamptz AS read_at
+       statement_timestamp()::timestamptz AS read_at,
+       oa.order_count::int AS order_count, oa.monetary_cents::bigint AS monetary_cents,
+       oa.first_order_at, oa.last_order_at
 FROM customers c
 LEFT JOIN customer_groups g ON g.id = c.customer_group_id
 LEFT JOIN customer_consents k ON k.customer_id = c.id AND k.kind = 'marketing_email'
 LEFT JOIN customer_consents s ON s.customer_id = c.id AND s.kind = 'marketing_sms'
+CROSS JOIN LATERAL (
+    SELECT count(*) AS order_count, COALESCE(sum(o.total_amount), 0) AS monetary_cents,
+           min(o.created_at) AS first_order_at, max(o.created_at) AS last_order_at
+    FROM orders o WHERE o.customer_id = c.id AND o.status NOT IN ('draft', 'cancelled')
+) oa
 WHERE c.id > $1::uuid
 ORDER BY c.id
 LIMIT $2
@@ -98,11 +120,16 @@ type CustomerRosterForSyncRow struct {
 	SmsOptedIn        bool        `json:"sms_opted_in"`
 	Consents          interface{} `json:"consents"`
 	ReadAt            time.Time   `json:"read_at"`
+	OrderCount        int32       `json:"order_count"`
+	MonetaryCents     int64       `json:"monetary_cents"`
+	FirstOrderAt      interface{} `json:"first_order_at"`
+	LastOrderAt       interface{} `json:"last_order_at"`
 }
 
 // The roster the Signals database needs: identity for trait and membership cleanup, plus what a marketing send has to know to address someone - the suite reads only what core pushes from here
 // Both consent joins resolve to the registry default when no row exists, which for marketing is opted out
 // Keyset-paged so a delete mid-sweep can't shift a customer off a page; read_at stops an older push overwriting a newer one
+// Lifetime order totals ride along, since the suite's event log only keeps a year
 func (q *Queries) CustomerRosterForSync(ctx context.Context, arg CustomerRosterForSyncParams) ([]CustomerRosterForSyncRow, error) {
 	rows, err := q.db.QueryContext(ctx, customerRosterForSync, arg.After, arg.Lim)
 	if err != nil {
@@ -125,6 +152,10 @@ func (q *Queries) CustomerRosterForSync(ctx context.Context, arg CustomerRosterF
 			&i.SmsOptedIn,
 			&i.Consents,
 			&i.ReadAt,
+			&i.OrderCount,
+			&i.MonetaryCents,
+			&i.FirstOrderAt,
+			&i.LastOrderAt,
 		); err != nil {
 			return nil, err
 		}
