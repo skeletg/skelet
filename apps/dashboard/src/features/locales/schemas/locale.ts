@@ -148,6 +148,9 @@ export function localeFieldErrors(message: string): Partial<Record<keyof LocaleV
   if (/default[_ ]?country[_ ]?code/i.test(message) && /ISO 3166-1 alpha-2/i.test(message)) {
     out.defaultCountryCode = 'Must be empty or a 2-letter ISO 3166-1 country code.'
   }
+  if (/locale code already exists/i.test(message)) {
+    out.code = 'A language with this code already exists.'
+  }
   if (/hreflang[_ ]?value/i.test(message) && /BCP[_ ]?47/i.test(message)) {
     out.hreflangValue = "Doesn't look like a BCP 47 code."
   }

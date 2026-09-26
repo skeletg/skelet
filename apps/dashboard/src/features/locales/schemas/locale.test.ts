@@ -28,6 +28,7 @@ describe('locale schema', () => {
     expect(localeFieldErrors('hreflang_value does not look like BCP 47')).toEqual({
       hreflangValue: "Doesn't look like a BCP 47 code.",
     })
+    expect(localeFieldErrors('locale code already exists')).toEqual({ code: 'A language with this code already exists.' })
     expect(localeFieldErrors('boom')).toEqual({})
   })
 })
