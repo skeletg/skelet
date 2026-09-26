@@ -10,6 +10,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 func (r *postgresRepository) CreateAttribute(ctx context.Context, in CreateAttributeInput) (Attribute, error) {
@@ -25,7 +26,7 @@ func (r *postgresRepository) CreateAttribute(ctx context.Context, in CreateAttri
 			InputType:          string(in.InputType),
 			IsTranslatable:     in.IsTranslatable,
 			IsRequiredDefault:  in.IsRequiredDefault,
-			Unit:               nullableString(in.Unit),
+			Unit:               sqlnull.StringValueNonEmpty(in.Unit),
 			Validation:         emptyJSON(in.Validation),
 			RelationshipTarget: rt,
 			Metadata:           metadataToJSON(in.Metadata),
@@ -149,7 +150,7 @@ func (r *postgresRepository) UpdateAttribute(ctx context.Context, in UpdateAttri
 	}
 	unit := current.Unit
 	if in.Unit != nil {
-		unit = nullableString(*in.Unit)
+		unit = sqlnull.StringValueNonEmpty(*in.Unit)
 	}
 	validation := current.Validation
 	if in.Validation != nil {
@@ -199,8 +200,8 @@ func (r *postgresRepository) UpsertAttributeContent(ctx context.Context, attribu
 		AttributeID: attributeID,
 		Locale:      in.Locale,
 		Name:        in.Name,
-		HelperText:  nullableString(in.HelperText),
-		Placeholder: nullableString(in.Placeholder),
+		HelperText:  sqlnull.StringValueNonEmpty(in.HelperText),
+		Placeholder: sqlnull.StringValueNonEmpty(in.Placeholder),
 	})
 	if err != nil {
 		return AttributeContent{}, fmt.Errorf("upsert attribute content: %w", err)
@@ -338,7 +339,7 @@ func toAttribute(row db.CmsAttribute) Attribute {
 		InputType:         InputType(row.InputType),
 		IsTranslatable:    row.IsTranslatable,
 		IsRequiredDefault: row.IsRequiredDefault,
-		Unit:              nullStringPtr(row.Unit),
+		Unit:              sqlnull.StringPtr(row.Unit),
 		Validation:        row.Validation,
 		Metadata:          metadataFromJSON(row.Metadata),
 		CreatedAt:         row.CreatedAt,
@@ -358,8 +359,8 @@ func toAttributeContent(row db.CmsAttributeContent) AttributeContent {
 	return AttributeContent{
 		Locale:      row.Locale,
 		Name:        row.Name,
-		HelperText:  nullStringPtr(row.HelperText),
-		Placeholder: nullStringPtr(row.Placeholder),
+		HelperText:  sqlnull.StringPtr(row.HelperText),
+		Placeholder: sqlnull.StringPtr(row.Placeholder),
 		UpdatedAt:   row.UpdatedAt,
 	}
 }

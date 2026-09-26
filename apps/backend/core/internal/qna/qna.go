@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/permission"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -121,7 +122,7 @@ func (s *Service) Submit(ctx context.Context, productID, channelID uuid.UUID, cu
 	row, err := s.queries.InsertProductQuestion(ctx, db.InsertProductQuestionParams{
 		ProductID:   productID,
 		ChannelID:   channelID,
-		CustomerID:  nullableUUID(customerID),
+		CustomerID:  sqlnull.UUID(customerID),
 		AuthorName:  authorName,
 		AuthorEmail: strings.TrimSpace(strings.ToLower(authorEmail)),
 		Question:    question,
@@ -275,11 +276,4 @@ func toQuestion(r db.ProductQuestion) Question {
 		q.AnsweredAt = &t
 	}
 	return q
-}
-
-func nullableUUID(p *uuid.UUID) uuid.NullUUID {
-	if p == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *p, Valid: true}
 }

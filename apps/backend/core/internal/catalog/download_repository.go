@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 func (r *postgresRepository) CreateProductDownload(ctx context.Context, input AddProductDownloadInput) (ProductDownload, error) {
@@ -16,7 +17,7 @@ func (r *postgresRepository) CreateProductDownload(ctx context.Context, input Ad
 		ProductID:    input.ProductID,
 		Title:        input.Title,
 		Url:          input.URL,
-		MaxDownloads: nullInt32(input.MaxDownloads),
+		MaxDownloads: sqlnull.Int32(input.MaxDownloads),
 		SortOrder:    input.SortOrder,
 	})
 	if err != nil {
@@ -53,7 +54,7 @@ func (r *postgresRepository) UpdateProductDownload(ctx context.Context, id uuid.
 		ID:           id,
 		Title:        title,
 		Url:          url,
-		MaxDownloads: nullInt32(maxDownloads),
+		MaxDownloads: sqlnull.Int32(maxDownloads),
 		SortOrder:    sortOrder,
 	})
 	if err != nil {

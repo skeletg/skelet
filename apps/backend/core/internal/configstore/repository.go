@@ -7,9 +7,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
-
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
@@ -27,8 +26,8 @@ func New(queries *db.Queries, txMgr *txrunner.Manager) config.Repository {
 func (r *postgresRepository) Upsert(ctx context.Context, scope config.Scope, path, value string) (config.StoredValue, error) {
 	row, err := r.queries.UpsertConfigValue(ctx, db.UpsertConfigValueParams{
 		Scope:     scope.Kind,
-		ChannelID: nullableUUID(scope.ChannelID),
-		Locale:    nullableString(scope.Locale),
+		ChannelID: sqlnull.UUID(scope.ChannelID),
+		Locale:    sqlnull.String(scope.Locale),
 		Path:      path,
 		Value:     value,
 	})
@@ -41,8 +40,8 @@ func (r *postgresRepository) Upsert(ctx context.Context, scope config.Scope, pat
 func (r *postgresRepository) Delete(ctx context.Context, scope config.Scope, path string) error {
 	if err := r.queries.DeleteConfigValue(ctx, db.DeleteConfigValueParams{
 		Scope:     scope.Kind,
-		ChannelID: nullableUUID(scope.ChannelID),
-		Locale:    nullableString(scope.Locale),
+		ChannelID: sqlnull.UUID(scope.ChannelID),
+		Locale:    sqlnull.String(scope.Locale),
 		Path:      path,
 	}); err != nil {
 		return fmt.Errorf("delete config value: %w", err)
@@ -54,8 +53,8 @@ func (r *postgresRepository) GetCandidates(ctx context.Context, scope config.Sco
 	rows, err := r.queries.GetConfigValueWithFallback(ctx, db.GetConfigValueWithFallbackParams{
 		Path:      path,
 		Scope:     scope.Kind,
-		ChannelID: nullableUUID(scope.ChannelID),
-		Locale:    nullableString(scope.Locale),
+		ChannelID: sqlnull.UUID(scope.ChannelID),
+		Locale:    sqlnull.String(scope.Locale),
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("get config value: %w", err)
@@ -70,8 +69,8 @@ func (r *postgresRepository) GetCandidates(ctx context.Context, scope config.Sco
 func (r *postgresRepository) ListInScopes(ctx context.Context, scope config.Scope) ([]config.StoredValue, error) {
 	rows, err := r.queries.ListConfigValuesInScopes(ctx, db.ListConfigValuesInScopesParams{
 		Scope:     scope.Kind,
-		ChannelID: nullableUUID(scope.ChannelID),
-		Locale:    nullableString(scope.Locale),
+		ChannelID: sqlnull.UUID(scope.ChannelID),
+		Locale:    sqlnull.String(scope.Locale),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list config values: %w", err)
@@ -99,41 +98,11 @@ func toStoredValue(row db.ConfigValue) config.StoredValue {
 	return config.StoredValue{
 		Scope: config.Scope{
 			Kind:      row.Scope,
-			ChannelID: uuidPtrFromNull(row.ChannelID),
-			Locale:    stringPtrFromNull(row.Locale),
+			ChannelID: sqlnull.UUIDPtr(row.ChannelID),
+			Locale:    sqlnull.StringPtr(row.Locale),
 		},
 		Path:      row.Path,
 		Value:     row.Value,
 		UpdatedAt: row.UpdatedAt,
 	}
-}
-
-func nullableUUID(id *uuid.UUID) uuid.NullUUID {
-	if id == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *id, Valid: true}
-}
-
-func nullableString(s *string) sql.NullString {
-	if s == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *s, Valid: true}
-}
-
-func uuidPtrFromNull(id uuid.NullUUID) *uuid.UUID {
-	if !id.Valid {
-		return nil
-	}
-	v := id.UUID
-	return &v
-}
-
-func stringPtrFromNull(s sql.NullString) *string {
-	if !s.Valid {
-		return nil
-	}
-	v := s.String
-	return &v
 }

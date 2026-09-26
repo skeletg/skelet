@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -224,9 +225,9 @@ func (r *postgresRepository) UpsertCategoryContent(ctx context.Context, category
 		Name:             input.Name,
 		ShortDescription: pqtype.NullRawMessage{RawMessage: input.ShortDescription, Valid: len(input.ShortDescription) > 0},
 		Description:      pqtype.NullRawMessage{RawMessage: input.Description, Valid: len(input.Description) > 0},
-		MetaTitle:        nullableString(input.MetaTitle),
-		MetaDescription:  nullableString(input.MetaDescription),
-		MetaKeywords:     nullableString(input.MetaKeywords),
+		MetaTitle:        sqlnull.StringValueNonEmpty(input.MetaTitle),
+		MetaDescription:  sqlnull.StringValueNonEmpty(input.MetaDescription),
+		MetaKeywords:     sqlnull.StringValueNonEmpty(input.MetaKeywords),
 	})
 	if err != nil {
 		return CategoryContent{}, fmt.Errorf("upsert category content: %w", err)

@@ -7,10 +7,11 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 func (r *postgresRepository) SubmitPageForReview(ctx context.Context, id uuid.UUID, by *uuid.UUID) (Page, error) {
-	row, err := r.queries.SubmitCMSPageForReview(ctx, db.SubmitCMSPageForReviewParams{ID: id, SubmittedBy: nullUUID(by)})
+	row, err := r.queries.SubmitCMSPageForReview(ctx, db.SubmitCMSPageForReviewParams{ID: id, SubmittedBy: sqlnull.UUID(by)})
 	if err != nil {
 		return Page{}, fmt.Errorf("submit for review: %w", err)
 	}
@@ -18,7 +19,7 @@ func (r *postgresRepository) SubmitPageForReview(ctx context.Context, id uuid.UU
 }
 
 func (r *postgresRepository) ApprovePageWorkflow(ctx context.Context, id uuid.UUID, by *uuid.UUID) (Page, error) {
-	row, err := r.queries.ApproveCMSPageWorkflow(ctx, db.ApproveCMSPageWorkflowParams{ID: id, ApprovedBy: nullUUID(by)})
+	row, err := r.queries.ApproveCMSPageWorkflow(ctx, db.ApproveCMSPageWorkflowParams{ID: id, ApprovedBy: sqlnull.UUID(by)})
 	if err != nil {
 		return Page{}, fmt.Errorf("approve page: %w", err)
 	}
@@ -34,7 +35,7 @@ func (r *postgresRepository) SetPageWorkflowState(ctx context.Context, id uuid.U
 }
 
 func (r *postgresRepository) AssignPage(ctx context.Context, id uuid.UUID, to *uuid.UUID) (Page, error) {
-	row, err := r.queries.AssignCMSPage(ctx, db.AssignCMSPageParams{ID: id, AssignedTo: nullUUID(to)})
+	row, err := r.queries.AssignCMSPage(ctx, db.AssignCMSPageParams{ID: id, AssignedTo: sqlnull.UUID(to)})
 	if err != nil {
 		return Page{}, fmt.Errorf("assign page: %w", err)
 	}
@@ -44,8 +45,8 @@ func (r *postgresRepository) AssignPage(ctx context.Context, id uuid.UUID, to *u
 func (r *postgresRepository) CreateComment(ctx context.Context, in CommentInput, authorID uuid.UUID) (PageComment, error) {
 	row, err := r.queries.CreateCMSPageComment(ctx, db.CreateCMSPageCommentParams{
 		PageID:   in.PageID,
-		Locale:   nullableStringPtr(in.Locale),
-		BlockID:  nullableStringPtr(in.BlockID),
+		Locale:   sqlnull.StringNonEmpty(in.Locale),
+		BlockID:  sqlnull.StringNonEmpty(in.BlockID),
 		AuthorID: authorID,
 		Body:     in.Body,
 	})
@@ -68,7 +69,7 @@ func (r *postgresRepository) ListComments(ctx context.Context, pageID uuid.UUID)
 }
 
 func (r *postgresRepository) ResolveComment(ctx context.Context, id uuid.UUID, resolved bool, by *uuid.UUID) (PageComment, error) {
-	row, err := r.queries.ResolveCMSPageComment(ctx, db.ResolveCMSPageCommentParams{ID: id, Resolved: resolved, ResolvedBy: nullUUID(by)})
+	row, err := r.queries.ResolveCMSPageComment(ctx, db.ResolveCMSPageCommentParams{ID: id, Resolved: resolved, ResolvedBy: sqlnull.UUID(by)})
 	if err != nil {
 		return PageComment{}, fmt.Errorf("resolve comment: %w", err)
 	}
@@ -94,13 +95,13 @@ func toPageComment(row db.CmsPageComment) PageComment {
 	return PageComment{
 		ID:         row.ID,
 		PageID:     row.PageID,
-		Locale:     nullStringPtr(row.Locale),
-		BlockID:    nullStringPtr(row.BlockID),
+		Locale:     sqlnull.StringPtr(row.Locale),
+		BlockID:    sqlnull.StringPtr(row.BlockID),
 		AuthorID:   row.AuthorID,
 		Body:       row.Body,
 		Resolved:   row.Resolved,
-		ResolvedBy: nullUUIDPtr(row.ResolvedBy),
-		ResolvedAt: nullTimePtr(row.ResolvedAt),
+		ResolvedBy: sqlnull.UUIDPtr(row.ResolvedBy),
+		ResolvedAt: sqlnull.TimePtr(row.ResolvedAt),
 		CreatedAt:  row.CreatedAt,
 	}
 }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
@@ -167,8 +168,8 @@ func (s *Service) insert(ctx context.Context, p insertParams) (db.DataJob, error
 		Status:    string(p.status),
 		Options:   raw,
 		DryRun:    p.dryRun,
-		ChannelID: nullUUID(p.channelID),
-		AdminID:   nullUUID(p.adminID),
+		ChannelID: sqlnull.UUIDValueNonZero(p.channelID),
+		AdminID:   sqlnull.UUIDValueNonZero(p.adminID),
 		Filename:  p.filename,
 		ObjectKey: p.objectKey,
 		ExpiresAt: sql.NullTime{Time: s.now().Add(s.retention()), Valid: true},
@@ -332,10 +333,6 @@ func withLocale(opts map[string]string, locale string) map[string]string {
 
 // Locale rides in the options blob so the job row stays schema-stable, but it is promoted onto Opts before a resource sees it
 const localeOption = "__locale"
-
-func nullUUID(id uuid.UUID) uuid.NullUUID {
-	return uuid.NullUUID{UUID: id, Valid: id != uuid.Nil}
-}
 
 func toJob(r db.DataJob) Job {
 	opts := map[string]string{}

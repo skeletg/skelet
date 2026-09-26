@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 // bare returns a Service with nil queries, so any code path reaching the database panics - the recover in guarded turns that into a named failure
@@ -153,11 +154,11 @@ func TestToQuestionsCopiesEveryRowDistinctly(t *testing.T) {
 }
 
 func TestNullableUUID(t *testing.T) {
-	if got := nullableUUID(nil); got.Valid {
+	if got := sqlnull.UUID(nil); got.Valid {
 		t.Errorf("nullableUUID(nil) = %+v, want invalid", got)
 	}
 	id := uuid.New()
-	got := nullableUUID(&id)
+	got := sqlnull.UUID(&id)
 	if !got.Valid || got.UUID != id {
 		t.Errorf("nullableUUID(&id) = %+v, want the id marked valid", got)
 	}

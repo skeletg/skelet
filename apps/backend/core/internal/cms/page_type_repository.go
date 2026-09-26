@@ -11,6 +11,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 func (r *postgresRepository) CreatePageType(ctx context.Context, in CreatePageTypeInput) (PageType, error) {
@@ -18,7 +19,7 @@ func (r *postgresRepository) CreatePageType(ctx context.Context, in CreatePageTy
 	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		q := r.queries.WithTx(t)
 		row, err := q.CreateCMSPageType(ctx, db.CreateCMSPageTypeParams{
-			Slug: in.Slug, Icon: nullableString(in.Icon),
+			Slug: in.Slug, Icon: sqlnull.StringValueNonEmpty(in.Icon),
 			IsSystem: in.IsSystem, Position: in.Position,
 		})
 		if err != nil {
@@ -33,7 +34,7 @@ func (r *postgresRepository) CreatePageType(ctx context.Context, in CreatePageTy
 				PageTypeID:  created.ID,
 				Locale:      in.Locale,
 				Name:        in.Name,
-				Description: nullableString(in.Description),
+				Description: sqlnull.StringValueNonEmpty(in.Description),
 			})
 			if err != nil {
 				return fmt.Errorf("upsert page type content: %w", err)
@@ -113,7 +114,7 @@ func (r *postgresRepository) GetPageTypeWithAttributes(ctx context.Context, id u
 			InputType:          InputType(row.InputType),
 			IsTranslatable:     row.IsTranslatable,
 			IsRequiredDefault:  row.IsRequiredDefault,
-			Unit:               nullStringPtr(row.Unit),
+			Unit:               sqlnull.StringPtr(row.Unit),
 			Validation:         row.Validation,
 			RelationshipTarget: rt,
 			Metadata:           metadataFromJSON(row.Metadata),
@@ -140,7 +141,7 @@ func (r *postgresRepository) GetPageTypeWithAttributes(ctx context.Context, id u
 			Position:             row.Position,
 			IsRequired:           row.IsRequired,
 			ConditionAttributeID: condAttr,
-			ConditionValue:       nullStringPtr(row.ConditionValue),
+			ConditionValue:       sqlnull.StringPtr(row.ConditionValue),
 		}
 		if attr.InputType.AcceptsValues() {
 			valueAttrIDs = append(valueAttrIDs, attr.ID)
@@ -186,7 +187,7 @@ func (r *postgresRepository) UpdatePageType(ctx context.Context, in UpdatePageTy
 	}
 	icon := current.Icon
 	if in.Icon != nil {
-		icon = nullableString(*in.Icon)
+		icon = sqlnull.StringValueNonEmpty(*in.Icon)
 	}
 	position := current.Position
 	if in.Position != nil {
@@ -211,7 +212,7 @@ func (r *postgresRepository) DeletePageType(ctx context.Context, id uuid.UUID) e
 func (r *postgresRepository) UpsertPageTypeContent(ctx context.Context, pageTypeID uuid.UUID, in PageTypeContentInput) (PageTypeContent, error) {
 	row, err := r.queries.UpsertCMSPageTypeContent(ctx, db.UpsertCMSPageTypeContentParams{
 		PageTypeID: pageTypeID, Locale: in.Locale, Name: in.Name,
-		Description: nullableString(in.Description),
+		Description: sqlnull.StringValueNonEmpty(in.Description),
 	})
 	if err != nil {
 		return PageTypeContent{}, fmt.Errorf("upsert page type content: %w", err)
@@ -226,8 +227,8 @@ func (r *postgresRepository) CountPagesByType(ctx context.Context, pageTypeID uu
 func (r *postgresRepository) UpdatePageTypeStructure(ctx context.Context, in ResolvedPageTypeStructure) (PageType, error) {
 	row, err := r.queries.UpdateCMSPageTypeStructure(ctx, db.UpdateCMSPageTypeStructureParams{
 		ID:                in.ID,
-		RootSlug:          nullableString(in.RootSlug),
-		DefaultMetaTitle:  nullableString(in.DefaultMetaTitle),
+		RootSlug:          sqlnull.StringValueNonEmpty(in.RootSlug),
+		DefaultMetaTitle:  sqlnull.StringValueNonEmpty(in.DefaultMetaTitle),
 		DefaultSeoNoindex: in.DefaultSEONoindex,
 		IsSingleton:       in.IsSingleton,
 	})
@@ -275,18 +276,11 @@ func (r *postgresRepository) AssignAttributeToPageType(ctx context.Context, in A
 		Position:             in.Position,
 		IsRequired:           in.IsRequired,
 		ConditionAttributeID: condAttr,
-		ConditionValue:       nullableStringPtr(in.ConditionValue),
+		ConditionValue:       sqlnull.StringNonEmpty(in.ConditionValue),
 	}); err != nil {
 		return fmt.Errorf("assign attribute: %w", err)
 	}
 	return nil
-}
-
-func nullableStringPtr(s *string) sql.NullString {
-	if s == nil || *s == "" {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *s, Valid: true}
 }
 
 func (r *postgresRepository) UnassignAttributeFromPageType(ctx context.Context, pageTypeID, attributeID uuid.UUID) error {
@@ -301,10 +295,10 @@ func (r *postgresRepository) UnassignAttributeFromPageType(ctx context.Context, 
 
 func toPageType(row db.CmsPageType) PageType {
 	pt := PageType{
-		ID: row.ID, Slug: row.Slug, Icon: nullStringPtr(row.Icon),
+		ID: row.ID, Slug: row.Slug, Icon: sqlnull.StringPtr(row.Icon),
 		IsSystem: row.IsSystem, Position: row.Position,
-		RootSlug:          nullStr(row.RootSlug),
-		DefaultMetaTitle:  nullStr(row.DefaultMetaTitle),
+		RootSlug:          sqlnull.StringValue(row.RootSlug),
+		DefaultMetaTitle:  sqlnull.StringValue(row.DefaultMetaTitle),
 		DefaultSEONoindex: row.DefaultSeoNoindex,
 		IsSingleton:       row.IsSingleton,
 		CreatedAt:         row.CreatedAt, UpdatedAt: row.UpdatedAt,
@@ -318,7 +312,7 @@ func toPageType(row db.CmsPageType) PageType {
 func toPageTypeContent(row db.CmsPageTypeContent) PageTypeContent {
 	return PageTypeContent{
 		Locale: row.Locale, Name: row.Name,
-		Description: nullStringPtr(row.Description),
+		Description: sqlnull.StringPtr(row.Description),
 		UpdatedAt:   row.UpdatedAt,
 	}
 }

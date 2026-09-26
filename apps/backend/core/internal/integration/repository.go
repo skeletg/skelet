@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -35,7 +36,7 @@ func (r *postgresRepository) Create(ctx context.Context, input CreateIntegration
 			Description: input.Description,
 			TokenHash:   tokenHash,
 			ExpiresAt:   input.ExpiresAt,
-			ChannelID:   nullUUID(input.ChannelID),
+			ChannelID:   sqlnull.UUID(input.ChannelID),
 		})
 		if err != nil {
 			return fmt.Errorf("create integration: %w", err)
@@ -131,7 +132,7 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateIntegration
 
 		channelID := current.ChannelID // db row - already uuid.NullUUID
 		if input.SetChannel {
-			channelID = nullUUID(input.ChannelID)
+			channelID = sqlnull.UUID(input.ChannelID)
 		}
 
 		row, err := q.UpdateIntegration(ctx, db.UpdateIntegrationParams{
@@ -260,11 +261,4 @@ func toIntegration(row db.Integration) Integration {
 		i.ChannelID = &id
 	}
 	return i
-}
-
-func nullUUID(id *uuid.UUID) uuid.NullUUID {
-	if id == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *id, Valid: true}
 }

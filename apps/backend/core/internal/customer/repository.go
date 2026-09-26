@@ -12,6 +12,7 @@ import (
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -231,7 +232,7 @@ func (r *postgresRepository) Update(ctx context.Context, id uuid.UUID, input Upd
 		ID:        id,
 		FirstName: input.FirstName,
 		LastName:  input.LastName,
-		Phone:     nullString(input.Phone),
+		Phone:     sqlnull.String(input.Phone),
 	}); err != nil {
 		return Customer{}, fmt.Errorf("update customer: %w", err)
 	}
@@ -266,7 +267,7 @@ func (r *postgresRepository) AdminCreate(ctx context.Context, input AdminCreateC
 		PasswordHash:    passwordHash,
 		FirstName:       input.FirstName,
 		LastName:        input.LastName,
-		Phone:           nullString(input.Phone),
+		Phone:           sqlnull.String(input.Phone),
 		IsActive:        *input.IsActive,
 		IsEmailVerified: *input.IsEmailVerified,
 		CustomerGroupID: groupID,
@@ -301,7 +302,7 @@ func (r *postgresRepository) AdminUpdate(ctx context.Context, id uuid.UUID, inpu
 	}
 	phone := current.Phone
 	if input.Phone != nil {
-		phone = nullString(input.Phone)
+		phone = sqlnull.String(input.Phone)
 	}
 	isActive := current.IsActive
 	if input.IsActive != nil {
@@ -313,7 +314,7 @@ func (r *postgresRepository) AdminUpdate(ctx context.Context, id uuid.UUID, inpu
 	}
 	note := current.Note
 	if input.Note != nil {
-		note = nullString(input.Note)
+		note = sqlnull.String(input.Note)
 	}
 	resolvedGroup := current.CustomerGroupID
 	if groupID != nil {
@@ -420,14 +421,14 @@ func (r *postgresRepository) CreateAddress(ctx context.Context, customerID uuid.
 		CustomerID:  customerID,
 		FirstName:   input.FirstName,
 		LastName:    input.LastName,
-		Company:     nullString(input.Company),
+		Company:     sqlnull.String(input.Company),
 		Street1:     input.Street1,
-		Street2:     nullString(input.Street2),
+		Street2:     sqlnull.String(input.Street2),
 		City:        input.City,
-		State:       nullString(input.State),
+		State:       sqlnull.String(input.State),
 		PostalCode:  input.PostalCode,
 		CountryCode: input.CountryCode,
-		Phone:       nullString(input.Phone),
+		Phone:       sqlnull.String(input.Phone),
 	})
 	if err != nil {
 		return Address{}, fmt.Errorf("create address: %w", err)
@@ -460,14 +461,14 @@ func (r *postgresRepository) UpdateAddress(ctx context.Context, id uuid.UUID, in
 		ID:          id,
 		FirstName:   input.FirstName,
 		LastName:    input.LastName,
-		Company:     nullString(input.Company),
+		Company:     sqlnull.String(input.Company),
 		Street1:     input.Street1,
-		Street2:     nullString(input.Street2),
+		Street2:     sqlnull.String(input.Street2),
 		City:        input.City,
-		State:       nullString(input.State),
+		State:       sqlnull.String(input.State),
 		PostalCode:  input.PostalCode,
 		CountryCode: input.CountryCode,
-		Phone:       nullString(input.Phone),
+		Phone:       sqlnull.String(input.Phone),
 	})
 	if err != nil {
 		return Address{}, fmt.Errorf("update address: %w", err)
@@ -551,13 +552,6 @@ func toAddress(row db.Address) Address {
 		a.Phone = &row.Phone.String
 	}
 	return a
-}
-
-func nullString(s *string) sql.NullString {
-	if s == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *s, Valid: true}
 }
 
 // --- customer groups ---

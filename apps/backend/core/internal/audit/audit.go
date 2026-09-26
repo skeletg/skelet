@@ -4,7 +4,6 @@ package audit
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"log/slog"
 	"regexp"
@@ -14,6 +13,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/internal/permission"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
@@ -98,7 +98,7 @@ func (s *Service) List(ctx context.Context, adminID *uuid.UUID, action *string, 
 	if adminID != nil {
 		aid = uuid.NullUUID{UUID: *adminID, Valid: true}
 	}
-	act := toNullString(action)
+	act := sqlnull.StringNonEmpty(action)
 	rows, err := s.queries.ListAuditLog(ctx, db.ListAuditLogParams{AdminID: aid, Action: act, Lim: limit, Off: offset})
 	if err != nil {
 		return nil, 0, err
@@ -159,12 +159,4 @@ func Redact(m map[string]any) map[string]any { // deep-copies, replacing values 
 
 func (s *Service) Prune(ctx context.Context, before time.Time) (int64, error) { // operational history, not a legal ledger, so age is the only criterion
 	return s.queries.PruneAuditLog(ctx, before)
-}
-
-func toNullString(p *string) (n sql.NullString) {
-	if p != nil && *p != "" {
-		n.String = *p
-		n.Valid = true
-	}
-	return n
 }

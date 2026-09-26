@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -174,7 +174,7 @@ func (r *postgresRepository) RecordSubmission(ctx context.Context, s Submission)
 		ChannelID:  s.ChannelID,
 		Answers:    answersJSON,
 		Files:      filesJSON,
-		CustomerID: nullUUID(s.CustomerID),
+		CustomerID: sqlnull.UUID(s.CustomerID),
 		Meta:       metaJSON,
 	})
 	if err != nil {
@@ -248,7 +248,7 @@ func toForm(row db.WebForm) (Form, error) {
 		Status:    Status(row.Status),
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
-		DeletedAt: nullTimePtr(row.DeletedAt),
+		DeletedAt: sqlnull.TimePtr(row.DeletedAt),
 	}
 	if len(row.Fields) > 0 {
 		if err := json.Unmarshal(row.Fields, &f.Fields); err != nil {
@@ -292,21 +292,4 @@ func toSubmission(row db.WebFormSubmission) (Submission, error) {
 	return s, nil
 }
 
-func nullUUID(id *uuid.UUID) uuid.NullUUID {
-	if id == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *id, Valid: true}
-}
-
 func isUniqueViolation(err error) bool { return pgdb.IsUniqueViolation(err) } // shared SQLSTATE-based check - the per-package copies drifted into fragile message matching
-
-// nullTimePtr converts a nullable SQL timestamp into the *time.Time the
-// domain structs use
-func nullTimePtr(t sql.NullTime) *time.Time {
-	if !t.Valid {
-		return nil
-	}
-	v := t.Time
-	return &v
-}

@@ -13,6 +13,7 @@ import (
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 var (
@@ -135,23 +136,23 @@ func (r *postgresRepository) CreateRule(ctx context.Context, in Rule) (Rule, err
 		Name:             in.Name,
 		Description:      in.Description,
 		PublicLabel:      in.PublicLabel,
-		ChannelID:        uuidPtrToNullUUID(in.ChannelID),
+		ChannelID:        sqlnull.UUID(in.ChannelID),
 		RequiresCode:     in.RequiresCode,
 		Priority:         in.Priority,
 		StopAfterApply:   string(in.StopAfterApply),
-		ExclusivityGroup: stringToNullString(in.ExclusivityGroup),
-		ValidFrom:        timePtrToNullTime(in.ValidFrom),
-		ValidTo:          timePtrToNullTime(in.ValidTo),
-		ScheduleJson:     rawMessageToNullRaw(in.ScheduleJSON),
-		MaxUses:          int32PtrToNullInt32(in.MaxUses),
-		PerCustomerLimit: int32PtrToNullInt32(in.PerCustomerLimit),
+		ExclusivityGroup: sqlnull.StringValueNonEmpty(in.ExclusivityGroup),
+		ValidFrom:        sqlnull.Time(in.ValidFrom),
+		ValidTo:          sqlnull.Time(in.ValidTo),
+		ScheduleJson:     sqlnull.Raw(in.ScheduleJSON),
+		MaxUses:          sqlnull.Int32(in.MaxUses),
+		PerCustomerLimit: sqlnull.Int32(in.PerCustomerLimit),
 		IsActive:         in.IsActive,
 		// Same attribution column for both on create - admin who
 		// pressed "Save" is both creator and last editor
-		CreatedByAdminID: uuidPtrToNullUUID(in.CreatedByAdminID),
-		UpdatedByAdminID: uuidPtrToNullUUID(in.CreatedByAdminID),
-		LabelMediaID:     uuidPtrToNullUUID(in.LabelMediaID),
-		BannerMediaID:    uuidPtrToNullUUID(in.BannerMediaID),
+		CreatedByAdminID: sqlnull.UUID(in.CreatedByAdminID),
+		UpdatedByAdminID: sqlnull.UUID(in.CreatedByAdminID),
+		LabelMediaID:     sqlnull.UUID(in.LabelMediaID),
+		BannerMediaID:    sqlnull.UUID(in.BannerMediaID),
 		PillText:         in.PillText,
 		PillTextColor:    in.PillTextColor,
 		PillBgColor:      in.PillBgColor,
@@ -172,20 +173,20 @@ func (r *postgresRepository) UpdateRule(ctx context.Context, in Rule) (Rule, err
 		Name:             in.Name,
 		Description:      in.Description,
 		PublicLabel:      in.PublicLabel,
-		ChannelID:        uuidPtrToNullUUID(in.ChannelID),
+		ChannelID:        sqlnull.UUID(in.ChannelID),
 		RequiresCode:     in.RequiresCode,
 		Priority:         in.Priority,
 		StopAfterApply:   string(in.StopAfterApply),
-		ExclusivityGroup: stringToNullString(in.ExclusivityGroup),
-		ValidFrom:        timePtrToNullTime(in.ValidFrom),
-		ValidTo:          timePtrToNullTime(in.ValidTo),
-		ScheduleJson:     rawMessageToNullRaw(in.ScheduleJSON),
-		MaxUses:          int32PtrToNullInt32(in.MaxUses),
-		PerCustomerLimit: int32PtrToNullInt32(in.PerCustomerLimit),
+		ExclusivityGroup: sqlnull.StringValueNonEmpty(in.ExclusivityGroup),
+		ValidFrom:        sqlnull.Time(in.ValidFrom),
+		ValidTo:          sqlnull.Time(in.ValidTo),
+		ScheduleJson:     sqlnull.Raw(in.ScheduleJSON),
+		MaxUses:          sqlnull.Int32(in.MaxUses),
+		PerCustomerLimit: sqlnull.Int32(in.PerCustomerLimit),
 		IsActive:         in.IsActive,
-		UpdatedByAdminID: uuidPtrToNullUUID(in.UpdatedByAdminID),
-		LabelMediaID:     uuidPtrToNullUUID(in.LabelMediaID),
-		BannerMediaID:    uuidPtrToNullUUID(in.BannerMediaID),
+		UpdatedByAdminID: sqlnull.UUID(in.UpdatedByAdminID),
+		LabelMediaID:     sqlnull.UUID(in.LabelMediaID),
+		BannerMediaID:    sqlnull.UUID(in.BannerMediaID),
 		PillText:         in.PillText,
 		PillTextColor:    in.PillTextColor,
 		PillBgColor:      in.PillBgColor,
@@ -245,7 +246,7 @@ func (r *postgresRepository) ListRules(ctx context.Context, limit, offset int32)
 }
 
 func (r *postgresRepository) ListActiveRulesForChannel(ctx context.Context, channelID *uuid.UUID) ([]Rule, error) {
-	rows, err := r.queries.ListActiveRulesForChannel(ctx, uuidPtrToNullUUID(channelID))
+	rows, err := r.queries.ListActiveRulesForChannel(ctx, sqlnull.UUID(channelID))
 	if err != nil {
 		return nil, fmt.Errorf("list active rules: %w", err)
 	}
@@ -285,11 +286,11 @@ func (r *postgresRepository) CreateCode(ctx context.Context, in Code) (Code, err
 	row, err := r.queries.CreatePromotionCode(ctx, db.CreatePromotionCodeParams{
 		RuleID:            in.RuleID,
 		Code:              in.Code,
-		MaxUses:           int32PtrToNullInt32(in.MaxUses),
-		PerCustomerLimit:  int32PtrToNullInt32(in.PerCustomerLimit),
-		ValidFrom:         timePtrToNullTime(in.ValidFrom),
-		ValidTo:           timePtrToNullTime(in.ValidTo),
-		RestrictedToEmail: stringToNullString(in.RestrictedToEmail),
+		MaxUses:           sqlnull.Int32(in.MaxUses),
+		PerCustomerLimit:  sqlnull.Int32(in.PerCustomerLimit),
+		ValidFrom:         sqlnull.Time(in.ValidFrom),
+		ValidTo:           sqlnull.Time(in.ValidTo),
+		RestrictedToEmail: sqlnull.StringValueNonEmpty(in.RestrictedToEmail),
 		IsActive:          in.IsActive,
 	})
 	if err != nil {
@@ -305,11 +306,11 @@ func (r *postgresRepository) UpdateCode(ctx context.Context, in Code) (Code, err
 	row, err := r.queries.UpdatePromotionCode(ctx, db.UpdatePromotionCodeParams{
 		ID:                in.ID,
 		Code:              in.Code,
-		MaxUses:           int32PtrToNullInt32(in.MaxUses),
-		PerCustomerLimit:  int32PtrToNullInt32(in.PerCustomerLimit),
-		ValidFrom:         timePtrToNullTime(in.ValidFrom),
-		ValidTo:           timePtrToNullTime(in.ValidTo),
-		RestrictedToEmail: stringToNullString(in.RestrictedToEmail),
+		MaxUses:           sqlnull.Int32(in.MaxUses),
+		PerCustomerLimit:  sqlnull.Int32(in.PerCustomerLimit),
+		ValidFrom:         sqlnull.Time(in.ValidFrom),
+		ValidTo:           sqlnull.Time(in.ValidTo),
+		RestrictedToEmail: sqlnull.StringValueNonEmpty(in.RestrictedToEmail),
 		IsActive:          in.IsActive,
 	})
 	if err != nil {
@@ -504,7 +505,7 @@ func (r *postgresRepository) ApplyCodeToCart(ctx context.Context, cartID, ruleID
 	_, err := r.queries.ApplyCodeToCart(ctx, db.ApplyCodeToCartParams{
 		CartID: cartID,
 		RuleID: ruleID,
-		CodeID: uuidPtrToNullUUID(codeID),
+		CodeID: sqlnull.UUID(codeID),
 	})
 	if err != nil {
 		return fmt.Errorf("apply code to cart: %w", err)
@@ -540,10 +541,10 @@ func (r *postgresRepository) ListCartAppliedCodes(ctx context.Context, cartID uu
 		out[i] = AppliedCodeRecord{
 			CartID:            row.CartID,
 			RuleID:            row.RuleID,
-			CodeID:            nullUUIDToPtr(row.CodeID),
-			CodeText:          nullStringToString(row.CodeText),
+			CodeID:            sqlnull.UUIDPtr(row.CodeID),
+			CodeText:          sqlnull.StringValue(row.CodeText),
 			AppliedAt:         row.AppliedAt,
-			InvalidatedReason: nullStringToString(row.InvalidatedReason),
+			InvalidatedReason: sqlnull.StringValue(row.InvalidatedReason),
 		}
 	}
 	return out, nil
@@ -565,7 +566,7 @@ func (r *postgresRepository) MarkCartCodeInvalidated(ctx context.Context, cartID
 	return r.queries.MarkCartCodeInvalidated(ctx, db.MarkCartCodeInvalidatedParams{
 		CartID:            cartID,
 		RuleID:            ruleID,
-		InvalidatedReason: stringToNullString(reason),
+		InvalidatedReason: sqlnull.StringValueNonEmpty(reason),
 	})
 }
 
@@ -597,8 +598,8 @@ func (r *postgresRepository) ListRedemptionsByOrder(ctx context.Context, orderID
 func (r *postgresRepository) RecordRedemption(ctx context.Context, ruleID uuid.UUID, codeID *uuid.UUID, customerID *uuid.UUID, orderID uuid.UUID, discountCents int64) error {
 	return r.queries.RecordPromotionRedemption(ctx, db.RecordPromotionRedemptionParams{
 		RuleID:        uuid.NullUUID{UUID: ruleID, Valid: true},
-		CodeID:        uuidPtrToNullUUID(codeID),
-		CustomerID:    uuidPtrToNullUUID(customerID),
+		CodeID:        sqlnull.UUID(codeID),
+		CustomerID:    sqlnull.UUID(customerID),
 		OrderID:       uuid.NullUUID{UUID: orderID, Valid: true},
 		DiscountCents: discountCents,
 	})
@@ -654,22 +655,22 @@ func toRule(row db.PromotionRule) Rule {
 		Name:             row.Name,
 		Description:      row.Description,
 		PublicLabel:      row.PublicLabel,
-		ChannelID:        nullUUIDToPtr(row.ChannelID),
+		ChannelID:        sqlnull.UUIDPtr(row.ChannelID),
 		RequiresCode:     row.RequiresCode,
 		Priority:         row.Priority,
 		StopAfterApply:   StopMode(row.StopAfterApply),
-		ExclusivityGroup: nullStringToString(row.ExclusivityGroup),
-		ValidFrom:        nullTimeToPtr(row.ValidFrom),
-		ValidTo:          nullTimeToPtr(row.ValidTo),
-		ScheduleJSON:     nullRawToRawMessage(row.ScheduleJson),
-		MaxUses:          nullInt32ToPtr(row.MaxUses),
-		PerCustomerLimit: nullInt32ToPtr(row.PerCustomerLimit),
+		ExclusivityGroup: sqlnull.StringValue(row.ExclusivityGroup),
+		ValidFrom:        sqlnull.TimePtr(row.ValidFrom),
+		ValidTo:          sqlnull.TimePtr(row.ValidTo),
+		ScheduleJSON:     sqlnull.RawMessage(row.ScheduleJson),
+		MaxUses:          sqlnull.Int32Ptr(row.MaxUses),
+		PerCustomerLimit: sqlnull.Int32Ptr(row.PerCustomerLimit),
 		UsedCount:        row.UsedCount,
 		IsActive:         row.IsActive,
-		CreatedByAdminID: nullUUIDToPtr(row.CreatedByAdminID),
-		UpdatedByAdminID: nullUUIDToPtr(row.UpdatedByAdminID),
-		LabelMediaID:     nullUUIDToPtr(row.LabelMediaID),
-		BannerMediaID:    nullUUIDToPtr(row.BannerMediaID),
+		CreatedByAdminID: sqlnull.UUIDPtr(row.CreatedByAdminID),
+		UpdatedByAdminID: sqlnull.UUIDPtr(row.UpdatedByAdminID),
+		LabelMediaID:     sqlnull.UUIDPtr(row.LabelMediaID),
+		BannerMediaID:    sqlnull.UUIDPtr(row.BannerMediaID),
 		PillText:         row.PillText,
 		PillTextColor:    row.PillTextColor,
 		PillBgColor:      row.PillBgColor,
@@ -683,11 +684,11 @@ func toCode(row db.PromotionCode) Code {
 		ID:                row.ID,
 		RuleID:            row.RuleID,
 		Code:              row.Code,
-		MaxUses:           nullInt32ToPtr(row.MaxUses),
-		PerCustomerLimit:  nullInt32ToPtr(row.PerCustomerLimit),
-		ValidFrom:         nullTimeToPtr(row.ValidFrom),
-		ValidTo:           nullTimeToPtr(row.ValidTo),
-		RestrictedToEmail: nullStringToString(row.RestrictedToEmail),
+		MaxUses:           sqlnull.Int32Ptr(row.MaxUses),
+		PerCustomerLimit:  sqlnull.Int32Ptr(row.PerCustomerLimit),
+		ValidFrom:         sqlnull.TimePtr(row.ValidFrom),
+		ValidTo:           sqlnull.TimePtr(row.ValidTo),
+		RestrictedToEmail: sqlnull.StringValue(row.RestrictedToEmail),
 		UsedCount:         row.UsedCount,
 		IsActive:          row.IsActive,
 		CreatedAt:         row.CreatedAt,

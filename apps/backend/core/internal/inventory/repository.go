@@ -13,6 +13,7 @@ import (
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -46,7 +47,7 @@ func (r *postgresRepository) CreateLocation(ctx context.Context, input CreateLoc
 		City:              input.City,
 		Region:            input.Region,
 		PostalCode:        input.PostalCode,
-		CountryCode:       nullableString(input.CountryCode),
+		CountryCode:       sqlnull.StringValueNonEmpty(input.CountryCode),
 		Latitude:          floatToNullString(input.Latitude),
 		Longitude:         floatToNullString(input.Longitude),
 		Type:              input.Type,
@@ -179,7 +180,7 @@ func (r *postgresRepository) UpdateLocation(ctx context.Context, input UpdateLoc
 	}
 	countryCode := current.CountryCode
 	if input.CountryCode != nil {
-		countryCode = nullableString(*input.CountryCode)
+		countryCode = sqlnull.StringValueNonEmpty(*input.CountryCode)
 	}
 	latitude := current.Latitude
 	longitude := current.Longitude
@@ -528,9 +529,9 @@ func (r *postgresRepository) InsertReservation(ctx context.Context, res Reservat
 		LocationID:      res.LocationID,
 		QuantityDelta:   res.QuantityDelta,
 		Reason:          string(res.Reason),
-		OrderID:         nullableUUID(res.OrderID),
-		OrderLineID:     nullableUUID(res.OrderLineID),
-		AdminID:         nullableUUID(res.AdminID),
+		OrderID:         sqlnull.UUID(res.OrderID),
+		OrderLineID:     sqlnull.UUID(res.OrderLineID),
+		AdminID:         sqlnull.UUID(res.AdminID),
 		Note:            res.Note,
 	})
 	if err != nil {
@@ -821,22 +822,6 @@ func toReservation(row db.InventoryReservation) Reservation {
 		r.AdminID = &id
 	}
 	return r
-}
-
-func nullableUUID(p *uuid.UUID) uuid.NullUUID {
-	if p == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *p, Valid: true}
-}
-
-// nullableString returns a sql.NullString that's invalid when v is empty,
-// matching Postgres NULL semantics for "the admin didn't enter a value"
-func nullableString(v string) sql.NullString {
-	if v == "" {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: v, Valid: true}
 }
 
 // floatToNullString round-trips an optional float to the sql.NullString sqlc
