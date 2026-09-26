@@ -147,11 +147,13 @@ export function WebFormsList() {
                 checked={showDeleted}
                 onCheckedChange={setShowDeleted}
               />
-              <Button asChild size="sm">
-                <Link to="/cms/forms/new">
-                  <PlusIcon className="size-4" /> New form
-                </Link>
-              </Button>
+              {canManage && (
+                <Button asChild size="sm">
+                  <Link to="/cms/forms/new">
+                    <PlusIcon className="size-4" /> New form
+                  </Link>
+                </Button>
+              )}
             </div>
           ) : undefined
         }

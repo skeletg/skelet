@@ -29,6 +29,7 @@ import {
   type AdminQuery,
 } from './Admins.gql'
 import { PluginSections } from '@/plugins/detail-sections'
+import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   ADMIN_DETAIL_LABELS,
   adminDetailDiff,
@@ -65,6 +66,8 @@ export function AdminDetail() {
 // writes them in one update (docs/conventions.md)
 function AdminForm({ admin }: { admin: AdminQuery['admin'] }) {
   const navigate = useNavigate()
+  // Editing and deleting an admin need admins.manage - a viewer gets the page read-only
+  const canManage = usePermissions().has('admins.manage')
   const { auth } = useAuth()
   const isSelf = auth?.admin.id === admin.id
 
@@ -135,30 +138,33 @@ function AdminForm({ admin }: { admin: AdminQuery['admin'] }) {
       }
       createLabel="Save changes"
       labels={ADMIN_DETAIL_LABELS}
+      readOnly={!canManage}
       after={
         <>
-          <DetailPageSection
-            title={<span className="text-destructive">Danger zone</span>}
-            description={
-              isSelf
-                ? "You can't delete your own account."
-                : 'Deleting an admin revokes access immediately and invalidates any refresh tokens.'
-            }
-          >
-            <div>
-              <Button
-                variant="destructive"
-                disabled={isSelf}
-                onClick={() => {
-                  setDeleteError(null)
-                  setConfirmingDelete(true)
-                }}
-              >
-                <Trash2Icon className="size-4" />
-                Delete admin
-              </Button>
-            </div>
-          </DetailPageSection>
+          {canManage && (
+            <DetailPageSection
+              title={<span className="text-destructive">Danger zone</span>}
+              description={
+                isSelf
+                  ? "You can't delete your own account."
+                  : 'Deleting an admin revokes access immediately and invalidates any refresh tokens.'
+              }
+            >
+              <div>
+                <Button
+                  variant="destructive"
+                  disabled={isSelf}
+                  onClick={() => {
+                    setDeleteError(null)
+                    setConfirmingDelete(true)
+                  }}
+                >
+                  <Trash2Icon className="size-4" />
+                  Delete admin
+                </Button>
+              </div>
+            </DetailPageSection>
+          )}
           <PluginSections target="admin" entity={admin} mode="edit" />
         </>
       }

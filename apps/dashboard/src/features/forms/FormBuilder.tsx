@@ -36,6 +36,7 @@ import {
 import { LoadingState } from '@/components/ui/loading-state'
 import { useConfigScope } from '@/lib/config-scope'
 import { CreateSignupFormDocument, DeleteSignupFormDocument, FormSegmentsDocument, SignupFormDocument, SignupFormSubmissionsDocument, UpdateSignupFormDocument, type SignupFormFieldsFragment } from './Forms.gql'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -169,6 +170,8 @@ function Builder({
   onDeleted: () => void
 }) {
   const isNew = initial.id == null
+  // Saving and deleting a form need forms.manage - a viewer gets the form read-only, no Save or Delete
+  const canEdit = usePermissions().has('forms.manage')
   const draft = useDraft({
     name: initial.name,
     slug: initial.slug,
@@ -298,14 +301,16 @@ function Builder({
         }
         actions={
           <div className="flex items-center gap-2">
-            {!isNew && (
+            {!isNew && canEdit && (
               <Button type="button" variant="outline" size="sm" className="text-destructive" onClick={() => setConfirmDelete(true)}>
                 Delete
               </Button>
             )}
-            <Button type="button" size="sm" disabled={saving} onClick={onSaveClick}>
-              {saving ? 'Saving…' : 'Save'}
-            </Button>
+            {canEdit && (
+              <Button type="button" size="sm" disabled={saving} onClick={onSaveClick}>
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
+            )}
           </div>
         }
       />
@@ -316,181 +321,183 @@ function Builder({
         </Alert>
       )}
       <DetailPageBody>
-        <DetailPageSection title="Basics">
-          <div className="grid max-w-md gap-4">
-            <div className="grid gap-1.5">
-              <Label htmlFor="fname">Name</Label>
-              <Input id="fname" value={name} onChange={(e) => onNameChange(e.target.value)} placeholder="Newsletter popup" />
-              <p className="text-xs text-muted-foreground">Internal name - not shown to visitors.</p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="fslug">Slug</Label>
-              <Input id="fslug" value={slug} onChange={(e) => onSlugChange(e.target.value)} placeholder="newsletter-popup" />
-              <p className="text-xs text-muted-foreground">Used to reference this form on the storefront.</p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Type</Label>
-              <Select value={type} onValueChange={setType}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="popup">Popup</SelectItem>
-                  <SelectItem value="inline">Inline (embedded)</SelectItem>
-                  <SelectItem value="flyout">Flyout</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </DetailPageSection>
-
-        <DetailPageSection title="Content" description="What visitors see.">
-          <div className="grid max-w-md gap-4">
-            <div className="grid gap-1.5">
-              <Label htmlFor="fheading">Heading</Label>
-              <Input id="fheading" value={heading} onChange={(e) => setHeading(e.target.value)} placeholder="Join our newsletter" />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="fbody">Body</Label>
-              <Textarea id="fbody" value={body} onChange={(e) => setBody(e.target.value)} rows={3} placeholder="Get 10% off your first order and the latest updates." />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="fbtn">Button label</Label>
-              <Input id="fbtn" value={buttonLabel} onChange={(e) => setButtonLabel(e.target.value)} placeholder="Subscribe" />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="fsuccess">Success message</Label>
-              <Input id="fsuccess" value={successMessage} onChange={(e) => setSuccessMessage(e.target.value)} placeholder="Thanks for signing up!" />
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <Switch checked={collectName} onCheckedChange={setCollectName} />
-              Also collect the visitor&apos;s name
-            </label>
-          </div>
-        </DetailPageSection>
-
-        <DetailPageSection title="After signup" description="What happens once someone subscribes.">
-          <div className="grid max-w-md gap-4">
-            <div className="grid gap-1.5">
-              <Label>Add to segment</Label>
-              <Select value={targetSegmentId ?? '__none'} onValueChange={(v) => setTargetSegmentId(v === '__none' ? null : v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="No segment" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">No segment</SelectItem>
-                  {segments.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Optionally drop new subscribers into a segment.</p>
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <Switch checked={triggerFlow} onCheckedChange={setTriggerFlow} />
-              Trigger a welcome flow
-            </label>
-          </div>
-        </DetailPageSection>
-
-        <DetailPageSection title="Display rules" description="When and how often the form appears.">
-          <div className="grid max-w-md gap-4">
-            <div className="grid gap-1.5">
-              <Label>Trigger</Label>
-              <Select value={trigger} onValueChange={setTrigger}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="immediate">Immediately</SelectItem>
-                  <SelectItem value="delay">After a delay</SelectItem>
-                  <SelectItem value="scroll">On scroll</SelectItem>
-                  <SelectItem value="exit_intent">On exit intent</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {trigger === 'delay' && (
+        <fieldset disabled={!canEdit} className="contents">
+          <DetailPageSection title="Basics">
+            <div className="grid max-w-md gap-4">
               <div className="grid gap-1.5">
-                <Label htmlFor="fdelay">Delay (seconds)</Label>
-                <Input
-                  id="fdelay"
-                  type="number"
-                  min={0}
-                  value={delaySeconds}
-                  onChange={(e) => setDelaySeconds(Math.max(0, Number(e.target.value) || 0))}
-                  className="w-32"
-                />
+                <Label htmlFor="fname">Name</Label>
+                <Input id="fname" value={name} onChange={(e) => onNameChange(e.target.value)} placeholder="Newsletter popup" />
+                <p className="text-xs text-muted-foreground">Internal name - not shown to visitors.</p>
               </div>
-            )}
-            {trigger === 'scroll' && (
               <div className="grid gap-1.5">
-                <Label htmlFor="fscroll">Scroll depth (%)</Label>
-                <Input
-                  id="fscroll"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={scrollPercent}
-                  onChange={(e) => setScrollPercent(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
-                  className="w-32"
-                />
+                <Label htmlFor="fslug">Slug</Label>
+                <Input id="fslug" value={slug} onChange={(e) => onSlugChange(e.target.value)} placeholder="newsletter-popup" />
+                <p className="text-xs text-muted-foreground">Used to reference this form on the storefront.</p>
               </div>
-            )}
-            <div className="grid gap-1.5">
-              <Label htmlFor="ffreq">Don&apos;t re-show for (days)</Label>
-              <Input
-                id="ffreq"
-                type="number"
-                min={0}
-                value={frequencyDays}
-                onChange={(e) => setFrequencyDays(Math.max(0, Number(e.target.value) || 0))}
-                className="w-32"
-              />
-              <p className="text-xs text-muted-foreground">After a visitor dismisses or submits, wait this many days before showing it again.</p>
+              <div className="grid gap-1.5">
+                <Label>Status</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Type</Label>
+                <Select value={type} onValueChange={setType}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="popup">Popup</SelectItem>
+                    <SelectItem value="inline">Inline (embedded)</SelectItem>
+                    <SelectItem value="flyout">Flyout</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
-        </DetailPageSection>
-
-        {!isNew && (
-          <DetailPageSection title="Recent signups" description={`Latest ${SUBMISSIONS_LIMIT} - newest first.`}>
-            {submissions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No signups yet.</p>
-            ) : (
-              <div className="overflow-x-auto rounded-lg border">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
-                      <th className="px-3 py-2">Email</th>
-                      <th className="px-3 py-2 text-right">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {submissions.map((s, i) => (
-                      <tr key={`${s.email}-${i}`} className="border-b last:border-0">
-                        <td className="px-3 py-2">{s.email}</td>
-                        <td className="px-3 py-2 text-right text-muted-foreground">{fmtDate(s.createdAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </DetailPageSection>
-        )}
+
+          <DetailPageSection title="Content" description="What visitors see.">
+            <div className="grid max-w-md gap-4">
+              <div className="grid gap-1.5">
+                <Label htmlFor="fheading">Heading</Label>
+                <Input id="fheading" value={heading} onChange={(e) => setHeading(e.target.value)} placeholder="Join our newsletter" />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="fbody">Body</Label>
+                <Textarea id="fbody" value={body} onChange={(e) => setBody(e.target.value)} rows={3} placeholder="Get 10% off your first order and the latest updates." />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="fbtn">Button label</Label>
+                <Input id="fbtn" value={buttonLabel} onChange={(e) => setButtonLabel(e.target.value)} placeholder="Subscribe" />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="fsuccess">Success message</Label>
+                <Input id="fsuccess" value={successMessage} onChange={(e) => setSuccessMessage(e.target.value)} placeholder="Thanks for signing up!" />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <Switch checked={collectName} onCheckedChange={setCollectName} />
+                Also collect the visitor&apos;s name
+              </label>
+            </div>
+          </DetailPageSection>
+
+          <DetailPageSection title="After signup" description="What happens once someone subscribes.">
+            <div className="grid max-w-md gap-4">
+              <div className="grid gap-1.5">
+                <Label>Add to segment</Label>
+                <Select value={targetSegmentId ?? '__none'} onValueChange={(v) => setTargetSegmentId(v === '__none' ? null : v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="No segment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">No segment</SelectItem>
+                    {segments.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Optionally drop new subscribers into a segment.</p>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <Switch checked={triggerFlow} onCheckedChange={setTriggerFlow} />
+                Trigger a welcome flow
+              </label>
+            </div>
+          </DetailPageSection>
+
+          <DetailPageSection title="Display rules" description="When and how often the form appears.">
+            <div className="grid max-w-md gap-4">
+              <div className="grid gap-1.5">
+                <Label>Trigger</Label>
+                <Select value={trigger} onValueChange={setTrigger}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="immediate">Immediately</SelectItem>
+                    <SelectItem value="delay">After a delay</SelectItem>
+                    <SelectItem value="scroll">On scroll</SelectItem>
+                    <SelectItem value="exit_intent">On exit intent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {trigger === 'delay' && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="fdelay">Delay (seconds)</Label>
+                  <Input
+                    id="fdelay"
+                    type="number"
+                    min={0}
+                    value={delaySeconds}
+                    onChange={(e) => setDelaySeconds(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-32"
+                  />
+                </div>
+              )}
+              {trigger === 'scroll' && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="fscroll">Scroll depth (%)</Label>
+                  <Input
+                    id="fscroll"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={scrollPercent}
+                    onChange={(e) => setScrollPercent(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                    className="w-32"
+                  />
+                </div>
+              )}
+              <div className="grid gap-1.5">
+                <Label htmlFor="ffreq">Don&apos;t re-show for (days)</Label>
+                <Input
+                  id="ffreq"
+                  type="number"
+                  min={0}
+                  value={frequencyDays}
+                  onChange={(e) => setFrequencyDays(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-32"
+                />
+                <p className="text-xs text-muted-foreground">After a visitor dismisses or submits, wait this many days before showing it again.</p>
+              </div>
+            </div>
+          </DetailPageSection>
+
+          {!isNew && (
+            <DetailPageSection title="Recent signups" description={`Latest ${SUBMISSIONS_LIMIT} - newest first.`}>
+              {submissions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No signups yet.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
+                        <th className="px-3 py-2">Email</th>
+                        <th className="px-3 py-2 text-right">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {submissions.map((s, i) => (
+                        <tr key={`${s.email}-${i}`} className="border-b last:border-0">
+                          <td className="px-3 py-2">{s.email}</td>
+                          <td className="px-3 py-2 text-right text-muted-foreground">{fmtDate(s.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </DetailPageSection>
+          )}
+        </fieldset>
       </DetailPageBody>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>

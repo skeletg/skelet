@@ -21,6 +21,7 @@ import type { OrderStatus } from '@/graphql/schema.types'
 import { OrderStatusBadge } from './OrderStatusBadge'
 import { PaymentStatusBadge } from './PaymentStatusBadge'
 import { OrdersPagedDocument } from './Orders.gql'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 type OrderRow = {
   id: string
@@ -34,6 +35,10 @@ type OrderRow = {
 }
 
 export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } = {}) {
+  // The same permissions the target routes check - a button that only leads to "access restricted" is noise
+  const { has } = usePermissions()
+  const canCreate = has('orders.update')
+  const canExport = has('data.view')
   // Server-driven paging/search/filtering - orders is the one table that grows forever,
   // so the browser must never hold more than a page - URL-backed so views survive navigation
   const {
@@ -167,18 +172,22 @@ export function OrdersList({ defaultStatus }: { defaultStatus?: OrderStatus[] } 
       }}
       toolbarRightSlot={
         <>
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/data?resource=order_lines">
-              <DownloadIcon className="size-4" />
-              Export CSV
-            </Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link to="/orders/new">
-              <PlusIcon className="size-4" />
-              New order
-            </Link>
-          </Button>
+          {canExport && (
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/data?resource=order_lines">
+                <DownloadIcon className="size-4" />
+                Export CSV
+              </Link>
+            </Button>
+          )}
+          {canCreate && (
+            <Button asChild size="sm">
+              <Link to="/orders/new">
+                <PlusIcon className="size-4" />
+                New order
+              </Link>
+            </Button>
+          )}
         </>
       }
       filters={[
