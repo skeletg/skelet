@@ -12,7 +12,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 )
 
-// Embeds postStore so a call the test didn't plan for panics on the nil interface instead of passing silently
+// Embeds postStore so an unplanned call panics
 type fakePostStore struct {
 	postStore
 	posts map[uuid.UUID]Post
