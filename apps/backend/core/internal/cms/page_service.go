@@ -15,7 +15,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
-// The slice of the repository pageService reads and writes - WithTx hands back the full repository, so a transaction body is not narrowed
+// WithTx hands back the full repository, so transaction bodies aren't narrowed
 type pageStore interface {
 	CountPagesByType(ctx context.Context, pageTypeID uuid.UUID) (int64, error)
 	CreateRevision(ctx context.Context, pageID uuid.UUID, in PageContentInput, author *uuid.UUID) (PageRevision, error)
@@ -499,7 +499,7 @@ func (s *pageService) propagatePageURLPaths(ctx context.Context, parentID uuid.U
 	return nil
 }
 
-// The checks every path to live passes - with require-approval on, only an approved or already-published page may go live, and the pre-publish hooks fire only for a real transition
+// Every path to live goes through here - the hooks only fire for a real transition
 func (s *pageService) admitPublish(ctx context.Context, p Page, gate bool) error {
 	if gate && p.WorkflowState != WorkflowApproved && p.WorkflowState != WorkflowPublished {
 		return ErrApprovalRequired
@@ -510,7 +510,7 @@ func (s *pageService) admitPublish(ctx context.Context, p Page, gate bool) error
 	return nil
 }
 
-// A page keeps the date it first went live, otherwise it is dated firstLive
+// Keeps the first go-live date
 func publishDate(p Page, firstLive time.Time) time.Time {
 	if p.PublishedAt != nil {
 		return *p.PublishedAt
@@ -572,8 +572,7 @@ func (s *pageService) DeletePage(ctx context.Context, id uuid.UUID) error {
 }
 
 // Publishes or unpublishes many pages in one all-or-nothing transaction, so if any page can't transition - the approval gate rejecting it, say - nothing changes - Pages already in the target state are skipped
-// Every page is checked and its hooks asked before the transaction opens, so a hook never waits on a row lock the batch holds, and never hears of a publish that then rolls back
-// Domain events fire only after commit and only for pages that actually changed
+// Hooks are asked before the transaction opens so none waits on the batch's row locks, and events fire after commit for pages that changed
 func (s *pageService) BulkSetPublished(ctx context.Context, ids []uuid.UUID, published bool) (int, error) {
 	var admitted []Page
 	if published {

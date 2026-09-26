@@ -1345,7 +1345,7 @@ type GoLiveCMSPageParams struct {
 	ID            uuid.UUID    `json:"id"`
 }
 
-// Every column a publish changes, in one statement, so a page is never live with a stale workflow state or unscheduled without being live
+// One statement, so a page is never live with a stale workflow state
 func (q *Queries) GoLiveCMSPage(ctx context.Context, arg GoLiveCMSPageParams) (CmsPage, error) {
 	row := q.db.QueryRowContext(ctx, goLiveCMSPage, arg.PublishedAt, arg.ClearSchedule, arg.ID)
 	var i CmsPage
