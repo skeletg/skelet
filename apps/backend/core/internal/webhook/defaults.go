@@ -665,14 +665,14 @@ func init() {
 		Type: blog.EventPostPublishing,
 		Kind: KindSync,
 		Name: "Blog Post Publishing (sync)",
-		Description: "Fires before an admin-initiated PublishPost commits. Scheduler-driven promotion bypasses this hook to keep the cron tick non-blocking. " +
+		Description: "Fires before a blog post moves to status=published - admin click or scheduler promotion. A scheduled post that is rejected stays scheduled and is asked again on the next run. " +
 			`Response schema: {"reject": bool, "reason": string}.`,
 	})
 	RegisterEvent(EventDefinition{
 		Type: cms.EventPagePublishing,
 		Kind: KindSync,
 		Name: "CMS Page Publishing (sync)",
-		Description: "Fires before a CMS page transitions to is_published=true. " +
+		Description: "Fires before a CMS page transitions to is_published=true - admin click, bulk publish or scheduler promotion. A scheduled page that is rejected stays scheduled and is asked again on the next run. " +
 			`Response schema: {"reject": bool, "reason": string}.`,
 	})
 	RegisterEvent(EventDefinition{

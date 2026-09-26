@@ -516,6 +516,13 @@ func (s *postService) PromoteDuePosts(ctx context.Context) (int, error) { // fli
 	}
 	count := 0
 	for _, p := range due {
+		// The same pre-publish hooks a manual publish passes - a vetoed post stays scheduled and is asked again next run
+		if s.bus != nil {
+			if err := s.bus.PublishSync(ctx, &PostPublishing{PostID: p.ID, Slug: p.Slug, AuthorID: p.AuthorID}); err != nil {
+				log.Printf("[blog] promote post %s: publishing hook refused: %v", p.ID, err)
+				continue
+			}
+		}
 		if _, err := s.repo.SetPostStatus(ctx, p.ID, PostStatusPublished, p.PublishedAt); err != nil {
 			log.Printf("[blog] promote post %s: %v", p.ID, err)
 			continue
