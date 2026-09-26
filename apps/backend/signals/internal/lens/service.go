@@ -77,6 +77,18 @@ func NewService(q *signalsdb.Queries, rec *analytics.Recorder, cfg Settings, rol
 	return &Service{q: q, rec: rec, cfg: cfg, rollup: rollup}
 }
 
+// Lens retention edge, zero when retention is off or unreadable
+func (s *Service) retentionEdge(ctx context.Context) time.Time {
+	if s.cfg == nil {
+		return time.Time{}
+	}
+	days, err := s.cfg.Int(ctx, "signals/lens/retention_days", nil)
+	if err != nil || days <= 0 {
+		return time.Time{}
+	}
+	return time.Now().UTC().AddDate(0, 0, -int(days))
+}
+
 // Optional - when unset, reads use the primary pool
 func (s *Service) SetReadQueries(qr *signalsdb.Queries) { s.qr = qr }
 
@@ -579,7 +591,7 @@ func (s *Service) Overview(ctx context.Context, channelID uuid.UUID, since time.
 			avgScroll int
 		}
 		engByPage := map[string]eng{}
-		if grids, err := s.rec.LensPagesGridFromEvents(ctx, channelID); err == nil {
+		if grids, err := s.rec.LensPagesGridFromEvents(ctx, channelID, s.retentionEdge(ctx)); err == nil {
 			for page, g := range grids {
 				avg := 0
 				if g.ScrollTotal > 0 {
@@ -685,10 +697,16 @@ type BrowseAbandoner struct {
 	LastBrowseAt time.Time
 }
 
+// The most abandoners one scan returns - core asks for far fewer per channel per tick
+const maxBrowseAbandoners int32 = 5000
+
 // Resolves idle product browses to the customers who made them, minus anyone already notified for that browse
 // Bounded pages, newest-first: the browse rows are anon-keyed and the spine engine resolves each page to customers
 func (s *Service) ListBrowseAbandoners(ctx context.Context, channelID uuid.UUID, threshold, maxAge time.Time, limit int32) ([]BrowseAbandoner, error) {
 	const pageSize = 10000
+	if limit <= 0 { // a caller that forgets a limit still gets a bounded scan
+		limit = maxBrowseAbandoners
+	}
 	var cands []BrowseAbandoner
 	seen := make(map[uuid.UUID]bool)
 	// keyset cursor starts above any real row - browse times are event times, never a day in the future
@@ -805,7 +823,7 @@ type Heatmap struct {
 }
 
 func (s *Service) ListPages(ctx context.Context, channelID uuid.UUID) ([]PageEntry, error) {
-	rows, err := s.rec.LensListPages(ctx, channelID)
+	rows, err := s.rec.LensListPages(ctx, channelID, s.retentionEdge(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -821,7 +839,7 @@ func (s *Service) Viewports(ctx context.Context, channelID uuid.UUID, pageKey st
 }
 
 func (s *Service) PageDevices(ctx context.Context, channelID uuid.UUID, pageKey string) ([]LabelCount, error) {
-	rows, err := s.rec.LensPageDeviceSplit(ctx, channelID, pageKey)
+	rows, err := s.rec.LensPageDeviceSplit(ctx, channelID, pageKey, s.retentionEdge(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -851,10 +869,10 @@ type PageStatsResult struct {
 
 func (s *Service) PageStats(ctx context.Context, channelID uuid.UUID, pageKey string) (PageStatsResult, error) {
 	var res PageStatsResult
-	if views, visitors, err := s.rec.LensPageTotals(ctx, channelID, pageKey); err == nil {
+	if views, visitors, err := s.rec.LensPageTotals(ctx, channelID, pageKey, s.retentionEdge(ctx)); err == nil {
 		res.Views, res.Visitors = views, visitors
 	}
-	if g, err := s.rec.LensPageGridFromEvents(ctx, channelID, pageKey); err == nil {
+	if g, err := s.rec.LensPageGridFromEvents(ctx, channelID, pageKey, s.retentionEdge(ctx)); err == nil {
 		res.Clicks = g.Clicks
 		if g.ScrollTotal > 0 {
 			res.AvgScroll = int(g.ScrollWeight / g.ScrollTotal)
@@ -865,12 +883,12 @@ func (s *Service) PageStats(ctx context.Context, channelID uuid.UUID, pageKey st
 			res.Timeline = append(res.Timeline, TimePoint{Date: r.Date, Views: r.Views})
 		}
 	}
-	if rows, err := s.rec.LensPageReferrers(ctx, channelID, pageKey); err == nil {
+	if rows, err := s.rec.LensPageReferrers(ctx, channelID, pageKey, s.retentionEdge(ctx)); err == nil {
 		for _, r := range rows {
 			res.Referrers = append(res.Referrers, LabelCount{Label: r.Value, Views: r.Count})
 		}
 	}
-	if rows, err := s.rec.LensPageClients(ctx, channelID, pageKey); err == nil {
+	if rows, err := s.rec.LensPageClients(ctx, channelID, pageKey, s.retentionEdge(ctx)); err == nil {
 		for _, r := range rows {
 			res.Clients = append(res.Clients, LabelCount{Label: r.Value, Views: r.Count})
 		}
@@ -904,7 +922,7 @@ func (s *Service) Heatmap(ctx context.Context, channelID uuid.UUID, pageKey, vie
 	hm.Click = s.cells(ctx, channelID, pageKey, viewport, state, "click")
 	hm.Move = s.cells(ctx, channelID, pageKey, viewport, state, "move")
 	hm.Scroll = s.cells(ctx, channelID, pageKey, viewport, state, "scroll")
-	if els, err := s.rec.LensElementsFromEvents(ctx, channelID, pageKey, viewport, 25); err == nil {
+	if els, err := s.rec.LensElementsFromEvents(ctx, channelID, pageKey, viewport, 25, s.retentionEdge(ctx)); err == nil {
 		for _, e := range els {
 			hm.Elements = append(hm.Elements, ElementClick{Selector: e.Selector, Text: e.Text, Count: e.Count})
 		}
@@ -913,7 +931,7 @@ func (s *Service) Heatmap(ctx context.Context, channelID uuid.UUID, pageKey, vie
 }
 
 func (s *Service) cells(ctx context.Context, channelID uuid.UUID, pageKey, viewport, state, kind string) []Cell {
-	rows, err := s.rec.LensCellsFromEvents(ctx, channelID, pageKey, viewport, state, kind)
+	rows, err := s.rec.LensCellsFromEvents(ctx, channelID, pageKey, viewport, state, kind, s.retentionEdge(ctx))
 	if err != nil {
 		return nil
 	}

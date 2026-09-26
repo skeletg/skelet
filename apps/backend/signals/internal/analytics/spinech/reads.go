@@ -198,7 +198,10 @@ func (s *Store) Stickiness(ctx context.Context, channelID uuid.UUID, event strin
 }
 
 func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, since time.Time, depth, topK int) (analytics.FlowResult, error) {
-	// Custom (track()) events surface by their real name (properties.name), the $experiment ping is dropped, and only focus-event actors' rows stream - matching FlowEvents - the path tree is then built by the shared walker
+	// Custom events surface by their real name and $experiment is dropped - each journey is cut to what the walker uses: from the first focus event, repeats collapsed, depth steps at most
+	if depth < 1 {
+		depth = 1
+	}
 	rows, err := s.conn.Query(ctx, `
 		WITH focus_actors AS (
 			SELECT DISTINCT `+resolvedActor+` AS actor
@@ -207,61 +210,44 @@ func (s *Store) Flow(ctx context.Context, channelID uuid.UUID, focus string, sin
 			  AND (e.event_name = ? OR (e.event_name = 'custom' AND e.custom_name = ?))
 			  AND `+resolvedActor+` != ''
 		)
-		SELECT `+resolvedActor+` AS actor,
-		       if(e.event_name = 'custom', if(e.custom_name != '', e.custom_name, 'custom'), e.event_name) AS ev,
-		       e.occurred_at
-		FROM analytics_events AS e FINAL
-		WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+`
-		  AND `+resolvedActor+` IN (SELECT actor FROM focus_actors)
-		  AND NOT (e.event_name = 'custom' AND e.custom_name = '$experiment')
-		  AND `+resolvedActor+` != ''
-		ORDER BY actor, e.occurred_at`,
-		channelID, since, focus, focus, channelID, since)
+		SELECT actor, arraySlice(arrayFilter((x, i) -> i = 1 OR x != journey[i - 1], journey, arrayEnumerate(journey)), 1, ?) AS path
+		FROM (
+			SELECT actor, arraySlice(evs, indexOf(evs, ?)) AS journey
+			FROM (
+				SELECT `+resolvedActor+` AS actor,
+				       arrayMap(t -> t.2, arraySort(t -> t.1, groupArray((e.occurred_at,
+				           if(e.event_name = 'custom', if(e.custom_name != '', e.custom_name, 'custom'), e.event_name))))) AS evs
+				FROM analytics_events AS e FINAL
+				WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+`
+				  AND `+resolvedActor+` IN (SELECT actor FROM focus_actors)
+				  AND NOT (e.event_name = 'custom' AND e.custom_name = '$experiment')
+				  AND `+resolvedActor+` != ''
+				GROUP BY actor
+			)
+			WHERE has(evs, ?)
+		)`,
+		channelID, since, focus, focus, uint64(depth+1), focus, channelID, since, focus)
 	if err != nil {
 		return analytics.FlowResult{}, err
 	}
 	defer rows.Close()
 	var events []analytics.SpineActorEvent
 	for rows.Next() {
-		var ev analytics.SpineActorEvent
-		if err := rows.Scan(&ev.Actor, &ev.EventName, &ev.OccurredAt); err != nil {
+		var (
+			actor string
+			path  []string
+		)
+		if err := rows.Scan(&actor, &path); err != nil {
 			return analytics.FlowResult{}, err
 		}
-		events = append(events, ev)
+		for _, name := range path {
+			events = append(events, analytics.SpineActorEvent{Actor: actor, EventName: name})
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return analytics.FlowResult{}, err
 	}
 	return analytics.FlowFromEvents(events, focus, depth, topK), nil
-}
-
-// actorEvents fetches the resolved-actor events for the given event names, ordered (actor, time) - the row feed for the shared sequence walkers (Retention/Flow)
-func (s *Store) actorEvents(ctx context.Context, channelID uuid.UUID, eventNames []string, since time.Time) ([]analytics.SpineActorEvent, error) {
-	holders := make([]string, len(eventNames))
-	args := []any{channelID, since}
-	for i, n := range eventNames {
-		holders[i] = "?"
-		args = append(args, n)
-	}
-	rows, err := s.conn.Query(ctx, `
-		SELECT `+resolvedActor+` AS actor, e.event_name, e.occurred_at
-		FROM analytics_events AS e FINAL
-		WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+`
-		  AND e.event_name IN (`+strings.Join(holders, ", ")+`) AND `+resolvedActor+` != ''
-		ORDER BY actor, e.occurred_at`, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []analytics.SpineActorEvent
-	for rows.Next() {
-		var ev analytics.SpineActorEvent
-		if err := rows.Scan(&ev.Actor, &ev.EventName, &ev.OccurredAt); err != nil {
-			return nil, err
-		}
-		out = append(out, ev)
-	}
-	return out, rows.Err()
 }
 
 func (s *Store) Retention(ctx context.Context, channelID uuid.UUID, startEvent, returnEvent string, since, now time.Time, periods int, unit time.Duration) (analytics.Retention, error) {
@@ -272,15 +258,53 @@ func (s *Store) Retention(ctx context.Context, channelID uuid.UUID, startEvent, 
 	if periods <= 0 || unit <= 0 {
 		return out, nil
 	}
-	steps := []string{startEvent}
-	if returnEvent != startEvent {
-		steps = append(steps, returnEvent)
-	}
-	events, err := s.actorEvents(ctx, channelID, steps, since)
+	// Cohort starts round down from Go's zero time like time.Truncate - Unix-epoch weeks would start on a Thursday
+	unitMs := unit.Milliseconds()
+	rows, err := s.conn.Query(ctx, `
+		WITH per_actor AS (
+			SELECT actor,
+			       toInt64(toUnixTimestamp64Milli(minIf(ts, ev = ?))) AS anchor_ms,
+			       groupArrayIf(toInt64(toUnixTimestamp64Milli(ts)), ev = ?) AS returns_ms
+			FROM (
+				SELECT `+resolvedActor+` AS actor, e.event_name AS ev, e.occurred_at AS ts
+				FROM analytics_events AS e FINAL
+				WHERE e.channel_id = ? AND e.occurred_at >= ? AND `+notBot+`
+				  AND e.event_name IN (?, ?) AND `+resolvedActor+` != ''
+			)
+			GROUP BY actor
+			HAVING countIf(ev = ?) > 0
+		),
+		bucketed AS (
+			SELECT anchor_ms - ((anchor_ms + 62135596800000) % ?) AS cohort_ms,
+			       arrayDistinct(arrayFilter(b -> b >= 0 AND b < ?,
+			           arrayMap(r -> intDiv(r - cohort_ms, ?), arrayFilter(r -> r >= anchor_ms, returns_ms)))) AS buckets
+			FROM per_actor
+		)
+		SELECT cohort_ms, toInt64(count()) AS size,
+		       sumForEach(arrayMap(b -> toInt64(has(buckets, b)), range(?))) AS counts
+		FROM bucketed GROUP BY cohort_ms`,
+		startEvent, returnEvent, channelID, since, startEvent, returnEvent, startEvent,
+		unitMs, int64(periods), unitMs, uint64(periods))
 	if err != nil {
 		return out, err
 	}
-	return analytics.RetentionFromEvents(events, startEvent, returnEvent, now, periods, unit), nil
+	defer rows.Close()
+	var cohorts []analytics.RetentionCohortRow
+	for rows.Next() {
+		var (
+			startMs int64
+			c       analytics.RetentionCohortRow
+		)
+		if err := rows.Scan(&startMs, &c.Size, &c.Counts); err != nil {
+			return out, err
+		}
+		c.Start = time.UnixMilli(startMs).UTC()
+		cohorts = append(cohorts, c)
+	}
+	if err := rows.Err(); err != nil {
+		return out, err
+	}
+	return analytics.RetentionFromCohorts(cohorts, now, periods, unit), nil
 }
 
 func (s *Store) Engagement(ctx context.Context, channelID uuid.UUID, since time.Time) (analytics.Engagement, error) {
@@ -428,7 +452,7 @@ func (s *Store) SynapseOverview(ctx context.Context, channelID uuid.UUID, since 
 	if err := s.conn.QueryRow(ctx, `
 		SELECT toInt64(uniqExact(anon_id)) FROM analytics_events FINAL
 		WHERE channel_id = ? AND occurred_at >= ? AND `+notBot+`
-		  AND anon_id != '' AND anon_id NOT IN (SELECT anon_id FROM analytics_identities)`,
+		  AND anon_id != '' AND NOT dictHas('`+identityDictName+`', tuple(anon_id))`,
 		channelID, since).Scan(&o.AnonymousVisitors); err != nil {
 		return o, fmt.Errorf("synapse overview: anonymous count: %w", err)
 	}
@@ -438,7 +462,7 @@ func (s *Store) SynapseOverview(ctx context.Context, channelID uuid.UUID, since 
 		       argMaxIf(coalesce(nullIf(title, ''), page_key), occurred_at, event_name = 'page_view')
 		FROM analytics_events FINAL
 		WHERE channel_id = ? AND occurred_at >= ? AND `+notBot+`
-		  AND anon_id != '' AND anon_id NOT IN (SELECT anon_id FROM analytics_identities)
+		  AND anon_id != '' AND NOT dictHas('`+identityDictName+`', tuple(anon_id))
 		GROUP BY anon_id ORDER BY c DESC LIMIT 15`, channelID, since)
 	if err != nil {
 		return o, fmt.Errorf("synapse overview: active visitors: %w", err)
@@ -931,14 +955,15 @@ func (s *Store) SegmentAffinitiesForMembers(ctx context.Context, channelID uuid.
 	return out, rows.Err()
 }
 
-func (s *Store) RecentEngagementEvents(ctx context.Context, customerID uuid.UUID, since time.Time) ([]analytics.EngagementCandidate, error) {
+// Scoped to the order's channel - another store's email never gets the credit
+func (s *Store) RecentEngagementEvents(ctx context.Context, channelID, customerID uuid.UUID, since time.Time) ([]analytics.EngagementCandidate, error) {
 	rows, err := s.conn.Query(ctx, `
 		SELECT event_name, occurred_at, send_id, source,
 		       JSONExtractString(properties, 'campaign_id'), JSONExtractString(properties, 'flow_id')
 		FROM analytics_events FINAL
-		WHERE customer_id = ? AND event_name IN ('email_opened', 'email_clicked')
+		WHERE channel_id = ? AND customer_id = ? AND event_name IN ('email_opened', 'email_clicked')
 		  AND send_id != toUUID('00000000-0000-0000-0000-000000000000') AND occurred_at >= ?
-		ORDER BY (event_name = 'email_clicked') DESC, occurred_at DESC`, customerID, since)
+		ORDER BY (event_name = 'email_clicked') DESC, occurred_at DESC`, channelID, customerID, since)
 	if err != nil {
 		return nil, err
 	}
@@ -1110,7 +1135,7 @@ func (s *Store) EventsForForwarding(ctx context.Context, channelID uuid.UUID, af
 	// the 5s watermark mirrors the Postgres driver - a batch mid-flush must never end up behind an advanced cursor
 	// The bare created_at >= bound is what the minmax skip index can evaluate - without it the function-wrapped tuple reads the channel's entire retained history every poll, and the tuple then draws the exact page boundary within that granule set
 	rows, err := s.conn.Query(ctx, `
-		SELECT id, event_name, occurred_at, customer_id, anon_id, source, properties, created_at
+		SELECT id, event_name, occurred_at, customer_id, anon_id, source, properties, created_at, dedupe_key
 		FROM analytics_events FINAL
 		WHERE channel_id = ? AND created_at >= ?
 		  AND (toUnixTimestamp64Milli(created_at), toString(id)) > (?, ?)
@@ -1128,7 +1153,7 @@ func (s *Store) EventsForForwarding(ctx context.Context, channelID uuid.UUID, af
 			cust uuid.UUID
 			raw  string
 		)
-		if err := rows.Scan(&e.ID, &e.Name, &e.OccurredAt, &cust, &e.AnonID, &e.Source, &raw, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.Name, &e.OccurredAt, &cust, &e.AnonID, &e.Source, &raw, &e.CreatedAt, &e.DedupeKey); err != nil {
 			return nil, err
 		}
 		if cust != uuid.Nil {
@@ -1234,10 +1259,11 @@ func (s *Store) ExperimentResults(ctx context.Context, channelID uuid.UUID, key,
 const lensPageView = "source = 'web' AND event_name = 'page_view' AND channel_id = ? AND page_key = ?"
 
 // Runs a value/count rollup over one page's views
-func (s *Store) lensPageCounts(ctx context.Context, expr string, channelID uuid.UUID, pageKey string, order string) ([]analytics.ValueCount, error) {
+// since is the Lens retention edge - older rows are pruned, and the bound lets ClickHouse skip their partitions
+func (s *Store) lensPageCounts(ctx context.Context, expr string, channelID uuid.UUID, pageKey string, since time.Time, order string) ([]analytics.ValueCount, error) {
 	rows, err := s.conn.Query(ctx,
 		"SELECT "+expr+" AS v, toInt64(count()) AS views FROM analytics_events FINAL WHERE "+lensPageView+
-			" GROUP BY v ORDER BY "+order, channelID, pageKey)
+			" AND occurred_at >= ? GROUP BY v ORDER BY "+order, channelID, pageKey, since)
 	if err != nil {
 		return nil, err
 	}
@@ -1253,27 +1279,27 @@ func (s *Store) lensPageCounts(ctx context.Context, expr string, channelID uuid.
 	return out, rows.Err()
 }
 
-func (s *Store) LensPageTotals(ctx context.Context, channelID uuid.UUID, pageKey string) (int64, int64, error) {
+func (s *Store) LensPageTotals(ctx context.Context, channelID uuid.UUID, pageKey string, since time.Time) (int64, int64, error) {
 	var views, visitors int64
 	err := s.conn.QueryRow(ctx,
-		"SELECT toInt64(count()), toInt64(uniqExact(anon_id)) FROM analytics_events FINAL WHERE "+lensPageView,
-		channelID, pageKey).Scan(&views, &visitors)
+		"SELECT toInt64(count()), toInt64(uniqExact(anon_id)) FROM analytics_events FINAL WHERE "+lensPageView+" AND occurred_at >= ?",
+		channelID, pageKey, since).Scan(&views, &visitors)
 	return views, visitors, err
 }
 
-func (s *Store) LensPageReferrers(ctx context.Context, channelID uuid.UUID, pageKey string) ([]analytics.ValueCount, error) {
+func (s *Store) LensPageReferrers(ctx context.Context, channelID uuid.UUID, pageKey string, since time.Time) ([]analytics.ValueCount, error) {
 	return s.lensPageCounts(ctx, "if(JSONExtractString(properties, 'referrer') != '', JSONExtractString(properties, 'referrer'), '(direct)')",
-		channelID, pageKey, "views DESC LIMIT 10")
+		channelID, pageKey, since, "views DESC LIMIT 10")
 }
 
-func (s *Store) LensPageClients(ctx context.Context, channelID uuid.UUID, pageKey string) ([]analytics.ValueCount, error) {
+func (s *Store) LensPageClients(ctx context.Context, channelID uuid.UUID, pageKey string, since time.Time) ([]analytics.ValueCount, error) {
 	return s.lensPageCounts(ctx, "if(JSONExtractString(properties, 'client') != '', JSONExtractString(properties, 'client'), 'unknown')",
-		channelID, pageKey, "views DESC LIMIT 10")
+		channelID, pageKey, since, "views DESC LIMIT 10")
 }
 
-func (s *Store) LensPageDeviceSplit(ctx context.Context, channelID uuid.UUID, pageKey string) ([]analytics.ValueCount, error) {
+func (s *Store) LensPageDeviceSplit(ctx context.Context, channelID uuid.UUID, pageKey string, since time.Time) ([]analytics.ValueCount, error) {
 	return s.lensPageCounts(ctx, "if(JSONExtractString(properties, 'device') != '', JSONExtractString(properties, 'device'), 'unknown')",
-		channelID, pageKey, "views DESC")
+		channelID, pageKey, since, "views DESC")
 }
 
 func (s *Store) LensPageTimeline(ctx context.Context, channelID uuid.UUID, pageKey string, since time.Time) ([]analytics.LensDayCount, error) {
@@ -1296,11 +1322,11 @@ func (s *Store) LensPageTimeline(ctx context.Context, channelID uuid.UUID, pageK
 	return out, rows.Err()
 }
 
-func (s *Store) LensListPages(ctx context.Context, channelID uuid.UUID) ([]analytics.ValueCount, error) {
+func (s *Store) LensListPages(ctx context.Context, channelID uuid.UUID, since time.Time) ([]analytics.ValueCount, error) {
 	rows, err := s.conn.Query(ctx, `
 		SELECT page_key AS v, toInt64(count()) AS views FROM analytics_events FINAL
-		WHERE source = 'web' AND event_name = 'page_view' AND channel_id = ?
-		GROUP BY v ORDER BY views DESC LIMIT 200`, channelID)
+		WHERE source = 'web' AND event_name = 'page_view' AND channel_id = ? AND occurred_at >= ?
+		GROUP BY v ORDER BY views DESC LIMIT 200`, channelID, since)
 	if err != nil {
 		return nil, err
 	}
@@ -1440,15 +1466,15 @@ func (s *Store) LensSessionSignals(ctx context.Context, channelID uuid.UUID, ses
 // --- event-derived heatmaps: the reason grid increments append here instead of upserting Postgres counter rows ---
 
 // page_key is the MATERIALIZED column, not a JSONExtract - the filter then reads one compressed column (and prunes via PREWHERE) instead of parsing the JSON blob of every lens_cell row the channel has ever kept
-func (s *Store) LensCellsFromEvents(ctx context.Context, channelID uuid.UUID, pageKey, viewport, state, kind string) ([]analytics.LensCellCount, error) {
+func (s *Store) LensCellsFromEvents(ctx context.Context, channelID uuid.UUID, pageKey, viewport, state, kind string, since time.Time) ([]analytics.LensCellCount, error) {
 	rows, err := s.conn.Query(ctx, `
 		SELECT toInt32(JSONExtractInt(properties, 'x')) AS x, toInt32(JSONExtractInt(properties, 'y')) AS y,
 		       toInt64(sum(JSONExtractInt(properties, 'n'))) AS n
 		FROM analytics_events FINAL
-		WHERE event_name = 'lens_cell' AND channel_id = ? AND page_key = ?
+		WHERE event_name = 'lens_cell' AND channel_id = ? AND page_key = ? AND occurred_at >= ?
 		  AND JSONExtractString(properties, 'viewport') = ?
 		  AND JSONExtractString(properties, 'state') = ? AND JSONExtractString(properties, 'kind') = ?
-		GROUP BY x, y ORDER BY n DESC`, channelID, pageKey, viewport, state, kind)
+		GROUP BY x, y ORDER BY n DESC`, channelID, pageKey, since, viewport, state, kind)
 	if err != nil {
 		return nil, err
 	}
@@ -1464,15 +1490,15 @@ func (s *Store) LensCellsFromEvents(ctx context.Context, channelID uuid.UUID, pa
 	return out, rows.Err()
 }
 
-func (s *Store) LensElementsFromEvents(ctx context.Context, channelID uuid.UUID, pageKey, viewport string, limit int32) ([]analytics.LensElementCount, error) {
+func (s *Store) LensElementsFromEvents(ctx context.Context, channelID uuid.UUID, pageKey, viewport string, limit int32, since time.Time) ([]analytics.LensElementCount, error) {
 	rows, err := s.conn.Query(ctx, `
 		SELECT JSONExtractString(properties, 'selector') AS sel,
 		       argMax(JSONExtractString(properties, 'text'), occurred_at) AS label,
 		       toInt64(sum(JSONExtractInt(properties, 'n'))) AS n
 		FROM analytics_events FINAL
-		WHERE event_name = 'lens_element' AND channel_id = ? AND page_key = ?
+		WHERE event_name = 'lens_element' AND channel_id = ? AND page_key = ? AND occurred_at >= ?
 		  AND JSONExtractString(properties, 'viewport') = ?
-		GROUP BY sel ORDER BY n DESC LIMIT ?`, channelID, pageKey, viewport, uint64(limit))
+		GROUP BY sel ORDER BY n DESC LIMIT ?`, channelID, pageKey, since, viewport, uint64(limit))
 	if err != nil {
 		return nil, err
 	}
@@ -1488,27 +1514,27 @@ func (s *Store) LensElementsFromEvents(ctx context.Context, channelID uuid.UUID,
 	return out, rows.Err()
 }
 
-func (s *Store) LensPageGridFromEvents(ctx context.Context, channelID uuid.UUID, pageKey string) (analytics.LensGridTotals, error) {
+func (s *Store) LensPageGridFromEvents(ctx context.Context, channelID uuid.UUID, pageKey string, since time.Time) (analytics.LensGridTotals, error) {
 	var g analytics.LensGridTotals
 	err := s.conn.QueryRow(ctx, `
 		SELECT toInt64(sumIf(JSONExtractInt(properties, 'n'), JSONExtractString(properties, 'kind') = 'click')),
 		       toInt64(sumIf(JSONExtractInt(properties, 'y') * JSONExtractInt(properties, 'n'), JSONExtractString(properties, 'kind') = 'scroll')),
 		       toInt64(sumIf(JSONExtractInt(properties, 'n'), JSONExtractString(properties, 'kind') = 'scroll'))
 		FROM analytics_events FINAL
-		WHERE event_name = 'lens_cell' AND channel_id = ? AND page_key = ?`,
-		channelID, pageKey).Scan(&g.Clicks, &g.ScrollWeight, &g.ScrollTotal)
+		WHERE event_name = 'lens_cell' AND channel_id = ? AND page_key = ? AND occurred_at >= ?`,
+		channelID, pageKey, since).Scan(&g.Clicks, &g.ScrollWeight, &g.ScrollTotal)
 	return g, err
 }
 
-func (s *Store) LensPagesGridFromEvents(ctx context.Context, channelID uuid.UUID) (map[string]analytics.LensGridTotals, error) {
+func (s *Store) LensPagesGridFromEvents(ctx context.Context, channelID uuid.UUID, since time.Time) (map[string]analytics.LensGridTotals, error) {
 	rows, err := s.conn.Query(ctx, `
 		SELECT page_key,
 		       toInt64(sumIf(JSONExtractInt(properties, 'n'), JSONExtractString(properties, 'kind') = 'click')),
 		       toInt64(sumIf(JSONExtractInt(properties, 'y') * JSONExtractInt(properties, 'n'), JSONExtractString(properties, 'kind') = 'scroll')),
 		       toInt64(sumIf(JSONExtractInt(properties, 'n'), JSONExtractString(properties, 'kind') = 'scroll'))
 		FROM analytics_events FINAL
-		WHERE event_name = 'lens_cell' AND channel_id = ?
-		GROUP BY page_key`, channelID)
+		WHERE event_name = 'lens_cell' AND channel_id = ? AND occurred_at >= ?
+		GROUP BY page_key`, channelID, since)
 	if err != nil {
 		return nil, err
 	}
