@@ -119,9 +119,17 @@ function InventoryLocationFormPage({
         await createLocation({ variables: { input: { slug: value.slug, ...input } } })
         return
       }
+      // Hours only when they moved: the form reads "none set" as closed every day, so writing an untouched
+      // week back turned a location with no hours into one closed all week
+      const hoursMoved = JSON.stringify(value.hours) !== JSON.stringify(baseline.hours)
       await updateLocation({
         variables: {
-          input: { id: location.id, ...input, clearCoords: input.latitude == null && input.longitude == null },
+          input: {
+            id: location.id,
+            ...input,
+            hours: hoursMoved ? input.hours : undefined,
+            clearCoords: input.latitude == null && input.longitude == null,
+          },
         },
       })
       // Pickup is its own mutation - staged with everything else, sent only when it moved

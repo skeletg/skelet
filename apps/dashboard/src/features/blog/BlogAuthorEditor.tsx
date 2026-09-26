@@ -101,7 +101,12 @@ function AuthorForm({ author }: { author?: BlogAuthorRowFragment }) {
           },
         },
       })
-      await upsertContent({ variables: { input: { authorId: author.id, locale, name: displayName, bio } } })
+      // An untouched bio goes back as stored - bioFromText rebuilds a bare paragraph, which drops any formatting
+      // the stored document carries
+      const storedBio = author.content?.bio ?? author.allContent[0]?.bio ?? null
+      await upsertContent({
+        variables: { input: { authorId: author.id, locale, name: displayName, bio: v.bio === baseline.bio ? storedBio : bio } },
+      })
     },
     onSaved: () => navigate(BACK_TO),
   })
