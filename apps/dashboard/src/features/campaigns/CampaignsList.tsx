@@ -184,11 +184,13 @@ export function CampaignsList() {
                 checked={showDeleted}
                 onCheckedChange={setShowDeleted}
               />
-              <Button asChild size="sm">
-                <Link to="/campaigns/new">
-                  <PlusIcon className="size-4" /> New campaign
-                </Link>
-              </Button>
+              {canManage && (
+                <Button asChild size="sm">
+                  <Link to="/campaigns/new">
+                    <PlusIcon className="size-4" /> New campaign
+                  </Link>
+                </Button>
+              )}
             </div>
           ) : undefined
         }
@@ -218,9 +220,11 @@ export function CampaignsList() {
                 <div className="py-8 text-center">
                   <MailIcon className="mx-auto mb-2 size-6 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">No campaigns yet.</p>
-                  <Button asChild variant="outline" size="sm" className="mt-3">
-                    <Link to="/campaigns/new">Create your first campaign</Link>
-                  </Button>
+                  {canManage && (
+                    <Button asChild variant="outline" size="sm" className="mt-3">
+                      <Link to="/campaigns/new">Create your first campaign</Link>
+                    </Button>
+                  )}
                 </div>
               }
             />

@@ -17,6 +17,7 @@ import { useConfigScope } from '@/lib/config-scope'
 import { CHART_ACCENT, CHART_SUCCESS, SERIES_OTHER } from '@/lib/chart-colors'
 import { cn } from '@/lib/utils'
 import { ExperimentsOverviewDocument } from './Prism.gql'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 const nfmt = (n: number) => n.toLocaleString()
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`
@@ -39,6 +40,8 @@ type SummaryRow = {
 }
 
 export function PrismHome() {
+  // Creating an experiment needs experiments.manage - without it the button only led to an access-restricted page or a refused save
+  const canCreate = usePermissions().has('experiments.manage')
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
@@ -243,9 +246,11 @@ export function PrismHome() {
               title="Running experiments"
               description="Verdicts use the same stats as the detail page - a winner is only called at ≥97.5% chance to beat the control."
               trailing={
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/prism/new">New experiment</Link>
-                </Button>
+                canCreate && (
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/prism/new">New experiment</Link>
+                  </Button>
+                )
               }
             >
               <DataTable
@@ -258,14 +263,19 @@ export function PrismHome() {
                 initialSorting={[{ id: 'totalExposed', desc: true }]}
                 emptyState={
                   <span>
-                    No running experiments.{' '}
-                    <Link
-                      to={(ov?.draft ?? 0) > 0 ? '/prism/experiments' : '/prism/new'}
-                      className="text-primary hover:underline"
-                    >
-                      {(ov?.draft ?? 0) > 0 ? 'Manage drafts' : 'Create one'}
-                    </Link>
-                    .
+                    No running experiments.
+                    {((ov?.draft ?? 0) > 0 || canCreate) && (
+                      <>
+                        {' '}
+                        <Link
+                          to={(ov?.draft ?? 0) > 0 ? '/prism/experiments' : '/prism/new'}
+                          className="text-primary hover:underline"
+                        >
+                          {(ov?.draft ?? 0) > 0 ? 'Manage drafts' : 'Create one'}
+                        </Link>
+                        .
+                      </>
+                    )}
                   </span>
                 }
               />

@@ -75,6 +75,8 @@ describe('AdminDetail', () => {
   it('keeps the dialog open on a blank name, and leaves the roles alone when they did not change', async () => {
     const onUpdate = renderAdmin()
     const first = await screen.findByLabelText('First name')
+    // The page is read-only - no Save - until the signed-in admin's permissions have loaded
+    await screen.findByRole('button', { name: 'Save changes' })
     fireEvent.change(first, { target: { value: ' ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     const dialog = await screen.findByRole('alertdialog')

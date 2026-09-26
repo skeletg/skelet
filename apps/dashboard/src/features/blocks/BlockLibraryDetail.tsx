@@ -70,6 +70,7 @@ import {
 } from '@/features/email/Email.gql'
 import { RenderCampaignPreviewDocument } from '@/features/campaigns/Campaigns.gql'
 import { toComponent } from './model'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 const MERGE_TAGS = ['store.name', 'store.logoUrl', 'storefront.url', 'customer.firstName', 'customer.email']
 const FIELD_KINDS: CustomFieldKind[] = ['text', 'textarea', 'url', 'color', 'number', 'date', 'image', 'select', 'boolean']
@@ -157,6 +158,9 @@ export function BlockLibraryDetail() {
 }
 
 function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (slug: string) => void; onDeleted: () => void }) {
+  // Saving and deleting a block need emails.manage - a viewer gets the block to look at and preview:
+  // inputs disabled, no selecting, dragging or palette, no Save or Delete
+  const canEdit = usePermissions().has('emails.manage')
   const [slug, setSlug] = useState(initial.slug)
   const [name, setName] = useState(initial.name)
   const [icon, setIcon] = useState(initial.icon)
@@ -357,7 +361,7 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
         </Alert>
       )}
       <div className="flex gap-2">
-        {!initial.isNew && (
+        {!initial.isNew && canEdit && (
           <Button type="button" variant="outline" size="sm" className="text-destructive" onClick={() => setConfirmingDelete(true)}>
             Delete
           </Button>
@@ -365,9 +369,11 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
         <Button type="button" variant="outline" size="sm" className="flex-1" disabled={bodyMode === 'visual' && !saved} onClick={() => setPreviewOpen(true)}>
           Preview
         </Button>
-        <Button type="button" size="sm" className="flex-1" disabled={saving || !dirty} onClick={onSave}>
-          {saving ? 'Saving…' : 'Save'}
-        </Button>
+        {canEdit && (
+          <Button type="button" size="sm" className="flex-1" disabled={saving || !dirty} onClick={onSave}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        )}
       </div>
     </div>
   )
@@ -375,7 +381,7 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
   // Block-level settings (identity + inputs + body mode) shown in the inspector
   // when no canvas sub-block is selected
   const blockSettings = (
-    <div className="grid gap-4">
+    <fieldset disabled={!canEdit} className="grid gap-4">
       <div className="grid grid-cols-[1fr_auto] gap-2">
         <div className="grid gap-1.5">
           <Label htmlFor="block-name">Block name</Label>
@@ -430,21 +436,21 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
             : 'Hand-author the HTML body. Field/merge values are escaped; scripts are stripped on render.'}
         </p>
       </div>
-    </div>
+    </fieldset>
   )
 
   return (
     <DndContext
-      sensors={sensors}
+      sensors={canEdit ? sensors : []}
       collisionDetection={closestCenter}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDragCancel={() => setDropBefore(null)}
     >
       <DetailPageLayout
-        leftSidebar={bodyMode === 'visual' ? <BlockPalette components={components} /> : undefined}
+        leftSidebar={bodyMode === 'visual' && canEdit ? <BlockPalette components={components} /> : undefined}
         rightSidebar={
-          bodyMode === 'visual' && selectedIsRow && selectedBlock ? (
+          bodyMode === 'visual' && canEdit && selectedIsRow && selectedBlock ? (
             <aside className="flex w-80 shrink-0 flex-col border-l bg-card">
               <div className="border-b px-4 py-3">
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Edit Columns</h2>
@@ -456,7 +462,7 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
             </aside>
           ) : (
             <BlockInspector
-              block={bodyMode === 'visual' ? selectedBlock : null}
+              block={bodyMode === 'visual' && canEdit ? selectedBlock : null}
               onChangeBlock={updateSelected}
               subject=""
               onSubjectChange={() => {}}
@@ -464,39 +470,41 @@ function Editor({ initial, onSaved, onDeleted }: { initial: Loaded; onSaved: (sl
               snippets={snippetList}
               components={compMap}
               showSubject={false}
-              styleControls={bodyMode === 'visual' && selectedBlock ? <BlockStyleControls block={selectedBlock} onChange={updateSelected} /> : null}
+              styleControls={bodyMode === 'visual' && canEdit && selectedBlock ? <BlockStyleControls block={selectedBlock} onChange={updateSelected} /> : null}
               emailSettings={blockSettings}
               footer={actionsFooter}
             />
           )
         }
       >
-        {bodyMode === 'visual' ? (
-          <EmailCanvas
-            items={items}
-            sel={sel}
-            onSelect={setSel}
-            onDelete={deleteSel}
-            onMoveChild={onMoveChild}
-            theme={{}}
-            components={compMap}
-            dropBefore={dropBefore}
-          />
-        ) : (
-          <HtmlBodyEditor
-            html={htmlTemplate}
-            text={textTemplate}
-            css={css}
-            scripted={scripted}
-            onHtml={setHtmlTemplate}
-            onText={setTextTemplate}
-            onCss={setCss}
-            onScripted={setScripted}
-            onInsert={insertHtmlToken}
-            fields={fields}
-            htmlRef={htmlRef}
-          />
-        )}
+        <fieldset disabled={!canEdit} className="contents">
+          {bodyMode === 'visual' ? (
+            <EmailCanvas
+              items={items}
+              sel={canEdit ? sel : null}
+              onSelect={canEdit ? setSel : () => {}}
+              onDelete={canEdit ? deleteSel : () => {}}
+              onMoveChild={canEdit ? onMoveChild : () => {}}
+              theme={{}}
+              components={compMap}
+              dropBefore={dropBefore}
+            />
+          ) : (
+            <HtmlBodyEditor
+              html={htmlTemplate}
+              text={textTemplate}
+              css={css}
+              scripted={scripted}
+              onHtml={setHtmlTemplate}
+              onText={setTextTemplate}
+              onCss={setCss}
+              onScripted={setScripted}
+              onInsert={insertHtmlToken}
+              fields={fields}
+              htmlRef={htmlRef}
+            />
+          )}
+        </fieldset>
       </DetailPageLayout>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>

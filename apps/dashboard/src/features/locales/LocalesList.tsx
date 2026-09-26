@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
 import { useConfigScope } from '@/lib/config-scope'
+import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   DeleteLocaleDocument,
   LocalesAdminListDocument,
@@ -69,6 +70,8 @@ export function LocalesList() {
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const { isGlobal } = useConfigScope()
+  // Creating and deleting need locales.manage - a viewer's buttons only led to an access-restricted page or a refused delete
+  const canManage = usePermissions().has('locales.manage')
 
   const { data, loading, error } = useQuery(LocalesAdminListDocument)
   const rows = useMemo(() => (data?.locales ?? []) as LocaleRow[], [data])
@@ -182,7 +185,7 @@ export function LocalesList() {
               <DropdownMenuItem asChild>
                 <Link to={`/locales/${row.original.code}`}>Edit</Link>
               </DropdownMenuItem>
-              {isGlobal && (
+              {isGlobal && canManage && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -202,7 +205,7 @@ export function LocalesList() {
         ),
       },
     ],
-    [isGlobal],
+    [isGlobal, canManage],
   )
 
   return (
@@ -228,7 +231,8 @@ export function LocalesList() {
           },
         ]}
         toolbarRightSlot={
-          isGlobal ? (
+          canManage &&
+          (isGlobal ? (
             <Button size="sm" asChild>
               <Link to="/locales/new">
                 <PlusIcon className="size-4" />
@@ -240,7 +244,7 @@ export function LocalesList() {
               <PlusIcon className="size-4" />
               New language
             </Button>
-          )
+          ))
         }
       />
 

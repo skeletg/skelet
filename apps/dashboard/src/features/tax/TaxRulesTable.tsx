@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
 import { useConfigScope } from '@/lib/config-scope'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 const TAX_RULES_QUERY = gql`
   query TaxRules($channelId: ID) {
@@ -94,6 +95,8 @@ function deriveScope(rule: TaxRule): string {
 // TaxRulesTable is the /tax index: the shared DataTable (search, filter, pagination) over the active channel's tax rules - same chrome as
 // the channels list - New / row-edit go to dedicated pages - Tax rules are per-channel, so GLOBAL scope shows a prompt instead of the table
 export function TaxRulesTable() {
+  // Creating and deleting tax rules need settings.manage - without it the buttons only led to an access-restricted page or a refused save
+  const canManage = usePermissions().has('settings.manage')
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const navigate = useNavigate()
@@ -222,23 +225,27 @@ export function TaxRulesTable() {
               <DropdownMenuItem asChild>
                 <Link to={`/tax/${row.original.id}`}>Edit</Link>
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => {
-                  setDeleteError(null)
-                  setConfirmDelete(row.original)
-                }}
-              >
-                <Trash2Icon className="size-4" />
-                Delete
-              </DropdownMenuItem>
+              {canManage && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => {
+                      setDeleteError(null)
+                      setConfirmDelete(row.original)
+                    }}
+                  >
+                    <Trash2Icon className="size-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         ),
       },
     ],
-    [isChannel, channelName],
+    [isChannel, channelName, canManage],
   )
 
   return (
@@ -265,15 +272,17 @@ export function TaxRulesTable() {
         ]}
         toolbarRightSlot={
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              onClick={() => navigate(`/tax/new?channelId=${effectiveChannelId ?? ''}`)}
-              disabled={!isChannel}
-              title={isChannel ? undefined : 'Switch the header to a channel to add a rule.'}
-            >
-              <PlusIcon className="size-4" />
-              New tax rule
-            </Button>
+            {canManage && (
+              <Button
+                size="sm"
+                onClick={() => navigate(`/tax/new?channelId=${effectiveChannelId ?? ''}`)}
+                disabled={!isChannel}
+                title={isChannel ? undefined : 'Switch the header to a channel to add a rule.'}
+              >
+                <PlusIcon className="size-4" />
+                New tax rule
+              </Button>
+            )}
           </div>
         }
       />

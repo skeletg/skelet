@@ -43,6 +43,7 @@ import {
 } from '@/components/layout/detail-page'
 import { CreateSegmentDocument, DeleteSegmentDocument, SegmentsPageDocument } from './Segments.gql'
 import { summarizeRules, type Rules } from './rules'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 type SegmentRow = {
   id: string
@@ -58,6 +59,8 @@ type SegmentRow = {
 export function SegmentsListPage() {
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
+  // Creating and deleting segments need promotions.manage - a viewer's buttons only led to a refused save
+  const canManage = usePermissions().has('promotions.manage')
   const navigate = useNavigate()
   const { data, loading, error, refetch } = useQuery(SegmentsPageDocument, {
     variables: { limit: 200, offset: 0 },
@@ -160,23 +163,27 @@ export function SegmentsListPage() {
               <DropdownMenuItem asChild>
                 <Link to={`/segments/${row.original.id}`}>Open</Link>
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => {
-                  setDeleteError(null)
-                  setConfirmingDelete(row.original)
-                }}
-              >
-                <Trash2Icon className="size-4" />
-                Delete
-              </DropdownMenuItem>
+              {canManage && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => {
+                      setDeleteError(null)
+                      setConfirmingDelete(row.original)
+                    }}
+                  >
+                    <Trash2Icon className="size-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         ),
       },
     ],
-    [],
+    [canManage],
   )
 
   return (
@@ -198,10 +205,12 @@ export function SegmentsListPage() {
             searchPlaceholder="Search name or slug…"
             initialSorting={[{ id: 'name', desc: false }]}
             toolbarRightSlot={
-              <Button size="sm" onClick={() => setCreateOpen(true)}>
-                <PlusIcon className="size-4" />
-                New segment
-              </Button>
+              canManage && (
+                <Button size="sm" onClick={() => setCreateOpen(true)}>
+                  <PlusIcon className="size-4" />
+                  New segment
+                </Button>
+              )
             }
           />
         </DetailPageSection>

@@ -46,6 +46,7 @@ import {
 import { buildRoleSummary, headlineForRole } from './roleSummary'
 import { PluginSections } from '@/plugins/detail-sections'
 import { usePageTitle } from '@/lib/page-title'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 // RoleDetail is one flowing read-only page: overview, then the GRANTED permissions as a
 // group-rail list (ungranted slugs live in the /admins/permissions catalog, repeating all 84
@@ -53,6 +54,8 @@ import { usePageTitle } from '@/lib/page-title'
 // away and the layout's table of contents can index the sections
 // The role id can come from props or from the URL (standalone /admins/roles/:id route)
 export function RoleDetail({ roleId }: { roleId?: string } = {}) {
+  // Editing, deleting and adding members all need admins.manage - without it each only led to a refused save
+  const canManage = usePermissions().has('admins.manage')
   const params = useParams<{ id?: string }>()
   const id = roleId ?? params.id ?? ''
   const navigate = useNavigate()
@@ -194,25 +197,27 @@ export function RoleDetail({ roleId }: { roleId?: string } = {}) {
           </>
         }
         actions={
-          <>
-            <Button variant="outline" size="sm" asChild>
-              <Link to={`/admins/roles/${role.id}/edit`}>
-                <PencilIcon className="size-4" />
-                Edit
-              </Link>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setDeleteError(null)
-                setConfirmingDelete(true)
-              }}
-            >
-              <TrashIcon className="size-4" />
-              Delete
-            </Button>
-          </>
+          canManage && (
+            <>
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/admins/roles/${role.id}/edit`}>
+                  <PencilIcon className="size-4" />
+                  Edit
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDeleteError(null)
+                  setConfirmingDelete(true)
+                }}
+              >
+                <TrashIcon className="size-4" />
+                Delete
+              </Button>
+            </>
+          )
         }
       />
 
@@ -233,12 +238,14 @@ export function RoleDetail({ roleId }: { roleId?: string } = {}) {
               : `${summary.grantCount} grant${summary.grantCount === 1 ? '' : 's'} across ${grantedGroups.length} group${grantedGroups.length === 1 ? '' : 's'} - ungranted permissions are in the catalog, not repeated here.`
           }
           trailing={
-            <Button variant="outline" size="sm" asChild>
-              <Link to={`/admins/roles/${role.id}/edit`}>
-                <PencilIcon className="size-4" />
-                Edit grants
-              </Link>
-            </Button>
+            canManage && (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/admins/roles/${role.id}/edit`}>
+                  <PencilIcon className="size-4" />
+                  Edit grants
+                </Link>
+              </Button>
+            )
           }
         >
           {summary.grantCount === 0 ? (
@@ -266,10 +273,12 @@ export function RoleDetail({ roleId }: { roleId?: string } = {}) {
           title="Members"
           description={`${members.length} admin${members.length === 1 ? '' : 's'} hold${members.length === 1 ? 's' : ''} this role.`}
           trailing={
-            <Button size="sm" onClick={() => setAddingMembers(true)}>
-              <PlusIcon className="size-4" />
-              Add members
-            </Button>
+            canManage && (
+              <Button size="sm" onClick={() => setAddingMembers(true)}>
+                <PlusIcon className="size-4" />
+                Add members
+              </Button>
+            )
           }
         >
           {removeError && (

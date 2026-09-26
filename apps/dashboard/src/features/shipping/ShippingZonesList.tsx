@@ -34,6 +34,7 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { ShippingZoneCreatePage, ShippingZoneEditPage } from './ShippingZoneForm'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 const SHIPPING_ZONES_QUERY = gql`
   query ShippingZones($channelId: ID!) {
@@ -101,6 +102,8 @@ function countriesPreview(countries: string[]): string {
 // ShippingZonesList is the shell for /shipping, /shipping/new and /shipping/:id - Zones are channel-scoped, so GLOBAL
 // scope gets a "pick a channel" page instead of the table
 export function ShippingZonesList() {
+  // Creating and deleting zones need settings.manage - without it the buttons only led to an access-restricted page or a refused save
+  const canManage = usePermissions().has('settings.manage')
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const navigate = useNavigate()
@@ -230,22 +233,26 @@ export function ShippingZonesList() {
               <DropdownMenuItem asChild>
                 <Link to={`/shipping/${row.original.id}`}>View</Link>
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => {
-                  setDeleteError(null)
-                  setConfirmingDelete(row.original)
-                }}
-              >
-                Delete
-              </DropdownMenuItem>
+              {canManage && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => {
+                      setDeleteError(null)
+                      setConfirmingDelete(row.original)
+                    }}
+                  >
+                    Delete
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         ),
       },
     ],
-    [],
+    [canManage],
   )
 
   // Create + edit render full-width (reached from the table) - these come before
@@ -283,10 +290,12 @@ export function ShippingZonesList() {
             searchPlaceholder="Search code, name or country…"
             initialSorting={[{ id: 'sortOrder', desc: false }]}
             toolbarRightSlot={
-              <Button size="sm" onClick={() => navigate(newHref)}>
-                <PlusIcon className="size-4" />
-                New zone
-              </Button>
+              canManage && (
+                <Button size="sm" onClick={() => navigate(newHref)}>
+                  <PlusIcon className="size-4" />
+                  New zone
+                </Button>
+              )
             }
           />
         </DetailPageSection>
