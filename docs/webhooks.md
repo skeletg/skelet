@@ -146,7 +146,7 @@ The event picker in Settings shows what your install actually has.
 | `blog.post.deleted` | async | Fires after a blog post is deleted. |
 | `blog.post.listing.changed` | async | Fires when a post's per-store listing changes. |
 | `blog.post.published` | async | Fires after a blog post moves to status=published - admin click, scheduler promotion, or any other path. Useful for static-site rebuild triggers. |
-| `blog.post.publishing` | sync | Fires before an admin-initiated PublishPost commits. Scheduler-driven promotion bypasses this hook to keep the cron tick non-blocking. Response schema: {"reject": bool, "reason": string}. |
+| `blog.post.publishing` | sync | Fires before a blog post moves to status=published - admin click or scheduler promotion. A scheduled post that is rejected stays scheduled and is asked again on the next run. Response schema: {"reject": bool, "reason": string}. |
 | `blog.post.unpublished` | async | Fires after a blog post moves out of status=published into draft or archived. |
 | `blog.post.updated` | async | Fires after a blog post's metadata is updated. |
 
@@ -200,7 +200,7 @@ The event picker in Settings shows what your install actually has.
 | Event | Kind | What it means |
 |---|---|---|
 | `cms.page.published` | async | Fires after a CMS page transitions to is_published=true. Subscribe to invalidate caches or kick off a static rebuild. |
-| `cms.page.publishing` | sync | Fires before a CMS page transitions to is_published=true. Response schema: {"reject": bool, "reason": string}. |
+| `cms.page.publishing` | sync | Fires before a CMS page transitions to is_published=true - admin click, bulk publish or scheduler promotion. A scheduled page that is rejected stays scheduled and is asked again on the next run. Response schema: {"reject": bool, "reason": string}. |
 | `cms.page.unpublished` | async | Fires after a CMS page transitions back to is_published=false. |
 
 ### collection
