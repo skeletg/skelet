@@ -117,6 +117,8 @@ describe('InventoryLocationEditPage', () => {
         clearCoords: true,
       }),
     )
+    // Stored with no hours - the form shows that as closed every day, which must not be written back
+    expect(onUpdate.mock.calls[0][0].hours).toBeUndefined()
   })
 
   it('keeps the dialog open with the reason when the schema rejects the edit', async () => {

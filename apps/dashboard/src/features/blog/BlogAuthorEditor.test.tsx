@@ -62,4 +62,32 @@ describe('BlogAuthorEditor', () => {
     expect(upsert).toMatchObject({ authorId: 'a1', locale: 'en', name: 'Jane Doe' })
     expect(bioToText(upsert.bio)).toBe('Writes about Rust.')
   })
+
+  it('sends an untouched bio back as stored, formatting included', async () => {
+    // Bold text - the plain-text editor can't write it, so only the stored document keeps it
+    const bold = { root: { children: [{ type: 'paragraph', children: [{ type: 'text', text: 'Writes about Go.', format: 1 }] }] } }
+    const formatted = { ...author, content: { ...row, bio: bold }, allContent: [{ ...row, bio: bold }] }
+    const writes = { update: vi.fn(), upsert: vi.fn() }
+    renderPage({
+      path: '/blog/authors/a1',
+      routes: { '/blog/authors/:id': <BlogAuthorEditor />, '/blog/taxonomy': <p>taxonomy</p> },
+      mocks: [
+        meMock(),
+        { request: { query: BlogAuthorDocument, variables: { id: 'a1' } }, result: { data: { blogAuthor: formatted } }, maxUsageCount: 3 },
+        { request: { query: UpdateBlogAuthorDocument, variables: captureInput(writes.update) }, result: { data: { updateBlogAuthor: formatted } } },
+        {
+          request: { query: UpsertBlogAuthorContentDocument, variables: captureInput(writes.upsert) },
+          result: { data: { upsertBlogAuthorContent: formatted } },
+        },
+        { request: { query: BlogAuthorsDocument }, result: { data: { blogAuthors: [] } }, maxUsageCount: 5 },
+      ],
+    })
+
+    fireEvent.change(await screen.findByLabelText('Display name'), { target: { value: 'Jane Q. Doe' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Save changes' }))
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: /Apply 1 change/ }))
+
+    await screen.findByText('taxonomy', {}, SLOW)
+    expect(writes.upsert.mock.calls[0][0]).toMatchObject({ name: 'Jane Q. Doe', bio: bold })
+  })
 })
