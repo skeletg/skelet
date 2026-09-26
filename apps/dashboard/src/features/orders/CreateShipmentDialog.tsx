@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { CreateFulfillmentDocument, OrderDocument, OrdersDocument, type OrderQuery } from './Orders.gql'
+import { CreateFulfillmentDocument, OrderDocument, type OrderQuery } from './Orders.gql'
 
 type OrderData = OrderQuery['order']
 type LineDraft = { checked: boolean; quantity: string }
@@ -33,7 +33,7 @@ export function CreateShipmentDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const refetch = [{ query: OrderDocument, variables: { id: order.id } }, { query: OrdersDocument }]
+  const refetch = [{ query: OrderDocument, variables: { id: order.id } }, 'OrdersPaged']
   const [createFulfillment, state] = useMutation(CreateFulfillmentDocument, { refetchQueries: refetch })
 
   // Remaining = ordered − already-shipped (non-cancelled fulfillments)

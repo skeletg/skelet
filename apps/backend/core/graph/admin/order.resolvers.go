@@ -779,24 +779,19 @@ func (r *queryResolver) Orders(ctx context.Context, channelID *string) ([]*model
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.view"); err != nil {
 		return nil, err
 	}
-	perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "orders.view")
+	channels, none, err := r.orderChannelScope(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
-	orderList, err := r.OrderSvc.ListOrders(ctx)
+	if none {
+		return []*model.Order{}, nil
+	}
+	rows, err := r.OrderSvc.ListRecentOrders(ctx, channels, unpagedOrdersCap)
 	if err != nil {
 		return nil, err
 	}
-	explicit, err := r.scopedChannelID(ctx, channelID)
-	if err != nil {
-		return nil, err
-	}
-	visible := auth.FilterByChannel(orderList, perm, func(o order.Order) uuid.UUID { return o.ChannelID })
-	result := make([]*model.Order, 0, len(visible))
-	for _, o := range visible {
-		if explicit != nil && o.ChannelID != *explicit {
-			continue
-		}
+	result := make([]*model.Order, 0, len(rows))
+	for _, o := range rows {
 		result = append(result, toOrderModel(o))
 	}
 	return result, nil
@@ -806,27 +801,12 @@ func (r *queryResolver) OrdersPaged(ctx context.Context, channelID *string, sear
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.view"); err != nil {
 		return nil, err
 	}
-	// Scope resolves to a concrete id list BEFORE the SQL page, so LIMIT applies to rows the caller may actually see
-	perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "orders.view")
+	channels, none, err := r.orderChannelScope(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
-	explicit, err := r.scopedChannelID(ctx, channelID)
-	if err != nil {
-		return nil, err
-	}
-	var channels []uuid.UUID
-	switch {
-	case explicit != nil:
-		if !perm.Allows(*explicit) {
-			return nil, auth.ErrForbidden
-		}
-		channels = []uuid.UUID{*explicit}
-	case !perm.Bypass():
-		channels = perm.IDs()
-		if len(channels) == 0 {
-			return &model.OrderPage{TotalCount: 0, Items: []*model.Order{}}, nil
-		}
+	if none {
+		return &model.OrderPage{TotalCount: 0, Items: []*model.Order{}}, nil
 	}
 	f := order.ListPageFilter{
 		ChannelIDs:      channels,

@@ -317,7 +317,6 @@ export type CategorySummary = {
   description: unknown;
   ancestors: { id: string; slug: string; urlPath: string; name: string | null }[];
   children: { id: string; slug: string; urlPath: string; name: string | null }[];
-  products: ProductSummary[];
 };
 
 export type CollectionDetail = {
@@ -333,7 +332,6 @@ export type CollectionDetail = {
     width: number;
     height: number;
   } | null;
-  products: ProductSummary[];
 };
 
 export type CollectionListItem = {

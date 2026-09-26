@@ -146,6 +146,7 @@ type ListPageFilter struct {
 	PaymentStatuses []string
 	Limit           int32
 	Offset          int32
+	SkipCount       bool // the total is left 0, for callers that never show it
 }
 
 type Repository interface {
@@ -157,7 +158,6 @@ type Repository interface {
 	GetOrderByID(ctx context.Context, id uuid.UUID) (Order, error)
 	ListOrderLinesByOrder(ctx context.Context, orderID uuid.UUID) ([]OrderLine, error)
 	ListOrderEventsByOrder(ctx context.Context, orderID uuid.UUID) ([]OrderEvent, error)
-	ListOrders(ctx context.Context) ([]Order, error)
 	ListOrdersPage(ctx context.Context, f ListPageFilter) ([]Order, int64, error)
 	ListOrdersByCustomer(ctx context.Context, customerID uuid.UUID) ([]Order, error)
 	GetGuestOrder(ctx context.Context, id uuid.UUID, email string) (Order, error)

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
 
 	"github.com/google/uuid"
@@ -1065,11 +1066,6 @@ func toCategoryModel(c catalog.Category) *model.Category {
 		cc := c.AllContent[0]
 		m.Name = &cc.Name
 	}
-	products := make([]*model.Product, len(c.Products))
-	for i, p := range c.Products {
-		products[i] = toProductBaseModel(p, nil, nil, nil, nil, nil, nil, nil, nil)
-	}
-	m.Products = products
 
 	if c.Content != nil {
 		m.Name = &c.Content.Name
@@ -1315,4 +1311,66 @@ func publishedCollections(cols []catalog.Collection) []catalog.Collection {
 		}
 	}
 	return out
+}
+
+// Grids page through browseProducts, so this list only feeds small merchandising blocks - fetched 4x over so channel filtering rarely leaves it short
+const (
+	membershipProductsCap int32 = 250
+	membershipFetch             = 4 * membershipProductsCap
+)
+
+// Only category(id) and collection(id) resolve their members - nested under a list they stay empty, or one anonymous query could fan out across every category
+func nestedMembership(ctx context.Context) bool {
+	return len(graphql.GetFieldContext(ctx).Path()) > 2
+}
+
+// Membership ignores channels, so products off this store are dropped here
+func (r *Resolver) renderMemberProducts(ctx context.Context, products []catalog.Product, storeID uuid.UUID) ([]*model.Product, error) {
+	if len(products) == 0 {
+		return []*model.Product{}, nil
+	}
+	ids := make([]uuid.UUID, len(products))
+	for i, p := range products {
+		ids[i] = p.ID
+	}
+	visible, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, storeID)
+	if err != nil {
+		return nil, err
+	}
+	kept := products[:0]
+	for _, p := range products {
+		if _, ok := visible[p.ID]; ok {
+			kept = append(kept, p)
+		}
+	}
+	if len(kept) == 0 {
+		return []*model.Product{}, nil
+	}
+	if len(kept) > int(membershipProductsCap) {
+		kept = kept[:membershipProductsCap]
+	}
+	ids = ids[:0]
+	for _, p := range kept {
+		ids = append(ids, p.ID)
+	}
+	r.primeProductCards(ctx, ids, storeID)
+	mediaByID, err := r.CatalogSvc.ListProductMediaByProductIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	rolesByID, err := r.CatalogSvc.ListProductMediaRolesByProductIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.Product, len(kept))
+	for i, p := range kept {
+		p.MediaRoles = rolesByID[p.ID]
+		mediaItems := mediaByID[p.ID]
+		mediaList := make([]*model.ProductMedia, len(mediaItems))
+		for j, m := range mediaItems {
+			mediaList[j] = toProductMediaModel(m)
+		}
+		out[i] = toProductBaseModel(p, nil, nil, nil, mediaList, nil, nil, nil, nil)
+	}
+	return out, nil
 }

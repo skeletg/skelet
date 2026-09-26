@@ -565,10 +565,17 @@ FROM catalog_collection_products cp
 JOIN catalog_products p ON p.id = cp.product_id
 WHERE cp.collection_id = $1
 ORDER BY cp.sort_order, p.url
+LIMIT NULLIF($2::int, 0)
 `
 
-func (q *Queries) ListProductsByCollection(ctx context.Context, collectionID uuid.UUID) ([]Product, error) {
-	rows, err := q.db.QueryContext(ctx, listProductsByCollection, collectionID)
+type ListProductsByCollectionParams struct {
+	CollectionID uuid.UUID `json:"collection_id"`
+	RowLimit     int32     `json:"row_limit"`
+}
+
+// row_limit 0 means every member
+func (q *Queries) ListProductsByCollection(ctx context.Context, arg ListProductsByCollectionParams) ([]Product, error) {
+	rows, err := q.db.QueryContext(ctx, listProductsByCollection, arg.CollectionID, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}

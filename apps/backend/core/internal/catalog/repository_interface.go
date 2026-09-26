@@ -80,9 +80,9 @@ type Repository interface {
 	ListProductSelectableValuesByIDs(ctx context.Context, productIDs, attributeIDs []uuid.UUID) (map[uuid.UUID]map[uuid.UUID][]uuid.UUID, error)
 	ListProducts(ctx context.Context, rowLimit int32) ([]Product, error) // rowLimit 0 means every row - see the query comment
 	ListProductIDsPaged(ctx context.Context, f ProductPageFilter) ([]uuid.UUID, int64, error)
-	ListProductsByCategory(ctx context.Context, categoryID uuid.UUID) ([]Product, error)
 	CountProductsInCategory(ctx context.Context, categoryID uuid.UUID) (int64, error)
-	ListProductsByCollection(ctx context.Context, collectionID uuid.UUID) ([]Product, error)
+	ListProductsByCollection(ctx context.Context, collectionID uuid.UUID, limit int32) ([]Product, error)
+	ListProductsByCategory(ctx context.Context, categoryID uuid.UUID, limit int32) ([]Product, error)
 	ListProductsByType(ctx context.Context, productTypeID uuid.UUID) ([]Product, error)
 	ListProductsWithAttributesByIDs(ctx context.Context, ids []uuid.UUID) ([]Product, error)
 	// Postgres listing path used when the search index is unavailable

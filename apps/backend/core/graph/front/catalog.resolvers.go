@@ -19,6 +19,38 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
 )
 
+func (r *categoryResolver) Products(ctx context.Context, obj *model.Category) ([]*model.Product, error) {
+	cid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, invalidID("category")
+	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil || nestedMembership(ctx) {
+		return []*model.Product{}, nil
+	}
+	products, err := r.CatalogSvc.ListProductsByCategory(ctx, cid, r.activeLocale(ctx), membershipFetch)
+	if err != nil {
+		return nil, err
+	}
+	return r.renderMemberProducts(ctx, products, *storeID)
+}
+
+func (r *collectionResolver) Products(ctx context.Context, obj *model.Collection) ([]*model.Product, error) {
+	cid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, invalidID("collection")
+	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil || nestedMembership(ctx) {
+		return []*model.Product{}, nil
+	}
+	products, err := r.CatalogSvc.ListProductsByCollection(ctx, cid, r.activeLocale(ctx), membershipFetch)
+	if err != nil {
+		return nil, err
+	}
+	return r.renderMemberProducts(ctx, products, *storeID)
+}
+
 // Sellable means salable > 0 OR backorderable - the second branch unblocks "tracked, threshold set, no physical stock yet, backorderable=true" from sitting at inStock=false forever, which would disable Add to cart and keep the customer from ever reaching checkout, where Reserve does allow the backorder
 func (r *productResolver) InStock(ctx context.Context, obj *model.Product, channelID *string) (bool, error) {
 	pid, err := uuid.Parse(obj.ID)
@@ -492,57 +524,7 @@ func (r *queryResolver) Collection(ctx context.Context, id string) (*model.Colle
 	if !c.IsPublished {
 		return nil, catalog.ErrCollectionNotFound
 	}
-	products, err := r.CatalogSvc.ListProductsByCollection(ctx, cid, locale)
-	if err != nil {
-		return nil, err
-	}
-	if len(products) > 0 {
-		ids := make([]uuid.UUID, len(products))
-		for i, p := range products {
-			ids[i] = p.ID
-		}
-		visible, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, *storeID)
-		if err != nil {
-			return nil, err
-		}
-		kept := products[:0]
-		for _, p := range products {
-			if _, ok := visible[p.ID]; ok {
-				kept = append(kept, p)
-			}
-		}
-		products = kept
-	}
-	out := toCollectionModel(c)
-	if len(products) > 0 {
-		ids := make([]uuid.UUID, len(products))
-		for i, p := range products {
-			ids[i] = p.ID
-		}
-		// Primes salable, backorderable, listings, review aggregates and locale values so each card's field resolvers read the render cache instead of one query per product
-		r.primeProductCards(ctx, ids, *storeID)
-		// Batched media + role maps so each card resolves mainImage on the same render, with no per-product follow-up
-		mediaByID, err := r.CatalogSvc.ListProductMediaByProductIDs(ctx, ids)
-		if err != nil {
-			return nil, err
-		}
-		rolesByID, err := r.CatalogSvc.ListProductMediaRolesByProductIDs(ctx, ids)
-		if err != nil {
-			return nil, err
-		}
-		rendered := make([]*model.Product, len(products))
-		for i, p := range products {
-			p.MediaRoles = rolesByID[p.ID]
-			mediaItems := mediaByID[p.ID]
-			mediaList := make([]*model.ProductMedia, len(mediaItems))
-			for j, m := range mediaItems {
-				mediaList[j] = toProductMediaModel(m)
-			}
-			rendered[i] = toProductBaseModel(p, nil, nil, nil, mediaList, nil, nil, nil, nil)
-		}
-		out.Products = rendered
-	}
-	return out, nil
+	return toCollectionModel(c), nil
 }
 
 func (r *queryResolver) RootCategories(ctx context.Context) ([]*model.Category, error) {
@@ -630,32 +612,6 @@ func (r *queryResolver) Category(ctx context.Context, id string) (*model.Categor
 	}
 	c.Ancestors = ancestors
 	c.Children = children
-	// The category passed its own publication gate, but membership comes from a global join with no channel awareness - without this re-filter a product unpublished on this store still shows up
-	if len(c.Products) > 0 {
-		ids := make([]uuid.UUID, len(c.Products))
-		for i, p := range c.Products {
-			ids[i] = p.ID
-		}
-		visible, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, *storeID)
-		if err != nil {
-			return nil, err
-		}
-		kept := c.Products[:0]
-		for _, p := range c.Products {
-			if _, ok := visible[p.ID]; ok {
-				kept = append(kept, p)
-			}
-		}
-		c.Products = kept
-	}
-	// Primed so the category's cards don't each fire salable/backorderable/listing lookups - this is a core PLP surface
-	if len(c.Products) > 0 {
-		ids := make([]uuid.UUID, len(c.Products))
-		for i, p := range c.Products {
-			ids[i] = p.ID
-		}
-		r.primeProductCards(ctx, ids, *storeID)
-	}
 	return toCategoryModel(c), nil
 }
 
@@ -973,11 +929,17 @@ func (r *queryResolver) ProductSortOptions(ctx context.Context) ([]*model1.Produ
 	return out, nil
 }
 
+func (r *Resolver) Category() CategoryResolver { return &categoryResolver{r} }
+
+func (r *Resolver) Collection() CollectionResolver { return &collectionResolver{r} }
+
 func (r *Resolver) Product() ProductResolver { return &productResolver{r} }
 
 func (r *Resolver) ProductMedia() ProductMediaResolver { return &productMediaResolver{r} }
 
 type (
+	categoryResolver     struct{ *Resolver }
+	collectionResolver   struct{ *Resolver }
 	productResolver      struct{ *Resolver }
 	productMediaResolver struct{ *Resolver }
 )
