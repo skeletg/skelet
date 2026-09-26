@@ -31,6 +31,38 @@ func TestPlacementRejectsDisabledPaymentMethod(t *testing.T) {
 	}
 }
 
+// A strict channel refuses the address the validator flags, and a lenient one lets it through
+func TestPlacementEnforcesStrictAddressValidation(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 1000)
+	badZip := func(in *order.PlaceOrderInput) {
+		a := *in.ShippingAddress
+		a.PostalCode = "ABCDE"
+		in.ShippingAddress = &a
+	}
+
+	if _, err := h.TryPlace(t, f.Channel, h.NewGuestCart(t, f, 1), badZip); err != nil {
+		t.Fatalf("lenient channel refused a flagged address: %v", err)
+	}
+
+	h.setChannelConfig(t, f, "sales/checkout/address_validation_strict", "true")
+	reserved := h.ReservedFor(t, f)
+	_, err := h.TryPlace(t, f.Channel, h.NewGuestCart(t, f, 1), badZip)
+	if code := apperr.CodeOf(err); code != "ADDRESS_INVALID" {
+		t.Fatalf("strict placement error = %v (code %q), want ADDRESS_INVALID", err, code)
+	}
+	if !strings.Contains(err.Error(), "postal code") {
+		t.Errorf("error %q should carry the validator's message", err)
+	}
+	if got := h.ReservedFor(t, f); got != reserved {
+		t.Errorf("reserved = %v after a rejected placement, want %v", got, reserved)
+	}
+	if _, err := h.TryPlace(t, f.Channel, h.NewGuestCart(t, f, 1)); err != nil {
+		t.Errorf("strict channel refused a valid address: %v", err)
+	}
+	h.Settle(t)
+}
+
 func TestCartRejectsUnpublishedSKU(t *testing.T) {
 	h := newHarness(t)
 	f := h.NewStore(t, 10, 1000)
