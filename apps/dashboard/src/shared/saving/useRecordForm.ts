@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { StandardSchemaV1 } from '@tanstack/react-form'
 import { useAppForm } from '@/components/form/form'
 import { duringCommit } from '@/lib/nav-guard'
@@ -66,6 +66,13 @@ export function useRecordForm<T extends object>(opts: RecordFormOptions<T>) {
     enabled: persist !== false,
     diff: opts.diff,
   })
+
+  // A schema built from loaded data (a default locale, say) changes after the admin may already have typed.
+  // TanStack keeps the error the old schema raised until the next edit, so a create blocked on "Pick a locale"
+  // while the field showed one - run the new schema over what's there
+  useEffect(() => {
+    if (form.state.isTouched) void form.validate('change')
+  }, [form, opts.schema])
 
   // Registered straight into the page's own registry - this hook runs in the component that renders
   // the Provider, so context would come back empty. A create has nothing to compare against
