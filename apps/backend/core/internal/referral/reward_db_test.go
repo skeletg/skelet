@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/configstore"
 	dbsqlc "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"

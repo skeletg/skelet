@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
@@ -145,7 +144,7 @@ func TestUpdatePageSlugMovesEveryDescendantPath(t *testing.T) {
 	}
 }
 
-// A publishing hook runs outside the batch's transaction - one that touches a page earlier in the batch would otherwise wait on the batch's own row lock forever
+// A hook touching an earlier page in the batch must not wait on the batch's own row lock
 func TestBulkSetPublishedHooksRunBeforeTheBatchLocksAnything(t *testing.T) {
 	svc, _, _, conn := newDBServiceConn(t, false)
 	ctx := context.Background()

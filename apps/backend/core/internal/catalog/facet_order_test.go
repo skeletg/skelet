@@ -2,10 +2,10 @@ package catalog
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
@@ -50,7 +50,7 @@ func TestFacetCountsKeepsTheBiggestBuckets(t *testing.T) {
 		if err := txn.QueryRow(
 			`INSERT INTO catalog_attribute_values (attribute_id, slug, name, value, sort_order)
 			 VALUES ($1, 'v' || $2::text, 'V' || $2::text, 'V' || $2::text, $3) RETURNING id`,
-			attrID, i, i,
+			attrID, strconv.Itoa(i), i,
 		).Scan(&valueIDs[i]); err != nil {
 			t.Fatal(err)
 		}
@@ -59,7 +59,7 @@ func TestFacetCountsKeepsTheBiggestBuckets(t *testing.T) {
 			if err := txn.QueryRow(
 				`INSERT INTO catalog_products (product_type_id, sku, url, kind)
 				 VALUES ($1, 'FACETORD-' || $2::text || '-' || $3::text, 'facetord-' || $2::text || '-' || $3::text, 'simple')
-				 RETURNING id`, productTypeID, i, n,
+				 RETURNING id`, productTypeID, strconv.Itoa(i), strconv.Itoa(n),
 			).Scan(&pid); err != nil {
 				t.Fatal(err)
 			}

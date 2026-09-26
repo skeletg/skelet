@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 	db "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
