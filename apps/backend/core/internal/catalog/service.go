@@ -255,6 +255,17 @@ func (s *core) CreateProductType(ctx context.Context, input CreateProductTypeInp
 	if strings.TrimSpace(input.Name) == "" {
 		return ProductType{}, fmt.Errorf("name is required")
 	}
+	// Checked against no attributes - a new type has none assigned yet, so only the built-in tokens resolve. Stored
+	// unchecked, an unknown token made every later save of the type fail on a template nobody was editing
+	if input.URLTemplate != "" {
+		tokens, err := parseURLTemplate(input.URLTemplate)
+		if err != nil {
+			return ProductType{}, err
+		}
+		if err := validateURLTemplate(tokens, ProductType{}); err != nil {
+			return ProductType{}, err
+		}
+	}
 	return s.repo.CreateProductType(ctx, input)
 }
 

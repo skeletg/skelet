@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -210,5 +211,22 @@ func TestSlugifyScalarHandlesEveryJSONShape(t *testing.T) {
 				t.Errorf("slugifyScalar(%v) = %q, want %q", c.in, got, c.want)
 			}
 		})
+	}
+}
+
+// Update always validated the template, create never did - a type created with an unknown token then failed
+// every save, a rename included, on a template the admin wasn't touching
+func TestCreateProductTypeRejectsATemplateUpdateWouldRefuse(t *testing.T) {
+	var s core // validation runs before the repository is reached
+	create := func(tpl string) error {
+		_, err := s.CreateProductType(context.Background(), CreateProductTypeInput{Slug: "tpl-check", Name: "Template check", URLTemplate: tpl})
+		return err
+	}
+	if err := create("e2e/{slug}"); !errors.Is(err, ErrTemplateUnknownToken) {
+		t.Errorf("unknown token: got %v, want ErrTemplateUnknownToken", err)
+	}
+	// A new type has no attributes, so an attribute token can't resolve yet
+	if err := create("{attr:colour}"); err == nil {
+		t.Error("attribute token on a type with no attributes: got nil, want a refusal")
 	}
 }
