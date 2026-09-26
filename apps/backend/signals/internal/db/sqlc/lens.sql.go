@@ -1312,84 +1312,85 @@ func (q *Queries) PruneTrafficRollup(ctx context.Context, before time.Time) (int
 	return result.RowsAffected()
 }
 
-const upsertLensDaily = `-- name: UpsertLensDaily :exec
+const upsertLensDailies = `-- name: UpsertLensDailies :exec
 
 INSERT INTO lens_traffic_daily (channel_id, day, dim, key, views)
-VALUES ($1, $2, $3, $4, $5)
+SELECT unnest($1::uuid[]), unnest($2::date[]), unnest($3::text[]), unnest($4::text[]), unnest($5::bigint[])
 ON CONFLICT (channel_id, day, dim, key)
 DO UPDATE SET views = lens_traffic_daily.views + EXCLUDED.views
 `
 
-type UpsertLensDailyParams struct {
-	ChannelID uuid.UUID `json:"channel_id"`
-	Day       time.Time `json:"day"`
-	Dim       string    `json:"dim"`
-	Key       string    `json:"key"`
-	Views     int64     `json:"views"`
+type UpsertLensDailiesParams struct {
+	ChannelIds []uuid.UUID `json:"channel_ids"`
+	Days       []time.Time `json:"days"`
+	Dims       []string    `json:"dims"`
+	Keys       []string    `json:"keys"`
+	Views      []int64     `json:"views"`
 }
 
 // Lens hub rollup writes (coalesced + flushed by the traffic-rollup buffer) ----
-func (q *Queries) UpsertLensDaily(ctx context.Context, arg UpsertLensDailyParams) error {
-	_, err := q.db.ExecContext(ctx, upsertLensDaily,
-		arg.ChannelID,
-		arg.Day,
-		arg.Dim,
-		arg.Key,
-		arg.Views,
+func (q *Queries) UpsertLensDailies(ctx context.Context, arg UpsertLensDailiesParams) error {
+	_, err := q.db.ExecContext(ctx, upsertLensDailies,
+		pq.Array(arg.ChannelIds),
+		pq.Array(arg.Days),
+		pq.Array(arg.Dims),
+		pq.Array(arg.Keys),
+		pq.Array(arg.Views),
 	)
 	return err
 }
 
-const upsertLensVisitor = `-- name: UpsertLensVisitor :exec
+const upsertLensVisitors = `-- name: UpsertLensVisitors :exec
 INSERT INTO lens_visitor_seen (channel_id, anon_id, last_seen)
-VALUES ($1, $2, $3)
+SELECT unnest($1::uuid[]), unnest($2::text[]), unnest($3::timestamptz[])
 ON CONFLICT (channel_id, anon_id)
 DO UPDATE SET last_seen = GREATEST(lens_visitor_seen.last_seen, EXCLUDED.last_seen)
 `
 
-type UpsertLensVisitorParams struct {
-	ChannelID uuid.UUID `json:"channel_id"`
-	AnonID    string    `json:"anon_id"`
-	LastSeen  time.Time `json:"last_seen"`
+type UpsertLensVisitorsParams struct {
+	ChannelIds []uuid.UUID `json:"channel_ids"`
+	AnonIds    []string    `json:"anon_ids"`
+	LastSeens  []time.Time `json:"last_seens"`
 }
 
-func (q *Queries) UpsertLensVisitor(ctx context.Context, arg UpsertLensVisitorParams) error {
-	_, err := q.db.ExecContext(ctx, upsertLensVisitor, arg.ChannelID, arg.AnonID, arg.LastSeen)
+func (q *Queries) UpsertLensVisitors(ctx context.Context, arg UpsertLensVisitorsParams) error {
+	_, err := q.db.ExecContext(ctx, upsertLensVisitors, pq.Array(arg.ChannelIds), pq.Array(arg.AnonIds), pq.Array(arg.LastSeens))
 	return err
 }
 
-const upsertTrafficRollup = `-- name: UpsertTrafficRollup :exec
+const upsertTrafficRollups = `-- name: UpsertTrafficRollups :exec
 
 INSERT INTO analytics_traffic_rollup (channel_id, day, kind, bot_name, bot_category, page_key, hits, last_seen)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+SELECT unnest($1::uuid[]), unnest($2::date[]), unnest($3::text[]), unnest($4::text[]), unnest($5::text[]), unnest($6::text[]), unnest($7::bigint[]), unnest($8::timestamptz[])
 ON CONFLICT (channel_id, day, kind, bot_name, bot_category, page_key)
 DO UPDATE SET hits      = analytics_traffic_rollup.hits + EXCLUDED.hits,
               last_seen = GREATEST(analytics_traffic_rollup.last_seen, EXCLUDED.last_seen)
 `
 
-type UpsertTrafficRollupParams struct {
-	ChannelID   uuid.UUID `json:"channel_id"`
-	Day         time.Time `json:"day"`
-	Kind        string    `json:"kind"`
-	BotName     string    `json:"bot_name"`
-	BotCategory string    `json:"bot_category"`
-	PageKey     string    `json:"page_key"`
-	Hits        int64     `json:"hits"`
-	LastSeen    time.Time `json:"last_seen"`
+type UpsertTrafficRollupsParams struct {
+	ChannelIds    []uuid.UUID `json:"channel_ids"`
+	Days          []time.Time `json:"days"`
+	Kinds         []string    `json:"kinds"`
+	BotNames      []string    `json:"bot_names"`
+	BotCategories []string    `json:"bot_categories"`
+	PageKeys      []string    `json:"page_keys"`
+	Hits          []int64     `json:"hits"`
+	LastSeens     []time.Time `json:"last_seens"`
 }
 
 // Bot / crawler analytics (rollup-backed) -------------------------------------
 // Counts are coalesced in-process into analytics_traffic_rollup - dashboards read the rollup and never raw events, so query cost is bounded
-func (q *Queries) UpsertTrafficRollup(ctx context.Context, arg UpsertTrafficRollupParams) error {
-	_, err := q.db.ExecContext(ctx, upsertTrafficRollup,
-		arg.ChannelID,
-		arg.Day,
-		arg.Kind,
-		arg.BotName,
-		arg.BotCategory,
-		arg.PageKey,
-		arg.Hits,
-		arg.LastSeen,
+// One flush window in one statement, the arrays parallel - the window's keys are distinct, so no row is hit twice
+func (q *Queries) UpsertTrafficRollups(ctx context.Context, arg UpsertTrafficRollupsParams) error {
+	_, err := q.db.ExecContext(ctx, upsertTrafficRollups,
+		pq.Array(arg.ChannelIds),
+		pq.Array(arg.Days),
+		pq.Array(arg.Kinds),
+		pq.Array(arg.BotNames),
+		pq.Array(arg.BotCategories),
+		pq.Array(arg.PageKeys),
+		pq.Array(arg.Hits),
+		pq.Array(arg.LastSeens),
 	)
 	return err
 }

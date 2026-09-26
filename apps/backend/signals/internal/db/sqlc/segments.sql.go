@@ -531,6 +531,22 @@ func (q *Queries) RemoveCustomerFromSegment(ctx context.Context, arg RemoveCusto
 	return err
 }
 
+const removeSegmentMembersNotIn = `-- name: RemoveSegmentMembersNotIn :exec
+DELETE FROM customer_segment_memberships
+WHERE segment_id = $1 AND NOT (customer_id = ANY($2::uuid[]))
+`
+
+type RemoveSegmentMembersNotInParams struct {
+	SegmentID uuid.UUID   `json:"segment_id"`
+	KeepIds   []uuid.UUID `json:"keep_ids"`
+}
+
+// The leavers half of a refresh - members still in the computed set keep their row, and so their added_at
+func (q *Queries) RemoveSegmentMembersNotIn(ctx context.Context, arg RemoveSegmentMembersNotInParams) error {
+	_, err := q.db.ExecContext(ctx, removeSegmentMembersNotIn, arg.SegmentID, pq.Array(arg.KeepIds))
+	return err
+}
+
 const rosterChannelsOfCustomers = `-- name: RosterChannelsOfCustomers :many
 SELECT customer_id, channel_id FROM customer_roster WHERE customer_id = ANY($1::uuid[])
 `

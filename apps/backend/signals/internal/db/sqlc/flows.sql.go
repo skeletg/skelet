@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const claimRunnableFlowRuns = `-- name: ClaimRunnableFlowRuns :many
@@ -19,10 +20,11 @@ WITH candidates AS (
     SELECT c.id, c.created_at, row_number() OVER (PARTITION BY f.channel_id ORDER BY c.created_at) AS turn
     FROM flows f
     CROSS JOIN LATERAL (
+        -- Due order, on flow_runs_flow_due - an active run with no resume_at is due immediately
         SELECT r.id, r.created_at FROM flow_runs r
         WHERE r.flow_id = f.id AND r.status IN ('active', 'waiting')
-          AND (r.resume_at <= NOW() OR (r.status = 'active' AND r.resume_at IS NULL))
-        ORDER BY r.created_at
+          AND COALESCE(r.resume_at, CASE WHEN r.status = 'active' THEN '-infinity'::timestamptz END) <= NOW()
+        ORDER BY COALESCE(r.resume_at, CASE WHEN r.status = 'active' THEN '-infinity'::timestamptz END)
         LIMIT $2
     ) c
     WHERE f.status = 'active' AND f.deleted_at IS NULL
@@ -199,6 +201,19 @@ func (q *Queries) CreateFlowRun(ctx context.Context, arg CreateFlowRunParams) (F
 		&i.EnrollmentKey,
 	)
 	return i, err
+}
+
+const deleteFlowRunsForCustomers = `-- name: DeleteFlowRunsForCustomers :execrows
+DELETE FROM flow_runs WHERE customer_id = ANY($1::uuid[])
+`
+
+// Runs for customers the roster just dropped - a live run for a deleted customer would keep trying to mail them
+func (q *Queries) DeleteFlowRunsForCustomers(ctx context.Context, customerIds []uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteFlowRunsForCustomers, pq.Array(customerIds))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const flowRunExistsForKey = `-- name: FlowRunExistsForKey :one
@@ -429,6 +444,19 @@ func (q *Queries) ListFlows(ctx context.Context, arg ListFlowsParams) ([]Flow, e
 		return nil, err
 	}
 	return items, nil
+}
+
+const pruneFinishedFlowRuns = `-- name: PruneFinishedFlowRuns :execrows
+DELETE FROM flow_runs WHERE status IN ('completed', 'cancelled', 'failed') AND updated_at < $1
+`
+
+// Finished runs past the send-history window - live runs are never touched
+func (q *Queries) PruneFinishedFlowRuns(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneFinishedFlowRuns, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const restoreFlow = `-- name: RestoreFlow :execrows

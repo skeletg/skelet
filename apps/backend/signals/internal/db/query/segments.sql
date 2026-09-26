@@ -70,6 +70,11 @@ WHERE customer_id = $1 AND segment_id = $2;
 -- name: ClearSegmentMembership :exec
 DELETE FROM customer_segment_memberships WHERE segment_id = $1;
 
+-- name: RemoveSegmentMembersNotIn :exec
+-- The leavers half of a refresh - members still in the computed set keep their row, and so their added_at
+DELETE FROM customer_segment_memberships
+WHERE segment_id = sqlc.arg(segment_id) AND NOT (customer_id = ANY(sqlc.arg(keep_ids)::uuid[]));
+
 -- name: CountSegmentMembers :one
 SELECT COUNT(*)::INTEGER FROM customer_segment_memberships WHERE segment_id = $1;
 

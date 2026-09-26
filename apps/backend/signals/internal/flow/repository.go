@@ -35,6 +35,7 @@ type Repository interface {
 	UpdateRun(ctx context.Context, r FlowRun) error
 	ListRuns(ctx context.Context, flowID uuid.UUID, limit int32) ([]FlowRun, error)
 	RunsForCustomer(ctx context.Context, customerID uuid.UUID) ([]CustomerRun, error)
+	PruneFinishedRuns(ctx context.Context, before time.Time) (int64, error)
 }
 
 type repo struct{ q *db.Queries }
@@ -326,4 +327,8 @@ func nullTimePtr(t sql.NullTime) *time.Time {
 	}
 	v := t.Time
 	return &v
+}
+
+func (r *repo) PruneFinishedRuns(ctx context.Context, before time.Time) (int64, error) {
+	return r.q.PruneFinishedFlowRuns(ctx, before)
 }
