@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { dragTo, navigate, newTab, startClean, strips, tabCentre } from './helpers'
+import { expect } from '@playwright/test'
+import { dragTo, navigate, newTab, startClean, strips, tabCentre, test } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await startClean(page)

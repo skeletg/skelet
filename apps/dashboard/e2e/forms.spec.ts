@@ -1,5 +1,6 @@
-import { expect, test, type Page } from '@playwright/test'
-import { adminApi, saveThroughDialog, startClean } from './helpers'
+import { expect } from '@playwright/test'
+import { adminApi, saveThroughDialog, test } from './helpers'
+import { RUN, cleanup, firstChannel, hasDraft, lexical, open, openScoped, registerCleanups } from './fixtures'
 
 // The staged forms against the real API - what the unit tests' mocked Apollo can't show: that a Save
 // writes what the review dialog listed, that sections sharing one backend row don't undo each other,
@@ -7,46 +8,7 @@ import { adminApi, saveThroughDialog, startClean } from './helpers'
 //
 // Needs the dev stack up, like the rest of the suite (see README.md)
 
-const RUN = `e2e-forms-${Date.now()}`
-const cleanups: (() => Promise<unknown>)[] = []
-
-test.afterAll(async () => {
-  for (const undo of cleanups.reverse()) await undo().catch(() => undefined)
-})
-
-// A one-paragraph Lexical document, the shape the rich-text editor stores
-const lexical = (text: string) => ({
-  root: {
-    type: 'root',
-    version: 1,
-    direction: null,
-    format: '',
-    indent: 0,
-    children: [
-      {
-        type: 'paragraph',
-        version: 1,
-        direction: null,
-        format: '',
-        indent: 0,
-        textFormat: 0,
-        textStyle: '',
-        children: [{ type: 'text', version: 1, detail: 0, format: 0, mode: 'normal', style: '', text }],
-      },
-    ],
-  },
-})
-
-async function firstChannel() {
-  const { channels } = await adminApi<{ channels: { id: string; name: string; currencyCode: string }[] }>('{ channels { id name currencyCode } }')
-  if (!channels[0]) throw new Error('the dev stack has no channel')
-  return channels[0]
-}
-
-async function open(page: Page, path: string) {
-  await startClean(page)
-  await page.goto(path, { waitUntil: 'domcontentloaded' })
-}
+registerCleanups()
 
 // ---------- Product ----------
 
@@ -68,7 +30,7 @@ async function seedProduct(suffix: string) {
     { i: { productTypeId: productTypes[0].id, kind: 'SIMPLE', sku: `${RUN}-${suffix}`, locale: 'en', name: `${RUN} ${suffix}`, defaultPrice: 1500, defaultCurrencyCode: channel.currencyCode } },
   )
   const id = createProduct.id
-  cleanups.push(() => adminApi('mutation($id:ID!){ deleteProduct(id:$id) }', { id }))
+  cleanup(() => adminApi('mutation($id:ID!){ deleteProduct(id:$id) }', { id }))
   await adminApi(
     `mutation($p:ID!,$c:ID!,$sd:JSON,$n:String!){
       upsertProductContent(productId:$p, locale:"en", input:{ name:$n, shortDescription:$sd, metaTitle:"Seeded meta" }){ id }
@@ -115,19 +77,18 @@ test.describe('product page', () => {
     page.on('dialog', (d) => {
       throw new Error(`unexpected browser dialog on reload: ${d.message()}`)
     })
-    const hasDraft = () => page.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith('skelet.draft.')))
     const typeAndReload = async () => {
       await page.locator('#pd-name').fill(`${RUN} typed`)
       // The draft is written after a short debounce
-      await expect.poll(hasDraft).toBe(true)
+      await expect.poll(() => hasDraft(page)).toBe(true)
       await page.reload({ waitUntil: 'domcontentloaded' })
       // Offered, not applied: the field still shows what's stored
-      await expect(page.getByRole('button', { name: 'Review' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Review', exact: true })).toBeVisible()
       await expect(page.locator('#pd-name')).toHaveValue(`${RUN} draft`)
     }
 
     await typeAndReload()
-    await page.getByRole('button', { name: 'Review' }).click()
+    await page.getByRole('button', { name: 'Review', exact: true }).click()
     const review = page.getByRole('alertdialog')
     await expect(review.getByText(`${RUN} typed`)).toBeVisible()
     await review.getByRole('button', { name: 'Restore' }).click()
@@ -138,9 +99,9 @@ test.describe('product page', () => {
     await page.locator('#pd-name').fill(`${RUN} draft`)
     await typeAndReload()
     await page.getByRole('button', { name: 'Discard' }).first().click()
-    await expect(page.getByRole('button', { name: 'Review' })).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Review', exact: true })).toBeHidden()
     await expect(page.locator('#pd-name')).toHaveValue(`${RUN} draft`)
-    await expect.poll(hasDraft).toBe(false)
+    await expect.poll(() => hasDraft(page)).toBe(false)
   })
 
   test('an invalid value keeps the review dialog open and writes nothing', async ({ page }) => {
@@ -161,13 +122,6 @@ test.describe('product page', () => {
 
 // ---------- The other multi-write pages: edit one field, and check the rest of the record held ----------
 
-// Pages that edit translations only once a channel + locale is picked in the header
-async function openScoped(page: Page, path: string) {
-  const channel = await firstChannel()
-  await page.addInitScript((scope) => localStorage.setItem('skelet-dash:config-scope', scope), JSON.stringify({ mode: 'CHANNEL', channelId: channel.id, locale: 'en' }))
-  await open(page, path)
-}
-
 type ContentRow = { locale: string; name: string; metaTitle: string | null; description: unknown }
 
 test.describe('record pages', () => {
@@ -180,7 +134,7 @@ test.describe('record pages', () => {
       { i: { slug: `${RUN}-post`, locale: 'en', title: 'Seeded title', excerpt: 'Seeded excerpt', body: lexical('Seeded body'), metaTitle: 'Seeded meta' } },
     )
     const id = createBlogPost.id
-    cleanups.push(() => adminApi('mutation($id:ID!){ deleteBlogPost(id:$id) }', { id }))
+    cleanup(() => adminApi('mutation($id:ID!){ deleteBlogPost(id:$id) }', { id }))
 
     await openScoped(page, `/blog/posts/${id}`)
     await page.locator('#title').fill('Renamed title')
@@ -201,13 +155,13 @@ test.describe('record pages', () => {
       { i: { slug: `${RUN}-type`, locale: 'en', name: `${RUN} type` } },
     )
     const typeId = createCMSPageType.id
-    cleanups.push(() => adminApi('mutation($id:ID!){ deleteCMSPageType(id:$id) }', { id: typeId }))
+    cleanup(() => adminApi('mutation($id:ID!){ deleteCMSPageType(id:$id) }', { id: typeId }))
     const { createCMSPage } = await adminApi<{ createCMSPage: { id: string } }>(
       'mutation($i:CreateCMSPageInput!){ createCMSPage(input:$i){ id } }',
       { i: { pageTypeId: typeId, slug: `${RUN}-page`, locale: 'en', title: 'Seeded title', metaTitle: 'Seeded meta', metaDescription: 'Seeded description' } },
     )
     const id = createCMSPage.id
-    cleanups.push(() => adminApi('mutation($id:ID!){ deleteCMSPage(id:$id) }', { id }))
+    cleanup(() => adminApi('mutation($id:ID!){ deleteCMSPage(id:$id) }', { id }))
 
     await openScoped(page, `/cms/pages/${id}`)
     await page.locator('#title').fill('Renamed title')
@@ -227,7 +181,7 @@ test.describe('record pages', () => {
       { i: { slug: `${RUN}-rule`, name: 'Seeded rule', validFrom, isActive: false } },
     )
     const id = createPromotionRule.id
-    cleanups.push(() => adminApi('mutation($id:ID!){ deletePromotionRule(id:$id) }', { id }))
+    cleanup(() => adminApi('mutation($id:ID!){ deletePromotionRule(id:$id) }', { id }))
 
     await open(page, `/promotions/${id}`)
     await page.locator('#name').fill('Renamed rule')
@@ -244,7 +198,7 @@ test.describe('record pages', () => {
       { i: { slug: `${RUN}-collection`, locale: 'en', name: 'Seeded collection', description: lexical('Seeded description') } },
     )
     const id = createCollection.id
-    cleanups.push(() => adminApi('mutation($id:ID!){ deleteCollection(id:$id) }', { id }))
+    cleanup(() => adminApi('mutation($id:ID!){ deleteCollection(id:$id) }', { id }))
 
     await openScoped(page, `/collections/${id}`)
     await page.locator('#collection-content-meta-title').fill('New meta')
@@ -266,7 +220,7 @@ test.describe('record pages', () => {
       { i: { slug: `${RUN}-category`, locale: 'en', name: 'Seeded category', description: lexical('Seeded description'), metaTitle: 'Seeded meta' } },
     )
     const id = createCategory.id
-    cleanups.push(() => adminApi('mutation($id:ID!){ deleteCategory(id:$id) }', { id }))
+    cleanup(() => adminApi('mutation($id:ID!){ deleteCategory(id:$id) }', { id }))
 
     // This install has no global default locale, so Global scope has no translation row to write
     await openScoped(page, `/categories/${id}`)
@@ -287,12 +241,12 @@ test.describe('record pages', () => {
     const { createMenu } = await adminApi<{ createMenu: { id: string } }>('mutation($i:CreateMenuInput!){ createMenu(input:$i){ id } }', {
       i: { slug: `${RUN}-menu`, name: 'Seeded menu' },
     })
-    cleanups.push(() => adminApi('mutation($id:ID!){ deleteMenu(id:$id) }', { id: createMenu.id }))
+    cleanup(() => adminApi('mutation($id:ID!){ deleteMenu(id:$id) }', { id: createMenu.id }))
     const { createCustomerGroup } = await adminApi<{ createCustomerGroup: { id: string } }>(
       'mutation($i:CreateCustomerGroupInput!){ createCustomerGroup(input:$i){ id } }',
       { i: { slug: `${RUN}-group`, name: 'Seeded group', description: 'Seeded description' } },
     )
-    cleanups.push(() => adminApi('mutation($id:ID!){ deleteCustomerGroup(id:$id) }', { id: createCustomerGroup.id }))
+    cleanup(() => adminApi('mutation($id:ID!){ deleteCustomerGroup(id:$id) }', { id: createCustomerGroup.id }))
 
     await open(page, `/menus/${createMenu.id}`)
     await page.locator('#menu-edit-name').fill('Renamed menu')
