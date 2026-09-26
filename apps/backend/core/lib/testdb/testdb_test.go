@@ -24,7 +24,7 @@ func TestSharedIgnoresSessionMarker(t *testing.T) {
 	}
 	admin := *u
 	admin.Path = "/postgres"
-	db, err := sql.Open("postgres", admin.String())
+	db, err := sql.Open("pgx", admin.String())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -16,6 +16,7 @@ import (
 	"sync"
 	"testing"
 
+	_ "github.com/jackc/pgx/v5/stdlib" // the driver production runs
 	"github.com/lib/pq"
 )
 
@@ -46,7 +47,7 @@ func Open(envVar string) (*sql.DB, string) {
 	if dsn == "" {
 		return nil, reason
 	}
-	conn, err := sql.Open("postgres", dsn)
+	conn, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Sprintf("open %s: %v", envVar, err)
 	}
@@ -89,7 +90,7 @@ func provision(raw string) (string, string) {
 	}
 	admin := *u
 	admin.Path = "/postgres"
-	db, err := sql.Open("postgres", admin.String())
+	db, err := sql.Open("pgx", admin.String())
 	if err != nil {
 		return "", fmt.Sprintf("open maintenance database: %v", err)
 	}
@@ -117,7 +118,7 @@ func provision(raw string) (string, string) {
 }
 
 func shared(raw string) (string, string) {
-	conn, err := sql.Open("postgres", raw)
+	conn, err := sql.Open("pgx", raw)
 	if err != nil {
 		return "", fmt.Sprintf("open: %v", err)
 	}
