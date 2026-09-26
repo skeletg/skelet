@@ -60,9 +60,10 @@ LIMIT sqlc.arg(lim);
 -- Bot / crawler analytics (rollup-backed) -------------------------------------
 -- Counts are coalesced in-process into analytics_traffic_rollup - dashboards read the rollup and never raw events, so query cost is bounded
 
--- name: UpsertTrafficRollup :exec
+-- name: UpsertTrafficRollups :exec
+-- One flush window in one statement, the arrays parallel - the window's keys are distinct, so no row is hit twice
 INSERT INTO analytics_traffic_rollup (channel_id, day, kind, bot_name, bot_category, page_key, hits, last_seen)
-VALUES (sqlc.arg(channel_id), sqlc.arg(day), sqlc.arg(kind), sqlc.arg(bot_name), sqlc.arg(bot_category), sqlc.arg(page_key), sqlc.arg(hits), sqlc.arg(last_seen))
+SELECT unnest(sqlc.arg(channel_ids)::uuid[]), unnest(sqlc.arg(days)::date[]), unnest(sqlc.arg(kinds)::text[]), unnest(sqlc.arg(bot_names)::text[]), unnest(sqlc.arg(bot_categories)::text[]), unnest(sqlc.arg(page_keys)::text[]), unnest(sqlc.arg(hits)::bigint[]), unnest(sqlc.arg(last_seens)::timestamptz[])
 ON CONFLICT (channel_id, day, kind, bot_name, bot_category, page_key)
 DO UPDATE SET hits      = analytics_traffic_rollup.hits + EXCLUDED.hits,
               last_seen = GREATEST(analytics_traffic_rollup.last_seen, EXCLUDED.last_seen);
@@ -116,15 +117,15 @@ ORDER BY day;
 
 -- Lens hub rollup writes (coalesced + flushed by the traffic-rollup buffer) ----
 
--- name: UpsertLensDaily :exec
+-- name: UpsertLensDailies :exec
 INSERT INTO lens_traffic_daily (channel_id, day, dim, key, views)
-VALUES (sqlc.arg(channel_id), sqlc.arg(day), sqlc.arg(dim), sqlc.arg(key), sqlc.arg(views))
+SELECT unnest(sqlc.arg(channel_ids)::uuid[]), unnest(sqlc.arg(days)::date[]), unnest(sqlc.arg(dims)::text[]), unnest(sqlc.arg(keys)::text[]), unnest(sqlc.arg(views)::bigint[])
 ON CONFLICT (channel_id, day, dim, key)
 DO UPDATE SET views = lens_traffic_daily.views + EXCLUDED.views;
 
--- name: UpsertLensVisitor :exec
+-- name: UpsertLensVisitors :exec
 INSERT INTO lens_visitor_seen (channel_id, anon_id, last_seen)
-VALUES (sqlc.arg(channel_id), sqlc.arg(anon_id), sqlc.arg(last_seen))
+SELECT unnest(sqlc.arg(channel_ids)::uuid[]), unnest(sqlc.arg(anon_ids)::text[]), unnest(sqlc.arg(last_seens)::timestamptz[])
 ON CONFLICT (channel_id, anon_id)
 DO UPDATE SET last_seen = GREATEST(lens_visitor_seen.last_seen, EXCLUDED.last_seen);
 

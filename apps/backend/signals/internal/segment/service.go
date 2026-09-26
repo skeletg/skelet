@@ -41,11 +41,12 @@ func NewService(repo Repository, txMgr Transactor, dbc *sql.DB, orders WindowedO
 	return &Service{repo: repo, tx: txMgr, dbc: dbc, orders: orders}
 }
 
-// Atomically swaps a segment's membership for the given customer set - clear and re-add run in one transaction, so concurrent readers like campaign materialisation and the flow engine never see the empty in-between, and a failed refresh can't leave the segment drained
+// Leavers and joiners in one transaction, so readers never see a half-swapped set
+// A diff, so members who stay keep their row and their added_at
 func (s *Service) ReplaceMembership(ctx context.Context, segmentID uuid.UUID, customerIDs []uuid.UUID) error {
 	return s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		r := s.repo.WithTx(t)
-		if err := r.ClearMembership(ctx, segmentID); err != nil {
+		if err := r.RemoveMembersNotIn(ctx, segmentID, customerIDs); err != nil {
 			return err
 		}
 		if len(customerIDs) == 0 {
