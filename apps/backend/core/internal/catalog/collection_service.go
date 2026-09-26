@@ -292,12 +292,15 @@ func (s *collectionService) AddProductToCollection(ctx context.Context, collecti
 	return s.repo.GetCollectionByID(ctx, collectionID)
 }
 
-// ListProductsByCollection returns the products linked to a collection in admin-defined order, batch-hydrated with locale-resolved content - Used by the storefront's /collections/[id] page - the front Collection resolver populates `c.Products` from this so the GraphQL `Collection.products` field returns something other than an empty list
-func (s *collectionService) ListProductsByCollection(ctx context.Context, collectionID uuid.UUID, locale string) ([]Product, error) {
-	products, err := s.repo.ListProductsByCollection(ctx, collectionID)
+func (s *collectionService) ListProductsByCollection(ctx context.Context, collectionID uuid.UUID, locale string, limit int32) ([]Product, error) {
+	products, err := s.repo.ListProductsByCollection(ctx, collectionID, limit)
 	if err != nil {
 		return nil, err
 	}
+	return s.withProductsContent(ctx, products, locale)
+}
+
+func (s *core) withProductsContent(ctx context.Context, products []Product, locale string) ([]Product, error) {
 	if len(products) == 0 {
 		return products, nil
 	}

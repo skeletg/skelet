@@ -966,18 +966,6 @@ func (r *postgresRepository) ListOrderEventsByOrder(ctx context.Context, orderID
 	return events, nil
 }
 
-func (r *postgresRepository) ListOrders(ctx context.Context) ([]Order, error) {
-	rows, err := r.queries.ListOrders(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list orders: %w", err)
-	}
-	orders := make([]Order, len(rows))
-	for i, row := range rows {
-		orders[i] = toOrder(row)
-	}
-	return orders, nil
-}
-
 func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilter) ([]Order, int64, error) {
 	allStatuses, allPayment := len(f.Statuses) == 0, len(f.PaymentStatuses) == 0
 	var (
@@ -990,7 +978,7 @@ func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilte
 			Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
 			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, Lim: f.Limit, Off: f.Offset,
 		})
-		if err == nil {
+		if err == nil && !f.SkipCount {
 			total, err = r.queries.CountOrdersPaged(ctx, db.CountOrdersPagedParams{
 				Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
 				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses,
@@ -1001,7 +989,7 @@ func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilte
 			ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
 			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, Lim: f.Limit, Off: f.Offset,
 		})
-		if err == nil {
+		if err == nil && !f.SkipCount {
 			total, err = r.queries.CountOrdersPagedInChannels(ctx, db.CountOrdersPagedInChannelsParams{
 				ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
 				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses,

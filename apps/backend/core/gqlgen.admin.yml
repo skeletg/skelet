@@ -103,6 +103,9 @@ models:
       # free of it and the tree-building mapper never needs DB access. Safe to select on the category tree
       productCount:
         resolver: true
+      # Lazy - the category tree never needs the members
+      products:
+        resolver: true
       # Lazy load - only the category detail page selects it
       facetOverrides:
         resolver: true

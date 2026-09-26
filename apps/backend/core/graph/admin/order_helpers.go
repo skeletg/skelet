@@ -417,3 +417,30 @@ func orderEmailMessageKey(m model.OrderEmailMessage) string {
 		return email.KeyOrderConfirmation
 	}
 }
+
+// The unpaged orders field stops here - ordersPaged is the one to page
+const unpagedOrdersCap int32 = 1000
+
+// Resolved before the SQL page so LIMIT only counts rows the caller can see
+// nil with none=false is every channel, none=true is no channel at all
+func (r *queryResolver) orderChannelScope(ctx context.Context, channelID *string) (channels []uuid.UUID, none bool, err error) {
+	perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "orders.view")
+	if err != nil {
+		return nil, false, err
+	}
+	explicit, err := r.scopedChannelID(ctx, channelID)
+	if err != nil {
+		return nil, false, err
+	}
+	switch {
+	case explicit != nil:
+		if !perm.Allows(*explicit) {
+			return nil, false, auth.ErrForbidden
+		}
+		return []uuid.UUID{*explicit}, false, nil
+	case !perm.Bypass():
+		ids := perm.IDs()
+		return ids, len(ids) == 0, nil
+	}
+	return nil, false, nil
+}

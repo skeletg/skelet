@@ -68,7 +68,6 @@ import {
   GenerateShippingLabelDocument,
   MarkOrderProcessingDocument,
   OrderDocument,
-  OrdersDocument,
   PlaceDraftOrderDocument,
   OrderDocumentPdfDocument,
 } from './Orders.gql'
@@ -120,7 +119,7 @@ export function OrderDetail() {
 
   const refetch = [
     { query: OrderDocument, variables: { id } },
-    { query: OrdersDocument },
+    'OrdersPaged',
   ]
   const [confirmOrder,     confirmState]    = useMutation(ConfirmOrderDocument,       { refetchQueries: refetch })
   const [markProcessing,   processingState] = useMutation(MarkOrderProcessingDocument,{ refetchQueries: refetch })

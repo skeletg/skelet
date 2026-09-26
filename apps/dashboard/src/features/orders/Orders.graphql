@@ -17,22 +17,6 @@ query OrdersPaged($search: String, $statuses: [String!], $paymentStatuses: [Stri
   }
 }
 
-query Orders {
-  orders {
-    id
-    number
-    status
-    paymentStatus
-    total
-    currencyCode
-    createdAt
-    shippingAddress {
-      firstName
-      lastName
-    }
-  }
-}
-
 query Order($id: ID!) {
   order(id: $id) {
     id
