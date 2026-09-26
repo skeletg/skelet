@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/address"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
@@ -70,6 +71,7 @@ type Service struct {
 	// Resolves the channel auto-hold score - nil or 0 disables it
 	riskHoldThreshold func(ctx context.Context, channelID uuid.UUID) int
 	shippingTax       func(ctx context.Context, channelID uuid.UUID) (class string, taxable bool)
+	addresses         AddressChecker
 	// channels, pricer and inventoryEditor power pre-fulfillment editing - channel config, added-line pricing, in-tx re-reservation - All optional, and nil disables the capability
 	channels        ChannelLoader
 	pricer          ProductPricer
@@ -217,6 +219,13 @@ func (s *Service) SetCountryValidator(v CountryValidator)           { s.countrie
 func (s *Service) SetPaymentValidator(v PaymentValidator)           { s.payments = v }
 func (s *Service) SetGiftCardTender(g GiftCardTender)               { s.giftcard = g }
 func (s *Service) SetStoreCreditTender(t StoreCreditTender)         { s.storeCredit = t }
+
+type AddressChecker interface {
+	Validate(ctx context.Context, channelID uuid.UUID, in address.Input) (address.Result, error)
+	Strict(ctx context.Context, channelID uuid.UUID) bool
+}
+
+func (s *Service) SetAddressChecker(c AddressChecker) { s.addresses = c }
 
 // Resolves how a channel taxes shipping - nil taxes it at the default class
 func (s *Service) SetShippingTax(f func(ctx context.Context, channelID uuid.UUID) (class string, taxable bool)) {

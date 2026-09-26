@@ -9,11 +9,13 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/skeletg/skelet/apps/backend/core/internal/address"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	shippingpkg "github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -74,6 +76,10 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 		}
 	}
 
+	if err := s.checkStrictAddress(ctx, store.ID, shipping); err != nil {
+		return nil, err
+	}
+
 	// Resolve + validate the payment provider - optional (no slug = no provider),
 	// but when supplied it must be enabled for the channel and accept the shipping country
 	var paymentProvider string
@@ -124,6 +130,33 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 		subtotal:        subtotal,
 		orderID:         orderID,
 	}, nil
+}
+
+// Strict channels refuse a shipping address the validator marks invalid - a validator outage never blocks, same as the storefront
+func (s *Service) checkStrictAddress(ctx context.Context, channelID uuid.UUID, a OrderAddress) error {
+	if s.addresses == nil || !s.addresses.Strict(ctx, channelID) {
+		return nil
+	}
+	res, err := s.addresses.Validate(ctx, channelID, address.Input{
+		Street1:     a.Street1,
+		Street2:     ptr.Deref(a.Street2),
+		City:        a.City,
+		State:       ptr.Deref(a.State),
+		PostalCode:  a.PostalCode,
+		CountryCode: a.CountryCode,
+	})
+	if err != nil {
+		log.Printf("[order] address validator failed on channel %s, not blocking: %v", channelID, err)
+		return nil
+	}
+	if res.Valid {
+		return nil
+	}
+	msg := "Please check the shipping address"
+	if len(res.Messages) > 0 {
+		msg += ": " + strings.Join(res.Messages, "; ")
+	}
+	return apperr.New("ADDRESS_INVALID", apperr.ClassValidation, msg+".")
 }
 
 // resolveCheckoutCart loads the cart to place - an explicit id (checked for store
