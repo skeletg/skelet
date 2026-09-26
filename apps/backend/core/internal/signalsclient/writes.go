@@ -258,6 +258,18 @@ type RosterCustomer struct {
 	SMSOptedIn       bool
 	Consents         map[string]bool
 	ReadAt           time.Time // when core's database read the row - the suite keeps whichever read is newest
+	OrderCount       int32
+	MonetaryCents    int64
+	FirstOrderAt     *time.Time
+	LastOrderAt      *time.Time
+}
+
+// TimeFromAny reads the roster query's lifetime order dates, which sqlc hands over untyped - nil for a customer with no orders
+func TimeFromAny(v any) *time.Time {
+	if t, ok := v.(time.Time); ok {
+		return &t
+	}
+	return nil
 }
 
 // ConsentsFromJSON reads the roster query's jsonb_object_agg of kind -> opted_in, which sqlc hands over untyped
@@ -382,6 +394,13 @@ func rosterEntry(c RosterCustomer) *signalsv1.RosterEntry {
 		CustomerId: c.CustomerID.String(), ChannelId: c.ChannelID.String(),
 		Email: c.Email, FirstName: c.FirstName, Phone: c.Phone, IsActive: c.IsActive,
 		MarketingOptedIn: c.MarketingOptedIn, SmsOptedIn: c.SMSOptedIn, ReadAt: stamp(c.ReadAt),
+		OrderCount: c.OrderCount, MonetaryCents: c.MonetaryCents,
+	}
+	if c.FirstOrderAt != nil {
+		e.FirstOrderAt = stamp(*c.FirstOrderAt)
+	}
+	if c.LastOrderAt != nil {
+		e.LastOrderAt = stamp(*c.LastOrderAt)
 	}
 	if c.GroupID.Valid {
 		e.CustomerGroupId = c.GroupID.UUID.String()

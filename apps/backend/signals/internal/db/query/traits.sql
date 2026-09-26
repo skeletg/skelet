@@ -4,23 +4,31 @@
 -- name: UpsertCustomerRoster :exec
 -- Lands a page of the synced roster - paired arrays, one statement per page
 -- A deleted customer's tombstone keeps a page read before the delete from bringing them back, and a row core read later than this page is left alone
-INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at)
+INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at,
+                             order_count, monetary_cents, first_order_at, last_order_at)
 SELECT u.customer_id, u.channel_id, u.email, u.first_name, u.phone, u.is_active, u.group_id, u.group_slug,
        u.opted_in, u.sms_opted_in, u.consents::jsonb,
-       CASE WHEN u.read_at > 'epoch'::timestamptz THEN u.read_at END, sqlc.arg(synced_at)
+       CASE WHEN u.read_at > 'epoch'::timestamptz THEN u.read_at END, sqlc.arg(synced_at),
+       u.order_count, u.monetary_cents,
+       CASE WHEN u.first_order_at > 'epoch'::timestamptz THEN u.first_order_at END,
+       CASE WHEN u.last_order_at > 'epoch'::timestamptz THEN u.last_order_at END
 FROM (SELECT unnest(sqlc.arg(customer_ids)::uuid[]) AS customer_id, unnest(sqlc.arg(channel_ids)::uuid[]) AS channel_id,
              unnest(sqlc.arg(emails)::text[]) AS email, unnest(sqlc.arg(first_names)::text[]) AS first_name,
              unnest(sqlc.arg(phones)::text[]) AS phone, unnest(sqlc.arg(actives)::boolean[]) AS is_active,
              unnest(sqlc.arg(group_ids)::uuid[]) AS group_id, unnest(sqlc.arg(group_slugs)::text[]) AS group_slug,
              unnest(sqlc.arg(opted_in)::boolean[]) AS opted_in, unnest(sqlc.arg(sms_opted_in)::boolean[]) AS sms_opted_in,
-             unnest(sqlc.arg(consents)::text[]) AS consents, unnest(sqlc.arg(read_ats)::timestamptz[]) AS read_at) u
+             unnest(sqlc.arg(consents)::text[]) AS consents, unnest(sqlc.arg(read_ats)::timestamptz[]) AS read_at,
+             unnest(sqlc.arg(order_counts)::int[]) AS order_count, unnest(sqlc.arg(monetary_cents)::bigint[]) AS monetary_cents,
+             unnest(sqlc.arg(first_order_ats)::timestamptz[]) AS first_order_at, unnest(sqlc.arg(last_order_ats)::timestamptz[]) AS last_order_at) u
 WHERE NOT EXISTS (SELECT 1 FROM customer_roster_tombstones t WHERE t.customer_id = u.customer_id)
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
         phone = EXCLUDED.phone, is_active = EXCLUDED.is_active, customer_group_id = EXCLUDED.customer_group_id,
         customer_group_slug = EXCLUDED.customer_group_slug,
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
-        consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at
+        consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at,
+        order_count = EXCLUDED.order_count, monetary_cents = EXCLUDED.monetary_cents,
+        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at
     WHERE customer_roster.source_read_at IS NULL OR EXCLUDED.source_read_at IS NULL
        OR EXCLUDED.source_read_at >= customer_roster.source_read_at;
 
@@ -30,18 +38,22 @@ WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]) AND synced_at < sqlc.arg
 
 -- name: UpsertCustomerRosterEntry :exec
 -- One customer, arriving on a change rather than a sweep - synced_at moves too, so the next sweep does not prune a row that just landed
-INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at)
+INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at,
+                             order_count, monetary_cents, first_order_at, last_order_at)
 SELECT sqlc.arg(customer_id)::uuid, sqlc.arg(channel_id)::uuid, sqlc.arg(email)::text, sqlc.arg(first_name)::text,
        sqlc.arg(phone)::text, sqlc.arg(is_active)::boolean, sqlc.narg(customer_group_id)::uuid, sqlc.arg(customer_group_slug)::text,
        sqlc.arg(marketing_opted_in)::boolean, sqlc.arg(sms_opted_in)::boolean, sqlc.arg(consents)::jsonb,
-       CASE WHEN sqlc.arg(read_at)::timestamptz > 'epoch'::timestamptz THEN sqlc.arg(read_at)::timestamptz END, now()
+       CASE WHEN sqlc.arg(read_at)::timestamptz > 'epoch'::timestamptz THEN sqlc.arg(read_at)::timestamptz END, now(),
+       sqlc.arg(order_count)::int, sqlc.arg(monetary_cents)::bigint, sqlc.narg(first_order_at)::timestamptz, sqlc.narg(last_order_at)::timestamptz
 WHERE NOT EXISTS (SELECT 1 FROM customer_roster_tombstones t WHERE t.customer_id = sqlc.arg(customer_id)::uuid)
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
         phone = EXCLUDED.phone, is_active = EXCLUDED.is_active, customer_group_id = EXCLUDED.customer_group_id,
         customer_group_slug = EXCLUDED.customer_group_slug,
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
-        consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at
+        consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at,
+        order_count = EXCLUDED.order_count, monetary_cents = EXCLUDED.monetary_cents,
+        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at
     WHERE customer_roster.source_read_at IS NULL OR EXCLUDED.source_read_at IS NULL
        OR EXCLUDED.source_read_at >= customer_roster.source_read_at;
 
@@ -88,12 +100,12 @@ DELETE FROM customer_traits t WHERE NOT EXISTS (
 -- Recompute every customer's RFM, lifecycle and engagement traits for a channel in one set-based statement, so trait-compute scales without per-customer round-trips
 -- RFM are 1..5 quintile ranks among the channel's purchasers with 0 for never-ordered, recency reversed and ties broken by customer_id; lifecycle uses the channel's configured windows
 WITH agg AS (
-    -- Every input is local now: the roster is synced from commerce, and the order aggregate is fed by the spine Driven by the roster rather than customers, so a never-ordered customer still keeps a row and lands as a prospect, and the lifecycle override rides along on it rather than being derived from segments here
+    -- Driven by the roster, which carries core's lifetime order totals - a never-ordered customer still keeps a row and lands as a prospect, and the lifecycle override rides along rather than being derived from segments here
     SELECT c.customer_id                            AS customer_id,
-           COALESCE(a.order_count, 0)::int          AS order_count,
-           COALESCE(a.monetary_cents, 0)::bigint    AS monetary_cents,
-           a.last_order_at                          AS last_order_at,
-           a.first_order_at                         AS first_order_at,
+           c.order_count::int                       AS order_count,
+           c.monetary_cents::bigint                 AS monetary_cents,
+           c.last_order_at                          AS last_order_at,
+           c.first_order_at                         AS first_order_at,
            o.new_days, o.active_days, o.at_risk_days
     FROM customer_roster c
     LEFT JOIN LATERAL (
@@ -105,7 +117,6 @@ WITH agg AS (
         ORDER BY s.lifecycle_at_risk_days ASC, s.id
         LIMIT 1
     ) o ON TRUE
-    LEFT JOIN customer_order_agg a ON a.customer_id = c.customer_id
     WHERE c.channel_id = sqlc.arg(channel_id)::uuid
 ),
 act AS (
@@ -262,26 +273,6 @@ SELECT * FROM customer_traits WHERE customer_id = sqlc.arg(customer_id);
 -- name: ListCustomerTraitsByChannel :many
 SELECT * FROM customer_traits WHERE channel_id = sqlc.arg(channel_id);
 
--- name: ReplaceChannelOrderAgg :exec
--- Atomically swap a channel's order projection to the given per-customer aggregates (paired arrays), one statement for the same reason the engagement swap is one: a crash must not leave it half-cleared before RecomputeChannelTraits reads it and zeroes everyone's RFM
-WITH pruned AS (
-    DELETE FROM customer_order_agg
-    WHERE channel_id = sqlc.arg(channel_id)::uuid
-      AND NOT (customer_id = ANY(sqlc.arg(customer_ids)::uuid[]))
-)
-INSERT INTO customer_order_agg (customer_id, channel_id, order_count, monetary_cents, first_order_at, last_order_at)
-SELECT unnest(sqlc.arg(customer_ids)::uuid[]), sqlc.arg(channel_id)::uuid,
-       unnest(sqlc.arg(order_counts)::int[]), unnest(sqlc.arg(monetary_cents)::bigint[]),
-       unnest(sqlc.arg(first_order_ats)::timestamptz[]), unnest(sqlc.arg(last_order_ats)::timestamptz[])
-ON CONFLICT (customer_id) DO UPDATE
-    SET channel_id = EXCLUDED.channel_id, order_count = EXCLUDED.order_count,
-        monetary_cents = EXCLUDED.monetary_cents, first_order_at = EXCLUDED.first_order_at,
-        last_order_at = EXCLUDED.last_order_at, computed_at = now();
-
--- name: ClearChannelOrderAgg :exec
--- The empty-refresh case: a channel whose spine holds no surviving orders
-DELETE FROM customer_order_agg WHERE channel_id = sqlc.arg(channel_id);
-
 -- name: LifecycleMixForCustomers :many
 SELECT lifecycle_stage::text AS stage, COUNT(*)::int AS count
 FROM customer_traits
@@ -317,13 +308,12 @@ DELETE FROM customer_segment_memberships m WHERE NOT EXISTS (
 );
 
 -- name: SegmentMemberOrderStats :many
--- The order half of a segment's member panel, off the same projection the RFM scores beside it derive
--- from, so a member's orders and spend agree with their recency/frequency/monetary
+-- The order half of a segment's member panel, off the same roster totals the RFM scores beside it derive from
 SELECT customer_id,
        order_count::int        AS orders,
        monetary_cents::bigint  AS spend_cents,
        last_order_at
-FROM customer_order_agg
+FROM customer_roster
 WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]);
 
 -- name: SegmentOrderRollup :one
@@ -331,7 +321,7 @@ WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]);
 -- customer, so the sum needs no DISTINCT of its own
 SELECT COALESCE(SUM(order_count), 0)::bigint    AS orders,
        COALESCE(SUM(monetary_cents), 0)::bigint AS revenue_cents
-FROM customer_order_agg
+FROM customer_roster
 WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]);
 
 -- name: RosterChannels :many

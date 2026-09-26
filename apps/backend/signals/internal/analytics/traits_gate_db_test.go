@@ -18,15 +18,14 @@ func TestRecomputeKeepsRecencyCurrent(t *testing.T) {
 	customerID, channelID := uuid.New(), uuid.New()
 	t.Cleanup(func() {
 		_, _ = conn.Exec(`DELETE FROM customer_traits WHERE channel_id = $1`, channelID)
-		_, _ = conn.Exec(`DELETE FROM customer_order_agg WHERE channel_id = $1`, channelID)
 		_, _ = conn.Exec(`DELETE FROM customer_roster WHERE channel_id = $1`, channelID)
 	})
 	if err := NewRoster(qs).UpsertRosterEntry(ctx, RosterEntry{CustomerID: customerID, ChannelID: channelID, Email: "gate@test", IsActive: true}); err != nil {
 		t.Fatalf("roster: %v", err)
 	}
 	ordered := time.Now().Add(-10 * 24 * time.Hour)
-	if _, err := conn.Exec(`INSERT INTO customer_order_agg (customer_id, channel_id, order_count, monetary_cents, first_order_at, last_order_at) VALUES ($1, $2, 1, 5000, $3, $3)`,
-		customerID, channelID, ordered); err != nil {
+	if _, err := conn.Exec(`UPDATE customer_roster SET order_count = 1, monetary_cents = 5000, first_order_at = $2, last_order_at = $2 WHERE customer_id = $1`,
+		customerID, ordered); err != nil {
 		t.Fatalf("seed orders: %v", err)
 	}
 	recompute := func(asOf time.Time) int32 {

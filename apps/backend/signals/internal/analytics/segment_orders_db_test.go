@@ -23,9 +23,9 @@ type aggRow struct {
 func seedAgg(t *testing.T, channelID uuid.UUID, rows ...aggRow) *signalsdb.Queries {
 	t.Helper()
 	conn := testdb.RequireSignals(t)
-	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM customer_order_agg WHERE channel_id = $1`, channelID) })
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM customer_roster WHERE channel_id = $1`, channelID) })
 	for _, r := range rows {
-		if _, err := conn.Exec(`INSERT INTO customer_order_agg
+		if _, err := conn.Exec(`INSERT INTO customer_roster
 			(customer_id, channel_id, order_count, monetary_cents, first_order_at, last_order_at)
 			VALUES ($1,$2,$3,$4,$5,$5)`, r.customer, channelID, r.orders, r.cents, r.last); err != nil {
 			t.Fatalf("seed agg: %v", err)

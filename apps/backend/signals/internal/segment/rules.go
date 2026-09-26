@@ -13,9 +13,8 @@ import (
 
 // The dynamic-segment rule engine - marketers author a structured condition tree and the server compiles it to ONE parameterized SQL query over the customer roster Operators never supply SQL: every field, operator and join is allowlisted here, and every value travels as a bind arg The wire shape in customer_segments.rules is {logic, conditions[]}, where a condition is one of kind trait, lifecycle, order_count, total_spent_cents, last_order_days, consent or group days: 0 means all time
 //
-// Everything a rule reads is the suite's own: customer_roster with its consents and group slug (pushed by core), customer_traits
-// (recomputed daily) and customer_order_agg (lifetime orders, projected off the spine with the traits). A windowed order condition
-// is the one thing those tables cannot answer, so it is resolved against the spine first (orders.go) and arrives as an id set
+// Everything a rule reads is the suite's own: customer_roster with its consents, group slug and lifetime order totals (pushed by core)
+// and customer_traits (recomputed daily) - a windowed order condition is resolved against the spine first (orders.go) and arrives as an id set
 
 type RuleCondition struct {
 	Kind    string  `json:"kind"`
@@ -254,13 +253,13 @@ func (r *Rules) CompileIn(resolved map[int]Resolved, owner uuid.UUID) (string, [
 				preds = append(preds, resolvedPredicate(resolved[i], arg))
 				break
 			}
-			// Lifetime, off the projection - a customer who never ordered has no row there, and reads as zero
+			// Lifetime, off the roster totals core pushes - zero for a customer who never ordered
 			col := "order_count"
 			if c.Kind == "total_spent_cents" {
 				col = "monetary_cents"
 			}
 			preds = append(preds, fmt.Sprintf(
-				"COALESCE((SELECT a.%s FROM customer_order_agg a WHERE a.customer_id = c.customer_id), 0) %s %s",
+				"c.%s %s %s",
 				col, numericOps[c.Op], arg(c.Value)))
 		case "last_order_days":
 			cmp := "<="
@@ -269,7 +268,7 @@ func (r *Rules) CompileIn(resolved map[int]Resolved, owner uuid.UUID) (string, [
 			}
 			// NULL with no orders, so neither side of a recency rule ever selects someone who never bought
 			preds = append(preds, fmt.Sprintf(
-				"EXTRACT(EPOCH FROM NOW() - (SELECT a.last_order_at FROM customer_order_agg a WHERE a.customer_id = c.customer_id))/86400 %s %s",
+				"EXTRACT(EPOCH FROM NOW() - c.last_order_at)/86400 %s %s",
 				cmp, arg(c.Value)))
 		case "consent":
 			// The roster carries only the kinds a customer answered, so a missing key reads as the kind's registry default

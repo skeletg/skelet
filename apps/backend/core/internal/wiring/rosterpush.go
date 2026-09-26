@@ -13,6 +13,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 )
 
@@ -39,6 +40,8 @@ func registerRosterPush(bus *events.Bus, q *db.Queries, client *signalsclient.Cl
 			GroupSlug:        row.CustomerGroupSlug,
 			Consents:         signalsclient.ConsentsFromJSON(row.Consents),
 			MarketingOptedIn: row.MarketingOptedIn, SMSOptedIn: row.SmsOptedIn, ReadAt: row.ReadAt,
+			OrderCount: row.OrderCount, MonetaryCents: row.MonetaryCents,
+			FirstOrderAt: signalsclient.TimeFromAny(row.FirstOrderAt), LastOrderAt: signalsclient.TimeFromAny(row.LastOrderAt),
 		})
 		if err != nil {
 			return err
@@ -62,6 +65,23 @@ func registerRosterPush(bus *events.Bus, q *db.Queries, client *signalsclient.Cl
 	})
 	bus.Subscribe(consent.EventChanged, func(ctx context.Context, e events.Event) error {
 		return push(ctx, e.(*consent.ConsentChanged).CustomerID)
+	})
+	// A customer's lifetime order totals ride on their entry, so an order that counts or stops counting re-sends it
+	bus.Subscribe(order.EventPlaced, func(ctx context.Context, e events.Event) error {
+		if id := e.(*order.OrderPlaced).CustomerID; id != nil {
+			return push(ctx, *id)
+		}
+		return nil
+	})
+	bus.Subscribe(order.EventCancelled, func(ctx context.Context, e events.Event) error {
+		o, err := q.GetOrderByID(ctx, e.(*order.OrderCancelled).OrderID)
+		if errors.Is(err, sql.ErrNoRows) || (err == nil && !o.CustomerID.Valid) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("read cancelled order: %w", err)
+		}
+		return push(ctx, o.CustomerID.UUID)
 	})
 	// The row is already gone, so there is nothing to re-read - the suite drops its copy and the
 	// traits and memberships that hung off it

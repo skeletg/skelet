@@ -98,14 +98,14 @@ func seedTraits(t *testing.T, conn *sql.DB, customerID, channelID uuid.UUID, sta
 	}
 }
 
-// The lifetime projection trait compute lands off the spine - count and spend already netted against cancellations
-func seedOrders(t *testing.T, conn *sql.DB, customerID, channelID uuid.UUID, count int, cents int64, lastAgeDays int) {
+// The lifetime totals core pushes on the roster row - count and spend already net of cancellations
+func seedOrders(t *testing.T, conn *sql.DB, customerID, _ uuid.UUID, count int, cents int64, lastAgeDays int) {
 	t.Helper()
-	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM customer_order_agg WHERE customer_id = $1`, customerID) })
 	if _, err := conn.Exec(
-		`INSERT INTO customer_order_agg (customer_id, channel_id, order_count, monetary_cents, first_order_at, last_order_at)
-		 VALUES ($1, $2, $3, $4, NOW() - make_interval(days => $5::int + 100), NOW() - make_interval(days => $5::int))`,
-		customerID, channelID, count, cents, lastAgeDays); err != nil {
+		`UPDATE customer_roster SET order_count = $2, monetary_cents = $3,
+		 first_order_at = NOW() - make_interval(days => $4::int + 100), last_order_at = NOW() - make_interval(days => $4::int)
+		 WHERE customer_id = $1`,
+		customerID, count, cents, lastAgeDays); err != nil {
 		t.Fatalf("seed order aggregate: %v", err)
 	}
 }
@@ -263,8 +263,7 @@ func TestTraitAndGroupRulesSelectTheMatchingCustomer(t *testing.T) {
 }
 
 func TestOrderRulesReadTheProjection(t *testing.T) {
-	// Lifetime order conditions read customer_order_agg, which trait compute projects off the spine with
-	// cancellations already netted out - so what the rule sees is what the RFM scores beside it were built from
+	// Lifetime order conditions read the roster totals the RFM scores beside them are built from
 	conn := testDB(t)
 	channelID := uuid.New()
 	shopper := seedRoster(t, conn, rosterRow{channelID: channelID})

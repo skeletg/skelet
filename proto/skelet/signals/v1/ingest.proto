@@ -80,6 +80,11 @@ message RosterEntry {
   repeated Consent consents = 11;
   // When core read the row, on its own clock - an entry older than the one already held is not applied
   google.protobuf.Timestamp read_at = 12;
+  // Lifetime orders from core's own table, drafts and cancellations excluded - the suite's event log only keeps a year
+  int32 order_count = 13;
+  int64 monetary_cents = 14;
+  google.protobuf.Timestamp first_order_at = 15;
+  google.protobuf.Timestamp last_order_at = 16;
 }
 
 message Consent {

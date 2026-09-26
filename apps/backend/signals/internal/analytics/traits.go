@@ -76,11 +76,8 @@ func NewTraitCompute(qs *signalsdb.Queries, spine SpineStore) *TraitCompute {
 
 func (r *TraitCompute) ComputeTraits(ctx context.Context, channelID uuid.UUID, now time.Time, lc LifecycleWindows) (int, error) { // driven by the trait-compute scheduled job, never the request path
 	lc = lc.normalized()
-	// Both projections are refreshed first, because the recompute reads them in commerce rather than reaching into the signals db - engagement for the 30-day event count, order aggregates for the RFM inputs
+	// The engagement projection is refreshed first - the order inputs are already on the roster, pushed by core
 	if err := r.refreshEngagement(ctx, channelID, now); err != nil {
-		return 0, err
-	}
-	if err := r.refreshOrderAggregates(ctx, channelID); err != nil {
 		return 0, err
 	}
 	n, err := r.qs.RecomputeChannelTraits(ctx, signalsdb.RecomputeChannelTraitsParams{
@@ -233,35 +230,4 @@ func (r *Recorder) TraitActors(ctx context.Context, channelID uuid.UUID, rule Tr
 		out = append(out, t.CustomerID)
 	}
 	return out, nil
-}
-
-// The RFM inputs, read off the spine and landed in commerce so the recompute can join them locally
-// Always a full swap: a cancellation retroactively removes an order the projection already counted, so there is no slice of "what changed" the way engagement has one
-func (r *TraitCompute) refreshOrderAggregates(ctx context.Context, channelID uuid.UUID) error {
-	aggs, err := r.spine.ChannelOrderAggregates(ctx, channelID, time.Time{})
-	if err != nil {
-		return fmt.Errorf("order aggregates: %w", err)
-	}
-	if len(aggs) == 0 {
-		return r.qs.ClearChannelOrderAgg(ctx, channelID)
-	}
-	ids := make([]uuid.UUID, 0, len(aggs))
-	counts := make([]int32, 0, len(aggs))
-	cents := make([]int64, 0, len(aggs))
-	firsts := make([]time.Time, 0, len(aggs))
-	lasts := make([]time.Time, 0, len(aggs))
-	for _, a := range aggs {
-		ids = append(ids, a.CustomerID)
-		counts = append(counts, a.OrderCount)
-		cents = append(cents, a.MonetaryCents)
-		firsts = append(firsts, a.FirstOrderAt)
-		lasts = append(lasts, a.LastOrderAt)
-	}
-	if err := r.qs.ReplaceChannelOrderAgg(ctx, signalsdb.ReplaceChannelOrderAggParams{
-		ChannelID: channelID, CustomerIds: ids, OrderCounts: counts,
-		MonetaryCents: cents, FirstOrderAts: firsts, LastOrderAts: lasts,
-	}); err != nil {
-		return fmt.Errorf("replace order aggregates: %w", err)
-	}
-	return nil
 }
