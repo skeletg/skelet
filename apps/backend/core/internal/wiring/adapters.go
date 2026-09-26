@@ -914,6 +914,18 @@ func NewRiskHoldThreshold(cfg *config.Service) func(context.Context, uuid.UUID) 
 	}
 }
 
+func NewShippingTax(cfg *config.Service) func(context.Context, uuid.UUID) (string, bool) {
+	return func(ctx context.Context, channelID uuid.UUID) (string, bool) {
+		scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &channelID}
+		taxable, err := cfg.GetBool(ctx, "sales/checkout/shipping_taxable", scope)
+		if err != nil {
+			taxable = true
+		}
+		class, _ := cfg.GetString(ctx, "sales/checkout/shipping_tax_class", scope)
+		return strings.TrimSpace(class), taxable
+	}
+}
+
 func NewInventoryPickupLister(inv *inventory.Service) InventoryPickupLister {
 	return InventoryPickupLister{svc: inv}
 }

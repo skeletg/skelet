@@ -134,20 +134,20 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 		subtotal: subtotal,
 	}
 
-	var taxCents int64
-	if s.tax != nil {
-		taxCents, err = s.computeLineTax(ctx, cc, discount)
-		if err != nil {
-			return Order{}, err
-		}
-	}
-
 	var shipSel shippingSelection
 	if s.shipping != nil {
 		shipSel, err = s.resolveShippingCents(ctx, PlaceOrderInput{
 			ShippingCarrierSlug: in.ShippingCarrierSlug,
 			ShippingMethodCode:  in.ShippingMethodCode,
 		}, cc, discount, false, promotion.EvalResult{})
+		if err != nil {
+			return Order{}, err
+		}
+	}
+
+	var taxCents int64
+	if s.tax != nil {
+		taxCents, err = s.computeLineTax(ctx, cc, discount, shipSel.Cents)
 		if err != nil {
 			return Order{}, err
 		}

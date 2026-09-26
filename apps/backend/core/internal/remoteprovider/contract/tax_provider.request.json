@@ -18,6 +18,7 @@
       "unitPriceCents": 1000
     }
   ],
+  "shippingCents": 1000,
   "subtotalCents": 1000,
   "taxExempt": false,
   "taxInclusive": false

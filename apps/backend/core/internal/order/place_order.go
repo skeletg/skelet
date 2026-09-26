@@ -157,7 +157,7 @@ func (s *Service) resolveCheckoutCart(ctx context.Context, in PlaceOrderInput, s
 }
 
 // Runs the core per-line tax when no plugin claimed the seam - resolves each line's tax class by SKU, distributes the discount across lines, and asks the tax service for the total. totalDiscount floors at zero Also records the per-rule breakdown on cc.taxLines - the engine resolves it anyway, and dropping it left orders with a tax_amount nothing could explain
-func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, totalDiscount int64) (int64, error) {
+func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, totalDiscount, shippingCents int64) (int64, error) {
 	cc.taxLines = nil
 	// Tax-exempt customers pay zero core tax on every recompute path - a TaxCents plugin is still authoritative, this only gates core
 	if cc.customer.TaxExempt {
@@ -187,6 +187,15 @@ func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, total
 	}
 
 	lines := allocateLineTaxInputs(cc.cart.Lines, cc.subtotal, totalDiscount, classByLine)
+	if shippingCents > 0 {
+		class, taxable := "", true
+		if s.shippingTax != nil {
+			class, taxable = s.shippingTax(ctx, cc.store.ID)
+		}
+		if taxable {
+			lines = append(lines, tax.LineTaxInput{ProductTaxClass: class, TaxableCents: shippingCents})
+		}
+	}
 	res, err := s.tax.ComputeOrder(ctx, tax.ComputeOrderInput{
 		ChannelID:         cc.store.ID,
 		CountryCode:       cc.shipping.CountryCode,

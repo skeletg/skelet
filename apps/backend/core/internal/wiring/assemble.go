@@ -131,6 +131,7 @@ func wireOrderPlacement(d orderPlacementDeps) {
 	d.Order.SetChannelLoader(NewOrderChannelLoader(d.Channel)) // pre-fulfillment editing: the order's channel drives the tax-inclusive recompute
 	d.Order.SetProductPricer(NewOrderProductPricer(NewCartCatalogAdapter(d.Catalog, d.Customer)))
 	d.Order.SetRiskHoldThreshold(NewRiskHoldThreshold(d.Config))
+	d.Order.SetShippingTax(NewShippingTax(d.Config))
 	// EvaluateCart resolves the buyer's segments itself so the storefront and placement can't price a cart differently - without this seam every segment-gated condition sees an empty list and matches nobody
 	d.Promotion.SetCustomerSegments(d.SegmentReads)
 }
