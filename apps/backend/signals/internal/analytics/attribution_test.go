@@ -14,9 +14,11 @@ type attributionSpine struct {
 	SpineStore
 	candidates []EngagementCandidate
 	appended   []SpineEvent
+	askedFor   uuid.UUID // the channel attribution looked in
 }
 
-func (s *attributionSpine) RecentEngagementEvents(context.Context, uuid.UUID, time.Time) ([]EngagementCandidate, error) {
+func (s *attributionSpine) RecentEngagementEvents(_ context.Context, channelID, _ uuid.UUID, _ time.Time) ([]EngagementCandidate, error) {
+	s.askedFor = channelID
 	return s.candidates, nil
 }
 
@@ -39,12 +41,16 @@ func TestAClickAnchorsTheConversionWithItsCampaign(t *testing.T) {
 		Source: SourceCampaign, CampaignID: campaign.String(),
 	})
 
+	store := uuid.New()
 	ok, err := r.RecordConversion(context.Background(), ConversionSpec{
-		CustomerID: uuid.New(), ChannelID: uuid.New(), OrderID: uuid.New(),
+		CustomerID: uuid.New(), ChannelID: store, OrderID: uuid.New(),
 		RevenueCents: 4200, Currency: "EUR", At: now,
 	})
 	if err != nil || !ok {
 		t.Fatalf("RecordConversion = %v, %v, want true, nil", ok, err)
+	}
+	if sp.askedFor != store {
+		t.Errorf("attribution looked in channel %v, want the order's own %v - another store's email would get the credit", sp.askedFor, store)
 	}
 	if len(sp.appended) != 1 {
 		t.Fatalf("wrote %d events, want the one conversion", len(sp.appended))

@@ -7,9 +7,6 @@ RETURNING *;
 -- name: GetReferralCodeByCustomer :one
 SELECT * FROM referral_codes WHERE customer_id = $1;
 
--- name: GetReferralCodeByCode :one
-SELECT * FROM referral_codes WHERE code = $1;
-
 -- name: GetReferralCodeForReferee :one
 -- A code only refers someone on its owner's own channel, since each channel runs its own program
 SELECT rc.* FROM referral_codes rc

@@ -695,6 +695,12 @@ func (s *Service) ClaimGuestOrdersByEmail(ctx context.Context, customerID uuid.U
 }
 
 // ListOrdersPage clamps like every other pager - the statuses arrive lowercase, matching the column
+// The newest limit orders in the given channels, nil for every channel - no page clamp and no count, for the unpaged admin list
+func (s *Service) ListRecentOrders(ctx context.Context, channelIDs []uuid.UUID, limit int32) ([]Order, error) {
+	rows, _, err := s.repo.ListOrdersPage(ctx, ListPageFilter{ChannelIDs: channelIDs, Limit: limit, SkipCount: true})
+	return rows, err
+}
+
 func (s *Service) ListOrdersPage(ctx context.Context, f ListPageFilter) ([]Order, int64, error) {
 	if f.Limit <= 0 {
 		f.Limit = 50
@@ -715,10 +721,6 @@ func (s *Service) ListOrdersByCustomer(ctx context.Context, customerID uuid.UUID
 
 func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Order, error) {
 	return s.repo.GetOrderByID(ctx, id)
-}
-
-func (s *Service) ListOrders(ctx context.Context) ([]Order, error) {
-	return s.repo.ListOrders(ctx)
 }
 
 // Only pending and confirmed orders can be cancelled

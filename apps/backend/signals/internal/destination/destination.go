@@ -48,7 +48,9 @@ type Destination struct {
 }
 
 type Event struct {
-	ID         uuid.UUID       `json:"id"`
+	ID uuid.UUID `json:"id"`
+	// Same for every copy of one logical event, so a receiver can drop a re-forwarded duplicate
+	EventID    string          `json:"eventId"`
 	Name       string          `json:"name"`
 	OccurredAt time.Time       `json:"occurredAt"`
 	CustomerID *uuid.UUID      `json:"customerId,omitempty"`
@@ -250,7 +252,7 @@ func (s *Service) forwardOne(ctx context.Context, row signalsdb.EventDestination
 		var batch []Event
 		for _, r := range rows {
 			e := Event{
-				ID: r.ID, Name: r.Name, OccurredAt: r.OccurredAt, Source: r.Source,
+				ID: r.ID, EventID: stableEventID(row.ChannelID, r), Name: r.Name, OccurredAt: r.OccurredAt, Source: r.Source,
 				CustomerID: r.CustomerID, AnonID: r.AnonID, Properties: r.Properties, createdAt: r.CreatedAt,
 			}
 			if matchesFilters(e, row.EventSources, row.EventNames) {
@@ -368,4 +370,14 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+var forwardEventNS = uuid.MustParse("6f1c2a3e-8d4b-5e7f-9a01-3c5d7e9f1b24")
+
+// A UUID derived from the event's dedupe key, so every re-ingested copy of an event forwards under one id - the row id where the event carries no key
+func stableEventID(channelID uuid.UUID, e analytics.ForwardEvent) string {
+	if e.DedupeKey == "" {
+		return e.ID.String()
+	}
+	return uuid.NewSHA1(forwardEventNS, []byte(channelID.String()+"|"+e.DedupeKey)).String()
 }

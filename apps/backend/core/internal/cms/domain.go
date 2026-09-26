@@ -532,5 +532,4 @@ type BlockType struct {
 	UpdatedAt    time.Time
 }
 
-// No producer-defined Repository interface on purpose - one wide surface would only mirror *postgresRepository
-// Each sub-service declares the slice it uses instead (attributeStore, pageStore and the rest), so a new query touches one small interface and a sub-service can't reach another's tables
+// No shared Repository interface - each sub-service declares the slice it uses (attributeStore, pageStore and the rest)

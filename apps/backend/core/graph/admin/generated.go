@@ -4374,6 +4374,7 @@ type CMSPageTypeResolver interface {
 	PageCount(ctx context.Context, obj *model.CMSPageType) (int32, error)
 }
 type CategoryResolver interface {
+	Products(ctx context.Context, obj *model.Category) ([]*model.Product, error)
 	ProductCount(ctx context.Context, obj *model.Category) (int32, error)
 	Listings(ctx context.Context, obj *model.Category) ([]*model.CategoryChannelListing, error)
 
@@ -33588,8 +33589,8 @@ type OrderEvent {
 }
 
 extend type Query {
-  # channelId scopes the result to orders placed on that channel -
-  # header-driven scope uses this. Omit for the global list.
+  # channelId scopes to one channel's orders, omit it for the global list
+  # At most the newest 1000 - ordersPaged pages through the rest
   orders(channelId: ID): [Order!]!
   # Server-side page for the orders grid - statuses/paymentStatuses take the
   # SCREAMING enum spellings, search matches number, email and last names
@@ -69209,7 +69210,7 @@ func (ec *executionContext) _Category_products(ctx context.Context, field graphq
 			return ec.fieldContext_Category_products(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Products, nil
+			return ec.Resolvers.Category().Products(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.Product) graphql.Marshaler {
@@ -69223,8 +69224,8 @@ func (ec *executionContext) fieldContext_Category_products(_ context.Context, fi
 	fc = &graphql.FieldContext{
 		Object:     "Category",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Product(ctx, field)
 		},
@@ -166525,10 +166526,43 @@ func (ec *executionContext) _Category(ctx context.Context, sel ast.SelectionSet,
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "products":
-			out.Values[i] = ec._Category_products(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Category_products(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "productCount":
 			field := field
 

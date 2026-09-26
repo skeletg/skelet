@@ -50,15 +50,6 @@ func (r *postgresRepository) GetCollectionByID(ctx context.Context, id uuid.UUID
 		c.AllContent[i] = toCollectionContent(row)
 	}
 
-	products, err := r.queries.ListProductsByCollection(ctx, id)
-	if err != nil {
-		return Collection{}, fmt.Errorf("list collection products: %w", err)
-	}
-	c.Products = make([]Product, len(products))
-	for i, row := range products {
-		c.Products[i] = toProduct(row)
-	}
-
 	return c, nil
 }
 
@@ -232,8 +223,9 @@ func (r *postgresRepository) RemoveProductFromCollection(ctx context.Context, co
 	return nil
 }
 
-func (r *postgresRepository) ListProductsByCollection(ctx context.Context, collectionID uuid.UUID) ([]Product, error) {
-	rows, err := r.queries.ListProductsByCollection(ctx, collectionID)
+// limit 0 means every member
+func (r *postgresRepository) ListProductsByCollection(ctx context.Context, collectionID uuid.UUID, limit int32) ([]Product, error) {
+	rows, err := r.queries.ListProductsByCollection(ctx, db.ListProductsByCollectionParams{CollectionID: collectionID, RowLimit: limit})
 	if err != nil {
 		return nil, fmt.Errorf("list products by collection: %w", err)
 	}
@@ -340,7 +332,6 @@ func toCollection(row db.Collection) Collection {
 		Metadata:        metadataFromJSON(row.Metadata),
 		PrivateMetadata: metadataFromJSON(row.PrivateMetadata),
 		AllContent:      []CollectionContent{},
-		Products:        []Product{},
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,
 	}

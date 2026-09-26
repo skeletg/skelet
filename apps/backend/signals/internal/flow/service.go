@@ -368,6 +368,10 @@ func (s *Service) ProcessRuns(ctx context.Context) error {
 }
 
 // Drain keeps claiming batches until nothing runnable is left or the budget is spent
+func (s *Service) PruneFinishedRuns(ctx context.Context, before time.Time) (int64, error) {
+	return s.repo.PruneFinishedRuns(ctx, before)
+}
+
 func (s *Service) Drain(ctx context.Context, budget time.Duration) (int, error) {
 	deadline := time.Now().Add(budget)
 	total := 0

@@ -18,11 +18,13 @@ type passRepo struct {
 	passed  []uuid.UUID
 }
 
-func (r *passRepo) ListABTestingDue(context.Context) ([]Campaign, error)   { return nil, nil }
-func (r *passRepo) ClaimDue(context.Context, int32) ([]Campaign, error)    { return nil, nil }
-func (r *passRepo) ListSending(context.Context) ([]Campaign, error)        { return r.sending, nil }
-func (r *passRepo) RefreshCounts(context.Context, uuid.UUID) error         { return nil }
-func (r *passRepo) CountPending(context.Context, uuid.UUID) (int64, error) { return 1, nil }
+func (r *passRepo) ListABTestingDue(context.Context) ([]Campaign, error)      { return nil, nil }
+func (r *passRepo) ClaimDue(context.Context, int32) ([]Campaign, error)       { return nil, nil }
+func (r *passRepo) ListSending(context.Context) ([]Campaign, error)           { return r.sending, nil }
+func (r *passRepo) RefreshCounts(context.Context, uuid.UUID) error            { return nil }
+func (r *passRepo) HasPending(context.Context, uuid.UUID) (bool, error)       { return true, nil }
+func (r *passRepo) ListUnmaterialized(context.Context) ([]Campaign, error)    { return nil, nil }
+func (r *passRepo) AddCounts(context.Context, uuid.UUID, int, int, int) error { return nil }
 func (r *passRepo) ListPending(_ context.Context, id uuid.UUID, _ int32) ([]Recipient, error) {
 	r.passed = append(r.passed, id)
 	time.Sleep(20 * time.Millisecond)

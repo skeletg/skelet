@@ -47,7 +47,7 @@ func (s *pageWorkflowService) ApprovePage(ctx context.Context, id uuid.UUID) (Pa
 	return s.repo.GetPageByID(ctx, id)
 }
 
-// Sends a page back to draft, recording the reason as a comment when one is given - the reason is saved first, so a rejection never lands without it
+// The reason is saved first, so a rejection never lands without one
 func (s *pageWorkflowService) RejectPage(ctx context.Context, id uuid.UUID, note string) (Page, error) {
 	if n := strings.TrimSpace(note); n != "" {
 		if by := adminPtr(ctx); by != nil {

@@ -132,6 +132,8 @@ func (r *fakeRepo) ListRuns(context.Context, uuid.UUID, int32) ([]FlowRun, error
 	return nil, nil
 }
 
+func (r *fakeRepo) PruneFinishedRuns(context.Context, time.Time) (int64, error) { return 0, nil }
+
 func (r *fakeRepo) RunsForCustomer(context.Context, uuid.UUID) ([]CustomerRun, error) {
 	return nil, nil
 }

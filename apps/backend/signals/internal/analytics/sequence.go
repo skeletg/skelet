@@ -1,13 +1,13 @@
 package analytics
 
 import (
+	"slices"
 	"sort"
 	"strings"
 	"time"
 )
 
-// What the shared per-actor sequence walkers consume - both engine drivers fetch these with their own query (Postgres, ClickHouse) then feed the SAME verified walker, so Retention/Flow stay byte-identical across engines
-// Per-actor sequential logic gains nothing from columnar execution, so ClickHouse wins on the scan and fetch here, not on the walk
+// What the sequence walkers consume - the walkers stay the reference the ClickHouse reads are tested against
 type SpineActorEvent struct {
 	Actor      string
 	EventName  string
@@ -15,7 +15,6 @@ type SpineActorEvent struct {
 }
 
 // Classic cohort retention: cohorts by the period bucket of each person's first start event, returns relative to that bucket, and per-bucket eligible denominators - a cohort only counts toward period N once it's old enough to have reached it
-// Extracted verbatim from the Postgres walker so both drivers share it
 func RetentionFromEvents(events []SpineActorEvent, startEvent, returnEvent string, now time.Time, periods int, unit time.Duration) Retention {
 	out := Retention{Buckets: make([]RetentionBucket, periods)}
 	for i := range out.Buckets {
@@ -39,7 +38,6 @@ func RetentionFromEvents(events []SpineActorEvent, startEvent, returnEvent strin
 		if !anchored {
 			return
 		}
-		out.Cohort++
 		key := cohortStart.UnixNano()
 		c := cohorts[key]
 		if c == nil {
@@ -83,34 +81,55 @@ func RetentionFromEvents(events []SpineActorEvent, startEvent, returnEvent strin
 		finish()
 	}
 
+	list := make([]RetentionCohortRow, 0, len(cohorts))
 	for _, c := range cohorts {
-		maxP := int(now.Sub(c.start) / unit)
+		list = append(list, RetentionCohortRow{Start: c.start, Size: c.size, Counts: c.count})
+	}
+	return RetentionFromCohorts(list, now, periods, unit)
+}
+
+// One cohort as the store aggregates it - its start bucket, its size and its returns per period
+type RetentionCohortRow struct {
+	Start  time.Time
+	Size   int64
+	Counts []int64 // indexed by period, len periods
+}
+
+// The finish both retention paths share
+func RetentionFromCohorts(cohorts []RetentionCohortRow, now time.Time, periods int, unit time.Duration) Retention {
+	out := Retention{Buckets: make([]RetentionBucket, periods)}
+	for i := range out.Buckets {
+		out.Buckets[i].Period = i
+	}
+	if periods <= 0 || unit <= 0 {
+		return out
+	}
+	for _, c := range cohorts {
+		out.Cohort += c.Size
+		maxP := int(now.Sub(c.Start) / unit)
 		for b := range periods {
 			if b <= maxP {
-				out.Buckets[b].Eligible += c.size
+				out.Buckets[b].Eligible += c.Size
 			}
-			out.Buckets[b].Count += c.count[b]
+			out.Buckets[b].Count += c.Counts[b]
 		}
 	}
 
-	list := make([]*cohortAcc, 0, len(cohorts))
-	for _, c := range cohorts {
-		list = append(list, c)
-	}
-	sort.Slice(list, func(a, b int) bool { return list[a].start.Before(list[b].start) })
+	list := slices.Clone(cohorts)
+	sort.Slice(list, func(a, b int) bool { return list[a].Start.Before(list[b].Start) })
 	const maxCohorts = 12
 	if len(list) > maxCohorts {
 		list = list[len(list)-maxCohorts:]
 	}
 	out.Cohorts = make([]RetentionCohort, 0, len(list))
 	for _, c := range list {
-		maxP := int(now.Sub(c.start) / unit)
-		rc := RetentionCohort{StartAt: c.start, Size: c.size, Buckets: make([]RetentionBucket, periods)}
+		maxP := int(now.Sub(c.Start) / unit)
+		rc := RetentionCohort{StartAt: c.Start, Size: c.Size, Buckets: make([]RetentionBucket, periods)}
 		for b := range periods {
 			rc.Buckets[b].Period = b
-			rc.Buckets[b].Count = c.count[b]
+			rc.Buckets[b].Count = c.Counts[b]
 			if b <= maxP {
-				rc.Buckets[b].Eligible = c.size
+				rc.Buckets[b].Eligible = c.Size
 			}
 		}
 		out.Cohorts = append(out.Cohorts, rc)
@@ -119,7 +138,6 @@ func RetentionFromEvents(events []SpineActorEvent, startEvent, returnEvent strin
 }
 
 // A forward path tree from a focus event - names must already be resolved (custom events under their real name, the $experiment ping dropped), depth caps the journey length and topK keeps the busiest children per node
-// Extracted verbatim from the Postgres Flow walker so both drivers share it
 func FlowFromEvents(events []SpineActorEvent, focus string, depth, topK int) FlowResult {
 	if depth < 1 {
 		depth = 1
@@ -250,7 +268,7 @@ type InsightsSeriesInput struct { // one cell from the per-engine InsightsSeries
 	Uniques   int64
 }
 
-// Ranks breakdown values by window total and folds all but the top insightsTopSeries into "(other)" - unique picks the uniques measure over the total, and this is extracted from the Postgres Insights so both drivers share the fold
+// Ranks breakdown values by window total and folds all but the top insightsTopSeries into "(other)" - unique picks the uniques measure over the total
 func RollupInsightsSeries(rows []InsightsSeriesInput, unique bool) ([]InsightPoint, []InsightSeriesTotal) {
 	val := func(r InsightsSeriesInput) int64 {
 		if unique {

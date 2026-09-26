@@ -59,16 +59,25 @@ WHERE id IN (
 RETURNING *;
 
 -- name: ListSendingCampaigns :many
--- Least recently advanced first, since each pass touches updated_at
-SELECT * FROM email_campaigns WHERE status = 'sending' AND deleted_at IS NULL ORDER BY updated_at, scheduled_for;
+-- Least recently advanced first, since each pass touches updated_at - a half-written audience never sends
+SELECT * FROM email_campaigns WHERE status = 'sending' AND deleted_at IS NULL AND materialized_at IS NOT NULL ORDER BY updated_at, scheduled_for;
 
--- name: CountCampaignRecipients :one
-SELECT COUNT(*) FROM email_campaign_recipients WHERE campaign_id = sqlc.arg(campaign_id);
+-- name: ListUnmaterializedCampaigns :many
+-- Claimed but not yet fully materialized, retried until complete
+SELECT * FROM email_campaigns WHERE status = 'sending' AND deleted_at IS NULL AND materialized_at IS NULL ORDER BY updated_at;
 
--- name: InsertCampaignRecipient :exec
+-- name: InsertCampaignRecipients :exec
+-- Re-inserting a recipient is a no-op, so a restarted materialization writes the whole audience again
 INSERT INTO email_campaign_recipients (campaign_id, customer_id, email, first_name, variant, phase)
-VALUES (sqlc.arg(campaign_id), sqlc.narg(customer_id), sqlc.arg(email), sqlc.arg(first_name), sqlc.arg(variant), sqlc.arg(phase))
+SELECT sqlc.arg(campaign_id), unnest(sqlc.arg(customer_ids)::uuid[]), unnest(sqlc.arg(emails)::text[]), unnest(sqlc.arg(first_names)::text[]), unnest(sqlc.arg(variants)::text[]), unnest(sqlc.arg(phases)::text[])
 ON CONFLICT (campaign_id, email) DO NOTHING;
+
+-- name: MarkCampaignMaterialized :exec
+-- Written only after every batch landed
+UPDATE email_campaigns c
+SET total_recipients = (SELECT COUNT(*) FROM email_campaign_recipients r WHERE r.campaign_id = c.id),
+    materialized_at = NOW(), updated_at = NOW()
+WHERE c.id = sqlc.arg(id);
 
 -- name: ListPendingRecipients :many
 -- Holdout recipients (awaiting the A/B winner) are excluded - they're sent only
@@ -78,13 +87,13 @@ WHERE campaign_id = sqlc.arg(campaign_id) AND status = 'pending' AND phase <> 'h
 ORDER BY id
 LIMIT sqlc.arg('lim');
 
--- name: CountPendingNonHoldoutRecipients :one
-SELECT COUNT(*) FROM email_campaign_recipients
-WHERE campaign_id = sqlc.arg(campaign_id) AND status = 'pending' AND phase <> 'holdout';
+-- name: HasPendingNonHoldoutRecipients :one
+SELECT EXISTS (SELECT 1 FROM email_campaign_recipients
+WHERE campaign_id = sqlc.arg(campaign_id) AND status = 'pending' AND phase <> 'holdout');
 
--- name: CountPendingRecipients :one
-SELECT COUNT(*) FROM email_campaign_recipients
-WHERE campaign_id = sqlc.arg(campaign_id) AND status = 'pending';
+-- name: HasPendingRecipients :one
+SELECT EXISTS (SELECT 1 FROM email_campaign_recipients
+WHERE campaign_id = sqlc.arg(campaign_id) AND status = 'pending');
 
 -- name: MarkRecipientSent :execrows
 -- Claimed BEFORE the message is handed to the sender: this row is the only thing that stops a resend, so marking after delivery leaves a window where a failed write re-mails the recipient on every later tick - returns rows affected so the caller can tell "I own this one" from "a concurrent sweep already took it"
@@ -98,6 +107,12 @@ UPDATE email_campaign_recipients
 SET status = 'failed', error = sqlc.arg(error), sent_at = NULL
 WHERE id = sqlc.arg(id) AND status = 'sent';
 
+-- name: ReleaseRecipientClaim :exec
+-- Hands a claim back untouched when the send was abandoned before any mail went out, so the next tick retries the recipient
+UPDATE email_campaign_recipients
+SET status = 'pending', sent_at = NULL
+WHERE id = sqlc.arg(id) AND status = 'sent';
+
 -- name: MarkRecipientFailed :exec
 UPDATE email_campaign_recipients
 SET status = 'failed', error = sqlc.arg(error)
@@ -109,9 +124,11 @@ UPDATE email_campaign_recipients
 SET status = 'skipped', error = sqlc.arg(error)
 WHERE id = sqlc.arg(id) AND status = 'pending';
 
--- name: SetCampaignTotal :exec
+-- name: AddCampaignCounts :exec
+-- One pass's outcomes - RefreshCampaignCounts squares the totals at state changes
 UPDATE email_campaigns
-SET total_recipients = sqlc.arg(total_recipients), updated_at = NOW()
+SET sent_count = sent_count + sqlc.arg(sent)::int, failed_count = failed_count + sqlc.arg(failed)::int,
+    skipped_count = skipped_count + sqlc.arg(skipped)::int, updated_at = NOW()
 WHERE id = sqlc.arg(id);
 
 -- name: RefreshCampaignCounts :exec
@@ -123,9 +140,10 @@ SET sent_count = (SELECT COUNT(*) FROM email_campaign_recipients r WHERE r.campa
 WHERE c.id = sqlc.arg(id);
 
 -- name: FinalizeCampaign :exec
+-- Only from sending - a campaign cancelled mid-pass stays cancelled
 UPDATE email_campaigns
 SET status = 'sent', sent_at = NOW(), updated_at = NOW()
-WHERE id = sqlc.arg(id);
+WHERE id = sqlc.arg(id) AND status = 'sending';
 
 -- name: RecordRecipientOpen :execrows
 -- Sets the first-open timestamp; returns 1 only on the first open (dedupe)
@@ -167,3 +185,12 @@ WHERE campaign_id = sqlc.arg(campaign_id) AND phase = 'holdout';
 -- Record the winner and resume sending (testing → sending) so the holdout goes out
 UPDATE email_campaigns SET ab_winner = sqlc.arg(winner), status = 'sending', updated_at = NOW()
 WHERE id = sqlc.arg(id) AND status = 'testing';
+
+-- name: ListCampaignsWithRecipientsSentBefore :many
+-- Sent campaigns past the send-history window that still carry recipient rows - their counts live on the campaign row
+SELECT c.id FROM email_campaigns c
+WHERE ((c.status = 'sent' AND c.sent_at < sqlc.arg(before)) OR (c.status = 'cancelled' AND c.updated_at < sqlc.arg(before)))
+  AND EXISTS (SELECT 1 FROM email_campaign_recipients r WHERE r.campaign_id = c.id);
+
+-- name: DeleteCampaignRecipients :execrows
+DELETE FROM email_campaign_recipients WHERE campaign_id = sqlc.arg(campaign_id);

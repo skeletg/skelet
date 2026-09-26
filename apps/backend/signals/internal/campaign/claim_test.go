@@ -6,10 +6,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
+	"github.com/skeletg/skelet/apps/backend/core/lib/emailtrack"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 	db "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 )
 
 // The claim is what stops a campaign re-mailing someone: the send loop takes it BEFORE handing the message to the sender, so a dropped write costs one unsent email instead of re-sending on every later tick - gated on DATABASE_URL because the guarantee lives in the SQL (the status guard + rows-affected), not in Go
@@ -58,5 +59,35 @@ func TestClaimForSendIsExactlyOnce(t *testing.T) {
 	}
 	if status != "failed" || errMsg != "smtp refused" || sentAt.Valid {
 		t.Fatalf("after release: status=%q error=%q sent_at=%v, want failed/smtp refused/NULL", status, errMsg, sentAt)
+	}
+}
+
+// Loses every claim, as if a concurrent sweep owned each recipient
+type lostClaimRepo struct {
+	sendingRepo
+	pending []Recipient
+}
+
+func (r *lostClaimRepo) ListPending(context.Context, uuid.UUID, int32) ([]Recipient, error) {
+	p := r.pending
+	r.pending = nil
+	return p, nil
+}
+func (r *lostClaimRepo) ClaimForSend(context.Context, uuid.UUID) (bool, error) { return false, nil }
+
+func TestALostClaimLogsNoSend(t *testing.T) {
+	custID := uuid.New()
+	repo := &lostClaimRepo{sendingRepo: sendingRepo{&fakeCampaignRepo{}}, pending: []Recipient{{ID: uuid.New(), CustomerID: &custID, Email: "a@example.test"}}}
+	rec := &fakeRecorder{}
+	sender := &capturingSender{}
+	svc := &Service{
+		repo: repo, tmpl: emailtemplate.NewService(nil, nil), stores: anyStore{}, sender: sender, recorder: rec,
+		contacts: &fakeAudience{optedIn: map[uuid.UUID]bool{custID: true}}, track: emailtrack.NewSigner([]byte("k")),
+	}
+	if _, err := svc.send(context.Background(), Campaign{ID: uuid.New(), ChannelID: uuid.New(), Subject: "Spring"}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if len(rec.sent) != 0 || len(sender.sent) != 0 {
+		t.Errorf("logged %d sends and mailed %d for a recipient another sweep owned - the A/B stats would count a send that never happened", len(rec.sent), len(sender.sent))
 	}
 }

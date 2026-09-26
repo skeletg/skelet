@@ -32,13 +32,6 @@ SET name                 = $2,
 WHERE id = $1
 RETURNING *;
 
--- name: SetProductTypeURLPathTemplate :one
-UPDATE catalog_product_types
-SET url_template = $2,
-    updated_at   = NOW()
-WHERE id = $1
-RETURNING *;
-
 -- name: DeleteProductType :exec
 DELETE FROM catalog_product_types WHERE id = $1;
 
@@ -224,9 +217,6 @@ ON CONFLICT (product_id, attribute_id, channel_id) WHERE channel_id IS NOT NULL 
     SET slug       = EXCLUDED.slug,
         updated_at = NOW()
 RETURNING *;
-
--- name: DeleteProductAttributeSlug :exec
-DELETE FROM catalog_product_attribute_slugs WHERE id = $1;
 
 -- Convenience delete by composite key - admin "clear override" action doesn't have the row id handy in the URL. channel_id narrows to one channel row; sqlc.narg NULL clears the global row
 -- name: DeleteProductAttributeSlugByProductAttribute :exec

@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 )
 
 func evt(name, source, anon string, custID *uuid.UUID, props string) Event {
 	return Event{
-		ID: uuid.New(), Name: name, Source: source, AnonID: anon,
+		ID: uuid.New(), EventID: uuid.NewString(), Name: name, Source: source, AnonID: anon,
 		CustomerID: custID, OccurredAt: time.Unix(1700000000, 0),
 		Properties: json.RawMessage(props),
 	}
@@ -156,5 +157,22 @@ func TestMatchesFilters(t *testing.T) {
 	}
 	if matchesFilters(e, nil, []string{"conversion"}) {
 		t.Error("name filter must exclude")
+	}
+}
+
+// Every copy of an event must forward under one id, or Meta counts a duplicate twice
+func TestStableEventIDSurvivesAReingest(t *testing.T) {
+	ch := uuid.New()
+	first := analytics.ForwardEvent{ID: uuid.New(), DedupeKey: "conversion:order-1"}
+	again := analytics.ForwardEvent{ID: uuid.New(), DedupeKey: "conversion:order-1"}
+	if stableEventID(ch, first) != stableEventID(ch, again) {
+		t.Error("two copies of one event forward under different ids")
+	}
+	if stableEventID(uuid.New(), first) == stableEventID(ch, first) {
+		t.Error("the same key on two channels collides")
+	}
+	keyless := analytics.ForwardEvent{ID: uuid.New()}
+	if stableEventID(ch, keyless) != keyless.ID.String() {
+		t.Error("an event without a dedupe key should keep its row id")
 	}
 }

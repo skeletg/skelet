@@ -16,7 +16,7 @@ const (
 	EventPostListingChanged = "blog.post.listing.changed"
 )
 
-type PostPublishing struct { // fires BEFORE a post transitions to published, by admin action or the scheduler promoting it - sync handlers may abort (legal review pending, a lockdown window) or no-op with a {"reject": bool, "reason": string} response, and a scheduled post they refuse stays scheduled
+type PostPublishing struct { // fires BEFORE a post goes live, by admin or scheduler - handlers may veto with {"reject": bool, "reason": string}, and a refused scheduled post stays scheduled
 	PostID   uuid.UUID
 	Slug     string
 	AuthorID *uuid.UUID

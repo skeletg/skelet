@@ -13,14 +13,13 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
-// Embeds pageStore so a call the test didn't plan for panics on the nil interface instead of passing silently
+// Embeds pageStore so an unplanned call panics
 type fakePageStore struct {
 	pageStore
-	pages       map[uuid.UUID]Page
-	due         []uuid.UUID
-	publishes   int
-	unschedules int
-	// Knobs a test sets to make one kind of write fail
+	pages        map[uuid.UUID]Page
+	due          []uuid.UUID
+	publishes    int
+	unschedules  int
 	failPublish  error
 	failWorkflow error
 }

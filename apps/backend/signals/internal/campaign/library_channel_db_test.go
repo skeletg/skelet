@@ -20,8 +20,9 @@ type sendingRepo struct {
 func (sendingRepo) ListPending(context.Context, uuid.UUID, int32) ([]Recipient, error) {
 	return nil, nil
 }
-func (sendingRepo) RefreshCounts(context.Context, uuid.UUID) error         { return nil }
-func (sendingRepo) CountPending(context.Context, uuid.UUID) (int64, error) { return 1, nil }
+func (sendingRepo) RefreshCounts(context.Context, uuid.UUID) error            { return nil }
+func (sendingRepo) HasPending(context.Context, uuid.UUID) (bool, error)       { return true, nil }
+func (sendingRepo) AddCounts(context.Context, uuid.UUID, int, int, int) error { return nil }
 
 type anyStore struct{}
 

@@ -11,7 +11,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
-// The slice of the repository the helpers on *core reach - kept to what more than one sub-service shares
+// Only what more than one sub-service reaches through *core
 type coreStore interface {
 	ListCategoryContentByScope(ctx context.Context, categoryIDs []uuid.UUID, locale string) (map[uuid.UUID]CategoryContent, error)
 	ListTagContentByScope(ctx context.Context, tagIDs []uuid.UUID, locale string) (map[uuid.UUID]TagContent, error)
@@ -50,8 +50,7 @@ type core struct {
 }
 
 // No sub-service calls another - the shared methods live on *core, so there is no embedding cycle
-// Each sub-service's repo field shadows core's, so the compiler holds it to its own store interface - WithTx still hands back the full repository, so a transaction body is not narrowed
-// A facade method spanning concerns names each sub-service's store explicitly, since a bare s.repo on *Service is ambiguous
+// Each repo field shadows core's, so a sub-service can only reach its own store
 type (
 	authorService struct {
 		*core

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq" // the suite dials directly, before any app pool exists
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/authstore"
 	"github.com/skeletg/skelet/apps/backend/core/internal/configstore"

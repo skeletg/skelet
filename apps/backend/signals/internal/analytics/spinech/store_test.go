@@ -34,6 +34,9 @@ func TestStoreIngest(t *testing.T) {
 	if err := st.UpsertIdentity(ctx, anon, cust, ch); err != nil {
 		t.Fatalf("upsert identity: %v", err)
 	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatalf("upsert identity: %v", err)
+	}
 	ids, err := st.AnonIDsForCustomer(ctx, cust)
 	if err != nil {
 		t.Fatalf("anon ids: %v", err)
@@ -185,6 +188,9 @@ func TestUpsertIdentityCarriesForward(t *testing.T) {
 	if err := st.UpsertIdentity(ctx, anon, cust, ch); err != nil {
 		t.Fatal(err)
 	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
 	var first0, first1 time.Time
 	var channel1 uuid.UUID
 	if err := st.conn.QueryRow(ctx, "SELECT first_seen FROM analytics_identities FINAL WHERE anon_id = ?", anon).Scan(&first0); err != nil {
@@ -192,6 +198,9 @@ func TestUpsertIdentityCarriesForward(t *testing.T) {
 	}
 	// re-identify with no channel, the shape that must not clobber either column
 	if err := st.UpsertIdentity(ctx, anon, cust, uuid.Nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Flush(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := st.conn.QueryRow(ctx, "SELECT first_seen, channel_id FROM analytics_identities FINAL WHERE anon_id = ?", anon).Scan(&first1, &channel1); err != nil {
@@ -259,6 +268,9 @@ func TestDeleteCustomerIdentitiesErases(t *testing.T) {
 
 	for _, a := range []string{anonA, anonB} {
 		if err := st.UpsertIdentity(ctx, a, cust, ch); err != nil {
+			t.Fatal(err)
+		}
+		if err := st.Flush(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -333,6 +345,9 @@ func TestPruneIdentitiesAgesOut(t *testing.T) {
 	if err := st.UpsertIdentity(ctx, fresh, cust, ch); err != nil {
 		t.Fatal(err)
 	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
 	// last_seen is the ReplacingMergeTree version column, so it can't be aged by mutation - insert the stale mapping directly
 	old := time.Now().UTC().AddDate(0, 0, -400)
 	if err := st.conn.Exec(ctx,
@@ -386,21 +401,21 @@ func TestLensGridFromEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cells, err := st.LensCellsFromEvents(ctx, ch, "/p", "desktop", "default", "click")
+	cells, err := st.LensCellsFromEvents(ctx, ch, "/p", "desktop", "default", "click", time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(cells) != 1 || cells[0].X != 2 || cells[0].Y != 3 || cells[0].Count != 7 {
 		t.Fatalf("cells = %+v, want one (2,3)=7", cells)
 	}
-	els, err := st.LensElementsFromEvents(ctx, ch, "/p", "desktop", 10)
+	els, err := st.LensElementsFromEvents(ctx, ch, "/p", "desktop", 10, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(els) != 1 || els[0].Selector != "#buy" || els[0].Text != "Buy" || els[0].Count != 4 {
 		t.Fatalf("elements = %+v, want #buy Buy 4", els)
 	}
-	grid, err := st.LensPageGridFromEvents(ctx, ch, "/p")
+	grid, err := st.LensPageGridFromEvents(ctx, ch, "/p", time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -468,6 +483,9 @@ func TestIdentityDictResolvesAnonToCustomer(t *testing.T) {
 	}
 
 	if err := st.UpsertIdentity(ctx, anon, cust, ch); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Flush(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := st.conn.Exec(ctx, "SYSTEM RELOAD DICTIONARY "+identityDictName); err != nil {
@@ -659,6 +677,9 @@ func TestExperimentResultsMatchesGoalsAcrossIdentity(t *testing.T) {
 	if err := st.UpsertIdentity(ctx, anon, cust, ch); err != nil {
 		t.Fatal(err)
 	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
 	if err := st.conn.Exec(ctx, "SYSTEM RELOAD DICTIONARY "+identityDictName); err != nil {
 		t.Fatal(err)
 	}
@@ -710,16 +731,16 @@ func TestLensReadsRunAndAggregate(t *testing.T) {
 	defer st.Close()
 
 	since := at.Add(-24 * time.Hour)
-	views, visitors, err := st.LensPageTotals(ctx, ch, page)
+	views, visitors, err := st.LensPageTotals(ctx, ch, page, time.Time{})
 	if err != nil || views != 3 || visitors != 3 {
 		t.Fatalf("PageTotals = %d/%d err=%v, want 3/3", views, visitors, err)
 	}
 	for name, run := range map[string]func() error{
-		"Referrers":   func() error { _, e := st.LensPageReferrers(ctx, ch, page); return e },
-		"Clients":     func() error { _, e := st.LensPageClients(ctx, ch, page); return e },
-		"DeviceSplit": func() error { _, e := st.LensPageDeviceSplit(ctx, ch, page); return e },
+		"Referrers":   func() error { _, e := st.LensPageReferrers(ctx, ch, page, time.Time{}); return e },
+		"Clients":     func() error { _, e := st.LensPageClients(ctx, ch, page, time.Time{}); return e },
+		"DeviceSplit": func() error { _, e := st.LensPageDeviceSplit(ctx, ch, page, time.Time{}); return e },
 		"Timeline":    func() error { _, e := st.LensPageTimeline(ctx, ch, page, since); return e },
-		"ListPages":   func() error { _, e := st.LensListPages(ctx, ch); return e },
+		"ListPages":   func() error { _, e := st.LensListPages(ctx, ch, time.Time{}); return e },
 		"Rage":        func() error { _, e := st.LensTopRageElements(ctx, ch, since, 10); return e },
 		"Errors":      func() error { _, e := st.LensTopErrors(ctx, ch, since, 10); return e },
 		"VitalsPage":  func() error { _, e := st.LensVitalsByPage(ctx, ch, since); return e },
@@ -821,5 +842,83 @@ func TestAVisitorProfileShowsOnlyTheAskedChannelsActivity(t *testing.T) {
 	}
 	if len(p.IPs) != 1 || p.IPs[0].Count != 1 {
 		t.Errorf("IPs = %+v, want the one seen on this channel", p.IPs)
+	}
+}
+
+// Repeats inside one flush must land as a single row
+func TestRepeatedIdentifiesCollapseIntoOneWrite(t *testing.T) {
+	ctx := context.Background()
+	st := testStore(t)
+	defer st.Close()
+	anon, cust, ch := "anon-"+uuid.NewString(), uuid.New(), uuid.New()
+	for range 5 {
+		if err := st.UpsertIdentity(ctx, anon, cust, ch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var rows uint64
+	if err := st.conn.QueryRow(ctx, "SELECT count() FROM analytics_identities WHERE anon_id = ?", anon).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 1 {
+		t.Errorf("5 identifies wrote %d rows, want 1", rows)
+	}
+}
+
+// An erasure that runs while the customer's identify is still buffered must not be undone by the next flush
+func TestAnErasureDiscardsABufferedIdentify(t *testing.T) {
+	ctx := context.Background()
+	st := testStore(t)
+	defer st.Close()
+	anon, cust := "anon-"+uuid.NewString(), uuid.New()
+	if err := st.UpsertIdentity(ctx, anon, cust, uuid.New()); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteCustomerIdentities(ctx, []uuid.UUID{cust}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var rows uint64
+	if err := st.conn.QueryRow(ctx, "SELECT count() FROM analytics_identities FINAL WHERE customer_id = ?", cust).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 0 {
+		t.Errorf("the erased customer came back with %d identity rows after the flush", rows)
+	}
+}
+
+// A visitor who logged in stops counting as anonymous once the identity dictionary knows them
+func TestSynapseOverviewCountsOnlyUnknownVisitorsAsAnonymous(t *testing.T) {
+	ctx := context.Background()
+	st := testStore(t)
+	defer st.Close()
+	ch, stranger, known := uuid.New(), "anon-"+uuid.NewString(), "anon-"+uuid.NewString()
+	at := time.Now().UTC()
+	for _, anon := range []string{stranger, known} {
+		if _, err := st.AppendEvent(ctx, analytics.SpineEvent{
+			EventName: "page_view", OccurredAt: at, ChannelID: &ch, AnonID: anon, Source: "web",
+			Props: map[string]any{"page_key": "/"}, DedupeKey: "pv:" + uuid.NewString(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.UpsertIdentity(ctx, known, uuid.New(), ch); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	st.RefreshIdentities(ctx)
+	o, err := st.SynapseOverview(ctx, ch, at.Add(-time.Hour))
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	if o.AnonymousVisitors != 1 || o.IdentifiedCustomers != 1 {
+		t.Errorf("anonymous=%d identified=%d, want 1 and 1", o.AnonymousVisitors, o.IdentifiedCustomers)
 	}
 }

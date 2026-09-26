@@ -275,7 +275,7 @@ WHERE id = $1
 RETURNING *;
 
 -- name: GoLiveCMSPage :one
--- Every column a publish changes, in one statement, so a page is never live with a stale workflow state or unscheduled without being live
+-- One statement, so a page is never live with a stale workflow state
 UPDATE cms_pages
 SET is_published = TRUE, published_at = sqlc.arg(published_at), workflow_state = 'published',
     scheduled_at = CASE WHEN sqlc.arg(clear_schedule)::bool THEN NULL ELSE scheduled_at END,
