@@ -122,7 +122,7 @@ gen_key_b64() {
 }
 
 placeholder() { # a value we are allowed to overwrite - anything else is the operator's
-    case "$1" in ''|change-me|changeme|CHANGE_ME|change-me-in-prod) return 0 ;; *) return 1 ;; esac
+    case "$1" in ''|change-me|change-me-too|changeme|CHANGE_ME|change-me-in-prod) return 0 ;; *) return 1 ;; esac
 }
 
 # GNU sed's -i takes no argument and BSD's demands one, so neither spelling is portable - write a
@@ -311,7 +311,7 @@ set_env "$backend_env" SIGNALS_ENABLED "$SKELET_SIGNALS"
 set_env "$backend_env" AI_ENABLED "$SKELET_AI"
 
 echo "==> Secrets"
-for key in JWT_SECRET CONFIG_ENCRYPTION_KEY REVIEW_VOTER_TOKEN_SECRET STOREFRONT_REVALIDATE_SECRET EMAIL_WEBHOOK_TOKEN; do
+for key in JWT_SECRET CONFIG_ENCRYPTION_KEY SIGNALS_SERVICE_SECRET REVIEW_VOTER_TOKEN_SECRET STOREFRONT_REVALIDATE_SECRET EMAIL_WEBHOOK_TOKEN; do
     cur="$(get_env "$backend_env" "$key")"
     if placeholder "$cur"; then
         if [ "$key" = CONFIG_ENCRYPTION_KEY ]; then val="$(gen_key_b64)"; else val="$(gen_secret)"; fi
@@ -334,9 +334,9 @@ if [ "$SKELET_TARGET" != dev ]; then
     for key in JWT_SECRET CONFIG_ENCRYPTION_KEY SIGNALS_SERVICE_SECRET DB_PASSWORD SIGNALS_DB_PASSWORD VALKEY_PASSWORD CLICKHOUSE_PASSWORD; do
         cur="$(get_env .env "$key")"
         placeholder "$cur" || { echo "    .env $key already set, left alone"; continue; }
-        # the two the backend also reads must MATCH there, not be generated twice
+        # the three the backend also reads must MATCH there, not be generated twice
         case "$key" in
-            JWT_SECRET|CONFIG_ENCRYPTION_KEY) val="$(get_env "$backend_env" "$key")" ;;
+            JWT_SECRET|CONFIG_ENCRYPTION_KEY|SIGNALS_SERVICE_SECRET) val="$(get_env "$backend_env" "$key")" ;;
             *) val="" ;;
         esac
         [ -n "$val" ] || { if [ "$key" = CONFIG_ENCRYPTION_KEY ]; then val="$(gen_key_b64)"; else val="$(gen_secret)"; fi; }
