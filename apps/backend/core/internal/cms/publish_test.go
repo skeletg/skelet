@@ -20,6 +20,9 @@ type fakePageStore struct {
 	due         []uuid.UUID
 	publishes   int
 	unschedules int
+	// Knobs a test sets to make one kind of write fail
+	failPublish  error
+	failWorkflow error
 }
 
 func newFakePageStore(pages ...Page) *fakePageStore {
@@ -39,6 +42,9 @@ func (f *fakePageStore) GetPageByID(_ context.Context, id uuid.UUID) (Page, erro
 }
 
 func (f *fakePageStore) SetPagePublished(_ context.Context, id uuid.UUID, published bool, at *time.Time) (Page, error) {
+	if f.failPublish != nil {
+		return Page{}, f.failPublish
+	}
 	p := f.pages[id]
 	p.IsPublished, p.PublishedAt = published, at
 	f.pages[id] = p
@@ -46,7 +52,25 @@ func (f *fakePageStore) SetPagePublished(_ context.Context, id uuid.UUID, publis
 	return p, nil
 }
 
+func (f *fakePageStore) GoLive(_ context.Context, id uuid.UUID, at time.Time, clearSchedule bool) (Page, error) {
+	if f.failPublish != nil {
+		return Page{}, f.failPublish
+	}
+	p := f.pages[id]
+	p.IsPublished, p.PublishedAt, p.WorkflowState = true, &at, WorkflowPublished
+	if clearSchedule {
+		p.ScheduledAt = nil
+		f.unschedules++
+	}
+	f.pages[id] = p
+	f.publishes++
+	return p, nil
+}
+
 func (f *fakePageStore) SetPageWorkflowState(_ context.Context, id uuid.UUID, state WorkflowState) (Page, error) {
+	if f.failWorkflow != nil {
+		return Page{}, f.failWorkflow
+	}
 	p := f.pages[id]
 	p.WorkflowState = state
 	f.pages[id] = p
@@ -332,5 +356,32 @@ func TestPromoteDuePagesKeepsFirstPublishedAt(t *testing.T) {
 	}
 	if at := store.pages[fresh.ID].PublishedAt; at == nil || !at.Equal(past) {
 		t.Errorf("first scheduled publish published_at = %v, want the scheduled time %v", at, past)
+	}
+}
+
+func TestPublishPageNeverReportsSuccessWithAStaleWorkflowState(t *testing.T) {
+	p := draftPage(WorkflowApproved)
+	ps, store, _, _ := newPublishHarness(t, true, p)
+	store.failWorkflow = errors.New("workflow write lost")
+	_, err := ps.PublishPage(context.Background(), p.ID)
+	got := store.pages[p.ID]
+	if err == nil && (!got.IsPublished || got.WorkflowState != WorkflowPublished) {
+		t.Errorf("publish reported success with published=%v state=%s", got.IsPublished, got.WorkflowState)
+	}
+}
+
+func TestPromoteDuePagesKeepsTheScheduleWhenGoingLiveFails(t *testing.T) {
+	past := time.Now().Add(-time.Hour)
+	p := draftPage(WorkflowApproved)
+	p.ScheduledAt = &past
+	ps, store, _, _ := newPublishHarness(t, true, p)
+	store.due = []uuid.UUID{p.ID}
+	store.failPublish = errors.New("database went away")
+
+	if _, err := ps.PromoteDuePages(context.Background()); err == nil {
+		t.Fatal("a failed write reported success")
+	}
+	if got := store.pages[p.ID]; got.IsPublished || got.ScheduledAt == nil {
+		t.Errorf("published=%v scheduled=%v - a page that failed to go live must stay scheduled so the next run retries it", got.IsPublished, got.ScheduledAt)
 	}
 }
