@@ -55,6 +55,8 @@ models:
       products: { resolver: true }
       # Lazy load - only the collection detail page selects it
       facetOverrides: { resolver: true }
+      # Every locale's row, for the same reason as Category.content - primed by the collections list
+      content: { resolver: true }
   ProductMemberships:
     model: github.com/skeletg/skelet/apps/backend/core/graph/admin/model.ProductMemberships
     fields:
@@ -110,6 +112,11 @@ models:
       # Per-channel rows leak like a list query would, and this one hadn't filtered since the scope rollout
       listings:
         resolver: true
+      # Every locale's row - list paths only carry the resolved locale, and answering [] there emptied the rows the
+      # dashboard's cache held from the detail query, so a later save wrote the blanks back. Lists prime the render
+      # cache in one query (primeCategoryContent); anything unprimed loads its own rows
+      content:
+        resolver: true
   CMSPageType:
     fields:
       # Resolver: an indexed COUNT of pages of this type, computed on demand
@@ -135,6 +142,9 @@ models:
       # Admin-only product groups this product belongs to. Lazy: only the "what groups is this product in / its
       # group-mates" query pays it; list views never select it
       groups:
+        resolver: true
+      # Every locale's row, for the same reason as Category.content - primed by the list resolvers (primeProductContent)
+      content:
         resolver: true
   ProductGroup:
     fields:

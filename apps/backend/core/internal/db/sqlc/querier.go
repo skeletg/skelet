@@ -891,16 +891,22 @@ type Querier interface {
 	ListAuditLog(ctx context.Context, arg ListAuditLogParams) ([]AuditLog, error)
 	ListBlogAuthorContent(ctx context.Context, authorID uuid.UUID) ([]BlogAuthorContent, error)
 	ListBlogAuthorContentByScope(ctx context.Context, arg ListBlogAuthorContentByScopeParams) ([]BlogAuthorContent, error)
+	// Every locale's row for a set of authors - the admin list answers allContent in one query
+	ListBlogAuthorContentForAuthors(ctx context.Context, authorIds []uuid.UUID) ([]BlogAuthorContent, error)
 	ListBlogAuthors(ctx context.Context) ([]BlogAuthor, error)
 	ListBlogAuthorsByIDs(ctx context.Context, ids []uuid.UUID) ([]BlogAuthor, error)
 	ListBlogCategoryChildren(ctx context.Context, parentID uuid.NullUUID) ([]BlogCategory, error)
 	ListBlogCategoryContent(ctx context.Context, categoryID uuid.UUID) ([]BlogCategoryContent, error)
 	ListBlogCategoryContentByScope(ctx context.Context, arg ListBlogCategoryContentByScopeParams) ([]BlogCategoryContent, error)
+	// Every locale's row for a set of categories - the admin list answers allContent in one query
+	ListBlogCategoryContentForCategories(ctx context.Context, categoryIds []uuid.UUID) ([]BlogCategoryContent, error)
 	ListBlogPostCategories(ctx context.Context, postID uuid.UUID) ([]BlogCategory, error)
 	ListBlogPostChannelListings(ctx context.Context, postID uuid.UUID) ([]BlogPostChannelListing, error)
 	ListBlogPostChannelListingsByPostIDs(ctx context.Context, postIds []uuid.UUID) ([]BlogPostChannelListing, error)
 	ListBlogPostContent(ctx context.Context, postID uuid.UUID) ([]BlogPostContent, error)
 	ListBlogPostContentByScope(ctx context.Context, arg ListBlogPostContentByScopeParams) ([]BlogPostContent, error)
+	// Every locale's row for a set of posts - the admin list answers allContent in one query
+	ListBlogPostContentForPosts(ctx context.Context, postIds []uuid.UUID) ([]BlogPostContent, error)
 	ListBlogPostTags(ctx context.Context, postID uuid.UUID) ([]BlogTag, error)
 	ListBlogPosts(ctx context.Context, arg ListBlogPostsParams) ([]BlogPost, error)
 	ListBlogPostsByAuthor(ctx context.Context, arg ListBlogPostsByAuthorParams) ([]BlogPost, error)
@@ -911,6 +917,8 @@ type Querier interface {
 	ListBlogPostsForChannelByTag(ctx context.Context, arg ListBlogPostsForChannelByTagParams) ([]BlogPost, error)
 	ListBlogTagContent(ctx context.Context, tagID uuid.UUID) ([]BlogTagContent, error)
 	ListBlogTagContentByScope(ctx context.Context, arg ListBlogTagContentByScopeParams) ([]BlogTagContent, error)
+	// Every locale's row for a set of tags - the admin list answers allContent in one query
+	ListBlogTagContentForTags(ctx context.Context, tagIds []uuid.UUID) ([]BlogTagContent, error)
 	ListBlogTags(ctx context.Context) ([]BlogTag, error)
 	ListBundleOptionContent(ctx context.Context, optionID uuid.UUID) ([]CatalogProductBundleOptionContent, error)
 	ListBundleOptionContentByOptionIDs(ctx context.Context, optionIds []uuid.UUID) ([]CatalogProductBundleOptionContent, error)
@@ -920,6 +928,8 @@ type Querier interface {
 	ListBundleSelectionsByOptionID(ctx context.Context, optionID uuid.UUID) ([]CatalogProductBundleSelection, error)
 	ListBundleSelectionsByOptionIDs(ctx context.Context, optionIds []uuid.UUID) ([]CatalogProductBundleSelection, error)
 	ListCMSAttributeContent(ctx context.Context, attributeID uuid.UUID) ([]CmsAttributeContent, error)
+	// Every locale's row for a set of attributes - the admin list answers allContent in one query
+	ListCMSAttributeContentForAttributes(ctx context.Context, attributeIds []uuid.UUID) ([]CmsAttributeContent, error)
 	ListCMSAttributeGroups(ctx context.Context) ([]CmsAttributeGroup, error)
 	ListCMSAttributeValueContentByValueIDs(ctx context.Context, valueIds []uuid.UUID) ([]CmsAttributeValueContent, error)
 	ListCMSAttributeValues(ctx context.Context, attributeID uuid.UUID) ([]CmsAttributeValue, error)
@@ -933,6 +943,8 @@ type Querier interface {
 	ListCMSPageComments(ctx context.Context, pageID uuid.UUID) ([]CmsPageComment, error)
 	ListCMSPageContent(ctx context.Context, pageID uuid.UUID) ([]CmsPageContent, error)
 	ListCMSPageContentByScope(ctx context.Context, arg ListCMSPageContentByScopeParams) ([]CmsPageContent, error)
+	// Every locale's row for a set of pages - the admin list answers allContent in one query
+	ListCMSPageContentForPages(ctx context.Context, pageIds []uuid.UUID) ([]CmsPageContent, error)
 	ListCMSPageRelationships(ctx context.Context, pageID uuid.UUID) ([]CmsPageRelationship, error)
 	ListCMSPageRevisions(ctx context.Context, arg ListCMSPageRevisionsParams) ([]CmsPageRevision, error)
 	ListCMSPageTypeAttributes(ctx context.Context, pageTypeID uuid.UUID) ([]ListCMSPageTypeAttributesRow, error)
@@ -963,6 +975,8 @@ type Querier interface {
 	ListCategoryChildren(ctx context.Context, parentID uuid.NullUUID) ([]CatalogCategory, error)
 	ListCategoryContent(ctx context.Context, categoryID uuid.UUID) ([]CatalogCategoryContent, error)
 	ListCategoryContentByScope(ctx context.Context, arg ListCategoryContentByScopeParams) ([]CatalogCategoryContent, error)
+	// Every locale's row for a set of categories - the admin tree and child lists answer Category.content in one query
+	ListCategoryContentForCategories(ctx context.Context, categoryIds []uuid.UUID) ([]CatalogCategoryContent, error)
 	// Joined to the attribute for its slug - browse facets key on slug, the override
 	// rows key on id so attribute renames can't orphan them
 	ListCategoryFacetOverrides(ctx context.Context, categoryID uuid.UUID) ([]ListCategoryFacetOverridesRow, error)
@@ -982,6 +996,8 @@ type Querier interface {
 	ListCollectionContent(ctx context.Context, collectionID uuid.UUID) ([]CollectionContent, error)
 	// Batch-loads content for a set of collections at one specific locale
 	ListCollectionContentByScope(ctx context.Context, arg ListCollectionContentByScopeParams) ([]CollectionContent, error)
+	// Every locale's row for a set of collections - admin collection lists answer Collection.content in one query
+	ListCollectionContentForCollections(ctx context.Context, collectionIds []uuid.UUID) ([]CollectionContent, error)
 	// Joined for the slug - browse facets key on slug, override rows key on id
 	ListCollectionFacetOverrides(ctx context.Context, collectionID uuid.UUID) ([]ListCollectionFacetOverridesRow, error)
 	ListCollections(ctx context.Context) ([]Collection, error)
@@ -1135,6 +1151,8 @@ type Querier interface {
 	ListProductContent(ctx context.Context, productID uuid.UUID) ([]ProductContent, error)
 	// Batch-loads content for a set of products at one specific locale
 	ListProductContentByScope(ctx context.Context, arg ListProductContentByScopeParams) ([]ProductContent, error)
+	// Every locale's row for a set of products - admin product lists answer Product.content in one query
+	ListProductContentForProducts(ctx context.Context, productIds []uuid.UUID) ([]ProductContent, error)
 	ListProductDownloadsByProductID(ctx context.Context, productID uuid.UUID) ([]CatalogProductDownload, error)
 	// Tier (customer-group / quantity-break) prices per product
 	ListProductGroupPrices(ctx context.Context, productID uuid.UUID) ([]CatalogProductGroupPrice, error)

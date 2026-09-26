@@ -45,6 +45,12 @@ RETURNING *;
 -- name: ListCMSAttributeContent :many
 SELECT * FROM cms_attribute_content WHERE attribute_id = $1 ORDER BY locale;
 
+-- name: ListCMSAttributeContentForAttributes :many
+-- Every locale's row for a set of attributes - the admin list answers allContent in one query
+SELECT * FROM cms_attribute_content
+WHERE attribute_id = ANY(sqlc.arg(attribute_ids)::uuid[])
+ORDER BY attribute_id, locale;
+
 -- name: DeleteCMSAttributeContent :execrows
 DELETE FROM cms_attribute_content WHERE attribute_id = $1 AND locale = $2;
 
@@ -326,6 +332,12 @@ SELECT * FROM cms_page_content WHERE page_id = $1 ORDER BY locale;
 -- name: ListCMSPageContentByScope :many
 SELECT * FROM cms_page_content
 WHERE page_id = ANY(sqlc.arg(page_ids)::uuid[]) AND locale = $1;
+
+-- name: ListCMSPageContentForPages :many
+-- Every locale's row for a set of pages - the admin list answers allContent in one query
+SELECT * FROM cms_page_content
+WHERE page_id = ANY(sqlc.arg(page_ids)::uuid[])
+ORDER BY page_id, locale;
 
 -- name: DeleteCMSPageContent :execrows
 DELETE FROM cms_page_content WHERE page_id = $1 AND locale = $2;

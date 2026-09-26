@@ -9,6 +9,23 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
+// Content is the resolver for the content field. Every locale's row, primed by the collections list
+func (r *collectionResolver) Content(ctx context.Context, obj *model.Collection) ([]*model.CollectionContent, error) {
+	// The detail path loaded every row already - lists leave it nil and read the primed cache instead
+	if obj.Content != nil {
+		return obj.Content, nil
+	}
+	id, err := parseID(obj.ID, "collection")
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.getCollectionContent(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return toCollectionContentModels(rows), nil
+}
+
 // Lazy on purpose: collection list rows don't want a membership fetch each - a slice filled in toCollectionModel answers [] for every collection whatever catalog_collection_products holds
 func (r *collectionResolver) Products(ctx context.Context, obj *model.Collection) ([]*model.Product, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
@@ -334,6 +351,13 @@ func (r *queryResolver) Collections(ctx context.Context) ([]*model.Collection, e
 	}
 	collections, err := r.CatalogSvc.ListCollections(ctx, r.activeLocale(ctx))
 	if err != nil {
+		return nil, err
+	}
+	ids := make([]uuid.UUID, len(collections))
+	for i, c := range collections {
+		ids[i] = c.ID
+	}
+	if err := r.primeCollectionContent(ctx, ids); err != nil {
 		return nil, err
 	}
 	out := make([]*model.Collection, len(collections))

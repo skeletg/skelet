@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/google/uuid"
@@ -17,9 +18,14 @@ func toCategoryModel(c catalog.Category) *model.Category {
 	for i, ch := range c.Children {
 		children[i] = toCategoryModel(ch)
 	}
-	content := make([]*model.CategoryContent, len(c.AllContent))
-	for i, cc := range c.AllContent {
-		content[i] = toCategoryContentModel(cc)
+	// Nil unless this path loaded every locale's row - the content resolver then reads them itself, rather than
+	// answering [] for a category that has translations
+	var content []*model.CategoryContent
+	if c.AllContent != nil {
+		content = make([]*model.CategoryContent, len(c.AllContent))
+		for i, cc := range c.AllContent {
+			content[i] = toCategoryContentModel(cc)
+		}
 	}
 	m := &model.Category{
 		ID:              c.ID.String(),
@@ -104,4 +110,26 @@ func toCategoryChannelListingModel(categoryID uuid.UUID, l catalog.CategoryChann
 		out.SortOrderOverride = l.SortOrderOverride
 	}
 	return out
+}
+
+// Maps a category list - a tree included - after loading every node's translation rows in one query, so the
+// content field reads them instead of querying per node
+func (r *Resolver) renderCategoryList(ctx context.Context, cats []catalog.Category) ([]*model.Category, error) {
+	var ids []uuid.UUID
+	var walk func([]catalog.Category)
+	walk = func(level []catalog.Category) {
+		for _, c := range level {
+			ids = append(ids, c.ID)
+			walk(c.Children)
+		}
+	}
+	walk(cats)
+	if err := r.primeCategoryContent(ctx, ids); err != nil {
+		return nil, err
+	}
+	out := make([]*model.Category, len(cats))
+	for i, c := range cats {
+		out[i] = toCategoryModel(c)
+	}
+	return out, nil
 }

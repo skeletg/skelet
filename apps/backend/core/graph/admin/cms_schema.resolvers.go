@@ -434,6 +434,9 @@ func (r *queryResolver) CmsAttributes(ctx context.Context) ([]*model.CMSAttribut
 	if err != nil {
 		return nil, err
 	}
+	if all, err = r.withCMSAttributeTranslations(ctx, all); err != nil {
+		return nil, err
+	}
 	out := make([]*model.CMSAttribute, len(all))
 	for i, a := range all {
 		out[i] = toCMSAttributeModel(a)

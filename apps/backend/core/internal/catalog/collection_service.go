@@ -108,6 +108,11 @@ func (s *collectionService) GetCollection(ctx context.Context, id uuid.UUID, loc
 	return c, nil
 }
 
+// ListCollectionTranslations returns every locale's content row for each collection, in one query - list paths only carry the resolved locale, so a caller wanting the full set (the admin Collection.content field) reads it here
+func (s *collectionService) ListCollectionTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]CollectionContent, error) {
+	return s.repo.ListCollectionContentForCollections(ctx, ids)
+}
+
 func (s *collectionService) ListCollections(ctx context.Context, locale string) ([]Collection, error) {
 	collections, err := s.repo.ListCollections(ctx)
 	if err != nil {

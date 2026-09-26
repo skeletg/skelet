@@ -272,6 +272,22 @@ func (r *postgresRepository) ListCategoryContentByScope(ctx context.Context, cat
 	return out, nil
 }
 
+// Every locale's row per category, keyed by category - a category with no rows is simply absent
+func (r *postgresRepository) ListCategoryContentForCategories(ctx context.Context, categoryIDs []uuid.UUID) (map[uuid.UUID][]CategoryContent, error) {
+	out := make(map[uuid.UUID][]CategoryContent, len(categoryIDs))
+	if len(categoryIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListCategoryContentForCategories(ctx, categoryIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list category content for categories: %w", err)
+	}
+	for _, row := range rows {
+		out[row.CategoryID] = append(out[row.CategoryID], toCategoryContent(row))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) DeleteCategoryContent(ctx context.Context, categoryID uuid.UUID, locale string) error {
 	_, err := r.queries.DeleteCategoryContent(ctx, db.DeleteCategoryContentParams{CategoryID: categoryID, Locale: locale})
 	return err
@@ -415,7 +431,6 @@ func toCategory(row db.CatalogCategory) Category {
 		Position:        row.Position,
 		IsPublished:     row.IsPublished,
 		SEONoindex:      row.SeoNoindex,
-		AllContent:      []CategoryContent{},
 		Metadata:        metadataFromJSON(row.Metadata),
 		PrivateMetadata: metadataFromJSON(row.PrivateMetadata),
 		CreatedAt:       row.CreatedAt,

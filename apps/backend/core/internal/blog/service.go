@@ -66,6 +66,26 @@ type Service struct {
 	*postService
 }
 
+// ListAuthorTranslations returns every locale's content row for each author, in one query - list reads only carry the resolved locale, so the admin allContent field reads the full set here
+func (s *Service) ListAuthorTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]AuthorContent, error) {
+	return s.repo.ListAuthorContentFor(ctx, ids)
+}
+
+// ListCategoryTranslations returns every locale's content row for each category, in one query - list reads only carry the resolved locale, so the admin allContent field reads the full set here
+func (s *Service) ListCategoryTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]CategoryContent, error) {
+	return s.repo.ListCategoryContentFor(ctx, ids)
+}
+
+// ListPostTranslations returns every locale's content row for each post, in one query - list reads only carry the resolved locale, so the admin allContent field reads the full set here
+func (s *Service) ListPostTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PostContent, error) {
+	return s.repo.ListPostContentFor(ctx, ids)
+}
+
+// ListTagTranslations returns every locale's content row for each tag, in one query - list reads only carry the resolved locale, so the admin allContent field reads the full set here
+func (s *Service) ListTagTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]TagContent, error) {
+	return s.repo.ListTagContentFor(ctx, ids)
+}
+
 // Best-effort for the CMS link picker: missing ids/errors yield no entry, and tags/authors have no content-by-scope batch so the caller falls back to the path for those
 func (s *Service) LinkLabelsByIDs(ctx context.Context, entityType string, ids []uuid.UUID, locale string) map[uuid.UUID]string {
 	out := make(map[uuid.UUID]string)

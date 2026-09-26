@@ -83,6 +83,16 @@ type Service struct {
 	*pageService
 }
 
+// ListPageTranslations returns every locale's content row for each page, in one query - list reads only carry the resolved locale, so the admin allContent field reads the full set here
+func (s *Service) ListPageTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PageContent, error) {
+	return s.repo.ListPageContentFor(ctx, ids)
+}
+
+// ListAttributeTranslations returns every locale's content row for each attribute, in one query - list reads only carry the resolved locale, so the admin allContent field reads the full set here
+func (s *Service) ListAttributeTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]AttributeContent, error) {
+	return s.repo.ListAttributeContentFor(ctx, ids)
+}
+
 // id to title for the CMS link picker - best-effort, so a missing id or an error yields no entry and the caller falls back to the path
 func (s *Service) PageTitlesByIDs(ctx context.Context, ids []uuid.UUID, locale string) map[uuid.UUID]string {
 	out := make(map[uuid.UUID]string)

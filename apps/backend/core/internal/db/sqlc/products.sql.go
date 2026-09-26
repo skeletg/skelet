@@ -1397,6 +1397,48 @@ func (q *Queries) ListProductContentByScope(ctx context.Context, arg ListProduct
 	return items, nil
 }
 
+const listProductContentForProducts = `-- name: ListProductContentForProducts :many
+SELECT product_id, locale, name, description, meta_title, meta_description, created_at, updated_at, short_description, meta_keywords, search_tsv FROM catalog_product_content
+WHERE product_id = ANY($1::uuid[])
+ORDER BY product_id, locale
+`
+
+// Every locale's row for a set of products - admin product lists answer Product.content in one query
+func (q *Queries) ListProductContentForProducts(ctx context.Context, productIds []uuid.UUID) ([]ProductContent, error) {
+	rows, err := q.db.QueryContext(ctx, listProductContentForProducts, pq.Array(productIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProductContent{}
+	for rows.Next() {
+		var i ProductContent
+		if err := rows.Scan(
+			&i.ProductID,
+			&i.Locale,
+			&i.Name,
+			&i.Description,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ShortDescription,
+			&i.MetaKeywords,
+			&i.SearchTsv,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProductIDsByAttributeValue = `-- name: ListProductIDsByAttributeValue :many
 SELECT DISTINCT p.id
 FROM catalog_product_attribute_values pav

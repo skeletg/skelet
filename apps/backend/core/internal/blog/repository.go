@@ -214,6 +214,22 @@ func (r *postgresRepository) ListAuthorContent(ctx context.Context, authorID uui
 	return out, nil
 }
 
+// Every locale's row per author, keyed by id - one with no rows is simply absent
+func (r *postgresRepository) ListAuthorContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]AuthorContent, error) {
+	out := make(map[uuid.UUID][]AuthorContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListBlogAuthorContentForAuthors(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("author content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.AuthorID] = append(out[row.AuthorID], toAuthorContent(row))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ListAuthorContentByScope(ctx context.Context, authorIDs []uuid.UUID, locale string) (map[uuid.UUID]AuthorContent, error) {
 	if len(authorIDs) == 0 {
 		return map[uuid.UUID]AuthorContent{}, nil
@@ -436,6 +452,22 @@ func (r *postgresRepository) ListCategoryContent(ctx context.Context, categoryID
 	return out, nil
 }
 
+// Every locale's row per category, keyed by id - one with no rows is simply absent
+func (r *postgresRepository) ListCategoryContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]CategoryContent, error) {
+	out := make(map[uuid.UUID][]CategoryContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListBlogCategoryContentForCategories(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("category content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.CategoryID] = append(out[row.CategoryID], toCategoryContent(row))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ListCategoryContentByScope(ctx context.Context, categoryIDs []uuid.UUID, locale string) (map[uuid.UUID]CategoryContent, error) {
 	if len(categoryIDs) == 0 {
 		return map[uuid.UUID]CategoryContent{}, nil
@@ -595,6 +627,22 @@ func (r *postgresRepository) ListTagContent(ctx context.Context, tagID uuid.UUID
 	out := make([]TagContent, len(rows))
 	for i, row := range rows {
 		out[i] = toTagContent(row)
+	}
+	return out, nil
+}
+
+// Every locale's row per tag, keyed by id - one with no rows is simply absent
+func (r *postgresRepository) ListTagContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]TagContent, error) {
+	out := make(map[uuid.UUID][]TagContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListBlogTagContentForTags(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("tag content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.TagID] = append(out[row.TagID], toTagContent(row))
 	}
 	return out, nil
 }
@@ -927,6 +975,22 @@ func (r *postgresRepository) ListPostContent(ctx context.Context, postID uuid.UU
 	out := make([]PostContent, len(rows))
 	for i, row := range rows {
 		out[i] = toPostContent(row)
+	}
+	return out, nil
+}
+
+// Every locale's row per post, keyed by id - one with no rows is simply absent
+func (r *postgresRepository) ListPostContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PostContent, error) {
+	out := make(map[uuid.UUID][]PostContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListBlogPostContentForPosts(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("post content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.PostID] = append(out[row.PostID], toPostContent(row))
 	}
 	return out, nil
 }

@@ -230,6 +230,22 @@ func (r *postgresRepository) UpsertAttributeContent(ctx context.Context, attribu
 	return toAttributeContent(row), nil
 }
 
+// Every locale's row per attribute, keyed by id - one with no rows is simply absent
+func (r *postgresRepository) ListAttributeContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]AttributeContent, error) {
+	out := make(map[uuid.UUID][]AttributeContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListCMSAttributeContentForAttributes(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("attribute content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.AttributeID] = append(out[row.AttributeID], toAttributeContent(row))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ListAttributeContent(ctx context.Context, attributeID uuid.UUID) ([]AttributeContent, error) {
 	rows, err := r.queries.ListCMSAttributeContent(ctx, attributeID)
 	if err != nil {
@@ -1077,6 +1093,22 @@ func (r *postgresRepository) ListPageContent(ctx context.Context, pageID uuid.UU
 
 // ListPageContentByScope batch-loads one locale's content for many pages in a single query, keyed by page id - Used by
 // ListPages so list views serve translated content without an N+1 (mirrors blog's ListPostContentByScope)
+// Every locale's row per page, keyed by id - one with no rows is simply absent
+func (r *postgresRepository) ListPageContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PageContent, error) {
+	out := make(map[uuid.UUID][]PageContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListCMSPageContentForPages(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("page content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.PageID] = append(out[row.PageID], toPageContent(row))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ListPageContentByScope(ctx context.Context, pageIDs []uuid.UUID, locale string) (map[uuid.UUID]PageContent, error) {
 	if len(pageIDs) == 0 {
 		return map[uuid.UUID]PageContent{}, nil

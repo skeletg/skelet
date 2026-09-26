@@ -441,6 +441,9 @@ func (r *queryResolver) CmsPages(ctx context.Context, filter *model.CMSPageFilte
 	if err != nil {
 		return nil, err
 	}
+	if pages, err = r.withCMSPageTranslations(ctx, pages); err != nil {
+		return nil, err
+	}
 	out := make([]*model.CMSPage, len(pages))
 	for i, p := range pages {
 		out[i] = toCMSPageModel(p)
