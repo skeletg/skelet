@@ -131,12 +131,16 @@ function MenuForm({ menu }: { menu: Menu }) {
   // Slug, name and channels surface in the menus list too
   const listRefetch = [...refetchQueries, { query: MenusListDocument }]
   const [updateMenu] = useMutation(UpdateMenuDocument, { refetchQueries: listRefetch })
+  // setMenuStores answers with the whole hydrated menu but still refetches the detail: it runs after
+  // updateMenu in the same save, and updateMenu's bare-row answer (no channels) can otherwise land
+  // last through its own refetch
   const [setMenuStores] = useMutation(SetMenuStoresDocument, { refetchQueries: listRefetch })
   const [deleteMenu, { loading: deletingMenu }] = useMutation(DeleteMenuDocument, { refetchQueries: [{ query: MenusListDocument }] })
   const [createMenuItem] = useMutation(CreateMenuItemDocument, { refetchQueries })
   const [updateMenuItem] = useMutation(UpdateMenuItemDocument, { refetchQueries })
   const [deleteMenuItem, { loading: deletingItem }] = useMutation(DeleteMenuItemDocument, { refetchQueries })
-  const [reorderMenuItems] = useMutation(ReorderMenuItemsDocument, { refetchQueries })
+  // Answers with the whole hydrated menu, the same one the detail query reads
+  const [reorderMenuItems] = useMutation(ReorderMenuItemsDocument)
   const [upsertTranslation] = useMutation(UpsertMenuItemTranslationDocument, { refetchQueries })
   const [deleteTranslation] = useMutation(DeleteMenuItemTranslationDocument, { refetchQueries })
 

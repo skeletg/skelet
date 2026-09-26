@@ -42,14 +42,15 @@ export function BlogTagEditor() {
 }
 
 function TagForm({ tag }: { tag?: BlogTagRowFragment }) {
+  // Writes answer with the whole tag, allContent included, so the detail needs no refetch - only
+  // `content` comes back for the wrong locale, and the list refetch puts it right
   const lists = [{ query: BlogTagsDocument }]
-  const afterWrite = tag ? [...lists, { query: BlogTagDocument, variables: { id: tag.id } }] : lists
   const [createTag] = useMutation(CreateBlogTagDocument, { refetchQueries: lists })
-  const [updateTag] = useMutation(UpdateBlogTagDocument, { refetchQueries: afterWrite })
-  const [upsertContent] = useMutation(UpsertBlogTagContentDocument, { refetchQueries: afterWrite })
+  const [updateTag] = useMutation(UpdateBlogTagDocument, { refetchQueries: lists })
+  const [upsertContent] = useMutation(UpsertBlogTagContentDocument, { refetchQueries: lists })
   const [deleteTag] = useMutation(DeleteBlogTagDocument, { refetchQueries: lists })
-  // Detail query only - the list resolvers return allContent: [], so refetching a list here would
-  // blank the locale pills
+  // Answers with a Boolean, so the detail is fetched again - the tag is normalised, so every list
+  // showing it loses the removed locale too
   const [deleteContent] = useMutation(DeleteBlogTagContentDocument, {
     refetchQueries: tag ? [{ query: BlogTagDocument, variables: { id: tag.id } }] : [],
     awaitRefetchQueries: true,

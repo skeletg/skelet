@@ -112,7 +112,7 @@ function QuestionEditor({ question }: { question: ReviewQuestionFieldsFragment }
     refetchQueries: [{ query: ReviewQuestionsDocument }],
   })
   const [upsert] = useMutation(UpsertReviewQuestionContentDocument, {
-    refetchQueries: [{ query: ReviewQuestionDocument, variables: { id: question.id } }, { query: ReviewQuestionsDocument }],
+    refetchQueries: [{ query: ReviewQuestionsDocument }],
   })
 
   // The locale list comes back as a fresh array each render - key the offered rows on its content
