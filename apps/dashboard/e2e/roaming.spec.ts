@@ -1,5 +1,5 @@
-import { expect, test, type Browser, type Page } from '@playwright/test'
-import { AUTH_FILE, menuAction, navigate, newTab, openWorkspaceMenu, startClean, strips, workspaceName } from './helpers'
+import { expect, type Browser, type Page } from '@playwright/test'
+import { AUTH_FILE, menuAction, navigate, newTab, openWorkspaceMenu, startClean, strips, test, workspaceName } from './helpers'
 
 // Workspaces roam through the preferences store, so proving it needs two browser contexts that
 // share the admin but nothing else - a second context is a second machine as far as the app knows
