@@ -33,13 +33,15 @@ should match, except where the branch changed them on purpose:
 
 - [ ] Light and dark mode: field errors, the amber "pending" markers (per-store pricing,
       variants, categories), the restored-draft banner
-- [ ] An admin without `catalog.manage` sees the product page read-only - no Save, inputs
-      disabled, no drafts written
-- [ ] Closing a workspace tab with unsaved edits still asks first; a page refresh does not
+- Covered by `readonly.spec.ts`: an admin without `catalog.manage` sees the product page
+  read-only - no Save, inputs disabled, no drafts written
+- Covered by `drafts.spec.ts` and `forms.spec.ts`: closing a workspace tab with unsaved edits
+  still asks first; a page refresh does not
 
 ## Drafts
 
-- [ ] Edit two sections of the product page, reload: both come back, one banner per section
-- [ ] Change the same field in another browser and save there, then reload the first: the
-      banner flags the clash and shows the server value under the field
-- [ ] Log out: no `skelet.draft.*` keys are left in localStorage
+Covered by `drafts.spec.ts`: two product sections each offer their own draft; a field changed
+elsewhere is flagged in Review and, on the pages that render it, under the field after restoring;
+logging out leaves no `skelet.draft.*` keys. Still worth a look by eye:
+
+- [ ] The Review dialog's clash list reads well with several fields in it
