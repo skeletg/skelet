@@ -29,7 +29,7 @@ type sitemapURL struct {
 func (s *Service) RenderSitemap(ctx context.Context, opts SitemapOptions) ([]byte, string, error) {
 	var urls []sitemapURL
 
-	posts, err := s.repo.ListPosts(ctx, PostListFilter{
+	posts, err := s.postService.repo.ListPosts(ctx, PostListFilter{
 		OnlyPublished: true,
 		ChannelID:     opts.ChannelID,
 		Limit:         5000,
@@ -49,7 +49,7 @@ func (s *Service) RenderSitemap(ctx context.Context, opts SitemapOptions) ([]byt
 		})
 	}
 
-	cats, err := s.repo.ListAllCategories(ctx)
+	cats, err := s.categoryService.repo.ListAllCategories(ctx)
 	if err != nil {
 		return nil, "", err
 	}
@@ -64,7 +64,7 @@ func (s *Service) RenderSitemap(ctx context.Context, opts SitemapOptions) ([]byt
 		})
 	}
 
-	tags, err := s.repo.ListTags(ctx)
+	tags, err := s.tagService.repo.ListTags(ctx)
 	if err != nil {
 		return nil, "", err
 	}
