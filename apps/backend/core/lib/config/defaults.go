@@ -51,6 +51,8 @@ func init() {
 
 	Register(Definition{Path: "sales/checkout/allow_guest", Type: TypeBool, Default: "true", Label: "Allow guest checkout", Description: "Whether someone can complete checkout without an account. Off forces registration or sign-in before the order can be placed.", Public: true})
 	Register(Definition{Path: "sales/checkout/min_order", Type: TypeInt, Default: "0", Label: "Minimum order amount (cents)", Description: "Orders below this merchandise total are refused at checkout. In minor units, so 2500 is $25.00. 0 disables the floor.", Public: true})
+	Register(Definition{Path: "sales/checkout/shipping_taxable", Type: TypeBool, Default: "true", Label: "Charge tax on shipping", Description: "Shipping is taxed like a product line under the shipping tax class below. Turn it off where shipping is exempt."})
+	Register(Definition{Path: "sales/checkout/shipping_tax_class", Type: TypeString, Default: "", Label: "Shipping tax class", Description: "The tax class shipping is taxed under. Empty matches only the rules that apply to every product."})
 	Register(Definition{Path: "sales/checkout/risk_hold_threshold", Type: TypeInt, Default: "0", Label: "Auto-hold orders at or above this risk score (0 = off)", Description: "Orders scoring at or above this are placed on hold for manual review instead of flowing straight to fulfillment. 0 disables the hold.", Public: false})
 
 	// ledger_enabled=false short-circuits reservation writes (ERP-owned inventory / cutover)
