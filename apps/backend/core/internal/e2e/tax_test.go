@@ -9,6 +9,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
@@ -122,6 +123,9 @@ func TestTaxAppliesToShipping(t *testing.T) {
 	if o.TotalAmount != 2750 {
 		t.Errorf("total = %d, want 2000 + 500 + 250", o.TotalAmount)
 	}
+	if o.ShippingTaxAmount != 50 {
+		t.Errorf("shipping tax = %d, want 50 of the 250", o.ShippingTaxAmount)
+	}
 	taxLines, err := h.D.Order.TaxLines(h.Ctx, o.ID)
 	if err != nil || len(taxLines) != 1 || taxLines[0].AmountCents != 250 {
 		t.Errorf("tax lines = %+v (%v), want one line of 250", taxLines, err)
@@ -129,8 +133,8 @@ func TestTaxAppliesToShipping(t *testing.T) {
 
 	h.setChannelConfig(t, f, "sales/checkout/shipping_taxable", "false")
 	exempt := h.PlaceGuestCOD(t, f, 1)
-	if exempt.TaxAmount != 200 || exempt.TotalAmount != 2700 {
-		t.Errorf("shipping-exempt tax/total = %d/%d, want 200/2700", exempt.TaxAmount, exempt.TotalAmount)
+	if exempt.TaxAmount != 200 || exempt.TotalAmount != 2700 || exempt.ShippingTaxAmount != 0 {
+		t.Errorf("shipping-exempt tax/total/shipping tax = %d/%d/%d, want 200/2700/0", exempt.TaxAmount, exempt.TotalAmount, exempt.ShippingTaxAmount)
 	}
 	h.Settle(t)
 }
@@ -150,7 +154,7 @@ func TestShippingTaxClassScopesRules(t *testing.T) {
 	}
 	h.setChannelConfig(t, f, "sales/checkout/shipping_tax_class", "freight")
 	freight := h.PlaceGuestCOD(t, f, 1)
-	if freight.TaxAmount != 25 {
+	if freight.TaxAmount != 25 || freight.ShippingTaxAmount != 25 {
 		t.Errorf("tax = %d, want 5%% of shipping 500 = 25 with the goods untouched", freight.TaxAmount)
 	}
 	h.Settle(t)
@@ -164,8 +168,8 @@ func TestDraftOrderTaxesShipping(t *testing.T) {
 	h.newTaxRule(t, f.Channel.ID, 1000)
 
 	d := h.newDraft(t, f, []order.CreateDraftLine{{ProductSku: f.Product.SKU, Quantity: 1}})
-	if d.ShippingAmount != 500 || d.TaxAmount != 250 || d.TotalAmount != 2750 {
-		t.Errorf("draft shipping/tax/total = %d/%d/%d, want 500/250/2750", d.ShippingAmount, d.TaxAmount, d.TotalAmount)
+	if d.ShippingAmount != 500 || d.TaxAmount != 250 || d.ShippingTaxAmount != 50 || d.TotalAmount != 2750 {
+		t.Errorf("draft shipping/tax/shipping tax/total = %d/%d/%d/%d, want 500/250/50/2750", d.ShippingAmount, d.TaxAmount, d.ShippingTaxAmount, d.TotalAmount)
 	}
 }
 
@@ -185,7 +189,7 @@ func TestEditsKeepTaxingShipping(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EditOrder: %v", err)
 	}
-	if edited.TaxAmount != 450 {
+	if edited.TaxAmount != 450 || edited.ShippingTaxAmount != 50 {
 		t.Errorf("tax after edit = %d, want 10%% of goods 4000 + shipping 500 = 450", edited.TaxAmount)
 	}
 
@@ -196,8 +200,45 @@ func TestEditsKeepTaxingShipping(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EditOrderAddress: %v", err)
 	}
-	if moved.TaxAmount != 450 {
+	if moved.TaxAmount != 450 || moved.ShippingTaxAmount != 50 {
 		t.Errorf("tax after address move = %d, want 450", moved.TaxAmount)
+	}
+	h.Settle(t)
+}
+
+// Scenario: line refunds hand back the goods' tax only, and shipping's tax comes back with the shipping refund
+func TestRefundsKeepShippingTaxWithShipping(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 20, 2000)
+	h.addFlatShipping(t, f, 500, 0)
+	h.newTaxRule(t, f.Channel.ID, 1000)
+	o := h.PlaceGuestCOD(t, f, 2)
+	h.Settle(t)
+	if _, err := h.D.Order.RecordOfflinePayment(h.Ctx, order.RecordOfflinePaymentInput{
+		OrderID: o.ID, Method: "cod", Reference: "e2e-cash",
+	}); err != nil {
+		t.Fatalf("collect in full: %v", err)
+	}
+
+	if _, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
+		OrderID: o.ID, ShippingRefundCents: 551,
+	}); apperr.CodeOf(err) != "CREDIT_MEMO_SHIPPING_EXCEEDED" {
+		t.Errorf("shipping refund over 500 + 50 tax: err = %v, want CREDIT_MEMO_SHIPPING_EXCEEDED", err)
+	}
+
+	intent, err := h.D.Order.RecordCreditMemoIntent(h.Ctx, order.IssueCreditMemoInput{
+		OrderID:             o.ID,
+		Lines:               []order.CreditMemoLineInput{{OrderLineID: h.OrderLines(t, o.ID)[0].ID, Quantity: 2}},
+		ShippingRefundCents: 550,
+	})
+	if err != nil {
+		t.Fatalf("memo intent: %v", err)
+	}
+	if intent.Memo.LinesTotalCents != 4400 {
+		t.Errorf("lines refund = %d, want 2 x (2000 + 200 tax) = 4400", intent.Memo.LinesTotalCents)
+	}
+	if intent.AmountCents != o.TotalAmount {
+		t.Errorf("full refund = %d, want the order total %d", intent.AmountCents, o.TotalAmount)
 	}
 	h.Settle(t)
 }

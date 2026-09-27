@@ -46,8 +46,8 @@ func unitBasisByLine(o Order, withTax bool) map[uuid.UUID]int64 {
 	}
 	discounts := allocateLineDiscount(lineSubs, subtotal, o.DiscountAmount)
 	var taxes []int64
-	if withTax && o.TaxAmount > 0 && o.TotalAmount == o.SubtotalAmount-o.DiscountAmount+o.TaxAmount+o.ShippingAmount {
-		taxes = allocateLineDiscount(lineSubs, subtotal, o.TaxAmount)
+	if withTax && taxAddedOnTop(o) {
+		taxes = allocateLineDiscount(lineSubs, subtotal, max(o.TaxAmount-o.ShippingTaxAmount, 0))
 	}
 	out := make(map[uuid.UUID]int64, len(o.Lines))
 	for i, l := range o.Lines {
@@ -58,6 +58,18 @@ func unitBasisByLine(o Order, withTax bool) map[uuid.UUID]int64 {
 		out[l.ID] = money.PerUnit(gross, l.Quantity)
 	}
 	return out
+}
+
+func taxAddedOnTop(o Order) bool {
+	return o.TaxAmount > 0 && o.TotalAmount == o.SubtotalAmount-o.DiscountAmount+o.TaxAmount+o.ShippingAmount
+}
+
+// Shipping's tax rides along only where tax was added on top
+func (o Order) ShippingRefundable() int64 {
+	if taxAddedOnTop(o) {
+		return o.ShippingAmount + o.ShippingTaxAmount
+	}
+	return o.ShippingAmount
 }
 
 // Cumulative share of the order's merchandise credited across EVERY memo, 0..1 - cumulative so subsystems revoke toward a target, making partial refunds add up and a replay a no-op
@@ -81,7 +93,7 @@ func refundedMerchandiseFraction(ctx context.Context, repo Repository, o Order) 
 	if err != nil {
 		return 0, err
 	}
-	if nonShipping := o.TotalAmount - o.ShippingAmount; nonShipping > 0 {
+	if nonShipping := o.TotalAmount - o.ShippingRefundable(); nonShipping > 0 {
 		for _, m := range memos {
 			if len(m.Lines) > 0 {
 				continue // exact, already counted through CreditedByOrderLine

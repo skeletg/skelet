@@ -53,6 +53,10 @@ type Order {
   shippingAmount:  Int!
   discountAmount:  Int!
   taxAmount:       Int!
+  # The part of taxAmount charged on shipping. Zero when a remote tax provider or plugin priced the tax.
+  shippingTaxAmount: Int!
+  # The most a credit memo can refund for shipping - its tax included where tax was added on top.
+  shippingRefundable: Int!
   total:           Int!
   # Cents of `total` covered by gift-card tenders (not a discount - total
   # is unchanged). Amount owed to the payment provider is total minus this.

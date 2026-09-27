@@ -210,3 +210,26 @@ func TestMerchandiseUnitByLine_ExcludesTax(t *testing.T) {
 		t.Errorf("inclusive pricing: merchandise %d vs refund %d, want them equal", got, want)
 	}
 }
+
+// Shipping's tax leaves the line basis and joins what shipping can refund
+func TestRefundBasisKeepsShippingTaxOffTheLines(t *testing.T) {
+	lineA := uuid.New()
+	o := Order{
+		Lines:             []OrderLine{{ID: lineA, UnitPrice: 1_000, Quantity: 2}},
+		SubtotalAmount:    2_000,
+		ShippingAmount:    500,
+		TaxAmount:         250,
+		ShippingTaxAmount: 50,
+		TotalAmount:       2_750,
+	}
+	if got := refundUnitByLine(o)[lineA]; got != 1_100 {
+		t.Errorf("refund per-unit = %d, want 1100 - shipping's 50 tax isn't the goods'", got)
+	}
+	if got := o.ShippingRefundable(); got != 550 {
+		t.Errorf("shipping refundable = %d, want 500 + 50 tax", got)
+	}
+	o.TotalAmount = 2_500 // tax-inclusive, so shipping's tax is already inside its 500
+	if got := o.ShippingRefundable(); got != 500 {
+		t.Errorf("inclusive shipping refundable = %d, want 500", got)
+	}
+}
