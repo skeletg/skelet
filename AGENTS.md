@@ -177,8 +177,9 @@ codegen outright.
 ## 8. Environment traps
 
 - `rg <pattern> apps/backend` silently skips `cmd/server` - use `grep -r` for sweeps
-- New dashboard dependencies need `SKELET_FORCE_DOCKER=1 ./skelet pnpm dashboard install` plus a
-  container restart; a host-only install crashes the container's vite
+- A Docker frontend's dev server runs under `dev-serve` (in its dev Dockerfile), which reinstalls
+  and restarts it within a couple of seconds of `package.json` or the lockfile changing - no manual
+  install into the container. A Dockerfile change still needs `./skelet up`, which rebuilds
 - The frontends use pnpm, one project per app (`pnpm-workspace.yaml` beside each
   `package.json` holds its settings - pnpm ignores `package.json`'s `pnpm` field). Three
   differences from npm bite: an import of a package the app doesn't declare fails, `--` reaches
