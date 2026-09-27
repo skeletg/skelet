@@ -278,7 +278,7 @@ func (s *productService) GetProductForChannel(ctx context.Context, id, channelID
 	return s.GetProduct(ctx, id, locale)
 }
 
-// GetProductHeaderForChannel is GetProductForChannel without the graph - published row plus locale content
+// GetProductForChannel without the graph, for reads that don't need it
 func (s *productService) GetProductHeaderForChannel(ctx context.Context, id, channelID uuid.UUID, locale string) (Product, error) {
 	const op = "catalog.Service.GetProductHeaderForChannel"
 	p, err := s.repo.GetPublishedProductForChannel(ctx, id, channelID)
@@ -298,7 +298,7 @@ func (s *productService) GetProductHeaderForChannel(ctx context.Context, id, cha
 	return p, nil
 }
 
-// Published rows in input order with locale content - missing ids drop silently, the search index can lag a depublish
+// Missing ids drop silently, since the search index can lag a depublish
 func (s *productService) ListProductHeadersForChannelByIDs(ctx context.Context, ids []uuid.UUID, channelID uuid.UUID, locale string) ([]Product, error) {
 	const op = "catalog.Service.ListProductHeadersForChannelByIDs"
 	if len(ids) == 0 {
