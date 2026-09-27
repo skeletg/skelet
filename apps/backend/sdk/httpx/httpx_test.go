@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func testClient(ts *httptest.Server) *Client {
@@ -112,14 +113,26 @@ func TestDoForm(t *testing.T) {
 }
 
 func TestBodyCap(t *testing.T) {
+	size := 100
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(strings.Repeat("x", 100)))
+		_, _ = w.Write([]byte(strings.Repeat("x", size)))
 	}))
 	defer ts.Close()
 
 	c := &Client{BaseURL: ts.URL, Name: "gw", MaxBodyBytes: 10}
-	raw, _ := c.DoJSON(context.Background(), http.MethodGet, "/x", nil, nil, "")
-	if len(raw) != 10 {
-		t.Errorf("cap ignored: read %d bytes", len(raw))
+	// a cut-off 2xx body is a torn response, not a shorter success
+	if raw, err := c.DoJSON(context.Background(), http.MethodGet, "/x", nil, nil, ""); err == nil || !strings.Contains(err.Error(), "cap") {
+		t.Errorf("over-cap body answered %d bytes, err %v - want an error naming the cap", len(raw), err)
+	}
+	size = 10
+	if raw, err := c.DoJSON(context.Background(), http.MethodGet, "/x", nil, nil, ""); err != nil || len(raw) != 10 {
+		t.Errorf("body exactly at the cap: %d bytes, err %v - want it whole", len(raw), err)
+	}
+}
+
+func TestTruncateKeepsUTF8Whole(t *testing.T) {
+	s := Truncate([]byte(strings.Repeat("a", 399) + "é" + strings.Repeat("b", 10)))
+	if !utf8.ValidString(s) {
+		t.Errorf("Truncate split a rune: %q", s[len(s)-8:])
 	}
 }

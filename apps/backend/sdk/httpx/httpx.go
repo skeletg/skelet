@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const defaultMaxBody = 1 << 20 // gateways answer in KB - a 1MiB cap keeps a misbehaving one from ballooning memory
@@ -110,10 +111,14 @@ func (c *Client) do(ctx context.Context, method, path string, body io.Reader, co
 	if maxBody <= 0 {
 		maxBody = defaultMaxBody
 	}
-	raw, err := io.ReadAll(io.LimitReader(res.Body, maxBody))
+	raw, err := io.ReadAll(io.LimitReader(res.Body, maxBody+1))
 	if err != nil {
 		// a torn body on a 2xx must never decode into a zero value the caller records as success
 		return nil, fmt.Errorf("%s: %s %s: read response: %w", c.Name, method, path, err)
+	}
+	// a cut-off body is as torn as a failed read, just quieter
+	if int64(len(raw)) > maxBody {
+		return nil, fmt.Errorf("%s: %s %s: response exceeds the %d-byte cap", c.Name, method, path, maxBody)
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return raw, &HTTPError{Name: c.Name, Method: method, Path: path, Status: res.StatusCode, Body: raw}
@@ -130,10 +135,14 @@ func (c *Client) do(ctx context.Context, method, path string, body io.Reader, co
 // hoisted from the six plugins that each carried one
 func Truncate(b []byte) string {
 	s := string(b)
-	if len(s) > 400 {
-		return s[:400] + "…"
+	if len(s) <= 400 {
+		return s
 	}
-	return s
+	cut := 400
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut-- // back off to a rune boundary, so the message stays valid UTF-8
+	}
+	return s[:cut] + "…"
 }
 
 // IsStatus reports whether err is an HTTPError with the given status - the common "404 means

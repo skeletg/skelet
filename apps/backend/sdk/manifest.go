@@ -14,7 +14,7 @@ import (
 )
 
 // The number SDKRange gates against, kept honest by api_surface_test.go: api.json records the exported surface and apidiff re-checks it against the last release tag
-const Version = "0.2.1" // 0.x while the surface is unfrozen - breaking changes ride the MINOR, additions the patch; 0.1.0 is the pre-release baseline
+const Version = "0.2.2" // 0.x while the surface is unfrozen - breaking changes ride the MINOR, additions the patch; 0.1.0 is the pre-release baseline
 
 // A compile-time Go literal rather than a file the host reads at boot - no YAML parsing, no filesystem access, no "where does the manifest live" debate
 // Generate any YAML mirror FROM this struct, never the reverse
@@ -27,6 +27,7 @@ type Manifest struct {
 
 	// Event types published, by convention "<slug>.<verb>_<object>" - the validator resolves every plugin's Consumes against these plus core's registry, so "A renamed its event and B's subscriber broke" surfaces at boot instead of at runtime
 	// PublishAsync refuses a type missing from this list, so the declaration and the runtime can't drift
+	// Boot refuses a name core already emits or another plugin declares - a publish under it would reach every subscriber and outbound webhook as that sender
 	Emits []string
 	// Every entry must resolve to a core event or another plugin's Emits or boot fails - the validator can't rewrite a subscriber's name, so a core rename only stays safe while both names are registered
 	Consumes []string
@@ -143,6 +144,12 @@ func validateManifestStatic(m Manifest) error {
 	if _, err := parseRange(m.SDKRange); err != nil {
 		return fmt.Errorf("manifest: bad SDKRange %q: %w", m.SDKRange, err)
 	}
+	// A typo here compiles, since the type is a string, and would quietly mean fail-open
+	switch m.FailurePolicy {
+	case FailOpen, FailClosed:
+	default:
+		return fmt.Errorf("manifest: FailurePolicy %q must be sdk.FailOpen or sdk.FailClosed", m.FailurePolicy)
+	}
 	for i, dep := range m.Dependencies {
 		if strings.TrimSpace(dep.Slug) == "" {
 			return fmt.Errorf("manifest: dep[%d] empty slug", i)
@@ -169,19 +176,23 @@ func parseSemver(s string) (semver, error) {
 	if len(parts) != 3 {
 		return semver{}, fmt.Errorf("expected MAJOR.MINOR.PATCH")
 	}
-	maj, err := strconv.Atoi(parts[0])
-	if err != nil || maj < 0 {
-		return semver{}, fmt.Errorf("bad major %q", parts[0])
+	var nums [3]int
+	for i, name := range [3]string{"major", "minor", "patch"} {
+		n, err := semverPart(parts[i])
+		if err != nil {
+			return semver{}, fmt.Errorf("bad %s %q", name, parts[i])
+		}
+		nums[i] = n
 	}
-	min, err := strconv.Atoi(parts[1])
-	if err != nil || min < 0 {
-		return semver{}, fmt.Errorf("bad minor %q", parts[1])
+	return semver{Major: nums[0], Minor: nums[1], Patch: nums[2]}, nil
+}
+
+// Digits only, no leading zero - strconv.Atoi alone admits "+1" and "01", which semver does not
+func semverPart(p string) (int, error) {
+	if p == "" || (len(p) > 1 && p[0] == '0') || strings.TrimLeft(p, "0123456789") != "" {
+		return 0, fmt.Errorf("not a semver number")
 	}
-	patch, err := strconv.Atoi(parts[2])
-	if err != nil || patch < 0 {
-		return semver{}, fmt.Errorf("bad patch %q", parts[2])
-	}
-	return semver{Major: maj, Minor: min, Patch: patch}, nil
+	return strconv.Atoi(p)
 }
 
 func (a semver) compare(b semver) int {
@@ -282,7 +293,7 @@ func matchVersion(version, rng string) (bool, error) {
 	return r.satisfies(v), nil
 }
 
-// Lives in the SDK so the rules are expressed once and testable without booting a host - internal/plugin.ValidateManifests calls it hostSDKVersion is passed rather than read from the constant so tests can simulate a future SDK meeting older plugins knownEvents is core's registered event set; every Consumes must resolve to it or to another plugin's Emits, failing loud so a subscriber can't silently fall through
+// Lives in the SDK so the rules are expressed once and testable without booting a host - internal/plugin.ValidateManifests calls it hostSDKVersion is passed rather than read from the constant so tests can simulate a future SDK meeting older plugins knownEvents is core's OWN event set, plugin-registered names excluded; every Consumes must resolve to it or to a plugin's Emits, failing loud so a subscriber can't silently fall through, and no Emits may claim one of its names
 func ValidateManifestSet(hostSDKVersion string, manifests []Manifest, bySlug map[string]Manifest, knownEvents map[string]struct{}) error {
 	for _, m := range manifests {
 		ok, err := matchVersion(hostSDKVersion, m.SDKRange)
@@ -310,13 +321,21 @@ func ValidateManifestSet(hostSDKVersion string, manifests []Manifest, bySlug map
 		return err
 	}
 
-	// union of what anyone can consume - the same string in both core and a plugin is fine
+	// Each name has one sender - a plugin publishing core's order.placed, or a second plugin's event, would hand every subscriber a payload from someone else
 	available := make(map[string]struct{}, len(knownEvents))
 	for k := range knownEvents {
 		available[k] = struct{}{}
 	}
+	emitter := map[string]string{}
 	for _, m := range manifests {
 		for _, e := range m.Emits {
+			if _, core := knownEvents[e]; core {
+				return fmt.Errorf("plugin %q emits %q, which is a core event - publish under a name of its own", m.Slug, e)
+			}
+			if prev, taken := emitter[e]; taken && prev != m.Slug {
+				return fmt.Errorf("plugins %q and %q both emit %q", prev, m.Slug, e)
+			}
+			emitter[e] = m.Slug
 			available[e] = struct{}{}
 		}
 	}
