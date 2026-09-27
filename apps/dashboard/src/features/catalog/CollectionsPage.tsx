@@ -10,7 +10,9 @@ import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { CollectionDetail } from './CollectionDetail'
 import { CollectionCreate } from './CollectionCreate'
-import { CollectionsDocument, type CollectionSummary } from './Collections.gql'
+import { CollectionsDocument, type CollectionsQuery } from './Collections.gql'
+
+type CollectionSummary = CollectionsQuery['collections'][number]
 
 function resolveCollectionName(collection: CollectionSummary) {
   const translatedName = collection.content.find((entry) => entry.name.trim())?.name.trim()

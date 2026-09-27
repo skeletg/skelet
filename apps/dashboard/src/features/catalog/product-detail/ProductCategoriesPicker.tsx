@@ -20,7 +20,8 @@ import {
   RemoveProductFromCategoryDocument,
   SetProductPrimaryCategoryDocument,
 } from '../Catalog.gql'
-import { RootCategoriesDocument, type CategorySummary } from '../Categories.gql'
+import { RootCategoriesDocument } from '../Categories.gql'
+import type { CategorySummary } from '../category-tree'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
 import { useSectionForm } from '@/shared/saving/useSectionForm'
 import {
@@ -60,11 +61,11 @@ function flattenCategoryTree(
       name: c.name ?? c.slug,
       slug: c.slug,
       depth,
-      hasChildren: c.children.length > 0,
+      hasChildren: !!c.children?.length,
       ancestorIds,
     })
-    if (c.children.length > 0) {
-      flattenCategoryTree(c.children, depth + 1, [...ancestorIds, c.id], out)
+    if (c.children?.length) {
+      flattenCategoryTree(c.children ?? [], depth + 1, [...ancestorIds, c.id], out)
     }
   }
 }

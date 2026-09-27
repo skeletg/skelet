@@ -71,10 +71,10 @@ import {
   SetCategoryListingDocument,
   UpdateCategoryDocument,
   UpsertCategoryContentDocument,
-  type CategoryDetail,
-  type CategorySummary,
+  type CategoryDetailFieldsFragment,
 } from './Categories.gql'
-import { SetCategoryFacetOverridesDocument, type CategoryFacetOverride } from './Categories.gql'
+import { SetCategoryFacetOverridesDocument } from './Categories.gql'
+import type { CategorySummary } from './category-tree'
 import { AttributesDocument } from './Catalog.gql'
 import { FacetOverridesEditor } from './FacetOverridesEditor'
 import { sortFacetCandidates, useFacetOverridesDraft } from './facet-overrides-draft'
@@ -94,6 +94,9 @@ import {
   toCategoryValues,
 } from './schemas/category'
 
+type CategoryDetail = CategoryDetailFieldsFragment
+type CategoryFacetOverride = CategoryDetail['facetOverrides'][number]
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function slugify(name: string) {
@@ -108,7 +111,7 @@ function slugify(name: string) {
 function countCategories(cats: CategorySummary[]): number {
   let n = 0
   for (const c of cats) {
-    n += 1 + countCategories(c.children)
+    n += 1 + countCategories(c.children ?? [])
   }
   return n
 }
@@ -120,7 +123,7 @@ function findCategoryAncestors(
 ): string[] | null {
   for (const c of cats) {
     if (c.id === target) return path
-    const found = findCategoryAncestors(c.children, target, [...path, c.id])
+    const found = findCategoryAncestors(c.children ?? [], target, [...path, c.id])
     if (found) return found
   }
   return null
@@ -165,11 +168,11 @@ function flattenTree(
       depth,
       parentId,
       position: cat.position,
-      hasChildren: cat.children.length > 0,
+      hasChildren: !!cat.children?.length,
       expanded,
     })
-    if (expanded && cat.children.length > 0) {
-      result.push(...flattenTree(cat.children, expandedIds, depth + 1, cat.id))
+    if (expanded && cat.children?.length) {
+      result.push(...flattenTree(cat.children ?? [], expandedIds, depth + 1, cat.id))
     }
   }
   return result
@@ -221,7 +224,7 @@ export function CategoriesPage() {
   // When the catalog is a single top-level category with children, start it expanded on load - a lone collapsed root
   // just hides the whole tree behind one click - One-shot (guarded) so it doesn't undo a manual collapse
   const [didAutoExpandRoot, setDidAutoExpandRoot] = useState(false)
-  if (!didAutoExpandRoot && roots.length === 1 && roots[0].children.length > 0) {
+  if (!didAutoExpandRoot && roots.length === 1 && roots[0].children?.length) {
     setDidAutoExpandRoot(true)
     setExpandedIds((prev) => new Set([...prev, roots[0].id]))
   }
@@ -237,7 +240,7 @@ export function CategoriesPage() {
         const self =
           resolveCategoryDisplayName(c).toLowerCase().includes(q) ||
           c.slug.toLowerCase().includes(q)
-        const child = walk(c.children, [...path, c.id])
+        const child = walk(c.children ?? [], [...path, c.id])
         if (self || child) {
           for (const p of path) ids.add(p)
           any = true
@@ -690,7 +693,7 @@ function CategoryRecordForm({
       for (const c of cats) {
         if (c.id === categoryId) continue
         out.push({ id: c.id, label: resolveCategoryDisplayName(c), depth })
-        walk(c.children, depth + 1)
+        walk(c.children ?? [], depth + 1)
       }
     }
     walk(roots, 0)
