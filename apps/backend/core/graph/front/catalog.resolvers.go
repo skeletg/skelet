@@ -200,7 +200,7 @@ func (r *productResolver) Backorderable(ctx context.Context, obj *model.Product)
 	if err != nil {
 		return false, nil
 	}
-	// List surfaces prime this so cards don't each fire an inventory lookup - a product page's group primes on its first miss
+	// List surfaces prime this so cards don't each fire an inventory lookup
 	if v, ok := r.cachedBackorderable(ctx, pid); ok {
 		return v, nil
 	}
@@ -248,7 +248,7 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 	if obj.Kind == model.ProductKindSimple {
 		if link, perr := r.loadConfigurableParentLink(ctx, pid); perr == nil && link.ParentID != uuid.Nil {
 			if parentOpts, poerr := r.loadProductOptions(ctx, link.ParentID); poerr == nil {
-				opts = append(slices.Clone(opts), parentOpts...) // the loader's slice is shared for the request - never sort it in place
+				opts = append(slices.Clone(opts), parentOpts...) // the loader's slice is shared across the request
 				sort.SliceStable(opts, func(i, j int) bool { return opts[i].SortOrder < opts[j].SortOrder })
 			}
 		}
@@ -513,7 +513,6 @@ func (r *queryResolver) Product(ctx context.Context, id string) (*model.Product,
 	if storeID == nil {
 		return nil, catalog.ErrProductNotFound
 	}
-	// Row and name only - every other field resolves when selected
 	p, err := r.CatalogSvc.GetProductHeaderForChannel(ctx, pid, *storeID, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err

@@ -649,6 +649,48 @@ func (q *Queries) GetProductCostsBySKUs(ctx context.Context, skus []string) ([]G
 	return items, nil
 }
 
+const getProductDimensionsBySKUs = `-- name: GetProductDimensionsBySKUs :many
+SELECT sku, weight_grams, length_mm, width_mm, height_mm FROM catalog_products
+WHERE sku = ANY($1::text[])
+`
+
+type GetProductDimensionsBySKUsRow struct {
+	Sku         string        `json:"sku"`
+	WeightGrams sql.NullInt32 `json:"weight_grams"`
+	LengthMm    sql.NullInt32 `json:"length_mm"`
+	WidthMm     sql.NullInt32 `json:"width_mm"`
+	HeightMm    sql.NullInt32 `json:"height_mm"`
+}
+
+func (q *Queries) GetProductDimensionsBySKUs(ctx context.Context, skus []string) ([]GetProductDimensionsBySKUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getProductDimensionsBySKUs, pq.Array(skus))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetProductDimensionsBySKUsRow{}
+	for rows.Next() {
+		var i GetProductDimensionsBySKUsRow
+		if err := rows.Scan(
+			&i.Sku,
+			&i.WeightGrams,
+			&i.LengthMm,
+			&i.WidthMm,
+			&i.HeightMm,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProductTaxClassesBySKUs = `-- name: GetProductTaxClassesBySKUs :many
 SELECT sku, tax_class FROM catalog_products
 WHERE sku = ANY($1::text[])

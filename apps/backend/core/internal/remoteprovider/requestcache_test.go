@@ -70,7 +70,6 @@ func TestARequestReadsItsChannelsProvidersOnce(t *testing.T) {
 		t.Fatalf("a different channel scope is its own read, got %d repo calls", n)
 	}
 
-	// switching a provider off mid-request shows on the next read
 	if _, err := svc.SetActive(ctx, created.Provider.ID, false); err != nil {
 		t.Fatal(err)
 	}

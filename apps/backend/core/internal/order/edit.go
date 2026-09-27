@@ -216,7 +216,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 			}
 		}
 
-		tax := o.TaxAmount
+		tax, shippingTax := o.TaxAmount, o.ShippingTaxAmount
 		var taxLines []TaxLine
 		if s.tax != nil {
 			cc := &checkoutContext{customer: cust, shipping: o.ShippingAddress, store: &store, cart: synthetic, subtotal: subtotal}
@@ -224,7 +224,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 			if err != nil {
 				return err
 			}
-			taxLines = cc.taxLines
+			taxLines, shippingTax = cc.taxLines, cc.shippingTax
 		}
 
 		total := computeOrderTotal(subtotal, discount, tax, shipping, store.TaxInclusivePricing, nil)
@@ -238,7 +238,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 				return fmt.Errorf("add over-tender event: %w", err)
 			}
 		}
-		updated, err = r.UpdateOrderAmounts(ctx, o.ID, subtotal, shipping, discount, tax, total)
+		updated, err = r.UpdateOrderAmounts(ctx, o.ID, OrderAmounts{Subtotal: subtotal, Shipping: shipping, Discount: discount, Tax: tax, ShippingTax: shippingTax, Total: total})
 		if err != nil {
 			return err
 		}
@@ -406,17 +406,17 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 					shipAmount = cents
 				}
 			}
-			tax := o.TaxAmount
+			tax, shippingTax := o.TaxAmount, o.ShippingTaxAmount
 			var taxLines []TaxLine
 			if s.tax != nil {
 				cc := &checkoutContext{customer: cust, shipping: shipping, store: &store, cart: synthetic, subtotal: subtotal}
 				if tax, err = s.computeLineTax(ctx, cc, discount, shipAmount); err != nil {
 					return err
 				}
-				taxLines = cc.taxLines
+				taxLines, shippingTax = cc.taxLines, cc.shippingTax
 			}
 			total := computeOrderTotal(subtotal, discount, tax, shipAmount, store.TaxInclusivePricing, nil)
-			if updated, err = r.UpdateOrderAmounts(ctx, o.ID, subtotal, shipAmount, discount, tax, total); err != nil {
+			if updated, err = r.UpdateOrderAmounts(ctx, o.ID, OrderAmounts{Subtotal: subtotal, Shipping: shipAmount, Discount: discount, Tax: tax, ShippingTax: shippingTax, Total: total}); err != nil {
 				return err
 			}
 			if err := replaceTaxLines(ctx, r, o.ID, taxLines); err != nil {

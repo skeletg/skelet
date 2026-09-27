@@ -1209,7 +1209,6 @@ func (r *postgresRepository) ListProductChildIDsByParentIDs(ctx context.Context,
 	return out, nil
 }
 
-// Bare rows - no attribute graph, content or children
 func (r *postgresRepository) ListProductRowsByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Product, error) {
 	out := make(map[uuid.UUID]Product, len(ids))
 	if len(ids) == 0 {

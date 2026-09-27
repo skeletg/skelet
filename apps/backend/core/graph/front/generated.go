@@ -1075,7 +1075,7 @@ type ComplexityRoot struct {
 		SearchBlogPosts       func(childComplexity int, query string, limit *int32, offset *int32) int
 		SearchProducts        func(childComplexity int, query string, limit *int32, offset *int32) int
 		SharedWishlist        func(childComplexity int, token string) int
-		ShippingQuotes        func(childComplexity int, countryCode string) int
+		ShippingQuotes        func(childComplexity int, countryCode string, cartID *string, regionCode *string, postalCode *string) int
 		SitemapCounts         func(childComplexity int) int
 		SitemapEntries        func(childComplexity int, entityType model1.SitemapEntityType, limit int32, offset int32) int
 		ValidateAddress       func(childComplexity int, street1 string, street2 *string, city string, state *string, postalCode string, countryCode string) int
@@ -1413,7 +1413,7 @@ type QueryResolver interface {
 	SearchBlogPosts(ctx context.Context, query string, limit *int32, offset *int32) (*model1.BlogPostSearchResult, error)
 	MyCart(ctx context.Context) (*model1.Cart, error)
 	Cart(ctx context.Context, id string) (*model1.Cart, error)
-	ShippingQuotes(ctx context.Context, countryCode string) ([]*model1.ShippingQuote, error)
+	ShippingQuotes(ctx context.Context, countryCode string, cartID *string, regionCode *string, postalCode *string) ([]*model1.ShippingQuote, error)
 	PickupLocations(ctx context.Context) ([]*model1.PickupLocation, error)
 	CartEstimate(ctx context.Context, cartID string, countryCode string, regionCode *string) (*model1.CartEstimate, error)
 	FreeShippingThreshold(ctx context.Context, countryCode *string) (int32, error)
@@ -6616,7 +6616,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.ShippingQuotes(childComplexity, args["countryCode"].(string)), true
+		return e.ComplexityRoot.Query.ShippingQuotes(childComplexity, args["countryCode"].(string), args["cartId"].(*string), args["regionCode"].(*string), args["postalCode"].(*string)), true
 	case "Query.sitemapCounts":
 		if e.ComplexityRoot.Query.SitemapCounts == nil {
 			break
@@ -7703,11 +7703,11 @@ input AddBundleToCartInput {
 extend type Query {
   myCart:        Cart!
   cart(id: ID!): Cart
-  # Returns active shipping methods + their computed prices for the cart's storefront and a destination country. Empty list when no zone covers the country (storefront UI shows "delivery not available"). subtotalCents drives free_above thresholds.
-  shippingQuotes(countryCode: String!): [ShippingQuote!]!
+  # Active shipping methods priced for a cart at a destination, the way placement will price them - post-discount subtotal, product weights, region and postal code. cartId names a guest cart; without it a signed-in customer's own cart is used, and no cart at all quotes an empty one. Empty list when nothing covers the destination (storefront UI shows "delivery not available").
+  shippingQuotes(countryCode: String!, cartId: ID, regionCode: String, postalCode: String): [ShippingQuote!]!
   # Collect-in-store points, for rendering the pickup options in shippingQuotes as real stores (address + instructions) instead of bare method names. Empty when click-and-collect is switched off.
   pickupLocations: [PickupLocation!]!
-  # Pre-checkout estimate for a cart at a destination: shipping options + a tax estimate on the post-discount subtotal + an estimated total. Powers the cart's shipping/tax estimator so shoppers see landed cost before checkout.
+  # Pre-checkout estimate for a cart at a destination: shipping options + the tax placement would charge with the cheapest option (goods and shipping, tax classes, customer group and exemption) + an estimated total. Powers the cart's shipping/tax estimator so shoppers see landed cost before checkout.
   cartEstimate(cartId: ID!, countryCode: String!, regionCode: String): CartEstimate!
   # Lowest free-shipping spend threshold (cents) offered to a country, or 0 when none applies. The storefront compares it to the cart subtotal to render a "add $X for free shipping" progress nudge.
   freeShippingThreshold(countryCode: String): Int!
@@ -13637,6 +13637,30 @@ func (ec *executionContext) field_Query_shippingQuotes_args(ctx context.Context,
 		return nil, err
 	}
 	args["countryCode"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "cartId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cartId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "regionCode",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["regionCode"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "postalCode",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["postalCode"] = arg3
 	return args, nil
 }
 
@@ -32222,7 +32246,7 @@ func (ec *executionContext) _Query_shippingQuotes(ctx context.Context, field gra
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().ShippingQuotes(ctx, fc.Args["countryCode"].(string))
+			return ec.Resolvers.Query().ShippingQuotes(ctx, fc.Args["countryCode"].(string), fc.Args["cartId"].(*string), fc.Args["regionCode"].(*string), fc.Args["postalCode"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model1.ShippingQuote) graphql.Marshaler {

@@ -43,7 +43,6 @@ func (l *Loaders) RegisterVariants(parentID uuid.UUID, childIDs []uuid.UUID) {
 	l.RegisterGroup(append([]uuid.UUID{parentID}, childIDs...))
 }
 
-// A list's cards are a group too - a product already in one keeps it
 func (l *Loaders) RegisterGroup(ids []uuid.UUID) {
 	if l == nil || len(ids) < 2 {
 		return

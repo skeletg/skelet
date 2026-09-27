@@ -1567,6 +1567,7 @@ type Order struct {
 	StoreCreditAmount   int64           `json:"store_credit_amount"`
 	PoNumber            sql.NullString  `json:"po_number"`
 	HeldFromStatus      string          `json:"held_from_status"`
+	ShippingTaxAmount   int64           `json:"shipping_tax_amount"`
 }
 
 type OrderEmailLog struct {

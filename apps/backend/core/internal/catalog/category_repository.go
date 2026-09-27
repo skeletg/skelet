@@ -120,7 +120,6 @@ func (r *postgresRepository) ListCategoryChildren(ctx context.Context, parentID 
 	return out, nil
 }
 
-// GetCategoryAncestors returns ancestors ordered root→immediate parent
 func (r *postgresRepository) GetCategoryAncestors(ctx context.Context, id uuid.UUID) ([]Category, error) {
 	rows, err := r.queries.ListCategoryChain(ctx, id)
 	if err != nil {

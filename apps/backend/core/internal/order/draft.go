@@ -174,6 +174,7 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 			SubtotalAmount:      subtotal,
 			DiscountAmount:      discount,
 			TaxAmount:           taxCents,
+			ShippingTaxAmount:   cc.shippingTax,
 			ShippingAmount:      shipSel.Cents,
 			TotalAmount:         total,
 			CurrencyCode:        store.CurrencyCode,

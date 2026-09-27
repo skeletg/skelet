@@ -144,7 +144,7 @@ func toConfigTypeModel(t config.Type) model.ConfigType {
 	return model.ConfigTypeString
 }
 
-// Resolved only when selected - one query per source per request, and a failed source reads as no options
+// A failed source reads as no options
 func (r *Resolver) configOptions(ctx context.Context, obj *model.ConfigValue) []*model.ConfigOption {
 	def, ok := config.Find(obj.Path)
 	if !ok {

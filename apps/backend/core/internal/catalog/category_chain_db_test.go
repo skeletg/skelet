@@ -16,7 +16,7 @@ func TestAncestorsComeBackRootFirstFromOneQuery(t *testing.T) {
 	conn := testdb.Require(t)
 	ctx := context.Background()
 	suffix := uuid.NewString()[:8]
-	ids := make([]uuid.UUID, 3) // root, mid, leaf
+	ids := make([]uuid.UUID, 3)
 	var parent *uuid.UUID
 	for i, name := range []string{"root", "mid", "leaf"} {
 		slug := "chain-" + name + "-" + suffix

@@ -53,7 +53,7 @@ func (r *Resolver) channelListingOf(ctx context.Context, productID uuid.UUID) *c
 	return nil
 }
 
-// Listing override folded with any active scheduled special - the same resolution the cart charges through ResolveSimplePricing
+// Resolved like the cart's ResolveSimplePricing, so the shelf price is the charged price
 func (r *Resolver) productPricing(ctx context.Context, obj *model.Product) (pricing.Resolved, error) {
 	row, err := r.productRowOf(ctx, obj)
 	if err != nil {
@@ -158,7 +158,7 @@ func (r *Resolver) buildAttributeValues(ctx context.Context, obj *model.Product,
 		sels, refs = selsBy[pid], refsBy[pid]
 	}
 	values := buildProductAttributeValues(pt, row.Attributes, sels, r.hydrateProductReferences(ctx, refs))
-	// The pre-filter values are stashed so promotion display rules keep matching private attributes - the response only ever carries the rule's own label
+	// The pre-filter values are stashed so promotion display rules keep matching private attributes
 	r.stashPromotionAttrKVs(ctx, pid, values)
 	opts, err := r.loadConfigurableOptions(ctx, pid)
 	if err != nil {
@@ -198,7 +198,6 @@ func (r *Resolver) promotionAttrKVs(ctx context.Context, obj *model.Product, pid
 	return r.cachedPromotionAttrKVs(ctx, pid)
 }
 
-// Ids only - the rows load when children is selected
 type childVisibility struct {
 	had     bool
 	visible []uuid.UUID

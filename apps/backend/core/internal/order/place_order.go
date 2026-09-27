@@ -32,6 +32,7 @@ type checkoutContext struct {
 	subtotal        int64
 	orderID         uuid.UUID // pre-allocated so pre-tx subscribers can link writes
 	taxLines        []TaxLine // per-rule breakdown from the last computeLineTax call
+	shippingTax     int64
 }
 
 // Loads and validates everything PlaceOrder needs before the tx - customer, addresses, channel country and region enforcement, payment provider, the cart with its ownership checks and subtotal, and a pre-allocated order id
@@ -132,7 +133,7 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 	}, nil
 }
 
-// Strict channels refuse a shipping address the validator marks invalid - a validator outage never blocks, same as the storefront
+// A validator outage never blocks placement, same as the storefront
 func (s *Service) checkStrictAddress(ctx context.Context, channelID uuid.UUID, a OrderAddress) error {
 	if s.addresses == nil || !s.addresses.Strict(ctx, channelID) {
 		return nil
@@ -191,7 +192,7 @@ func (s *Service) resolveCheckoutCart(ctx context.Context, in PlaceOrderInput, s
 
 // Runs the core per-line tax when no plugin claimed the seam - resolves each line's tax class by SKU, distributes the discount across lines, and asks the tax service for the total. totalDiscount floors at zero Also records the per-rule breakdown on cc.taxLines - the engine resolves it anyway, and dropping it left orders with a tax_amount nothing could explain
 func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, totalDiscount, shippingCents int64) (int64, error) {
-	cc.taxLines = nil
+	cc.taxLines, cc.shippingTax = nil, 0
 	// Tax-exempt customers pay zero core tax on every recompute path - a TaxCents plugin is still authoritative, this only gates core
 	if cc.customer.TaxExempt {
 		return 0, nil
@@ -220,6 +221,7 @@ func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, total
 	}
 
 	lines := allocateLineTaxInputs(cc.cart.Lines, cc.subtotal, totalDiscount, classByLine)
+	goods := len(lines)
 	if shippingCents > 0 {
 		class, taxable := "", true
 		if s.shippingTax != nil {
@@ -239,6 +241,9 @@ func (s *Service) computeLineTax(ctx context.Context, cc *checkoutContext, total
 	})
 	if err != nil {
 		return 0, fmt.Errorf("compute tax: %w", err)
+	}
+	if len(res.Lines) > goods {
+		cc.shippingTax = res.Lines[goods].TotalCents
 	}
 	// Sum per rule - the engine works line by line, but the document wants one row per tax
 	byRule := map[uuid.UUID]*TaxLine{}
