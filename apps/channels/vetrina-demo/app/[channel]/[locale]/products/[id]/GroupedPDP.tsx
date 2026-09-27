@@ -20,9 +20,9 @@ import { jumpToOption } from "./focus-intent";
 const GROUPED_ITEMS_ANCHOR = "grouped-items";
 
 const memberAnchorId = (memberId: string) => `grouped-member-${memberId}`;
-import { AddToCartButton } from "./AddToCartButton";
-import { StickyBuyRow } from "./StickyBuyRow";
-import { AddToCartFeedback } from "./AddToCartFeedback";
+import { AddToCartButton } from "@/app/components/product/AddToCartButton";
+import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
+import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";
 import { OptionControl, useConfiguredOptions } from "./ProductOptions";
 import {
   AttributeList,

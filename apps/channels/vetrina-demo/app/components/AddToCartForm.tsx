@@ -6,9 +6,9 @@ import { Link } from "@/app/components/LocaleLink";
 import { addSimpleToCart } from "@/app/lib/cart/actions";
 import { displayName } from "@/app/lib/display";
 import { productHref } from "@/app/lib/entity-href";
-import { AddToCartButton } from "@/app/[channel]/[locale]/products/[id]/AddToCartButton";
-import { StickyBuyRow } from "@/app/[channel]/[locale]/products/[id]/StickyBuyRow";
-import { AddToCartFeedback } from "@/app/[channel]/[locale]/products/[id]/AddToCartFeedback";
+import { AddToCartButton } from "@/app/components/product/AddToCartButton";
+import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
+import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";
 import { deriveQtyBounds } from "./qty";
 import { QtySelector } from "./QtySelector";
 
