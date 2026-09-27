@@ -24,9 +24,9 @@ import { MissingOptionLinks } from "./MissingOptionLinks";
 import { jumpToOption } from "./focus-intent";
 
 const LIST_VARIANT_ANCHOR = "list-variant";
-import { AddToCartButton } from "./AddToCartButton";
-import { StickyBuyRow } from "./StickyBuyRow";
-import { AddToCartFeedback } from "./AddToCartFeedback";
+import { AddToCartButton } from "@/app/components/product/AddToCartButton";
+import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
+import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";
 import { OptionControl, useConfiguredOptions } from "./ProductOptions";
 import {
   AttributeList,

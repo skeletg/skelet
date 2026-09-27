@@ -15,9 +15,9 @@ import { QtySelector } from "@/app/components/QtySelector";
 import { RequiredFlag } from "./RequiredFlag";
 import { MissingOptionLinks } from "./MissingOptionLinks";
 import { jumpToOption } from "./focus-intent";
-import { AddToCartButton } from "./AddToCartButton";
-import { StickyBuyRow } from "./StickyBuyRow";
-import { AddToCartFeedback } from "./AddToCartFeedback";
+import { AddToCartButton } from "@/app/components/product/AddToCartButton";
+import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
+import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";
 import { OptionControl, useConfiguredOptions } from "./ProductOptions";
 import {
   AttributeList,
