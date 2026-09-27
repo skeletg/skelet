@@ -34,6 +34,7 @@ type ResolverRoot interface {
 	Category() CategoryResolver
 	Channel() ChannelResolver
 	Collection() CollectionResolver
+	ConfigValue() ConfigValueResolver
 	Customer() CustomerResolver
 	Mutation() MutationResolver
 	Order() OrderResolver
@@ -1284,6 +1285,9 @@ type ChannelResolver interface {
 }
 type CollectionResolver interface {
 	Products(ctx context.Context, obj *model.Collection) ([]*model.Product, error)
+}
+type ConfigValueResolver interface {
+	Options(ctx context.Context, obj *model.ConfigValue) ([]*model.ConfigOption, error)
 }
 type CustomerResolver interface {
 	Consents(ctx context.Context, obj *model.Customer) ([]*model.CustomerConsent, error)
@@ -20901,7 +20905,7 @@ func (ec *executionContext) _ConfigValue_options(ctx context.Context, field grap
 			return ec.fieldContext_ConfigValue_options(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Options, nil
+			return ec.Resolvers.ConfigValue().Options(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ConfigOption) graphql.Marshaler {
@@ -20915,8 +20919,8 @@ func (ec *executionContext) fieldContext_ConfigValue_options(_ context.Context, 
 	fc = &graphql.FieldContext{
 		Object:     "ConfigValue",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ConfigOption(ctx, field)
 		},
@@ -42147,62 +42151,95 @@ func (ec *executionContext) _ConfigValue(ctx context.Context, sel ast.SelectionS
 		case "path":
 			out.Values[i] = ec._ConfigValue_path(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "section":
 			out.Values[i] = ec._ConfigValue_section(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "group":
 			out.Values[i] = ec._ConfigValue_group(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "field":
 			out.Values[i] = ec._ConfigValue_field(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "type":
 			out.Values[i] = ec._ConfigValue_type(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "value":
 			out.Values[i] = ec._ConfigValue_value(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "label":
 			out.Values[i] = ec._ConfigValue_label(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "public":
 			out.Values[i] = ec._ConfigValue_public(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "isDefault":
 			out.Values[i] = ec._ConfigValue_isDefault(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "scope":
 			out.Values[i] = ec._ConfigValue_scope(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "options":
-			out.Values[i] = ec._ConfigValue_options(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ConfigValue_options(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "updatedAt":
 			out.Values[i] = ec._ConfigValue_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
