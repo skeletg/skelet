@@ -1,13 +1,12 @@
 "use client";
 
 import { Link } from "@/app/components/LocaleLink";
-import { useActionState, useEffect, useTransition } from "react";
+import { useEffect, useTransition } from "react";
 
-import {
-  applyCoupon,
-  removeCouponAction,
-  type CouponActionResult,
-} from "@/app/lib/cart/actions";
+import { FieldErrors } from "@/app/components/account/AccountUI";
+import { applyCoupon, removeCouponAction } from "@/app/lib/cart/actions";
+import { couponSchema } from "@/app/lib/cart/schemas";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
 import { useCartStore } from "@/app/lib/cart/store";
 import type { AppliedPromotionCode } from "@/app/lib/cart/types";
 import { formatPrice } from "@/app/lib/format";
@@ -24,16 +23,20 @@ export function CouponForm({
   currency: string | { code: string; symbol?: string; symbolPosition?: string };
 }) {
   const { applyServerCart } = useCartStore();
-  const [state, action, pending] = useActionState<
-    CouponActionResult | null,
-    FormData
-  >(applyCoupon, null);
+  const {
+    form,
+    fields,
+    formAction,
+    pending,
+    lastResult,
+  } = useActionForm(applyCoupon, couponSchema);
+  const code = fields.code;
 
   // Push a successful apply's returned cart into the store so the summary + line list
   // reflect the new discount instantly (no revalidate)
   useEffect(() => {
-    if (state?.ok) applyServerCart(state.cart);
-  }, [state, applyServerCart]);
+    if (lastResult?.cart !== undefined) applyServerCart(lastResult.cart);
+  }, [lastResult, applyServerCart]);
 
   const buckets = bucketize(appliedCodes);
 
@@ -43,11 +46,22 @@ export function CouponForm({
         Coupons
       </h2>
 
-      <form action={action} className="mt-3 flex gap-2">
+      <form
+        id={form.id}
+        onSubmit={form.onSubmit}
+        action={formAction}
+        noValidate
+        className="mt-3 flex gap-2"
+      >
         <input
           type="text"
-          name="code"
+          key={code.key}
+          name={code.name}
+          defaultValue={code.initialValue ?? ""}
           placeholder="Promo code"
+          aria-label="Promo code"
+          aria-invalid={code.errors ? true : undefined}
+          aria-describedby={code.errors ? code.errorId : undefined}
           autoComplete="off"
           className="flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm tracking-widest uppercase outline-none placeholder:normal-case placeholder:tracking-normal focus:border-ring"
         />
@@ -60,9 +74,9 @@ export function CouponForm({
         </button>
       </form>
 
-      {state && !state.ok ? (
-        <p className="mt-2 text-xs text-destructive">
-          {state.error}
+      {code.errors ? (
+        <p className="mt-2">
+          <FieldErrors id={code.errorId} errors={code.errors} />
         </p>
       ) : null}
 

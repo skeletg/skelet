@@ -20,10 +20,8 @@ export const requiredText = () =>
   z.string({ error: "required" }).trim().min(1, "required");
 
 // Blank becomes null, which is what the GraphQL inputs take for "clear this column"
-export const optionalText = () =>
-  z
-    .string()
-    .trim()
+export const optionalText = (max?: number) =>
+  (max ? z.string().trim().max(max, "tooLong") : z.string().trim())
     .optional()
     .transform((v) => v || null);
 

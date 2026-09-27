@@ -14,7 +14,23 @@
       "profileSaveFailed": "Could not save profile.",
       "addressAddFailed": "Could not add address.",
       "addressSaveFailed": "Could not save address.",
-      "addressIdMissing": "Missing address id."
+      "addressIdMissing": "Missing address id.",
+      "tooLong": "This is too long.",
+      "wholeNumber": "Enter a whole number.",
+      "returnNothingSelected": "Enter a quantity for at least one item.",
+      "returnFailed": "Could not submit the return. Please try again.",
+      "couponRequired": "Enter a code.",
+      "couponNotFound": "That code isn't valid.",
+      "couponInactive": "This promotion is no longer active.",
+      "couponMaxUses": "This code has reached its usage limit.",
+      "couponNotYetValid": "This code isn't valid yet - check back later.",
+      "couponExpired": "This code has expired.",
+      "couponAutoApply": "This code can't be entered manually.",
+      "couponAlreadyUsed": "You've already used this code.",
+      "couponFailed": "Could not apply that code.",
+      "questionTooShort": "Questions need at least 10 characters.",
+      "questionFailed": "Could not submit your question. Please try again.",
+      "reviewFailed": "Could not submit your review. Please try again."
     }
   }
 }

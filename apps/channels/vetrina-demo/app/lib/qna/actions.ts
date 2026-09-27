@@ -2,13 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 
+import { getAccessToken } from "@/app/lib/auth/session";
 import { getProduct } from "@/app/lib/catalog/read";
 import { productHref } from "@/app/lib/entity-href";
+import { parseForm, type FormResult } from "@/app/lib/forms/schema";
+import { replyError } from "@/app/lib/forms/reply";
 import { gqlFetch } from "@/app/lib/graphql";
 import {
   ProductQuestionsDocument,
   SubmitProductQuestionDocument,
 } from "@/app/lib/qna/operations.gql";
+import { askQuestionSchema } from "@/app/lib/qna/schemas";
 
 export type ProductQuestion = {
   id: string;
@@ -33,33 +37,27 @@ export async function getProductQuestions(
   }
 }
 
-export type AskResult = { ok: boolean; error?: string };
-
+// productId arrives bound, like the reset token - the form only carries what the shopper typed
 export async function askQuestionAction(
   productId: string,
+  _prev: FormResult | undefined,
   formData: FormData,
-): Promise<AskResult> {
-  const question = String(formData.get("question") ?? "").trim();
-  const authorName = String(formData.get("authorName") ?? "").trim();
-  const authorEmail = String(formData.get("authorEmail") ?? "").trim();
-  if (question.length < 10) {
-    return { ok: false, error: "Questions need at least 10 characters." };
-  }
+): Promise<FormResult> {
+  const guest = !(await getAccessToken());
+  const submission = parseForm(formData, askQuestionSchema({ guest }));
+  if (submission.status !== "success") return submission.reply();
+  const { question, authorName, authorEmail } = submission.value;
   try {
     await gqlFetch(SubmitProductQuestionDocument, {
       productId,
       question,
       authorName: authorName || null,
-      authorEmail: authorEmail || null,
+      authorEmail: authorEmail ?? null,
     });
-  } catch {
-    return {
-      ok: false,
-      error:
-        "Could not submit your question. Add a display name if you're not signed in, then try again.",
-    };
+  } catch (err) {
+    return replyError(submission, err, "questionFailed");
   }
   const { product } = await getProduct(productId);
   if (product) revalidatePath(productHref(product));
-  return { ok: true };
+  return submission.reply({ resetForm: true });
 }

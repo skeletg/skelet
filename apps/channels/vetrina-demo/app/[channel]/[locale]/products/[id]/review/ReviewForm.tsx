@@ -1,12 +1,15 @@
 "use client";
 
-import { useActionState, useRef, useState, type ChangeEvent } from "react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
 
+import { FieldErrors, FormErrors } from "@/app/components/account/AccountUI";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
 import type { ReviewQuestionWire } from "@/app/lib/reviews/read";
 import {
   requestReviewMediaUploadAction,
   submitReviewAction,
 } from "@/app/lib/reviews/actions";
+import { reviewSchema } from "@/app/lib/reviews/schemas";
 
 type MediaItem =
   | { kind: "uploading"; key: string; filename: string }
@@ -23,7 +26,13 @@ export function ReviewForm({
   // When true, the visitor has no JWT cookie
   isGuest: boolean;
 }) {
-  const [state, formAction, isPending] = useActionState(submitReviewAction, null);
+  const schema = useMemo(() => reviewSchema({ guest: isGuest }), [isGuest]);
+  const {
+    form,
+    fields,
+    formAction,
+    pending: isPending,
+  } = useActionForm(submitReviewAction, schema);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -105,7 +114,13 @@ export function ReviewForm({
     });
 
   return (
-    <form action={formAction} className="mt-6 grid gap-6">
+    <form
+      id={form.id}
+      onSubmit={form.onSubmit}
+      action={formAction}
+      noValidate
+      className="mt-6 grid gap-6"
+    >
       <input type="hidden" name="productId" value={productId} />
       <input type="hidden" name="mediaAssetIds" value={readyAssetIds.join(",")} />
 
@@ -120,7 +135,11 @@ export function ReviewForm({
             </label>
             <input
               id="rv-name"
-              name="guestName"
+              key={fields.guestName.key}
+              name={fields.guestName.name}
+              defaultValue={fields.guestName.initialValue ?? ""}
+              aria-invalid={fields.guestName.errors ? true : undefined}
+              aria-describedby={fields.guestName.errors ? fields.guestName.errorId : undefined}
               type="text"
               required
               maxLength={80}
@@ -128,6 +147,9 @@ export function ReviewForm({
               placeholder="How you want to appear on the review"
               autoComplete="name"
             />
+            {fields.guestName.errors ? (
+              <FieldErrors id={fields.guestName.errorId} errors={fields.guestName.errors} />
+            ) : null}
           </div>
           <div className="grid gap-2">
             <label htmlFor="rv-email" className="text-sm font-medium">
@@ -135,13 +157,20 @@ export function ReviewForm({
             </label>
             <input
               id="rv-email"
-              name="guestEmail"
+              key={fields.guestEmail.key}
+              name={fields.guestEmail.name}
+              defaultValue={fields.guestEmail.initialValue ?? ""}
+              aria-invalid={fields.guestEmail.errors ? true : undefined}
+              aria-describedby={fields.guestEmail.errors ? fields.guestEmail.errorId : undefined}
               type="email"
               maxLength={120}
               className="rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-ring"
               placeholder="We won't show it publicly"
               autoComplete="email"
             />
+            {fields.guestEmail.errors ? (
+              <FieldErrors id={fields.guestEmail.errorId} errors={fields.guestEmail.errors} />
+            ) : null}
           </div>
         </fieldset>
       ) : null}
@@ -152,12 +181,19 @@ export function ReviewForm({
         </label>
         <input
           id="rv-title"
-          name="title"
+          key={fields.title.key}
+          name={fields.title.name}
+          defaultValue={fields.title.initialValue ?? ""}
+          aria-invalid={fields.title.errors ? true : undefined}
+          aria-describedby={fields.title.errors ? fields.title.errorId : undefined}
           type="text"
           maxLength={140}
           className="rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-ring"
           placeholder="Summarise your experience"
         />
+        {fields.title.errors ? (
+          <FieldErrors id={fields.title.errorId} errors={fields.title.errors} />
+        ) : null}
       </fieldset>
 
       <fieldset className="grid gap-2">
@@ -166,11 +202,18 @@ export function ReviewForm({
         </label>
         <textarea
           id="rv-body"
-          name="body"
+          key={fields.body.key}
+          name={fields.body.name}
+          defaultValue={fields.body.initialValue ?? ""}
+          aria-invalid={fields.body.errors ? true : undefined}
+          aria-describedby={fields.body.errors ? fields.body.errorId : undefined}
           rows={4}
           className="rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-ring"
           placeholder="What did you like or dislike?"
         />
+        {fields.body.errors ? (
+          <FieldErrors id={fields.body.errorId} errors={fields.body.errors} />
+        ) : null}
       </fieldset>
 
       {questions.length > 0 ? (
@@ -241,11 +284,7 @@ export function ReviewForm({
         ) : null}
       </fieldset>
 
-      {state && !state.ok ? (
-        <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
-          {state.error}
-        </p>
-      ) : null}
+      <FormErrors errors={form.errors} />
 
       <div className="flex items-center justify-end gap-3">
         {missingRequired.length > 0 ? (

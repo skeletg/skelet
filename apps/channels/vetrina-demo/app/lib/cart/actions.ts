@@ -22,6 +22,8 @@ import {
   UpdateCartLineDocument,
 } from "@/app/lib/cart/mutations.gql";
 import { CART_COOKIE } from "@/app/lib/cart/read";
+import { couponSchema } from "@/app/lib/cart/schemas";
+import { parseForm, type FormResult } from "@/app/lib/forms/schema";
 import { getAccessToken } from "@/app/lib/auth/session";
 import { getCartRecommendations } from "@/app/lib/catalog/read";
 import { getCart } from "@/app/lib/cart/read";
@@ -434,54 +436,57 @@ export async function restoreCartLineAction(
     return { cart: await getCartFull(cartId), error: formatAddError(err) };
   }
 }
-export type CouponActionResult =
-  | { ok: true; cart: Cart | null }
-  | { ok: false; error: string };
+// cart is set only on success - the form pushes it into the store
+export type CouponActionResult = FormResult & { cart?: Cart | null };
 
-// Surface the backend's typed promotion errors as human-readable strings
+// The backend's typed promotion errors as forms.errors keys; an untyped one keeps its own message
 function formatCouponError(err: unknown): string {
   if (err instanceof GraphQLRequestError) {
     const code = err.errors[0]?.extensions?.code;
     switch (code) {
       case "PROMOTION_CODE_NOT_FOUND":
-        return "That code isn't valid.";
+        return "couponNotFound";
       case "PROMOTION_RULE_INACTIVE":
       case "PROMOTION_CODE_INACTIVE":
-        return "This promotion is no longer active.";
+        return "couponInactive";
       case "PROMOTION_RULE_MAX_USES":
       case "PROMOTION_CODE_MAX_USES":
-        return "This code has reached its usage limit.";
+        return "couponMaxUses";
       case "PROMOTION_RULE_NOT_YET_VALID":
       case "PROMOTION_CODE_NOT_YET_VALID":
-        return "This code isn't valid yet - check back later.";
+        return "couponNotYetValid";
       case "PROMOTION_RULE_EXPIRED":
       case "PROMOTION_CODE_EXPIRED":
-        return "This code has expired.";
+        return "couponExpired";
       case "PROMOTION_CODE_ON_AUTO_APPLY_RULE":
-        return "This code can't be entered manually.";
+        return "couponAutoApply";
       case "PROMOTION_PER_CUSTOMER_LIMIT_RULE":
       case "PROMOTION_PER_CUSTOMER_LIMIT_CODE":
-        return "You've already used this code.";
+        return "couponAlreadyUsed";
     }
-    return err.errors[0]?.message ?? "Could not apply that code.";
+    return err.errors[0]?.message ?? "couponFailed";
   }
-  return err instanceof Error ? err.message : "Could not apply that code.";
+  return err instanceof Error ? err.message : "couponFailed";
 }
 
 export async function applyCoupon(
-  _prevState: CouponActionResult | null,
+  _prevState: CouponActionResult | undefined,
   formData: FormData,
 ): Promise<CouponActionResult> {
-  const code = String(formData.get("code") ?? "").trim();
-  if (!code) {
-    return { ok: false, error: "Enter a code." };
-  }
+  const submission = parseForm(formData, couponSchema);
+  if (submission.status !== "success") return submission.reply();
   const cartId = await ensureCartID();
   try {
-    const res = await gqlFetch(ApplyCouponDocument, { cartId, code });
-    return { ok: true, cart: res.data.applyCoupon };
+    const res = await gqlFetch(ApplyCouponDocument, {
+      cartId,
+      code: submission.value.code,
+    });
+    return {
+      ...submission.reply({ resetForm: true }),
+      cart: res.data.applyCoupon,
+    };
   } catch (err) {
-    return { ok: false, error: formatCouponError(err) };
+    return submission.reply({ fieldErrors: { code: [formatCouponError(err)] } });
   }
 }
 
