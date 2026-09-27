@@ -296,12 +296,13 @@ func (s *bundleService) GetBundleOptions(ctx context.Context, productID uuid.UUI
 	productByID := make(map[uuid.UUID]Product)
 	contentByProduct := map[uuid.UUID]ProductContent{}
 	if len(selectedProductIDs) > 0 {
+		if productByID, err = s.repo.ListProductRowsByIDs(ctx, selectedProductIDs); err != nil {
+			return nil, fmt.Errorf("load bundle selection products: %w", err)
+		}
 		for _, pid := range selectedProductIDs {
-			p, err := s.repo.GetProductByID(ctx, pid)
-			if err != nil {
-				return nil, fmt.Errorf("load bundle selection product %s: %w", pid, err)
+			if _, ok := productByID[pid]; !ok {
+				return nil, fmt.Errorf("load bundle selection product %s: %w", pid, ErrProductNotFound)
 			}
-			productByID[pid] = p
 		}
 		contentByProduct, err = s.repo.ListProductContentByScope(ctx, selectedProductIDs, locale) // default-locale fallback fills the gaps below
 		if err != nil {

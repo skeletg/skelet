@@ -475,6 +475,49 @@ func (q *Queries) ListProductOptionsByProductID(ctx context.Context, productID u
 	return items, nil
 }
 
+const listProductOptionsByProductIDs = `-- name: ListProductOptionsByProductIDs :many
+SELECT id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if FROM catalog_product_options
+WHERE product_id = ANY($1::uuid[])
+ORDER BY product_id, sort_order, created_at
+`
+
+func (q *Queries) ListProductOptionsByProductIDs(ctx context.Context, productIds []uuid.UUID) ([]CatalogProductOption, error) {
+	rows, err := q.db.QueryContext(ctx, listProductOptionsByProductIDs, pq.Array(productIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CatalogProductOption{}
+	for rows.Next() {
+		var i CatalogProductOption
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProductID,
+			&i.InputType,
+			&i.IsRequired,
+			&i.SortOrder,
+			&i.PriceValue,
+			&i.PriceType,
+			&i.MaxChars,
+			&i.MaxFileBytes,
+			&i.FileExtensions,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.VisibleIf,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateProductOption = `-- name: UpdateProductOption :one
 UPDATE catalog_product_options
 SET input_type      = $2,
