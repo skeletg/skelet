@@ -28,8 +28,8 @@ between the two.
 | `./skelet db migrate <up\|down> [N]` | Run DB migrations |
 | `./skelet cli <args>` | Run the Cobra CLI inside the app container (`-it` only when stdin is a tty, so CI works) |
 | `./skelet psql` | psql shell into the dev database |
-| `./skelet npm dashboard <args>` | Run an npm command inside `apps/dashboard/` (e.g. `./skelet npm dashboard run dev`, `./skelet npm dashboard install`) |
-| `./skelet npm <name> <args>` | Run an npm command inside a storefront container under `apps/channels/` (e.g. `./skelet npm vetrina-demo run build`, `./skelet npm vetrina-demo run codegen`). Exec's into the running container when the stack is up; otherwise spins up a one-shot. |
+| `./skelet pnpm dashboard <args>` | Run a pnpm command inside `apps/dashboard/` (e.g. `./skelet pnpm dashboard run dev`, `./skelet pnpm dashboard install`) |
+| `./skelet pnpm <name> <args>` | Run a pnpm command inside a storefront container under `apps/channels/` (e.g. `./skelet pnpm vetrina-demo run build`, `./skelet pnpm vetrina-demo run codegen`). Exec's into the running container when the stack is up; otherwise spins up a one-shot. |
 | `./skelet gen [--check]` | Regenerate everything: sqlc → gqlgen admin → gqlgen front → dashboard codegen. Pre-flights `/health` before the dashboard step. `--check` exits non-zero if any generated file changed (used by the pre-commit hook). Storefront codegen IS wired in - every storefront under `apps/channels/` gets its TS docs regenerated (skipped for apps deselected via ./skelet setup). |
 | `./skelet test [pkgs] [--keep] [--no-frontend]` | Backend `go test` against disposable `skelet_test` / `skelet_test_signals` databases (fresh each run, `--keep` reuses them) + dashboard/storefront typechecks + both apps' vitest suites. Each Go module ends with a pass/fail/skip tally. Args after the flags forward to `go test`. |
 | `./skelet lint` | gofmt + golangci-lint + dashboard ESLint |
@@ -112,7 +112,7 @@ Where the frontends run is your choice, recorded in `.skelet-apps`. Listed
 there, `./skelet up` starts them in Docker on <http://localhost:5173> and
 <http://localhost:3000>; left out, they stay on the host and `./skelet serve
 dashboard` runs one - the default, because the dev server and the gates then
-share one `node_modules`. Either way `./skelet npm dashboard` / `./skelet npm` run npm against
+share one `node_modules`. Either way `./skelet pnpm dashboard` / `./skelet pnpm` run pnpm against
 whichever tree is live. Every command is documented in [scripts.md](scripts.md).
 
 ## Codegen flow
@@ -129,10 +129,10 @@ dashboard, so treat every schema/query change as "must regenerate":
    `./skelet gen` to do both surfaces). Schema files are paired with
    resolver files by name - `cart.graphqls` ↔ `cart.resolvers.go`.
 3. **`*.graphql` in `apps/dashboard/src/features/<domain>/`** →
-   `./skelet npm dashboard run codegen` (backend must be running - codegen fetches
+   `./skelet pnpm dashboard run codegen` (backend must be running - codegen fetches
    the live admin schema over HTTP).
 4. **`*.graphql` in `apps/channels/vetrina-demo/app/`** →
-   `./skelet npm <name> run codegen` (backend must be running - codegen
+   `./skelet pnpm <name> run codegen` (backend must be running - codegen
    fetches the live front schema at `app:8080/api/front/graphql`).
 
 `./skelet gen` runs all four, discovering storefronts from
@@ -210,6 +210,31 @@ Both answers are saved per-clone in the git-ignored `.skelet-profile`; re-run
 `./skelet setup --apps ...` then `./skelet down && ./skelet up` to change them. Selecting an app
 again restores its source.
 
+### pnpm
+
+The frontends install with pnpm, one project per app - each has its own
+`pnpm-lock.yaml` and a `pnpm-workspace.yaml` holding its settings (overrides, and which
+dependency install scripts may run). A host app needs the pnpm version its
+`packageManager` field pins: `corepack enable`, or `npm install -g pnpm@<version>`, or
+`pnpm self-update <version>` over an older one. `./skelet doctor` checks it from inside an
+app, because that is where pnpm switches itself to the pinned version - and on Windows a
+10.x switching itself to 12 has been seen to leave a pnpm that won't start, which
+`self-update` fixes.
+
+A clone from before the switch to pnpm needs two things done once:
+
+- **Host apps**: the old npm `node_modules` has to go - `./skelet setup` replaces it, and
+  `./skelet pnpm` and `./skelet serve` refuse to run on it with the command to use.
+- **Docker apps**: Docker fills a named volume from the image only while the volume is
+  empty, so the container keeps serving the old npm tree after a rebuild. Drop the volume
+  and rebuild:
+
+  ```bash
+  docker compose rm -sf dashboard vetrina-demo
+  docker volume rm skelet_dashboard-node-modules skelet_vetrina-demo-node-modules
+  ./skelet up --build
+  ```
+
 For the smallest possible backend-only clone, skipping even the *download* of the
 frontends' file history:
 
@@ -246,7 +271,7 @@ By hand:
    it from your working tree via sparse-checkout *without committing a deletion*,
    so upstream updates to the demo never conflict with your clone.
 That's the whole list. Everything else follows the directory: `./skelet up`,
-`./skelet npm`, `./skelet gen` and `./skelet release` all discover storefronts from
+`./skelet pnpm`, `./skelet gen` and `./skelet release` all discover storefronts from
 `apps/channels/`, CI derives its typecheck, test, audit and image-build matrices
 the same way, and Renovate finds your `package.json` and `Dockerfile` on its own.
 A shop that lands in the tree is gated like the demo without touching a workflow
