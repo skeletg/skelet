@@ -268,3 +268,57 @@ func TestRegisterPluginRefusesMalformedSlugs(t *testing.T) {
 		})
 	}
 }
+
+func TestSemverRefusesSignsAndLeadingZeros(t *testing.T) {
+	for _, in := range []string{"+1.2.3", "1.02.3", "01.2.3", "1.2.-3", "1..3"} {
+		if _, err := parseSemver(in); err == nil {
+			t.Errorf("parseSemver(%q) accepted a malformed version", in)
+		}
+	}
+	if _, err := parseSemver("10.0.0"); err != nil {
+		t.Errorf("parseSemver(10.0.0): %v", err)
+	}
+}
+
+func TestAMisspelledFailurePolicyFailsBoot(t *testing.T) {
+	m := Manifest{Slug: "fraud", Version: "0.1.0", SDKRange: "^0.2.0", FailurePolicy: "fail-closed"}
+	if err := validateManifestStatic(m); err == nil {
+		t.Fatal("a FailurePolicy typo was accepted - it would silently mean fail-open")
+	}
+	m.FailurePolicy = FailClosed
+	if err := validateManifestStatic(m); err != nil {
+		t.Fatalf("FailClosed: %v", err)
+	}
+}
+
+func TestEachEventNameHasOneSender(t *testing.T) {
+	core := map[string]struct{}{"order.placed": {}}
+	for name, tc := range map[string]struct {
+		manifests []Manifest
+		want      string
+	}{
+		"a core name": {[]Manifest{{Slug: "a", Version: "0.1.0", SDKRange: "^0.2.0", Emits: []string{"order.placed"}}}, "core event"},
+		"two plugins, one name": {[]Manifest{
+			{Slug: "a", Version: "0.1.0", SDKRange: "^0.2.0", Emits: []string{"company.created"}},
+			{Slug: "b", Version: "0.1.0", SDKRange: "^0.2.0", Emits: []string{"company.created"}},
+		}, "both emit"},
+		"its own names": {[]Manifest{{Slug: "a", Version: "0.1.0", SDKRange: "^0.2.0", Emits: []string{"company.created"}}}, ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			bySlug := map[string]Manifest{}
+			for _, m := range tc.manifests {
+				bySlug[m.Slug] = m
+			}
+			err := ValidateManifestSet("0.2.2", tc.manifests, bySlug, core)
+			if tc.want == "" {
+				if err != nil {
+					t.Fatalf("rejected a plugin's own event: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want one mentioning %q", err, tc.want)
+			}
+		})
+	}
+}

@@ -350,6 +350,9 @@ func TestSubscribeAsync_DoubleSetEventBusPanics(t *testing.T) {
 // Package-private - production code never resets
 func resetHostForTest() {
 	installedHost.Store(nil)
+	ownersMu.Lock()
+	subscriptions = map[string]map[string]struct{}{}
+	ownersMu.Unlock()
 }
 
 // Fails the test when wg doesn't complete within timeout

@@ -62,6 +62,11 @@ func (h *Host) CreateDraftOrder(ctx context.Context, req sdk.DraftOrderRequest) 
 	if err != nil {
 		return sdk.DraftOrderResult{}, fmt.Errorf("load customer: %w", err)
 	}
+	// The fence core's own draft resolver applies - customers belong to one store, so a draft on another would bill
+	// that store's order to a stranger's addresses. Enforced here so a plugin cannot forget it, like ReadCart's
+	if cust.ChannelID != req.ChannelID {
+		return sdk.DraftOrderResult{}, sdk.Invalid("the customer is not on this store")
+	}
 	billing, shipping, err := defaultAddresses(cust)
 	if err != nil {
 		return sdk.DraftOrderResult{}, err

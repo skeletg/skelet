@@ -7,7 +7,7 @@ import (
 )
 
 // Post-commit reaction, handed the event pre-marshaled so the plugin decodes into its own shape without importing internal/* event types
-// Errors are logged and dropped - async is fire-and-forget, and one plugin's failure can't touch other subscribers or the originating operation
+// Under SubscribeAsync an error or a panic is logged and dropped, with no retry - one plugin's failure can't touch other subscribers or the originating operation. Work that must not be lost goes through SubscribeAsyncOnce
 type AsyncHandler func(ctx context.Context, payload json.RawMessage) error
 
 // Pre-commit participation, handed the LIVE event value rather than a copy so exported fields can be mutated and the change flows into the emitting service
@@ -48,17 +48,20 @@ type DedupKeyFunc func(payload json.RawMessage) (string, error)
 
 // SubscribeAsyncOnce is SubscribeAsync with at-most-once delivery per key: the outbox redelivers
 // events at-least-once, and this claims a durable marker before the handler runs so a replay of
-// an already-processed key is skipped - a handler ERROR releases the claim and the next replay
-// retries; a crash between claim and completion loses that one key, the narrow window the
-// simpler contract accepts
-// Degrades to plain SubscribeAsync on a host with no dedup store wired
+// an already-processed key is skipped
+// A handler error or panic releases the claim and hands the event back to the outbox, which
+// redelivers it - so this is the subscription for work that must eventually happen, like
+// releasing a hold. Only durable (outbox-relayed) events are redelivered; a fire-and-forget one
+// logs the failure. A crash between claim and completion loses that one key, the narrow window
+// the simpler contract accepts
+// Without a dedup store the handler runs on every delivery, retries included
 func (pl *Plugin) SubscribeAsyncOnce(eventType string, key DedupKeyFunc, handler AsyncHandler) {
 	withHost(func(h Host) error { return h.SubscribeAsyncOnce(pl.slug, eventType, key, handler) })
 }
 
 // priority orders the chain low-to-high, ties keeping registration order - use it to sequence several plugins, e.g. validate at 100, enrich at 200, final-check at 300
 // Mutation through a pointer field on the event is the deliberate seam for altering core behaviour without forking, and returning an error is how a plugin vetoes an operation outright
-// A disabled plugin is skipped (nil, operation continues unmodified) rather than aborting, and sync handlers get NO timeout - they run under the caller's deadline, because cutting one mid-mutation is worse than letting it finish
+// A disabled plugin is skipped (nil, operation continues unmodified) rather than aborting - a handler that must keep refusing while the plugin is off registers with SubscribeSyncAlways instead - and sync handlers get NO timeout - they run under the caller's deadline, because cutting one mid-mutation is worse than letting it finish
 //
 // This is the only place plugins are expected to import internal/* - pointer mutation costs structural coupling to the emitting domain's event shape, so a rename there breaks the plugin at compile time, which is the failure mode we want:
 //
@@ -74,4 +77,24 @@ func (pl *Plugin) SubscribeAsyncOnce(eventType string, key DedupKeyFunc, handler
 //	})
 func (pl *Plugin) SubscribeSync(eventType string, priority int, handler SyncHandler) {
 	withHost(func(h Host) error { return h.SubscribeSync(pl.slug, eventType, priority, handler) })
+}
+
+// SubscribeSyncAlways is SubscribeSync for a veto that has to hold while the plugin is switched off -
+// the host runs it whether or not the kill switch is on, so it reads IsEnabled itself and decides
+// A credit check is the case: skipped, the order it exists to refuse would place unreserved
+// Panics at registration on a host that cannot run one, since silently falling back to a skippable
+// handler is exactly the gap this closes
+func (pl *Plugin) SubscribeSyncAlways(eventType string, priority int, handler SyncHandler) {
+	withHost(func(h Host) error {
+		ah, ok := h.(AlwaysSyncHost)
+		if !ok {
+			return fmt.Errorf("plugin %s: this host cannot run a sync handler regardless of the kill switch (SubscribeSyncAlways %s)", pl.slug, eventType)
+		}
+		return ah.SubscribeSyncAlways(pl.slug, eventType, priority, handler)
+	})
+}
+
+// What a host implements to support SubscribeSyncAlways - a separate interface so adding it didn't change Host
+type AlwaysSyncHost interface {
+	SubscribeSyncAlways(pluginSlug, eventType string, priority int, handler SyncHandler) error
 }
