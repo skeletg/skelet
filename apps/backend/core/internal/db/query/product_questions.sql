@@ -5,9 +5,9 @@ RETURNING *;
 
 -- name: ListPublishedQuestions :many
 SELECT * FROM product_questions
-WHERE  product_id = $1 AND status = 'published'
+WHERE  product_id = $1 AND channel_id = $2 AND status = 'published'
 ORDER  BY answered_at DESC NULLS LAST, created_at DESC
-LIMIT  $2;
+LIMIT  $3;
 
 -- name: ListQuestionsForModeration :many
 SELECT * FROM product_questions

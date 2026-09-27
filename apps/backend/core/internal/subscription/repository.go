@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 type postgresRepository struct {
@@ -26,9 +27,9 @@ func (r *postgresRepository) WithTx(tx *sql.Tx) Repository {
 
 func (r *postgresRepository) Create(ctx context.Context, in StartInput) (Subscription, error) {
 	row, err := r.queries.CreateSubscription(ctx, db.CreateSubscriptionParams{
-		CustomerID:         nullableUUID(in.CustomerID),
+		CustomerID:         sqlnull.UUID(in.CustomerID),
 		ProductID:          in.ProductID,
-		OrderID:            nullableUUID(in.OrderID),
+		OrderID:            sqlnull.UUID(in.OrderID),
 		IntervalUnit:       in.IntervalUnit,
 		IntervalCount:      in.IntervalCount,
 		Price:              in.Price,
@@ -39,7 +40,7 @@ func (r *postgresRepository) Create(ctx context.Context, in StartInput) (Subscri
 		CurrentPeriodStart: in.CurrentPeriodStart,
 		CurrentPeriodEnd:   in.CurrentPeriodEnd,
 		NextBillingAt:      in.NextBillingAt,
-		ChannelID:          nullableUUID(in.ChannelID),
+		ChannelID:          sqlnull.UUID(in.ChannelID),
 	})
 	if err != nil {
 		return Subscription{}, fmt.Errorf("create subscription: %w", err)
@@ -129,7 +130,7 @@ func (r *postgresRepository) SetStatus(ctx context.Context, id uuid.UUID, status
 	row, err := r.queries.SetSubscriptionStatus(ctx, db.SetSubscriptionStatusParams{
 		ID:         id,
 		Status:     status,
-		CanceledAt: nullableTime(canceledAt),
+		CanceledAt: sqlnull.Time(canceledAt),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -241,17 +242,9 @@ func toInvoice(row db.SubscriptionInvoice) Invoice {
 		AttemptCount:     row.AttemptCount,
 		FailureReason:    row.FailureReason,
 		PaymentReference: row.PaymentReference,
-		NextAttemptAt:    nullTimePtr(row.NextAttemptAt),
-		PaidAt:           nullTimePtr(row.PaidAt),
+		NextAttemptAt:    sqlnull.TimePtr(row.NextAttemptAt),
+		PaidAt:           sqlnull.TimePtr(row.PaidAt),
 	}
-}
-
-func nullTimePtr(t sql.NullTime) *time.Time {
-	if !t.Valid {
-		return nil
-	}
-	v := t.Time
-	return &v
 }
 
 func (r *postgresRepository) ListChargeableInvoices(ctx context.Context, now time.Time, limit int32) ([]Invoice, error) {
@@ -292,24 +285,10 @@ func (r *postgresRepository) RecordInvoiceAttempt(ctx context.Context, id uuid.U
 func (r *postgresRepository) SetPaymentMethod(ctx context.Context, id uuid.UUID, paymentMethodID *uuid.UUID) (Subscription, error) {
 	row, err := r.queries.SetSubscriptionPaymentMethod(ctx, db.SetSubscriptionPaymentMethodParams{
 		ID:              id,
-		PaymentMethodID: nullableUUID(paymentMethodID),
+		PaymentMethodID: sqlnull.UUID(paymentMethodID),
 	})
 	if err != nil {
 		return Subscription{}, fmt.Errorf("set subscription payment method: %w", err)
 	}
 	return toSubscription(row), nil
-}
-
-func nullableUUID(p *uuid.UUID) uuid.NullUUID {
-	if p == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *p, Valid: true}
-}
-
-func nullableTime(p *time.Time) sql.NullTime {
-	if p == nil {
-		return sql.NullTime{}
-	}
-	return sql.NullTime{Time: *p, Valid: true}
 }

@@ -47,6 +47,7 @@ var Jobs = fx.Module("jobs", fx.Provide(newJobScheduler))
 type jobDeps struct {
 	fx.In
 
+	Lc      fx.Lifecycle
 	Ctx     RootContext
 	Wcfg    Config
 	Queries *db.Queries
@@ -88,16 +89,22 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 	const engineTickBudget = 45 * time.Second
 	signalsJob := func(name, spec, desc string, h scheduler.HandlerFunc) {
 		if bool(d.SignalsEnabled) {
-			jobScheduler.Register(name, spec, desc, h)
+			jobScheduler.RegisterWithTimeout(name, spec, desc, signalsJobTimeout(name), h)
 		}
 	}
 	// The suite performs these on request, so they exist only where there is a suite to ask - a nil client would fail every tick and alert on each one
 	retentionJob := func(name, spec, desc string, h scheduler.HandlerFunc) {
 		if d.SignalsClient != nil {
-			jobScheduler.Register(name, spec, desc, h)
+			jobScheduler.RegisterWithTimeout(name, spec, desc, signalsJobTimeout(name), h)
 		}
 	}
 	jobScheduler.SetPollInterval(15 * time.Second)
+	if d.SignalsClient != nil && bool(d.SignalsEnabled) {
+		d.Lc.Append(fx.Hook{OnStart: func(context.Context) error {
+			go resyncRosterIfBehind(bootCtx, d.SignalsClient, jobScheduler)
+			return nil
+		}})
+	}
 	schedCfg := scheduler.NewConfig(d.Config) // Global pause switch + failure-alert webhook (config-backed)
 	jobScheduler.SetConfig(schedCfg)
 	jobScheduler.Register("scheduler-history-prune", "@every 24h", "Delete scheduled-job run history past the retention window.",
@@ -227,89 +234,19 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 		})
 	signalsJob("cart-abandonment", "@every 5m", "Enrol customers with idle non-empty carts into active abandoned-cart flows.",
 		func(ctx context.Context) error {
-			mins, _ := d.Config.GetInt(ctx, "outreach/triggers/abandoned_cart_minutes", config.DefaultScope)
-			maxAgeH, _ := d.Config.GetInt(ctx, "outreach/triggers/abandoned_cart_max_age_hours", config.DefaultScope)
-			if mins <= 0 {
-				mins = 60
-			}
-			if maxAgeH <= 0 {
-				maxAgeH = 72
-			}
-			now := time.Now()
-			carts, err := d.Cart.ListAbandoned(ctx, now.Add(-time.Duration(mins)*time.Minute), now.Add(-time.Duration(maxAgeH)*time.Hour), 500)
+			channels, err := activeChannelIDs(ctx, d.Channel)
 			if err != nil {
 				return err
 			}
-			// A cart is stamped told only once the suite answered for it - the rest wait for the next tick
-			done := make([]uuid.UUID, 0, len(carts))
-			var unreached error
-			for _, c := range carts {
-				if err := d.Flows.OnCartAbandoned(ctx, c.ChannelID, c.CustomerID, c.Email, c.ID, c.LastActivity); err != nil {
-					unreached = err
-					break
-				}
-				done = append(done, c.ID)
-			}
-			if err := d.Cart.MarkAbandonedNotified(ctx, done); err != nil {
-				return err
-			}
-			return unreached
+			return runCartAbandonment(ctx, channels, d.Config, d.Cart, d.Flows, time.Now())
 		})
 	signalsJob("browse-abandonment", "@every 15m", "Enrol customers who browsed products without carting or buying into browse-abandonment flows.",
 		func(ctx context.Context) error {
-			mins, _ := d.Config.GetInt(ctx, "outreach/triggers/browse_abandoned_minutes", config.DefaultScope)
-			maxAgeH, _ := d.Config.GetInt(ctx, "outreach/triggers/browse_abandoned_max_age_hours", config.DefaultScope)
-			if mins <= 0 {
-				mins = 120
-			}
-			if maxAgeH <= 0 {
-				maxAgeH = 48
-			}
-			now := time.Now()
-			// Lens says who browsed and went quiet; whether they then carted or bought is commerce's to answer,
-			// so ask for ten times the enrolment and let the exclusion eat into the buffer
-			const enrol = 500
-			cands, err := d.SignalsClient.BrowseAbandoners(ctx, now.Add(-time.Duration(mins)*time.Minute), now.Add(-time.Duration(maxAgeH)*time.Hour), enrol*10)
+			channels, err := activeChannelIDs(ctx, d.Channel)
 			if err != nil {
 				return err
 			}
-			if len(cands) == 0 {
-				return nil
-			}
-			ids := make([]uuid.UUID, len(cands))
-			ats := make([]time.Time, len(cands))
-			for i, c := range cands {
-				ids[i], ats[i] = c.CustomerID, c.LastBrowseAt
-			}
-			excludedRows, err := d.Queries.BrowseAbandonersExcluded(ctx, db.BrowseAbandonersExcludedParams{CustomerIds: ids, BrowseAts: ats})
-			if err != nil {
-				return err
-			}
-			excluded := make(map[uuid.UUID]bool, len(excludedRows))
-			for _, id := range excludedRows {
-				excluded[id] = true
-			}
-			sent := 0
-			for _, b := range cands {
-				if excluded[b.CustomerID] {
-					// Answered for, so mark it told or the same rows fill every tick until the window ages out
-					if err := d.SignalsClient.MarkBrowseNotified(ctx, b.ChannelID, b.CustomerID, b.LastBrowseAt); err != nil {
-						return err
-					}
-					continue
-				}
-				// Marked told only on an answer, for the same reason the carts are
-				if err := d.Flows.OnBrowseAbandoned(ctx, b.ChannelID, b.CustomerID, b.PageKey, b.Sku, b.ProductName, b.ProductImage, b.LastBrowseAt); err != nil {
-					return err
-				}
-				if err := d.SignalsClient.MarkBrowseNotified(ctx, b.ChannelID, b.CustomerID, b.LastBrowseAt); err != nil {
-					return err
-				}
-				if sent++; sent >= enrol {
-					break
-				}
-			}
-			return nil
+			return runBrowseAbandonment(ctx, channels, d.Config, d.SignalsClient, d.Queries, d.Flows, time.Now())
 		})
 	// Postgres has no TTL, so the auth-token fallback tables need sweeping - always registered - expiry is enforced on read anyway, this just reclaims space and no-ops when Valkey holds the tokens (tables stay empty)
 	jobScheduler.Register("auth-token-prune", "@every 1h", "Delete expired rows from the Postgres auth-token fallback tables (no-op when Valkey is configured).",
@@ -363,19 +300,19 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 		})
 	// Core owns channels, so core pushes them - the suite's beacon surface resolves every request against its copy
 	// Often, because a channel switched on or retired only takes effect on the next push
-	signalsJob("channel-roster-push", "@every 5m", "Push core's active channels to Signals, which its beacon surface resolves every request against.",
+	signalsJob("channel-roster-push", "@every 5m", "Push core's channels and whether each is active to Signals, which its beacon surface resolves every request against.",
 		func(ctx context.Context) error { return PushChannelRoster(ctx, d.Channel, d.Config, d.SignalsClient) })
 	// Core owns customers, so core pushes them - the suite sweeps what the stream did not carry, which is the cascade a foreign key cannot give it across two databases
 	signalsJob("customer-roster-push", "@every 6h", "Stream core's customer list to Signals, so its trait and membership cleanup can tell a deleted customer from an absent one.",
 		func(ctx context.Context) error {
 			const page = 5000
-			var off int32
+			var after uuid.UUID
 			next := func() (signalsclient.RosterPage, bool, error) {
-				rows, err := d.Queries.CustomerRosterForSync(ctx, db.CustomerRosterForSyncParams{Lim: page, Off: off})
+				rows, err := d.Queries.CustomerRosterForSync(ctx, db.CustomerRosterForSyncParams{After: after, Lim: page})
 				if err != nil || len(rows) == 0 {
 					return signalsclient.RosterPage{}, false, err
 				}
-				off += page
+				after = rows[len(rows)-1].CustomerID
 				out := signalsclient.RosterPage{Customers: make([]signalsclient.RosterCustomer, len(rows))}
 				for i, c := range rows {
 					out.Customers[i] = signalsclient.RosterCustomer{
@@ -383,7 +320,10 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 						FirstName: c.FirstName, Phone: c.Phone, IsActive: c.IsActive,
 						GroupID:          uuid.NullUUID{UUID: c.CustomerGroupID, Valid: c.CustomerGroupID != uuid.Nil},
 						GroupSlug:        c.CustomerGroupSlug,
-						MarketingOptedIn: c.MarketingOptedIn, SMSOptedIn: c.SmsOptedIn,
+						Consents:         signalsclient.ConsentsFromJSON(c.Consents),
+						MarketingOptedIn: c.MarketingOptedIn, SMSOptedIn: c.SmsOptedIn, ReadAt: c.ReadAt,
+						OrderCount: c.OrderCount, MonetaryCents: c.MonetaryCents,
+						FirstOrderAt: signalsclient.TimeFromAny(c.FirstOrderAt), LastOrderAt: signalsclient.TimeFromAny(c.LastOrderAt),
 					}
 				}
 				return out, true, nil
@@ -456,21 +396,21 @@ func notifyPluginAsyncFailures(ctx context.Context, n *notification.Service) err
 	return errors.Join(errs...)
 }
 
-// PushChannelRoster hands the suite every channel core actively runs, leaving the inactive ones out
+// PushChannelRoster hands the suite every channel core has, flagged active or not - one left out reads as deleted there, and takes its Pulse content with it
 // The identity fields come from the config registry, so a message sent from the suite still looks like it came from the shop
 func PushChannelRoster(ctx context.Context, chans *channel.Service, cfg *config.Service, client *signalsclient.Client) error {
 	all, err := chans.List(ctx)
 	if err != nil {
 		return err
 	}
-	active := make([]signalsclient.ChannelEntry, 0, len(all))
+	if len(all) == 0 {
+		return nil // a shop always has its default channel, so an empty read is a fault, and pushing it would wipe every channel's content
+	}
+	entries := make([]signalsclient.ChannelEntry, 0, len(all))
 	for _, ch := range all {
-		if !ch.IsActive {
-			continue
-		}
 		id := ch.ID
 		scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &id}
-		entry := signalsclient.ChannelEntry{ID: ch.ID, IsDefault: ch.IsDefault, Name: ch.Name, PublicURL: ch.PublicURL}
+		entry := signalsclient.ChannelEntry{ID: ch.ID, IsDefault: ch.IsDefault, IsActive: ch.IsActive, Name: ch.Name, PublicURL: ch.PublicURL}
 		if cfg != nil {
 			// general/branding/store_name is the customer-facing name a mail prints; channels.name is the
 			// operator's internal label ("US Wholesale B2B"), which is what the setting exists to keep out of one
@@ -481,10 +421,35 @@ func PushChannelRoster(ctx context.Context, chans *channel.Service, cfg *config.
 			entry.FromName, _ = cfg.GetString(ctx, "general/contact/email_from_name", scope)
 			entry.LogoURL, _ = cfg.GetString(ctx, "general/branding/logo_url", scope)
 		}
-		active = append(active, entry)
+		entries = append(entries, entry)
 	}
-	if _, _, err := client.PushChannels(ctx, active); err != nil {
+	if _, _, err := client.PushChannels(ctx, entries); err != nil {
 		return err
 	}
 	return nil
+}
+
+// A roster migration on the suite's side leaves every row short a column until a full sweep lands - asked once at boot, so a deploy fixes itself instead of waiting for the six-hourly job
+func resyncRosterIfBehind(ctx context.Context, client *signalsclient.Client, jobs *scheduler.Service) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	behind, err := client.RosterNeedsFullSync(ctx)
+	if err != nil {
+		log.Printf("[roster] status: %v", err)
+		return
+	}
+	if !behind {
+		return
+	}
+	if err := jobs.RunNowByName(ctx, "customer-roster-push"); err != nil {
+		log.Printf("[roster] full sync requested but could not be scheduled: %v", err)
+	}
+}
+
+func signalsJobTimeout(name string) time.Duration {
+	switch name {
+	case "trait-compute", "segment-refresh", "synapse-segment-refresh":
+		return 30 * time.Minute
+	}
+	return 0
 }

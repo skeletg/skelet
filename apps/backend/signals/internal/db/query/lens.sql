@@ -60,9 +60,10 @@ LIMIT sqlc.arg(lim);
 -- Bot / crawler analytics (rollup-backed) -------------------------------------
 -- Counts are coalesced in-process into analytics_traffic_rollup - dashboards read the rollup and never raw events, so query cost is bounded
 
--- name: UpsertTrafficRollup :exec
+-- name: UpsertTrafficRollups :exec
+-- One flush window in one statement, the arrays parallel - the window's keys are distinct, so no row is hit twice
 INSERT INTO analytics_traffic_rollup (channel_id, day, kind, bot_name, bot_category, page_key, hits, last_seen)
-VALUES (sqlc.arg(channel_id), sqlc.arg(day), sqlc.arg(kind), sqlc.arg(bot_name), sqlc.arg(bot_category), sqlc.arg(page_key), sqlc.arg(hits), sqlc.arg(last_seen))
+SELECT unnest(sqlc.arg(channel_ids)::uuid[]), unnest(sqlc.arg(days)::date[]), unnest(sqlc.arg(kinds)::text[]), unnest(sqlc.arg(bot_names)::text[]), unnest(sqlc.arg(bot_categories)::text[]), unnest(sqlc.arg(page_keys)::text[]), unnest(sqlc.arg(hits)::bigint[]), unnest(sqlc.arg(last_seens)::timestamptz[])
 ON CONFLICT (channel_id, day, kind, bot_name, bot_category, page_key)
 DO UPDATE SET hits      = analytics_traffic_rollup.hits + EXCLUDED.hits,
               last_seen = GREATEST(analytics_traffic_rollup.last_seen, EXCLUDED.last_seen);
@@ -116,15 +117,15 @@ ORDER BY day;
 
 -- Lens hub rollup writes (coalesced + flushed by the traffic-rollup buffer) ----
 
--- name: UpsertLensDaily :exec
+-- name: UpsertLensDailies :exec
 INSERT INTO lens_traffic_daily (channel_id, day, dim, key, views)
-VALUES (sqlc.arg(channel_id), sqlc.arg(day), sqlc.arg(dim), sqlc.arg(key), sqlc.arg(views))
+SELECT unnest(sqlc.arg(channel_ids)::uuid[]), unnest(sqlc.arg(days)::date[]), unnest(sqlc.arg(dims)::text[]), unnest(sqlc.arg(keys)::text[]), unnest(sqlc.arg(views)::bigint[])
 ON CONFLICT (channel_id, day, dim, key)
 DO UPDATE SET views = lens_traffic_daily.views + EXCLUDED.views;
 
--- name: UpsertLensVisitor :exec
+-- name: UpsertLensVisitors :exec
 INSERT INTO lens_visitor_seen (channel_id, anon_id, last_seen)
-VALUES (sqlc.arg(channel_id), sqlc.arg(anon_id), sqlc.arg(last_seen))
+SELECT unnest(sqlc.arg(channel_ids)::uuid[]), unnest(sqlc.arg(anon_ids)::text[]), unnest(sqlc.arg(last_seens)::timestamptz[])
 ON CONFLICT (channel_id, anon_id)
 DO UPDATE SET last_seen = GREATEST(lens_visitor_seen.last_seen, EXCLUDED.last_seen);
 
@@ -174,9 +175,10 @@ SELECT blob_key FROM lens_page_snapshots WHERE last_seen_at < sqlc.arg(before);
 -- name: LensPruneStaleSnapshots :execrows
 DELETE FROM lens_page_snapshots WHERE last_seen_at < sqlc.arg(before);
 
--- name: LensUpsertSession :exec
+-- name: LensUpsertSession :execrows
 -- Roll a flush's metadata onto the session row - the first chunk inserts, later ones bump last_event_at, event_count and exit_page
 -- started_at stays the earliest seen, and customer_id fills once the visitor is known
+-- A flush naming another channel's or another visitor's session id touches nothing, so the caller drops its chunk
 INSERT INTO lens_sessions (
     id, channel_id, anon_id, customer_id, started_at, last_event_at,
     event_count, entry_page, exit_page, user_agent, viewport
@@ -190,7 +192,8 @@ ON CONFLICT (id) DO UPDATE SET
     started_at    = LEAST(lens_sessions.started_at, EXCLUDED.started_at),
     last_event_at = GREATEST(lens_sessions.last_event_at, EXCLUDED.last_event_at),
     event_count   = lens_sessions.event_count + EXCLUDED.event_count,
-    exit_page     = EXCLUDED.exit_page;
+    exit_page     = EXCLUDED.exit_page
+WHERE lens_sessions.channel_id = EXCLUDED.channel_id AND lens_sessions.anon_id = EXCLUDED.anon_id;
 
 -- name: LensBumpSessionSignal :exec
 -- Increment the matching per-session UX-signal counter (kind = rage|dead|error)
@@ -199,7 +202,7 @@ UPDATE lens_sessions SET
     rage_count  = rage_count  + (CASE WHEN sqlc.arg(kind)::text = 'rage'  THEN 1 ELSE 0 END),
     dead_count  = dead_count  + (CASE WHEN sqlc.arg(kind)::text = 'dead'  THEN 1 ELSE 0 END),
     error_count = error_count + (CASE WHEN sqlc.arg(kind)::text = 'error' THEN 1 ELSE 0 END)
-WHERE id = sqlc.arg(id);
+WHERE id = sqlc.arg(id) AND channel_id = sqlc.arg(channel_id);
 
 -- name: LensInsertChunk :exec
 -- blob_key names the gzip bytes in object storage
@@ -212,7 +215,8 @@ ON CONFLICT (session_id, seq) DO NOTHING;
 -- recorded under any anon id they later identified with (pre-login coverage).
 SELECT id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, viewport, user_agent, rage_count, error_count
 FROM lens_sessions
-WHERE customer_id = sqlc.arg(customer_id) OR anon_id = ANY(sqlc.arg(anon_ids)::text[])
+WHERE (customer_id = sqlc.arg(customer_id) OR anon_id = ANY(sqlc.arg(anon_ids)::text[]))
+  AND (sqlc.arg(all_channels)::boolean OR channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
 ORDER BY started_at DESC
 LIMIT sqlc.arg(lim);
 
@@ -220,6 +224,7 @@ LIMIT sqlc.arg(lim);
 SELECT id, anon_id, customer_id, started_at, last_event_at, event_count, entry_page, exit_page, viewport, user_agent, rage_count, error_count
 FROM lens_sessions
 WHERE anon_id = sqlc.arg(anon_id)
+  AND (sqlc.arg(all_channels)::boolean OR channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
 ORDER BY started_at DESC
 LIMIT sqlc.arg(lim);
 

@@ -56,7 +56,7 @@ type core struct {
 	bus           *events.Bus
 	// categoryTreeCache stores the assembled per-(store,locale) category tree used by the storefront's header navigation - Reads dominate writes (every storefront page); admin publish/unpublish/edit/move drops the namespace via invalidateCategoryTreeCache - Nil disables caching
 	categoryTreeCache *cache.Cache
-	// channelPathCache memoizes per-channel pretty-URL → product-id resolution (listingService.ResolveProductIDForChannelPath - the storefront catch-all route) - Bounded TTL, no explicit invalidation - Nil disables
+	// channelPathCache memoizes per-channel pretty-URL → product-id resolution (listingService.ResolveProductIDForChannelPath - the storefront catch-all route) - dropped when a listing changes its override - Nil disables
 	channelPathCache *cache.Cache
 }
 
@@ -226,12 +226,11 @@ func (s *core) createRenameRedirect(ctx context.Context, oldPath, entityType str
 	}
 }
 
-// invalidateCategoryTreeCache drops every cached storefront category tree - Called from every category-mutation entry point so the next storefront page sees the change - Wildcard wipe is cheap - entries are keyed by (store × locale) and the namespace is small
 func (s *core) invalidateCategoryTreeCache(ctx context.Context) {
 	if s.categoryTreeCache == nil {
 		return
 	}
-	s.categoryTreeCache.DelPattern(ctx, "*")
+	s.categoryTreeCache.Flush(ctx)
 }
 
 // resolveDefaultLocale returns the configured global default locale code, or "" when no provider is wired or the lookup fails - Reads use this to fall back; writes use it to enforce the default-row-must-exist invariant

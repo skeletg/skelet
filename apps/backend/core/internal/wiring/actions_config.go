@@ -13,11 +13,12 @@ import (
 // Mirrors `bin/cli config orphans / prune`
 func registerConfigActions(svc *config.Service) {
 	action.Register(action.Definition{
-		Slug:        "config.orphans",
-		Name:        "List orphaned config rows",
-		Description: "Returns DB rows whose paths are no longer in the registry. Safe (read-only).",
-		Group:       "Configuration",
-		Permission:  "config.manage",
+		Slug:                    "config.orphans",
+		Name:                    "List orphaned config rows",
+		Description:             "Returns DB rows whose paths are no longer in the registry. Safe (read-only).",
+		Group:                   "Configuration",
+		Permission:              "config.manage",
+		RequireGlobalPermission: true,
 		Handler: func(ctx context.Context, _ action.Args) (action.Result, error) {
 			orphans, err := svc.ListOrphans(ctx)
 			if err != nil {
@@ -44,6 +45,8 @@ func registerConfigActions(svc *config.Service) {
 		Description: "Deletes DB rows whose paths are no longer in the registry. Destructive - cannot be undone.",
 		Group:       "Configuration",
 		Permission:  "config.manage",
+		// Orphans span every channel's values
+		RequireGlobalPermission: true,
 		Handler: func(ctx context.Context, _ action.Args) (action.Result, error) {
 			n, err := svc.Prune(ctx)
 			if err != nil {

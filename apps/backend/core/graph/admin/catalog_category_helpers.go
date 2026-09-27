@@ -61,11 +61,6 @@ func toCategoryModel(c catalog.Category) *model.Category {
 		cc := c.AllContent[0]
 		m.Name = &cc.Name
 	}
-	products := make([]*model.Product, len(c.Products))
-	for i, p := range c.Products {
-		products[i] = toProductBaseModel(p, nil, nil, nil, nil, nil, nil, nil)
-	}
-	m.Products = products
 
 	if c.Content != nil {
 		m.Name = &c.Content.Name

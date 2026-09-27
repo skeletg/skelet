@@ -19,6 +19,38 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
 )
 
+func (r *categoryResolver) Products(ctx context.Context, obj *model.Category) ([]*model.Product, error) {
+	cid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, invalidID("category")
+	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil || nestedMembership(ctx) {
+		return []*model.Product{}, nil
+	}
+	products, err := r.CatalogSvc.ListProductsByCategory(ctx, cid, r.activeLocale(ctx), membershipFetch)
+	if err != nil {
+		return nil, err
+	}
+	return r.renderMemberProducts(ctx, products, *storeID)
+}
+
+func (r *collectionResolver) Products(ctx context.Context, obj *model.Collection) ([]*model.Product, error) {
+	cid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, invalidID("collection")
+	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil || nestedMembership(ctx) {
+		return []*model.Product{}, nil
+	}
+	products, err := r.CatalogSvc.ListProductsByCollection(ctx, cid, r.activeLocale(ctx), membershipFetch)
+	if err != nil {
+		return nil, err
+	}
+	return r.renderMemberProducts(ctx, products, *storeID)
+}
+
 // Sellable means salable > 0 OR backorderable - the second branch unblocks "tracked, threshold set, no physical stock yet, backorderable=true" from sitting at inStock=false forever, which would disable Add to cart and keep the customer from ever reaching checkout, where Reserve does allow the backorder
 func (r *productResolver) InStock(ctx context.Context, obj *model.Product, channelID *string) (bool, error) {
 	pid, err := uuid.Parse(obj.ID)
@@ -407,7 +439,7 @@ func (r *queryResolver) Product(ctx context.Context, id string) (*model.Product,
 	if err != nil {
 		return nil, err
 	}
-	p.Collections = cols[pid]
+	p.Collections = publishedCollections(cols[pid])
 	cats, err := r.CatalogSvc.ListCategoriesByProductIDs(ctx, []uuid.UUID{pid}, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err
@@ -459,10 +491,14 @@ func (r *queryResolver) Product(ctx context.Context, id string) (*model.Product,
 }
 
 func (r *queryResolver) Collections(ctx context.Context) ([]*model.Collection, error) {
+	if channelIDFromContext(ctx) == nil {
+		return []*model.Collection{}, nil
+	}
 	collections, err := r.CatalogSvc.ListCollections(ctx, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err
 	}
+	collections = publishedCollections(collections)
 	out := make([]*model.Collection, len(collections))
 	for i, c := range collections {
 		out[i] = toCollectionModel(c)
@@ -476,83 +512,27 @@ func (r *queryResolver) Collection(ctx context.Context, id string) (*model.Colle
 	if err != nil {
 		return nil, invalidID("collection")
 	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return nil, catalog.ErrCollectionNotFound
+	}
 	locale := r.activeLocale(ctx)
 	c, err := r.CatalogSvc.GetCollection(ctx, cid, locale)
 	if err != nil {
 		return nil, err
 	}
-	products, err := r.CatalogSvc.ListProductsByCollection(ctx, cid, locale)
-	if err != nil {
-		return nil, err
+	if !c.IsPublished {
+		return nil, catalog.ErrCollectionNotFound
 	}
-	// Same publication gate the top-level Products query applies - with no store in context (admin playground, introspection) the broader "every globally-published product" behaviour applies
-	if storeID := channelIDFromContext(ctx); storeID != nil && len(products) > 0 {
-		ids := make([]uuid.UUID, len(products))
-		for i, p := range products {
-			ids[i] = p.ID
-		}
-		visible, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, *storeID)
-		if err != nil {
-			return nil, err
-		}
-		kept := products[:0]
-		for _, p := range products {
-			if _, ok := visible[p.ID]; ok {
-				kept = append(kept, p)
-			}
-		}
-		products = kept
-	}
-	out := toCollectionModel(c)
-	if len(products) > 0 {
-		ids := make([]uuid.UUID, len(products))
-		for i, p := range products {
-			ids[i] = p.ID
-		}
-		// Primes salable, backorderable, listings, review aggregates and locale values so each card's field resolvers read the render cache instead of one query per product
-		var chID uuid.UUID
-		if s := channelIDFromContext(ctx); s != nil {
-			chID = *s
-		}
-		r.primeProductCards(ctx, ids, chID)
-		// Batched media + role maps so each card resolves mainImage on the same render, with no per-product follow-up
-		mediaByID, err := r.CatalogSvc.ListProductMediaByProductIDs(ctx, ids)
-		if err != nil {
-			return nil, err
-		}
-		rolesByID, err := r.CatalogSvc.ListProductMediaRolesByProductIDs(ctx, ids)
-		if err != nil {
-			return nil, err
-		}
-		rendered := make([]*model.Product, len(products))
-		for i, p := range products {
-			p.MediaRoles = rolesByID[p.ID]
-			mediaItems := mediaByID[p.ID]
-			mediaList := make([]*model.ProductMedia, len(mediaItems))
-			for j, m := range mediaItems {
-				mediaList[j] = toProductMediaModel(m)
-			}
-			rendered[i] = toProductBaseModel(p, nil, nil, nil, mediaList, nil, nil, nil, nil)
-		}
-		out.Products = rendered
-	}
-	return out, nil
+	return toCollectionModel(c), nil
 }
 
-// With a channel in scope only categories listed-and-published on that store come back - without one (admin, cross-store browsing) every globally-published root does
 func (r *queryResolver) RootCategories(ctx context.Context) ([]*model.Category, error) {
-	if storeID := channelIDFromContext(ctx); storeID != nil {
-		cats, err := r.CatalogSvc.ListPublishedRootCategoriesForChannel(ctx, *storeID, r.activeLocale(ctx))
-		if err != nil {
-			return nil, err
-		}
-		out := make([]*model.Category, len(cats))
-		for i, c := range cats {
-			out[i] = toCategoryModel(c)
-		}
-		return out, nil
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return []*model.Category{}, nil
 	}
-	cats, err := r.CatalogSvc.ListRootCategories(ctx, r.activeLocale(ctx))
+	cats, err := r.CatalogSvc.ListPublishedRootCategoriesForChannel(ctx, *storeID, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -570,25 +550,18 @@ func (r *queryResolver) CategoryChildren(ctx context.Context, parentID string) (
 	if err != nil {
 		return nil, invalidID("category")
 	}
-	if storeID := channelIDFromContext(ctx); storeID != nil {
-		visible, err := r.CatalogSvc.FilterFullyVisibleCategoryIDsForChannel(ctx, []uuid.UUID{pid}, *storeID)
-		if err != nil {
-			return nil, err
-		}
-		if _, ok := visible[pid]; !ok {
-			return []*model.Category{}, nil
-		}
-		cats, err := r.CatalogSvc.ListPublishedCategoryChildrenForChannel(ctx, *storeID, pid, r.activeLocale(ctx))
-		if err != nil {
-			return nil, err
-		}
-		out := make([]*model.Category, len(cats))
-		for i, c := range cats {
-			out[i] = toCategoryModel(c)
-		}
-		return out, nil
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return []*model.Category{}, nil
 	}
-	cats, err := r.CatalogSvc.ListCategoryChildren(ctx, pid, r.activeLocale(ctx))
+	visible, err := r.CatalogSvc.FilterFullyVisibleCategoryIDsForChannel(ctx, []uuid.UUID{pid}, *storeID)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := visible[pid]; !ok {
+		return []*model.Category{}, nil
+	}
+	cats, err := r.CatalogSvc.ListPublishedCategoryChildrenForChannel(ctx, *storeID, pid, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -606,12 +579,11 @@ func (r *queryResolver) Category(ctx context.Context, id string) (*model.Categor
 	if err != nil {
 		return nil, invalidID("category")
 	}
-	var c catalog.Category
-	if storeID := channelIDFromContext(ctx); storeID != nil {
-		c, err = r.CatalogSvc.GetPublishedCategoryForChannel(ctx, *storeID, cid, r.activeLocale(ctx))
-	} else {
-		c, err = r.CatalogSvc.GetCategory(ctx, cid, r.activeLocale(ctx))
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return nil, catalog.ErrCategoryNotFound
 	}
+	c, err := r.CatalogSvc.GetPublishedCategoryForChannel(ctx, *storeID, cid, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -620,7 +592,7 @@ func (r *queryResolver) Category(ctx context.Context, id string) (*model.Categor
 		return nil, err
 	}
 	// {cid} alone would do - the CTE re-walks parent_id from cid itself - but ancestors ride along in case the ancestor service ever back-fills a synthetic chain, and the query already deduplicates by origin
-	if storeID := channelIDFromContext(ctx); storeID != nil {
+	{
 		chainIDs := make([]uuid.UUID, 0, 1+len(ancestors))
 		chainIDs = append(chainIDs, cid)
 		for _, a := range ancestors {
@@ -634,47 +606,12 @@ func (r *queryResolver) Category(ctx context.Context, id string) (*model.Categor
 			return nil, catalog.ErrCategoryNotFound
 		}
 	}
-	var children []catalog.Category
-	if storeID := channelIDFromContext(ctx); storeID != nil {
-		children, err = r.CatalogSvc.ListPublishedCategoryChildrenForChannel(ctx, *storeID, cid, r.activeLocale(ctx))
-	} else {
-		children, err = r.CatalogSvc.ListCategoryChildren(ctx, cid, r.activeLocale(ctx))
-	}
+	children, err := r.CatalogSvc.ListPublishedCategoryChildrenForChannel(ctx, *storeID, cid, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err
 	}
 	c.Ancestors = ancestors
 	c.Children = children
-	// The category passed its own publication gate, but membership comes from a global join with no channel awareness - without this re-filter a product unpublished on this store still shows up
-	if storeID := channelIDFromContext(ctx); storeID != nil && len(c.Products) > 0 {
-		ids := make([]uuid.UUID, len(c.Products))
-		for i, p := range c.Products {
-			ids[i] = p.ID
-		}
-		visible, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, *storeID)
-		if err != nil {
-			return nil, err
-		}
-		kept := c.Products[:0]
-		for _, p := range c.Products {
-			if _, ok := visible[p.ID]; ok {
-				kept = append(kept, p)
-			}
-		}
-		c.Products = kept
-	}
-	// Primed so the category's cards don't each fire salable/backorderable/listing lookups - this is a core PLP surface
-	if len(c.Products) > 0 {
-		ids := make([]uuid.UUID, len(c.Products))
-		for i, p := range c.Products {
-			ids[i] = p.ID
-		}
-		var chID uuid.UUID
-		if s := channelIDFromContext(ctx); s != nil {
-			chID = *s
-		}
-		r.primeProductCards(ctx, ids, chID)
-	}
 	return toCategoryModel(c), nil
 }
 
@@ -912,7 +849,7 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 	}
 	items := make([]*model.Product, 0, len(products))
 	for _, p := range products {
-		p.Collections = collectionsByProduct[p.ID]
+		p.Collections = publishedCollections(collectionsByProduct[p.ID])
 		p.Categories = categoriesByProduct[p.ID]
 		p.PrimaryCategory = primaryCategoryByProduct[p.ID]
 		m, err := r.renderProduct(ctx, p, mediaByProduct[p.ID])
@@ -992,11 +929,17 @@ func (r *queryResolver) ProductSortOptions(ctx context.Context) ([]*model1.Produ
 	return out, nil
 }
 
+func (r *Resolver) Category() CategoryResolver { return &categoryResolver{r} }
+
+func (r *Resolver) Collection() CollectionResolver { return &collectionResolver{r} }
+
 func (r *Resolver) Product() ProductResolver { return &productResolver{r} }
 
 func (r *Resolver) ProductMedia() ProductMediaResolver { return &productMediaResolver{r} }
 
 type (
+	categoryResolver     struct{ *Resolver }
+	collectionResolver   struct{ *Resolver }
 	productResolver      struct{ *Resolver }
 	productMediaResolver struct{ *Resolver }
 )

@@ -8,11 +8,11 @@
 // Async because which locale is "default" is channel data from the backend, not a constant. The
 // fetch is react-cached, so this costs nothing after the first call in a render
 
-import { getChannelLocales } from "@/app/lib/locale/backend-locales";
+import { getCurrentChannelLocales } from "@/app/lib/locale/read";
 
 export async function withLocalePrefix(path: string, locale: string): Promise<string> {
   const base = path.startsWith("/") ? path : "/" + path;
-  const { codes, defaultLocale } = await getChannelLocales();
+  const { codes, defaultLocale } = await getCurrentChannelLocales();
   if (!locale || locale === defaultLocale) return base;
   if (codes.length > 0 && !codes.includes(locale)) return base;
   // Already prefixed - don't stack another one

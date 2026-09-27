@@ -1,11 +1,13 @@
 package campaign
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log"
-	"math/rand"
+	"slices"
 	"strings"
 	"time"
 
@@ -39,7 +41,7 @@ type Service struct {
 	suppress suppressionChecker
 }
 
-type suppressionChecker interface { // the slice of the suppression service the send loop needs - an interface so the dependency stays optional, nil meaning no suppression, and is wired through a setter
+type suppressionChecker interface { // the slice of the suppression service the send loop needs
 	IsSuppressed(ctx context.Context, email string) bool
 	SuppressedSet(ctx context.Context, emails []string) map[string]bool // one query for a whole recipient page, keyed by the caller's original email strings
 	Suppress(ctx context.Context, email, reason, detail string) error
@@ -61,11 +63,9 @@ type segmentAudience interface {
 }
 
 // unsubKey signs unsubscribe and tracking links, the same key core verifies them with
-func NewService(repo Repository, tmpl *emailtemplate.Service, contacts audienceReader, segments segmentAudience, stores storeReader, cfg *config.Service, sender email.Sender, recorder sendTracker, unsubKey []byte) *Service {
-	return &Service{repo: repo, tmpl: tmpl, contacts: contacts, segments: segments, stores: stores, config: cfg, sender: sender, recorder: recorder, track: emailtrack.NewSigner(unsubKey)}
+func NewService(repo Repository, tmpl *emailtemplate.Service, contacts audienceReader, segments segmentAudience, stores storeReader, cfg *config.Service, sender email.Sender, recorder sendTracker, suppress suppressionChecker, unsubKey []byte) *Service {
+	return &Service{repo: repo, tmpl: tmpl, contacts: contacts, segments: segments, stores: stores, config: cfg, sender: sender, recorder: recorder, suppress: suppress, track: emailtrack.NewSigner(unsubKey)}
 }
-
-func (s *Service) SetSuppression(sc suppressionChecker) { s.suppress = sc } // optional - leaving it unset means no suppression
 
 // Turns a send failure into a suppression signal when auto-suppress is on - a permanent 5xx SMTP rejection hard-suppresses the address, a transient one accrues toward the soft-bounce threshold, and unknown errors like timeouts and resets are ignored since they aren't a verdict on the address (this is the out-of-the-box feedback loop for pure-SMTP setups, a provider webhook supplies richer signals)
 func (s *Service) captureBounce(ctx context.Context, addr string, sendErr error) {
@@ -156,9 +156,27 @@ func (s *Service) validate(in Input) error {
 	return s.tmpl.ValidateContent(in.Blocks, in.Styles)
 }
 
+// A campaign sends only a library email of its own channel - another channel's would carry that store's content and branding
+func (s *Service) libraryEmail(ctx context.Context, channelID uuid.UUID, emailID *uuid.UUID) (*emailtemplate.LibraryEmail, error) {
+	if emailID == nil {
+		return nil, nil
+	}
+	le, ok, err := s.tmpl.GetLibraryEmail(ctx, *emailID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok || le.ChannelID != channelID {
+		return nil, fmt.Errorf("library email %s not found", *emailID)
+	}
+	return &le, nil
+}
+
 func (s *Service) Create(ctx context.Context, in Input) (Campaign, error) {
 	in.normalizeAB()
 	if err := s.validate(in); err != nil {
+		return Campaign{}, err
+	}
+	if _, err := s.libraryEmail(ctx, in.ChannelID, in.EmailID); err != nil {
 		return Campaign{}, err
 	}
 	return s.repo.Create(ctx, Campaign{
@@ -172,6 +190,9 @@ func (s *Service) Create(ctx context.Context, in Input) (Campaign, error) {
 func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (Campaign, error) {
 	in.normalizeAB()
 	if err := s.validate(in); err != nil {
+		return Campaign{}, err
+	}
+	if _, err := s.libraryEmail(ctx, in.ChannelID, in.EmailID); err != nil {
 		return Campaign{}, err
 	}
 	ok, err := s.repo.Update(ctx, Campaign{
@@ -321,6 +342,10 @@ func (s *Service) ProcessDue(ctx context.Context) error {
 	return err
 }
 
+func (s *Service) PruneRecipients(ctx context.Context, before time.Time) (int64, error) {
+	return s.repo.PruneSentRecipients(ctx, before)
+}
+
 // Drain leases and materializes what is due, then runs send passes until nothing is pending or the budget is spent
 // Answers how many recipient rows the passes handled - a pass that errored ends the drain, the next tick retries
 func (s *Service) Drain(ctx context.Context, budget time.Duration) (int, error) {
@@ -334,16 +359,18 @@ func (s *Service) Drain(ctx context.Context, budget time.Duration) (int, error) 
 		if err != nil {
 			return 0, err
 		}
-		for _, c := range claimed {
-			if err := s.materialize(ctx, c); err != nil {
-				log.Printf("[campaign] materialize %s: %v", c.ID, err)
-				errs = append(errs, fmt.Errorf("materialize %s: %w", c.ID, err))
-			}
-		}
+		s.materializeAll(ctx, claimed, &errs)
 		if len(claimed) < claimLimit || !more() {
 			break // a claim that came back short has nothing behind it
 		}
 	}
+	// Audiences an earlier tick never finished writing stay out of the send passes until complete
+	unfinished, err := s.repo.ListUnmaterialized(ctx)
+	if err != nil {
+		return 0, err
+	}
+	s.materializeAll(ctx, unfinished, &errs)
+	materializeErrs := len(errs) // reported, but they don't cut the other campaigns' passes short
 	total := 0
 	for {
 		sending, err := s.repo.ListSending(ctx)
@@ -358,55 +385,67 @@ func (s *Service) Drain(ctx context.Context, budget time.Duration) (int, error) 
 				log.Printf("[campaign] send %s: %v", c.ID, err)
 				errs = append(errs, fmt.Errorf("send %s: %w", c.ID, err))
 			}
+			if budget > 0 && !more() {
+				return total + handled, errors.Join(errs...) // the rest lead the next pass, having advanced least recently
+			}
 		}
 		total += handled
-		if handled == 0 || len(errs) > 0 || !more() {
+		if handled == 0 || len(errs) > materializeErrs || !more() {
 			return total, errors.Join(errs...)
 		}
 	}
 }
 
-func (s *Service) materialize(ctx context.Context, c Campaign) error { // snapshots the audience into pending recipient rows - idempotent, skipping when already materialized, so a resumed campaign isn't re-expanded
-	n, err := s.repo.CountRecipients(ctx, c.ID)
-	if err != nil {
-		return err
-	}
-	if n > 0 {
+var recipientInsertBatch = 1000
+
+// A run cut off partway leaves the campaign unmarked, and the next one writes the whole audience again
+func (s *Service) materialize(ctx context.Context, c Campaign) error {
+	if c.MaterializedAt != nil {
 		return nil
 	}
 	cands, err := s.resolveAudience(ctx, c.ChannelID, c.AudienceKind, c.AudienceID)
 	if err != nil {
 		return err
 	}
+	rows := make([]NewRecipient, len(cands))
+	for i, cand := range cands {
+		rows[i] = NewRecipient{CustomerID: cand.customerID, Email: cand.email, FirstName: cand.firstName, Phase: PhaseSend}
+	}
 	if c.ABEnabled && len(cands) >= 2 { // carve a test slice for the A/B split and hold the rest back for whichever subject wins
-		rand.Shuffle(len(cands), func(i, j int) { cands[i], cands[j] = cands[j], cands[i] }) // resolveAudience returns creation-time order, so shuffling keeps the test slice from skewing to the oldest customers
-		testN := min(
-			max(len(cands)*c.ABTestPercent/100,
-
-				2), len(cands)) // floor of 2 - a meaningful test needs at least one recipient per variant
-		for i, cand := range cands {
-			id := cand.customerID
-			variant, phase := "", PhaseHoldout
+		// Ordered by a per-customer hash, so a restarted materialization deals nearly the same test slice even if the roster moved
+		rank := func(id uuid.UUID) uint64 {
+			h := fnv.New64a()
+			h.Write(c.ID[:])
+			h.Write(id[:])
+			return h.Sum64()
+		}
+		slices.SortFunc(rows, func(a, b NewRecipient) int { return cmp.Compare(rank(a.CustomerID), rank(b.CustomerID)) })
+		testN := min(max(len(rows)*c.ABTestPercent/100, 2), len(rows)) // floor of 2 - a meaningful test needs at least one recipient per variant
+		for i := range rows {
+			rows[i].Phase = PhaseHoldout
 			if i < testN {
-				phase = PhaseTest
-				variant = VariantA
+				rows[i].Phase, rows[i].Variant = PhaseTest, VariantA
 				if i%2 == 1 {
-					variant = VariantB
+					rows[i].Variant = VariantB
 				}
 			}
-			if err := s.repo.InsertRecipient(ctx, c.ID, &id, cand.email, cand.firstName, variant, phase); err != nil {
-				return err
-			}
 		}
-		return s.repo.SetTotal(ctx, c.ID, int32(len(cands)))
 	}
-	for _, cand := range cands {
-		id := cand.customerID
-		if err := s.repo.InsertRecipient(ctx, c.ID, &id, cand.email, cand.firstName, "", PhaseSend); err != nil {
+	for start := 0; start < len(rows); start += recipientInsertBatch {
+		if err := s.repo.InsertRecipients(ctx, c.ID, rows[start:min(start+recipientInsertBatch, len(rows))]); err != nil {
 			return err
 		}
 	}
-	return s.repo.SetTotal(ctx, c.ID, int32(len(cands)))
+	return s.repo.MarkMaterialized(ctx, c.ID)
+}
+
+func (s *Service) materializeAll(ctx context.Context, campaigns []Campaign, errs *[]error) {
+	for _, c := range campaigns {
+		if err := s.materialize(ctx, c); err != nil {
+			log.Printf("[campaign] materialize %s: %v", c.ID, err)
+			*errs = append(*errs, fmt.Errorf("materialize %s: %w", c.ID, err))
+		}
+	}
 }
 
 // send is one pass over a campaign's pending recipients, capped at perRunSendCap - answers how many rows it handled, skips and failures included
@@ -415,19 +454,24 @@ func (s *Service) send(ctx context.Context, c Campaign) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	if !ch.Active {
+		return 0, s.repo.RefreshCounts(ctx, c.ID) // held, and moved behind the campaigns that can send
+	}
 	from := s.fromAddress(ch)
-	var libEmail *emailtemplate.LibraryEmail // resolved ONCE for the whole send - every recipient renders the same template and only the merge vars differ, so a per-recipient round-trip buys nothing
-	if c.EmailID != nil {
-		le, ok, gerr := s.tmpl.GetLibraryEmail(ctx, *c.EmailID)
-		if gerr != nil {
-			return 0, gerr
-		}
-		if !ok {
-			return 0, fmt.Errorf("library email %s not found", *c.EmailID)
-		}
-		libEmail = &le
+	libEmail, err := s.libraryEmail(ctx, c.ChannelID, c.EmailID) // resolved ONCE for the whole send - every recipient renders the same template and only the merge vars differ, so a per-recipient round-trip buys nothing
+	if err != nil {
+		return 0, err
 	}
 	sent := 0
+	var delivered, failed, skipped int // this pass's outcomes, added to the campaign's rollup once at the end
+	recounted := false                 // a full recount already includes them
+	defer func() {
+		if !recounted && delivered+failed+skipped > 0 {
+			if err := s.repo.AddCounts(ctx, c.ID, delivered, failed, skipped); err != nil {
+				log.Printf("[campaign] add counts %s: %v", c.ID, err) // the recount at the next state change repairs it
+			}
+		}
+	}()
 	for sent < perRunSendCap {
 		batch, err := s.repo.ListPending(ctx, c.ID, 100)
 		if err != nil {
@@ -461,12 +505,16 @@ func (s *Service) send(ctx context.Context, c Campaign) (int, error) {
 			if r.CustomerID != nil && !optedIn[*r.CustomerID] { // re-checked at send time so an unsubscribe since scheduling is honored
 				if err := s.repo.MarkSkipped(ctx, r.ID, "not opted in to marketing email"); err != nil {
 					log.Printf("[campaign] mark skipped (consent) %s: %v", r.ID, err) // a dropped skip leaves the row pending, so the next tick re-evaluates it forever and the campaign never drains
+				} else {
+					skipped++
 				}
 				continue
 			}
 			if suppressed[r.Email] { // deliverability guard, after consent and before render - a nil map, meaning no suppression service, reads as not-suppressed
 				if err := s.repo.MarkSkipped(ctx, r.ID, "address on suppression list"); err != nil {
 					log.Printf("[campaign] mark skipped (suppressed) %s: %v", r.ID, err)
+				} else {
+					skipped++
 				}
 				continue
 			}
@@ -474,20 +522,12 @@ func (s *Service) send(ctx context.Context, c Campaign) (int, error) {
 			if err != nil {
 				if merr := s.repo.MarkFailed(ctx, r.ID, err.Error()); merr != nil {
 					log.Printf("[campaign] mark failed %s: %v", r.ID, merr)
+				} else {
+					failed++
 				}
 				continue
 			}
-			rid := r.ID
-			sendID := engagement.NewSendID()
-			// Recorded before the mail goes out, so the tracking token names a send the log holds - a log write failing is infra, not this recipient's fault: abort like the consent gate does, recipients stay pending and the next tick retries
-			if err := s.recorder.Sent(ctx, sendlog.Spec{
-				ID: sendID, ChannelID: c.ChannelID, Source: sendlog.SourceCampaign, Email: r.Email,
-				CustomerID: r.CustomerID, CampaignID: &c.ID, RecipientID: &rid, Variant: r.Variant,
-			}); err != nil {
-				return sent, fmt.Errorf("track send: %w", err)
-			}
-			html = s.injectTracking(html, ch, sendID)
-			// Claim the recipient BEFORE handing the message to the sender - this row is the only thing that stops a resend, so marking after delivery leaves a window where a dropped write re-mails the same person every tick, forever (the run re-reads pending, and the campaign never drains so it never finalizes)
+			// Claim first - this row is the only thing that stops a resend, and a lost claim must log nothing
 			claimed, cerr := s.repo.ClaimForSend(ctx, r.ID)
 			if cerr != nil {
 				return sent, fmt.Errorf("claim recipient: %w", cerr) // nothing sent yet - abort like the consent gate, recipients stay pending and the next tick retries
@@ -495,37 +535,53 @@ func (s *Service) send(ctx context.Context, c Campaign) (int, error) {
 			if !claimed {
 				continue // a concurrent sweep already owns this one
 			}
+			rid := r.ID
+			sendID := engagement.NewSendID()
+			// Logged before the mail goes out so the tracking token names a real send - on failure the claim goes back and the next tick retries
+			if err := s.recorder.Sent(ctx, sendlog.Spec{
+				ID: sendID, ChannelID: c.ChannelID, Source: sendlog.SourceCampaign, Email: r.Email,
+				CustomerID: r.CustomerID, CampaignID: &c.ID, RecipientID: &rid, Variant: r.Variant,
+			}); err != nil {
+				if rerr := s.repo.ReleaseClaim(ctx, r.ID); rerr != nil {
+					log.Printf("[campaign] release claim %s: %v", r.ID, rerr)
+				}
+				return sent, fmt.Errorf("track send: %w", err)
+			}
+			html = s.injectTracking(html, ch, sendID)
 			if err := s.sender.Send(ctx, email.Message{From: from, To: r.Email, Subject: subj, HTMLBody: html, TextBody: text}); err != nil {
 				if rerr := s.repo.ReleaseClaimFailed(ctx, r.ID, err.Error()); rerr != nil { // release the claim so the failure is recorded rather than reading as delivered
 					log.Printf("[campaign] release claim %s: %v", r.ID, rerr) // the row stays claimed, so this recipient silently never sends - loud enough for an operator to requeue
+				} else {
+					failed++
 				}
 				s.captureBounce(ctx, r.Email, err)
 				continue
 			}
+			delivered++
 		}
 	}
+	if c.ABEnabled && c.ABWinner == "" { // A/B test phase - once the non-holdout slice is fully sent, enter the measurement window and let the winner job flip it back to 'sending' with the holdout assigned to the winner
+		pending, err := s.repo.HasPendingNonHoldout(ctx, c.ID)
+		if err != nil || pending {
+			return sent, err
+		}
+		recounted = true
+		if err := s.repo.RefreshCounts(ctx, c.ID); err != nil {
+			return sent, err
+		}
+		_, err = s.repo.MarkTesting(ctx, c.ID)
+		return sent, err
+	}
+	pending, err := s.repo.HasPending(ctx, c.ID)
+	if err != nil || pending {
+		return sent, err
+	}
+	// The state change makes the rollup exact - per-pass additions drift if a pass dies midway
+	recounted = true
 	if err := s.repo.RefreshCounts(ctx, c.ID); err != nil {
 		return sent, err
 	}
-	if c.ABEnabled && c.ABWinner == "" { // A/B test phase - once the non-holdout slice is fully sent, enter the measurement window and let the winner job flip it back to 'sending' with the holdout assigned to the winner
-		nonHoldout, err := s.repo.CountPendingNonHoldout(ctx, c.ID)
-		if err != nil {
-			return sent, err
-		}
-		if nonHoldout == 0 {
-			_, err = s.repo.MarkTesting(ctx, c.ID)
-			return sent, err
-		}
-		return sent, nil
-	}
-	remaining, err := s.repo.CountPending(ctx, c.ID)
-	if err != nil {
-		return sent, err
-	}
-	if remaining == 0 {
-		return sent, s.repo.Finalize(ctx, c.ID)
-	}
-	return sent, nil
+	return sent, s.repo.Finalize(ctx, c.ID)
 }
 
 // Picks the winning subject for A/B campaigns whose measurement window elapsed, sends it to the held-back remainder, and resumes the send
@@ -632,6 +688,9 @@ func (s *Service) SendTest(ctx context.Context, id uuid.UUID, to string) error {
 	}
 	if !ok {
 		return fmt.Errorf("campaign not found")
+	}
+	if _, err := s.libraryEmail(ctx, c.ChannelID, c.EmailID); err != nil {
+		return err
 	}
 	ch, err := s.stores.Get(ctx, c.ChannelID)
 	if err != nil {

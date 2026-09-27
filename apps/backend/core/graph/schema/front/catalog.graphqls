@@ -293,6 +293,7 @@ type Collection {
   metaDescription: String
   metaKeywords:    String
   coverImage:      CollectionCover
+  # First 250 published on this store, in merchandising order - browseProducts pages the rest
   products:        [Product!]!
 }
 
@@ -323,6 +324,7 @@ type Category {
   description:      JSON
   metaTitle:        String
   metaDescription:  String
+  # First 250 published on this store, in merchandising order - browseProducts pages the rest
   products:         [Product!]!
 }
 

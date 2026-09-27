@@ -40,16 +40,15 @@ func (s *Service) SetEventBus(b *events.Bus) { s.bus = b }
 // Optional - nil disables caching and falls through to Postgres
 func (s *Service) SetCache(c *cache.Cache) { s.cache = c }
 
-// Keyed by the LOOKUP scope (the requesting channel) rather than the resolved row's, so a per-channel override and the global default for one path don't collide The PATH comes first so every scope for one path shares a prefix - that is what lets a global write invalidate the per-channel keys too, with a pattern that can't spill onto a neighbouring path global path:<path>:g, channel path:<path>:c:<channelID>
-func cacheKey(channelID *uuid.UUID, path string) string {
-	if channelID == nil {
-		return "path:" + path + ":g"
-	}
-	return "path:" + path + ":c:" + channelID.String()
-}
+// Keyed by the lookup scope, grouped by path, so a global write can drop every channel's entry for that path
+func cacheGroup(path string) string { return "path:" + path }
 
-// Redis glob metacharacters in a stored path would make the invalidation pattern match the wrong keys
-var cachePatternEscaper = strings.NewReplacer("*", "\\*", "?", "\\?", "[", "\\[", "]", "\\]", "\\", "\\\\")
+func cacheKey(channelID *uuid.UUID) string {
+	if channelID == nil {
+		return "g"
+	}
+	return "c:" + channelID.String()
+}
 
 // Called after any write that touches a rewrite's request_path - nil channel means global Storefront traffic always resolves WITH a channel, so a global write has to drop the per-channel keys as well: dropping only the global one left every channel serving the pre-rename answer for up to the full hit TTL, with no admin surface to clear it
 func (s *Service) invalidatePath(ctx context.Context, path string, channelID *uuid.UUID) {
@@ -58,10 +57,10 @@ func (s *Service) invalidatePath(ctx context.Context, path string, channelID *uu
 	}
 	if channelID != nil {
 		// A channel-scoped row only shadows that one channel's lookups
-		s.cache.Del(ctx, cacheKey(channelID, path))
+		s.cache.DelIn(ctx, cacheGroup(path), cacheKey(channelID))
 		return
 	}
-	s.cache.DelPattern(ctx, "path:"+cachePatternEscaper.Replace(path)+":*")
+	s.cache.FlushGroup(ctx, cacheGroup(path))
 }
 
 func (s *Service) WithTx(tx *sql.Tx) *Service {
@@ -96,8 +95,8 @@ func (s *Service) ResolveURLForChannel(ctx context.Context, path string, channel
 		Rewrite  UrlRewrite      `json:"rewrite"`
 		Negative *negativeMarker `json:"negative,omitempty"`
 	}
-	key := cacheKey(channelID, path)
-	if hit, ok := cache.GetJSON[cached](ctx, s.cache, key); ok {
+	group, key := cacheGroup(path), cacheKey(channelID)
+	if hit, ok := cache.GetJSONIn[cached](ctx, s.cache, group, key); ok {
 		if hit.Negative != nil && hit.Negative.NotFound {
 			return UrlRewrite{}, ErrNotFound
 		}
@@ -106,14 +105,14 @@ func (s *Service) ResolveURLForChannel(ctx context.Context, path string, channel
 	rw, err := s.repo.GetByRequestPath(ctx, path, channelID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			s.cache.SetJSON(ctx, key,
+			s.cache.SetJSONIn(ctx, group, key,
 				cached{Negative: &negativeMarker{NotFound: true}},
 				resolveNotFoundCacheTTL,
 			)
 		}
 		return UrlRewrite{}, err
 	}
-	s.cache.SetJSON(ctx, key, cached{Rewrite: rw}, resolveCacheTTL)
+	s.cache.SetJSONIn(ctx, group, key, cached{Rewrite: rw}, resolveCacheTTL)
 	return rw, nil
 }
 

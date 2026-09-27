@@ -30,6 +30,25 @@ func (r *categoryResolver) Content(ctx context.Context, obj *model.Category) ([]
 	return out, nil
 }
 
+func (r *categoryResolver) Products(ctx context.Context, obj *model.Category) ([]*model.Product, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
+		return nil, err
+	}
+	cid, err := parseID(obj.ID, "category")
+	if err != nil {
+		return nil, err
+	}
+	products, err := r.CatalogSvc.ListProductsByCategory(ctx, cid, r.activeLocale(ctx), 0) // whole list - the assign picker hides members from it
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.Product, len(products))
+	for i, p := range products {
+		out[i] = toProductBaseModel(p, nil, nil, nil, nil, nil, nil, nil)
+	}
+	return out, nil
+}
+
 // ProductCount is the resolver for the productCount field. A cheap indexed COUNT of direct memberships (descendants
 // excluded) - safe to select across a category tree (e.g. picker hints), unlike the full `products` list
 func (r *categoryResolver) ProductCount(ctx context.Context, obj *model.Category) (int32, error) {
@@ -134,11 +153,11 @@ func (r *mutationResolver) CreateCategory(ctx context.Context, input model.Creat
 }
 
 func (r *mutationResolver) UpdateCategory(ctx context.Context, input model.UpdateCategoryInput) (*model.Category, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	id, err := parseID(input.ID, "category")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnCategoryChannels(ctx, "catalog.manage", id); err != nil {
 		return nil, err
 	}
 	domainInput := catalog.UpdateCategoryInput{
@@ -172,11 +191,11 @@ func (r *mutationResolver) UpdateCategory(ctx context.Context, input model.Updat
 }
 
 func (r *mutationResolver) SetCategoryFacetOverrides(ctx context.Context, categoryID string, overrides []*model.FacetOverrideInput) (*model.Category, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	id, err := parseID(categoryID, "category")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnCategoryChannels(ctx, "catalog.manage", id); err != nil {
 		return nil, err
 	}
 	rows := make([]catalog.FacetOverride, 0, len(overrides))
@@ -205,11 +224,11 @@ func (r *mutationResolver) SetCategoryFacetOverrides(ctx context.Context, catego
 }
 
 func (r *mutationResolver) DeleteCategory(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return false, err
-	}
 	cid, err := parseID(id, "category")
 	if err != nil {
+		return false, err
+	}
+	if err := r.requireOnCategoryChannels(ctx, "catalog.manage", cid); err != nil {
 		return false, err
 	}
 	if err := r.CatalogSvc.DeleteCategory(ctx, cid); err != nil {
@@ -221,6 +240,9 @@ func (r *mutationResolver) DeleteCategory(ctx context.Context, id string) (bool,
 // Same all-listed-channels gate as products - the category's content
 // row is shared across every channel listing the category.
 func (r *mutationResolver) UpsertCategoryContent(ctx context.Context, categoryID string, input model.UpsertCategoryContentInput) (*model.Category, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return nil, err
+	}
 	cid, err := parseID(categoryID, "category")
 	if err != nil {
 		return nil, err
@@ -253,6 +275,9 @@ func (r *mutationResolver) UpsertCategoryContent(ctx context.Context, categoryID
 
 // Same all-listed-channels gate as UpsertCategoryContent.
 func (r *mutationResolver) DeleteCategoryContent(ctx context.Context, categoryID string, locale string) (bool, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return false, err
+	}
 	cid, err := parseID(categoryID, "category")
 	if err != nil {
 		return false, err
@@ -275,15 +300,15 @@ func (r *mutationResolver) DeleteCategoryContent(ctx context.Context, categoryID
 }
 
 func (r *mutationResolver) AddProductToCategory(ctx context.Context, productID string, categoryID string, position *int32, isPrimary *bool) (*model.Product, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(productID, "product")
 	if err != nil {
 		return nil, err
 	}
 	cid, err := parseID(categoryID, "category")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnCategoryAndProductChannels(ctx, cid, pid); err != nil {
 		return nil, err
 	}
 	p, err := r.CatalogSvc.AddProductToCategory(ctx, pid, cid, int32Or(position, 0), boolOrFalse(isPrimary))
@@ -294,15 +319,15 @@ func (r *mutationResolver) AddProductToCategory(ctx context.Context, productID s
 }
 
 func (r *mutationResolver) RemoveProductFromCategory(ctx context.Context, productID string, categoryID string) (*model.Product, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(productID, "product")
 	if err != nil {
 		return nil, err
 	}
 	cid, err := parseID(categoryID, "category")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnCategoryAndProductChannels(ctx, cid, pid); err != nil {
 		return nil, err
 	}
 	p, err := r.CatalogSvc.RemoveProductFromCategory(ctx, pid, cid)
@@ -313,15 +338,15 @@ func (r *mutationResolver) RemoveProductFromCategory(ctx context.Context, produc
 }
 
 func (r *mutationResolver) SetProductPrimaryCategory(ctx context.Context, productID string, categoryID string) (*model.Product, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	pid, err := parseID(productID, "product")
 	if err != nil {
 		return nil, err
 	}
 	cid, err := parseID(categoryID, "category")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnCategoryAndProductChannels(ctx, cid, pid); err != nil {
 		return nil, err
 	}
 	p, err := r.CatalogSvc.SetProductPrimaryCategory(ctx, pid, cid)
@@ -332,11 +357,11 @@ func (r *mutationResolver) SetProductPrimaryCategory(ctx context.Context, produc
 }
 
 func (r *mutationResolver) RequestCategoryCoverUpload(ctx context.Context, input model.RequestCategoryCoverUploadInput) (*model.RequestCoverUploadPayload, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	cid, err := parseID(input.CategoryID, "category")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnCategoryChannels(ctx, "catalog.manage", cid); err != nil {
 		return nil, err
 	}
 	result, err := r.CatalogSvc.RequestCategoryCoverUpload(ctx, catalog.RequestCategoryCoverInput{
@@ -356,11 +381,11 @@ func (r *mutationResolver) RequestCategoryCoverUpload(ctx context.Context, input
 }
 
 func (r *mutationResolver) ConfirmCategoryCoverUpload(ctx context.Context, categoryID string, width int32, height int32) (*model.Category, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	cid, err := parseID(categoryID, "category")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnCategoryChannels(ctx, "catalog.manage", cid); err != nil {
 		return nil, err
 	}
 	c, err := r.CatalogSvc.ConfirmCategoryCover(ctx, cid, width, height)
@@ -371,11 +396,11 @@ func (r *mutationResolver) ConfirmCategoryCoverUpload(ctx context.Context, categ
 }
 
 func (r *mutationResolver) ClearCategoryCover(ctx context.Context, categoryID string) (*model.Category, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	cid, err := parseID(categoryID, "category")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireOnCategoryChannels(ctx, "catalog.manage", cid); err != nil {
 		return nil, err
 	}
 	c, err := r.CatalogSvc.ClearCategoryCover(ctx, cid)
@@ -388,15 +413,15 @@ func (r *mutationResolver) ClearCategoryCover(ctx context.Context, categoryID st
 // SetCategoryListing creates or updates the (category, store) listing row. Storefronts only render categories listed
 // AND published on the active store, so this is the gate. Requires catalog.manage
 func (r *mutationResolver) SetCategoryListing(ctx context.Context, input model.SetCategoryListingInput) (*model.Category, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	categoryID, err := parseID(input.CategoryID, "category")
 	if err != nil {
 		return nil, err
 	}
 	channelID, err := parseID(input.ChannelID, "channel")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireCategoryListingChange(ctx, categoryID, channelID, false); err != nil {
 		return nil, err
 	}
 	domainInput := catalog.SetCategoryChannelListingInput{
@@ -418,15 +443,15 @@ func (r *mutationResolver) SetCategoryListing(ctx context.Context, input model.S
 // ClearCategoryListing removes the (category, store) listing row. With
 // no row, the category is hidden on that store. Requires catalog.manage.
 func (r *mutationResolver) ClearCategoryListing(ctx context.Context, categoryID string, channelID string) (*model.Category, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
-		return nil, err
-	}
 	cid, err := parseID(categoryID, "category")
 	if err != nil {
 		return nil, err
 	}
 	svid, err := parseID(channelID, "channel")
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireCategoryListingChange(ctx, cid, svid, true); err != nil {
 		return nil, err
 	}
 	c, err := r.CatalogSvc.ClearCategoryChannelListing(ctx, cid, svid)

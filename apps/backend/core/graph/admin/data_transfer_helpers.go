@@ -179,11 +179,37 @@ func (r *Resolver) requireJobAccess(ctx context.Context, job datajob.Job, write 
 	if err != nil {
 		return auth.ErrForbidden // a job for a resource this build no longer registers stays sealed
 	}
-	slug := res.ViewPermission
+	slug, global := res.ViewPermission, res.RequireGlobalPermission
 	if write && res.ImportPermission != "" {
-		slug = res.ImportPermission
+		slug, global = res.ImportPermission, res.GlobalFor(job.Direction)
 	}
-	return r.requireDataPermission(ctx, slug, job.ChannelID, res.RequireGlobalPermission)
+	return r.requireDataPermission(ctx, slug, job.ChannelID, global)
+}
+
+// requireJobAccess as a SQL filter, so the total counts only the runs the caller may read
+func (r *Resolver) jobVisibility(ctx context.Context, resources []string) (*datajob.Visibility, error) {
+	v := &datajob.Visibility{}
+	for _, slug := range resources {
+		res, err := r.DataJobSvc.Registry().Get(slug)
+		if err != nil {
+			continue
+		}
+		perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, res.ViewPermission)
+		if err != nil {
+			return nil, err
+		}
+		if perm.Bypass() {
+			v.AnyChannel = append(v.AnyChannel, slug)
+			continue
+		}
+		if res.RequireGlobalPermission {
+			continue
+		}
+		for _, id := range perm.IDs() {
+			v.Pairs = append(v.Pairs, datajob.VisiblePair{Resource: slug, ChannelID: id})
+		}
+	}
+	return v, nil
 }
 
 // The resources a caller may list jobs for, intersected with whatever filter they asked for

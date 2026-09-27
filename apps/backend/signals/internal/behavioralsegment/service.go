@@ -46,7 +46,7 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (Segment, error) {
 	if err != nil {
 		return Segment{}, err
 	}
-	def, ok := Parse(seg.RefreshSQL)
+	def, ok := Parse(seg.Definition)
 	if !ok {
 		return Segment{}, ErrNotBehavioral
 	}
@@ -63,7 +63,7 @@ func (s *Service) List(ctx context.Context, channelID string) ([]Segment, error)
 	mine := make([]Segment, 0)
 	ids := make([]uuid.UUID, 0)
 	for _, seg := range all {
-		def, ok := Parse(seg.RefreshSQL)
+		def, ok := Parse(seg.Definition)
 		if !ok || def.ChannelID != channelID {
 			continue
 		}
@@ -112,14 +112,14 @@ func (s *Service) Save(ctx context.Context, in SaveInput, now time.Time) (Segmen
 		}
 		seg, err = s.segs.Update(ctx, segment.UpdateInput{
 			ID: *in.SegmentID, Slug: existing.Slug, Name: in.Name,
-			Description: existing.Description, RefreshSQL: string(defJSON), IsActive: true,
+			Description: existing.Description, Definition: string(defJSON), IsActive: true,
 		})
 		if err != nil {
 			return Segment{}, err
 		}
 	} else {
 		seg, err = s.segs.Create(ctx, segment.CreateInput{
-			Slug: Slugify(in.Name) + "-" + uuid.NewString()[:6], Name: in.Name, RefreshSQL: string(defJSON), IsActive: true,
+			Slug: Slugify(in.Name) + "-" + uuid.NewString()[:6], Name: in.Name, Definition: string(defJSON), IsActive: true,
 		})
 		if err != nil {
 			return Segment{}, err
@@ -163,7 +163,7 @@ func (s *Service) SetLifecycleWindows(ctx context.Context, id uuid.UUID, newDays
 	if err != nil {
 		return Segment{}, err
 	}
-	def, _ := Parse(seg.RefreshSQL)
+	def, _ := Parse(seg.Definition)
 	count, _ := s.segs.MemberCount(ctx, id)
 	return Segment{Segment: seg, Definition: def, MemberCount: int(count)}, nil
 }
@@ -221,7 +221,7 @@ func (s *Service) RefreshAll(ctx context.Context, now time.Time, onEntered func(
 	}
 	n := 0
 	for _, seg := range list {
-		def, ok := Parse(seg.RefreshSQL)
+		def, ok := Parse(seg.Definition)
 		if !ok {
 			continue
 		}
@@ -283,7 +283,7 @@ func (s *Service) SyncAffinity(ctx context.Context, opts AffinitySyncOptions, no
 	}
 	existing := make(map[string]segment.Segment)
 	for _, seg := range list {
-		def, ok := Parse(seg.RefreshSQL)
+		def, ok := Parse(seg.Definition)
 		if !ok || def.Affinity == nil || !def.Affinity.Auto {
 			continue
 		}
@@ -321,12 +321,12 @@ func (s *Service) SyncAffinity(ctx context.Context, opts AffinitySyncOptions, no
 				name := a.Name + ": " + v.Value
 				seg, ok := existing[k]
 				if ok {
-					if _, err := s.segs.Update(ctx, segment.UpdateInput{ID: seg.ID, Slug: seg.Slug, Name: name, Description: seg.Description, RefreshSQL: string(defJSON), IsActive: true}); err != nil {
+					if _, err := s.segs.Update(ctx, segment.UpdateInput{ID: seg.ID, Slug: seg.Slug, Name: name, Description: seg.Description, Definition: string(defJSON), IsActive: true}); err != nil {
 						log.Printf("synapse: affinity sync %s/%s=%q: update: %v", cid, a.Slug, v.Value, err)
 						continue
 					}
 				} else {
-					seg, err = s.segs.Create(ctx, segment.CreateInput{Slug: Slugify(name) + "-" + uuid.NewString()[:6], Name: name, RefreshSQL: string(defJSON), IsActive: true})
+					seg, err = s.segs.Create(ctx, segment.CreateInput{Slug: Slugify(name) + "-" + uuid.NewString()[:6], Name: name, Definition: string(defJSON), IsActive: true})
 					if err != nil {
 						log.Printf("synapse: affinity sync %s/%s=%q: create: %v", cid, a.Slug, v.Value, err)
 						continue
@@ -345,7 +345,7 @@ func (s *Service) SyncAffinity(ctx context.Context, opts AffinitySyncOptions, no
 		if seen[k] {
 			continue
 		}
-		def, ok := Parse(seg.RefreshSQL)
+		def, ok := Parse(seg.Definition)
 		if !ok || def.Affinity == nil || !scanned[key(def.ChannelID, def.Affinity.Attr)] {
 			continue
 		}

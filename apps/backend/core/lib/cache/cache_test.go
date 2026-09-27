@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,11 +43,17 @@ type cached struct {
 }
 
 func TestKeysStayInsideTheirNamespace(t *testing.T) {
-	if got, want := New(nil, "product").key("abc"), "cache:product:abc"; got != want {
-		t.Errorf("key = %q, want %q", got, want)
+	ctx := context.Background()
+	client := liveClient(t)
+	a, b := New(client, "test-product"), New(client, "test-category")
+	a.SetJSON(ctx, "abc", cached{Name: "a"}, time.Minute)
+	b.SetJSON(ctx, "abc", cached{Name: "b"}, time.Minute)
+	ka, kb := a.resolvedKey(ctx, "", "abc"), b.resolvedKey(ctx, "", "abc")
+	if !strings.HasPrefix(ka, "cache:test-product:v") || !strings.HasSuffix(ka, ":abc") {
+		t.Errorf("key = %q, want it under its namespace", ka)
 	}
-	if a, b := New(nil, "product").key("abc"), New(nil, "category").key("abc"); a == b {
-		t.Errorf("two caches share key %q for the same suffix", a)
+	if ka == kb {
+		t.Errorf("two caches share key %q for the same suffix", ka)
 	}
 }
 
@@ -65,6 +72,8 @@ func TestANilCacheIsAWorkingNoOpCache(t *testing.T) {
 			c.SetJSON(ctx, "k", cached{Name: "x"}, time.Minute)
 			c.Del(ctx, "k")
 			c.DelPattern(ctx, "*")
+			c.Flush(ctx)
+			c.FlushGroup(ctx, "g")
 		})
 	}
 }
@@ -112,7 +121,7 @@ func TestRoundTripKeepsTheValueAndTheTTL(t *testing.T) {
 	if !ok || got.Name != "tyre" {
 		t.Fatalf("read back (%+v, %v), want the stored value", got, ok)
 	}
-	ttl, err := client.PTTL(ctx, c.key(suffix)).Result()
+	ttl, err := client.PTTL(ctx, c.resolvedKey(ctx, "", suffix)).Result()
 	if err != nil {
 		t.Fatalf("PTTL: %v", err)
 	}
@@ -177,7 +186,7 @@ func TestASchemaDriftedEntryIsDroppedRatherThanReturned(t *testing.T) {
 	if _, ok := GetJSON[cached](ctx, c, suffix); ok {
 		t.Fatal("an undecodable entry reported a hit")
 	}
-	n, err := client.Exists(ctx, c.key(suffix)).Result()
+	n, err := client.Exists(ctx, c.resolvedKey(ctx, "", suffix)).Result()
 	if err != nil {
 		t.Fatalf("EXISTS: %v", err)
 	}
@@ -222,5 +231,86 @@ func TestAPQRoundTrip(t *testing.T) {
 	}
 	if _, ok := a.Get(ctx, "sha256:never-registered"); ok {
 		t.Error("an unregistered hash reported a hit")
+	}
+}
+
+func TestFlushDropsTheNamespaceAndLeavesTheOthers(t *testing.T) {
+	ctx := context.Background()
+	client := liveClient(t)
+	mine, theirs := New(client, "test-flush"), New(client, "test-flush-keep")
+	mine.SetJSON(ctx, "a", cached{Name: "a"}, time.Minute)
+	theirs.SetJSON(ctx, "a", cached{Name: "a"}, time.Minute)
+
+	mine.Flush(ctx)
+	if _, ok := GetJSON[cached](ctx, mine, "a"); ok {
+		t.Error("an entry survived its namespace's flush")
+	}
+	if _, ok := GetJSON[cached](ctx, theirs, "a"); !ok {
+		t.Error("a flush reached the neighbouring namespace")
+	}
+	mine.SetJSON(ctx, "a", cached{Name: "fresh"}, time.Minute)
+	if got, ok := GetJSON[cached](ctx, mine, "a"); !ok || got.Name != "fresh" {
+		t.Errorf("after the flush the namespace reads (%+v, %v), want the new write", got, ok)
+	}
+}
+
+func TestFlushGroupDropsOnlyThatGroup(t *testing.T) {
+	ctx := context.Background()
+	c := New(liveClient(t), "test-group")
+	c.SetJSONIn(ctx, "path:/a", "g", cached{Name: "a"}, time.Minute)
+	c.SetJSONIn(ctx, "path:/b", "g", cached{Name: "b"}, time.Minute)
+	c.FlushGroup(ctx, "path:/a")
+	if _, ok := GetJSONIn[cached](ctx, c, "path:/a", "g"); ok {
+		t.Error("an entry survived its group's flush")
+	}
+	if _, ok := GetJSONIn[cached](ctx, c, "path:/b", "g"); !ok {
+		t.Error("a group flush reached a neighbouring group")
+	}
+	c.Flush(ctx)
+	if _, ok := GetJSONIn[cached](ctx, c, "path:/b", "g"); ok {
+		t.Error("a namespace flush left a group's entry")
+	}
+}
+
+func TestAnEvictedGenerationNeverResurrectsOldEntries(t *testing.T) {
+	ctx := context.Background()
+	client := liveClient(t)
+	c := New(client, "test-evict")
+	c.SetJSON(ctx, "a", cached{Name: "old"}, time.Minute)
+	client.Del(ctx, c.genKey(""))
+	c.SetJSON(ctx, "a", cached{Name: "new"}, time.Minute)
+	c.Flush(ctx)
+	client.Del(ctx, c.genKey(""))
+	if got, ok := GetJSON[cached](ctx, c, "a"); ok {
+		t.Errorf("an evicted generation served %+v written before the flush", got)
+	}
+}
+
+func TestAReadOnlyMissLeavesNoKey(t *testing.T) {
+	ctx := context.Background()
+	client := liveClient(t)
+	c := New(client, "test-readmiss")
+	c.Flush(ctx)
+	group := "path:/" + nonce()
+	if _, ok := GetJSONIn[cached](ctx, c, group, "g"); ok {
+		t.Fatal("a never-written entry read as a hit")
+	}
+	c.DelIn(ctx, group, "g")
+	if n, _ := client.Exists(ctx, c.genKey(""), c.genKey(group)).Result(); n != 0 {
+		t.Fatalf("a read-only miss minted %d generation keys", n)
+	}
+}
+
+func TestAGroupGenerationOutlivesItsLongestEntry(t *testing.T) {
+	ctx := context.Background()
+	client := liveClient(t)
+	c := New(client, "test-genttl")
+	group := "path:/" + nonce()
+	c.SetJSONIn(ctx, group, "long", cached{Name: "a"}, 10*time.Minute)
+	c.SetJSONIn(ctx, group, "short", cached{Name: "b"}, time.Minute)
+	gen, _ := client.PTTL(ctx, c.genKey(group)).Result()
+	entry, _ := client.PTTL(ctx, c.resolvedKey(ctx, group, "long")).Result()
+	if gen < entry || gen > 11*time.Minute {
+		t.Fatalf("group generation TTL %v, want at least the entry's %v and bounded by it", gen, entry)
 	}
 }

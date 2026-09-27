@@ -22,7 +22,7 @@ func TestRemoteTaxInputFromCheckout(t *testing.T) {
 	}
 	cc.cart.Lines = []cart.CartLine{{ProductSku: "SKU-1", Quantity: 2, UnitPrice: 5000}}
 
-	in := remoteTaxInputFromCheckout(cc, -50) // negative discount clamps to 0
+	in := remoteTaxInputFromCheckout(cc, -50, 799) // negative discount clamps to 0
 	if in.DiscountCents != 0 {
 		t.Fatalf("negative discount not clamped: %d", in.DiscountCents)
 	}
@@ -33,6 +33,9 @@ func TestRemoteTaxInputFromCheckout(t *testing.T) {
 		t.Fatalf("currency wrong: %q", in.Currency)
 	}
 	req := remoteTaxRequestFrom(in)
+	if req.ShippingCents != 799 {
+		t.Fatalf("shipping not on the wire: %d", req.ShippingCents)
+	}
 	if req.Address.Region != "CA" || req.Address.CountryCode != "US" {
 		t.Fatalf("address wire wrong: %+v", req.Address)
 	}

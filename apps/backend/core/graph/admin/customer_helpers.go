@@ -14,6 +14,9 @@ import (
 
 // Unknown customer and forbidden both answer FORBIDDEN - saying which would leak the existence of a row the caller can't see
 func (r *Resolver) requireCustomerManage(ctx context.Context, customerID string) error {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.manage"); err != nil {
+		return err
+	}
 	cid, err := uuid.Parse(customerID)
 	if err != nil {
 		return errInvalidID("customer id", nil)

@@ -18,6 +18,11 @@ SELECT * FROM customers WHERE id = ANY(sqlc.arg(ids)::uuid[]);
 -- name: ListCustomers :many
 SELECT * FROM customers ORDER BY created_at DESC;
 
+-- name: ListCustomersInChannels :many
+SELECT * FROM customers
+WHERE sqlc.arg(all_channels)::boolean OR channel_id = ANY(sqlc.arg(channel_ids)::uuid[])
+ORDER BY created_at DESC;
+
 -- name: UpdateCustomer :one
 UPDATE customers
 SET first_name = $2, last_name = $3, phone = $4, updated_at = NOW()
@@ -173,3 +178,10 @@ SELECT is_active FROM customers WHERE id = $1;
 -- name: CustomerEmailsByIDs :many
 -- Addresses for a known set of ids, skipping any that no longer exist - the commerce half of the audience export, whose membership comes from the signals database
 SELECT email FROM customers WHERE id = ANY(sqlc.arg(customer_ids)::uuid[]) ORDER BY email;
+
+-- name: CustomerEmailsByIDsInChannel :many
+SELECT email FROM customers WHERE id = ANY(sqlc.arg(customer_ids)::uuid[]) AND channel_id = sqlc.arg(channel_id) ORDER BY email;
+
+-- name: CommerceClock :one
+-- The commerce database's clock, the one every roster read_at is stamped on
+SELECT statement_timestamp()::timestamptz AS now;

@@ -65,12 +65,8 @@ func (s *Service) SetCache(c *cache.Cache) {
 	s.cache = c
 }
 
-// DelPattern is O(keys-in-ns), but the channel namespace is tiny and writes are rare
 func (s *Service) invalidate(ctx context.Context) {
-	if s.cache == nil {
-		return
-	}
-	s.cache.DelPattern(ctx, "*")
+	s.cache.Flush(ctx)
 }
 
 func (s *Service) SetListingCounter(c ListingCounter) {
@@ -158,7 +154,13 @@ func (s *Service) Create(ctx context.Context, input CreateChannelInput) (Channel
 	return sv, nil
 }
 
+// Every storefront request resolves its channel by id, so the row is cached - briefly, since a write racing a read could park the old row
+const channelIDCacheTTL = time.Minute
+
 func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Channel, error) {
+	if cached, ok := cache.GetJSON[Channel](ctx, s.cache, "id:"+id.String()); ok {
+		return cached, nil
+	}
 	sv, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return Channel{}, err
@@ -167,6 +169,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Channel, error) {
 	if err != nil {
 		return Channel{}, err
 	}
+	s.cache.SetJSON(ctx, "id:"+id.String(), sv, channelIDCacheTTL)
 	return sv, nil
 }
 
@@ -188,10 +191,16 @@ func (s *Service) GetBySlug(ctx context.Context, slug string) (Channel, error) {
 
 func (s *Service) GetByStorefrontHost(ctx context.Context, host string) (Channel, error) {
 	if cached, ok := cache.GetJSON[Channel](ctx, s.cache, "host:"+host); ok {
+		if cached.ID == uuid.Nil {
+			return Channel{}, ErrChannelNotFound
+		}
 		return cached, nil
 	}
 	sv, err := s.repo.GetByStorefrontHost(ctx, host)
 	if err != nil {
+		if errors.Is(err, ErrChannelNotFound) {
+			s.cache.SetJSON(ctx, "host:"+host, Channel{}, time.Minute) // the host lookup is a pattern scan, so a miss is worth remembering too
+		}
 		return Channel{}, err
 	}
 	sv.Locales, err = s.repo.ListLocales(ctx, sv.ID)

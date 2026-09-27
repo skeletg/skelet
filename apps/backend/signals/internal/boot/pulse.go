@@ -84,7 +84,7 @@ func (r flowStores) Get(ctx context.Context, channelID uuid.UUID) (flow.Store, e
 	if err != nil {
 		return flow.Store{}, err
 	}
-	return flow.Store{ID: e.ID, Name: e.Name, PublicURL: e.PublicURL, FromAddress: e.FromAddress, FromName: e.FromName, LogoURL: e.LogoURL}, nil
+	return flow.Store{ID: e.ID, Name: e.Name, PublicURL: e.PublicURL, FromAddress: e.FromAddress, FromName: e.FromName, LogoURL: e.LogoURL, Active: e.IsActive}, nil
 }
 
 type campaignStores struct{ *RosterStores }
@@ -94,7 +94,7 @@ func (r campaignStores) Get(ctx context.Context, channelID uuid.UUID) (campaign.
 	if err != nil {
 		return campaign.Store{}, err
 	}
-	return campaign.Store{ID: e.ID, Name: e.Name, PublicURL: e.PublicURL, FromAddress: e.FromAddress, FromName: e.FromName, LogoURL: e.LogoURL}, nil
+	return campaign.Store{ID: e.ID, Name: e.Name, PublicURL: e.PublicURL, FromAddress: e.FromAddress, FromName: e.FromName, LogoURL: e.LogoURL, Active: e.IsActive}, nil
 }
 
 // RosterContacts answers "who is this customer" off the customer roster - both consents included, as
@@ -103,16 +103,21 @@ type RosterContacts struct{ q *signalsdb.Queries }
 
 func newRosterContacts(q Queries) *RosterContacts { return &RosterContacts{q: q.Queries} }
 
-// Get is the flow engine's view of one person
+// A deactivated account reads as opted out, so only transactional flows, which ignore consent, still reach it
 func (r *RosterContacts) Get(ctx context.Context, customerID uuid.UUID) (flow.Contact, bool, error) {
 	row, err := r.q.RosterContact(ctx, customerID)
 	if err != nil {
 		return flow.Contact{}, false, ignoreNoRows(err) // a run whose customer is gone simply stops
 	}
+	return contactFromRow(row), true, nil
+}
+
+func contactFromRow(row signalsdb.RosterContactRow) flow.Contact {
 	return flow.Contact{
 		ID: row.CustomerID, ChannelID: row.ChannelID, Email: row.Email, FirstName: row.FirstName,
-		Phone: strings.TrimSpace(row.Phone), EmailOptedIn: row.MarketingOptedIn, SMSOptedIn: row.SmsOptedIn,
-	}, true, nil
+		Phone:        strings.TrimSpace(row.Phone),
+		EmailOptedIn: row.MarketingOptedIn && row.IsActive, SMSOptedIn: row.SmsOptedIn && row.IsActive,
+	}
 }
 
 // PreviewContacts is the builder's preview seam over the same row - a preview rendered as a real customer
@@ -146,11 +151,14 @@ func (r campaignAudience) ListForChannel(ctx context.Context, channelID uuid.UUI
 }
 
 func (r campaignAudience) Get(ctx context.Context, customerID uuid.UUID) (campaign.Contact, bool, error) {
-	c, ok, err := r.RosterContacts.Get(ctx, customerID)
-	if err != nil || !ok {
-		return campaign.Contact{}, ok, err
+	row, err := r.q.RosterContact(ctx, customerID)
+	if err != nil {
+		return campaign.Contact{}, false, ignoreNoRows(err)
 	}
-	return campaign.Contact{ID: c.ID, ChannelID: c.ChannelID, Email: c.Email, FirstName: c.FirstName, Active: true, OptedIn: c.EmailOptedIn}, true, nil
+	return campaign.Contact{
+		ID: row.CustomerID, ChannelID: row.ChannelID, Email: row.Email, FirstName: row.FirstName,
+		Active: row.IsActive, OptedIn: row.MarketingOptedIn,
+	}, true, nil
 }
 
 func (r campaignAudience) OptedInByIDs(ctx context.Context, customerIDs []uuid.UUID) (map[uuid.UUID]bool, error) {
@@ -183,8 +191,7 @@ func newFlow(
 	contacts *RosterContacts, stores *RosterStores, mailer email.Sender, texter sms.Sender,
 	track *engagement.Tracker, rec *analytics.Recorder, segs *segment.Service, suppress *suppression.Service,
 ) *flow.Service {
-	svc := flow.NewService(flow.NewRepository(q.Queries), tmpl, contacts, flowStores{stores}, mailer, texter, track, bool(allow), []byte(cfg.JWTSecret))
-	svc.SetSuppression(suppress)
+	svc := flow.NewService(flow.NewRepository(q.Queries), tmpl, contacts, flowStores{stores}, mailer, texter, track, suppress, bool(allow), []byte(cfg.JWTSecret))
 	members := segmentMembers{segs}
 	traits := traitReader{rec}
 	svc.RegisterCondition(flow.NewEmailActivityCondition(track))
@@ -201,9 +208,7 @@ func newCampaign(
 	cfg Config, q Queries, tmpl *emailtemplate.Service, contacts *RosterContacts, stores *RosterStores,
 	settings *config.Service, mailer email.Sender, track *engagement.Tracker, segs *segment.Service, suppress *suppression.Service,
 ) *campaign.Service {
-	svc := campaign.NewService(campaign.NewRepository(q.Queries), tmpl, campaignAudience{contacts}, segmentAudience{segs}, campaignStores{stores}, settings, mailer, track, []byte(cfg.JWTSecret))
-	svc.SetSuppression(suppress)
-	return svc
+	return campaign.NewService(campaign.NewRepository(q.Queries), tmpl, campaignAudience{contacts}, segmentAudience{segs}, campaignStores{stores}, settings, mailer, track, suppress, []byte(cfg.JWTSecret))
 }
 
 // --- the suite's answers to the engine's questions ---

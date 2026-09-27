@@ -37,7 +37,7 @@ func (r *mutationResolver) CreateWebhook(ctx context.Context, input model.Create
 		if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "webhooks.manage", sid, nil); err != nil {
 			return nil, err
 		}
-	} else if err := auth.RequirePermission(ctx, r.AdminSvc, "webhooks.manage"); err != nil {
+	} else if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "webhooks.manage"); err != nil {
 		return nil, err
 	}
 	result, err := r.WebhookSvc.Create(ctx, domainInput)
@@ -56,6 +56,9 @@ func (r *mutationResolver) UpdateWebhook(ctx context.Context, input model.Update
 	}
 	webhookID, err := parseID(input.ID, "webhook")
 	if err != nil {
+		return nil, err
+	}
+	if _, err := r.requireWebhookScope(ctx, webhookID, "webhooks.manage"); err != nil {
 		return nil, err
 	}
 	updateInput := webhook.UpdateInput{
@@ -95,6 +98,9 @@ func (r *mutationResolver) SetWebhookActive(ctx context.Context, id string, acti
 	if err != nil {
 		return nil, err
 	}
+	if _, err := r.requireWebhookScope(ctx, webhookID, "webhooks.manage"); err != nil {
+		return nil, err
+	}
 	w, err := r.WebhookSvc.SetActive(ctx, webhookID, active)
 	if err != nil {
 		return nil, err
@@ -108,6 +114,9 @@ func (r *mutationResolver) RotateWebhookSecret(ctx context.Context, id string) (
 	}
 	webhookID, err := parseID(id, "webhook")
 	if err != nil {
+		return nil, err
+	}
+	if _, err := r.requireWebhookScope(ctx, webhookID, "webhooks.manage"); err != nil {
 		return nil, err
 	}
 	result, err := r.WebhookSvc.RotateSecret(ctx, webhookID)
@@ -128,6 +137,9 @@ func (r *mutationResolver) DeleteWebhook(ctx context.Context, id string) (bool, 
 	if err != nil {
 		return false, err
 	}
+	if _, err := r.requireWebhookScope(ctx, webhookID, "webhooks.manage"); err != nil {
+		return false, err
+	}
 	if err := r.WebhookSvc.Delete(ctx, webhookID); err != nil {
 		return false, err
 	}
@@ -140,6 +152,9 @@ func (r *mutationResolver) ClearWebhookDeliveries(ctx context.Context, webhookID
 	}
 	id, err := parseID(webhookID, "webhook")
 	if err != nil {
+		return 0, err
+	}
+	if _, err := r.requireWebhookScope(ctx, id, "webhooks.manage"); err != nil {
 		return 0, err
 	}
 	n, err := r.WebhookSvc.ClearDeliveries(ctx, id)
@@ -157,6 +172,9 @@ func (r *mutationResolver) RetryWebhookDeadLetter(ctx context.Context, id string
 	if err != nil {
 		return nil, err
 	}
+	if _, err := r.requireWebhookQueueItemScope(ctx, itemID, "webhooks.manage"); err != nil {
+		return nil, err
+	}
 	item, err := r.WebhookSvc.RetryDeadLetter(ctx, itemID)
 	if err != nil {
 		return nil, err
@@ -170,6 +188,9 @@ func (r *mutationResolver) ClearWebhookDeadLetters(ctx context.Context, webhookI
 	}
 	id, err := parseID(webhookID, "webhook")
 	if err != nil {
+		return 0, err
+	}
+	if _, err := r.requireWebhookScope(ctx, id, "webhooks.manage"); err != nil {
 		return 0, err
 	}
 	n, err := r.WebhookSvc.ClearDeadLetters(ctx, id)
@@ -187,6 +208,9 @@ func (r *mutationResolver) RedeliverWebhookDelivery(ctx context.Context, deliver
 	if err != nil {
 		return nil, err
 	}
+	if _, err := r.requireWebhookDeliveryScope(ctx, id, "webhooks.manage"); err != nil {
+		return nil, err
+	}
 	item, err := r.WebhookSvc.RedeliverDelivery(ctx, id)
 	if err != nil {
 		return nil, err
@@ -202,9 +226,15 @@ func (r *queryResolver) Webhooks(ctx context.Context) ([]*model.Webhook, error) 
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.Webhook, len(webhooks))
-	for i, w := range webhooks {
-		out[i] = toWebhookModel(w)
+	permitted, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "webhooks.view")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.Webhook, 0, len(webhooks))
+	for _, w := range webhooks {
+		if permitted.AllowsOptional(w.ChannelID) {
+			out = append(out, toWebhookModel(w))
+		}
 	}
 	return out, nil
 }
@@ -215,6 +245,9 @@ func (r *queryResolver) Webhook(ctx context.Context, id string) (*model.Webhook,
 	}
 	webhookID, err := parseID(id, "webhook")
 	if err != nil {
+		return nil, err
+	}
+	if _, err := r.requireWebhookScope(ctx, webhookID, "webhooks.view"); err != nil {
 		return nil, err
 	}
 	w, err := r.WebhookSvc.GetByID(ctx, webhookID)
@@ -230,6 +263,9 @@ func (r *queryResolver) WebhookDeliveries(ctx context.Context, webhookID string,
 	}
 	id, err := parseID(webhookID, "webhook")
 	if err != nil {
+		return nil, err
+	}
+	if _, err := r.requireWebhookScope(ctx, id, "webhooks.view"); err != nil {
 		return nil, err
 	}
 	lim := int32(25)
@@ -253,6 +289,9 @@ func (r *queryResolver) WebhookDeliveryStats(ctx context.Context, webhookID stri
 	}
 	id, err := parseID(webhookID, "webhook")
 	if err != nil {
+		return nil, err
+	}
+	if _, err := r.requireWebhookScope(ctx, id, "webhooks.view"); err != nil {
 		return nil, err
 	}
 	stats, err := r.WebhookSvc.DeliveryStats(ctx, id)
@@ -280,6 +319,9 @@ func (r *queryResolver) WebhookDeadLetters(ctx context.Context, webhookID string
 	}
 	id, err := parseID(webhookID, "webhook")
 	if err != nil {
+		return nil, err
+	}
+	if _, err := r.requireWebhookScope(ctx, id, "webhooks.view"); err != nil {
 		return nil, err
 	}
 	lim := int32(50)

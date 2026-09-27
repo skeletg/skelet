@@ -25,6 +25,7 @@ WITH per_review AS (
     WHERE r.product_id = $1
       AND r.status = 'approved'
       AND a.rating_value IS NOT NULL
+      AND ($2::uuid IS NULL OR r.channel_id = $2::uuid)
     GROUP BY r.id
 )
 SELECT
@@ -38,6 +39,11 @@ SELECT
 FROM per_review
 `
 
+type AggregateOverallRatingParams struct {
+	ProductID uuid.UUID     `json:"product_id"`
+	ChannelID uuid.NullUUID `json:"channel_id"`
+}
+
 type AggregateOverallRatingRow struct {
 	ReviewCount    int32   `json:"review_count"`
 	OverallAverage float64 `json:"overall_average"`
@@ -49,8 +55,8 @@ type AggregateOverallRatingRow struct {
 }
 
 // AggregateOverallRating returns count + overall mean + 5-bucket distribution for the PDP summary card
-func (q *Queries) AggregateOverallRating(ctx context.Context, productID uuid.UUID) (AggregateOverallRatingRow, error) {
-	row := q.db.QueryRowContext(ctx, aggregateOverallRating, productID)
+func (q *Queries) AggregateOverallRating(ctx context.Context, arg AggregateOverallRatingParams) (AggregateOverallRatingRow, error) {
+	row := q.db.QueryRowContext(ctx, aggregateOverallRating, arg.ProductID, arg.ChannelID)
 	var i AggregateOverallRatingRow
 	err := row.Scan(
 		&i.ReviewCount,
@@ -75,6 +81,7 @@ WITH per_review AS (
     WHERE r.product_id = ANY($1::uuid[])
       AND r.status = 'approved'
       AND a.rating_value IS NOT NULL
+      AND ($2::uuid IS NULL OR r.channel_id = $2::uuid)
     GROUP BY r.product_id, r.id
 )
 SELECT
@@ -90,6 +97,11 @@ FROM per_review
 GROUP BY product_id
 `
 
+type AggregateOverallRatingsByProductIDsParams struct {
+	ProductIds []uuid.UUID   `json:"product_ids"`
+	ChannelID  uuid.NullUUID `json:"channel_id"`
+}
+
 type AggregateOverallRatingsByProductIDsRow struct {
 	ProductID      uuid.UUID `json:"product_id"`
 	ReviewCount    int32     `json:"review_count"`
@@ -102,8 +114,8 @@ type AggregateOverallRatingsByProductIDsRow struct {
 }
 
 // AggregateOverallRatingsByProductIDs is the batched form - used by the storefront PLP path to hydrate review summaries for many products in one query instead of one per card - same per-review averaging rules as the single-product form above
-func (q *Queries) AggregateOverallRatingsByProductIDs(ctx context.Context, productIds []uuid.UUID) ([]AggregateOverallRatingsByProductIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, aggregateOverallRatingsByProductIDs, pq.Array(productIds))
+func (q *Queries) AggregateOverallRatingsByProductIDs(ctx context.Context, arg AggregateOverallRatingsByProductIDsParams) ([]AggregateOverallRatingsByProductIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, aggregateOverallRatingsByProductIDs, pq.Array(arg.ProductIds), arg.ChannelID)
 	if err != nil {
 		return nil, err
 	}
@@ -146,8 +158,14 @@ JOIN reviews r ON r.id = a.review_id
 WHERE r.product_id = $1
   AND r.status = 'approved'
   AND a.rating_value IS NOT NULL
+  AND ($2::uuid IS NULL OR r.channel_id = $2::uuid)
 GROUP BY r.product_id, a.question_id
 `
+
+type AggregateReviewRatingsParams struct {
+	ProductID uuid.UUID     `json:"product_id"`
+	ChannelID uuid.NullUUID `json:"channel_id"`
+}
 
 type AggregateReviewRatingsRow struct {
 	ProductID   uuid.UUID `json:"product_id"`
@@ -158,8 +176,8 @@ type AggregateReviewRatingsRow struct {
 
 // ==================== Aggregates ====================
 // AggregateReviewRatings returns one row per (product, question) with the mean rating and count over approved reviews - the storefront per-question average + overall count are computed from this set
-func (q *Queries) AggregateReviewRatings(ctx context.Context, productID uuid.UUID) ([]AggregateReviewRatingsRow, error) {
-	rows, err := q.db.QueryContext(ctx, aggregateReviewRatings, productID)
+func (q *Queries) AggregateReviewRatings(ctx context.Context, arg AggregateReviewRatingsParams) ([]AggregateReviewRatingsRow, error) {
+	rows, err := q.db.QueryContext(ctx, aggregateReviewRatings, arg.ProductID, arg.ChannelID)
 	if err != nil {
 		return nil, err
 	}
@@ -197,8 +215,14 @@ JOIN reviews r ON r.id = a.review_id
 WHERE r.product_id = ANY($1::uuid[])
   AND r.status = 'approved'
   AND a.rating_value IS NOT NULL
+  AND ($2::uuid IS NULL OR r.channel_id = $2::uuid)
 GROUP BY r.product_id, a.question_id
 `
+
+type AggregateReviewRatingsByProductIDsParams struct {
+	ProductIds []uuid.UUID   `json:"product_ids"`
+	ChannelID  uuid.NullUUID `json:"channel_id"`
+}
 
 type AggregateReviewRatingsByProductIDsRow struct {
 	ProductID   uuid.UUID `json:"product_id"`
@@ -209,8 +233,8 @@ type AggregateReviewRatingsByProductIDsRow struct {
 
 // AggregateReviewRatingsByProductIDs is the per-question variant of
 // AggregateReviewRatings, batched by product id
-func (q *Queries) AggregateReviewRatingsByProductIDs(ctx context.Context, productIds []uuid.UUID) ([]AggregateReviewRatingsByProductIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, aggregateReviewRatingsByProductIDs, pq.Array(productIds))
+func (q *Queries) AggregateReviewRatingsByProductIDs(ctx context.Context, arg AggregateReviewRatingsByProductIDsParams) ([]AggregateReviewRatingsByProductIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, aggregateReviewRatingsByProductIDs, pq.Array(arg.ProductIds), arg.ChannelID)
 	if err != nil {
 		return nil, err
 	}
@@ -338,12 +362,17 @@ func (q *Queries) ClearReviewMerchantReply(ctx context.Context, id uuid.UUID) (R
 }
 
 const countApprovedReviewsForProduct = `-- name: CountApprovedReviewsForProduct :one
-SELECT COUNT(*) FROM reviews
-WHERE product_id = $1 AND status = 'approved'
+SELECT COUNT(*) FROM reviews r
+WHERE r.product_id = $1 AND r.status = 'approved' AND ($2::uuid IS NULL OR r.channel_id = $2::uuid)
 `
 
-func (q *Queries) CountApprovedReviewsForProduct(ctx context.Context, productID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countApprovedReviewsForProduct, productID)
+type CountApprovedReviewsForProductParams struct {
+	ProductID uuid.UUID     `json:"product_id"`
+	ChannelID uuid.NullUUID `json:"channel_id"`
+}
+
+func (q *Queries) CountApprovedReviewsForProduct(ctx context.Context, arg CountApprovedReviewsForProductParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countApprovedReviewsForProduct, arg.ProductID, arg.ChannelID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -681,12 +710,17 @@ func (q *Queries) GetMyReviewVotesByCustomer(ctx context.Context, arg GetMyRevie
 
 const getProductReviewSummary = `-- name: GetProductReviewSummary :one
 
-SELECT product_id, summary, review_count, is_stale, generated_at, updated_at FROM product_review_summaries WHERE product_id = $1
+SELECT product_id, summary, review_count, is_stale, generated_at, updated_at, channel_id FROM product_review_summaries WHERE product_id = $1 AND channel_id = $2
 `
 
+type GetProductReviewSummaryParams struct {
+	ProductID uuid.UUID `json:"product_id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+}
+
 // ==================== Product review summaries (AI "what customers say") ====================
-func (q *Queries) GetProductReviewSummary(ctx context.Context, productID uuid.UUID) (ProductReviewSummary, error) {
-	row := q.db.QueryRowContext(ctx, getProductReviewSummary, productID)
+func (q *Queries) GetProductReviewSummary(ctx context.Context, arg GetProductReviewSummaryParams) (ProductReviewSummary, error) {
+	row := q.db.QueryRowContext(ctx, getProductReviewSummary, arg.ProductID, arg.ChannelID)
 	var i ProductReviewSummary
 	err := row.Scan(
 		&i.ProductID,
@@ -695,6 +729,7 @@ func (q *Queries) GetProductReviewSummary(ctx context.Context, productID uuid.UU
 		&i.IsStale,
 		&i.GeneratedAt,
 		&i.UpdatedAt,
+		&i.ChannelID,
 	)
 	return i, err
 }
@@ -908,21 +943,27 @@ func (q *Queries) InsertReviewMedia(ctx context.Context, arg InsertReviewMediaPa
 }
 
 const listApprovedReviewsForProduct = `-- name: ListApprovedReviewsForProduct :many
-SELECT id, product_id, customer_id, channel_id, locale, title, body, is_verified_purchase, status, submitted_at, moderated_at, moderated_by, moderator_note, guest_name, guest_email, moderation_label, moderation_reason, moderation_checked_at, merchant_reply, merchant_reply_at, merchant_reply_by, moderation_tags, category_slugs FROM reviews
-WHERE product_id = $1 AND status = 'approved'
-ORDER BY submitted_at DESC
-LIMIT $2 OFFSET $3
+SELECT r.id, r.product_id, r.customer_id, r.channel_id, r.locale, r.title, r.body, r.is_verified_purchase, r.status, r.submitted_at, r.moderated_at, r.moderated_by, r.moderator_note, r.guest_name, r.guest_email, r.moderation_label, r.moderation_reason, r.moderation_checked_at, r.merchant_reply, r.merchant_reply_at, r.merchant_reply_by, r.moderation_tags, r.category_slugs FROM reviews r
+WHERE r.product_id = $1 AND r.status = 'approved' AND ($2::uuid IS NULL OR r.channel_id = $2::uuid)
+ORDER BY r.submitted_at DESC
+LIMIT $4 OFFSET $3
 `
 
 type ListApprovedReviewsForProductParams struct {
-	ProductID uuid.UUID `json:"product_id"`
-	Limit     int32     `json:"limit"`
-	Offset    int32     `json:"offset"`
+	ProductID uuid.UUID     `json:"product_id"`
+	ChannelID uuid.NullUUID `json:"channel_id"`
+	Off       int32         `json:"off"`
+	Lim       int32         `json:"lim"`
 }
 
 // ListApprovedReviewsForProduct returns the public review list - the storefront calls this for the PDP reviews section - sort is decided in the resolver layer by composing a CASE; this query orders newest- first as the default and the resolver re-orders the slice when a different sort is requested (only 10–50 rows typically - cheap)
 func (q *Queries) ListApprovedReviewsForProduct(ctx context.Context, arg ListApprovedReviewsForProductParams) ([]Review, error) {
-	rows, err := q.db.QueryContext(ctx, listApprovedReviewsForProduct, arg.ProductID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listApprovedReviewsForProduct,
+		arg.ProductID,
+		arg.ChannelID,
+		arg.Off,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -980,16 +1021,18 @@ FROM (
   FROM reviews r
   WHERE r.product_id = ANY($1::uuid[])
     AND r.status = 'approved'
+    AND ($2::uuid IS NULL OR r.channel_id = $2::uuid)
 ) t
-WHERE t.rn > $2::int
-  AND t.rn <= ($2::int + $3::int)
+WHERE t.rn > $3::int
+  AND t.rn <= ($3::int + $4::int)
 ORDER BY t.product_id, t.submitted_at DESC
 `
 
 type ListApprovedReviewsForProductIDsParams struct {
-	ProductIds []uuid.UUID `json:"product_ids"`
-	RowOffset  int32       `json:"row_offset"`
-	RowLimit   int32       `json:"row_limit"`
+	ProductIds []uuid.UUID   `json:"product_ids"`
+	ChannelID  uuid.NullUUID `json:"channel_id"`
+	RowOffset  int32         `json:"row_offset"`
+	RowLimit   int32         `json:"row_limit"`
 }
 
 type ListApprovedReviewsForProductIDsRow struct {
@@ -1018,7 +1061,12 @@ type ListApprovedReviewsForProductIDsRow struct {
 
 // ListApprovedReviewsForProductIDs is the batched form of ListApprovedReviewsForProduct: it returns the top-N approved reviews for many products in a single windowed query, so the storefront can hydrate the reviews of a configurable's children (or any product list) without one query per product - ROW_NUMBER enforces the same newest-first per-product window the single-product query applies via LIMIT/OFFSET; the resolver re-sorts in memory when a different sort is asked for, exactly as the single-product path does
 func (q *Queries) ListApprovedReviewsForProductIDs(ctx context.Context, arg ListApprovedReviewsForProductIDsParams) ([]ListApprovedReviewsForProductIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listApprovedReviewsForProductIDs, pq.Array(arg.ProductIds), arg.RowOffset, arg.RowLimit)
+	rows, err := q.db.QueryContext(ctx, listApprovedReviewsForProductIDs,
+		pq.Array(arg.ProductIds),
+		arg.ChannelID,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1173,6 +1221,33 @@ func (q *Queries) ListReviewAnswersForReview(ctx context.Context, reviewID uuid.
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReviewChannelsForProduct = `-- name: ListReviewChannelsForProduct :many
+SELECT DISTINCT channel_id FROM reviews WHERE product_id = $1 AND status = 'approved'
+`
+
+func (q *Queries) ListReviewChannelsForProduct(ctx context.Context, productID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listReviewChannelsForProduct, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var channel_id uuid.UUID
+		if err := rows.Scan(&channel_id); err != nil {
+			return nil, err
+		}
+		items = append(items, channel_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -1482,22 +1557,27 @@ func (q *Queries) ListReviewsForModeration(ctx context.Context, arg ListReviewsF
 }
 
 const listStaleProductReviewSummaryIDs = `-- name: ListStaleProductReviewSummaryIDs :many
-SELECT product_id FROM product_review_summaries WHERE is_stale ORDER BY updated_at LIMIT $1
+SELECT product_id, channel_id FROM product_review_summaries WHERE is_stale ORDER BY updated_at LIMIT $1
 `
 
-func (q *Queries) ListStaleProductReviewSummaryIDs(ctx context.Context, limit int32) ([]uuid.UUID, error) {
+type ListStaleProductReviewSummaryIDsRow struct {
+	ProductID uuid.UUID `json:"product_id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+}
+
+func (q *Queries) ListStaleProductReviewSummaryIDs(ctx context.Context, limit int32) ([]ListStaleProductReviewSummaryIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listStaleProductReviewSummaryIDs, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []uuid.UUID{}
+	items := []ListStaleProductReviewSummaryIDsRow{}
 	for rows.Next() {
-		var product_id uuid.UUID
-		if err := rows.Scan(&product_id); err != nil {
+		var i ListStaleProductReviewSummaryIDsRow
+		if err := rows.Scan(&i.ProductID, &i.ChannelID); err != nil {
 			return nil, err
 		}
-		items = append(items, product_id)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -1509,23 +1589,33 @@ func (q *Queries) ListStaleProductReviewSummaryIDs(ctx context.Context, limit in
 }
 
 const markProductReviewSummaryFresh = `-- name: MarkProductReviewSummaryFresh :exec
-UPDATE product_review_summaries SET is_stale = FALSE, updated_at = NOW() WHERE product_id = $1
+UPDATE product_review_summaries SET is_stale = FALSE, updated_at = NOW() WHERE product_id = $1 AND channel_id = $2
 `
 
-func (q *Queries) MarkProductReviewSummaryFresh(ctx context.Context, productID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, markProductReviewSummaryFresh, productID)
+type MarkProductReviewSummaryFreshParams struct {
+	ProductID uuid.UUID `json:"product_id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+}
+
+func (q *Queries) MarkProductReviewSummaryFresh(ctx context.Context, arg MarkProductReviewSummaryFreshParams) error {
+	_, err := q.db.ExecContext(ctx, markProductReviewSummaryFresh, arg.ProductID, arg.ChannelID)
 	return err
 }
 
 const markProductReviewSummaryStale = `-- name: MarkProductReviewSummaryStale :exec
-INSERT INTO product_review_summaries (product_id, is_stale, updated_at)
-VALUES ($1, TRUE, NOW())
-ON CONFLICT (product_id) DO UPDATE
+INSERT INTO product_review_summaries (product_id, channel_id, is_stale, updated_at)
+VALUES ($1, $2, TRUE, NOW())
+ON CONFLICT (product_id, channel_id) DO UPDATE
 SET is_stale = TRUE, updated_at = NOW()
 `
 
-func (q *Queries) MarkProductReviewSummaryStale(ctx context.Context, productID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, markProductReviewSummaryStale, productID)
+type MarkProductReviewSummaryStaleParams struct {
+	ProductID uuid.UUID `json:"product_id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+}
+
+func (q *Queries) MarkProductReviewSummaryStale(ctx context.Context, arg MarkProductReviewSummaryStaleParams) error {
+	_, err := q.db.ExecContext(ctx, markProductReviewSummaryStale, arg.ProductID, arg.ChannelID)
 	return err
 }
 
@@ -1881,9 +1971,9 @@ func (q *Queries) UpdateReviewQuestion(ctx context.Context, arg UpdateReviewQues
 }
 
 const upsertProductReviewSummary = `-- name: UpsertProductReviewSummary :exec
-INSERT INTO product_review_summaries (product_id, summary, review_count, is_stale, generated_at, updated_at)
-VALUES ($1, $2, $3, FALSE, NOW(), NOW())
-ON CONFLICT (product_id) DO UPDATE
+INSERT INTO product_review_summaries (product_id, channel_id, summary, review_count, is_stale, generated_at, updated_at)
+VALUES ($1, $2, $3, $4, FALSE, NOW(), NOW())
+ON CONFLICT (product_id, channel_id) DO UPDATE
 SET summary      = EXCLUDED.summary,
     review_count = EXCLUDED.review_count,
     is_stale     = FALSE,
@@ -1893,12 +1983,18 @@ SET summary      = EXCLUDED.summary,
 
 type UpsertProductReviewSummaryParams struct {
 	ProductID   uuid.UUID `json:"product_id"`
+	ChannelID   uuid.UUID `json:"channel_id"`
 	Summary     string    `json:"summary"`
 	ReviewCount int32     `json:"review_count"`
 }
 
 func (q *Queries) UpsertProductReviewSummary(ctx context.Context, arg UpsertProductReviewSummaryParams) error {
-	_, err := q.db.ExecContext(ctx, upsertProductReviewSummary, arg.ProductID, arg.Summary, arg.ReviewCount)
+	_, err := q.db.ExecContext(ctx, upsertProductReviewSummary,
+		arg.ProductID,
+		arg.ChannelID,
+		arg.Summary,
+		arg.ReviewCount,
+	)
 	return err
 }
 

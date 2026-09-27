@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 type postgresRepository struct {
@@ -27,15 +27,15 @@ func (r *postgresRepository) WithTx(tx *sql.Tx) Repository {
 func (r *postgresRepository) CreateGrant(ctx context.Context, in GrantInput) (Grant, error) {
 	row, err := r.queries.CreateDownloadGrant(ctx, db.CreateDownloadGrantParams{
 		Token:        in.Token,
-		OrderID:      nullableUUID(in.OrderID),
-		CustomerID:   nullableUUID(in.CustomerID),
+		OrderID:      sqlnull.UUID(in.OrderID),
+		CustomerID:   sqlnull.UUID(in.CustomerID),
 		Email:        in.Email,
 		ProductID:    in.ProductID,
 		DownloadID:   in.DownloadID,
 		Title:        in.Title,
 		Url:          in.URL,
-		MaxDownloads: nullableInt32(in.MaxDownloads),
-		ExpiresAt:    nullableTime(in.ExpiresAt),
+		MaxDownloads: sqlnull.Int32(in.MaxDownloads),
+		ExpiresAt:    sqlnull.Time(in.ExpiresAt),
 	})
 	if err != nil {
 		return Grant{}, fmt.Errorf("create download grant: %w", err)
@@ -126,25 +126,4 @@ func toGrant(row db.DownloadGrant) Grant {
 		g.ExpiresAt = &t
 	}
 	return g
-}
-
-func nullableUUID(p *uuid.UUID) uuid.NullUUID {
-	if p == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *p, Valid: true}
-}
-
-func nullableInt32(p *int32) sql.NullInt32 {
-	if p == nil {
-		return sql.NullInt32{}
-	}
-	return sql.NullInt32{Int32: *p, Valid: true}
-}
-
-func nullableTime(p *time.Time) sql.NullTime {
-	if p == nil {
-		return sql.NullTime{}
-	}
-	return sql.NullTime{Time: *p, Valid: true}
 }

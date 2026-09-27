@@ -9,30 +9,41 @@ import (
 	"github.com/google/uuid"
 )
 
-// Models what ClaimRunnableFlowRuns does in SQL: due runs, oldest first, capped, and only on a flow that
-// will accept them - insertion order stands in for created_at
 type claimRepo struct {
 	*fakeRepo
 	order []uuid.UUID
 }
 
-func (r *claimRepo) ClaimRunnable(_ context.Context, limit int32) ([]FlowRun, error) {
+func (r *claimRepo) ClaimRunnable(_ context.Context, limit int32, lease time.Duration) ([]FlowRun, error) {
 	var out []FlowRun
+	now := time.Now()
 	for _, id := range r.order {
 		if int32(len(out)) >= limit {
 			break
 		}
 		run := r.runs[id]
-		if run.Status != RunActive {
+		due := run.ResumeAt == nil || !run.ResumeAt.After(now)
+		if run.Status != RunActive || !due {
 			continue
 		}
 		f := r.flows[run.FlowID]
 		if f.Status != StatusActive || f.DeletedAt != nil {
 			continue
 		}
+		until := now.Add(lease)
+		run.ResumeAt = &until
+		r.runs[id] = run
 		out = append(out, run)
 	}
 	return out, nil
+}
+
+func (r *claimRepo) CreateRun(ctx context.Context, run FlowRun) (FlowRun, error) {
+	created, err := r.fakeRepo.CreateRun(ctx, run)
+	if err == nil {
+		r.order = append(r.order, created.ID)
+	}
+	return created, err
 }
 
 func (r *claimRepo) addRun(flowID uuid.UUID) uuid.UUID {

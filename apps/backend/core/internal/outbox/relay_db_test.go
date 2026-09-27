@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
 	dbsqlc "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
@@ -39,6 +38,7 @@ type relay struct {
 	mu    sync.Mutex
 	seen  []*dbProbe
 	times []time.Time
+	ids   []uuid.UUID
 }
 
 func newRelay(t *testing.T, conn *sql.DB) *relay {
@@ -53,8 +53,9 @@ func newRelay(t *testing.T, conn *sql.DB) *relay {
 			return nil
 		}
 		at, _ := events.EmittedAt(ctx)
+		id, _ := events.OutboxID(ctx)
 		r.mu.Lock()
-		r.seen, r.times = append(r.seen, p), append(r.times, at)
+		r.seen, r.times, r.ids = append(r.seen, p), append(r.times, at), append(r.ids, id)
 		r.mu.Unlock()
 		return nil
 	})
@@ -208,6 +209,22 @@ func TestTheEventTimeSurvivesToTheHandler(t *testing.T) {
 	}
 	if !times[0].UTC().Truncate(time.Second).Equal(emitted) {
 		t.Errorf("handler saw emit time %v, want the row's created_at %v", times[0].UTC(), emitted)
+	}
+}
+
+func TestTwoIdenticalRowsReachTheHandlerAsTwoRows(t *testing.T) {
+	conn := testDB(t)
+	r := newRelay(t, conn)
+	r.enqueue(t, "same", true)
+	r.enqueue(t, "same", true)
+
+	r.DrainPending(context.Background())
+
+	r.mu.Lock()
+	ids := append([]uuid.UUID(nil), r.ids...)
+	r.mu.Unlock()
+	if len(ids) != 2 || ids[0] == uuid.Nil || ids[0] == ids[1] {
+		t.Fatalf("handler saw outbox ids %v, want each row's own - identical rows would share a webhook dedupe key", ids)
 	}
 }
 

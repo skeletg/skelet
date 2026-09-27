@@ -22,6 +22,7 @@ import {
   type Location,
 } from 'react-router-dom'
 import { allRouterRoutes } from '@/nav/registry'
+import type { NavLeaf } from '@/nav/types'
 import { type WorkspacePane, type WorkspaceTab } from '@/lib/workspace-tabs'
 import { useWorkspaceTabs } from '@/lib/workspace-tabs-context'
 import type { LayoutNode, SplitNode } from '@/lib/workspace-layout'
@@ -29,6 +30,7 @@ import { TabPanelContext } from '@/lib/tab-panel-context'
 import { WorkspaceTabStrip } from '@/components/layout/workspace-tab-strip'
 import { PaneDropZone } from '@/components/layout/workspace-dnd'
 import { NotFound } from '@/shared/errors/NotFound'
+import { RequireFeature } from '@/shared/errors/RequireFeature'
 import { RequirePermission } from '@/shared/errors/RequirePermission'
 import { RouteErrorBoundary } from '@/shared/errors/RouteErrorBoundary'
 
@@ -53,6 +55,16 @@ function PageLoading() {
 
 // The full leaf-route table - the same wrapping every page got when these routes lived in App.tsx: error boundary, lazy-chunk spinner,
 // permission gate - matching runs against the panel's location context, live for the focused tab and frozen for the rest
+// The feature switch outranks the grant - a switched-off suite says so rather than asking for a permission it can't honour
+function gateRoute(leaf: NavLeaf) {
+  const page = leaf.permission ? (
+    <RequirePermission permission={leaf.permission}>{leaf.element}</RequirePermission>
+  ) : (
+    leaf.element
+  )
+  return leaf.feature ? <RequireFeature feature={leaf.feature}>{page}</RequireFeature> : page
+}
+
 function TabRoutes() {
   const leaves = allRouterRoutes()
   return (
@@ -64,11 +76,7 @@ function TabRoutes() {
           element={
             <RouteErrorBoundary key={leaf.path}>
               <Suspense fallback={<PageLoading />}>
-                {leaf.permission ? (
-                  <RequirePermission permission={leaf.permission}>{leaf.element}</RequirePermission>
-                ) : (
-                  leaf.element
-                )}
+                {gateRoute(leaf)}
               </Suspense>
             </RouteErrorBoundary>
           }

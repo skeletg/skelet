@@ -3,7 +3,6 @@ package signalsgrpc
 import (
 	"context"
 	"net"
-	"os"
 	"testing"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics/spinech"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/chtest"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/sendlog"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/suppression"
@@ -29,11 +29,7 @@ func sendLogServer(t *testing.T) (signalsv1.IngestServiceClient, signalsv1.Pulse
 	t.Helper()
 	conn := testdb.RequireSignals(t)
 	// Every send and open also lands on the spine, and ClickHouse is the only engine there - so this needs a live one, like spinech's own tests
-	dsn := os.Getenv("SIGNALS_CH_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set SIGNALS_CH_TEST_DSN - the send log writes engagement events to the spine")
-	}
-	spine, err := spinech.New(context.Background(), dsn)
+	spine, err := spinech.New(context.Background(), chtest.DSN(t))
 	if err != nil {
 		t.Fatalf("clickhouse spine: %v", err)
 	}

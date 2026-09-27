@@ -190,4 +190,6 @@ message EnrollRequest {
 message EnrollResponse {
   // Active flows on the trigger, whether or not each started a run for this moment - zero means core's own mail still has to go out
   int32 enrolled = 1;
+  // Some flow could not be asked - the flows counted in enrolled took the moment, the rest may take it on a repeat
+  bool incomplete = 2;
 }

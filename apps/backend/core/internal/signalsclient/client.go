@@ -29,11 +29,19 @@ type Grants interface {
 	Grants(ctx context.Context, adminID uuid.UUID) ([]auth.Grant, error)
 }
 
+type adminStanding interface {
+	Standing(ctx context.Context, adminID uuid.UUID) (superuser, active bool, err error)
+}
+
+var ErrAdminInactive = errors.New("the admin this work acts for is no longer active")
+
 type Client struct {
 	conn   *grpc.ClientConn
 	secret string
 	ttl    time.Duration
 	grants Grants
+
+	segments segmentGuard
 
 	Ingest       signalsv1.IngestServiceClient
 	Prism        signalsv1.PrismServiceClient
@@ -70,6 +78,7 @@ func New(addr, serviceSecret string, ttl time.Duration, grants Grants) (*Client,
 	}
 	return &Client{
 		conn: conn, secret: serviceSecret, ttl: ttl, grants: grants,
+		segments:     newSegmentGuard(),
 		Ingest:       signalsv1.NewIngestServiceClient(conn),
 		Prism:        signalsv1.NewPrismServiceClient(conn),
 		Lens:         signalsv1.NewLensServiceClient(conn),
@@ -215,7 +224,17 @@ func (c *Client) AsAdmin(ctx context.Context, adminID uuid.UUID) (context.Contex
 		return nil, ErrUnavailable
 	}
 	sc := auth.ServiceClaims{AdminID: adminID}
-	if c.grants != nil {
+	if st, ok := c.grants.(adminStanding); ok {
+		superuser, active, err := st.Standing(ctx, adminID)
+		if err != nil {
+			return nil, err
+		}
+		if !active {
+			return nil, ErrAdminInactive
+		}
+		sc.IsSuperuser = superuser
+	}
+	if c.grants != nil && !sc.IsSuperuser {
 		grants, err := c.grants.Grants(ctx, adminID)
 		if err != nil {
 			return nil, err

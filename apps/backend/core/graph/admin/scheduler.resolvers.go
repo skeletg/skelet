@@ -12,7 +12,7 @@ import (
 )
 
 func (r *mutationResolver) UpdateScheduledJob(ctx context.Context, input model.UpdateScheduledJobInput) (*model.ScheduledJob, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "scheduler.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "scheduler.manage"); err != nil {
 		return nil, err
 	}
 	if r.Scheduler == nil {
@@ -39,7 +39,7 @@ func (r *mutationResolver) UpdateScheduledJob(ctx context.Context, input model.U
 }
 
 func (r *mutationResolver) CreateWebhookJob(ctx context.Context, input model.CreateWebhookJobInput) (*model.ScheduledJob, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "scheduler.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "scheduler.manage"); err != nil {
 		return nil, err
 	}
 	if r.Scheduler == nil {
@@ -71,7 +71,7 @@ func (r *mutationResolver) CreateWebhookJob(ctx context.Context, input model.Cre
 }
 
 func (r *mutationResolver) UpdateWebhookJob(ctx context.Context, input model.UpdateWebhookJobInput) (*model.ScheduledJob, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "scheduler.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "scheduler.manage"); err != nil {
 		return nil, err
 	}
 	if r.Scheduler == nil {
@@ -101,7 +101,7 @@ func (r *mutationResolver) UpdateWebhookJob(ctx context.Context, input model.Upd
 }
 
 func (r *mutationResolver) DeleteScheduledJob(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "scheduler.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "scheduler.manage"); err != nil {
 		return false, err
 	}
 	if r.Scheduler == nil {
@@ -118,7 +118,7 @@ func (r *mutationResolver) DeleteScheduledJob(ctx context.Context, id string) (b
 }
 
 func (r *mutationResolver) RunScheduledJobNow(ctx context.Context, id string) (*model.ScheduledJob, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "scheduler.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "scheduler.manage"); err != nil {
 		return nil, err
 	}
 	if r.Scheduler == nil {
@@ -139,7 +139,7 @@ func (r *mutationResolver) RunScheduledJobNow(ctx context.Context, id string) (*
 }
 
 func (r *queryResolver) ScheduledJobs(ctx context.Context) ([]*model.ScheduledJob, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "scheduler.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "scheduler.view"); err != nil {
 		return nil, err
 	}
 	if r.Scheduler == nil {
@@ -157,7 +157,7 @@ func (r *queryResolver) ScheduledJobs(ctx context.Context) ([]*model.ScheduledJo
 }
 
 func (r *queryResolver) ScheduledJobRuns(ctx context.Context, jobID string, limit *int32) ([]*model.ScheduledJobRun, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "scheduler.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "scheduler.view"); err != nil {
 		return nil, err
 	}
 	if r.Scheduler == nil {
@@ -179,7 +179,7 @@ func (r *queryResolver) ScheduledJobRuns(ctx context.Context, jobID string, limi
 }
 
 func (r *queryResolver) PreviewSchedule(ctx context.Context, schedule string, timezone *string, count *int32) (*model.SchedulePreview, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "scheduler.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "scheduler.view"); err != nil {
 		return nil, err
 	}
 	tz := ptr.Deref(timezone)
@@ -196,7 +196,7 @@ func (r *queryResolver) PreviewSchedule(ctx context.Context, schedule string, ti
 }
 
 func (r *queryResolver) WebhookJobConfig(ctx context.Context, id string) (*model.WebhookJobConfig, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "scheduler.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "scheduler.manage"); err != nil {
 		return nil, err
 	}
 	if r.Scheduler == nil {

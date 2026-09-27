@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -42,9 +43,24 @@ func (s *Service) ExportData(ctx context.Context, customerID uuid.UUID) (DataExp
 }
 
 // Scrubs every personal field while keeping the customer row as an FK anchor and the financial order records - irreversible, and every session is revoked so the account can never sign in again
+// Revocation runs whatever else failed, since the admin asked for the account to be unusable
 func (s *Service) AnonymizeInPlace(ctx context.Context, customerID uuid.UUID) error {
 	c, err := s.repo.GetByID(ctx, customerID)
 	if err != nil {
+		return err
+	}
+	err = s.anonymize(ctx, c)
+	if s.customerRefresh != nil {
+		if rerr := s.customerRefresh.RevokeAll(ctx, customerID); rerr != nil {
+			err = errors.Join(err, fmt.Errorf("session revocation failed: %w", rerr))
+		}
+	}
+	return err
+}
+
+// The suite goes first, while the real address still exists to name the sends from before the account by - a failure there redacts nothing, so a retry has all it needs
+func (s *Service) anonymize(ctx context.Context, c Customer) error {
+	if err := s.repo.PurgeSignalsIdentity(ctx, c.ID, c.Email); err != nil {
 		return err
 	}
 	var buf [32]byte
@@ -55,13 +71,22 @@ func (s *Service) AnonymizeInPlace(ctx context.Context, customerID uuid.UUID) er
 	if err != nil {
 		return err
 	}
-	if err := s.repo.Anonymize(ctx, customerID, c.Email, string(hash)); err != nil {
+	// The roster push hangs off this, so the suite's copy drops the address and consent now rather than at the next sweep
+	updated := &CustomerUpdated{
+		CustomerID: c.ID, ChannelID: c.ChannelID,
+		Email: "redacted-" + c.ID.String() + "@anonymized.invalid", FirstName: "Redacted",
+		ChangedFields: []string{"email", "firstName", "lastName", "phone", "isActive", "isEmailVerified", "note", "metadata"},
+		Source:        SourceGDPR,
+	}
+	var enqueue func(*sql.Tx) error
+	if s.outbox != nil {
+		enqueue = func(t *sql.Tx) error { return s.outbox.Enqueue(ctx, t, updated) }
+	}
+	if err := s.repo.Anonymize(ctx, c.ID, c.Email, string(hash), enqueue); err != nil {
 		return err
 	}
-	if s.customerRefresh != nil {
-		if err := s.customerRefresh.RevokeAll(ctx, customerID); err != nil {
-			return fmt.Errorf("anonymized but session revocation failed: %w", err)
-		}
+	if enqueue == nil && s.bus != nil {
+		s.bus.Publish(ctx, updated)
 	}
 	return nil
 }
@@ -72,15 +97,18 @@ func (r *postgresRepository) PurgeSignalsIdentity(ctx context.Context, customerI
 	if r.signals == nil {
 		return nil
 	}
-	if err := r.signals.DeleteCustomerIdentities(ctx, customerID, email); err != nil {
+	erasedAt, err := r.queries.CommerceClock(ctx)
+	if err != nil {
+		return fmt.Errorf("read the erase time: %w", err)
+	}
+	if err := r.signals.DeleteCustomerIdentities(ctx, customerID, email, erasedAt); err != nil {
 		return fmt.Errorf("erase signals identity: %w", err)
 	}
 	return nil
 }
 
-// The identity delete can't ride the commerce tx - the spine is its own database - so it goes last, where a leftover only re-links until the retry
-func (r *postgresRepository) Anonymize(ctx context.Context, customerID uuid.UUID, email, passwordHash string) error {
-	if err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
+func (r *postgresRepository) Anonymize(ctx context.Context, customerID uuid.UUID, email, passwordHash string, enqueue func(*sql.Tx) error) error {
+	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		q := r.queries.WithTx(t)
 		if err := q.AnonymizeCustomerRow(ctx, db.AnonymizeCustomerRowParams{ID: customerID, PasswordHash: passwordHash}); err != nil {
 			return fmt.Errorf("anonymize customer row: %w", err)
@@ -105,14 +133,12 @@ func (r *postgresRepository) Anonymize(ctx context.Context, customerID uuid.UUID
 		if _, err := q.ScrubCustomerAuditDetail(ctx, email); err != nil {
 			return fmt.Errorf("scrub audit detail: %w", err)
 		}
-		return nil
-	}); err != nil {
-		return err
-	}
-	if r.signals != nil {
-		if err := r.signals.DeleteCustomerIdentities(ctx, customerID, email); err != nil {
-			return fmt.Errorf("delete analytics identities: %w", err)
+		if err := q.DeleteCustomerConsents(ctx, customerID); err != nil {
+			return fmt.Errorf("delete consents: %w", err)
 		}
-	}
-	return nil
+		if enqueue != nil {
+			return enqueue(t)
+		}
+		return nil
+	})
 }

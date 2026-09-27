@@ -15,6 +15,8 @@ type LocalesChanged struct {
 
 func (*LocalesChanged) Type() string { return EventLocalesChanged }
 
+func (e *LocalesChanged) EventChannelID() uuid.UUID { return e.ChannelID }
+
 // Fires after a channel is created - the transactional emails and their delivery flows are seeded from here, so a new channel sends receipts and account mail without anyone running the CLI
 type Created struct {
 	ChannelID uuid.UUID
@@ -22,8 +24,12 @@ type Created struct {
 
 func (*Created) Type() string { return EventCreated }
 
+func (e *Created) EventChannelID() uuid.UUID { return e.ChannelID }
+
 type Deleted struct {
 	ChannelID uuid.UUID
 }
 
 func (*Deleted) Type() string { return EventDeleted }
+
+func (e *Deleted) EventChannelID() uuid.UUID { return e.ChannelID }

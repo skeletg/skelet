@@ -26,6 +26,9 @@ if ! service_running app; then
     exit 1
 fi
 
+acquire_test_lock test-e2e
+trap release_test_lock EXIT
+
 echo "==> preparing disposable e2e databases"
 ensure_pg_db db "$E2E_DB" $fresh
 ensure_pg_db signals-db "$E2E_SIG_DB" $fresh
@@ -50,6 +53,7 @@ SIG_HTTP_PORT=18090
 SIG_BIN=/tmp/skelet-e2e-signals
 cleanup() {
     docker compose exec -T app sh -c "pkill -f $SIG_BIN" >/dev/null 2>&1 || true
+    release_test_lock
 }
 trap cleanup EXIT
 echo "==> building the Signals process"
@@ -78,7 +82,9 @@ done
 echo "==> running core's e2e suite"
 # -timeout past go's 10m default - fresh databases are a minute's work, but --keep on a grown one is not
 # Core opens no signals database - the disposable one is the Signals process's, reached over the contract
+# One database per suite here, not per package: the Signals process beside the scenarios reads the same one
 docker compose exec -T "${USER_FLAG[@]}" \
+    -e SKELET_TESTDB_SHARED=1 \
     -e DATABASE_URL="$E2E_DB_URL" \
     -e SIGNALS_DB_URL= \
     -e SIGNALS_GRPC_ADDR="127.0.0.1:$SIG_GRPC_PORT" \
@@ -88,5 +94,6 @@ docker compose exec -T "${USER_FLAG[@]}" \
 # The suite's own scenarios - the beacon surface against the same disposable signals database
 echo "==> running the Signals module's e2e suite"
 docker compose exec -T "${USER_FLAG[@]}" -w /var/www/backend/signals \
+    -e SKELET_TESTDB_SHARED=1 \
     -e SIGNALS_DB_URL="$E2E_SIG_URL" -e SIGNALS_CH_URL="$E2E_CH_URL" \
     app go test ./internal/e2e/... -count=1 -timeout 40m "$@"

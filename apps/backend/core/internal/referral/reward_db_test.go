@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/configstore"
 	dbsqlc "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
@@ -493,5 +492,31 @@ func TestStatsCountWhatTheCustomerEarned(t *testing.T) {
 	}
 	if rewarded.Referred != 1 || rewarded.Rewarded != 1 || rewarded.EarnedCents != 1000 {
 		t.Errorf("after the order stats = %+v, want one rewarded referral worth 1000", rewarded)
+	}
+}
+
+func TestACodeOnlyRefersOnItsOwnersChannel(t *testing.T) {
+	conn := testDB(t)
+	svc, _, _ := newFixture(t, conn)
+	ctx := context.Background()
+	owner, referee := seedCustomer(t, conn), seedCustomer(t, conn)
+	var other uuid.UUID
+	if err := conn.QueryRow(`INSERT INTO channels (slug, name, currency_code) VALUES ($1, 'other', 'USD') RETURNING id`, "ref-"+uuid.NewString()[:8]).Scan(&other); err != nil {
+		t.Fatalf("seed channel: %v", err)
+	}
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM channels WHERE id = $1`, other) })
+	if _, err := conn.Exec(`UPDATE customers SET channel_id = $1 WHERE id = $2`, other, referee); err != nil {
+		t.Fatalf("move referee: %v", err)
+	}
+	code, err := svc.CodeFor(ctx, owner)
+	if err != nil {
+		t.Fatalf("CodeFor: %v", err)
+	}
+	if err := svc.Attach(ctx, referee, code); err == nil {
+		t.Fatal("a code from another channel attached, so that channel's program pays the other channel's referrer")
+	}
+	var n int
+	if err := conn.QueryRow(`SELECT count(*) FROM referrals WHERE referee_customer_id = $1`, referee).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("referrals for the cross-channel referee = %d, %v", n, err)
 	}
 }

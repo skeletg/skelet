@@ -7,7 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
 func (h *harness) newTaxRule(t *testing.T, channelID uuid.UUID, bps int, conditions ...tax.Condition) {
@@ -95,6 +97,107 @@ func TestTaxClassScopesRules(t *testing.T) {
 	reduced := h.PlaceGuestCOD(t, f, 1)
 	if reduced.TaxAmount != 50 {
 		t.Errorf("reduced-class product taxed %d, want 50", reduced.TaxAmount)
+	}
+	h.Settle(t)
+}
+
+func (h *harness) setChannelConfig(t *testing.T, f *store, path, val string) {
+	t.Helper()
+	if _, err := h.D.Config.Set(h.Ctx, path, val, config.Scope{Kind: config.ScopeChannel, ChannelID: &f.Channel.ID}); err != nil {
+		t.Fatalf("set %s: %v", path, err)
+	}
+}
+
+// Scenario: shipping is taxed by default, alongside the goods, and the channel can turn it off
+func TestTaxAppliesToShipping(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 2000)
+	h.addFlatShipping(t, f, 500, 0)
+	h.newTaxRule(t, f.Channel.ID, 1000)
+
+	o := h.PlaceGuestCOD(t, f, 1)
+	if o.TaxAmount != 250 {
+		t.Errorf("tax = %d, want 10%% of goods 2000 + shipping 500 = 250", o.TaxAmount)
+	}
+	if o.TotalAmount != 2750 {
+		t.Errorf("total = %d, want 2000 + 500 + 250", o.TotalAmount)
+	}
+	taxLines, err := h.D.Order.TaxLines(h.Ctx, o.ID)
+	if err != nil || len(taxLines) != 1 || taxLines[0].AmountCents != 250 {
+		t.Errorf("tax lines = %+v (%v), want one line of 250", taxLines, err)
+	}
+
+	h.setChannelConfig(t, f, "sales/checkout/shipping_taxable", "false")
+	exempt := h.PlaceGuestCOD(t, f, 1)
+	if exempt.TaxAmount != 200 || exempt.TotalAmount != 2700 {
+		t.Errorf("shipping-exempt tax/total = %d/%d, want 200/2700", exempt.TaxAmount, exempt.TotalAmount)
+	}
+	h.Settle(t)
+}
+
+// Scenario: shipping takes the configured tax class, so a class-scoped rule taxes it and not the goods
+func TestShippingTaxClassScopesRules(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 2000)
+	h.addFlatShipping(t, f, 500, 0)
+	h.newTaxRule(t, f.Channel.ID, 500, tax.Condition{
+		Type: "core.product_tax_class", Params: json.RawMessage(`{"classes":["freight"]}`),
+	})
+
+	unclassed := h.PlaceGuestCOD(t, f, 1)
+	if unclassed.TaxAmount != 0 {
+		t.Errorf("tax = %d, want 0 while shipping has no class", unclassed.TaxAmount)
+	}
+	h.setChannelConfig(t, f, "sales/checkout/shipping_tax_class", "freight")
+	freight := h.PlaceGuestCOD(t, f, 1)
+	if freight.TaxAmount != 25 {
+		t.Errorf("tax = %d, want 5%% of shipping 500 = 25 with the goods untouched", freight.TaxAmount)
+	}
+	h.Settle(t)
+}
+
+// Scenario: an admin draft taxes its shipping like a storefront order
+func TestDraftOrderTaxesShipping(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 10, 2000)
+	h.addFlatShipping(t, f, 500, 0)
+	h.newTaxRule(t, f.Channel.ID, 1000)
+
+	d := h.newDraft(t, f, []order.CreateDraftLine{{ProductSku: f.Product.SKU, Quantity: 1}})
+	if d.ShippingAmount != 500 || d.TaxAmount != 250 || d.TotalAmount != 2750 {
+		t.Errorf("draft shipping/tax/total = %d/%d/%d, want 500/250/2750", d.ShippingAmount, d.TaxAmount, d.TotalAmount)
+	}
+}
+
+// Scenario: both edit recomputes keep taxing the shipping they re-quote
+func TestEditsKeepTaxingShipping(t *testing.T) {
+	h := newHarness(t)
+	f := h.NewStore(t, 20, 2000)
+	h.addFlatShipping(t, f, 500, 0)
+	h.newTaxRule(t, f.Channel.ID, 1000)
+	o := h.PlaceGuestCOD(t, f, 1)
+	h.Settle(t)
+
+	edited, err := h.D.Order.EditOrder(h.Ctx, order.EditOrderInput{
+		OrderID:   o.ID,
+		UpdateQty: []order.EditLineQty{{OrderLineID: h.OrderLines(t, o.ID)[0].ID, Quantity: 2}},
+	})
+	if err != nil {
+		t.Fatalf("EditOrder: %v", err)
+	}
+	if edited.TaxAmount != 450 {
+		t.Errorf("tax after edit = %d, want 10%% of goods 4000 + shipping 500 = 450", edited.TaxAmount)
+	}
+
+	moved, err := h.D.Order.EditOrderAddress(h.Ctx, order.EditOrderAddressInput{
+		OrderID:  o.ID,
+		Shipping: editAddr("Ada", "Lovelace", "Boston", "02101"),
+	})
+	if err != nil {
+		t.Fatalf("EditOrderAddress: %v", err)
+	}
+	if moved.TaxAmount != 450 {
+		t.Errorf("tax after address move = %d, want 450", moved.TaxAmount)
 	}
 	h.Settle(t)
 }

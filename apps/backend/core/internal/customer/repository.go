@@ -6,28 +6,30 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
-// The Signals-side erasure GDPR anonymize needs - satisfied by *analytics.Recorder, so the identity delete hits whichever spine engine holds the mappings (Postgres or ClickHouse), not a fixed handle
-type signalsEraser interface {
-	DeleteCustomerIdentities(ctx context.Context, customerID uuid.UUID, email string) error
+// SignalsEraser is the Signals half of a GDPR erasure, satisfied by *signalsclient.Client - pass a nil interface, never a nil client, when Signals is off
+type SignalsEraser interface {
+	DeleteCustomerIdentities(ctx context.Context, customerID uuid.UUID, email string, erasedAt time.Time) error
 }
 
 type postgresRepository struct {
 	queries *db.Queries
-	signals signalsEraser // GDPR erasure of the identity mappings
+	signals SignalsEraser // GDPR erasure of the identity mappings
 	tx      *txrunner.Manager
 }
 
 // NewRepository returns a postgres-backed Repository - The txrunner.Manager is used
 // for atomic multi-statement mutations (currently only SetDefaultGroup)
-func NewRepository(queries *db.Queries, signals signalsEraser, txMgr *txrunner.Manager) *postgresRepository {
+func NewRepository(queries *db.Queries, signals SignalsEraser, txMgr *txrunner.Manager) *postgresRepository {
 	return &postgresRepository{queries: queries, signals: signals, tx: txMgr}
 }
 
@@ -125,6 +127,18 @@ func (r *postgresRepository) List(ctx context.Context) ([]Customer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list customers: %w", err)
 	}
+	return r.withGroups(ctx, rows)
+}
+
+func (r *postgresRepository) ListInChannels(ctx context.Context, channelIDs []uuid.UUID) ([]Customer, error) {
+	rows, err := r.queries.ListCustomersInChannels(ctx, db.ListCustomersInChannelsParams{AllChannels: channelIDs == nil, ChannelIds: channelIDs})
+	if err != nil {
+		return nil, fmt.Errorf("list customers in channels: %w", err)
+	}
+	return r.withGroups(ctx, rows)
+}
+
+func (r *postgresRepository) withGroups(ctx context.Context, rows []db.Customer) ([]Customer, error) {
 	// One-shot group load + in-memory map join, avoiding N+1 per customer
 	groups, err := r.ListGroups(ctx)
 	if err != nil {
@@ -218,7 +232,7 @@ func (r *postgresRepository) Update(ctx context.Context, id uuid.UUID, input Upd
 		ID:        id,
 		FirstName: input.FirstName,
 		LastName:  input.LastName,
-		Phone:     nullString(input.Phone),
+		Phone:     sqlnull.String(input.Phone),
 	}); err != nil {
 		return Customer{}, fmt.Errorf("update customer: %w", err)
 	}
@@ -253,7 +267,7 @@ func (r *postgresRepository) AdminCreate(ctx context.Context, input AdminCreateC
 		PasswordHash:    passwordHash,
 		FirstName:       input.FirstName,
 		LastName:        input.LastName,
-		Phone:           nullString(input.Phone),
+		Phone:           sqlnull.String(input.Phone),
 		IsActive:        *input.IsActive,
 		IsEmailVerified: *input.IsEmailVerified,
 		CustomerGroupID: groupID,
@@ -288,7 +302,7 @@ func (r *postgresRepository) AdminUpdate(ctx context.Context, id uuid.UUID, inpu
 	}
 	phone := current.Phone
 	if input.Phone != nil {
-		phone = nullString(input.Phone)
+		phone = sqlnull.String(input.Phone)
 	}
 	isActive := current.IsActive
 	if input.IsActive != nil {
@@ -300,7 +314,7 @@ func (r *postgresRepository) AdminUpdate(ctx context.Context, id uuid.UUID, inpu
 	}
 	note := current.Note
 	if input.Note != nil {
-		note = nullString(input.Note)
+		note = sqlnull.String(input.Note)
 	}
 	resolvedGroup := current.CustomerGroupID
 	if groupID != nil {
@@ -407,14 +421,14 @@ func (r *postgresRepository) CreateAddress(ctx context.Context, customerID uuid.
 		CustomerID:  customerID,
 		FirstName:   input.FirstName,
 		LastName:    input.LastName,
-		Company:     nullString(input.Company),
+		Company:     sqlnull.String(input.Company),
 		Street1:     input.Street1,
-		Street2:     nullString(input.Street2),
+		Street2:     sqlnull.String(input.Street2),
 		City:        input.City,
-		State:       nullString(input.State),
+		State:       sqlnull.String(input.State),
 		PostalCode:  input.PostalCode,
 		CountryCode: input.CountryCode,
-		Phone:       nullString(input.Phone),
+		Phone:       sqlnull.String(input.Phone),
 	})
 	if err != nil {
 		return Address{}, fmt.Errorf("create address: %w", err)
@@ -447,14 +461,14 @@ func (r *postgresRepository) UpdateAddress(ctx context.Context, id uuid.UUID, in
 		ID:          id,
 		FirstName:   input.FirstName,
 		LastName:    input.LastName,
-		Company:     nullString(input.Company),
+		Company:     sqlnull.String(input.Company),
 		Street1:     input.Street1,
-		Street2:     nullString(input.Street2),
+		Street2:     sqlnull.String(input.Street2),
 		City:        input.City,
-		State:       nullString(input.State),
+		State:       sqlnull.String(input.State),
 		PostalCode:  input.PostalCode,
 		CountryCode: input.CountryCode,
-		Phone:       nullString(input.Phone),
+		Phone:       sqlnull.String(input.Phone),
 	})
 	if err != nil {
 		return Address{}, fmt.Errorf("update address: %w", err)
@@ -538,13 +552,6 @@ func toAddress(row db.Address) Address {
 		a.Phone = &row.Phone.String
 	}
 	return a
-}
-
-func nullString(s *string) sql.NullString {
-	if s == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *s, Valid: true}
 }
 
 // --- customer groups ---

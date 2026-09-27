@@ -85,6 +85,9 @@ func (s *settingsServer) UpsertValue(ctx context.Context, req *signalsv1.UpsertV
 	if err := requireSystem(ctx); err != nil {
 		return nil, err
 	}
+	if req.GetPath() == "" {
+		return nil, invalidArgument("path is required")
+	}
 	scope, err := settingScope(req.GetScope())
 	if err != nil {
 		return nil, err

@@ -398,6 +398,33 @@ func (q *Queries) ListAdminUserGrants(ctx context.Context, adminUserID uuid.UUID
 	return items, nil
 }
 
+const listRoleMemberIDs = `-- name: ListRoleMemberIDs :many
+SELECT admin_user_id FROM admin_user_roles WHERE role_id = $1
+`
+
+func (q *Queries) ListRoleMemberIDs(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listRoleMemberIDs, roleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var admin_user_id uuid.UUID
+		if err := rows.Scan(&admin_user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, admin_user_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateAdminRole = `-- name: UpdateAdminRole :one
 UPDATE admin_roles SET name = $2, description = $3 WHERE id = $1 RETURNING id, name, slug, description, created_at
 `

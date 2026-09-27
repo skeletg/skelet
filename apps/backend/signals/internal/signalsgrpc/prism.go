@@ -17,10 +17,7 @@ type prismServer struct {
 }
 
 func (s *prismServer) ListExperiments(ctx context.Context, req *signalsv1.ListExperimentsRequest) (*signalsv1.ListExperimentsResponse, error) {
-	if err := requirePermission(ctx, "experiments.view"); err != nil {
-		return nil, err
-	}
-	cid, err := parseID("channel_id", req.GetChannelId())
+	cid, err := channelScope(ctx, "experiments.view", req.GetChannelId())
 	if err != nil {
 		return nil, err
 	}
@@ -36,33 +33,20 @@ func (s *prismServer) ListExperiments(ctx context.Context, req *signalsv1.ListEx
 }
 
 func (s *prismServer) GetExperiment(ctx context.Context, req *signalsv1.GetExperimentRequest) (*signalsv1.GetExperimentResponse, error) {
-	if err := requirePermission(ctx, "experiments.view"); err != nil {
-		return nil, err
-	}
-	id, err := parseID("id", req.GetId())
+	exp, err := s.load(ctx, "experiments.view", req.GetId())
 	if err != nil {
 		return nil, err
-	}
-	exp, found, err := s.svc.Get(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, status.Error(codes.NotFound, "experiment not found")
 	}
 	return &signalsv1.GetExperimentResponse{Experiment: experimentProto(exp)}, nil
 }
 
 func (s *prismServer) GetExperimentResults(ctx context.Context, req *signalsv1.GetExperimentResultsRequest) (*signalsv1.GetExperimentResultsResponse, error) {
-	if err := requirePermission(ctx, "experiments.view"); err != nil {
-		return nil, err
-	}
-	id, err := parseID("id", req.GetId())
+	exp, err := s.load(ctx, "experiments.view", req.GetId())
 	if err != nil {
 		return nil, err
 	}
 	days := windowDays(req.GetSinceDays(), 30)
-	_, analysis, err := s.svc.Results(ctx, id, time.Now().AddDate(0, 0, -int(days)))
+	_, analysis, err := s.svc.Results(ctx, exp.ID, time.Now().AddDate(0, 0, -int(days)))
 	if err != nil {
 		return nil, err
 	}
@@ -84,10 +68,7 @@ func (s *prismServer) GetExperimentResults(ctx context.Context, req *signalsv1.G
 }
 
 func (s *prismServer) GetExperimentsOverview(ctx context.Context, req *signalsv1.GetExperimentsOverviewRequest) (*signalsv1.GetExperimentsOverviewResponse, error) {
-	if err := requirePermission(ctx, "experiments.view"); err != nil {
-		return nil, err
-	}
-	cid, err := parseID("channel_id", req.GetChannelId())
+	cid, err := channelScope(ctx, "experiments.view", req.GetChannelId())
 	if err != nil {
 		return nil, err
 	}
@@ -114,10 +95,7 @@ func (s *prismServer) GetExperimentsOverview(ctx context.Context, req *signalsv1
 }
 
 func (s *prismServer) ListGoalEvents(ctx context.Context, req *signalsv1.ListGoalEventsRequest) (*signalsv1.ListGoalEventsResponse, error) {
-	if err := requirePermission(ctx, "experiments.view"); err != nil {
-		return nil, err
-	}
-	cid, err := parseID("channel_id", req.GetChannelId())
+	cid, err := channelScope(ctx, "experiments.view", req.GetChannelId())
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +115,9 @@ func (s *prismServer) CreateExperiment(ctx context.Context, req *signalsv1.Creat
 	if err != nil {
 		return nil, err
 	}
+	if err := requireChannel(ctx, "experiments.manage", in.ChannelID); err != nil {
+		return nil, err
+	}
 	exp, err := s.svc.Create(ctx, in)
 	if err != nil {
 		return nil, err
@@ -145,10 +126,7 @@ func (s *prismServer) CreateExperiment(ctx context.Context, req *signalsv1.Creat
 }
 
 func (s *prismServer) UpdateExperiment(ctx context.Context, req *signalsv1.UpdateExperimentRequest) (*signalsv1.UpdateExperimentResponse, error) {
-	if err := requirePermission(ctx, "experiments.manage"); err != nil {
-		return nil, err
-	}
-	id, err := parseID("id", req.GetId())
+	existing, err := s.load(ctx, "experiments.manage", req.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +134,8 @@ func (s *prismServer) UpdateExperiment(ctx context.Context, req *signalsv1.Updat
 	if err != nil {
 		return nil, err
 	}
-	exp, err := s.svc.Update(ctx, id, in)
+	in.ChannelID = existing.ChannelID
+	exp, err := s.svc.Update(ctx, existing.ID, in)
 	if err != nil {
 		return nil, err
 	}
@@ -164,17 +143,35 @@ func (s *prismServer) UpdateExperiment(ctx context.Context, req *signalsv1.Updat
 }
 
 func (s *prismServer) DeleteExperiment(ctx context.Context, req *signalsv1.DeleteExperimentRequest) (*signalsv1.DeleteExperimentResponse, error) {
-	if err := requirePermission(ctx, "experiments.manage"); err != nil {
-		return nil, err
-	}
-	id, err := parseID("id", req.GetId())
+	exp, err := s.load(ctx, "experiments.manage", req.GetId())
 	if err != nil {
 		return nil, err
 	}
-	if err := s.svc.Delete(ctx, id); err != nil {
+	if err := s.svc.Delete(ctx, exp.ChannelID, exp.ID); err != nil {
 		return nil, err
 	}
 	return &signalsv1.DeleteExperimentResponse{Deleted: true}, nil
+}
+
+func (s *prismServer) load(ctx context.Context, perm, rawID string) (experiment.Experiment, error) {
+	if err := requirePermission(ctx, perm); err != nil {
+		return experiment.Experiment{}, err
+	}
+	id, err := parseID("id", rawID)
+	if err != nil {
+		return experiment.Experiment{}, err
+	}
+	exp, found, err := s.svc.Get(ctx, id)
+	if err != nil {
+		return experiment.Experiment{}, err
+	}
+	if !found {
+		return experiment.Experiment{}, status.Error(codes.NotFound, "experiment not found")
+	}
+	if err := requireChannel(ctx, perm, exp.ChannelID); err != nil {
+		return experiment.Experiment{}, err
+	}
+	return exp, nil
 }
 
 func experimentProto(e experiment.Experiment) *signalsv1.Experiment {

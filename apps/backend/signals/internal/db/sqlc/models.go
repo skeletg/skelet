@@ -49,6 +49,12 @@ type ChannelRoster struct {
 	FromAddress string    `json:"from_address"`
 	FromName    string    `json:"from_name"`
 	LogoUrl     string    `json:"logo_url"`
+	IsActive    bool      `json:"is_active"`
+}
+
+type ChannelRosterTombstone struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	PrunedAt  time.Time `json:"pruned_at"`
 }
 
 type ConfigValue struct {
@@ -72,31 +78,38 @@ type CustomerEngagementRefresh struct {
 	RanAt     time.Time `json:"ran_at"`
 }
 
-type CustomerOrderAgg struct {
-	CustomerID    uuid.UUID    `json:"customer_id"`
-	ChannelID     uuid.UUID    `json:"channel_id"`
-	OrderCount    int32        `json:"order_count"`
-	MonetaryCents int64        `json:"monetary_cents"`
-	FirstOrderAt  sql.NullTime `json:"first_order_at"`
-	LastOrderAt   sql.NullTime `json:"last_order_at"`
-	ComputedAt    time.Time    `json:"computed_at"`
+type CustomerRoster struct {
+	CustomerID          uuid.UUID       `json:"customer_id"`
+	ChannelID           uuid.UUID       `json:"channel_id"`
+	LifecycleNewDays    sql.NullInt32   `json:"lifecycle_new_days"`
+	LifecycleActiveDays sql.NullInt32   `json:"lifecycle_active_days"`
+	LifecycleAtRiskDays sql.NullInt32   `json:"lifecycle_at_risk_days"`
+	SyncedAt            time.Time       `json:"synced_at"`
+	Email               string          `json:"email"`
+	FirstName           string          `json:"first_name"`
+	IsActive            bool            `json:"is_active"`
+	CustomerGroupID     uuid.NullUUID   `json:"customer_group_id"`
+	MarketingOptedIn    bool            `json:"marketing_opted_in"`
+	Phone               string          `json:"phone"`
+	SmsOptedIn          bool            `json:"sms_opted_in"`
+	CustomerGroupSlug   string          `json:"customer_group_slug"`
+	Consents            json.RawMessage `json:"consents"`
+	SourceReadAt        sql.NullTime    `json:"source_read_at"`
+	OrderCount          int32           `json:"order_count"`
+	MonetaryCents       int64           `json:"monetary_cents"`
+	FirstOrderAt        sql.NullTime    `json:"first_order_at"`
+	LastOrderAt         sql.NullTime    `json:"last_order_at"`
 }
 
-type CustomerRoster struct {
-	CustomerID          uuid.UUID     `json:"customer_id"`
-	ChannelID           uuid.UUID     `json:"channel_id"`
-	LifecycleNewDays    sql.NullInt32 `json:"lifecycle_new_days"`
-	LifecycleActiveDays sql.NullInt32 `json:"lifecycle_active_days"`
-	LifecycleAtRiskDays sql.NullInt32 `json:"lifecycle_at_risk_days"`
-	SyncedAt            time.Time     `json:"synced_at"`
-	Email               string        `json:"email"`
-	FirstName           string        `json:"first_name"`
-	IsActive            bool          `json:"is_active"`
-	CustomerGroupID     uuid.NullUUID `json:"customer_group_id"`
-	MarketingOptedIn    bool          `json:"marketing_opted_in"`
-	Phone               string        `json:"phone"`
-	SmsOptedIn          bool          `json:"sms_opted_in"`
-	CustomerGroupSlug   string        `json:"customer_group_slug"`
+type CustomerRosterState struct {
+	OneRow        bool         `json:"one_row"`
+	FilledVersion int32        `json:"filled_version"`
+	FilledAt      sql.NullTime `json:"filled_at"`
+}
+
+type CustomerRosterTombstone struct {
+	CustomerID uuid.UUID `json:"customer_id"`
+	DeletedAt  time.Time `json:"deleted_at"`
 }
 
 type CustomerSegment struct {
@@ -104,7 +117,7 @@ type CustomerSegment struct {
 	Slug                string                `json:"slug"`
 	Name                string                `json:"name"`
 	Description         string                `json:"description"`
-	RefreshSql          string                `json:"refresh_sql"`
+	Definition          string                `json:"definition"`
 	IsActive            bool                  `json:"is_active"`
 	CreatedAt           time.Time             `json:"created_at"`
 	UpdatedAt           time.Time             `json:"updated_at"`
@@ -181,6 +194,7 @@ type EmailCampaign struct {
 	AbWinner        string          `json:"ab_winner"`
 	AbTestStartedAt sql.NullTime    `json:"ab_test_started_at"`
 	DeletedAt       sql.NullTime    `json:"deleted_at"`
+	MaterializedAt  sql.NullTime    `json:"materialized_at"`
 }
 
 type EmailCampaignRecipient struct {
@@ -417,4 +431,10 @@ type SegmentMembershipDaily struct {
 	SegmentID   uuid.UUID `json:"segment_id"`
 	Day         time.Time `json:"day"`
 	MemberCount int32     `json:"member_count"`
+}
+
+type TraitComputeRun struct {
+	ChannelID   uuid.UUID    `json:"channel_id"`
+	FinishedAt  sql.NullTime `json:"finished_at"`
+	AttemptedAt sql.NullTime `json:"attempted_at"`
 }

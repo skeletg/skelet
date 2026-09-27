@@ -127,7 +127,7 @@ type ConversionSpec struct {
 // Last-touch: a click within 7d, else an open within 1d, logging one conversion event per order - marketing-only, and it never feeds order or accounting totals
 func (r *Recorder) RecordConversion(ctx context.Context, cs ConversionSpec) (bool, error) {
 	at := orNow(cs.At)
-	anchor, ok, err := r.mostRecentEngagement(ctx, cs.CustomerID, at.Add(-clickAttributionWindow))
+	anchor, ok, err := r.mostRecentEngagement(ctx, cs.ChannelID, cs.CustomerID, at.Add(-clickAttributionWindow))
 	if err != nil {
 		return false, err
 	}
@@ -168,8 +168,8 @@ type emailAnchor struct { // the last-touch open or click a conversion attribute
 
 // A click outranks an open, then most-recent wins, keeping only sends that came from a campaign or flow
 // One query: the send's origin was written onto the event, so there is nothing to resolve afterwards
-func (r *Recorder) mostRecentEngagement(ctx context.Context, customerID uuid.UUID, since time.Time) (emailAnchor, bool, error) {
-	cands, err := r.spine.RecentEngagementEvents(ctx, customerID, since)
+func (r *Recorder) mostRecentEngagement(ctx context.Context, channelID, customerID uuid.UUID, since time.Time) (emailAnchor, bool, error) {
+	cands, err := r.spine.RecentEngagementEvents(ctx, channelID, customerID, since)
 	if err != nil {
 		return emailAnchor{}, false, err
 	}
@@ -198,10 +198,11 @@ func (r *Recorder) Prune(ctx context.Context, before time.Time) (int64, error) {
 }
 
 // Spine hygiene that must NOT hang off the retention decision - queued ClickHouse erasures still have to run under keep-forever retention, or erasure requests sit unswept
-func (r *Recorder) Maintain(ctx context.Context) {
+func (r *Recorder) Maintain(ctx context.Context) error {
 	if err := r.sweepIdentityErasures(ctx); err != nil {
-		log.Printf("[analytics] identity erasure sweep: %v", err)
+		return fmt.Errorf("identity erasure sweep: %w", err)
 	}
+	return nil
 }
 
 type LensCellIncrement struct { // a binned heatmap increment from one tracker flush - ClickHouse appends these as raw events where Postgres upserts hot counter rows

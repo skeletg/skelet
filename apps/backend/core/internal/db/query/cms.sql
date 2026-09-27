@@ -280,6 +280,15 @@ SET is_published = $2, published_at = $3, updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 
+-- name: GoLiveCMSPage :one
+-- One statement, so a page is never live with a stale workflow state
+UPDATE cms_pages
+SET is_published = TRUE, published_at = sqlc.arg(published_at), workflow_state = 'published',
+    scheduled_at = CASE WHEN sqlc.arg(clear_schedule)::bool THEN NULL ELSE scheduled_at END,
+    updated_at = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING *;
+
 -- name: DeleteCMSPage :exec
 DELETE FROM cms_pages WHERE id = $1;
 
@@ -599,6 +608,9 @@ SET resolved = $2, resolved_by = $3,
     resolved_at = CASE WHEN $2 THEN NOW() ELSE NULL END
 WHERE id = $1
 RETURNING *;
+
+-- name: GetCMSPageComment :one
+SELECT * FROM cms_page_comments WHERE id = $1;
 
 -- name: DeleteCMSPageComment :exec
 DELETE FROM cms_page_comments WHERE id = $1;

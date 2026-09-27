@@ -9,7 +9,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 )
 
-// Order tax computed by a merchant HTTP endpoint (remoteprovider kind=tax_provider) instead of the core zone engine - the escape hatch for AvaTax or TaxJar without a Go plugin With one on a channel, placement writes its result through the OrderPlacing.TaxCents seam, and core's per-line calc only runs when no provider claims the order fail_open falls back to core and fail_closed aborts - Wire contract: request {channelId, currency, taxInclusive, subtotalCents, discountCents, customerGroup, taxExempt, address, lines}, response {taxCents}
+// Order tax computed by a merchant HTTP endpoint (remoteprovider kind=tax_provider) instead of the core zone engine - the escape hatch for AvaTax or TaxJar without a Go plugin With one on a channel, placement writes its result through the OrderPlacing.TaxCents seam, and core's per-line calc only runs when no provider claims the order fail_open falls back to core and fail_closed aborts - Wire contract: request {channelId, currency, taxInclusive, subtotalCents, discountCents, shippingCents, customerGroup, taxExempt, address, lines}, response {taxCents}
 
 type RemoteTaxSource interface {
 	// The order's total tax - ok=false means no provider or fail_open, so use core, while a non-nil error means a fail_closed provider failed and placement aborts
@@ -22,6 +22,7 @@ type RemoteTaxInput struct {
 	TaxInclusive  bool
 	SubtotalCents int64
 	DiscountCents int64
+	ShippingCents int64
 	CustomerGroup string
 	TaxExempt     bool
 	Address       OrderAddress
@@ -37,7 +38,7 @@ type RemoteTaxLine struct {
 // Optional - nil leaves tax to the core calculator
 func (s *Service) SetRemoteTax(src RemoteTaxSource) { s.remoteTax = src }
 
-func remoteTaxInputFromCheckout(cc *checkoutContext, discountCents int64) RemoteTaxInput {
+func remoteTaxInputFromCheckout(cc *checkoutContext, discountCents, shippingCents int64) RemoteTaxInput {
 	lines := make([]RemoteTaxLine, len(cc.cart.Lines))
 	for i, l := range cc.cart.Lines {
 		lines[i] = RemoteTaxLine{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice}
@@ -51,6 +52,7 @@ func remoteTaxInputFromCheckout(cc *checkoutContext, discountCents int64) Remote
 		TaxInclusive:  cc.store.TaxInclusivePricing,
 		SubtotalCents: cc.subtotal,
 		DiscountCents: discountCents,
+		ShippingCents: shippingCents,
 		CustomerGroup: customerGroupSlug(cc.customer),
 		TaxExempt:     cc.customer.TaxExempt,
 		Address:       cc.shipping,
@@ -64,6 +66,7 @@ type remoteTaxRequest struct {
 	TaxInclusive  bool               `json:"taxInclusive"`
 	SubtotalCents int64              `json:"subtotalCents"`
 	DiscountCents int64              `json:"discountCents"`
+	ShippingCents int64              `json:"shippingCents"`
 	CustomerGroup string             `json:"customerGroup,omitempty"`
 	TaxExempt     bool               `json:"taxExempt"`
 	Address       remoteTaxAddress   `json:"address"`
@@ -144,6 +147,7 @@ func remoteTaxRequestFrom(in RemoteTaxInput) remoteTaxRequest {
 		TaxInclusive:  in.TaxInclusive,
 		SubtotalCents: in.SubtotalCents,
 		DiscountCents: in.DiscountCents,
+		ShippingCents: in.ShippingCents,
 		CustomerGroup: in.CustomerGroup,
 		TaxExempt:     in.TaxExempt,
 		Address:       taxAddressFrom(in.Address),

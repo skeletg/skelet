@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
@@ -39,7 +41,7 @@ const (
 )
 
 // Enroll answers how many active flows took the moment - zero means core's own mail still has to go out
-// An error means unknown: the suite couldn't be reached, so a caller that can wait should ask again later
+// An error with a zero means unknown, and with a count means those flows took it while others failed; either way a caller that can wait asks again later
 func (c *Client) Enroll(ctx context.Context, e Enrollment) (int, error) {
 	if c == nil {
 		return 0, nil // no suite to ask is a definite no
@@ -71,20 +73,35 @@ func (c *Client) Enroll(ctx context.Context, e Enrollment) (int, error) {
 		actx, cancel := context.WithTimeout(sys, enrollAttemptTimeout)
 		res, err := c.Flows.Enroll(actx, req)
 		cancel()
+		if err == nil && res.GetIncomplete() {
+			return int(res.GetEnrolled()), fmt.Errorf("enroll %s on %s: %d flows took it, some could not be asked", e.Trigger, e.ChannelID, res.GetEnrolled())
+		}
 		if err == nil {
 			return int(res.GetEnrolled()), nil
 		}
 		if ctx.Err() != nil {
 			return 0, ctx.Err()
 		}
-		if !Unreachable(err) {
+		if refused(err) {
 			// The suite answered and refused - a bug on this side, and a definite answer: no flow took it
 			log.Printf("[signals] enroll %s on %s refused: %v", e.Trigger, e.ChannelID, err)
 			return 0, nil
 		}
+		if !Unreachable(err) {
+			return 0, fmt.Errorf("enroll %s on %s: %w", e.Trigger, e.ChannelID, err) // the suite failed partway, so the count is unknown
+		}
 		last = err
 	}
 	return 0, fmt.Errorf("enroll %s on %s: %w", e.Trigger, e.ChannelID, last)
+}
+
+func refused(err error) bool {
+	switch status.Code(err) {
+	case codes.InvalidArgument, codes.PermissionDenied, codes.Unauthenticated, codes.NotFound, codes.Unimplemented, codes.FailedPrecondition:
+		return true
+	default:
+		return false
+	}
 }
 
 // OrderPayload is what an order moment carries - the ids the send-once record keys on, and the snapshot the

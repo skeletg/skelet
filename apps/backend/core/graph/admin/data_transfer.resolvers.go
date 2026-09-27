@@ -128,19 +128,28 @@ func (r *queryResolver) DataJobs(ctx context.Context, resources []string, direct
 	if len(visible) == 0 {
 		return &model.DataJobList{Items: []*model.DataJob{}}, nil
 	}
+	scope, err := r.jobVisibility(ctx, visible)
+	if err != nil {
+		return nil, err
+	}
 	jobs, total, err := r.DataJobSvc.List(ctx, datajob.ListFilter{
-		Resources: visible,
-		Direction: dataio.Direction(derefString(direction)),
-		Statuses:  statuses,
-		Limit:     int(derefInt32Default(limit, 50)),
-		Offset:    int(derefInt32Default(offset, 0)),
+		Resources:  visible,
+		Direction:  dataio.Direction(derefString(direction)),
+		Statuses:   statuses,
+		Limit:      int(derefInt32Default(limit, 50)),
+		Offset:     int(derefInt32Default(offset, 0)),
+		Visibility: scope,
 	})
 	if err != nil {
 		return nil, err
 	}
-	items := make([]*model.DataJob, len(jobs))
-	for i, j := range jobs {
-		items[i] = toDataJobModel(j, r.dataResourceLabel(j.Resource))
+	items := make([]*model.DataJob, 0, len(jobs))
+	for _, j := range jobs {
+		if r.requireJobAccess(ctx, j, false) != nil {
+			total-- // another channel's run
+			continue
+		}
+		items = append(items, toDataJobModel(j, r.dataResourceLabel(j.Resource)))
 	}
 	return &model.DataJobList{Items: items, TotalCount: int32(total)}, nil
 }

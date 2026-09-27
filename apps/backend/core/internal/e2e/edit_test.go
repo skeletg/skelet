@@ -361,6 +361,7 @@ func TestEditRefusesABundleLineQuantity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create bundle: %v", err)
 	}
+	h.ListOn(t, f.Channel, b.ID, 0)
 	opt, err := h.D.Catalog.AddBundleOption(h.Ctx, catalog.AddBundleOptionInput{
 		ProductID: b.ID, InputType: catalog.BundleInputCheckbox,
 		IsRequired: true, MinSelections: 1, Locale: "en", Title: "Pick parts",
@@ -478,6 +479,7 @@ func (h *harness) newBundleProduct(t *testing.T, f *store, comp catalog.Product,
 	if err != nil {
 		t.Fatalf("create bundle: %v", err)
 	}
+	h.ListOn(t, f.Channel, b.ID, 0)
 	opt, err := h.D.Catalog.AddBundleOption(h.Ctx, catalog.AddBundleOptionInput{
 		ProductID: b.ID, InputType: catalog.BundleInputCheckbox,
 		IsRequired: true, MinSelections: 1, Locale: "en", Title: "Pick parts",

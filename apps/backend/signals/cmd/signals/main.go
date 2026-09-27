@@ -11,14 +11,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
+	"google.golang.org/grpc"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/envcheck"
 	"github.com/skeletg/skelet/apps/backend/core/lib/httpx"
 	"github.com/skeletg/skelet/apps/backend/core/lib/observability"
@@ -38,7 +41,12 @@ func run() error {
 	// The contract verifies core's calls with the service secret, /t the customer sessions with JWT_SECRET
 	if err := envcheck.Report(envcheck.Production(os.Getenv,
 		envcheck.JWTSecret, envcheck.SignalsServiceSecret, envcheck.SignalsDatabase, envcheck.RateLimiting,
+		envcheck.TrustedProxies, // /t and /e arrive through core's proxy, so the shopper's IP is in X-Forwarded-For
 	)); err != nil {
+		return err
+	}
+
+	if err := trustProxies(os.Getenv); err != nil {
 		return err
 	}
 
@@ -111,10 +119,10 @@ func run() error {
 			slog.Error("signals grpc server", "err", err)
 		}
 	})
-	go func() {
+	wg.Go(func() {
 		<-ctx.Done()
-		d.GRPC.GracefulStop()
-	}()
+		stopGRPC(d.GRPC, grpcDrainTimeout)
+	})
 	slog.Info("signals grpc listening", "addr", grpcAddr)
 
 	srv := &http.Server{
@@ -124,11 +132,15 @@ func run() error {
 		ReadTimeout:       2 * time.Minute, // event batches and rollup reads, nothing long-streaming
 		WriteTimeout:      2 * time.Minute,
 	}
+	drained := make(chan struct{})
 	go func() {
+		defer close(drained)
 		<-ctx.Done()
 		sctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_ = srv.Shutdown(sctx)
+		if err := srv.Shutdown(sctx); err != nil {
+			slog.Warn("signals http drain", "err", err)
+		}
 	}()
 
 	slog.Info("signals started", "addr", srv.Addr)
@@ -137,7 +149,34 @@ func run() error {
 		listenErr = err // still fall through to the wait - returning here closes the pools under loops running on a live ctx
 		stop()          // nothing else will cancel ctx on this path
 	}
+	<-drained // ListenAndServe returns the moment Shutdown starts, before in-flight /t and /e handlers finish
 	wg.Wait()
 	slog.Info("signals stopped")
 	return listenErr
+}
+
+func trustProxies(getenv func(string) string) error {
+	if err := auth.SetTrustedProxies(strings.Split(getenv("TRUSTED_PROXIES"), ",")); err != nil {
+		return fmt.Errorf("TRUSTED_PROXIES: %w", err)
+	}
+	return nil
+}
+
+const grpcDrainTimeout = 10 * time.Second
+
+func stopGRPC(srv *grpc.Server, within time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		srv.GracefulStop()
+		close(done)
+	}()
+	t := time.NewTimer(within)
+	defer t.Stop()
+	select {
+	case <-done:
+	case <-t.C:
+		slog.Warn("signals grpc drain timed out, cancelling in-flight calls", "after", within)
+		srv.Stop()
+		<-done
+	}
 }

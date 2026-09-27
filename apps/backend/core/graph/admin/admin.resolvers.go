@@ -215,7 +215,10 @@ func (r *mutationResolver) LogoutOtherDevices(ctx context.Context, currentRefres
 }
 
 func (r *mutationResolver) CreateAdmin(ctx context.Context, input model.CreateAdminInput) (*model.AdminUser, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+		return nil, err
+	}
+	if err := r.requireRolesGrantable(ctx, input.RoleSlugs); err != nil {
 		return nil, err
 	}
 	user, err := r.AdminSvc.CreateAdmin(ctx, input.Email, input.Password, input.FirstName, input.LastName, input.RoleSlugs)
@@ -231,12 +234,22 @@ func (r *mutationResolver) UpdateAdmin(ctx context.Context, id string, input mod
 	if err != nil {
 		return nil, err
 	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
 		return nil, err
 	}
 	adminID, err := parseID(id, "admin")
 	if err != nil {
 		return nil, err
+	}
+	if claims.AdminID != adminID {
+		if err := r.requireOutranks(ctx, adminID); err != nil {
+			return nil, err
+		}
+	}
+	if input.RoleSlugs != nil {
+		if err := r.requireRolesGrantable(ctx, input.RoleSlugs); err != nil {
+			return nil, err
+		}
 	}
 	// the privilege-bearing fields of your own account need a second admin - self-service role edits are how admins.manage silently becomes whatever the holder wants, and self-deactivation is how the last active admin locks everyone out (name edits on yourself stay allowed)
 	if claims.AdminID == adminID && (input.RoleSlugs != nil || input.IsActive != nil) {
@@ -264,7 +277,7 @@ func (r *mutationResolver) DeleteAdmin(ctx context.Context, id string) (bool, er
 	if err != nil {
 		return false, err
 	}
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
 		return false, err
 	}
 	adminID, err := parseID(id, "admin")
@@ -273,6 +286,9 @@ func (r *mutationResolver) DeleteAdmin(ctx context.Context, id string) (bool, er
 	}
 	if claims.AdminID == adminID {
 		return false, apperr.New("ADMIN_SELF_EDIT", apperr.ClassValidation, "deleting your own account needs another admin")
+	}
+	if err := r.requireOutranks(ctx, adminID); err != nil {
+		return false, err
 	}
 	if err := r.AdminSvc.Delete(ctx, adminID); err != nil {
 		return false, err
@@ -292,7 +308,7 @@ func (r *mutationResolver) ChangePassword(ctx context.Context, currentPassword s
 }
 
 func (r *mutationResolver) CreateRole(ctx context.Context, input model.CreateRoleInput) (*model.Role, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
 		return nil, err
 	}
 	description := ""
@@ -301,6 +317,9 @@ func (r *mutationResolver) CreateRole(ctx context.Context, input model.CreateRol
 	}
 	scopes, err := rolePermissionScopeInputsFromGQL(input.Scopes)
 	if err != nil {
+		return nil, err
+	}
+	if err := r.requireGrantable(ctx, scopeInputGrants(scopes, admin.Role{})); err != nil {
 		return nil, err
 	}
 	role, err := r.AdminSvc.CreateRole(ctx, admin.CreateRoleInput{
@@ -317,16 +336,27 @@ func (r *mutationResolver) CreateRole(ctx context.Context, input model.CreateRol
 
 // input.Scopes nil = leave grants alone, [] = wipe every grant
 func (r *mutationResolver) UpdateRole(ctx context.Context, id string, input model.UpdateRoleInput) (*model.Role, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
 		return nil, err
 	}
 	roleID, err := parseID(id, "role")
 	if err != nil {
 		return nil, err
 	}
+	if _, err := r.requireRoleEditable(ctx, roleID); err != nil {
+		return nil, err
+	}
 	scopes, err := rolePermissionScopeInputsFromGQL(input.Scopes)
 	if err != nil {
 		return nil, err
+	}
+	if err := r.requireGrantable(ctx, scopeInputGrants(scopes, admin.Role{})); err != nil {
+		return nil, err
+	}
+	if input.Scopes != nil {
+		if err := r.requireOutranksRoleMembers(ctx, roleID); err != nil {
+			return nil, err
+		}
 	}
 	role, err := r.AdminSvc.UpdateRole(ctx, roleID, admin.UpdateRoleInput{
 		Name:         input.Name,
@@ -342,11 +372,14 @@ func (r *mutationResolver) UpdateRole(ctx context.Context, id string, input mode
 
 // Errors with "role has members" while any admin still holds it - reassign them first
 func (r *mutationResolver) DeleteRole(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.manage"); err != nil {
 		return false, err
 	}
 	roleID, err := parseID(id, "role")
 	if err != nil {
+		return false, err
+	}
+	if _, err := r.requireRoleEditable(ctx, roleID); err != nil {
 		return false, err
 	}
 	if err := r.AdminSvc.DeleteRole(ctx, roleID); err != nil {
@@ -376,7 +409,7 @@ func (r *queryResolver) Me(ctx context.Context) (*model.AdminUser, error) {
 }
 
 func (r *queryResolver) PermissionGroups(ctx context.Context) ([]*model.PermissionGroup, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.view"); err != nil {
 		return nil, err
 	}
 	groups, err := r.AdminSvc.ListPermissionGroups(ctx)
@@ -391,7 +424,7 @@ func (r *queryResolver) PermissionGroups(ctx context.Context) ([]*model.Permissi
 }
 
 func (r *queryResolver) Admins(ctx context.Context) ([]*model.AdminUser, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.view"); err != nil {
 		return nil, err
 	}
 	users, err := r.AdminSvc.List(ctx)
@@ -406,7 +439,7 @@ func (r *queryResolver) Admins(ctx context.Context) ([]*model.AdminUser, error) 
 }
 
 func (r *queryResolver) Admin(ctx context.Context, id string) (*model.AdminUser, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.view"); err != nil {
 		return nil, err
 	}
 	adminID, err := parseID(id, "admin")
@@ -421,7 +454,7 @@ func (r *queryResolver) Admin(ctx context.Context, id string) (*model.AdminUser,
 }
 
 func (r *queryResolver) Roles(ctx context.Context) ([]*model.Role, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.view"); err != nil {
 		return nil, err
 	}
 	roles, err := r.AdminSvc.ListRoles(ctx)
@@ -436,7 +469,7 @@ func (r *queryResolver) Roles(ctx context.Context) ([]*model.Role, error) {
 }
 
 func (r *queryResolver) Role(ctx context.Context, id string) (*model.Role, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "admins.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "admins.view"); err != nil {
 		return nil, err
 	}
 	roleID, err := parseID(id, "role")

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 type postgresRepository struct {
@@ -28,15 +29,15 @@ func (r *postgresRepository) CreateAsset(ctx context.Context, asset Asset) (Asse
 		ObjectKey:       asset.ObjectKey,
 		MimeType:        asset.MimeType,
 		SizeBytes:       asset.SizeBytes,
-		Width:           nullableInt32(asset.Width),
-		Height:          nullableInt32(asset.Height),
+		Width:           sqlnull.Int32(asset.Width),
+		Height:          sqlnull.Int32(asset.Height),
 		Status:          string(asset.Status),
 		Title:           asset.Title,
 		AltText:         asset.AltText,
 		Caption:         asset.Caption,
 		Notes:           asset.Notes,
-		CreatedBy:       uuidToNull(asset.CreatedBy),
-		UpdatedBy:       uuidToNull(asset.UpdatedBy),
+		CreatedBy:       sqlnull.UUID(asset.CreatedBy),
+		UpdatedBy:       sqlnull.UUID(asset.UpdatedBy),
 	})
 	if err != nil {
 		if pgdb.IsUniqueViolation(err) {
@@ -135,9 +136,9 @@ func (r *postgresRepository) SearchAssets(ctx context.Context, input SearchInput
 func (r *postgresRepository) ConfirmAssetUpload(ctx context.Context, id uuid.UUID, width, height *int32, updatedBy *uuid.UUID) (Asset, error) {
 	row, err := r.queries.ConfirmMediaAssetUpload(ctx, db.ConfirmMediaAssetUploadParams{
 		ID:        id,
-		Width:     nullableInt32(width),
-		Height:    nullableInt32(height),
-		UpdatedBy: uuidToNull(updatedBy),
+		Width:     sqlnull.Int32(width),
+		Height:    sqlnull.Int32(height),
+		UpdatedBy: sqlnull.UUID(updatedBy),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -171,7 +172,7 @@ func (r *postgresRepository) UpdateAssetMetadata(ctx context.Context, input Upda
 		AltText:   current.AltText,
 		Caption:   current.Caption,
 		Notes:     current.Notes,
-		UpdatedBy: uuidToNull(updatedBy),
+		UpdatedBy: sqlnull.UUID(updatedBy),
 	})
 	if err != nil {
 		return Asset{}, fmt.Errorf("update media asset metadata: %w", err)
@@ -185,7 +186,7 @@ func (r *postgresRepository) UpdateAssetLocation(ctx context.Context, id uuid.UU
 		DirectoryPrefix: path,
 		Filename:        filename,
 		ObjectKey:       objectKey,
-		UpdatedBy:       uuidToNull(updatedBy),
+		UpdatedBy:       sqlnull.UUID(updatedBy),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -226,58 +227,20 @@ func toAsset(row db.MediaAsset) Asset {
 		ObjectKey:       row.ObjectKey,
 		MimeType:        row.MimeType,
 		SizeBytes:       row.SizeBytes,
-		Width:           int32Ptr(row.Width),
-		Height:          int32Ptr(row.Height),
-		FocalX:          nullFloat64Ptr(row.FocalX),
-		FocalY:          nullFloat64Ptr(row.FocalY),
+		Width:           sqlnull.Int32Ptr(row.Width),
+		Height:          sqlnull.Int32Ptr(row.Height),
+		FocalX:          sqlnull.Float64Ptr(row.FocalX),
+		FocalY:          sqlnull.Float64Ptr(row.FocalY),
 		Status:          AssetStatus(row.Status),
 		Title:           row.Title,
 		AltText:         row.AltText,
 		Caption:         row.Caption,
 		Notes:           row.Notes,
-		CreatedBy:       nullUUIDPtr(row.CreatedBy),
-		UpdatedBy:       nullUUIDPtr(row.UpdatedBy),
+		CreatedBy:       sqlnull.UUIDPtr(row.CreatedBy),
+		UpdatedBy:       sqlnull.UUIDPtr(row.UpdatedBy),
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,
 	}
-}
-
-func nullFloat64Ptr(v sql.NullFloat64) *float64 {
-	if !v.Valid {
-		return nil
-	}
-	f := v.Float64
-	return &f
-}
-
-func nullableInt32(v *int32) sql.NullInt32 {
-	if v == nil {
-		return sql.NullInt32{}
-	}
-	return sql.NullInt32{Int32: *v, Valid: true}
-}
-
-func int32Ptr(v sql.NullInt32) *int32 {
-	if !v.Valid {
-		return nil
-	}
-	n := v.Int32
-	return &n
-}
-
-func uuidToNull(v *uuid.UUID) uuid.NullUUID {
-	if v == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *v, Valid: true}
-}
-
-func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
-	if !v.Valid {
-		return nil
-	}
-	id := v.UUID
-	return &id
 }
 
 // SetFocalPoint stores (or clears, with nils) the smart-crop focal

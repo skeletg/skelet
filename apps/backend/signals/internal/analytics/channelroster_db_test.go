@@ -3,9 +3,9 @@ package analytics
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
@@ -21,7 +21,7 @@ func newRoster(t *testing.T) *ChannelRoster {
 	if _, err := conn.Exec(`DELETE FROM channel_roster`); err != nil {
 		t.Fatalf("clear roster: %v", err)
 	}
-	return NewChannelRoster(signalsdb.New(conn))
+	return NewChannelRoster(conn)
 }
 
 func TestAChannelIsServedOnlyOnceThePushCarriesIt(t *testing.T) {
@@ -32,7 +32,7 @@ func TestAChannelIsServedOnlyOnceThePushCarriesIt(t *testing.T) {
 	if r.Active(ctx, ch) {
 		t.Error("a channel no push has carried is being served")
 	}
-	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: ch}}); err != nil {
+	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: ch, IsActive: true}}); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	if !r.Active(ctx, ch) {
@@ -47,10 +47,10 @@ func TestAChannelDroppedFromThePushStopsBeingServed(t *testing.T) {
 	ctx := context.Background()
 	kept, retired := uuid.New(), uuid.New()
 
-	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: kept}, {ID: retired}}); err != nil {
+	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: kept, IsActive: true}, {ID: retired, IsActive: true}}); err != nil {
 		t.Fatalf("first sync: %v", err)
 	}
-	synced, pruned, err := r.SyncChannels(ctx, []ChannelEntry{{ID: kept}})
+	synced, pruned, err := r.SyncChannels(ctx, []ChannelEntry{{ID: kept, IsActive: true}})
 	if err != nil {
 		t.Fatalf("second sync: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestTheDefaultIsTheChannelThePushFlagged(t *testing.T) {
 	ctx := context.Background()
 	plain, def := uuid.New(), uuid.New()
 
-	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: plain}, {ID: def, IsDefault: true}}); err != nil {
+	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: plain, IsActive: true}, {ID: def, IsActive: true, IsDefault: true}}); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	got, ok := r.Default(ctx)
@@ -96,13 +96,13 @@ func TestAPushIsVisibleWithoutWaitingOutTheCache(t *testing.T) {
 	ctx := context.Background()
 	first, second := uuid.New(), uuid.New()
 
-	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: first}}); err != nil {
+	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: first, IsActive: true}}); err != nil {
 		t.Fatalf("first sync: %v", err)
 	}
 	if !r.Active(ctx, first) { // loads and caches the set
 		t.Fatal("the first channel is not being served")
 	}
-	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: first}, {ID: second}}); err != nil {
+	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: first, IsActive: true}, {ID: second, IsActive: true}}); err != nil {
 		t.Fatalf("second sync: %v", err)
 	}
 	if !r.Active(ctx, second) {
@@ -151,17 +151,70 @@ func TestAChangedIdentityIsVisibleImmediately(t *testing.T) {
 	if _, ok := r.Entry(ctx, uuid.New()); ok {
 		t.Error("a channel never pushed came back with an identity")
 	}
-	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: ch, FromAddress: "old@shop.test"}}); err != nil {
+	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: ch, IsActive: true, FromAddress: "old@shop.test"}}); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	if got, _ := r.Entry(ctx, ch); got.FromAddress != "old@shop.test" {
 		t.Fatalf("from address = %q before the change, want old@shop.test", got.FromAddress)
 	}
 
-	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: ch, FromAddress: "new@shop.test"}}); err != nil {
+	if _, _, err := r.SyncChannels(ctx, []ChannelEntry{{ID: ch, IsActive: true, FromAddress: "new@shop.test"}}); err != nil {
 		t.Fatalf("resync: %v", err)
 	}
 	if got, _ := r.Entry(ctx, ch); got.FromAddress != "new@shop.test" {
 		t.Errorf("from address = %q, want the pushed change rather than the cached answer", got.FromAddress)
+	}
+}
+
+func TestTraitsAreComputedStalestChannelFirst(t *testing.T) {
+	conn := testdb.RequireSignals(t)
+	ctx := context.Background()
+	qs := signalsdb.New(conn)
+	fresh, stale, never := uuid.New(), uuid.New(), uuid.New()
+	if _, _, err := NewChannelRoster(conn).SyncChannels(ctx, []ChannelEntry{{ID: fresh, IsActive: true}, {ID: stale, IsActive: true}, {ID: never, IsActive: true}}); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRoster(qs)
+	now := time.Now()
+	if err := r.MarkTraitsComputed(ctx, fresh, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.MarkTraitsComputed(ctx, stale, now.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.TraitComputeChannels(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || got[0] != never || got[1] != stale || got[2] != fresh {
+		t.Fatalf("order = %v, want never-computed, then stale, then fresh", got)
+	}
+}
+
+func TestAChannelThatNeverFinishesStopsLeadingTheTraitRun(t *testing.T) {
+	conn := testdb.RequireSignals(t)
+	ctx := context.Background()
+	slow, other := uuid.New(), uuid.New()
+	if _, _, err := NewChannelRoster(conn).SyncChannels(ctx, []ChannelEntry{{ID: slow, IsActive: true}, {ID: other, IsActive: true}}); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRoster(signalsdb.New(conn))
+	now := time.Now()
+	if err := r.MarkTraitsComputed(ctx, other, now.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.MarkTraitsAttempted(ctx, slow, now); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.TraitComputeChannels(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := map[uuid.UUID]int{}
+	for i, id := range got {
+		at[id] = i
+	}
+	if at[slow] < at[other] {
+		t.Fatalf("order = %v, want the channel just attempted behind the one computed an hour ago", got)
 	}
 }

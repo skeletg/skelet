@@ -21,6 +21,8 @@ service IngestService {
   // A customer core no longer has - the stream's sweep would catch it eventually, which is too late
   // to stop a campaign that sends first
   rpc DeleteRosterEntry(DeleteRosterEntryRequest) returns (DeleteRosterEntryResponse);
+  // Whether the suite's roster schema has grown past what the last full sync filled - core answers by running the sweep now rather than on the clock
+  rpc RosterStatus(RosterStatusRequest) returns (RosterStatusResponse);
   // GDPR erasure: core anonymizes or deletes a customer, and the spine identity mappings that would re-link them go with it
   // A failure is surfaced, never swallowed - core reports the erasure as incomplete
   rpc EraseCustomerIdentities(EraseCustomerIdentitiesRequest) returns (EraseCustomerIdentitiesResponse);
@@ -40,9 +42,11 @@ message ChannelEntry {
   string from_address = 5;
   string from_name = 6;
   string logo_url = 7;
+  // A deactivated channel is still sent, so its Pulse content survives - absent reads as active
+  optional bool is_active = 8;
 }
 
-// The whole of it - channels absent from the set are ones core no longer runs
+// Every channel core has - one absent from the set is one core deleted
 message SyncChannelsRequest {
   repeated ChannelEntry channels = 1;
 }
@@ -58,7 +62,7 @@ message RosterEntry {
   // What a marketing send needs to address this customer - empty where core has nothing on file
   string email = 3;
   string first_name = 4;
-  // A deactivated account is never mailed, and never counts toward an audience estimate
+  // A deactivated account gets transactional mail only, and never counts toward an audience estimate
   bool is_active = 5;
   // Empty unless the customer is in a group, which is what a group-audience campaign filters on
   string customer_group_id = 6;
@@ -71,6 +75,21 @@ message RosterEntry {
   // The group's slug beside its id - segment rules are authored against slugs, and the suite has no
   // groups table to resolve one through
   string customer_group_slug = 10;
+  // Every consent core holds for the customer, by kind - the two booleans above are the marketing pair
+  // of these, kept so a send path reads one column; a rule can ask about any kind
+  repeated Consent consents = 11;
+  // When core read the row, on its own clock - an entry older than the one already held is not applied
+  google.protobuf.Timestamp read_at = 12;
+  // Lifetime orders from core's own table, drafts and cancellations excluded - the suite's event log only keeps a year
+  int32 order_count = 13;
+  int64 monetary_cents = 14;
+  google.protobuf.Timestamp first_order_at = 15;
+  google.protobuf.Timestamp last_order_at = 16;
+}
+
+message Consent {
+  string kind = 1;
+  bool opted_in = 2;
 }
 
 // One page of the roster - the stream is the whole of it, and a stream that ends early prunes nothing
@@ -82,7 +101,19 @@ message UpsertRosterEntryRequest {
   RosterEntry customer = 1;
 }
 
-message UpsertRosterEntryResponse {}
+message UpsertRosterEntryResponse {
+  int32 roster_version = 1;
+  bool needs_full_sync = 2;
+}
+
+message RosterStatusRequest {}
+
+message RosterStatusResponse {
+  int32 roster_version = 1;
+  int32 filled_version = 2;
+  bool needs_full_sync = 3;
+  google.protobuf.Timestamp filled_at = 4;
+}
 
 message DeleteRosterEntryRequest {
   string customer_id = 1;
@@ -94,6 +125,7 @@ message SyncCustomerRosterResponse {
   int32 synced = 1;
   // Customers the stream did not carry, whose traits and memberships went with them
   int32 pruned = 2;
+  int32 roster_version = 3;
 }
 
 // One email send, reported once and whole: a campaign or flow send is kept in the suite's send log under core's id, a transactional one reaches the spine alone
@@ -208,6 +240,8 @@ message EraseCustomerIdentitiesRequest {
   // The address as it stood before core redacted it, so sends from before the customer had an
   // account are erased too - they are the same person, and only this address says so
   string email = 2;
+  // When core erased, on core's clock like read_at - absent uses the suite's clock
+  google.protobuf.Timestamp erased_at = 3;
 }
 
 message EraseCustomerIdentitiesResponse {}

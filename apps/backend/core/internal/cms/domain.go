@@ -532,5 +532,4 @@ type BlockType struct {
 	UpdatedAt    time.Time
 }
 
-// No producer-defined Repository interface on purpose - it had exactly one consumer and one implementation, so it added no abstraction value, only a 75-method surface to keep in sync
-// Tests exercise the concrete repo against a real database, matching the same cleanup in internal/catalog
+// No shared Repository interface - each sub-service declares the slice it uses (attributeStore, pageStore and the rest)

@@ -59,11 +59,15 @@ func (r *queryResolver) ProductQuestions(ctx context.Context, productID string, 
 	if err != nil {
 		return nil, invalidID("product")
 	}
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return []*model.ProductQuestion{}, nil
+	}
 	lim := int32(20)
 	if limit != nil {
 		lim = *limit
 	}
-	questions, err := r.QnaSvc.Published(ctx, pid, lim)
+	questions, err := r.QnaSvc.Published(ctx, pid, *storeID, lim)
 	if err != nil {
 		return nil, err
 	}

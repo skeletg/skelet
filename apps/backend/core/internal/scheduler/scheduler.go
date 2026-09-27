@@ -483,6 +483,20 @@ func (s *Service) RunNow(ctx context.Context, id uuid.UUID) error {
 	})
 }
 
+func (s *Service) RunNowByName(ctx context.Context, name string) error {
+	n, err := s.queries.SetScheduledJobNextRunByName(ctx, db.SetScheduledJobNextRunByNameParams{
+		Name:      name,
+		NextRunAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("no scheduled job named %q", name)
+	}
+	return nil
+}
+
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

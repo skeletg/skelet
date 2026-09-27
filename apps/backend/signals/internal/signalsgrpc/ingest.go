@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -23,6 +25,7 @@ import (
 )
 
 type ingestServer struct {
+	roster *analytics.Roster
 	signalsv1.UnimplementedIngestServiceServer
 	rec      *analytics.Recorder
 	channels *analytics.ChannelRoster
@@ -209,7 +212,7 @@ func (s *ingestServer) SyncCustomerRoster(stream signalsv1.IngestService_SyncCus
 	if err := requireSystem(stream.Context()); err != nil {
 		return err
 	}
-	sync := s.rec.BeginRosterSync()
+	sync := s.roster.BeginRosterSync()
 	for {
 		page, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
@@ -234,7 +237,7 @@ func (s *ingestServer) SyncCustomerRoster(stream signalsv1.IngestService_SyncCus
 	if err != nil {
 		return err
 	}
-	return stream.SendAndClose(&signalsv1.SyncCustomerRosterResponse{Synced: int32(synced), Pruned: int32(pruned)})
+	return stream.SendAndClose(&signalsv1.SyncCustomerRosterResponse{Synced: int32(synced), Pruned: int32(pruned), RosterVersion: analytics.RosterVersion})
 }
 
 // Translates one wire entry, refusing the whole page on a bad id rather than landing a half-identified customer
@@ -248,6 +251,24 @@ func rosterEntry(e *signalsv1.RosterEntry) (analytics.RosterEntry, error) {
 		CustomerID: cust, ChannelID: ch, Email: e.GetEmail(), FirstName: e.GetFirstName(),
 		Phone: e.GetPhone(), IsActive: e.GetIsActive(),
 		MarketingOptedIn: e.GetMarketingOptedIn(), SMSOptedIn: e.GetSmsOptedIn(),
+	}
+	if e.GetReadAt() != nil {
+		out.ReadAt = e.GetReadAt().AsTime()
+	}
+	out.OrderCount, out.MonetaryCents = e.GetOrderCount(), e.GetMonetaryCents()
+	if t := e.GetFirstOrderAt(); t != nil {
+		v := t.AsTime()
+		out.FirstOrderAt = &v
+	}
+	if t := e.GetLastOrderAt(); t != nil {
+		v := t.AsTime()
+		out.LastOrderAt = &v
+	}
+	if cs := e.GetConsents(); len(cs) > 0 {
+		out.Consents = make(map[string]bool, len(cs))
+		for _, c := range cs {
+			out.Consents[c.GetKind()] = c.GetOptedIn()
+		}
 	}
 	if g := e.GetCustomerGroupId(); g != "" {
 		id, err := uuid.Parse(g)
@@ -268,10 +289,29 @@ func (s *ingestServer) UpsertRosterEntry(ctx context.Context, req *signalsv1.Ups
 	if err != nil {
 		return nil, err
 	}
-	if err := s.rec.UpsertRosterEntry(ctx, entry); err != nil {
+	if err := s.roster.UpsertRosterEntry(ctx, entry); err != nil {
 		return nil, err
 	}
-	return &signalsv1.UpsertRosterEntryResponse{}, nil
+	st, err := s.roster.RosterStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &signalsv1.UpsertRosterEntryResponse{RosterVersion: st.Version, NeedsFullSync: st.NeedsFullSync}, nil
+}
+
+func (s *ingestServer) RosterStatus(ctx context.Context, _ *signalsv1.RosterStatusRequest) (*signalsv1.RosterStatusResponse, error) {
+	if err := requireSystem(ctx); err != nil {
+		return nil, err
+	}
+	st, err := s.roster.RosterStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := &signalsv1.RosterStatusResponse{RosterVersion: st.Version, FilledVersion: st.FilledVersion, NeedsFullSync: st.NeedsFullSync}
+	if st.FilledAt != nil {
+		out.FilledAt = timestamppb.New(*st.FilledAt)
+	}
+	return out, nil
 }
 
 func (s *ingestServer) DeleteRosterEntry(ctx context.Context, req *signalsv1.DeleteRosterEntryRequest) (*signalsv1.DeleteRosterEntryResponse, error) {
@@ -282,7 +322,7 @@ func (s *ingestServer) DeleteRosterEntry(ctx context.Context, req *signalsv1.Del
 	if err != nil {
 		return nil, invalidArgument("customer id is not a uuid")
 	}
-	if err := s.rec.DeleteRosterEntry(ctx, id); err != nil {
+	if err := s.roster.DeleteRosterEntry(ctx, id); err != nil {
 		return nil, err
 	}
 	return &signalsv1.DeleteRosterEntryResponse{}, nil
@@ -294,16 +334,29 @@ func (s *ingestServer) SyncChannels(ctx context.Context, req *signalsv1.SyncChan
 	if err := requireSystem(ctx); err != nil {
 		return nil, err
 	}
+	if len(req.GetChannels()) == 0 {
+		return nil, invalidArgument("an empty channel set would prune every channel") // core always has its default channel
+	}
 	channels := make([]analytics.ChannelEntry, 0, len(req.GetChannels()))
+	complete := true
 	for _, e := range req.GetChannels() {
+		complete = complete && e.IsActive != nil
 		id, err := uuid.Parse(e.GetChannelId())
 		if err != nil {
 			return nil, invalidArgument("channel entry carries an unparseable id")
 		}
 		channels = append(channels, analytics.ChannelEntry{
-			ID: id, IsDefault: e.GetIsDefault(), Name: e.GetName(), PublicURL: e.GetPublicUrl(),
+			ID: id, IsDefault: e.GetIsDefault(), IsActive: e.IsActive == nil || e.GetIsActive(), Name: e.GetName(), PublicURL: e.GetPublicUrl(),
 			FromAddress: e.GetFromAddress(), FromName: e.GetFromName(), LogoURL: e.GetLogoUrl(),
 		})
+	}
+	if !complete {
+		slog.Warn("channel push without is_active - applied without pruning, since the deactivated channels it leaves out are not deleted ones", "channels", len(channels))
+		synced, err := s.channels.UpsertChannels(ctx, channels)
+		if err != nil {
+			return nil, err
+		}
+		return &signalsv1.SyncChannelsResponse{Synced: int32(synced)}, nil
 	}
 	synced, pruned, err := s.channels.SyncChannels(ctx, channels)
 	if err != nil {
@@ -312,8 +365,7 @@ func (s *ingestServer) SyncChannels(ctx context.Context, req *signalsv1.SyncChan
 	return &signalsv1.SyncChannelsResponse{Synced: int32(synced), Pruned: int32(pruned)}, nil
 }
 
-// EraseCustomerIdentities drops the mappings that would re-link an erased customer to their spine
-// events. Core surfaces a failure here rather than reporting an erasure it could not complete
+// Core surfaces a failure here rather than reporting an erasure it could not complete
 func (s *ingestServer) EraseCustomerIdentities(ctx context.Context, req *signalsv1.EraseCustomerIdentitiesRequest) (*signalsv1.EraseCustomerIdentitiesResponse, error) {
 	if err := requireSystem(ctx); err != nil {
 		return nil, err
@@ -330,6 +382,13 @@ func (s *ingestServer) EraseCustomerIdentities(ctx context.Context, req *signals
 		if err := s.sends.ScrubIdentity(ctx, id, req.GetEmail()); err != nil {
 			return nil, err
 		}
+	}
+	var erasedAt time.Time
+	if req.GetErasedAt() != nil {
+		erasedAt = req.GetErasedAt().AsTime()
+	}
+	if err := s.roster.EraseCustomer(ctx, id, req.GetEmail(), erasedAt); err != nil {
+		return nil, err
 	}
 	return &signalsv1.EraseCustomerIdentitiesResponse{}, nil
 }

@@ -10,6 +10,7 @@ service DestinationService {
   rpc ListDestinations(ListDestinationsRequest) returns (ListDestinationsResponse);
   rpc CreateDestination(CreateDestinationRequest) returns (CreateDestinationResponse);
   rpc UpdateDestination(UpdateDestinationRequest) returns (UpdateDestinationResponse);
+  rpc GetDestination(GetDestinationRequest) returns (GetDestinationResponse);
   rpc DeleteDestination(DeleteDestinationRequest) returns (DeleteDestinationResponse);
   rpc SyncAudience(SyncAudienceRequest) returns (SyncAudienceResponse);
 }
@@ -70,6 +71,14 @@ message UpdateDestinationRequest {
 }
 
 message UpdateDestinationResponse {
+  EventDestination destination = 1;
+}
+
+message GetDestinationRequest {
+  string id = 1;
+}
+
+message GetDestinationResponse {
   EventDestination destination = 1;
 }
 

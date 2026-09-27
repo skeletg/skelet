@@ -17,6 +17,8 @@ type CustomerSegment {
   members(limit: Int = 50, offset: Int = 0): [CustomerSegmentMember!]!
   # Dynamic-segment condition tree (null = static/manual membership): { logic: "and"|"or", conditions: [{kind: trait|lifecycle|order_count| total_spent_cents|last_order_days|consent|group, ...}] }. Compiled to parameterized SQL server-side - operators never write SQL.
   rules:        JSON
+  # Why the rules can't run, so the refresh skips this segment - null when they can
+  rulesProblem: String
   createdAt:    Time!
   updatedAt:    Time!
 }

@@ -1036,6 +1036,28 @@ func (q *Queries) GetCMSPageByURLPath(ctx context.Context, urlPath string) (CmsP
 	return i, err
 }
 
+const getCMSPageComment = `-- name: GetCMSPageComment :one
+SELECT id, page_id, locale, block_id, author_id, body, resolved, resolved_by, resolved_at, created_at FROM cms_page_comments WHERE id = $1
+`
+
+func (q *Queries) GetCMSPageComment(ctx context.Context, id uuid.UUID) (CmsPageComment, error) {
+	row := q.db.QueryRowContext(ctx, getCMSPageComment, id)
+	var i CmsPageComment
+	err := row.Scan(
+		&i.ID,
+		&i.PageID,
+		&i.Locale,
+		&i.BlockID,
+		&i.AuthorID,
+		&i.Body,
+		&i.Resolved,
+		&i.ResolvedBy,
+		&i.ResolvedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getCMSPageContent = `-- name: GetCMSPageContent :one
 SELECT page_id, locale, title, body, meta_title, meta_description, meta_keywords, data, updated_at, search_vector FROM cms_page_content WHERE page_id = $1 AND locale = $2
 `
@@ -1278,6 +1300,54 @@ type GetPublishedCMSPageForChannelParams struct {
 
 func (q *Queries) GetPublishedCMSPageForChannel(ctx context.Context, arg GetPublishedCMSPageForChannelParams) (CmsPage, error) {
 	row := q.db.QueryRowContext(ctx, getPublishedCMSPageForChannel, arg.ID, arg.ChannelID)
+	var i CmsPage
+	err := row.Scan(
+		&i.ID,
+		&i.PageTypeID,
+		&i.ParentID,
+		&i.Slug,
+		&i.UrlPath,
+		&i.Position,
+		&i.IsPublished,
+		&i.SeoNoindex,
+		&i.PublishedAt,
+		&i.Data,
+		&i.Metadata,
+		&i.PrivateMetadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ScheduledAt,
+		&i.BasePath,
+		&i.ExperimentKey,
+		pq.Array(&i.Tags),
+		&i.WorkflowState,
+		&i.AssignedTo,
+		&i.SubmittedBy,
+		&i.SubmittedAt,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
+const goLiveCMSPage = `-- name: GoLiveCMSPage :one
+UPDATE cms_pages
+SET is_published = TRUE, published_at = $1, workflow_state = 'published',
+    scheduled_at = CASE WHEN $2::bool THEN NULL ELSE scheduled_at END,
+    updated_at = NOW()
+WHERE id = $3
+RETURNING id, page_type_id, parent_id, slug, url_path, position, is_published, seo_noindex, published_at, data, metadata, private_metadata, created_at, updated_at, scheduled_at, base_path, experiment_key, tags, workflow_state, assigned_to, submitted_by, submitted_at, approved_by, approved_at
+`
+
+type GoLiveCMSPageParams struct {
+	PublishedAt   sql.NullTime `json:"published_at"`
+	ClearSchedule bool         `json:"clear_schedule"`
+	ID            uuid.UUID    `json:"id"`
+}
+
+// One statement, so a page is never live with a stale workflow state
+func (q *Queries) GoLiveCMSPage(ctx context.Context, arg GoLiveCMSPageParams) (CmsPage, error) {
+	row := q.db.QueryRowContext(ctx, goLiveCMSPage, arg.PublishedAt, arg.ClearSchedule, arg.ID)
 	var i CmsPage
 	err := row.Scan(
 		&i.ID,

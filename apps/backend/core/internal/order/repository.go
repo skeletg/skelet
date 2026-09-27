@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -721,36 +722,36 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		PaymentStatus:       o.PaymentStatus,
 		BillingFirstName:    o.BillingAddress.FirstName,
 		BillingLastName:     o.BillingAddress.LastName,
-		BillingCompany:      toNullString(o.BillingAddress.Company),
+		BillingCompany:      sqlnull.String(o.BillingAddress.Company),
 		BillingStreet1:      o.BillingAddress.Street1,
-		BillingStreet2:      toNullString(o.BillingAddress.Street2),
+		BillingStreet2:      sqlnull.String(o.BillingAddress.Street2),
 		BillingCity:         o.BillingAddress.City,
-		BillingState:        toNullString(o.BillingAddress.State),
+		BillingState:        sqlnull.String(o.BillingAddress.State),
 		BillingPostalCode:   o.BillingAddress.PostalCode,
 		BillingCountry:      o.BillingAddress.CountryCode,
-		BillingPhone:        toNullString(o.BillingAddress.Phone),
+		BillingPhone:        sqlnull.String(o.BillingAddress.Phone),
 		ShippingFirstName:   o.ShippingAddress.FirstName,
 		ShippingLastName:    o.ShippingAddress.LastName,
-		ShippingCompany:     toNullString(o.ShippingAddress.Company),
+		ShippingCompany:     sqlnull.String(o.ShippingAddress.Company),
 		ShippingStreet1:     o.ShippingAddress.Street1,
-		ShippingStreet2:     toNullString(o.ShippingAddress.Street2),
+		ShippingStreet2:     sqlnull.String(o.ShippingAddress.Street2),
 		ShippingCity:        o.ShippingAddress.City,
-		ShippingState:       toNullString(o.ShippingAddress.State),
+		ShippingState:       sqlnull.String(o.ShippingAddress.State),
 		ShippingPostalCode:  o.ShippingAddress.PostalCode,
 		ShippingCountry:     o.ShippingAddress.CountryCode,
-		ShippingPhone:       toNullString(o.ShippingAddress.Phone),
+		ShippingPhone:       sqlnull.String(o.ShippingAddress.Phone),
 		SubtotalAmount:      o.SubtotalAmount,
 		ShippingAmount:      o.ShippingAmount,
 		DiscountAmount:      o.DiscountAmount,
 		TaxAmount:           o.TaxAmount,
 		TotalAmount:         o.TotalAmount,
 		CurrencyCode:        o.CurrencyCode,
-		CustomerNote:        toNullString(stringPtr(o.CustomerNote)),
-		PoNumber:            toNullString(stringPtr(o.PONumber)),
+		CustomerNote:        sqlnull.String(stringPtr(o.CustomerNote)),
+		PoNumber:            sqlnull.String(stringPtr(o.PONumber)),
 		PaymentProvider:     o.PaymentProvider,
-		ShippingMethodID:    nullableUUID(o.ShippingMethodID),
-		ShippingCarrierSlug: toNullString(o.ShippingCarrierSlug),
-		ShippingMethodCode:  toNullString(o.ShippingMethodCode),
+		ShippingMethodID:    sqlnull.UUID(o.ShippingMethodID),
+		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
+		ShippingMethodCode:  sqlnull.String(o.ShippingMethodCode),
 	})
 	if err != nil {
 		return Order{}, fmt.Errorf("create order: %w", err)
@@ -862,24 +863,24 @@ func (r *postgresRepository) UpdateOrderAddresses(ctx context.Context, id uuid.U
 		ID:                 id,
 		BillingFirstName:   billing.FirstName,
 		BillingLastName:    billing.LastName,
-		BillingCompany:     toNullString(billing.Company),
+		BillingCompany:     sqlnull.String(billing.Company),
 		BillingStreet1:     billing.Street1,
-		BillingStreet2:     toNullString(billing.Street2),
+		BillingStreet2:     sqlnull.String(billing.Street2),
 		BillingCity:        billing.City,
-		BillingState:       toNullString(billing.State),
+		BillingState:       sqlnull.String(billing.State),
 		BillingPostalCode:  billing.PostalCode,
 		BillingCountry:     billing.CountryCode,
-		BillingPhone:       toNullString(billing.Phone),
+		BillingPhone:       sqlnull.String(billing.Phone),
 		ShippingFirstName:  shipping.FirstName,
 		ShippingLastName:   shipping.LastName,
-		ShippingCompany:    toNullString(shipping.Company),
+		ShippingCompany:    sqlnull.String(shipping.Company),
 		ShippingStreet1:    shipping.Street1,
-		ShippingStreet2:    toNullString(shipping.Street2),
+		ShippingStreet2:    sqlnull.String(shipping.Street2),
 		ShippingCity:       shipping.City,
-		ShippingState:      toNullString(shipping.State),
+		ShippingState:      sqlnull.String(shipping.State),
 		ShippingPostalCode: shipping.PostalCode,
 		ShippingCountry:    shipping.CountryCode,
-		ShippingPhone:      toNullString(shipping.Phone),
+		ShippingPhone:      sqlnull.String(shipping.Phone),
 	})
 	if err != nil {
 		return Order{}, fmt.Errorf("update order addresses: %w", err)
@@ -965,41 +966,38 @@ func (r *postgresRepository) ListOrderEventsByOrder(ctx context.Context, orderID
 	return events, nil
 }
 
-func (r *postgresRepository) ListOrders(ctx context.Context) ([]Order, error) {
-	rows, err := r.queries.ListOrders(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list orders: %w", err)
-	}
-	orders := make([]Order, len(rows))
-	for i, row := range rows {
-		orders[i] = toOrder(row)
-	}
-	return orders, nil
-}
-
 func (r *postgresRepository) ListOrdersPage(ctx context.Context, f ListPageFilter) ([]Order, int64, error) {
-	args := db.ListOrdersPagedParams{
-		AllChannels:     len(f.ChannelIDs) == 0,
-		ChannelIds:      f.ChannelIDs,
-		Search:          f.Search,
-		AllStatuses:     len(f.Statuses) == 0,
-		Statuses:        f.Statuses,
-		AllPayment:      len(f.PaymentStatuses) == 0,
-		PaymentStatuses: f.PaymentStatuses,
-		Lim:             f.Limit,
-		Off:             f.Offset,
+	allStatuses, allPayment := len(f.Statuses) == 0, len(f.PaymentStatuses) == 0
+	var (
+		rows  []db.Order
+		total int64
+		err   error
+	)
+	if len(f.ChannelIDs) == 0 {
+		rows, err = r.queries.ListOrdersPaged(ctx, db.ListOrdersPagedParams{
+			Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
+			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, Lim: f.Limit, Off: f.Offset,
+		})
+		if err == nil && !f.SkipCount {
+			total, err = r.queries.CountOrdersPaged(ctx, db.CountOrdersPagedParams{
+				Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
+				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses,
+			})
+		}
+	} else {
+		rows, err = r.queries.ListOrdersPagedInChannels(ctx, db.ListOrdersPagedInChannelsParams{
+			ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
+			AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses, Lim: f.Limit, Off: f.Offset,
+		})
+		if err == nil && !f.SkipCount {
+			total, err = r.queries.CountOrdersPagedInChannels(ctx, db.CountOrdersPagedInChannelsParams{
+				ChannelIds: f.ChannelIDs, Search: f.Search, AllStatuses: allStatuses, Statuses: f.Statuses,
+				AllPayment: allPayment, PaymentStatuses: f.PaymentStatuses,
+			})
+		}
 	}
-	rows, err := r.queries.ListOrdersPaged(ctx, args)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list orders page: %w", err)
-	}
-	total, err := r.queries.CountOrdersPaged(ctx, db.CountOrdersPagedParams{
-		AllChannels: args.AllChannels, ChannelIds: args.ChannelIds, Search: args.Search,
-		AllStatuses: args.AllStatuses, Statuses: args.Statuses,
-		AllPayment: args.AllPayment, PaymentStatuses: args.PaymentStatuses,
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("count orders page: %w", err)
 	}
 	orders := make([]Order, len(rows))
 	for i, row := range rows {
@@ -1138,26 +1136,26 @@ func toOrder(row db.Order) Order {
 		BillingAddress: OrderAddress{
 			FirstName:   row.BillingFirstName,
 			LastName:    row.BillingLastName,
-			Company:     fromNullString(row.BillingCompany),
+			Company:     sqlnull.StringPtr(row.BillingCompany),
 			Street1:     row.BillingStreet1,
-			Street2:     fromNullString(row.BillingStreet2),
+			Street2:     sqlnull.StringPtr(row.BillingStreet2),
 			City:        row.BillingCity,
-			State:       fromNullString(row.BillingState),
+			State:       sqlnull.StringPtr(row.BillingState),
 			PostalCode:  row.BillingPostalCode,
 			CountryCode: row.BillingCountry,
-			Phone:       fromNullString(row.BillingPhone),
+			Phone:       sqlnull.StringPtr(row.BillingPhone),
 		},
 		ShippingAddress: OrderAddress{
 			FirstName:   row.ShippingFirstName,
 			LastName:    row.ShippingLastName,
-			Company:     fromNullString(row.ShippingCompany),
+			Company:     sqlnull.StringPtr(row.ShippingCompany),
 			Street1:     row.ShippingStreet1,
-			Street2:     fromNullString(row.ShippingStreet2),
+			Street2:     sqlnull.StringPtr(row.ShippingStreet2),
 			City:        row.ShippingCity,
-			State:       fromNullString(row.ShippingState),
+			State:       sqlnull.StringPtr(row.ShippingState),
 			PostalCode:  row.ShippingPostalCode,
 			CountryCode: row.ShippingCountry,
-			Phone:       fromNullString(row.ShippingPhone),
+			Phone:       sqlnull.StringPtr(row.ShippingPhone),
 		},
 		SubtotalAmount:    row.SubtotalAmount,
 		ShippingAmount:    row.ShippingAmount,
@@ -1178,8 +1176,8 @@ func toOrder(row db.Order) Order {
 		id := row.ShippingMethodID.UUID
 		o.ShippingMethodID = &id
 	}
-	o.ShippingCarrierSlug = fromNullString(row.ShippingCarrierSlug)
-	o.ShippingMethodCode = fromNullString(row.ShippingMethodCode)
+	o.ShippingCarrierSlug = sqlnull.StringPtr(row.ShippingCarrierSlug)
+	o.ShippingMethodCode = sqlnull.StringPtr(row.ShippingMethodCode)
 	return o
 }
 
@@ -1294,30 +1292,9 @@ func toOrderEvent(row db.OrderEvent) OrderEvent {
 	}
 }
 
-func fromNullString(ns sql.NullString) *string {
-	if !ns.Valid {
-		return nil
-	}
-	return &ns.String
-}
-
-func toNullString(s *string) sql.NullString {
-	if s == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *s, Valid: true}
-}
-
 func stringPtr(s string) *string {
 	if s == "" {
 		return nil
 	}
 	return &s
-}
-
-func nullableUUID(id *uuid.UUID) uuid.NullUUID {
-	if id == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *id, Valid: true}
 }

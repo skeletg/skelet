@@ -1,4 +1,4 @@
-// Package behavioralsegment is Synapse's engine over customer segments - a definition rides as JSON in a segment's reserved refresh_sql column, and what comes out is a normal segment that campaigns, flows and promotions target like any other
+// Package behavioralsegment is Synapse's engine over customer segments - a definition rides as JSON in a segment's definition column, and what comes out is a normal segment that campaigns, flows and promotions target like any other
 package behavioralsegment
 
 import (

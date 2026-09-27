@@ -10,11 +10,30 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/money"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
+// A cart or order on another channel would hand the customer's identity to it
+func (r *Resolver) requireCustomerOnChannel(ctx context.Context, customerID *uuid.UUID, channelID uuid.UUID) error {
+	if customerID == nil {
+		return nil
+	}
+	c, err := r.CustomerSvc.GetByID(ctx, *customerID)
+	if err != nil {
+		return errNotFound("customer")
+	}
+	if c.ChannelID != channelID {
+		return apperr.New("CUSTOMER_WRONG_CHANNEL", apperr.ClassValidation, "that customer belongs to another channel")
+	}
+	return nil
+}
+
 // The lookup-first gate every cart mutation shares - the cart has to be loaded before orders.update can be scoped to its channel
 func (r *mutationResolver) cartForAdmin(ctx context.Context, idStr string) (uuid.UUID, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
+		return uuid.Nil, err
+	}
 	cartID, err := parseID(idStr, "cart")
 	if err != nil {
 		return uuid.Nil, err

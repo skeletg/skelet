@@ -14,6 +14,7 @@ import (
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -390,6 +391,14 @@ func (r *postgresRepository) UpdateRole(ctx context.Context, id uuid.UUID, input
 	return updated, nil
 }
 
+func (r *postgresRepository) RoleMemberIDs(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error) {
+	ids, err := r.queries.ListRoleMemberIDs(ctx, roleID)
+	if err != nil {
+		return nil, fmt.Errorf("list role members: %w", err)
+	}
+	return ids, nil
+}
+
 func (r *postgresRepository) DeleteRole(ctx context.Context, id uuid.UUID) error {
 	n, err := r.queries.CountRoleMembers(ctx, id)
 	if err != nil {
@@ -541,7 +550,7 @@ func setRolePermissionScopesTx(ctx context.Context, q *db.Queries, roleID uuid.U
 			RoleID:       roleID,
 			PermissionID: permID,
 			ChannelID:    channelID,
-			Locale:       nullableString(scope.Locale),
+			Locale:       sqlnull.String(scope.Locale),
 		}); err != nil {
 			return fmt.Errorf("add role permission scope: %w", err)
 		}
@@ -612,13 +621,6 @@ func toRole(row db.AdminRole) Role {
 		Description: row.Description,
 		CreatedAt:   row.CreatedAt,
 	}
-}
-
-func nullableString(s *string) sql.NullString {
-	if s == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *s, Valid: true}
 }
 
 func isUniqueViolation(err error) bool { return pgdb.IsUniqueViolation(err) } // shared SQLSTATE-based check - the per-package copies drifted into fragile message matching

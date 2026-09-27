@@ -116,8 +116,14 @@ func (r *mutationResolver) CustomerLogin(ctx context.Context, input model.Custom
 // Refresh tokens are bound to their home channel - refusing to rotate one whose owner registered elsewhere keeps a stolen cookie from becoming a full session on a store where that customer doesn't exist
 func (r *mutationResolver) CustomerRefreshToken(ctx context.Context, token string) (*model.CustomerAuthPayload, error) {
 	store, ok := channel.FromContext(ctx)
-	if !ok {
+	if !ok || store == nil {
 		return nil, auth.ErrInvalidRefreshToken
+	}
+	// Checked before the rotate too, so a token presented on the wrong store is refused without being spent
+	if owner, verr := r.CustomerRefreshStore.Validate(ctx, token); verr == nil {
+		if c, gerr := r.CustomerSvc.GetByID(ctx, owner); gerr == nil && c.ChannelID != store.ID {
+			return nil, auth.ErrInvalidRefreshToken
+		}
 	}
 	// Atomic single-use consume with a short reuse grace, so an SSR storefront's concurrent prefetch refreshes coalesce onto one successor instead of racing and revoking each other (see Rotate)
 	newRefresh, customerID, err := r.CustomerRefreshStore.Rotate(ctx, token)

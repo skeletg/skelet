@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/chtest"
 )
 
 type fakeSink struct {
@@ -117,10 +118,7 @@ func TestArchiveEventsBySourceCH(t *testing.T) {
 
 // The global sweep's partition-drop path, in a throwaway database so dropping real partitions can't touch shared data
 func TestArchiveEventsDropsPartitionsCH(t *testing.T) {
-	dsn := os.Getenv("SIGNALS_CH_TEST_DSN")
-	if dsn == "" {
-		t.Skip("set SIGNALS_CH_TEST_DSN")
-	}
+	dsn := chtest.DSN(t)
 	ctx := context.Background()
 	opts, err := clickhouse.ParseDSN(dsn)
 	if err != nil {
@@ -131,7 +129,7 @@ func TestArchiveEventsDropsPartitionsCH(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer admin.Close()
-	const testDB = "skelet_archtest"
+	testDB := opts.Auth.Database + "_arch"
 	if err := admin.Exec(ctx, "DROP DATABASE IF EXISTS "+testDB); err != nil {
 		t.Fatal(err)
 	}

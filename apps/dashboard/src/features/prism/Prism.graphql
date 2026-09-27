@@ -1,4 +1,3 @@
-# Prism operations, served by the Signals API - the .signals.graphql suffix is load-bearing, since codegen validates against that schema and the split link routes by the names generated from it
 fragment ExperimentFields on Experiment {
   id
   channelId

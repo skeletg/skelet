@@ -23,7 +23,7 @@ func (h *harness) shop(t *testing.T) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
 	if _, _, err := h.d.Channels.SyncChannels(h.ctx, []analytics.ChannelEntry{{
-		ID: id, Name: "E2E Shop", PublicURL: "https://shop.e2e.test", FromAddress: "hello@e2e.test", FromName: "E2E Shop",
+		ID: id, IsActive: true, Name: "E2E Shop", PublicURL: "https://shop.e2e.test", FromAddress: "hello@e2e.test", FromName: "E2E Shop",
 	}}); err != nil {
 		t.Fatalf("push channel: %v", err)
 	}
@@ -37,7 +37,7 @@ func (h *harness) shopper(t *testing.T, channelID uuid.UUID, optedIn bool) (uuid
 	addr := "shopper-" + id.String()[:8] + "@e2e.test"
 	if err := h.d.Queries.UpsertCustomerRosterEntry(h.ctx, signalsdb.UpsertCustomerRosterEntryParams{
 		CustomerID: id, ChannelID: channelID, Email: addr, FirstName: "Ada", IsActive: true, MarketingOptedIn: optedIn,
-	}); err != nil {
+		Consents: json.RawMessage("{}")}); err != nil {
 		t.Fatalf("push customer: %v", err)
 	}
 	return id, addr

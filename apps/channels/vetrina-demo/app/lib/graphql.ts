@@ -135,8 +135,8 @@ export async function gqlFetch<TData, TVariables>(
     "Content-Type": "application/json",
     Locale: options.locale ?? locale,
   };
-  // Omitted when no id is pinned - the backend then resolves via Host or its default
-  if (channelId) headers["X-Channel-Id"] = channelId;
+  // A request no channel claims still names one, so the backend answers "no store" rather than for its default channel
+  headers["X-Channel-Id"] = channelId || "unresolved";
   if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }

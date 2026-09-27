@@ -346,9 +346,6 @@ query Category($id: ID!) {
       urlPath
       name
     }
-    products {
-      ...ProductSummaryFields
-    }
   }
 }
 
@@ -378,9 +375,6 @@ query Collection($id: ID!) {
       altText
       width
       height
-    }
-    products {
-      ...ProductSummaryFields
     }
   }
 }

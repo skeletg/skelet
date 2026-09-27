@@ -1,7 +1,7 @@
 -- Customer segments and their membership table - segments are an admin bucket of customers; membership is materialised explicitly - the promotion engine reads them via Service.SegmentSlugsForCustomer and merges into the customer's group list, so the existing core.customer_group_in condition handles segment-gated rules with no engine changes
 
 -- name: CreateCustomerSegment :one
-INSERT INTO customer_segments (slug, name, description, refresh_sql, is_active)
+INSERT INTO customer_segments (slug, name, description, definition, is_active)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
@@ -10,14 +10,14 @@ UPDATE customer_segments
 SET slug         = $2,
     name         = $3,
     description  = $4,
-    refresh_sql  = $5,
+    definition   = $5,
     is_active    = $6,
     updated_at   = NOW()
 WHERE id = $1
 RETURNING *;
 
 -- name: SetSegmentLifecycleWindows :one
--- Set (or clear, by passing NULLs) a segment's lifecycle-cadence override - kept separate from UpdateCustomerSegment so the Synapse segment-refresh sync (which rewrites name/refresh_sql on auto-segments) never disturbs an operator's override
+-- Set (or clear, by passing NULLs) a segment's lifecycle-cadence override - kept separate from UpdateCustomerSegment so the Synapse segment-refresh sync (which rewrites name/definition on auto-segments) never disturbs an operator's override
 UPDATE customer_segments
 SET lifecycle_new_days     = sqlc.narg(new_days),
     lifecycle_active_days  = sqlc.narg(active_days),
@@ -57,8 +57,7 @@ VALUES ($1, $2)
 ON CONFLICT DO NOTHING;
 
 -- name: BulkAddCustomersToSegment :exec
--- Used by the admin "assign N customers" path and by the future
--- refresh-job that re-runs a segment's refresh_sql
+-- The admin "assign N customers" path and the refreshes that swap a computed membership in
 INSERT INTO customer_segment_memberships (customer_id, segment_id)
 SELECT customer_id, sqlc.arg(segment_id)::UUID
 FROM unnest(sqlc.arg(customer_ids)::UUID[]) AS t(customer_id)
@@ -70,6 +69,11 @@ WHERE customer_id = $1 AND segment_id = $2;
 
 -- name: ClearSegmentMembership :exec
 DELETE FROM customer_segment_memberships WHERE segment_id = $1;
+
+-- name: RemoveSegmentMembersNotIn :exec
+-- The leavers half of a refresh - members still in the computed set keep their row, and so their added_at
+DELETE FROM customer_segment_memberships
+WHERE segment_id = sqlc.arg(segment_id) AND NOT (customer_id = ANY(sqlc.arg(keep_ids)::uuid[]));
 
 -- name: CountSegmentMembers :one
 SELECT COUNT(*)::INTEGER FROM customer_segment_memberships WHERE segment_id = $1;
@@ -88,8 +92,8 @@ SELECT customer_id FROM customer_segment_memberships WHERE segment_id = sqlc.arg
 
 -- name: SegmentSlugsForCustomer :many
 -- Hot path for the promotion engine: every active segment slug a customer belongs to, so a disabled segment stops firing promotions
--- rules + refresh_sql ride along so the caller can tell a computed segment from a hand-picked one
-SELECT s.slug, s.rules, s.refresh_sql
+-- rules + definition ride along so the caller can tell a computed segment from a hand-picked one
+SELECT s.slug, s.rules, s.definition
 FROM customer_segments s
 JOIN customer_segment_memberships m ON m.segment_id = s.id
 WHERE m.customer_id = $1 AND s.is_active = TRUE
@@ -109,10 +113,16 @@ SET rules = $2, updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 
+-- name: FillSegmentRules :execrows
+UPDATE customer_segments
+SET rules = sqlc.arg(rules), updated_at = NOW()
+WHERE id = sqlc.arg(id) AND rules IS NOT DISTINCT FROM sqlc.narg(old)::jsonb;
+
 -- name: ListDynamicSegments :many
-SELECT * FROM customer_segments
-WHERE rules IS NOT NULL AND is_active = TRUE
-ORDER BY created_at;
+-- Longest unrefreshed first, so a sweep cut short resumes with what it missed
+SELECT s.* FROM customer_segments s
+WHERE s.rules IS NOT NULL AND s.is_active = TRUE
+ORDER BY (SELECT max(d.day) FROM segment_membership_daily d WHERE d.segment_id = s.id) NULLS FIRST, s.created_at;
 
 -- Newest-first member page for the admin segment detail
 -- name: ListSegmentMembers :many
@@ -125,3 +135,29 @@ WHERE m.segment_id = $1
   AND (sqlc.arg(all_channels)::boolean OR r.channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
 ORDER BY m.added_at DESC, m.customer_id
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: ListVisibleCustomerSegments :many
+-- A behavioral segment belongs to the channel its definition names, so a caller sees it only with that channel; the rest are global
+SELECT * FROM customer_segments
+WHERE sqlc.arg(all_channels)::boolean
+   OR COALESCE(CASE WHEN pg_input_is_valid(definition, 'jsonb') THEN definition::jsonb ->> 'channelId' END, '') = ''
+   OR (CASE WHEN pg_input_is_valid(definition, 'jsonb') THEN definition::jsonb ->> 'channelId' END) = ANY(sqlc.arg(channel_ids)::text[])
+ORDER BY slug
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: CountVisibleCustomerSegments :one
+SELECT COUNT(*)::INTEGER FROM customer_segments
+WHERE sqlc.arg(all_channels)::boolean
+   OR COALESCE(CASE WHEN pg_input_is_valid(definition, 'jsonb') THEN definition::jsonb ->> 'channelId' END, '') = ''
+   OR (CASE WHEN pg_input_is_valid(definition, 'jsonb') THEN definition::jsonb ->> 'channelId' END) = ANY(sqlc.arg(channel_ids)::text[]);
+
+-- name: CountSegmentMembersInChannels :many
+SELECT m.segment_id, COUNT(*)::INTEGER AS count
+FROM customer_segment_memberships m
+JOIN customer_roster r ON r.customer_id = m.customer_id
+WHERE m.segment_id = ANY(sqlc.arg(segment_ids)::uuid[])
+  AND (sqlc.arg(all_channels)::boolean OR r.channel_id = ANY(sqlc.arg(channel_ids)::uuid[]))
+GROUP BY m.segment_id;
+
+-- name: RosterChannelsOfCustomers :many
+SELECT customer_id, channel_id FROM customer_roster WHERE customer_id = ANY(sqlc.arg(customer_ids)::uuid[]);

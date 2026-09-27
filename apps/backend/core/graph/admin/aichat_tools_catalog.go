@@ -258,8 +258,12 @@ func toolGetCollection(ctx context.Context, r *Resolver, a toolArgs) string {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "Collection: %s (slug %s, id %s)\n", catCollectionName(col), col.Slug, col.ID)
-	if prods, e := r.CatalogSvc.ListProductsByCollection(ctx, id, locale); e == nil {
-		fmt.Fprintf(&b, "%d products", len(prods))
+	if prods, e := r.CatalogSvc.ListProductsByCollection(ctx, id, locale, catalog.MaxUnpagedRows); e == nil {
+		if len(prods) >= int(catalog.MaxUnpagedRows) {
+			fmt.Fprintf(&b, "%d+ products", len(prods))
+		} else {
+			fmt.Fprintf(&b, "%d products", len(prods))
+		}
 		if len(prods) > 0 {
 			parts := make([]string, 0, 10)
 			for i, p := range prods {

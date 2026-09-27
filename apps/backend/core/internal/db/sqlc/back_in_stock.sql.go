@@ -11,6 +11,54 @@ import (
 	"github.com/google/uuid"
 )
 
+const backInStockProduct = `-- name: BackInStockProduct :one
+SELECT
+  p.sku,
+  COALESCE(NULLIF(c.name, ''), p.sku)::text AS name,
+  COALESCE(NULLIF(l.url, ''),
+    (SELECT ur.request_path FROM url_rewrites ur
+      WHERE ur.entity_type = 'product' AND ur.entity_id = p.id AND ur.redirect_type = 0
+        AND (ur.channel_id = $1::uuid OR ur.channel_id IS NULL)
+      ORDER BY ur.channel_id NULLS LAST LIMIT 1),
+    '')::text AS path,
+  COALESCE(
+    (SELECT m.s3_key FROM catalog_product_media m
+      WHERE m.product_id = p.id AND m.status = 'ready'
+      ORDER BY m.sort_order, m.created_at LIMIT 1),
+    '')::text AS image_key
+FROM catalog_products p
+JOIN catalog_product_channel_listings l
+  ON l.product_id = p.id AND l.channel_id = $1::uuid AND l.is_published = TRUE
+LEFT JOIN catalog_product_content c ON c.product_id = p.id AND c.locale = $2::text
+WHERE p.id = $3::uuid
+`
+
+type BackInStockProductParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Locale    string    `json:"locale"`
+	ProductID uuid.UUID `json:"product_id"`
+}
+
+type BackInStockProductRow struct {
+	Sku      string `json:"sku"`
+	Name     string `json:"name"`
+	Path     string `json:"path"`
+	ImageKey string `json:"image_key"`
+}
+
+// Built from the channel's own listing, never the storefront's copy - an unlisted product has no row
+func (q *Queries) BackInStockProduct(ctx context.Context, arg BackInStockProductParams) (BackInStockProductRow, error) {
+	row := q.db.QueryRowContext(ctx, backInStockProduct, arg.ChannelID, arg.Locale, arg.ProductID)
+	var i BackInStockProductRow
+	err := row.Scan(
+		&i.Sku,
+		&i.Name,
+		&i.Path,
+		&i.ImageKey,
+	)
+	return i, err
+}
+
 const countPendingBackInStock = `-- name: CountPendingBackInStock :one
 SELECT COUNT(*)::bigint FROM back_in_stock_requests
 WHERE channel_id = $1 AND notified_at IS NULL
@@ -19,6 +67,23 @@ WHERE channel_id = $1 AND notified_at IS NULL
 // Dashboard: how many shoppers are waiting on a product (channel-scoped)
 func (q *Queries) CountPendingBackInStock(ctx context.Context, channelID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countPendingBackInStock, channelID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countPendingBackInStockForEmail = `-- name: CountPendingBackInStockForEmail :one
+SELECT COUNT(*)::bigint FROM back_in_stock_requests
+WHERE channel_id = $1 AND email = $2 AND notified_at IS NULL
+`
+
+type CountPendingBackInStockForEmailParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	Email     string    `json:"email"`
+}
+
+func (q *Queries) CountPendingBackInStockForEmail(ctx context.Context, arg CountPendingBackInStockForEmailParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPendingBackInStockForEmail, arg.ChannelID, arg.Email)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err

@@ -147,21 +147,23 @@ func TestPostSendsTheSecretAndTheFullBody(t *testing.T) {
 
 	c.Rebuild(context.Background(), "cms", []string{"cms:all"}, []string{"/about"}, []string{"/about"}, "edit", nil)
 
-	if len(*reqs) != 1 {
-		t.Fatalf("%d requests sent, want 1", len(*reqs))
+	if len(*reqs) != 2 {
+		t.Fatalf("%d requests sent, want the purge and then the warm", len(*reqs))
 	}
-	got := (*reqs)[0]
+	got, warm := (*reqs)[0], (*reqs)[1]
 	if len(got.Tags) != 1 || got.Tags[0] != "cms:all" {
 		t.Errorf("tags = %v, want [cms:all]", got.Tags)
 	}
 	if len(got.Paths) != 1 || got.Paths[0] != "/about" {
 		t.Errorf("paths = %v, want [/about]", got.Paths)
 	}
-	if len(got.Warm) != 1 || got.Warm[0] != "/about" {
-		t.Errorf("warm = %v, want [/about] - Rebuild is what separates a warm from a plain purge", got.Warm)
+	if len(warm.Warm) != 1 || warm.Warm[0] != "/about" {
+		t.Errorf("warm = %v, want [/about] - Rebuild is what separates a warm from a plain purge", warm.Warm)
 	}
-	if (*secrets)[0] != "s3cr3t" {
-		t.Errorf("secret header = %q, want the configured secret", (*secrets)[0])
+	for i, s := range *secrets {
+		if s != "s3cr3t" {
+			t.Errorf("request %d secret header = %q, want the configured secret", i, s)
+		}
 	}
 }
 
@@ -217,18 +219,21 @@ func TestWarmPathRequiresTheStorefrontToConfirmARebuild(t *testing.T) {
 	}
 }
 
-// warmPath invalidates AND warms the same path, so both lists have to carry it
-func TestWarmPathInvalidatesAndWarmsTheSamePath(t *testing.T) {
+// Next applies a route handler's purge only when that request ends, so the warm has to be a request of its own
+func TestWarmPathPurgesBeforeItWarms(t *testing.T) {
 	srv, reqs, _ := storefrontStub(t, 1, http.StatusOK)
 	if err := New(srv.URL, "secret", nil).warmPath(context.Background(), []string{"cms:all"}, "/about"); err != nil {
 		t.Fatalf("warmPath: %v", err)
 	}
-	got := (*reqs)[0]
-	if len(got.Paths) != 1 || got.Paths[0] != "/about" {
-		t.Errorf("paths = %v, want the path invalidated too", got.Paths)
+	if len(*reqs) != 2 {
+		t.Fatalf("sent %d requests, want the purge and then the warm", len(*reqs))
 	}
-	if len(got.Warm) != 1 || got.Warm[0] != "/about" {
-		t.Errorf("warm = %v, want the path warmed", got.Warm)
+	purge, warm := (*reqs)[0], (*reqs)[1]
+	if len(purge.Paths) != 1 || purge.Paths[0] != "/about" || len(purge.Warm) != 0 {
+		t.Errorf("first request = %+v, want the path purged and nothing warmed yet", purge)
+	}
+	if len(warm.Warm) != 1 || warm.Warm[0] != "/about" || len(warm.Paths) != 0 || len(warm.Tags) != 0 {
+		t.Errorf("second request = %+v, want only the warm", warm)
 	}
 }
 

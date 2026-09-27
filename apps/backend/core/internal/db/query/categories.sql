@@ -130,11 +130,13 @@ SET is_primary = (category_id = sqlc.arg(category_id)::uuid)
 WHERE product_id = sqlc.arg(product_id)::uuid;
 
 -- name: ListProductsByCategory :many
+-- row_limit 0 means every member
 SELECT p.*
 FROM catalog_product_categories pc
 JOIN catalog_products p ON p.id = pc.product_id
-WHERE pc.category_id = $1
-ORDER BY pc.position, p.url;
+WHERE pc.category_id = sqlc.arg(category_id)
+ORDER BY pc.position, p.url
+LIMIT NULLIF(sqlc.arg(row_limit)::int, 0);
 
 -- name: CountProductsInCategory :one
 -- Direct membership count (products explicitly assigned to this category, not its descendants) - backs admin Category.productCount; served by the idx_product_categories_category(category_id, position) index

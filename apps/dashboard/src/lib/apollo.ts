@@ -19,6 +19,7 @@ import { devMonitorLink } from '@/lib/dev-monitor'
 import { ADMIN_GRAPHQL_ENDPOINT } from '@/lib/api-endpoint'
 import { typePolicies } from '@/lib/apollo-type-policies'
 import { setSignalsDown } from '@/shared/signals/health'
+import { signalsHealthLink } from '@/shared/signals/health-link'
 
 const ENDPOINT = ADMIN_GRAPHQL_ENDPOINT
 
@@ -188,24 +189,6 @@ const wsLink = new GraphQLWsLink(
         }
       : undefined,
   }),
-)
-
-// Clears the banner as soon as anything answers without that code - optimistic, and the next read
-// that does reach for Signals raises it again
-const signalsHealthLink = new ApolloLink(
-  (operation, forward) =>
-    new Observable<import('@apollo/client').ApolloLink.Result>((observer) => {
-      const sub = forward(operation).subscribe({
-        next: (result) => {
-          const errs = 'errors' in result ? (result.errors ?? []) : []
-          if (!errs.some((e) => e.extensions?.code === 'SIGNALS_UNAVAILABLE')) setSignalsDown(false)
-          observer.next(result)
-        },
-        error: (err) => observer.error(err),
-        complete: () => observer.complete(),
-      })
-      return () => sub.unsubscribe()
-    }),
 )
 
 const transportLink = ApolloLink.split(

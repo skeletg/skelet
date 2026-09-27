@@ -72,8 +72,8 @@ func (s *Store) archiveBySource(ctx context.Context, source string, before time.
 	if archivedThrough.IsZero() {
 		return 0, nil
 	}
-	// One DELETE for every archived day, like the prune path - per-day mutations would stack
-	if err := s.conn.Exec(ctx, "DELETE FROM analytics_events WHERE source = ? AND occurred_at < ?", source, archivedThrough); err != nil {
+	// Same partition-scoped delete as the prune
+	if _, err := s.deleteSourceBefore(ctx, source, archivedThrough); err != nil {
 		return total, err
 	}
 	return total, nil

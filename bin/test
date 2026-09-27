@@ -2,7 +2,8 @@
 # go test + frontend typechecks + dashboard vitest - extra args go to go test
 #
 # The Go half runs against disposable databases (skelet_test / skelet_test_signals, plus a
-# skelet_test_signals ClickHouse database when the spine is up), fresh each run. Without them
+# skelet_test_signals ClickHouse database when the spine is up), fresh each run, and every test
+# binary clones its own copy of them (lib/testdb), so parallel packages never share rows. Without them
 # testdb.Require skips every database-backed test - the dev databases are never marked disposable,
 # on purpose - and a run that skipped a hundred and fifty tests still ended in "tests OK"
 #
@@ -37,9 +38,14 @@ if ! service_running app; then
     exit 1
 fi
 
+acquire_test_lock test
+trap release_test_lock EXIT
+
 echo "==> preparing disposable test databases"
 ensure_pg_db db "$TEST_DB" $fresh
 ensure_pg_db signals-db "$TEST_SIG_DB" $fresh
+drop_clones db "$TEST_DB"
+drop_clones signals-db "$TEST_SIG_DB"
 unmark_dev_dbs
 echo "==> migrating commerce ($TEST_DB)"
 docker compose exec -T app migrate -path internal/db/migrations -database "$TEST_DB_URL" up
@@ -49,6 +55,7 @@ docker compose exec -T app migrate -path /var/www/backend/signals/internal/db/mi
 ch_dsn=""
 if service_running clickhouse; then
     ensure_ch_db "$TEST_SIG_DB" $fresh
+    drop_ch_clones "$TEST_SIG_DB"
     echo "==> migrating the spine (clickhouse $TEST_SIG_DB)"
     docker compose exec -T app migrate -path /var/www/backend/signals/internal/analytics/spinech/migrations -database "$TEST_CH_MIGRATE_URL" up
     ch_dsn="$TEST_CH_URL"
@@ -136,10 +143,10 @@ gotest() { # <workdir> [-e VAR=value ...] -- <go test args...>
 echo "==> backend"
 if [ $# -eq 0 ]; then
     # e2e is excluded from the default sweep - it writes real orders/customers and never cleans up, so it runs against its own disposable DB via bin/test-e2e, not this one
-    gotest /var/www/backend/core "${core_env[@]}" -- $(bin/go list ./... | grep -v /internal/e2e) | summarize core
+    gotest /var/www/backend/core "${core_env[@]}" -- $(bin/go list ./... | grep -v '/internal/e2e$') | summarize core
     echo "==> signals module"
     # The suite's own e2e scenarios sit out for the same reason core's do
-    gotest /var/www/backend/signals "${sig_env[@]}" -- $(bin/go --signals list ./... | grep -v /internal/e2e) | summarize signals
+    gotest /var/www/backend/signals "${sig_env[@]}" -- $(bin/go --signals list ./... | grep -v '/internal/e2e$') | summarize signals
     echo "==> sdk module"
     gotest /var/www/backend/sdk "${core_env[@]}" -- ./... | summarize sdk
     echo "==> (e2e suites skipped - run them against their throwaway DBs with bin/test-e2e)"

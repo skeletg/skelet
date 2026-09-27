@@ -161,7 +161,7 @@ input AddressInput {
 extend type Query {
   # channelId scopes the result to customers belonging to that channel -
   # header-driven scope uses this. Omit for the global list.
-  customers(channelId: ID):  [Customer!]!
+  customers(channelId: ID):  [Customer!]! @deprecated(reason: "Unbounded - use customersPaged")
   # Names for a known set of ids, channel-filtered like the list above - lets a service holding ids but not details, such as Lens recordings, label them without copying names into its own database
   customersByIds(ids: [ID!]!): [Customer!]!
   # Paged + filtered on the server. search matches email/first/last name.

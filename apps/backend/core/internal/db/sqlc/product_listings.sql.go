@@ -229,6 +229,52 @@ func (q *Queries) ListProductChannelListingsByProductIDs(ctx context.Context, pr
 	return items, nil
 }
 
+const listProductChannelListingsByProductIDsForChannel = `-- name: ListProductChannelListingsByProductIDsForChannel :many
+SELECT product_id, channel_id, price, is_published, created_at, updated_at, url, compare_at_price, special_price, special_from, special_to FROM catalog_product_channel_listings
+WHERE product_id = ANY($1::uuid[]) AND channel_id = $2
+ORDER BY product_id
+`
+
+type ListProductChannelListingsByProductIDsForChannelParams struct {
+	ProductIds []uuid.UUID `json:"product_ids"`
+	ChannelID  uuid.UUID   `json:"channel_id"`
+}
+
+func (q *Queries) ListProductChannelListingsByProductIDsForChannel(ctx context.Context, arg ListProductChannelListingsByProductIDsForChannelParams) ([]ProductChannelListing, error) {
+	rows, err := q.db.QueryContext(ctx, listProductChannelListingsByProductIDsForChannel, pq.Array(arg.ProductIds), arg.ChannelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProductChannelListing{}
+	for rows.Next() {
+		var i ProductChannelListing
+		if err := rows.Scan(
+			&i.ProductID,
+			&i.ChannelID,
+			&i.Price,
+			&i.IsPublished,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Url,
+			&i.CompareAtPrice,
+			&i.SpecialPrice,
+			&i.SpecialFrom,
+			&i.SpecialTo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertProductChannelListing = `-- name: UpsertProductChannelListing :one
 INSERT INTO catalog_product_channel_listings (
   product_id, channel_id, price, is_published, url,

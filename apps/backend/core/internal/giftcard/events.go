@@ -196,6 +196,7 @@ func (s *Service) onOrderPlaced(ctx context.Context, e events.Event) error {
 					RecipientEmail: placed.Email,
 					CustomerID:     placed.CustomerID,
 					IssuedOrderID:  &orderID,
+					ChannelID:      &placed.ChannelID,
 				})
 				if err != nil {
 					return err

@@ -34,9 +34,11 @@ var Pools = fx.Module("pools",
 	),
 )
 
-var Cache = fx.Module("cache", fx.Provide(newValkey, newValkeyCache)) // Valkey on its own - optional infrastructure, nil without VALKEY_URL, so every consumer degrades rather than fails
+var Cache = fx.Module("cache", fx.Provide(newValkey, newValkeyCache, newValkeyLimits)) // Valkey on its own - optional infrastructure, nil without VALKEY_URL, so every consumer degrades rather than fails
 
 type CacheRedis struct{ *redis.Client } // evictable Valkey for caches/limiters/APQ - kept off the noeviction primary since these namespaces are anonymous-writable and unbounded - a flood evicts here instead of failing auth-token writes
+
+type LimitsRedis struct{ *redis.Client } // rate-limit counters, off the cache instance so an eviction there can't reset a limit
 
 // Registries is the process-global bootstrap - side effects rather than values, which is why these are invokes
 var Registries = fx.Module("registries",
@@ -113,6 +115,26 @@ func newValkeyCache(lc fx.Lifecycle, cfg Config, primary *redis.Client) (CacheRe
 	}
 	slog.Info("VALKEY_CACHE_URL set: caches and rate limiters use a separate Valkey from the auth-token primary")
 	return CacheRedis{client}, nil
+}
+
+func newValkeyLimits(lc fx.Lifecycle, cfg Config, primary *redis.Client, cache CacheRedis) (LimitsRedis, error) {
+	url := strings.TrimSpace(cfg.ValkeyLimitsURL)
+	switch {
+	case url == "" || url == strings.TrimSpace(cfg.ValkeyCacheURL):
+		return LimitsRedis(cache), nil
+	case url == strings.TrimSpace(cfg.ValkeyURL):
+		return LimitsRedis{primary}, nil
+	}
+	opt, err := redis.ParseURL(url)
+	if err != nil {
+		return LimitsRedis{}, fmt.Errorf("parse valkey limits url: %w", err)
+	}
+	client := redis.NewClient(opt)
+	lc.Append(fx.Hook{OnStop: func(context.Context) error { return client.Close() }})
+	if err := otelx.InstrumentRedis(client); err != nil {
+		slog.Warn("instrument redis (limits)", "err", err)
+	}
+	return LimitsRedis{client}, nil
 }
 
 func newQueries(conn *sql.DB) *db.Queries { return db.New(conn) }

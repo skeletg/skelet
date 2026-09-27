@@ -28,6 +28,9 @@ func (r *mutationResolver) CreateWebForm(ctx context.Context, channelID string, 
 }
 
 func (r *mutationResolver) UpdateWebForm(ctx context.Context, id string, input model.SaveWebFormInput) (*model.WebForm, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "webforms.manage"); err != nil {
+		return nil, err
+	}
 	fid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("id", err)
@@ -52,6 +55,9 @@ func (r *mutationResolver) UpdateWebForm(ctx context.Context, id string, input m
 }
 
 func (r *mutationResolver) DeleteWebForm(ctx context.Context, id string) (bool, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "webforms.manage"); err != nil {
+		return false, err
+	}
 	fid, err := uuid.Parse(id)
 	if err != nil {
 		return false, errInvalidID("id", err)
@@ -70,6 +76,9 @@ func (r *mutationResolver) DeleteWebForm(ctx context.Context, id string) (bool, 
 }
 
 func (r *mutationResolver) RestoreWebForm(ctx context.Context, id string) (bool, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "webforms.manage"); err != nil {
+		return false, err
+	}
 	fid, err := uuid.Parse(id)
 	if err != nil {
 		return false, errInvalidID("id", err)
@@ -110,6 +119,9 @@ func (r *queryResolver) WebForms(ctx context.Context, channelID string, includeD
 }
 
 func (r *queryResolver) WebForm(ctx context.Context, id string) (*model.WebForm, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "webforms.view"); err != nil {
+		return nil, err
+	}
 	fid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("id", err)
@@ -126,6 +138,9 @@ func (r *queryResolver) WebForm(ctx context.Context, id string) (*model.WebForm,
 }
 
 func (r *queryResolver) WebFormSubmissions(ctx context.Context, formID string, limit *int32, offset *int32) ([]*model.WebFormSubmission, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "webforms.submissions_view"); err != nil {
+		return nil, err
+	}
 	fid, err := uuid.Parse(formID)
 	if err != nil {
 		return nil, errInvalidID("formId", err)
@@ -157,6 +172,9 @@ func (r *queryResolver) WebFormSubmissions(ctx context.Context, formID string, l
 }
 
 func (r *queryResolver) WebFormSubmissionCount(ctx context.Context, formID string) (int32, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "webforms.view"); err != nil {
+		return 0, err
+	}
 	fid, err := uuid.Parse(formID)
 	if err != nil {
 		return 0, errInvalidID("formId", err)

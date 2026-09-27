@@ -61,8 +61,8 @@ type Service struct {
 	qr     *signalsdb.Queries // optional signals read pool for the aggregations
 	rec    *analytics.Recorder
 	cfg    Settings
-	rollup *analytics.TrafficRollup // optional; nil in CLI/test
-	blobs  BlobStore                // nil only on the CLI and test paths, where ingest drops blobs instead
+	rollup *analytics.TrafficRollup
+	blobs  BlobStore // nil only on the CLI and test paths, where ingest drops blobs instead
 }
 
 // Settings is the slice of the store's settings Lens reads, declared here so the package depends on the shape rather than on whoever holds them
@@ -73,12 +73,21 @@ type Settings interface {
 	String(ctx context.Context, path string, channelID *uuid.UUID) (string, error)
 }
 
-func NewService(q *signalsdb.Queries, rec *analytics.Recorder, cfg Settings) *Service {
-	return &Service{q: q, rec: rec, cfg: cfg}
+func NewService(q *signalsdb.Queries, rec *analytics.Recorder, cfg Settings, rollup *analytics.TrafficRollup) *Service {
+	return &Service{q: q, rec: rec, cfg: cfg, rollup: rollup}
 }
 
-// Optional - when nil, human page-view counts simply aren't rolled up
-func (s *Service) SetRollup(r *analytics.TrafficRollup) { s.rollup = r }
+// Lens retention edge, zero when retention is off or unreadable
+func (s *Service) retentionEdge(ctx context.Context) time.Time {
+	if s.cfg == nil {
+		return time.Time{}
+	}
+	days, err := s.cfg.Int(ctx, "signals/lens/retention_days", nil)
+	if err != nil || days <= 0 {
+		return time.Time{}
+	}
+	return time.Now().UTC().AddDate(0, 0, -int(days))
+}
 
 // Optional - when unset, reads use the primary pool
 func (s *Service) SetReadQueries(qr *signalsdb.Queries) { s.qr = qr }
@@ -136,17 +145,17 @@ type Batch struct {
 
 // One /t/rec flush - raw rrweb events for a session plus the metadata to attribute and index the recording - Events stays raw JSON: the server gzips it verbatim and reads only each event's timestamp, for the chunk's time range
 type ReplayBatch struct {
-	SessionID  string          `json:"sessionId"`
-	AnonID     string          `json:"anonId"`
-	CustomerID string          `json:"customerId"` // set once the visitor is logged in
-	Seq        int32           `json:"seq"`        // monotonic per-session (client sessionStorage)
-	Page       string          `json:"page"`
-	Viewport   string          `json:"viewport"`
-	Events     json.RawMessage `json:"events"`
+	SessionID string          `json:"sessionId"`
+	AnonID    string          `json:"anonId"`
+	Seq       int32           `json:"seq"` // monotonic per-session (client sessionStorage)
+	Page      string          `json:"page"`
+	Viewport  string          `json:"viewport"`
+	Events    json.RawMessage `json:"events"`
 }
 
 // Gzips the events into an append-only chunk and rolls the session metadata forward - best-effort, since the handler always 204s, so a malformed or oversized flush is dropped whole
-func (s *Service) IngestReplay(ctx context.Context, channelID uuid.UUID, userAgent string, b ReplayBatch) {
+// verifiedCustomer is the customer the request's session token proves, the only identity a recording is attached to - the body's customerId is forgeable
+func (s *Service) IngestReplay(ctx context.Context, channelID uuid.UUID, userAgent string, b ReplayBatch, verifiedCustomer uuid.UUID) {
 	if len(b.Events) == 0 || len(b.Events) > maxReplayChunkBytes {
 		return
 	}
@@ -181,14 +190,14 @@ func (s *Service) IngestReplay(ctx context.Context, channelID uuid.UUID, userAge
 	}
 
 	var cust uuid.NullUUID
-	if c, err := uuid.Parse(b.CustomerID); err == nil {
-		cust = uuid.NullUUID{UUID: c, Valid: true}
+	if verifiedCustomer != uuid.Nil {
+		cust = uuid.NullUUID{UUID: verifiedCustomer, Valid: true}
 	}
 	if len(userAgent) > 400 {
 		userAgent = userAgent[:400]
 	}
 
-	if err := s.q.LensUpsertSession(ctx, signalsdb.LensUpsertSessionParams{
+	n, err := s.q.LensUpsertSession(ctx, signalsdb.LensUpsertSessionParams{
 		ID:          sid,
 		ChannelID:   channelID,
 		AnonID:      b.AnonID,
@@ -200,7 +209,8 @@ func (s *Service) IngestReplay(ctx context.Context, channelID uuid.UUID, userAge
 		ExitPage:    b.Page,
 		UserAgent:   userAgent,
 		Viewport:    b.Viewport,
-	}); err != nil {
+	})
+	if err != nil || n == 0 {
 		return
 	}
 	if s.blobs == nil {
@@ -441,7 +451,7 @@ func (s *Service) recordSignal(ctx context.Context, channelID uuid.UUID, e Event
 	if kind != "" {
 		if sid, ok := e.Props["sessionId"].(string); ok && sid != "" {
 			if su, err := uuid.Parse(sid); err == nil {
-				_ = s.q.LensBumpSessionSignal(ctx, signalsdb.LensBumpSessionSignalParams{Kind: kind, ID: su})
+				_ = s.q.LensBumpSessionSignal(ctx, signalsdb.LensBumpSessionSignalParams{Kind: kind, ID: su, ChannelID: channelID})
 			}
 		}
 	}
@@ -581,7 +591,7 @@ func (s *Service) Overview(ctx context.Context, channelID uuid.UUID, since time.
 			avgScroll int
 		}
 		engByPage := map[string]eng{}
-		if grids, err := s.rec.LensPagesGridFromEvents(ctx, channelID); err == nil {
+		if grids, err := s.rec.LensPagesGridFromEvents(ctx, channelID, s.retentionEdge(ctx)); err == nil {
 			for page, g := range grids {
 				avg := 0
 				if g.ScrollTotal > 0 {
@@ -687,10 +697,16 @@ type BrowseAbandoner struct {
 	LastBrowseAt time.Time
 }
 
+// The most abandoners one scan returns - core asks for far fewer per channel per tick
+const maxBrowseAbandoners int32 = 5000
+
 // Resolves idle product browses to the customers who made them, minus anyone already notified for that browse
 // Bounded pages, newest-first: the browse rows are anon-keyed and the spine engine resolves each page to customers
-func (s *Service) ListBrowseAbandoners(ctx context.Context, threshold, maxAge time.Time, limit int32) ([]BrowseAbandoner, error) {
+func (s *Service) ListBrowseAbandoners(ctx context.Context, channelID uuid.UUID, threshold, maxAge time.Time, limit int32) ([]BrowseAbandoner, error) {
 	const pageSize = 10000
+	if limit <= 0 { // a caller that forgets a limit still gets a bounded scan
+		limit = maxBrowseAbandoners
+	}
 	var cands []BrowseAbandoner
 	seen := make(map[uuid.UUID]bool)
 	// keyset cursor starts above any real row - browse times are event times, never a day in the future
@@ -698,6 +714,7 @@ func (s *Service) ListBrowseAbandoners(ctx context.Context, threshold, maxAge ti
 	for {
 		rows, err := s.read().BrowseSeenSincePage(ctx, signalsdb.BrowseSeenSincePageParams{
 			MaxAge: maxAge, AfterAt: afterAt, AfterAnon: afterAnon, Lim: pageSize,
+			ChannelID: uuid.NullUUID{UUID: channelID, Valid: channelID != uuid.Nil},
 		})
 		if err != nil {
 			return nil, err
@@ -806,7 +823,7 @@ type Heatmap struct {
 }
 
 func (s *Service) ListPages(ctx context.Context, channelID uuid.UUID) ([]PageEntry, error) {
-	rows, err := s.rec.LensListPages(ctx, channelID)
+	rows, err := s.rec.LensListPages(ctx, channelID, s.retentionEdge(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -822,7 +839,7 @@ func (s *Service) Viewports(ctx context.Context, channelID uuid.UUID, pageKey st
 }
 
 func (s *Service) PageDevices(ctx context.Context, channelID uuid.UUID, pageKey string) ([]LabelCount, error) {
-	rows, err := s.rec.LensPageDeviceSplit(ctx, channelID, pageKey)
+	rows, err := s.rec.LensPageDeviceSplit(ctx, channelID, pageKey, s.retentionEdge(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -852,10 +869,10 @@ type PageStatsResult struct {
 
 func (s *Service) PageStats(ctx context.Context, channelID uuid.UUID, pageKey string) (PageStatsResult, error) {
 	var res PageStatsResult
-	if views, visitors, err := s.rec.LensPageTotals(ctx, channelID, pageKey); err == nil {
+	if views, visitors, err := s.rec.LensPageTotals(ctx, channelID, pageKey, s.retentionEdge(ctx)); err == nil {
 		res.Views, res.Visitors = views, visitors
 	}
-	if g, err := s.rec.LensPageGridFromEvents(ctx, channelID, pageKey); err == nil {
+	if g, err := s.rec.LensPageGridFromEvents(ctx, channelID, pageKey, s.retentionEdge(ctx)); err == nil {
 		res.Clicks = g.Clicks
 		if g.ScrollTotal > 0 {
 			res.AvgScroll = int(g.ScrollWeight / g.ScrollTotal)
@@ -866,12 +883,12 @@ func (s *Service) PageStats(ctx context.Context, channelID uuid.UUID, pageKey st
 			res.Timeline = append(res.Timeline, TimePoint{Date: r.Date, Views: r.Views})
 		}
 	}
-	if rows, err := s.rec.LensPageReferrers(ctx, channelID, pageKey); err == nil {
+	if rows, err := s.rec.LensPageReferrers(ctx, channelID, pageKey, s.retentionEdge(ctx)); err == nil {
 		for _, r := range rows {
 			res.Referrers = append(res.Referrers, LabelCount{Label: r.Value, Views: r.Count})
 		}
 	}
-	if rows, err := s.rec.LensPageClients(ctx, channelID, pageKey); err == nil {
+	if rows, err := s.rec.LensPageClients(ctx, channelID, pageKey, s.retentionEdge(ctx)); err == nil {
 		for _, r := range rows {
 			res.Clients = append(res.Clients, LabelCount{Label: r.Value, Views: r.Count})
 		}
@@ -905,7 +922,7 @@ func (s *Service) Heatmap(ctx context.Context, channelID uuid.UUID, pageKey, vie
 	hm.Click = s.cells(ctx, channelID, pageKey, viewport, state, "click")
 	hm.Move = s.cells(ctx, channelID, pageKey, viewport, state, "move")
 	hm.Scroll = s.cells(ctx, channelID, pageKey, viewport, state, "scroll")
-	if els, err := s.rec.LensElementsFromEvents(ctx, channelID, pageKey, viewport, 25); err == nil {
+	if els, err := s.rec.LensElementsFromEvents(ctx, channelID, pageKey, viewport, 25, s.retentionEdge(ctx)); err == nil {
 		for _, e := range els {
 			hm.Elements = append(hm.Elements, ElementClick{Selector: e.Selector, Text: e.Text, Count: e.Count})
 		}
@@ -914,7 +931,7 @@ func (s *Service) Heatmap(ctx context.Context, channelID uuid.UUID, pageKey, vie
 }
 
 func (s *Service) cells(ctx context.Context, channelID uuid.UUID, pageKey, viewport, state, kind string) []Cell {
-	rows, err := s.rec.LensCellsFromEvents(ctx, channelID, pageKey, viewport, state, kind)
+	rows, err := s.rec.LensCellsFromEvents(ctx, channelID, pageKey, viewport, state, kind, s.retentionEdge(ctx))
 	if err != nil {
 		return nil
 	}
@@ -1250,13 +1267,16 @@ func metaFrom(id, anon string, cust uuid.NullUUID, started, ended time.Time, eve
 }
 
 // Resolved by customer id OR any anon id they later identified with, so pre-login sessions show up too
-func (s *Service) SessionsForCustomer(ctx context.Context, customerID uuid.UUID, limit int32) ([]SessionMeta, error) {
+func (s *Service) SessionsForCustomer(ctx context.Context, customerID uuid.UUID, channels []uuid.UUID, limit int32) ([]SessionMeta, error) {
 	// the identity map lives on the spine engine - a direct signalsdb read misses every stitch made after a ClickHouse flip, and an error surfaces rather than silently dropping pre-login sessions
 	anonIDs, err := s.rec.AnonIDsForCustomer(ctx, customerID)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.read().LensSessionsForCustomer(ctx, signalsdb.LensSessionsForCustomerParams{CustomerID: uuid.NullUUID{UUID: customerID, Valid: true}, AnonIds: anonIDs, Lim: limit})
+	rows, err := s.read().LensSessionsForCustomer(ctx, signalsdb.LensSessionsForCustomerParams{
+		CustomerID: uuid.NullUUID{UUID: customerID, Valid: true}, AnonIds: anonIDs,
+		AllChannels: channels == nil, ChannelIds: emptyIDs(channels), Lim: limit,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1269,8 +1289,10 @@ func (s *Service) SessionsForCustomer(ctx context.Context, customerID uuid.UUID,
 	return out, nil
 }
 
-func (s *Service) SessionsForAnon(ctx context.Context, anonID string, limit int32) ([]SessionMeta, error) {
-	rows, err := s.read().LensSessionsForAnon(ctx, signalsdb.LensSessionsForAnonParams{AnonID: anonID, Lim: limit})
+func (s *Service) SessionsForAnon(ctx context.Context, anonID string, channels []uuid.UUID, limit int32) ([]SessionMeta, error) {
+	rows, err := s.read().LensSessionsForAnon(ctx, signalsdb.LensSessionsForAnonParams{
+		AnonID: anonID, AllChannels: channels == nil, ChannelIds: emptyIDs(channels), Lim: limit,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1281,6 +1303,13 @@ func (s *Service) SessionsForAnon(ctx context.Context, anonID string, limit int3
 		out[i] = m
 	}
 	return out, nil
+}
+
+func emptyIDs(ids []uuid.UUID) []uuid.UUID {
+	if ids == nil {
+		return []uuid.UUID{}
+	}
+	return ids
 }
 
 func (s *Service) SessionsForChannel(ctx context.Context, channelID uuid.UUID, limit int32) ([]SessionMeta, error) {

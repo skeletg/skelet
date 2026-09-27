@@ -31,7 +31,7 @@ fi
 case "${SKELET_TARGET:-dev}" in
     small) want_env=(env/small.env) ;;
     prod)  want_env=(env/prod.env) ;;
-    *)     want_env=(env/go.env env/db.env) ;;
+    *)     want_env=(env/go.env env/db.env env/signals.env) ;;
 esac
 # The rest come from the compose file that names them, so a shop added by bin/new is checked
 # like the one it was forked from rather than going unnoticed until deploy
@@ -42,10 +42,14 @@ case "${SKELET_TARGET:-dev}" in
             want_env+=("$f")
         done < <(grep -hoE 'env/[a-z0-9.-]+\.env' "docker-compose.$SKELET_TARGET.yml" 2>/dev/null | sort -u) ;;
 esac
+# env_file entries marked `required: false` - compose runs without them, so a missing one only warns
+optional_env=" $(awk '/path: env\/[a-z0-9.-]+\.env/ { p = $NF; next } p && /required: false/ { print p } { p = "" }' "docker-compose.${SKELET_TARGET:-dev}.yml" docker-compose.yml 2>/dev/null | sort -u | tr '\n' ' ') "
 
 echo "==> env files (${SKELET_TARGET:-dev} target)"
 for f in "${want_env[@]}"; do
-    if [ -f "$f" ]; then pass "$f"; else bad "$f missing - run bin/setup"; fi
+    if [ -f "$f" ]; then pass "$f"
+    elif [[ "$optional_env" == *" $f "* ]]; then note "$f missing - optional, compose runs without it"
+    else bad "$f missing - run bin/setup"; fi
 done
 
 echo "==> app selection"

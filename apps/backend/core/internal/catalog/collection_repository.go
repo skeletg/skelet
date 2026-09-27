@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -47,15 +48,6 @@ func (r *postgresRepository) GetCollectionByID(ctx context.Context, id uuid.UUID
 	c.AllContent = make([]CollectionContent, len(content))
 	for i, row := range content {
 		c.AllContent[i] = toCollectionContent(row)
-	}
-
-	products, err := r.queries.ListProductsByCollection(ctx, id)
-	if err != nil {
-		return Collection{}, fmt.Errorf("list collection products: %w", err)
-	}
-	c.Products = make([]Product, len(products))
-	for i, row := range products {
-		c.Products[i] = toProduct(row)
 	}
 
 	return c, nil
@@ -135,9 +127,9 @@ func (r *postgresRepository) UpsertCollectionContent(ctx context.Context, collec
 		Locale:          input.Locale,
 		Name:            input.Name,
 		Description:     pqtype.NullRawMessage{RawMessage: input.Description, Valid: len(input.Description) > 0},
-		MetaTitle:       nullableString(input.MetaTitle),
-		MetaDescription: nullableString(input.MetaDescription),
-		MetaKeywords:    nullableString(input.MetaKeywords),
+		MetaTitle:       sqlnull.StringValueNonEmpty(input.MetaTitle),
+		MetaDescription: sqlnull.StringValueNonEmpty(input.MetaDescription),
+		MetaKeywords:    sqlnull.StringValueNonEmpty(input.MetaKeywords),
 	})
 	if err != nil {
 		return CollectionContent{}, fmt.Errorf("upsert collection content: %w", err)
@@ -247,8 +239,9 @@ func (r *postgresRepository) RemoveProductFromCollection(ctx context.Context, co
 	return nil
 }
 
-func (r *postgresRepository) ListProductsByCollection(ctx context.Context, collectionID uuid.UUID) ([]Product, error) {
-	rows, err := r.queries.ListProductsByCollection(ctx, collectionID)
+// limit 0 means every member
+func (r *postgresRepository) ListProductsByCollection(ctx context.Context, collectionID uuid.UUID, limit int32) ([]Product, error) {
+	rows, err := r.queries.ListProductsByCollection(ctx, db.ListProductsByCollectionParams{CollectionID: collectionID, RowLimit: limit})
 	if err != nil {
 		return nil, fmt.Errorf("list products by collection: %w", err)
 	}
@@ -354,7 +347,6 @@ func toCollection(row db.Collection) Collection {
 		SEONoindex:      row.SeoNoindex,
 		Metadata:        metadataFromJSON(row.Metadata),
 		PrivateMetadata: metadataFromJSON(row.PrivateMetadata),
-		Products:        []Product{},
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,
 	}
