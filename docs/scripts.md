@@ -45,7 +45,7 @@ Three things they share (living in `_lib`, which is sourced, not run):
 | `./skelet down` | Remove the containers. Volumes (your data) survive. |
 | `./skelet restart` | Restart containers in place. For a full recreate: `down` then `dev`. |
 | `./skelet ps` | List running containers. |
-| `./skelet serve` | Run one frontend on the HOST instead of in its container - `./skelet serve dashboard`, `./skelet serve vetrina-demo`. It exports the root `.env` first, because Next only reads `.env` files from its own directory and would otherwise need a second copy of `STOREFRONT_CHANNEL_ID` that drifts from the one compose reads. Trailing args go to npm. |
+| `./skelet serve` | Run one frontend on the HOST instead of in its container - `./skelet serve dashboard`, `./skelet serve vetrina-demo`. It exports the root `.env` first, because Next only reads `.env` files from its own directory and would otherwise need a second copy of `STOREFRONT_CHANNEL_ID` that drifts from the one compose reads. Trailing args go to the dev server, with no `--` in front - pnpm passes that through verbatim. |
 | `./skelet logs` | Tail logs - `./skelet logs app`, `./skelet logs --tail 50 garage`. |
 | `./skelet doctor` | See "Other tools" below - worth running right after `setup`, it's what catches a datastore the config expects but the stack isn't running. |
 | `./skelet setup` | Guided first-run. Asks which apps you want (backend always does; deselected apps also leave the working tree via sparse-checkout unless `--keep-code`) and, separately, whether to run the frontends in Docker rather than on the host - the host is the default, and `.skelet-apps` lists only the containerized ones, the deployment target, which suites and engines you want, which payment gateways compile in, and whether to hide the admin API. Writes the target's env files with generated secrets - an existing non-placeholder value is never overwritten - plus the root `.env`, `plugins.json` and git-ignored `.skelet-profile`. Then boots the stack with `--lean`, migrates, and regenerates when the plugin set changed. Safe to re-run. `--yes` takes defaults, `--profile FILE` replays answers, `--all` / `--backend-only` / `--apps LIST` set the selection directly, and `--docker-apps LIST|none` sets the placement. |
@@ -57,8 +57,8 @@ Three things they share (living in `_lib`, which is sourced, not run):
 | `./skelet sh` | Shell into the app container. |
 | `./skelet go` | Run go in the app container - `./skelet go build ./...`, `./skelet go test ./internal/...`. `--signals` or `--sdk` first runs it in that module instead. |
 | `./skelet cli` | The skelet ops CLI - `./skelet cli admin list`, `./skelet cli media-migrate ...`, `./skelet cli job run customer-roster-push` to run a scheduled job now. Works with pipes and CI (only grabs a TTY when there is one). |
-| `./skelet npm dashboard` | npm in the dashboard container - `./skelet npm dashboard run codegen`, `./skelet npm dashboard run lint`. Vite is already running via `./skelet up`, so no need for `run dev`. |
-| `./skelet npm <name>` | Same for storefronts (`apps/channels/<name>/`) - `./skelet npm <name> [name] run codegen`, `run build`; the name is optional when only one storefront exists. Note: storefront codegen/tsc only works right in the container; host runs show phantom errors (no `.next/types`). |
+| `./skelet pnpm dashboard` | pnpm in the dashboard container - `./skelet pnpm dashboard run codegen`, `./skelet pnpm dashboard run lint`. Vite is already running via `./skelet up`, so no need for `run dev`. |
+| `./skelet pnpm <name>` | Same for storefronts (`apps/channels/<name>/`) - `./skelet pnpm <name> [name] run codegen`, `run build`; the name is optional when only one storefront exists. Note: storefront codegen/tsc only works right in the container; host runs show phantom errors (no `.next/types`). |
 | `./skelet psql` | psql shell into the dev database. |
 
 If the stack is up, these exec into the running container (instant). If
@@ -132,7 +132,7 @@ they take a plain `docker compose -f <file> up -d` on the server.
 | `serve` | `serve` |
 | `logs [service]` | `logs` |
 | `sh`, `go`, `cli`, `psql` | `bash`, `go`, `cli`, `psql` |
-| `npm <app> <args>` | `dash` when app is `dashboard`, else `channel <app>` |
+| `pnpm <app> <args>` | `dash` when app is `dashboard`, else `channel <app>` - `npm` is kept as an alias from before the switch |
 | `db migrate [--signals]`, `db export`, `db import`, `db shell` | `migrate`, `migrate-signals`, `db-export`, `db-import`, `psql` |
 | `gen`, `gen sqlc`, `gen gqlgen`, `gen buf` | `codegen`, `sqlc`, `gqlgen`, `buf` |
 | `check`, `check pins\|structure\|contracts`, `check codegen` | `check`, the three gates, `codegen --check` |

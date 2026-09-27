@@ -203,7 +203,7 @@ still installed for host-side tooling (`./skelet test`'s tsc, ESLint, the
 IDE). Codegen flows backend → frontends: editing `*.graphqls`
 or any `*.graphql` doc requires `./skelet gen` so dashboard TS bindings
 stay in sync; the storefront has its own codegen step
-(`./skelet npm <name> run codegen`).
+(`./skelet pnpm <name> run codegen`).
 
 ## Stack
 

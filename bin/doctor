@@ -60,6 +60,41 @@ else
     pass "apps: none in Docker - frontends run on the host (list them in .skelet-apps to containerize)"
 fi
 
+echo "==> host frontends"
+host_apps=()
+for d in apps/dashboard apps/channels/*/; do
+    d="${d%/}"
+    [ -f "$d/package.json" ] || continue
+    case ",${sel:-}," in *,"$(basename "$d")",*) continue ;; esac
+    host_apps+=("$d")
+done
+if [ ${#host_apps[@]} -eq 0 ]; then
+    pass "none - every frontend runs in Docker"
+else
+    want_pnpm="$(grep -oE '"packageManager": *"pnpm@[0-9.]+' "${host_apps[0]}/package.json" | sed 's/.*@//')"
+    if ! command -v pnpm >/dev/null 2>&1; then
+        bad "no pnpm on PATH - corepack enable, or npm install -g pnpm@$want_pnpm"
+    else
+        # Asked from inside an app, where pnpm switches itself to packageManager's version - the
+        # switch is what breaks, so asking from the root would pass on a pnpm the apps can't run
+        have="$(cd "${host_apps[0]}" && pnpm --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+$')"
+        if [ "$have" = "$want_pnpm" ]; then
+            pass "pnpm $have"
+        else
+            bad "pnpm in ${host_apps[0]} answers ${have:-nothing}, the apps pin $want_pnpm - pnpm self-update $want_pnpm"
+        fi
+    fi
+    for d in "${host_apps[@]}"; do
+        if [ -z "$(ls -A "$d/node_modules" 2>/dev/null)" ]; then
+            note "$d not installed - bin/setup, or: cd $d && pnpm install"
+        elif [ -f "$d/node_modules/.modules.yaml" ]; then
+            pass "$d installed with pnpm"
+        else
+            bad "$d/node_modules is an npm install from before the switch to pnpm - rm -rf it, then pnpm install"
+        fi
+    done
+fi
+
 echo "==> shape"
 if [ -f .skelet-profile ]; then
     pass "target=$SKELET_TARGET signals=$SKELET_SIGNALS ai=$SKELET_AI search=$SKELET_SEARCH"
@@ -131,7 +166,9 @@ if [ -n "$running" ] && ! grep -qiE '^[[:space:]]*SIGNALS_ENABLED[[:space:]]*=[[
 fi
 
 echo "==> ports (only meaningful when the stack should be up)"
-specs=(8080:backend 5173:dashboard 5432:postgres 9900:garage-s3 9901:garage-console 9902:garage-web 8025:mailpit)
+# bin/dev may have moved Postgres off 5432 through .env when something else held it
+db_port="$(grep -E '^DB_HOST_PORT=[0-9]+$' .env 2>/dev/null | tail -1 | cut -d= -f2)"
+specs=(8080:backend 5173:dashboard "${db_port:-5432}:postgres"9900:garage-s3 9901:garage-console 9902:garage-web 8025:mailpit)
 # A storefront's published port is its own business, so ask compose instead of
 # assuming the demo's 3000 - a fork with two shops gets both listed
 for d in apps/channels/*/; do
@@ -142,7 +179,7 @@ for d in apps/channels/*/; do
         specs+=("$port:$name")
     else
         if [ -z "$SKELET_APPS" ]; then
-            pass "$name not in Docker - run it on the host (cd apps/channels/$name && npm run dev)"
+            pass "$name not in Docker - run it on the host (./skelet serve $name)"
         else
             note "$name has no published port (not running, or not enabled in .skelet-apps)"
         fi

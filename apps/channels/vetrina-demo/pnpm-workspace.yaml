@@ -1,0 +1,14 @@
+# pnpm settings for this app alone - no packages: key, so this is a single project, not a
+# workspace. pnpm 11+ reads nothing but auth from .npmrc and ignores package.json's pnpm field,
+# so the Dockerfiles copy this file next to the lockfile or a frozen install refuses to run
+
+# Dependency install scripts run only when listed true - none of these needs to. swc, parcel's
+# watcher and unrs-resolver load a prebuilt platform package and only fall back to a build when it
+# is missing; sentry-cli's script downloads a binary that only source-map upload uses, and
+# next.config.ts doesn't wrap withSentryConfig
+allowBuilds:
+  "@parcel/watcher": false
+  "@sentry/cli": false
+  "@swc/core": false
+  fsevents: false
+  unrs-resolver: false

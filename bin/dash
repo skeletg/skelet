@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# npm inside the dashboard container - bin/dash install / run codegen / run lint
+# pnpm inside the dashboard container - bin/dash install / run codegen / run lint
 set -e
 cd "$(dirname "$(dirname "$0")")"
 . bin/_lib
@@ -10,22 +10,21 @@ if [ ! -f apps/dashboard/package.json ]; then
     exit 1
 fi
 
-# Host npm when this clone has a host install - the container keeps node_modules in its own volume,
+# Host pnpm when this clone has a host install - the container keeps node_modules in its own volume,
 # and running the gates against a different tree than the dev server is how the two silently diverge
-#
-# POPULATED, not merely present: the container mounts its named volume at node_modules, and because
-# the parent is a bind mount that creates an EMPTY directory on the host - testing -d alone sends
-# every later install to a host tree the dev server never reads
-if [ -z "${SKELET_FORCE_DOCKER:-}" ] && command -v npm >/dev/null 2>&1 \
-   && [ -n "$(ls -A apps/dashboard/node_modules 2>/dev/null)" ]; then
-    cd "apps/dashboard" && exec npm "$@"
+# (host_tree in bin/_lib says why an empty node_modules counts as no install)
+if [ -z "${SKELET_FORCE_DOCKER:-}" ]; then
+    case "$(host_tree apps/dashboard)" in
+        npm)  npm_tree_hint apps/dashboard; exit 1 ;;
+        pnpm) if command -v pnpm >/dev/null 2>&1; then cd apps/dashboard && exec pnpm "$@"; fi ;;
+    esac
 fi
 
 tty_flag=()
 [ -t 0 ] && tty_flag=(-it)
 
 if docker compose ps --status running | grep -q "skelet-dashboard"; then
-    docker compose exec "${tty_flag[@]}" "${USER_FLAG[@]}" dashboard npm "$@"
+    docker compose exec "${tty_flag[@]}" "${USER_FLAG[@]}" dashboard pnpm "$@"
 else
-    docker compose run --rm "${tty_flag[@]}" "${USER_FLAG[@]}" dashboard npm "$@"
+    docker compose run --rm "${tty_flag[@]}" "${USER_FLAG[@]}" dashboard pnpm "$@"
 fi

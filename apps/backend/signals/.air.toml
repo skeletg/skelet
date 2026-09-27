@@ -1,0 +1,22 @@
+# Signals' hot reload, the same as core's .air.toml - rooted at apps/backend rather than here, because
+# the suite requires core by path and a change to the core packages it imports has to rebuild it too
+root = ".."
+tmp_dir = "signals/tmp"
+
+[build]
+  # Commands run from the working directory, this module - only the watch paths are relative to root
+  cmd = "go build -o ./tmp/signals ./cmd/signals"
+  bin = "./tmp/signals"
+  # core/lib and core/signalsapi are all of core the suite imports - the rest of core can't rebuild it
+  include_dir = ["signals", "core/lib", "core/signalsapi"]
+  include_file = ["core/go.mod", "core/go.sum"]
+  include_ext = ["go", "mod", "sum"]
+  exclude_dir = ["signals/tmp"]
+  exclude_regex = ["_test\\.go"]
+  delay = 500
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = true
