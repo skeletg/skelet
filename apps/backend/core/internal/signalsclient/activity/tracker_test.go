@@ -2,14 +2,20 @@ package activity
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
+	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
@@ -18,11 +24,14 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
-type fakeRecorder struct{ calls []signalsclient.ActivitySpec }
+type fakeRecorder struct {
+	calls []signalsclient.ActivitySpec
+	err   error
+}
 
 func (f *fakeRecorder) RecordActivity(_ context.Context, a signalsclient.ActivitySpec) error {
 	f.calls = append(f.calls, a)
-	return nil
+	return f.err
 }
 
 type fakeOrders struct {
@@ -288,5 +297,147 @@ func TestALogoutLandsOnTheChannelItHappenedOn(t *testing.T) {
 	_ = tr.onLogout(ctx, &auth.Logout{Subject: auth.SubjectCustomer, SubjectID: uuid.New()})
 	if len(fr.calls) != 1 || fr.calls[0].ChannelID != ch {
 		t.Fatalf("logout recorded %+v, want it on the storefront's channel - a channel-less event drops out of every per-channel report", fr.calls)
+	}
+}
+
+func TestAnUnreachableSuiteHandsActivityBackToTheOutbox(t *testing.T) {
+	cid := uuid.New()
+	for name, tc := range map[string]struct {
+		err     error
+		wantErr bool
+	}{
+		"recorded":    {nil, false},
+		"unreachable": {status.Error(codes.Unavailable, "down"), true},
+		"timed out":   {status.Error(codes.DeadlineExceeded, "slow"), true},
+		"refused":     {status.Error(codes.InvalidArgument, "bad"), false},
+		"no suite":    {signalsclient.ErrUnavailable, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			bus := events.NewBus()
+			fr := &fakeRecorder{err: tc.err}
+			(&Tracker{rec: fr, orders: &fakeOrders{o: order.Order{CustomerID: &cid, GiftCardAmount: 500}}}).Subscribe(bus)
+			err := bus.DispatchAsyncNow(context.Background(), &order.OrderPlaced{OrderID: uuid.New(), CustomerID: &cid, ChannelID: uuid.New()})
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("dispatch err = %v, want error %v", err, tc.wantErr)
+			}
+			if tc.wantErr && !errors.Is(err, tc.err) && status.Code(err) != status.Code(tc.err) {
+				t.Errorf("err = %v does not carry the cause", err)
+			}
+			if tc.wantErr && len(fr.calls) != 1 {
+				t.Errorf("recorded %d activities after the suite failed, want the gift-card write left for the replay", len(fr.calls))
+			}
+		})
+	}
+}
+
+func TestARepeatedTransitionIsItsOwnEvent(t *testing.T) {
+	cid, sub, oid := uuid.New(), uuid.New(), uuid.New()
+	first := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	later := first.Add(72 * time.Hour)
+	for name, fire := range map[string]func(tr *Tracker, ctx context.Context){
+		"subscription paused": func(tr *Tracker, ctx context.Context) {
+			_ = tr.onSubLifecycle(ctx, &subscription.Lifecycle{Kind: subscription.EventPaused, SubscriptionID: sub, CustomerID: &cid})
+		},
+		"order on hold": func(tr *Tracker, ctx context.Context) {
+			_ = tr.onOrderStatusChanged(ctx, &order.OrderStatusChanged{OrderID: oid, FromStatus: "processing", ToStatus: "on_hold"})
+		},
+		"order edited to the same balance": func(tr *Tracker, ctx context.Context) {
+			_ = tr.onOrderEdited(ctx, &order.OrderEdited{OrderID: oid, OldAmountDue: 100, NewAmountDue: 100})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tr, fr := newTracker(order.Order{CustomerID: &cid, Number: "1001"})
+			fire(tr, events.WithEmittedAt(context.Background(), first))
+			fire(tr, events.WithEmittedAt(context.Background(), first))
+			fire(tr, events.WithEmittedAt(context.Background(), later))
+			if len(fr.calls) != 3 {
+				t.Fatalf("recorded %d, want 3", len(fr.calls))
+			}
+			if fr.calls[0].DedupeKey != fr.calls[1].DedupeKey {
+				t.Errorf("a replay changed the key: %q vs %q", fr.calls[0].DedupeKey, fr.calls[1].DedupeKey)
+			}
+			if fr.calls[0].DedupeKey == fr.calls[2].DedupeKey {
+				t.Errorf("a second transition days later reused %q - Postgres keeps one row per key forever, so it would never land", fr.calls[0].DedupeKey)
+			}
+		})
+	}
+}
+
+func TestAGuestOrderKeepsItsVisitorPastPlacement(t *testing.T) {
+	ch, oid := uuid.New(), uuid.New()
+	tr, fr := newTracker(order.Order{Number: "1099", ChannelID: ch, AnonID: "lens-anon-xyz"})
+	_ = tr.onOrderShipped(context.Background(), &order.OrderFulfillmentCreated{OrderID: oid, FulfillmentID: uuid.New()})
+	_ = tr.onReturnRequested(context.Background(), &order.OrderReturnRequested{OrderID: oid, ReturnID: uuid.New()})
+	if len(fr.calls) != 2 {
+		t.Fatalf("recorded %d, want the shipment and the return on the guest's profile", len(fr.calls))
+	}
+	for _, c := range fr.calls {
+		if c.AnonID != "lens-anon-xyz" || c.CustomerID != nil || c.ChannelID != ch {
+			t.Errorf("%s recorded as %+v, want the visitor the order was placed under", c.EventName, c)
+		}
+	}
+}
+
+func TestAnOrderThatWontLoadGoesBackToTheOutbox(t *testing.T) {
+	cid := uuid.New()
+	for name, tc := range map[string]struct {
+		err     error
+		wantErr bool
+	}{
+		"database down": {errors.New("connection refused"), true},
+		"order gone":    {fmt.Errorf("get order: %w", sql.ErrNoRows), false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fr := &fakeRecorder{}
+			tr := &Tracker{rec: fr, orders: &fakeOrders{o: order.Order{CustomerID: &cid}, err: tc.err}}
+			err := tr.onOrderShipped(context.Background(), &order.OrderFulfillmentCreated{OrderID: uuid.New(), FulfillmentID: uuid.New()})
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
+			}
+			if len(fr.calls) != 0 {
+				t.Errorf("recorded %d activities for an order that didn't load", len(fr.calls))
+			}
+		})
+	}
+}
+
+func TestADownloadLandsOnAChannel(t *testing.T) {
+	cid, orderCh, reqCh := uuid.New(), uuid.New(), uuid.New()
+	onReq := channel.WithChannel(context.Background(), &channel.Channel{ID: reqCh})
+	for name, tc := range map[string]struct {
+		ctx     context.Context
+		orderID *uuid.UUID
+		want    uuid.UUID
+	}{
+		"from its order":             {onReq, ref(uuid.New()), orderCh},
+		"from the request, no order": {onReq, nil, reqCh},
+		"nowhere, so not recorded":   {context.Background(), nil, uuid.Nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tr, fr := newTracker(order.Order{CustomerID: &cid, ChannelID: orderCh, Number: "1001"})
+			if err := tr.onDownloadAccessed(tc.ctx, &download.Accessed{GrantID: uuid.New(), CustomerID: &cid, OrderID: tc.orderID, Title: "Manual"}); err != nil {
+				t.Fatalf("download: %v", err)
+			}
+			if tc.want == uuid.Nil {
+				if len(fr.calls) != 0 {
+					t.Errorf("recorded %+v with no channel to put it on", fr.calls)
+				}
+				return
+			}
+			if len(fr.calls) != 1 || fr.calls[0].ChannelID != tc.want {
+				t.Fatalf("recorded %+v, want one event on channel %s", fr.calls, tc.want)
+			}
+		})
+	}
+}
+
+func TestALogoutCarriesNoAllDevicesFlag(t *testing.T) {
+	tr, fr := newTracker(order.Order{})
+	_ = tr.onLogout(context.Background(), &auth.Logout{Subject: auth.SubjectCustomer, SubjectID: uuid.New()})
+	if len(fr.calls) != 1 {
+		t.Fatalf("recorded %d, want 1", len(fr.calls))
+	}
+	if _, ok := fr.calls[0].Props["all_devices"]; ok {
+		t.Error("logout still records all_devices - every Logout is one session, so the flag says nothing")
 	}
 }

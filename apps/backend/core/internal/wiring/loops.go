@@ -17,6 +17,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/scheduler"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/roster"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
@@ -107,7 +108,7 @@ func startBackgroundLoops(
 	// roster table the suite would answer every beacon with "not a channel I serve" until it fires
 	if bool(enabled) {
 		lc.Append(fx.Hook{OnStart: func(ctx context.Context) error {
-			if err := PushChannelRoster(ctx, chans, cfg, signals); err != nil {
+			if err := roster.PushChannels(ctx, chans, cfg, signals); err != nil {
 				slog.Warn("channel roster push at boot failed - the scheduled push retries", "err", err)
 			}
 			return nil

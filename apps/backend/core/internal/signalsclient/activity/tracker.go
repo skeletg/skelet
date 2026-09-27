@@ -4,6 +4,9 @@ package activity
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -87,19 +90,20 @@ func (t *Tracker) Subscribe(bus *events.Bus) {
 	bus.Subscribe(auth.EventPasswordReset, t.onPasswordReset)
 }
 
-func (t *Tracker) emit(ctx context.Context, source, name string, channel uuid.UUID, cust *uuid.UUID, dedupe string, props map[string]any) {
-	t.emitID(ctx, source, name, channel, cust, "", dedupe, props)
+func (t *Tracker) emit(ctx context.Context, source, name string, channel uuid.UUID, cust *uuid.UUID, dedupe string, props map[string]any) error {
+	return t.emitID(ctx, source, name, channel, cust, "", dedupe, props)
 }
 
 // emitID also accepts an anon id for guest commerce - No-op when neither a
 // customer nor an anon id is present
-func (t *Tracker) emitID(ctx context.Context, source, name string, channel uuid.UUID, cust *uuid.UUID, anon, dedupe string, props map[string]any) {
+// An unreachable suite hands the event back to the outbox, whose replay the dedupe key collapses - a refusal is final
+func (t *Tracker) emitID(ctx context.Context, source, name string, channel uuid.UUID, cust *uuid.UUID, anon, dedupe string, props map[string]any) error {
 	if cust == nil && anon == "" {
-		return
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, signalsWriteTimeout)
 	defer cancel()
-	_ = t.rec.RecordActivity(ctx, signalsclient.ActivitySpec{
+	err := t.rec.RecordActivity(ctx, signalsclient.ActivitySpec{
 		EventName:  name,
 		Source:     source,
 		ChannelID:  channel,
@@ -109,6 +113,10 @@ func (t *Tracker) emitID(ctx context.Context, source, name string, channel uuid.
 		Props:      props,
 		DedupeKey:  dedupe,
 	})
+	if signalsclient.Unreachable(err) {
+		return fmt.Errorf("record %s activity: %w", name, err)
+	}
+	return nil
 }
 
 // eventTime is the outbox enqueue stamp on a relayed dispatch, else now - stable across redeliveries, so a replayed event keeps the exact occurred_at (and bucketed dedupe key) of the first attempt and collapses in storage on both engines
@@ -116,13 +124,28 @@ func eventTime(ctx context.Context) time.Time {
 	return events.EmittedAtOr(ctx, time.Now())
 }
 
-// ok is false for guest orders (no customer) or load errors
-func (t *Tracker) resolveOrder(ctx context.Context, orderID uuid.UUID) (cust *uuid.UUID, number string, channel uuid.UUID, ok bool) {
+// Who an order's later events belong to - the customer, or for a guest the visitor id it was placed under
+type orderRef struct {
+	cust    *uuid.UUID
+	anon    string
+	number  string
+	channel uuid.UUID
+}
+
+// A failed load goes back to the outbox like an unreachable suite - only a missing order is final
+func (t *Tracker) resolveOrder(ctx context.Context, orderID uuid.UUID) (orderRef, error) {
 	o, err := t.orders.GetByID(ctx, orderID)
-	if err != nil || o.CustomerID == nil {
-		return nil, "", uuid.Nil, false
+	if errors.Is(err, sql.ErrNoRows) {
+		return orderRef{}, nil
 	}
-	return o.CustomerID, o.Number, o.ChannelID, true
+	if err != nil {
+		return orderRef{}, fmt.Errorf("load order %s: %w", orderID, err)
+	}
+	return orderRef{cust: o.CustomerID, anon: o.AnonID, number: o.Number, channel: o.ChannelID}, nil
+}
+
+func (t *Tracker) emitOrder(ctx context.Context, name string, o orderRef, dedupe string, props map[string]any) error {
+	return t.emitID(ctx, sourceCommerce, name, o.channel, o.cust, o.anon, dedupe, props)
 }
 
 // bucketing collapses rapid repeats (cart churn, logins) into one dedupe key - derived from eventTime, not the wall clock, so a redelivery lands on the same key
@@ -138,12 +161,14 @@ func (t *Tracker) onOrderPlaced(ctx context.Context, e events.Event) error {
 	if !ok || (ev.CustomerID == nil && ev.AnonID == "") {
 		return nil
 	}
-	t.emitID(ctx, sourceCommerce, "order_placed", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	if err := t.emitID(ctx, sourceCommerce, "order_placed", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:order_placed:"+ev.OrderID.String(),
-		map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency})
+		map[string]any{"order_id": ev.OrderID.String(), "order_number": ev.OrderNumber, "total_cents": ev.TotalCents, "currency": ev.Currency}); err != nil {
+		return err
+	}
 	// gift-card-as-tender is applied during placement, surface it separately
 	if o, err := t.orders.GetByID(ctx, ev.OrderID); err == nil && o.GiftCardAmount > 0 {
-		t.emitID(ctx, sourceCommerce, "giftcard_redeemed", ev.ChannelID, ev.CustomerID, ev.AnonID,
+		return t.emitID(ctx, sourceCommerce, "giftcard_redeemed", ev.ChannelID, ev.CustomerID, ev.AnonID,
 			"act:gc:"+ev.OrderID.String(),
 			map[string]any{"order_number": ev.OrderNumber, "amount_cents": o.GiftCardAmount, "currency": ev.Currency})
 	}
@@ -155,14 +180,13 @@ func (t *Tracker) onOrderStatusChanged(ctx context.Context, e events.Event) erro
 	if !ok {
 		return nil
 	}
-	cust, number, ch, ok := t.resolveOrder(ctx, ev.OrderID)
-	if !ok {
-		return nil
+	o, err := t.resolveOrder(ctx, ev.OrderID)
+	if err != nil {
+		return err
 	}
-	t.emit(ctx, sourceCommerce, "order_"+ev.ToStatus, ch, cust,
-		"act:order_status:"+ev.ToStatus+":"+ev.OrderID.String(),
-		map[string]any{"order_id": ev.OrderID.String(), "order_number": number, "from": ev.FromStatus, "status": ev.ToStatus})
-	return nil
+	return t.emitOrder(ctx, "order_"+ev.ToStatus, o,
+		"act:order_status:"+ev.ToStatus+":"+ev.OrderID.String()+":"+itoa(secBucket(ctx)),
+		map[string]any{"order_id": ev.OrderID.String(), "order_number": o.number, "from": ev.FromStatus, "status": ev.ToStatus})
 }
 
 func (t *Tracker) onOrderPayment(ctx context.Context, e events.Event) error {
@@ -170,14 +194,13 @@ func (t *Tracker) onOrderPayment(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	cust, number, ch, ok := t.resolveOrder(ctx, ev.OrderID)
-	if !ok {
-		return nil
+	o, err := t.resolveOrder(ctx, ev.OrderID)
+	if err != nil {
+		return err
 	}
-	t.emit(ctx, sourceCommerce, "order_payment_"+ev.Status, ch, cust,
+	return t.emitOrder(ctx, "order_payment_"+ev.Status, o,
 		"act:order_pay:"+ev.Status+":"+ev.OrderID.String()+":"+ev.Reference,
-		map[string]any{"order_number": number, "status": ev.Status, "reference": ev.Reference})
-	return nil
+		map[string]any{"order_number": o.number, "status": ev.Status, "reference": ev.Reference})
 }
 
 func (t *Tracker) onOrderShipped(ctx context.Context, e events.Event) error {
@@ -185,14 +208,13 @@ func (t *Tracker) onOrderShipped(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	cust, number, ch, ok := t.resolveOrder(ctx, ev.OrderID)
-	if !ok {
-		return nil
+	o, err := t.resolveOrder(ctx, ev.OrderID)
+	if err != nil {
+		return err
 	}
-	t.emit(ctx, sourceCommerce, "order_shipped", ch, cust,
+	return t.emitOrder(ctx, "order_shipped", o,
 		"act:order_shipped:"+ev.FulfillmentID.String(),
-		map[string]any{"order_number": number, "fully_shipped": ev.FullyShipped})
-	return nil
+		map[string]any{"order_number": o.number, "fully_shipped": ev.FullyShipped})
 }
 
 func (t *Tracker) onReturnReceived(ctx context.Context, e events.Event) error {
@@ -200,8 +222,7 @@ func (t *Tracker) onReturnReceived(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.recordReturn(ctx, "return_received", ev.OrderID, ev.ReturnID)
-	return nil
+	return t.recordReturn(ctx, "return_received", ev.OrderID, ev.ReturnID)
 }
 
 func (t *Tracker) onReturnRequested(ctx context.Context, e events.Event) error {
@@ -209,8 +230,7 @@ func (t *Tracker) onReturnRequested(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.recordReturn(ctx, "return_requested", ev.OrderID, ev.ReturnID)
-	return nil
+	return t.recordReturn(ctx, "return_requested", ev.OrderID, ev.ReturnID)
 }
 
 func (t *Tracker) onReturnApproved(ctx context.Context, e events.Event) error {
@@ -218,8 +238,7 @@ func (t *Tracker) onReturnApproved(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.recordReturn(ctx, "return_approved", ev.OrderID, ev.ReturnID)
-	return nil
+	return t.recordReturn(ctx, "return_approved", ev.OrderID, ev.ReturnID)
 }
 
 func (t *Tracker) onReturnRejected(ctx context.Context, e events.Event) error {
@@ -227,18 +246,17 @@ func (t *Tracker) onReturnRejected(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.recordReturn(ctx, "return_rejected", ev.OrderID, ev.ReturnID)
-	return nil
+	return t.recordReturn(ctx, "return_rejected", ev.OrderID, ev.ReturnID)
 }
 
-func (t *Tracker) recordReturn(ctx context.Context, name string, orderID, returnID uuid.UUID) {
-	cust, number, ch, ok := t.resolveOrder(ctx, orderID)
-	if !ok {
-		return
+func (t *Tracker) recordReturn(ctx context.Context, name string, orderID, returnID uuid.UUID) error {
+	o, err := t.resolveOrder(ctx, orderID)
+	if err != nil {
+		return err
 	}
-	t.emit(ctx, sourceCommerce, name, ch, cust,
+	return t.emitOrder(ctx, name, o,
 		"act:"+name+":"+returnID.String(),
-		map[string]any{"order_number": number, "return_id": returnID.String()})
+		map[string]any{"order_number": o.number, "return_id": returnID.String()})
 }
 
 func (t *Tracker) onOrderEdited(ctx context.Context, e events.Event) error {
@@ -246,14 +264,13 @@ func (t *Tracker) onOrderEdited(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	cust, number, ch, ok := t.resolveOrder(ctx, ev.OrderID)
-	if !ok {
-		return nil
+	o, err := t.resolveOrder(ctx, ev.OrderID)
+	if err != nil {
+		return err
 	}
-	t.emit(ctx, sourceCommerce, "order_edited", ch, cust,
-		"act:order_edited:"+ev.OrderID.String()+":"+itoa(ev.NewAmountDue),
-		map[string]any{"order_number": number, "new_amount_due": ev.NewAmountDue})
-	return nil
+	return t.emitOrder(ctx, "order_edited", o,
+		"act:order_edited:"+ev.OrderID.String()+":"+itoa(secBucket(ctx)),
+		map[string]any{"order_number": o.number, "new_amount_due": ev.NewAmountDue})
 }
 
 func (t *Tracker) onCartAdd(ctx context.Context, e events.Event) error {
@@ -261,10 +278,9 @@ func (t *Tracker) onCartAdd(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emitID(ctx, sourceCommerce, "cart_add", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	return t.emitID(ctx, sourceCommerce, "cart_add", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:cart_add:"+ev.LineID.String(),
 		map[string]any{"sku": ev.ProductSku, "qty": ev.Quantity, "unit_price": ev.UnitPrice})
-	return nil
 }
 
 func (t *Tracker) onCartBundleAdd(ctx context.Context, e events.Event) error {
@@ -272,10 +288,9 @@ func (t *Tracker) onCartBundleAdd(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emitID(ctx, sourceCommerce, "cart_add", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	return t.emitID(ctx, sourceCommerce, "cart_add", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:cart_add:"+ev.LineID.String(),
 		map[string]any{"sku": ev.ProductSku, "qty": ev.Quantity, "unit_price": ev.UnitPrice, "bundle": true})
-	return nil
 }
 
 func (t *Tracker) onCartUpdate(ctx context.Context, e events.Event) error {
@@ -283,10 +298,9 @@ func (t *Tracker) onCartUpdate(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emitID(ctx, sourceCommerce, "cart_update", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	return t.emitID(ctx, sourceCommerce, "cart_update", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:cart_upd:"+ev.LineID.String()+":"+itoa(minuteBucket(ctx)),
 		map[string]any{"line_id": ev.LineID.String(), "qty": ev.Quantity})
-	return nil
 }
 
 func (t *Tracker) onCartRemove(ctx context.Context, e events.Event) error {
@@ -294,10 +308,9 @@ func (t *Tracker) onCartRemove(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emitID(ctx, sourceCommerce, "cart_remove", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	return t.emitID(ctx, sourceCommerce, "cart_remove", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:cart_rm:"+ev.LineID.String()+":"+itoa(minuteBucket(ctx)),
 		map[string]any{"line_id": ev.LineID.String()})
-	return nil
 }
 
 func (t *Tracker) onCartCleared(ctx context.Context, e events.Event) error {
@@ -305,9 +318,8 @@ func (t *Tracker) onCartCleared(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emitID(ctx, sourceCommerce, "cart_cleared", ev.ChannelID, ev.CustomerID, ev.AnonID,
+	return t.emitID(ctx, sourceCommerce, "cart_cleared", ev.ChannelID, ev.CustomerID, ev.AnonID,
 		"act:cart_clear:"+ev.CartID.String()+":"+itoa(minuteBucket(ctx)), nil)
-	return nil
 }
 
 func (t *Tracker) onCartMerged(ctx context.Context, e events.Event) error {
@@ -315,10 +327,9 @@ func (t *Tracker) onCartMerged(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, sourceCommerce, "cart_merged", ev.ChannelID, ref(ev.CustomerID),
+	return t.emit(ctx, sourceCommerce, "cart_merged", ev.ChannelID, ref(ev.CustomerID),
 		"act:cart_merged:"+ev.CustomerCartID.String()+":"+ev.GuestCartID.String(),
 		map[string]any{"guest_cart_id": ev.GuestCartID.String()})
-	return nil
 }
 
 func (t *Tracker) onReviewSubmitted(ctx context.Context, e events.Event) error {
@@ -326,10 +337,9 @@ func (t *Tracker) onReviewSubmitted(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, sourceCommerce, "review_submitted", ev.ChannelID, ev.CustomerID,
+	return t.emit(ctx, sourceCommerce, "review_submitted", ev.ChannelID, ev.CustomerID,
 		"act:review:"+ev.ReviewID.String(),
 		map[string]any{"product_id": ev.ProductID.String(), "status": string(ev.Status), "review_id": ev.ReviewID.String()})
-	return nil
 }
 
 func (t *Tracker) onSubLifecycle(ctx context.Context, e events.Event) error {
@@ -338,10 +348,9 @@ func (t *Tracker) onSubLifecycle(ctx context.Context, e events.Event) error {
 		return nil
 	}
 	verb := strings.TrimPrefix(ev.Kind, "subscription.")
-	t.emit(ctx, sourceCommerce, "subscription_"+verb, ev.ChannelID, ev.CustomerID,
-		"act:sub_"+verb+":"+ev.SubscriptionID.String(),
+	return t.emit(ctx, sourceCommerce, "subscription_"+verb, ev.ChannelID, ev.CustomerID,
+		"act:sub_"+verb+":"+ev.SubscriptionID.String()+":"+itoa(secBucket(ctx)),
 		map[string]any{"subscription_id": ev.SubscriptionID.String()})
-	return nil
 }
 
 func (t *Tracker) onSubInvoiced(ctx context.Context, e events.Event) error {
@@ -349,28 +358,36 @@ func (t *Tracker) onSubInvoiced(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, sourceCommerce, "subscription_invoiced", ev.ChannelID, ev.CustomerID,
+	return t.emit(ctx, sourceCommerce, "subscription_invoiced", ev.ChannelID, ev.CustomerID,
 		"act:sub_invoiced:"+ev.SubscriptionID.String()+":"+itoa(int64(ev.Sequence)),
 		map[string]any{"subscription_id": ev.SubscriptionID.String(), "amount_cents": ev.AmountCents, "currency": ev.Currency})
-	return nil
 }
 
 func (t *Tracker) onDownloadAccessed(ctx context.Context, e events.Event) error {
 	ev, ok := e.(*download.Accessed)
-	if !ok || ev.CustomerID == nil {
+	if !ok {
 		return nil
 	}
-	var ch uuid.UUID
-	number := ""
+	o := orderRef{cust: ev.CustomerID}
 	if ev.OrderID != nil {
-		if o, err := t.orders.GetByID(ctx, *ev.OrderID); err == nil {
-			ch, number = o.ChannelID, o.Number
+		var err error
+		if o, err = t.resolveOrder(ctx, *ev.OrderID); err != nil {
+			return err
+		}
+		if ev.CustomerID != nil {
+			o.cust = ev.CustomerID
 		}
 	}
-	t.emit(ctx, sourceCommerce, "download_accessed", ch, ev.CustomerID,
+	// A grant issued without an order names no channel, so the storefront request that downloaded supplies it - and one with neither stays off the spine, where no per-channel report could show it
+	if ch, ok := channel.FromContext(ctx); o.channel == uuid.Nil && ok && ch != nil {
+		o.channel = ch.ID
+	}
+	if o.channel == uuid.Nil {
+		return nil
+	}
+	return t.emitOrder(ctx, "download_accessed", o,
 		"act:dl:"+ev.GrantID.String()+":"+itoa(minuteBucket(ctx)),
-		map[string]any{"name": ev.Title, "order_number": number})
-	return nil
+		map[string]any{"name": ev.Title, "order_number": o.number})
 }
 
 // --- account ---
@@ -380,10 +397,9 @@ func (t *Tracker) onRegistered(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, sourceAccount, "registered", ev.ChannelID, ref(ev.CustomerID),
+	return t.emit(ctx, sourceAccount, "registered", ev.ChannelID, ref(ev.CustomerID),
 		"act:registered:"+ev.CustomerID.String(),
 		map[string]any{"source": ev.Source})
-	return nil
 }
 
 func (t *Tracker) onEmailVerified(ctx context.Context, e events.Event) error {
@@ -391,9 +407,8 @@ func (t *Tracker) onEmailVerified(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, sourceAccount, "email_verified", ev.ChannelID, ref(ev.CustomerID),
+	return t.emit(ctx, sourceAccount, "email_verified", ev.ChannelID, ref(ev.CustomerID),
 		"act:email_verified:"+ev.CustomerID.String(), nil)
-	return nil
 }
 
 func (t *Tracker) onAccountUpdated(ctx context.Context, e events.Event) error {
@@ -401,10 +416,9 @@ func (t *Tracker) onAccountUpdated(ctx context.Context, e events.Event) error {
 	if !ok || ev.Source == customer.SourceGDPR {
 		return nil // an erased customer's id must not land on the spine again
 	}
-	t.emit(ctx, sourceAccount, "account_updated", ev.ChannelID, ref(ev.CustomerID),
+	return t.emit(ctx, sourceAccount, "account_updated", ev.ChannelID, ref(ev.CustomerID),
 		"act:account_updated:"+ev.CustomerID.String()+":"+itoa(secBucket(ctx)),
 		map[string]any{"changed_fields": strings.Join(ev.ChangedFields, ","), "source": ev.Source})
-	return nil
 }
 
 func (t *Tracker) onProfileUpdated(ctx context.Context, e events.Event) error {
@@ -412,10 +426,9 @@ func (t *Tracker) onProfileUpdated(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, sourceAccount, "profile_updated", ev.ChannelID, ref(ev.CustomerID),
+	return t.emit(ctx, sourceAccount, "profile_updated", ev.ChannelID, ref(ev.CustomerID),
 		"act:profile_updated:"+ev.CustomerID.String()+":"+itoa(secBucket(ctx)),
 		map[string]any{"changed_fields": strings.Join(ev.ChangedFields, ",")})
-	return nil
 }
 
 func (t *Tracker) onPasswordChanged(ctx context.Context, e events.Event) error {
@@ -423,9 +436,8 @@ func (t *Tracker) onPasswordChanged(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, sourceAccount, "password_changed", ev.ChannelID, ref(ev.CustomerID),
+	return t.emit(ctx, sourceAccount, "password_changed", ev.ChannelID, ref(ev.CustomerID),
 		"act:pwchg:"+ev.CustomerID.String()+":"+itoa(secBucket(ctx)), nil)
-	return nil
 }
 
 func (t *Tracker) onAddressChanged(ctx context.Context, e events.Event) error {
@@ -433,10 +445,9 @@ func (t *Tracker) onAddressChanged(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	t.emit(ctx, sourceAccount, "address_changed", ev.ChannelID, ref(ev.CustomerID),
+	return t.emit(ctx, sourceAccount, "address_changed", ev.ChannelID, ref(ev.CustomerID),
 		"act:address:"+ev.AddressID.String()+":"+itoa(secBucket(ctx)),
 		map[string]any{"action": ev.Action})
-	return nil
 }
 
 func (t *Tracker) onLogin(ctx context.Context, e events.Event) error {
@@ -449,9 +460,8 @@ func (t *Tracker) onLogin(ctx context.Context, e events.Event) error {
 	if ip := anonymizeIP(ev.IP); ip != "" {
 		props = map[string]any{"ip": ip}
 	}
-	t.emit(ctx, sourceAccount, "login", ev.ChannelID, ref(ev.SubjectID),
+	return t.emit(ctx, sourceAccount, "login", ev.ChannelID, ref(ev.SubjectID),
 		"act:login:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)), props)
-	return nil
 }
 
 func (t *Tracker) onLogout(ctx context.Context, e events.Event) error {
@@ -464,10 +474,8 @@ func (t *Tracker) onLogout(ctx context.Context, e events.Event) error {
 	if ch, ok := channel.FromContext(ctx); ok && ch != nil {
 		chID = ch.ID
 	}
-	t.emit(ctx, sourceAccount, "logout", chID, ref(ev.SubjectID),
-		"act:logout:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)),
-		map[string]any{"all_devices": ev.AllDevices})
-	return nil
+	return t.emit(ctx, sourceAccount, "logout", chID, ref(ev.SubjectID),
+		"act:logout:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)), nil) // always one session - revoke-all is a side effect of a password or account change, which records its own event
 }
 
 func (t *Tracker) onPasswordReset(ctx context.Context, e events.Event) error {
@@ -475,9 +483,8 @@ func (t *Tracker) onPasswordReset(ctx context.Context, e events.Event) error {
 	if !ok || ev.Subject != auth.SubjectCustomer {
 		return nil
 	}
-	t.emit(ctx, sourceAccount, "password_reset", ev.ChannelID, ref(ev.SubjectID),
+	return t.emit(ctx, sourceAccount, "password_reset", ev.ChannelID, ref(ev.SubjectID),
 		"act:pwreset:"+ev.SubjectID.String()+":"+itoa(secBucket(ctx)), nil)
-	return nil
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
