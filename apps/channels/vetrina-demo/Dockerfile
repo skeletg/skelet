@@ -40,7 +40,45 @@ COPY --chown=$SKELET_UID:$SKELET_GID apps/channels/vetrina-demo/package.json app
 RUN --mount=type=cache,id=pnpm-store-$SKELET_UID,target=/pnpm/store,uid=$SKELET_UID,gid=$SKELET_GID \
     pnpm install --frozen-lockfile
 
+# The dev server behind an install that re-runs whenever the dependencies change. node_modules is a
+# named volume, which Docker fills from this image only while it's empty, so a changed lockfile
+# reaches the container through this install and nothing else - polled, because a Windows or WSL2
+# bind mount delivers no file events. Same script as the dashboard's dev image
+COPY --chmod=755 <<'EOF' /usr/local/bin/dev-serve
+#!/bin/sh
+deps="package.json pnpm-lock.yaml pnpm-workspace.yaml"
+sum() { cat $deps 2>/dev/null | md5sum; }
+pid=""
+stop() { [ -n "$pid" ] && kill -TERM -- "-$pid" 2>/dev/null; [ -n "$pid" ] && wait "$pid" 2>/dev/null; pid=""; }
+trap 'stop; exit 0' TERM INT
+while :; do
+    # No purge prompt - there is no TTY to answer it
+    if ! pnpm install --config.confirm-modules-purge=false; then
+        echo "==> dev-serve: install failed - retrying on the next change to $deps"
+        seen="$(sum)"
+        while [ "$(sum)" = "$seen" ]; do sleep 2; done
+        continue
+    fi
+    # Taken after the install, which rewrites the lockfile when package.json moved ahead of it
+    seen="$(sum)"
+    # Its own process group, so a stop reaches pnpm and any shell the dev script runs in - pnpm passes it on to the dev server
+    setsid pnpm run dev "$@" &
+    pid=$!
+    while kill -0 "$pid" 2>/dev/null; do
+        # Backgrounded and waited on, so a stop signal is handled now rather than after the sleep
+        sleep 2 & wait $!
+        [ "$(sum)" = "$seen" ] && continue
+        echo "==> dev-serve: dependencies changed - reinstalling"
+        stop
+        continue 2
+    done
+    # The dev server exited on its own - so does the container, and the restart policy shows it
+    wait "$pid"
+    exit $?
+done
+EOF
+
 # -H 0.0.0.0 so Next listens beyond the container's localhost - no `--` before it, pnpm hands
 # that to the script verbatim and next would take -H for a positional
 EXPOSE 3000
-CMD ["pnpm", "run", "dev", "-H", "0.0.0.0", "-p", "3000"]
+CMD ["dev-serve", "-H", "0.0.0.0", "-p", "3000"]

@@ -263,6 +263,8 @@ services:
     profiles: ["dashboard"]
     # Same uid story as the app service
     user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
+    # dev-serve restarts the dev server under it, so something has to reap what that leaves
+    init: true
     build:
       context: .
       dockerfile: apps/dashboard/Dockerfile
@@ -301,6 +303,7 @@ services:
   vetrina-demo:
     profiles: ["vetrina-demo"]
     user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
+    init: true
     build:
       context: .
       dockerfile: apps/channels/vetrina-demo/Dockerfile
