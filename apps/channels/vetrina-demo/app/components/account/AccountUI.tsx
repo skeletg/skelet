@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 
@@ -170,9 +170,14 @@ export function Field({
   hint?: string;
   className?: string;
 }) {
+  // The label names the input and nothing else - hint and errors sit outside it and are linked by aria-describedby,
+  // or a screen reader would read "Password At least 8 characters." as the field's name
+  const autoId = useId();
+  const id = field?.id ?? autoId;
+  const hintId = field?.descriptionId ?? `${id}-hint`;
   const errors = field?.errors?.length ? field.errors : null;
   const describedBy =
-    [hint && field ? field.descriptionId : null, errors ? field!.errorId : null]
+    [hint ? hintId : null, errors ? field!.errorId : null]
       .filter(Boolean)
       .join(" ") || undefined;
   // A Conform field takes its value from the form - the initial one, then whatever came back from a failed submit
@@ -182,11 +187,13 @@ export function Field({
       : undefined
     : defaultValue;
   return (
-    <label className={`flex flex-col gap-1.5 text-sm ${className}`}>
-      <span className="font-medium">{label}</span>
+    <div className={`flex flex-col gap-1.5 text-sm ${className}`}>
+      <label htmlFor={id} className="font-medium">
+        {label}
+      </label>
       <input
         key={field?.key}
-        id={field?.id}
+        id={id}
         name={field?.name ?? name}
         type={type}
         required={required}
@@ -200,12 +207,12 @@ export function Field({
         className={`${inputClass} w-full ${errors ? "border-red-400" : ""}`}
       />
       {hint ? (
-        <span id={field?.descriptionId} className="text-xs text-muted-foreground">
+        <span id={hintId} className="text-xs text-muted-foreground">
           {hint}
         </span>
       ) : null}
       {errors ? <FieldErrors id={field!.errorId} errors={errors} /> : null}
-    </label>
+    </div>
   );
 }
 
