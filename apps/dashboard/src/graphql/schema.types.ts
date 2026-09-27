@@ -6394,6 +6394,8 @@ export type Order = {
   returns: Array<OrderReturn>;
   shippingAddress: OrderAddress;
   shippingAmount: Scalars['Int']['output'];
+  shippingRefundable: Scalars['Int']['output'];
+  shippingTaxAmount: Scalars['Int']['output'];
   status: OrderStatus;
   storeCreditAmount: Scalars['Int']['output'];
   subtotal: Scalars['Int']['output'];

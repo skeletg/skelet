@@ -41,7 +41,7 @@ func (r *Resolver) loadVisibleChildren(ctx context.Context, parent *model.Produc
 	return kept, nil
 }
 
-// A variant keeps its parent's private axis attributes - the variant picker needs them
+// The variant picker needs the parent's private axis attributes
 func (r *Resolver) productChildren(ctx context.Context, obj *model.Product) ([]*model.Product, error) {
 	pid, err := uuid.Parse(obj.ID)
 	if err != nil {

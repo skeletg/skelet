@@ -227,7 +227,7 @@ type AddressChecker interface {
 
 func (s *Service) SetAddressChecker(c AddressChecker) { s.addresses = c }
 
-// Resolves how a channel taxes shipping - nil taxes it at the default class
+// nil taxes shipping at the default class
 func (s *Service) SetShippingTax(f func(ctx context.Context, channelID uuid.UUID) (class string, taxable bool)) {
 	s.shippingTax = f
 }
@@ -494,12 +494,14 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		}
 
 		// No plugin claimed the seam, so call core PER LINE - product tax classes apply, the discount is distributed proportionally, and rounding happens per line then sums - Tax-inclusive stores split out the tax PORTION rather than adding on top
+		var shippingTax int64
 		if placing.TaxCents == nil && s.tax != nil {
 			t, err := s.computeLineTax(ctx, cc, placing.DiscountCents, shippingCents)
 			if err != nil {
 				return err
 			}
 			placing.TaxCents = &t
+			shippingTax = cc.shippingTax
 		}
 
 		var taxCents int64
@@ -525,6 +527,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			SubtotalAmount:      subtotal,
 			DiscountAmount:      placing.DiscountCents,
 			TaxAmount:           taxCents,
+			ShippingTaxAmount:   shippingTax,
 			ShippingAmount:      shippingCents,
 			TotalAmount:         total,
 			CurrencyCode:        store.CurrencyCode,

@@ -195,3 +195,43 @@ func TestPriceSelected_External(t *testing.T) {
 		t.Errorf("unknown carrier: want ErrMethodNotFound, got %v", err)
 	}
 }
+
+type capturingCarrier struct{ got *RateRequest }
+
+func (c capturingCarrier) Quote(_ context.Context, req RateRequest) ([]RatedMethod, error) {
+	*c.got = req
+	return []RatedMethod{{Code: "ground", PriceCents: 900}}, nil
+}
+
+type dimsStub map[string]Dimensions
+
+func (d dimsStub) DimensionsBySKUs(context.Context, []string) (map[string]Dimensions, error) {
+	return d, nil
+}
+
+// Callers send SKUs and quantities - the carrier still sees each product's weight, and a line that brought its own keeps it
+func TestPriceSelected_FillsProductDimensions(t *testing.T) {
+	ResetForTest()
+	t.Cleanup(ResetForTest)
+	var got RateRequest
+	RegisterCarrier(CarrierRegistration{Slug: "weighty", Carrier: capturingCarrier{got: &got}, DisplayName: "Weighty"})
+	svc := NewService(fakeCarrierRepo{configs: []CarrierConfig{{ID: uuid.New(), CarrierSlug: "weighty", IsEnabled: true}}})
+	svc.SetDimensionLookup(dimsStub{"A": {WeightGrams: 250, LengthMm: 100}, "B": {WeightGrams: 999}})
+
+	items := []RateItem{{SKU: "A", Quantity: 2}, {SKU: "B", Quantity: 1, WeightGrams: 40}, {SKU: "C", Quantity: 1}}
+	if _, _, err := svc.PriceSelected(context.Background(), "weighty", "ground", RateRequest{ChannelID: uuid.New(), Items: items}); err != nil {
+		t.Fatalf("PriceSelected: %v", err)
+	}
+	if len(got.Items) != 3 || got.Items[0].WeightGrams != 250 || got.Items[0].LengthMm != 100 {
+		t.Errorf("A reached the carrier as %+v, want the catalog's 250g x 100mm", got.Items)
+	}
+	if got.Items[1].WeightGrams != 40 {
+		t.Errorf("B = %+v, want its own 40g kept", got.Items[1])
+	}
+	if got.Items[2].WeightGrams != 0 {
+		t.Errorf("C = %+v, want weightless with no catalog row", got.Items[2])
+	}
+	if items[0].WeightGrams != 0 {
+		t.Error("the caller's items were mutated")
+	}
+}

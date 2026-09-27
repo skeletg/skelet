@@ -271,7 +271,7 @@ func (r *productResolver) ReviewAggregates(ctx context.Context, obj *model1.Prod
 		v := *agg.OverallAverage
 		out.OverallAverage = &v
 	}
-	{ // per-question averages need question models attached for label rendering - the assigned-questions list hydrates all of them in one round-trip
+	{ // per-question averages need the question models for their labels
 		ptID, err := r.productTypeIDOf(ctx, obj)
 		if err == nil {
 			questions, qerr := r.getAssignedQuestionsLocalized(ctx, ptID, r.activeLocale(ctx))

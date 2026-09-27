@@ -32,6 +32,7 @@ query Order($id: ID!) {
     shippingAmount
     discountAmount
     taxAmount
+    shippingRefundable
     total
     giftCardAmount
     storeCreditAmount

@@ -287,6 +287,10 @@ RETURNING *;
 SELECT sku, tax_class FROM catalog_products
 WHERE sku = ANY(sqlc.arg(skus)::text[]);
 
+-- name: GetProductDimensionsBySKUs :many
+SELECT sku, weight_grams, length_mm, width_mm, height_mm FROM catalog_products
+WHERE sku = ANY(sqlc.arg(skus)::text[]);
+
 -- name: GetProductCostsBySKUs :many
 -- Order-placement COGS snapshot: resolve each cart line's unit cost from its SKU in one query (mirrors GetProductTaxClassesBySKUs) instead of a per-line pricing round-trip - rows with NULL cost_cents are omitted, so a present key always carries a real cost
 SELECT sku, cost_cents FROM catalog_products

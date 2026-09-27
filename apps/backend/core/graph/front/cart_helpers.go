@@ -16,6 +16,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/media"
 	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
+	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
@@ -496,4 +497,26 @@ func validateUploadExtension(allowRaw, filename string) error {
 		}
 	}
 	return apperr.New("FILE_TYPE_NOT_ALLOWED", apperr.ClassValidation, fmt.Sprintf("file type %q is not allowed for this option", ext))
+}
+
+// Built like placement's rate request, so the quote is what placement charges
+func (r *Resolver) cartRateRequest(ctx context.Context, sv *channel.Channel, c cart.Cart, country, region, postal string) (shipping.RateRequest, *frontmodel.Cart) {
+	country = strings.ToUpper(strings.TrimSpace(country))
+	m := toCartModel(c)
+	r.HydrateCartPromotions(ctx, m, c, country)
+	items := make([]shipping.RateItem, len(c.Lines))
+	for i, l := range c.Lines {
+		items[i] = shipping.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice}
+	}
+	return shipping.RateRequest{
+		ChannelID: sv.ID,
+		Destination: shipping.Address{
+			CountryCode: country,
+			Region:      strings.ToUpper(strings.TrimSpace(region)),
+			PostalCode:  strings.TrimSpace(postal),
+		},
+		SubtotalCents: max(int64(m.Subtotal)-int64(m.TotalDiscount), 0),
+		CurrencyCode:  sv.CurrencyCode,
+		Items:         items,
+	}, m
 }

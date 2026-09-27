@@ -18,7 +18,7 @@ const ALLOW_GUEST_PATH = "sales/checkout/allow_guest";
 
 export type PlpPaginationStyle = "pagination" | "load_more" | "hybrid";
 
-// Live public config, fetched once per render - getters that tolerate staleness use the Data Cache fetch below
+// Once per render, for getters that can't tolerate staleness
 const getLivePublicConfig = cache(async (): Promise<PublicConfigQuery> => {
   const res = await gqlFetch(PublicConfigDocument, {});
   return res.data as PublicConfigQuery;

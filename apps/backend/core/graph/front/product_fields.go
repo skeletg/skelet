@@ -102,7 +102,7 @@ func (r *Resolver) productMediaRole(ctx context.Context, obj *model.Product, rol
 	return pickMediaRole(roles, role, media), nil
 }
 
-// Only setProductMediaRole assigns MAIN, so main falls back to the first image - thumbnail and og_image don't, a hero is the wrong size for either
+// Only main falls back to the first image - a hero is the wrong size for a thumbnail or og_image
 func pickMediaRole(roles map[catalog.MediaRole]uuid.UUID, role catalog.MediaRole, media []*model.ProductMedia) *model.ProductMedia {
 	img := resolveMediaRole(roles, role, media)
 	if img == nil && role == catalog.MediaRoleMain && len(media) > 0 {
@@ -135,7 +135,6 @@ func (r *Resolver) productCategories(ctx context.Context, obj *model.Product) ([
 	return out, nil
 }
 
-// Falls back to the bare row when the channel's published read fails
 func (r *Resolver) productPrimaryCategory(ctx context.Context, obj *model.Product) (*model.Category, error) {
 	info, err := r.productCategoryInfo(ctx, obj)
 	if err != nil || info.Primary == nil {
