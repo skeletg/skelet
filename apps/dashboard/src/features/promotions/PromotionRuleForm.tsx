@@ -52,9 +52,20 @@ import type { ColumnDef } from '@/components/data-table/tanstack'
 import { TranslationLocales } from '@/components/TranslationLocales'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import type { PromotionStopMode } from '@/graphql/schema.types'
 import {
+  CreatePromotionRuleDocument,
+  DeletePromotionCodeDocument,
   DeletePromotionRuleContentDocument,
+  PromotionActionTypesDocument,
+  PromotionConditionTypesDocument,
+  PromotionRuleDocument,
+  UpdatePromotionCodeDocument,
+  UpdatePromotionRuleDocument,
   UpsertPromotionRuleContentDocument,
+  type PromotionCodeFieldsFragment,
+  type PromotionConditionTypesQuery,
+  type PromotionRuleQuery,
 } from './Promotions.gql'
 import { CodeGeneratorDialog } from './CodeGeneratorDialog'
 import { SchemaForm, type JSONSchema } from './SchemaForm'
@@ -69,19 +80,8 @@ import {
 } from './typeCategory'
 import { PluginSections } from '@/plugins/detail-sections'
 import { FORM_WIDGETS } from './widgets/registry'
-import {
-  ACTION_TYPES_QUERY,
-  CONDITION_TYPES_QUERY,
-  CREATE_PROMOTION_RULE,
-  DELETE_PROMOTION_CODE,
-  PROMOTION_RULE_QUERY,
-  UPDATE_PROMOTION_CODE,
-  UPDATE_PROMOTION_RULE,
-} from './ruleDocuments'
 
 // ---- Types ----
-
-type PromotionStopMode = 'NONE' | 'SAME_ACTION_TYPE' | 'ALL'
 
 // slugify turns "Free Shipping (DACH)!" into "free-shipping-dach" - Used by the create flow to derive a slug from the name as the operator
 // types, so they don't have to repeat themselves - Edit pages keep the existing slug - URL stability matters more than re-derivation
@@ -103,29 +103,10 @@ type ConditionRow = {
 }
 
 
-// Per-locale storefront copy for the rule (label + terms)
-type ContentRow = {
-  locale: string
-  label: string
-  terms: string
-  updatedAt: string
-}
+type CodeRow = PromotionCodeFieldsFragment
 
-type CodeRow = {
-  id: string
-  code: string
-  maxUses: number | null
-  perCustomerLimit: number | null
-  usedCount: number
-  isActive: boolean
-}
-
-type TypeDescriptor = {
-  slug: string
-  label: string
-  description: string
-  paramsSchema: unknown
-}
+// Condition and action types share one shape
+type TypeDescriptor = PromotionConditionTypesQuery['promotionConditionTypes'][number]
 
 // ---- Page wrappers ----
 
@@ -139,35 +120,7 @@ export function PromotionRuleEditPage({
 }: { ruleId?: string; analyticsSlot?: ReactNode } = {}) {
   const params = useParams<{ id?: string }>()
   const id = ruleId ?? params.id ?? ''
-  const { data, loading, error, refetch } = useQuery<{
-    promotionRule: {
-      id: string
-      slug: string
-      name: string
-      description: string
-      publicLabel: string
-      channelId: string | null
-      requiresCode: boolean
-      priority: number
-      stopAfterApply: PromotionStopMode
-      exclusivityGroup: string
-      validFrom: string | null
-      validTo: string | null
-      maxUses: number | null
-      perCustomerLimit: number | null
-      usedCount: number
-      isActive: boolean
-      labelMediaId: string | null
-      bannerMediaId: string | null
-      pillText: string
-      pillTextColor: string
-      pillBgColor: string
-      contents: ContentRow[]
-      conditions: Array<{ id: string; type: string; params: unknown; paramsVersion: number; sortOrder: number }>
-      actions: Array<{ id: string; type: string; params: unknown; paramsVersion: number; sortOrder: number }>
-      codes: { items: CodeRow[]; totalCount: number }
-    } | null
-  }>(PROMOTION_RULE_QUERY, { variables: { id }, skip: !id, fetchPolicy: 'network-only' })
+  const { data, loading, error, refetch } = useQuery(PromotionRuleDocument, { variables: { id }, skip: !id, fetchPolicy: 'network-only' })
 
   if (loading) {
     return (
@@ -190,11 +143,7 @@ export function PromotionRuleEditPage({
 
 // ---- Editor ----
 
-type ExistingRule = Parameters<typeof toRuleValues>[0] & {
-  id: string
-  usedCount: number
-  codes: { items: CodeRow[]; totalCount: number }
-}
+type ExistingRule = NonNullable<PromotionRuleQuery['promotionRule']>
 
 // The storefront copy fields are the header locale's, so the form is keyed on it
 function PromotionRuleEditor(props: { mode: 'create' | 'edit'; rule?: ExistingRule; onSaved?: () => void; analyticsSlot?: ReactNode }) {
@@ -224,16 +173,16 @@ function RuleEditor({
   const canManage = has('promotions.manage')
 
   // Type catalogs for the condition / action pickers
-  const { data: condTypeData } = useQuery<{ promotionConditionTypes: TypeDescriptor[] }>(CONDITION_TYPES_QUERY)
-  const { data: actTypeData } = useQuery<{ promotionActionTypes: TypeDescriptor[] }>(ACTION_TYPES_QUERY)
+  const { data: condTypeData } = useQuery(PromotionConditionTypesDocument)
+  const { data: actTypeData } = useQuery(PromotionActionTypesDocument)
   const conditionTypes = useMemo(() => condTypeData?.promotionConditionTypes ?? [], [condTypeData])
   const actionTypes = useMemo(() => actTypeData?.promotionActionTypes ?? [], [actTypeData])
 
-  const [createRule] = useMutation(CREATE_PROMOTION_RULE)
-  const [updateRule] = useMutation(UPDATE_PROMOTION_RULE)
+  const [createRule] = useMutation(CreatePromotionRuleDocument)
+  const [updateRule] = useMutation(UpdatePromotionRuleDocument)
   const [upsertContent] = useMutation(UpsertPromotionRuleContentDocument)
   const [deleteContent] = useMutation(DeletePromotionRuleContentDocument, {
-    refetchQueries: rule ? [{ query: PROMOTION_RULE_QUERY, variables: { id: rule.id } }] : [],
+    refetchQueries: rule ? [{ query: PromotionRuleDocument, variables: { id: rule.id } }] : [],
     awaitRefetchQueries: true,
   })
   // UI state, not the admin's work - an existing slug is never re-derived from the name, for URL stability
@@ -253,7 +202,7 @@ function RuleEditor({
     submit: async (v) => {
       if (!rule) {
         const res = await createRule({ variables: { input: toRuleInput(v) } })
-        const created = (res.data as { createPromotionRule: { id: string } } | undefined)?.createPromotionRule
+        const created = res.data?.createPromotionRule
         if (!created) throw new Error('Create succeeded but no promotion id was returned.')
         createdId.current = created.id
         return
@@ -894,11 +843,8 @@ function CodesSection({
   onChanged?: () => void
 }) {
   const [openGen, setOpenGen] = useState(false)
-  const [deleteCode] = useMutation<{ deletePromotionCode: boolean }, { id: string }>(DELETE_PROMOTION_CODE)
-  const [updateCode] = useMutation<
-    { updatePromotionCode: { id: string; isActive: boolean } },
-    { input: { id: string; isActive: boolean } }
-  >(UPDATE_PROMOTION_CODE)
+  const [deleteCode] = useMutation(DeletePromotionCodeDocument)
+  const [updateCode] = useMutation(UpdatePromotionCodeDocument)
   // Codes use the shared DataTable so search / sort / pagination /
   // bulk-select feel identical to every other admin list (products,
   // orders, customers) - The column defs declare their own

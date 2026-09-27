@@ -2,12 +2,13 @@ import { fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, meMock, renderPage } from '@/test/page-harness'
 import { PromotionRuleCreatePage, PromotionRuleEditPage } from './PromotionRuleForm'
-import { CREATE_PROMOTION_RULE, PROMOTION_RULE_QUERY, UPDATE_PROMOTION_RULE } from './ruleDocuments'
+import { CreatePromotionRuleDocument, PromotionRuleDocument, UpdatePromotionRuleDocument } from './Promotions.gql'
 
 // What these pin: a condition row with no type is refused before the rule is created, and an edit now
 // goes through the review dialog (it used to write straight away) with the dates round-tripping intact
 
-const rule = {
+// What every rule write answers with - the detail query adds contents and codes
+const ruleFields = {
   __typename: 'PromotionRule',
   id: 'r1',
   slug: 'ten-off',
@@ -30,9 +31,16 @@ const rule = {
   pillText: '',
   pillTextColor: '',
   pillBgColor: '',
-  contents: [],
+  scheduleJson: null,
   conditions: [],
   actions: [{ __typename: 'PromotionAction', id: 'a1', type: 'percent_off', params: { percent: 10 }, paramsVersion: 1, sortOrder: 0 }],
+  createdAt: '2026-02-01T00:00:00Z',
+  updatedAt: '2026-02-01T00:00:00Z',
+}
+
+const rule = {
+  ...ruleFields,
+  contents: [],
   codes: { __typename: 'PromotionCodePage', items: [], totalCount: 0 },
 }
 
@@ -48,8 +56,8 @@ describe('PromotionRuleForm', () => {
       mocks: [
         meMock(),
         {
-          request: { query: CREATE_PROMOTION_RULE, variables: captureInput(onCreate) },
-          result: { data: { createPromotionRule: { __typename: 'PromotionRule', id: 'r9' } } },
+          request: { query: CreatePromotionRuleDocument, variables: captureInput(onCreate) },
+          result: { data: { createPromotionRule: { ...ruleFields, id: 'r9' } } },
         },
       ],
     })
@@ -70,8 +78,8 @@ describe('PromotionRuleForm', () => {
       routes: { '/promotions/:id': <PromotionRuleEditPage ruleId="r1" /> },
       mocks: [
         meMock(),
-        { request: { query: PROMOTION_RULE_QUERY, variables: { id: 'r1' } }, result: { data: { promotionRule: rule } }, maxUsageCount: 3 },
-        { request: { query: UPDATE_PROMOTION_RULE, variables: captureInput(onUpdate) }, result: { data: { updatePromotionRule: { __typename: 'PromotionRule', id: 'r1' } } } },
+        { request: { query: PromotionRuleDocument, variables: { id: 'r1' } }, result: { data: { promotionRule: rule } }, maxUsageCount: 3 },
+        { request: { query: UpdatePromotionRuleDocument, variables: captureInput(onUpdate) }, result: { data: { updatePromotionRule: ruleFields } } },
       ],
     })
 
