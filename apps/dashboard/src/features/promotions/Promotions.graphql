@@ -74,7 +74,13 @@ query PromotionRules($limit: Int, $offset: Int) {
 query PromotionRule($id: ID!) {
   promotionRule(id: $id) {
     ...PromotionRuleFields
-    codes(limit: 100) {
+    contents {
+      locale
+      label
+      terms
+      updatedAt
+    }
+    codes(limit: 1000) {
       items {
         ...PromotionCodeFields
       }
