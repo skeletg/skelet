@@ -4,7 +4,9 @@
 set -euo pipefail
 cd "$(dirname "$(dirname "$0")")"
 
-HOST="${OPENSEARCH_HOST_URL:-http://localhost:9200}"
+# The host port follows OPENSEARCH_HOST_PORT in .env, which bin/dev writes when 9200 was taken
+os_port="${OPENSEARCH_HOST_PORT:-$(grep -E '^OPENSEARCH_HOST_PORT=[0-9]+$' .env 2>/dev/null | tail -1 | cut -d= -f2 || true)}"
+HOST="${OPENSEARCH_HOST_URL:-http://localhost:${os_port:-9200}}"
 PRODUCT_INDEX="products_v1"
 BLOG_INDEX="blog_posts_v1"
 
