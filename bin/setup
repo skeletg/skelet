@@ -485,13 +485,19 @@ fi
 
 # POPULATED, not merely present - the containers started above mount a named volume at node_modules, and because the parent is a bind mount that leaves an EMPTY directory on the host. Testing -d here would see the directory this script just caused and skip its own install
 needs_install() { [ -z "$(ls -A "$1/node_modules" 2>/dev/null)" ]; }
+# Populated without pnpm's .modules.yaml is an npm tree from before the switch - skipping it leaves
+# the old tree in place, and pnpm won't take it over without a TTY to confirm the wipe
+npm_tree() { ! needs_install "$1" && [ ! -f "$1/node_modules/.modules.yaml" ]; }
 
 # Into whichever tree the app will actually run from - a host app installed into the container's
 # volume, or the reverse, looks like the install did nothing at all
 install_app() { # install_app DIR NAME
     local dir="$1" name="$2"
     echo "==> Installing $name dependencies..."
-    if ! needs_install "$dir"; then
+    if npm_tree "$dir"; then
+        echo "    $dir/node_modules is an npm install from before the switch to pnpm - replacing it"
+        rm -rf "$dir/node_modules"
+    elif ! needs_install "$dir"; then
         echo "    $dir/node_modules is populated, skipping"
         return
     fi
@@ -499,10 +505,10 @@ install_app() { # install_app DIR NAME
         *,"$name",*)
             if [ "$name" = dashboard ]; then bin/dash install; else bin/channel "$name" install; fi ;;
         *)
-            if command -v npm >/dev/null 2>&1; then
-                (cd "$dir" && npm ci)
+            if command -v pnpm >/dev/null 2>&1; then
+                (cd "$dir" && pnpm install --frozen-lockfile)
             else
-                echo "    no npm on PATH - install Node, or re-run with --docker-apps $name" >&2
+                echo "    no pnpm on PATH - corepack enable, or npm install -g pnpm, or re-run with --docker-apps $name" >&2
             fi ;;
     esac
 }
