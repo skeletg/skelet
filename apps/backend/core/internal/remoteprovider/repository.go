@@ -87,6 +87,18 @@ func (r *postgresRepository) ListActiveByKind(ctx context.Context, kind Kind, ch
 	return toProviders(rows), nil
 }
 
+func (r *postgresRepository) ListActiveForChannel(ctx context.Context, channelID *uuid.UUID) ([]Provider, error) {
+	var ch uuid.NullUUID
+	if channelID != nil {
+		ch = uuid.NullUUID{UUID: *channelID, Valid: true}
+	}
+	rows, err := r.queries.ListActiveRemoteProvidersForChannel(ctx, ch)
+	if err != nil {
+		return nil, fmt.Errorf("list active remote providers for channel: %w", err)
+	}
+	return toProviders(rows), nil
+}
+
 func (r *postgresRepository) Update(ctx context.Context, input UpdateInput) (Provider, error) {
 	current, err := r.GetByID(ctx, input.ID)
 	if err != nil {
