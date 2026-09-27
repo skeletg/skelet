@@ -13,7 +13,7 @@ import {
   parseBlogPage,
 } from "@/app/lib/blog/read";
 import { displayName } from "@/app/lib/display";
-import { renderJsonText } from "@/app/[channel]/[locale]/products/[id]/parts";
+import { renderJsonText } from "@/app/lib/json-text";
 
 export async function generateMetadata(
   props: PageProps<"/[channel]/[locale]/blog/tag/[slug]">,

@@ -27,7 +27,7 @@ import { getStoreName } from "@/app/lib/channel/read";
 import { cmsPageJsonLd, cmsSchemaFromSpec, parseCustomJsonLd } from "@/app/lib/json-ld";
 import { canonicalPathMapper } from "@/app/lib/locale/alternates";
 import { cmsPageMetadata } from "@/app/lib/seo-metadata";
-import { renderJsonText } from "./products/[id]/parts";
+import { renderJsonText } from "@/app/lib/json-text";
 
 // A CMS homepage carries the same operator SEO fields as any CMS page (noindex/
 // nofollow, canonical override, OG copy) - without this they were silently dropped

@@ -4,7 +4,7 @@ import { SparklesIcon } from "lucide-react";
 import { listCollections } from "@/app/lib/catalog/read";
 import { displayName, MISSING_NAME } from "@/app/lib/display";
 import { collectionHref } from "@/app/lib/entity-href";
-import { renderJsonText } from "@/app/[channel]/[locale]/products/[id]/parts";
+import { renderJsonText } from "@/app/lib/json-text";
 
 export const metadata = { title: "Collections" };
 
