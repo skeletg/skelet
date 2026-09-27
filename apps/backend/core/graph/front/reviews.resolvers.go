@@ -179,10 +179,7 @@ func (r *mutationResolver) VoteReview(ctx context.Context, reviewID string, valu
 
 func (r *productResolver) ReviewQuestions(ctx context.Context, obj *model1.Product) ([]*model1.ReviewQuestion, error) {
 	// each question comes back with its Content slot filled, so the Label/HelpText field resolvers never need a follow-up call
-	if obj == nil || obj.ProductType == nil {
-		return nil, fmt.Errorf("product context missing")
-	}
-	ptID, err := uuid.Parse(obj.ProductType.ID)
+	ptID, err := r.productTypeIDOf(ctx, obj)
 	if err != nil {
 		return nil, err
 	}
@@ -274,8 +271,8 @@ func (r *productResolver) ReviewAggregates(ctx context.Context, obj *model1.Prod
 		v := *agg.OverallAverage
 		out.OverallAverage = &v
 	}
-	if obj.ProductType != nil { // per-question averages need question models attached for label rendering - the assigned-questions list hydrates all of them in one round-trip
-		ptID, err := uuid.Parse(obj.ProductType.ID)
+	{ // per-question averages need question models attached for label rendering - the assigned-questions list hydrates all of them in one round-trip
+		ptID, err := r.productTypeIDOf(ctx, obj)
 		if err == nil {
 			questions, qerr := r.getAssignedQuestionsLocalized(ctx, ptID, r.activeLocale(ctx))
 			if qerr == nil {

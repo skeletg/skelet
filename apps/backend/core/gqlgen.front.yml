@@ -136,6 +136,43 @@ models:
       # Field resolver so listing pages that don't ask for it don't pay the rule walk
       promotionalDisplays:
         resolver: true
+      # Lazy, batched through the request loaders
+      productType:
+        resolver: true
+      media:
+        resolver: true
+      mainImage:
+        resolver: true
+      thumbnail:
+        resolver: true
+      ogImage:
+        resolver: true
+      # Built only when selected - the builder keeps just the visibility gates
+      children:
+        resolver: true
+      bundleOptions:
+        resolver: true
+      groupedMembers:
+        resolver: true
+      # Channel-filtered on every path
+      categories:
+        resolver: true
+      primaryCategory:
+        resolver: true
+      collections:
+        resolver: true
+      price:
+        resolver: true
+      compareAtPrice:
+        resolver: true
+      onSale:
+        resolver: true
+      url:
+        resolver: true
+      attributeValues:
+        resolver: true
+      configurableOptions:
+        resolver: true
   UUID:
     model:
       - github.com/99designs/gqlgen/graphql.UUID

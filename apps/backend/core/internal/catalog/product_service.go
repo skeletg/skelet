@@ -210,6 +210,18 @@ func (s *productService) ListProductAttributeSelections(ctx context.Context, pro
 	return s.repo.ListProductAttributeSelections(ctx, productID)
 }
 
+func (s *productService) ListProductChildrenByParentIDs(ctx context.Context, parentIDs []uuid.UUID) (map[uuid.UUID][]Product, error) {
+	return s.repo.ListProductChildrenByParentIDs(ctx, parentIDs)
+}
+
+func (s *productService) ListProductTypeIDsByProductIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]uuid.UUID, error) {
+	return s.repo.ListProductTypeIDsByProductIDs(ctx, ids)
+}
+
+func (s *productService) ListProductChildIDsByParentIDs(ctx context.Context, parentIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+	return s.repo.ListProductChildIDsByParentIDs(ctx, parentIDs)
+}
+
 // Powers Product.partOf.configurable
 func (s *productService) ListConfigurableParentByChildIDs(ctx context.Context, childIDs []uuid.UUID) (map[uuid.UUID]ConfigurableParentLink, error) {
 	return s.repo.ListConfigurableParentByChildIDs(ctx, childIDs)
@@ -266,10 +278,29 @@ func (s *productService) GetProductForChannel(ctx context.Context, id, channelID
 	return s.GetProduct(ctx, id, locale)
 }
 
-// Batched storefront hydration for browse/search pages - ~8 queries per PAGE where the per-id GetProductForChannel path costs ~9 per product
-// Input order is preserved and unpublished/missing ids drop silently, since the index can briefly lag a depublish
-func (s *productService) ListProductsForChannelByIDs(ctx context.Context, ids []uuid.UUID, channelID uuid.UUID, locale string) ([]Product, error) {
-	const op = "catalog.Service.ListProductsForChannelByIDs"
+// GetProductHeaderForChannel is GetProductForChannel without the graph - published row plus locale content
+func (s *productService) GetProductHeaderForChannel(ctx context.Context, id, channelID uuid.UUID, locale string) (Product, error) {
+	const op = "catalog.Service.GetProductHeaderForChannel"
+	p, err := s.repo.GetPublishedProductForChannel(ctx, id, channelID)
+	if err != nil {
+		if apperr.IsNotFound(err) {
+			return Product{}, err
+		}
+		return Product{}, apperr.WrapClass(err, apperr.ClassInternal, op)
+	}
+	content, err := s.LoadProductsContent(ctx, []uuid.UUID{id}, locale)
+	if err != nil {
+		return Product{}, apperr.WrapClass(err, apperr.ClassInternal, op)
+	}
+	if c, ok := content[id]; ok {
+		p.Content = &c
+	}
+	return p, nil
+}
+
+// Published rows in input order with locale content - missing ids drop silently, the search index can lag a depublish
+func (s *productService) ListProductHeadersForChannelByIDs(ctx context.Context, ids []uuid.UUID, channelID uuid.UUID, locale string) ([]Product, error) {
+	const op = "catalog.Service.ListProductHeadersForChannelByIDs"
 	if len(ids) == 0 {
 		return []Product{}, nil
 	}
@@ -283,14 +314,36 @@ func (s *productService) ListProductsForChannelByIDs(ctx context.Context, ids []
 			keep = append(keep, id)
 		}
 	}
-	products, err := s.repo.ListProductsWithAttributesByIDs(ctx, keep)
+	rows, err := s.repo.ListProductRowsByIDs(ctx, keep)
 	if err != nil {
 		return nil, apperr.WrapClass(err, apperr.ClassInternal, op)
+	}
+	products := make([]Product, 0, len(keep))
+	for _, id := range keep {
+		if p, ok := rows[id]; ok {
+			products = append(products, p)
+		}
 	}
 	if len(products) == 0 {
 		return products, nil
 	}
 	return s.hydrateContent(ctx, products, locale)
+}
+
+func (s *productService) ListProductRowsByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Product, error) {
+	return s.repo.ListProductRowsByIDs(ctx, ids)
+}
+
+func (s *productService) ListProductContentByProductIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]ProductContent, error) {
+	return s.repo.ListProductContentByProductIDs(ctx, ids)
+}
+
+func (s *productService) LoadProductsAttributeReferences(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]ProductAttributeReference, error) {
+	return s.repo.LoadProductsAttributeReferences(ctx, ids)
+}
+
+func (s *productService) ListConfigurableOptionsByProductIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]Attribute, error) {
+	return s.repo.ListConfigurableOptionsByProductIDs(ctx, ids)
 }
 
 // Publication-gates a candidate set (bundle selections, grouped members, children, collection products) - the map lets callers do O(1) lookups over their own ordering

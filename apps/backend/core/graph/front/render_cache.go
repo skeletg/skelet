@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"sync"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/graph/front/dataloaders"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
-	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 )
@@ -20,11 +21,11 @@ import (
 type renderCache struct {
 	mu sync.RWMutex
 
+	flight singleflight.Group // concurrent misses on one memo key share a fetch
+
 	productTypes map[uuid.UUID]catalog.ProductType // by product_type_id, filled lazily by getProductType - a memoize cache, not a batch query, since catalog surfaces touch only a handful of types per request
 
 	listings map[uuid.UUID][]catalog.ProductChannelListing // by product_id, from CatalogSvc.ListProductChannelListingsByProductIDs
-
-	channels map[uuid.UUID]channel.Channel // by channel_id, from ChannelSvc.ListByIDs
 
 	salable map[uuid.UUID]float64 // by product_id, always one channel per request (headers resolve exactly one) - value is the salable count, sentinel -1 = always in stock
 
@@ -50,6 +51,14 @@ type renderCache struct {
 
 	localeValues       map[uuid.UUID][]catalog.ProductAttributeLocaleValue // by product_id, plain_text translations across ALL locales - callers filter
 	localeValuesPrimed map[uuid.UUID]struct{}                              // marks ids the batch loader has seen so "no translations" doesn't re-query per product
+
+	groupsPrimed    map[string]bool
+	attributeValues map[string][]*model.ProductAttributeValue
+	childVisibility map[uuid.UUID]childVisibility
+
+	rawBundleOptions map[string][]catalog.BundleOption // unfiltered - copy before filtering
+	bundleOptions    map[string][]catalog.BundleOption
+	groupedMembers   map[string][]catalog.GroupedMember
 
 	promoAttrKVs map[uuid.UUID]map[string]string // by product_id, attribute KVs captured BEFORE the isPublic filter so promotion display rules keep matching private attributes
 }
@@ -77,6 +86,55 @@ func RenderCacheMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// A failed fetch stores nothing, so the next caller retries
+func renderMemo[T any](c *renderCache, key string, hit func() (T, bool), fetch func() (T, error), store func(T)) (T, error) {
+	if c == nil {
+		return fetch()
+	}
+	if v, ok := hit(); ok {
+		return v, nil
+	}
+	v, err, _ := c.flight.Do(key, func() (any, error) {
+		if v, ok := hit(); ok {
+			return v, nil
+		}
+		v, err := fetch()
+		if err != nil {
+			return v, err
+		}
+		store(v)
+		return v, nil
+	})
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	return v.(T), nil
+}
+
+// Primes id's whole group on the first miss - false outside any group
+func (r *Resolver) primeGroupOnce(ctx context.Context, what string, id uuid.UUID, prime func([]uuid.UUID) error) bool {
+	c := getRenderCache(ctx)
+	members := dataloaders.For(ctx).GroupMembers(id)
+	if c == nil || len(members) == 0 {
+		return false
+	}
+	key := what + ":" + members[0].String()
+	_, err := renderMemo(c, "group:"+key,
+		func() (bool, bool) {
+			c.mu.RLock()
+			defer c.mu.RUnlock()
+			return true, c.groupsPrimed[key]
+		},
+		func() (bool, error) { return true, prime(members) },
+		func(bool) {
+			c.mu.Lock()
+			c.groupsPrimed[key] = true
+			c.mu.Unlock()
+		})
+	return err == nil
+}
+
 func getRenderCache(ctx context.Context) *renderCache { // nil when no middleware ran - callers must nil-check
 	c, _ := ctx.Value(renderCacheCtxKey{}).(*renderCache)
 	return c
@@ -86,7 +144,6 @@ func newRenderCache() *renderCache {
 	return &renderCache{
 		productTypes:       map[uuid.UUID]catalog.ProductType{},
 		listings:           map[uuid.UUID][]catalog.ProductChannelListing{},
-		channels:           map[uuid.UUID]channel.Channel{},
 		salable:            map[uuid.UUID]float64{},
 		backorderable:      map[uuid.UUID]bool{},
 		aggregates:         map[uuid.UUID]review.Aggregates{},
@@ -99,6 +156,12 @@ func newRenderCache() *renderCache {
 		localeValues:       map[uuid.UUID][]catalog.ProductAttributeLocaleValue{},
 		localeValuesPrimed: map[uuid.UUID]struct{}{},
 		promoAttrKVs:       map[uuid.UUID]map[string]string{},
+		groupsPrimed:       map[string]bool{},
+		attributeValues:    map[string][]*model.ProductAttributeValue{},
+		childVisibility:    map[uuid.UUID]childVisibility{},
+		rawBundleOptions:   map[string][]catalog.BundleOption{},
+		bundleOptions:      map[string][]catalog.BundleOption{},
+		groupedMembers:     map[string][]catalog.GroupedMember{},
 	}
 }
 
@@ -126,25 +189,19 @@ func (r *Resolver) cachedPromotionAttrKVs(ctx context.Context, productID uuid.UU
 
 func (r *Resolver) getAttributesCached(ctx context.Context) ([]catalog.Attribute, error) { // attribute metadata is small and read-only within a request, and browse + render both consult it repeatedly
 	c := getRenderCache(ctx)
-	if c != nil {
-		c.mu.RLock()
-		loaded, attrs := c.attributesLoaded, c.attributes
-		c.mu.RUnlock()
-		if loaded {
-			return attrs, nil
-		}
-	}
-	attrs, err := r.CatalogSvc.ListAttributes(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if c != nil {
-		c.mu.Lock()
-		c.attributes = attrs
-		c.attributesLoaded = true
-		c.mu.Unlock()
-	}
-	return attrs, nil
+	return renderMemo(c, "attrs",
+		func() ([]catalog.Attribute, bool) {
+			c.mu.RLock()
+			defer c.mu.RUnlock()
+			return c.attributes, c.attributesLoaded
+		},
+		func() ([]catalog.Attribute, error) { return r.CatalogSvc.ListAttributes(ctx) },
+		func(attrs []catalog.Attribute) {
+			c.mu.Lock()
+			c.attributes = attrs
+			c.attributesLoaded = true
+			c.mu.Unlock()
+		})
 }
 
 // One query per request for the whole product list, plus one per configurable parent for its children, instead of one per rendered product
@@ -192,50 +249,19 @@ func (r *Resolver) cachedProductLocaleValues(ctx context.Context, productID uuid
 // The ONLY product-type getter - a bare or DataLoader variant would hand back attribute-less rows, so there deliberately isn't one
 func (r *Resolver) getProductType(ctx context.Context, id uuid.UUID) (catalog.ProductType, error) {
 	c := getRenderCache(ctx)
-	if c != nil {
-		c.mu.RLock()
-		pt, ok := c.productTypes[id]
-		c.mu.RUnlock()
-		if ok {
-			return pt, nil
-		}
-	}
-	pt, err := r.CatalogSvc.GetProductType(ctx, id)
-	if err != nil {
-		return catalog.ProductType{}, err
-	}
-	if c != nil {
-		c.mu.Lock()
-		c.productTypes[id] = pt
-		c.mu.Unlock()
-	}
-	return pt, nil
-}
-
-// Listings only read CurrencyCode / slug, so the bare row without locale hydration is enough - render cache first, then DataLoader for unprimed paths (Channel.ListByIDs, same bare shape), then the service
-func (r *Resolver) getChannel(ctx context.Context, id uuid.UUID) (channel.Channel, error) {
-	c := getRenderCache(ctx)
-	if c != nil {
-		c.mu.RLock()
-		sv, ok := c.channels[id]
-		c.mu.RUnlock()
-		if ok {
-			return sv, nil
-		}
-	}
-	if loaders := dataloaders.For(ctx); loaders != nil {
-		return loaders.Channel.Load(ctx, id)()
-	}
-	sv, err := r.ChannelSvc.GetByID(ctx, id)
-	if err != nil {
-		return channel.Channel{}, err
-	}
-	if c != nil {
-		c.mu.Lock()
-		c.channels[id] = sv
-		c.mu.Unlock()
-	}
-	return sv, nil
+	return renderMemo(c, "pt:"+id.String(),
+		func() (catalog.ProductType, bool) {
+			c.mu.RLock()
+			defer c.mu.RUnlock()
+			pt, ok := c.productTypes[id]
+			return pt, ok
+		},
+		func() (catalog.ProductType, error) { return r.CatalogSvc.GetProductType(ctx, id) },
+		func(pt catalog.ProductType) {
+			c.mu.Lock()
+			c.productTypes[id] = pt
+			c.mu.Unlock()
+		})
 }
 
 // primeListingsAndChannels is the hot-path source on list resolvers, and the DataLoader behind it covers per-field-resolver call sites where no primer ran
@@ -250,7 +276,7 @@ func (r *Resolver) getProductChannelListings(ctx context.Context, productID uuid
 		}
 	}
 	if loaders := dataloaders.For(ctx); loaders != nil {
-		return loaders.ProductListings.Load(ctx, productID)()
+		return loaders.LoadProductListings(ctx, productID)
 	}
 	rows, err := r.CatalogSvc.ListProductChannelListings(ctx, productID)
 	if err != nil {
@@ -264,7 +290,7 @@ func (r *Resolver) getProductChannelListings(ctx context.Context, productID uuid
 	return rows, nil
 }
 
-func (r *Resolver) primeListingsAndChannels(ctx context.Context, productIDs []uuid.UUID) error { // one batch for the listings, one for the channels they reference - safe with an empty slice
+func (r *Resolver) primeListings(ctx context.Context, productIDs []uuid.UUID) error { // one batch for the page's channel listings - safe with an empty slice
 	c := getRenderCache(ctx)
 	if c == nil || len(productIDs) == 0 {
 		return nil
@@ -272,12 +298,6 @@ func (r *Resolver) primeListingsAndChannels(ctx context.Context, productIDs []uu
 	byProduct, err := dataloaders.StorefrontListings(ctx, r.CatalogSvc, productIDs)
 	if err != nil {
 		return err
-	}
-	svIDSet := map[uuid.UUID]struct{}{}
-	for _, rows := range byProduct {
-		for _, row := range rows {
-			svIDSet[row.ChannelID] = struct{}{}
-		}
 	}
 	c.mu.Lock()
 	maps.Copy(c.listings, byProduct)
@@ -287,20 +307,6 @@ func (r *Resolver) primeListingsAndChannels(ctx context.Context, productIDs []uu
 		}
 	}
 	c.mu.Unlock()
-
-	if len(svIDSet) > 0 {
-		ids := make([]uuid.UUID, 0, len(svIDSet))
-		for id := range svIDSet {
-			ids = append(ids, id)
-		}
-		byID, err := r.ChannelSvc.ListByIDs(ctx, ids)
-		if err != nil {
-			return err
-		}
-		c.mu.Lock()
-		maps.Copy(c.channels, byID)
-		c.mu.Unlock()
-	}
 	return nil
 }
 
@@ -364,7 +370,8 @@ func (r *Resolver) primeProductCards(ctx context.Context, productIDs []uuid.UUID
 	if len(productIDs) == 0 {
 		return
 	}
-	_ = r.primeListingsAndChannels(ctx, productIDs)
+	dataloaders.For(ctx).RegisterGroup(productIDs)
+	_ = r.primeListings(ctx, productIDs)
 	_ = r.primeReviewAggregates(ctx, productIDs)
 	r.primeProductAttributeLocaleValues(ctx, productIDs)
 	_ = r.primeBackorderable(ctx, productIDs)
@@ -504,24 +511,21 @@ func (r *Resolver) cachedAggregates(ctx context.Context, productID uuid.UUID) (r
 func (r *Resolver) getAssignedQuestionsLocalized(ctx context.Context, productTypeID uuid.UUID, locale string) ([]review.Question, error) { // memoized per (product type, locale) so a PLP of 24 same-type cards costs exactly one round-trip
 	key := questionCacheKey{productTypeID: productTypeID, locale: locale}
 	c := getRenderCache(ctx)
-	if c != nil {
-		c.mu.RLock()
-		qs, ok := c.assignedQuestions[key]
-		c.mu.RUnlock()
-		if ok {
-			return qs, nil
-		}
-	}
-	qs, err := r.ReviewSvc.ListAssignedQuestionsLocalized(ctx, productTypeID, locale)
-	if err != nil {
-		return nil, err
-	}
-	if c != nil {
-		c.mu.Lock()
-		c.assignedQuestions[key] = qs
-		c.mu.Unlock()
-	}
-	return qs, nil
+	return renderMemo(c, "aq:"+productTypeID.String()+":"+locale,
+		func() ([]review.Question, bool) {
+			c.mu.RLock()
+			defer c.mu.RUnlock()
+			qs, ok := c.assignedQuestions[key]
+			return qs, ok
+		},
+		func() ([]review.Question, error) {
+			return r.ReviewSvc.ListAssignedQuestionsLocalized(ctx, productTypeID, locale)
+		},
+		func(qs []review.Question) {
+			c.mu.Lock()
+			c.assignedQuestions[key] = qs
+			c.mu.Unlock()
+		})
 }
 
 func (r *Resolver) getCurrency(ctx context.Context, code string) (currency.Currency, error) { // memoized so N channels asking for `currency` cost at most one round-trip per unique code
