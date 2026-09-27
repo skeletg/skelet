@@ -95,13 +95,14 @@ func (s *groupedService) ListGroupedMembers(ctx context.Context, parentID uuid.U
 		memberIDs = append(memberIDs, m.MemberID)
 	}
 
-	productByID := make(map[uuid.UUID]Product, len(memberIDs))
+	productByID, err := s.repo.ListProductRowsByIDs(ctx, memberIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load grouped member products: %w", err)
+	}
 	for _, pid := range memberIDs {
-		p, err := s.repo.GetProductByID(ctx, pid)
-		if err != nil {
-			return nil, fmt.Errorf("load grouped member product %s: %w", pid, err)
+		if _, ok := productByID[pid]; !ok {
+			return nil, fmt.Errorf("load grouped member product %s: %w", pid, ErrProductNotFound)
 		}
-		productByID[pid] = p
 	}
 	contentByProduct, err := s.repo.ListProductContentByScope(ctx, memberIDs, locale)
 	if err != nil {

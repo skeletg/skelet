@@ -120,28 +120,18 @@ func (r *postgresRepository) ListCategoryChildren(ctx context.Context, parentID 
 	return out, nil
 }
 
-// GetCategoryAncestors traverses parent_id links in Go to avoid a recursive CTE - Category trees are shallow (<10 levels) so the N round-trips are fast - Returns ancestors ordered root→immediate parent
+// GetCategoryAncestors returns ancestors ordered root→immediate parent
 func (r *postgresRepository) GetCategoryAncestors(ctx context.Context, id uuid.UUID) ([]Category, error) {
-	var ancestors []Category
-	current, err := r.queries.GetCategoryByID(ctx, id)
+	rows, err := r.queries.ListCategoryChain(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrCategoryNotFound
-		}
-		return nil, fmt.Errorf("get category: %w", err)
+		return nil, fmt.Errorf("get category ancestors: %w", err)
 	}
-	parentID := current.ParentID
-	for parentID.Valid {
-		parent, err := r.queries.GetCategoryByID(ctx, parentID.UUID)
-		if err != nil {
-			return nil, fmt.Errorf("get ancestor: %w", err)
-		}
-		ancestors = append(ancestors, toCategory(parent))
-		parentID = parent.ParentID
+	if len(rows) == 0 {
+		return nil, ErrCategoryNotFound
 	}
-	// Reverse to root→parent order
-	for i, j := 0, len(ancestors)-1; i < j; i, j = i+1, j-1 {
-		ancestors[i], ancestors[j] = ancestors[j], ancestors[i]
+	var ancestors []Category
+	for i := len(rows) - 1; i >= 1; i-- { // rows run self→root
+		ancestors = append(ancestors, toCategory(rows[i]))
 	}
 	return ancestors, nil
 }
