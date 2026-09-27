@@ -265,6 +265,10 @@ services:
     build:
       context: .
       dockerfile: apps/dashboard/Dockerfile
+      # The image installs as the uid the service runs as - pnpm needs to own the tree it links
+      args:
+        SKELET_UID: ${SKELET_UID:-1000}
+        SKELET_GID: ${SKELET_GID:-1000}
     ports:
       - "5173:5173"
     volumes:
@@ -299,6 +303,10 @@ services:
     build:
       context: .
       dockerfile: apps/channels/vetrina-demo/Dockerfile
+      # Same uid story as the dashboard's install
+      args:
+        SKELET_UID: ${SKELET_UID:-1000}
+        SKELET_GID: ${SKELET_GID:-1000}
     ports:
       - "3000:3000"
     volumes:
