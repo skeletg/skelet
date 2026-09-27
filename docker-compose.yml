@@ -175,7 +175,8 @@ services:
     user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
     init: true
     working_dir: /var/www/backend/signals
-    command: go run ./cmd/signals
+    # Air, the same hot reload the app gets - rooted one level up so core's packages the suite imports rebuild it too
+    command: air -c .air.toml
     ports:
       - "127.0.0.1:${SIGNALS_HOST_PORT:-8090}:8090"
       # The wire contract core calls - its own listener, since grpc needs one
