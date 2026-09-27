@@ -2623,6 +2623,8 @@ type ComplexityRoot struct {
 		Returns             func(childComplexity int) int
 		ShippingAddress     func(childComplexity int) int
 		ShippingAmount      func(childComplexity int) int
+		ShippingRefundable  func(childComplexity int) int
+		ShippingTaxAmount   func(childComplexity int) int
 		Status              func(childComplexity int) int
 		StoreCreditAmount   func(childComplexity int) int
 		Subtotal            func(childComplexity int) int
@@ -19254,6 +19256,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Order.ShippingAmount(childComplexity), true
+	case "Order.shippingRefundable":
+		if e.ComplexityRoot.Order.ShippingRefundable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.ShippingRefundable(childComplexity), true
+	case "Order.shippingTaxAmount":
+		if e.ComplexityRoot.Order.ShippingTaxAmount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Order.ShippingTaxAmount(childComplexity), true
 	case "Order.status":
 		if e.ComplexityRoot.Order.Status == nil {
 			break
@@ -33376,6 +33390,10 @@ type Order {
   shippingAmount:  Int!
   discountAmount:  Int!
   taxAmount:       Int!
+  # The part of taxAmount charged on shipping. Zero when a remote tax provider or plugin priced the tax.
+  shippingTaxAmount: Int!
+  # The most a credit memo can refund for shipping - its tax included where tax was added on top.
+  shippingRefundable: Int!
   total:           Int!
   # Cents of ` + "`" + `total` + "`" + ` covered by gift-card tenders (not a discount - total
   # is unchanged). Amount owed to the payment provider is total minus this.
@@ -40671,6 +40689,10 @@ func (ec *executionContext) childFields_Order(ctx context.Context, field graphql
 		return ec.fieldContext_Order_discountAmount(ctx, field)
 	case "taxAmount":
 		return ec.fieldContext_Order_taxAmount(ctx, field)
+	case "shippingTaxAmount":
+		return ec.fieldContext_Order_shippingTaxAmount(ctx, field)
+	case "shippingRefundable":
+		return ec.fieldContext_Order_shippingRefundable(ctx, field)
 	case "total":
 		return ec.fieldContext_Order_total(ctx, field)
 	case "giftCardAmount":
@@ -112408,6 +112430,52 @@ func (ec *executionContext) fieldContext_Order_taxAmount(_ context.Context, fiel
 	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _Order_shippingTaxAmount(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_shippingTaxAmount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ShippingTaxAmount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_shippingTaxAmount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Order_shippingRefundable(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Order_shippingRefundable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ShippingRefundable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Order_shippingRefundable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Order", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Order_total(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -179289,6 +179357,16 @@ func (ec *executionContext) _Order(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "taxAmount":
 			out.Values[i] = ec._Order_taxAmount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "shippingTaxAmount":
+			out.Values[i] = ec._Order_shippingTaxAmount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "shippingRefundable":
+			out.Values[i] = ec._Order_shippingRefundable(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
