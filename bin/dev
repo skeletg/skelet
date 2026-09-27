@@ -27,7 +27,10 @@ if [ ${#missing[@]} -gt 0 ]; then
 fi
 
 sync_signals_env
-docker compose up -d "$@"
+preflight_ports || exit 1
+# --build every time - a cache hit when nothing changed, and without it an image from an older checkout (the
+# project name is pinned, so another clone's counts) runs on after a pull changed its Dockerfile or go.mod
+docker compose up -d --build "$@"
 
 # The frontends are host-first, so nothing above binds 5173/3000 unless .skelet-apps asks for it
 if [ -z "$SKELET_APPS" ] && [ $# -eq 0 ]; then

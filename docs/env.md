@@ -69,6 +69,38 @@ One gotcha on a machine that runs both stacks: the root `.env` is shared
 between `docker-compose.yml` and `docker-compose.prod.yml`, so dev values
 there apply to prod commands too.
 
+### Dev host ports
+
+The dev stack publishes its datastores on `127.0.0.1` only, and nothing on
+the host dials them - `./skelet psql` goes through `docker compose exec`. So
+each one can move when something else already holds its port, most often a
+local Postgres on 5432:
+
+| Var | Default | Service |
+|---|---|---|
+| `DB_HOST_PORT` | 5432 | commerce Postgres |
+| `SIGNALS_DB_HOST_PORT` | 5433 | Signals Postgres |
+| `VALKEY_HOST_PORT` | 6379 | Valkey |
+| `CLICKHOUSE_HOST_PORT` / `CLICKHOUSE_HTTP_HOST_PORT` | 9000 / 8123 | ClickHouse native / HTTP |
+| `OPENSEARCH_HOST_PORT` | 9200 | OpenSearch |
+| `NATS_HOST_PORT` | 4222 | NATS |
+| `SIGNALS_HOST_PORT` | 8090 | Signals health |
+| `GARAGE_ADMIN_HOST_PORT` | 9903 | Garage admin API |
+
+`./skelet up` (and so `./skelet setup`) probes every port it's about to
+publish before it starts anything. On a terminal it asks, port by port,
+whether you've stopped the other thing - it checks again, and asks again if
+you haven't - or offers to move a datastore to a free port and writes the
+var above into the root `.env`. Without a terminal it lists the clashes and
+exits. The app-facing ports (8080, 5173, 3000, 8025, 9900-9902) stay
+fixed, because they're part of the origins and CSP the apps are built
+around, so for those the only answer is to free them.
+
+`./skelet up` also builds on every run (`docker compose up --build`). When
+nothing changed that's a cache hit, and it's what keeps an image from an
+older checkout from running on after a pull changed its Dockerfile or
+`go.mod` - the project name is pinned, so another clone's image counts.
+
 `prod.env` is shared by every backend role, which is why role-specific
 settings belong in the compose service and not in here - the app has to
 stay a server. That's `SKELET_ROLE` (`worker`, default `server`) and
