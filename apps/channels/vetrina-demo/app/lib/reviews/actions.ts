@@ -8,7 +8,11 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
+import { getAccessToken } from "@/app/lib/auth/session";
 import { getProduct } from "@/app/lib/catalog/read";
+import { parseForm, type FormResult } from "@/app/lib/forms/schema";
+import { replyError } from "@/app/lib/forms/reply";
+import { reviewSchema } from "@/app/lib/reviews/schemas";
 import { productHref } from "@/app/lib/entity-href";
 import type { ReviewAnswerInput } from "@/app/graphql/schema.types";
 import { gqlFetch, GraphQLRequestError } from "@/app/lib/graphql";
@@ -77,9 +81,6 @@ async function ensureVoterToken(): Promise<string> {
 }
 
 
-export type ReviewResult =
-  | { ok: true; reviewId: string }
-  | { ok: false; error: string };
 export async function requestReviewMediaUploadAction(input: {
   productId: string;
   filename: string;
@@ -145,42 +146,29 @@ export async function voteReviewAction(formData: FormData): Promise<void> {
 // Expects productId, title, body, comma-separated mediaAssetIds, and per-question
 // answer.<id>.{rating,bool,text,inputType} - inputType picks the canonical leaf
 export async function submitReviewAction(
-  _prev: ReviewResult | null,
+  _prev: FormResult | undefined,
   formData: FormData,
-): Promise<ReviewResult> {
-  const productId = String(formData.get("productId") ?? "");
-  if (!productId) return { ok: false, error: "Missing product." };
-  const title = String(formData.get("title") ?? "");
-  const body = String(formData.get("body") ?? "");
-  const guestName = String(formData.get("guestName") ?? "").trim();
-  const guestEmail = String(formData.get("guestEmail") ?? "").trim();
-  const mediaCSV = String(formData.get("mediaAssetIds") ?? "");
-  const mediaAssetIds = mediaCSV
+): Promise<FormResult> {
+  const guest = !(await getAccessToken());
+  const submission = parseForm(formData, reviewSchema({ guest }));
+  if (submission.status !== "success") return submission.reply();
+  const { productId, title, body, guestName, guestEmail } = submission.value;
+  const mediaAssetIds = (submission.value.mediaAssetIds ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const seenQuestions = new Set<string>();
   const answers: ReviewAnswerInput[] = [];
-  for (const [key] of formData.entries()) {
-    const match = key.match(/^answer\.([^.]+)\.inputType$/);
-    if (!match) continue;
-    const qid = match[1];
-    if (seenQuestions.has(qid)) continue;
-    seenQuestions.add(qid);
-    const inputType = String(formData.get(`answer.${qid}.inputType`) ?? "");
-    const ratingRaw = formData.get(`answer.${qid}.rating`);
-    const boolRaw = formData.get(`answer.${qid}.bool`);
-    const textRaw = String(formData.get(`answer.${qid}.text`) ?? "");
-    const a: ReviewAnswerInput = { questionId: qid };
-    if (inputType === "RATING_1_5" && ratingRaw) {
-      const n = Number(ratingRaw);
+  for (const [questionId, raw] of Object.entries(submission.value.answer ?? {})) {
+    const a: ReviewAnswerInput = { questionId };
+    if (raw.inputType === "RATING_1_5" && raw.rating) {
+      const n = Number(raw.rating);
       if (Number.isFinite(n) && n >= 1 && n <= 5) a.rating = Math.round(n);
     }
-    if (inputType === "YES_NO" && boolRaw) {
-      a.boolValue = boolRaw === "true";
+    if (raw.inputType === "YES_NO" && raw.bool) {
+      a.boolValue = raw.bool === "true";
     }
-    if (textRaw) a.text = textRaw;
+    if (raw.text) a.text = raw.text;
     // Skip entirely empty answers - required questions are enforced server-side, so
     // this just avoids posting noise for skipped optional questions
     if (a.rating === undefined && a.boolValue === undefined && !a.text) {
@@ -190,35 +178,24 @@ export async function submitReviewAction(
   }
 
   try {
-    const res = await gqlFetch(SubmitProductReviewDocument, {
+    await gqlFetch(SubmitProductReviewDocument, {
       input: {
         productId,
-        title: title || null,
-        body: body || null,
+        title,
+        body,
         answers,
         mediaAssetIds: mediaAssetIds.length > 0 ? mediaAssetIds : null,
-        guestName: guestName || null,
-        guestEmail: guestEmail || null,
+        guestName,
+        guestEmail: guestEmail ?? null,
       },
     });
-    // Redirect + revalidate the product's pretty URL - the catch-all renders it; the
-    // /products/<id> route was removed
-    const { product } = await getProduct(productId);
-    const dest = product ? productHref(product) : "/";
-    revalidatePath(dest);
-    const reviewId = res.data.submitProductReview.id;
-    redirect(`${dest}?reviewSubmitted=1`);
-    // Unreachable - redirect throws - but keeps the type checker happy
-    return { ok: true, reviewId };
   } catch (err) {
-    if (err instanceof GraphQLRequestError) {
-      return { ok: false, error: err.errors[0]?.message ?? err.message };
-    }
-    // redirect() throws an internal Next error that's intentionally unhandled here -
-    // rethrow so the browser performs the navigation
-    if (err instanceof Error && err.message.includes("NEXT_REDIRECT")) {
-      throw err;
-    }
-    return { ok: false, error: err instanceof Error ? err.message : "Submit failed" };
+    return replyError(submission, err, "reviewFailed");
   }
+  // Redirect + revalidate the product's pretty URL - the catch-all renders it; the
+  // /products/<id> route was removed
+  const { product } = await getProduct(productId);
+  const dest = product ? productHref(product) : "/";
+  revalidatePath(dest);
+  redirect(`${dest}?reviewSubmitted=1`);
 }
