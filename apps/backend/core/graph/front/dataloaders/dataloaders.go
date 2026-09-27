@@ -46,7 +46,6 @@ type ReviewsKey struct {
 	Offset    int32
 }
 
-// Option titles resolve against the locale
 type ProductOptionsKey struct {
 	ProductID uuid.UUID
 	Locale    string

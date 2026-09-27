@@ -416,7 +416,6 @@ func toAttributeValueModel(v catalog.AttributeValue) *model.AttributeValue {
 }
 
 // Scalar fields only - attribute rendering needs to load the product type, so it lives on renderProduct rather than this pure mapper
-// Row and locale content only - listing, type and attribute fields resolve lazily
 func toProductBaseModel(p catalog.Product) *model.Product {
 	m := &model.Product{
 		ID:                      p.ID.String(),
@@ -568,7 +567,7 @@ func (r *Resolver) renderChildren(ctx context.Context, children []catalog.Produc
 	return out, nil
 }
 
-// Drops selections unpublished on the active store in one batched query across all options - a REQUIRED option left with zero selections makes the bundle unsellable, so ErrProductNotFound, while optional ones may render empty
+// A required option left with no published selection makes the bundle unsellable
 func (r *Resolver) visibleBundleOptions(ctx context.Context, productID uuid.UUID) ([]catalog.BundleOption, error) {
 	locale := r.activeLocale(ctx)
 	c := getRenderCache(ctx)
@@ -588,7 +587,7 @@ func (r *Resolver) visibleBundleOptions(ctx context.Context, productID uuid.UUID
 		})
 }
 
-// Hidden selections included - the stock aggregate counts them all
+// Hidden selections too, since the stock aggregate counts them
 func (r *Resolver) rawBundleOptions(ctx context.Context, productID uuid.UUID, locale string) ([]catalog.BundleOption, error) {
 	c := getRenderCache(ctx)
 	key := productID.String() + ":" + locale

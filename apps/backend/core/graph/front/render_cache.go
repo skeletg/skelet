@@ -22,7 +22,7 @@ import (
 type renderCache struct {
 	mu sync.RWMutex
 
-	flight singleflight.Group // concurrent misses on one memo key share a fetch
+	flight singleflight.Group
 
 	productTypes map[uuid.UUID]catalog.ProductType // by product_type_id, filled lazily by getProductType - a memoize cache, not a batch query, since catalog surfaces touch only a handful of types per request
 
@@ -293,7 +293,7 @@ func (r *Resolver) getProductChannelListings(ctx context.Context, productID uuid
 	return rows, nil
 }
 
-func (r *Resolver) primeListings(ctx context.Context, productIDs []uuid.UUID) error { // one batch for the page's channel listings - safe with an empty slice
+func (r *Resolver) primeListings(ctx context.Context, productIDs []uuid.UUID) error {
 	c := getRenderCache(ctx)
 	if c == nil || len(productIDs) == 0 {
 		return nil
