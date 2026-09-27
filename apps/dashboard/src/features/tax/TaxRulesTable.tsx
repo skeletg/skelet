@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { gql } from '@apollo/client'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import {
@@ -34,61 +33,31 @@ import {
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { DeleteTaxRuleDocument, TaxRulesDocument, type TaxRulesQuery } from './Tax.gql'
 
-const TAX_RULES_QUERY = gql`
-  query TaxRules($channelId: ID) {
-    taxRules(channelId: $channelId) {
-      id
-      channelId
-      name
-      priority
-      exclusivityGroup
-      isActive
-      conditions {
-        type
-        params
-      }
-      effects {
-        type
-        params
-      }
-    }
-  }
-`
+type TaxRule = TaxRulesQuery['taxRules'][number]
 
-const DELETE_TAX_RULE = gql`
-  mutation DeleteTaxRule($id: ID!) {
-    deleteTaxRule(id: $id)
-  }
-`
-
-type RuleRow = { type: string; params: Record<string, unknown> | null }
-
-type TaxRule = {
-  id: string
-  channelId: string
-  name: string
-  priority: number
-  exclusivityGroup: string
-  isActive: boolean
-  conditions: RuleRow[]
-  effects: RuleRow[]
+// params is JSON - narrowed to an object before a key is read
+function paramsOf(row: { params: unknown } | undefined): Record<string, unknown> | null {
+  const p = row?.params
+  return p && typeof p === 'object' && !Array.isArray(p) ? (p as Record<string, unknown>) : null
 }
 
 function deriveRatePct(rule: TaxRule): string | null {
   const pct = rule.effects.find(
     (e) => e.type === 'core.percentage' || e.type === 'core.compound_percentage',
   )
-  const bps = pct?.params?.['bps']
+  const bps = paramsOf(pct)?.['bps']
   if (typeof bps !== 'number') return null
   return (bps / 100).toFixed(2)
 }
 
 function deriveScope(rule: TaxRule): string {
   const j = rule.conditions.find((c) => c.type === 'core.jurisdiction')
-  if (!j?.params) return rule.conditions.length ? `${rule.conditions.length} condition(s)` : 'any'
-  const country = (j.params['country_code'] as string) || '*'
-  const region = (j.params['region_code'] as string) || ''
+  const params = paramsOf(j)
+  if (!params) return rule.conditions.length ? `${rule.conditions.length} condition(s)` : 'any'
+  const country = (params['country_code'] as string) || '*'
+  const region = (params['region_code'] as string) || ''
   return region ? `${country} / ${region}` : country
 }
 
@@ -104,7 +73,7 @@ export function TaxRulesTable() {
 
   // Channel scope rides the `X-Channel-Id` header (see lib/apollo.ts), not a query var: GLOBAL scope (no header) →
   // every channel's rules + a Channel column; CHANNEL scope → that channel's rules
-  const { data, loading, error, refetch } = useQuery<{ taxRules: TaxRule[] }>(TAX_RULES_QUERY)
+  const { data, loading, error, refetch } = useQuery(TaxRulesDocument)
   const rows = useMemo(() => data?.taxRules ?? [], [data])
 
   const channelName = useMemo(() => {
@@ -115,9 +84,7 @@ export function TaxRulesTable() {
 
   const [confirmDelete, setConfirmDelete] = useState<TaxRule | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deleteRule, { loading: deleting }] = useMutation<{ deleteTaxRule: boolean }, { id: string }>(
-    DELETE_TAX_RULE,
-  )
+  const [deleteRule, { loading: deleting }] = useMutation(DeleteTaxRuleDocument)
 
   async function onConfirmDelete() {
     if (!confirmDelete) return
