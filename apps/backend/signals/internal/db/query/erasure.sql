@@ -37,3 +37,11 @@ WHERE customer_id IS NULL AND lower(email) = lower(sqlc.arg(email)::text);
 
 -- name: DetachErasedLensSessions :exec
 UPDATE lens_sessions SET customer_id = NULL WHERE customer_id = sqlc.arg(customer_id)::uuid;
+
+-- name: MarkCustomerErased :exec
+INSERT INTO erased_customers (customer_id, erased_at)
+VALUES (sqlc.arg(customer_id), COALESCE(sqlc.narg(erased_at)::timestamptz, now()))
+ON CONFLICT (customer_id) DO NOTHING;
+
+-- name: IsCustomerErased :one
+SELECT EXISTS (SELECT 1 FROM erased_customers WHERE customer_id = sqlc.arg(customer_id))::bool;
