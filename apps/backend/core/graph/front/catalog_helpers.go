@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
@@ -20,7 +19,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/modelconv"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/pricing"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 )
@@ -32,6 +30,11 @@ func (r *productResolver) salableFor(ctx context.Context, productID, channelID u
 		if v, ok := r.cachedSalable(ctx, productID); ok {
 			return v, nil
 		}
+		if r.primeGroupOnce(ctx, "salable", productID, func(ids []uuid.UUID) error { return r.primeSalable(ctx, ids, channelID) }) {
+			if v, ok := r.cachedSalable(ctx, productID); ok {
+				return v, nil
+			}
+		}
 	}
 	return r.InventorySvc.Salable(ctx, productID, channelID)
 }
@@ -41,13 +44,9 @@ func (r *productResolver) salableFor(ctx context.Context, productID, channelID u
 func (r *productResolver) wrapperInStock(ctx context.Context, kind model.ProductKind, pid, channelID uuid.UUID) (bool, error) {
 	switch kind {
 	case model.ProductKindConfigurable:
-		children, err := r.CatalogSvc.ListProductChildren(ctx, pid)
+		ids, err := r.loadChildIDs(ctx, pid)
 		if err != nil {
 			return false, err
-		}
-		ids := make([]uuid.UUID, len(children))
-		for i, c := range children {
-			ids[i] = c.ID
 		}
 		sellable, err := r.sellableByIDs(ctx, ids, channelID)
 		if err != nil {
@@ -91,7 +90,7 @@ func (r *productResolver) wrapperInStock(ctx context.Context, kind model.Product
 		return allTrue(sellable, ids), nil
 
 	case model.ProductKindBundle:
-		opts, err := r.CatalogSvc.GetBundleOptions(ctx, pid, r.activeLocale(ctx))
+		opts, err := r.rawBundleOptions(ctx, pid, r.activeLocale(ctx))
 		if err != nil {
 			return false, err
 		}
@@ -417,63 +416,27 @@ func toAttributeValueModel(v catalog.AttributeValue) *model.AttributeValue {
 }
 
 // Scalar fields only - attribute rendering needs to load the product type, so it lives on renderProduct rather than this pure mapper
-func toProductBaseModel(p catalog.Product, productType *model.ProductType, attributeValues []*model.ProductAttributeValue, children []*model.Product, mediaList []*model.ProductMedia, configurableOptions []*model.Attribute, listings []*model.ProductChannelListing, collections []*model.Collection, chListing *catalog.ProductChannelListing) *model.Product {
-	// Listing override folded with any active scheduled special - the same resolution the cart charges through ResolveSimplePricing
-	resolved := pricing.Resolve(catalog.EffectivePricingInputs(p, chListing), time.Now())
-	categories := make([]*model.Category, len(p.Categories))
-	for i, c := range p.Categories {
-		categories[i] = toCategoryModel(c)
-	}
-	var primaryCategory *model.Category
-	if p.PrimaryCategory != nil {
-		primaryCategory = toCategoryModel(*p.PrimaryCategory)
-	}
-	// Any image beats an empty box: only an explicit setProductMediaRole call assigns MAIN, so a product whose images arrived through import, a plugin or the API renders as a blank card, blank variant row and blank part stub without this. Same rule enrichPartProducts applies to bundle and grouped parts - thumbnail and og_image deliberately DON'T fall back, since a hero standing in for a thumbnail is the wrong size and a missing og image should let the page's own metadata fallback decide
-	mainImage := resolveMediaRole(p.MediaRoles, catalog.MediaRoleMain, mediaList)
-	if mainImage == nil && len(mediaList) > 0 {
-		mainImage = mediaList[0]
-	}
-	var compareAtModel *int32
-	if resolved.CompareAt != nil {
-		v := int32(*resolved.CompareAt)
-		compareAtModel = &v
-	}
+// Row and locale content only - listing, type and attribute fields resolve lazily
+func toProductBaseModel(p catalog.Product) *model.Product {
 	m := &model.Product{
 		ID:                      p.ID.String(),
-		ProductType:             productType,
+		ProductType:             &model.ProductType{ID: p.ProductTypeID.String()}, // carries the id for the lazy productType field
 		Kind:                    model.ProductKind(strings.ToUpper(string(p.Kind))),
 		VariantMode:             productVariantModeModel(p),
 		DefaultPrice:            int32(p.DefaultPrice),
 		DefaultCurrencyCode:     p.DefaultCurrencyCode,
-		Price:                   int32(resolved.Price),
-		CompareAtPrice:          compareAtModel,
-		OnSale:                  resolved.OnSale,
-		Listings:                listings,
 		Sku:                     p.SKU,
 		SeoNoindex:              p.SEONoindex,
 		CanonicalURL:            p.CanonicalURL,
-		URL:                     p.URL,
 		URLAuto:                 p.URLAuto,
 		URLTemplateOverride:     p.URLTemplateOverride,
 		TracksInventoryOverride: p.TracksInventoryOverride,
-		TracksInventory:         effectiveTracksInventory(p, productType), // the effective flag - override, then product type
 		QuantityDecimals:        int32(p.QuantityDecimals),
 		QuantityStep:            p.QuantityStep,
 		MinOrderQty:             p.MinOrderQty,
 		MaxOrderQty:             p.MaxOrderQty,
-		AttributeValues:         attributeValues,
-		Children:                children,
-		ConfigurableOptions:     configurableOptions,
-		Categories:              categories,
-		PrimaryCategory:         primaryCategory,
-		Collections:             collections,
-		Media:                   mediaList,
-		MainImage:               mainImage,
-		Thumbnail:               resolveMediaRole(p.MediaRoles, catalog.MediaRoleThumbnail, mediaList),
-		OgImage:                 resolveMediaRole(p.MediaRoles, catalog.MediaRoleOGImage, mediaList),
 		Metadata:                toMetadataItems(p.Metadata),
 		PrivateMetadata:         toMetadataItems(p.PrivateMetadata),
-		Content:                 toProductContentModels(p.AllContent),
 		CreatedAt:               p.CreatedAt,
 		UpdatedAt:               p.UpdatedAt,
 	}
@@ -497,88 +460,32 @@ func toProductBaseModel(p catalog.Product, productType *model.ProductType, attri
 	return m
 }
 
-// mediaOverride replaces the per-product media fetch - list resolvers pass a slice from ListProductMediaByProductIDs to dodge the N+1
-func (r *Resolver) renderProduct(ctx context.Context, p catalog.Product, mediaOverride ...[]catalog.ProductMedia) (*model.Product, error) {
-	pt, err := r.getProductType(ctx, p.ProductTypeID) // hydrated with attributes, which buildProductAttributeValues needs to project attributeValues
-	if err != nil {
-		return nil, err
-	}
-	attrValues := buildProductAttributeValues(pt, p.Attributes, p.AttributeSelections, r.hydrateProductReferences(ctx, p.AttributeReferences))
-	axisAttrs := make(map[string]bool, len(p.ConfigurableOptions))
-	for _, a := range p.ConfigurableOptions {
-		axisAttrs[a.ID.String()] = true
-	}
-	// The pre-filter values are stashed so promotion display rules keep matching private attributes - the response only ever carries the rule's own label
-	r.stashPromotionAttrKVs(ctx, p.ID, attrValues)
-	attrValues = keepPublicAttributeValues(attrValues, axisAttrs)
-
-	// Filtered up front so the per-child loads below only run for variants that get emitted, and a configurable/grouped parent whose children all go hidden on this store is unsellable, so not visible
-	hadChildren := len(p.Children) > 0
-	p.Children, err = keepVisibleByChannel(ctx, r, p.Children, func(c catalog.Product) uuid.UUID { return c.ID })
-	if err != nil {
-		return nil, fmt.Errorf("filter visible children: %w", err)
-	}
-	if hadChildren && len(p.Children) == 0 && (p.Kind == catalog.KindConfigurable || p.Kind == catalog.KindGrouped) {
-		return nil, catalog.ErrProductNotFound
-	}
-
-	children, err := r.renderChildren(ctx, p.Children, axisAttrs)
-	if err != nil {
-		return nil, err
-	}
-
-	configurableOptions := make([]*model.Attribute, len(p.ConfigurableOptions)) // already loaded by GetProductWithAttributes
-	for i, a := range p.ConfigurableOptions {
-		configurableOptions[i] = toAttributeModel(a)
-	}
-
-	var mediaItems []catalog.ProductMedia // the pre-fetched slice on the batch path, otherwise fetched here
-	if len(mediaOverride) > 0 {
-		mediaItems = mediaOverride[0]
-	} else {
-		mediaItems, err = r.CatalogSvc.ListProductMedia(ctx, p.ID)
+// Not found when every variant is hidden, a required bundle option is empty or no grouped member is visible
+func (r *Resolver) renderProduct(ctx context.Context, p catalog.Product) (*model.Product, error) {
+	if p.Kind == catalog.KindConfigurable || p.Kind == catalog.KindGrouped {
+		v, err := r.childVisibilityOf(ctx, p)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("filter visible children: %w", err)
+		}
+		if v.had && len(v.visible) == 0 {
+			return nil, catalog.ErrProductNotFound
+		}
+		if p.Kind == catalog.KindConfigurable { // registered before any field resolves, so parent and variants share each fetch
+			dataloaders.For(ctx).RegisterVariants(p.ID, v.visible)
 		}
 	}
-	mediaList := make([]*model.ProductMedia, len(mediaItems))
-	for i, m := range mediaItems {
-		mediaList[i] = toProductMediaModel(m)
-	}
-
-	listings, err := r.renderProductListings(ctx, p) // per-store listings, with effective price/currency resolved under the inheritance rule
-	if err != nil {
-		return nil, err
-	}
-
-	collections := toCollectionModels(p.Collections)
-	// Raw listing for the active channel drives effective-price resolution - the loader dedupes it against renderProductListings' fetch above
-	var chListing *catalog.ProductChannelListing
-	if sid := channelIDFromContext(ctx); sid != nil {
-		if rows, lerr := r.getProductChannelListings(ctx, p.ID); lerr == nil {
-			for i := range rows {
-				if rows[i].ChannelID == *sid {
-					chListing = &rows[i]
-					break
-				}
-			}
-		}
-	}
-	out := toProductBaseModel(p, toProductTypeModel(pt), attrValues, children, mediaList, configurableOptions, listings, collections, chListing)
-
 	switch p.Kind {
 	case catalog.KindBundle:
-		if out.BundleOptions, err = r.renderBundleOptions(ctx, p.ID); err != nil {
+		if _, err := r.visibleBundleOptions(ctx, p.ID); err != nil {
 			return nil, err
 		}
 	case catalog.KindGrouped:
-		if out.GroupedMembers, err = r.renderGroupedMembers(ctx, p.ID); err != nil {
+		if _, err := r.visibleGroupedMembers(ctx, p.ID); err != nil {
 			return nil, err
 		}
 	}
-
-	r.localizeProductModel(ctx, p, out) // translated attribute/value names, plain_text scalar translations, channel slug/url_path overrides
-	return out, nil
+	dataloaders.For(ctx).PrimeProductRow(ctx, p)
+	return toProductBaseModel(p), nil
 }
 
 // Reuses the input slice's backing array
@@ -615,7 +522,6 @@ func (r *Resolver) renderChildren(ctx context.Context, children []catalog.Produc
 	if len(children) == 0 {
 		return out, nil
 	}
-	// A hydrating load, with attributes, so each child's attributeValues - what the storefront variant picker reads - is actually populated
 	childTypeCache := make(map[uuid.UUID]catalog.ProductType)
 	childIDs := make([]uuid.UUID, len(children))
 	for i, child := range children {
@@ -637,22 +543,7 @@ func (r *Resolver) renderChildren(ctx context.Context, children []catalog.Produc
 	if err != nil {
 		return nil, fmt.Errorf("load child attribute selections: %w", err)
 	}
-	// Media + roles power per-variant galleries, and the active channel's listing drives effective-price resolution - without it every child rendered at its base default price, hiding listing overrides and specials
-	childMedia, err := r.CatalogSvc.ListProductMediaByProductIDs(ctx, childIDs)
-	if err != nil {
-		return nil, fmt.Errorf("load child media: %w", err)
-	}
-	childRoles, err := r.CatalogSvc.ListProductMediaRolesByProductIDs(ctx, childIDs)
-	if err != nil {
-		return nil, fmt.Errorf("load child media roles: %w", err)
-	}
-	sid := channelIDFromContext(ctx)
-	var childListings map[uuid.UUID][]catalog.ProductChannelListing
-	if sid != nil {
-		if childListings, err = r.CatalogSvc.ListProductChannelListingsByProductIDsForChannel(ctx, childIDs, *sid); err != nil {
-			return nil, fmt.Errorf("load child listings: %w", err)
-		}
-	}
+	loaders := dataloaders.For(ctx)
 	for i, child := range children {
 		childPT := childTypeCache[child.ProductTypeID]
 		if len(child.AttributeSelections) == 0 {
@@ -662,108 +553,73 @@ func (r *Resolver) renderChildren(ctx context.Context, children []catalog.Produc
 			cp := c
 			child.Content = &cp
 		}
-		if len(child.MediaRoles) == 0 {
-			child.MediaRoles = childRoles[child.ID]
-		}
-		mediaModels := make([]*model.ProductMedia, len(childMedia[child.ID]))
-		for j, m := range childMedia[child.ID] {
-			mediaModels[j] = toProductMediaModel(m)
-		}
-		var chListing *catalog.ProductChannelListing
-		if sid != nil {
-			rows := childListings[child.ID]
-			for j := range rows {
-				if rows[j].ChannelID == *sid {
-					chListing = &rows[j]
-					break
-				}
-			}
-		}
+		loaders.PrimeProductRow(ctx, child)
 		childAttrs := buildProductAttributeValues(childPT, child.Attributes, child.AttributeSelections, r.hydrateProductReferences(ctx, child.AttributeReferences))
 		r.stashPromotionAttrKVs(ctx, child.ID, childAttrs)
 		childAttrs = keepPublicAttributeValues(childAttrs, axisAttrs)
-		out[i] = toProductBaseModel(child, toProductTypeModel(childPT), childAttrs, []*model.Product{}, mediaModels, []*model.Attribute{}, nil, []*model.Collection{}, chListing)
+		if childAttrs == nil {
+			childAttrs = []*model.ProductAttributeValue{}
+		}
+		m := toProductBaseModel(child)
+		m.AttributeValues = childAttrs
+		m.ConfigurableOptions = []*model.Attribute{}
+		out[i] = m
 	}
 	return out, nil
 }
 
-// The pure mappers build bundle-selection and grouped-member stubs from denormalized row fields, which left price at the catalog default (listing overrides and specials invisible) and mainImage always empty
-// Batched to a handful of lookups regardless of part count, and fail-open per part - a lookup miss keeps the stub's defaults rather than dropping the row
-func (r *Resolver) enrichPartProducts(ctx context.Context, parts []*model.Product) {
-	if len(parts) == 0 {
-		return
-	}
-	ids := make([]uuid.UUID, 0, len(parts))
-	byID := make(map[uuid.UUID][]*model.Product, len(parts))
-	for _, p := range parts {
-		id, err := uuid.Parse(p.ID)
-		if err != nil {
-			continue
-		}
-		if len(byID[id]) == 0 {
-			ids = append(ids, id)
-		}
-		byID[id] = append(byID[id], p)
-	}
-	sid := channelIDFromContext(ctx)
-	var listings map[uuid.UUID][]catalog.ProductChannelListing
-	rowByID := make(map[uuid.UUID]catalog.Product, len(ids))
-	if sid != nil {
-		listings, _ = r.CatalogSvc.ListProductChannelListingsByProductIDsForChannel(ctx, ids, *sid)
-		// The full rows carry the product-level special-price fields the stubs lack, and the parts were already visibility-filtered so the channel gate inside is a no-op
-		if rows, err := r.CatalogSvc.ListProductsForChannelByIDs(ctx, ids, *sid, r.activeLocale(ctx)); err == nil {
-			for _, row := range rows {
-				rowByID[row.ID] = row
-			}
-		}
-	}
-	roles, _ := r.CatalogSvc.ListProductMediaRolesByProductIDs(ctx, ids)
-	media, _ := r.CatalogSvc.ListProductMediaByProductIDs(ctx, ids)
-	for id, models := range byID {
-		mediaModels := make([]*model.ProductMedia, len(media[id]))
-		for i, m := range media[id] {
-			mediaModels[i] = toProductMediaModel(m)
-		}
-		mainImage := resolveMediaRole(roles[id], catalog.MediaRoleMain, mediaModels)
-		if mainImage == nil && len(mediaModels) > 0 {
-			// Parts render a single thumbnail, so any image beats an empty box
-			mainImage = mediaModels[0]
-		}
-		var chListing *catalog.ProductChannelListing
-		if sid != nil {
-			ls := listings[id]
-			for i := range ls {
-				if ls[i].ChannelID == *sid {
-					chListing = &ls[i]
-					break
-				}
-			}
-		}
-		for _, m := range models {
-			m.Media = mediaModels
-			m.MainImage = mainImage
-			if row, ok := rowByID[id]; ok {
-				resolved := pricing.Resolve(catalog.EffectivePricingInputs(row, chListing), time.Now())
-				m.Price = int32(resolved.Price)
-				m.OnSale = resolved.OnSale
-				if resolved.CompareAt != nil {
-					v := int32(*resolved.CompareAt)
-					m.CompareAtPrice = &v
-				}
-			}
-		}
-	}
+// Drops selections unpublished on the active store in one batched query across all options - a REQUIRED option left with zero selections makes the bundle unsellable, so ErrProductNotFound, while optional ones may render empty
+func (r *Resolver) visibleBundleOptions(ctx context.Context, productID uuid.UUID) ([]catalog.BundleOption, error) {
+	locale := r.activeLocale(ctx)
+	c := getRenderCache(ctx)
+	key := productID.String() + ":" + locale
+	return renderMemo(c, "bundle:"+key,
+		func() ([]catalog.BundleOption, bool) {
+			c.mu.RLock()
+			defer c.mu.RUnlock()
+			o, ok := c.bundleOptions[key]
+			return o, ok
+		},
+		func() ([]catalog.BundleOption, error) { return r.loadVisibleBundleOptions(ctx, productID, locale) },
+		func(o []catalog.BundleOption) {
+			c.mu.Lock()
+			c.bundleOptions[key] = o
+			c.mu.Unlock()
+		})
 }
 
-// Drops selections unpublished on the active store in one batched query across all options - a REQUIRED option left with zero selections makes the bundle unsellable, so ErrProductNotFound, while optional ones may render empty
-func (r *Resolver) renderBundleOptions(ctx context.Context, productID uuid.UUID) ([]*model.BundleOption, error) {
+// Hidden selections included - the stock aggregate counts them all
+func (r *Resolver) rawBundleOptions(ctx context.Context, productID uuid.UUID, locale string) ([]catalog.BundleOption, error) {
+	c := getRenderCache(ctx)
+	key := productID.String() + ":" + locale
+	return renderMemo(c, "bundle-raw:"+key,
+		func() ([]catalog.BundleOption, bool) {
+			c.mu.RLock()
+			defer c.mu.RUnlock()
+			o, ok := c.rawBundleOptions[key]
+			return o, ok
+		},
+		func() ([]catalog.BundleOption, error) { return r.CatalogSvc.GetBundleOptions(ctx, productID, locale) },
+		func(o []catalog.BundleOption) {
+			c.mu.Lock()
+			c.rawBundleOptions[key] = o
+			c.mu.Unlock()
+		})
+}
+
+func (r *Resolver) loadVisibleBundleOptions(ctx context.Context, productID uuid.UUID, locale string) ([]catalog.BundleOption, error) {
 	storeID := channelIDFromContext(ctx)
 	if storeID == nil {
 		return nil, catalog.ErrProductNotFound
 	}
-	bundleOpts, err := r.CatalogSvc.GetBundleOptions(ctx, productID, r.activeLocale(ctx))
+	raw, err := r.rawBundleOptions(ctx, productID, locale)
 	if err != nil {
 		return nil, fmt.Errorf("load bundle options: %w", err)
+	}
+	bundleOpts := make([]catalog.BundleOption, len(raw)) // the filter below rewrites Selections, so copy off the memo
+	for i, o := range raw {
+		o.Selections = append([]catalog.BundleSelection(nil), o.Selections...)
+		bundleOpts[i] = o
 	}
 	{
 		ids := make([]uuid.UUID, 0)
@@ -789,37 +645,70 @@ func (r *Resolver) renderBundleOptions(ctx context.Context, productID uuid.UUID)
 			}
 		}
 	}
+	return bundleOpts, nil
+}
+
+func (r *Resolver) renderBundleOptions(ctx context.Context, productID uuid.UUID) ([]*model.BundleOption, error) {
+	bundleOpts, err := r.visibleBundleOptions(ctx, productID)
+	if err != nil {
+		return nil, err
+	}
 	out := toBundleOptionModels(bundleOpts)
-	parts := make([]*model.Product, 0)
-	for _, o := range out {
+	var partIDs []uuid.UUID
+	for _, o := range bundleOpts {
 		for _, s := range o.Selections {
-			parts = append(parts, s.Product)
+			partIDs = append(partIDs, s.ProductID)
 		}
 	}
-	r.enrichPartProducts(ctx, parts)
+	dataloaders.For(ctx).RegisterGroup(partIDs)
 	return out, nil
 }
 
 // Members unpublished on the active store are dropped, and losing all of them makes the grouped product unsellable, so ErrProductNotFound
+func (r *Resolver) visibleGroupedMembers(ctx context.Context, productID uuid.UUID) ([]catalog.GroupedMember, error) {
+	locale := r.activeLocale(ctx)
+	c := getRenderCache(ctx)
+	key := productID.String() + ":" + locale
+	return renderMemo(c, "grouped:"+key,
+		func() ([]catalog.GroupedMember, bool) {
+			c.mu.RLock()
+			defer c.mu.RUnlock()
+			m, ok := c.groupedMembers[key]
+			return m, ok
+		},
+		func() ([]catalog.GroupedMember, error) {
+			members, err := r.CatalogSvc.ListGroupedMembers(ctx, productID, locale)
+			if err != nil {
+				return nil, fmt.Errorf("load grouped members: %w", err)
+			}
+			hadMembers := len(members) > 0
+			members, err = keepVisibleByChannel(ctx, r, members, func(m catalog.GroupedMember) uuid.UUID { return m.MemberID })
+			if err != nil {
+				return nil, fmt.Errorf("filter grouped members: %w", err)
+			}
+			if hadMembers && len(members) == 0 {
+				return nil, catalog.ErrProductNotFound
+			}
+			return members, nil
+		},
+		func(m []catalog.GroupedMember) {
+			c.mu.Lock()
+			c.groupedMembers[key] = m
+			c.mu.Unlock()
+		})
+}
+
 func (r *Resolver) renderGroupedMembers(ctx context.Context, productID uuid.UUID) ([]*model.GroupedMember, error) {
-	members, err := r.CatalogSvc.ListGroupedMembers(ctx, productID, r.activeLocale(ctx))
+	members, err := r.visibleGroupedMembers(ctx, productID)
 	if err != nil {
-		return nil, fmt.Errorf("load grouped members: %w", err)
-	}
-	hadMembers := len(members) > 0
-	members, err = keepVisibleByChannel(ctx, r, members, func(m catalog.GroupedMember) uuid.UUID { return m.MemberID })
-	if err != nil {
-		return nil, fmt.Errorf("filter grouped members: %w", err)
-	}
-	if hadMembers && len(members) == 0 {
-		return nil, catalog.ErrProductNotFound
+		return nil, err
 	}
 	out := toGroupedMemberModels(members)
-	parts := make([]*model.Product, 0, len(out))
-	for _, m := range out {
-		parts = append(parts, m.Member)
+	partIDs := make([]uuid.UUID, 0, len(members))
+	for _, m := range members {
+		partIDs = append(partIDs, m.MemberID)
 	}
-	r.enrichPartProducts(ctx, parts)
+	dataloaders.For(ctx).RegisterGroup(partIDs)
 	return out, nil
 }
 
@@ -867,49 +756,6 @@ func toBundleOptionModels(opts []catalog.BundleOption) []*model.BundleOption {
 		}
 	}
 	return out
-}
-
-// Each row's effective price/currency resolves under the inheritance rule - a NULL listing.price takes the product default only if the currencies match
-func (r *Resolver) renderProductListings(ctx context.Context, p catalog.Product) ([]*model.ProductChannelListing, error) {
-	rows, err := r.getProductChannelListings(ctx, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	if len(rows) == 0 {
-		return []*model.ProductChannelListing{}, nil
-	}
-	out := make([]*model.ProductChannelListing, 0, len(rows))
-	for _, row := range rows {
-		sv, err := r.getChannel(ctx, row.ChannelID)
-		if err != nil {
-			return nil, err
-		}
-		var priceField *int32
-		if row.Price != nil {
-			v := int32(*row.Price)
-			priceField = &v
-		}
-		// Explicit listing price wins, otherwise inherit the product default when currencies match, else null
-		var effective *int32
-		effectiveCurrency := sv.CurrencyCode
-		if row.Price != nil || sv.CurrencyCode == p.DefaultCurrencyCode {
-			res := pricing.Resolve(catalog.EffectivePricingInputs(p, &row), time.Now())
-			v := int32(res.Price)
-			effective = &v
-		}
-		out = append(out, &model.ProductChannelListing{
-			Channel:           toChannelModel(sv),
-			Price:             priceField,
-			IsPublished:       row.IsPublished,
-			EffectivePrice:    effective,
-			EffectiveCurrency: effectiveCurrency,
-			CompareAtPrice:    int32PtrFrom64(row.CompareAtPrice),
-			SpecialPrice:      int32PtrFrom64(row.SpecialPrice),
-			SpecialFrom:       row.SpecialFrom,
-			SpecialTo:         row.SpecialTo,
-		})
-	}
-	return out, nil
 }
 
 // One entry per attribute assigned to the product type, scalar and selectable data merged into one uniform list
@@ -1141,32 +987,6 @@ func (r *Resolver) resolveSalableChannel(ctx context.Context, channelID *string)
 	return sv.ID, nil
 }
 
-// Flattens both the per-product categories map and the primary-category map so Products/Product can run one batched visibility check before applying the result back to each
-func collectCategoryIDs(byProduct map[uuid.UUID][]catalog.Category, primaryByProduct map[uuid.UUID]*catalog.Category) []uuid.UUID {
-	seen := make(map[uuid.UUID]struct{})
-	out := make([]uuid.UUID, 0)
-	for _, cats := range byProduct {
-		for _, c := range cats {
-			if _, ok := seen[c.ID]; ok {
-				continue
-			}
-			seen[c.ID] = struct{}{}
-			out = append(out, c.ID)
-		}
-	}
-	for _, primary := range primaryByProduct {
-		if primary == nil {
-			continue
-		}
-		if _, ok := seen[primary.ID]; ok {
-			continue
-		}
-		seen[primary.ID] = struct{}{}
-		out = append(out, primary.ID)
-	}
-	return out
-}
-
 // Empty or unknown values default to BEFORE, matching the dashboard's own fallback
 func facetH1PositionToGQL(s string) model1.BrowseFacetH1Position {
 	if catalog.H1Position(s) == catalog.H1PositionAfter {
@@ -1246,26 +1066,16 @@ func (r *Resolver) renderProductsByIDs(ctx context.Context, ids []uuid.UUID) []*
 		chID = *s
 	}
 	r.primeProductCards(ctx, keep, chID)
-	mediaByID, err := r.CatalogSvc.ListProductMediaByProductIDs(ctx, keep)
+	products, err := r.CatalogSvc.ListProductHeadersForChannelByIDs(ctx, keep, chID, r.activeLocale(ctx))
 	if err != nil {
-		mediaByID = nil // degrade to per-card media rather than dropping the rail
+		return []*model.Product{}
 	}
-	locale := r.activeLocale(ctx)
-	out := make([]*model.Product, 0, len(keep))
-	for _, id := range keep {
-		p, gerr := r.CatalogSvc.GetProduct(ctx, id, locale)
-		if gerr != nil {
-			continue
-		}
-		var (
-			m    *model.Product
-			rerr error
-		)
-		if mediaByID != nil {
-			m, rerr = r.renderProduct(ctx, p, mediaByID[id]) // batched media (nil = none)
-		} else {
-			m, rerr = r.renderProduct(ctx, p) // batch failed: fall back to per-card media
-		}
+	if err := r.primeChildVisibility(ctx, products); err != nil {
+		return []*model.Product{}
+	}
+	out := make([]*model.Product, 0, len(products))
+	for _, p := range products {
+		m, rerr := r.renderProduct(ctx, p)
 		if rerr != nil {
 			continue
 		}
@@ -1354,23 +1164,9 @@ func (r *Resolver) renderMemberProducts(ctx context.Context, products []catalog.
 		ids = append(ids, p.ID)
 	}
 	r.primeProductCards(ctx, ids, storeID)
-	mediaByID, err := r.CatalogSvc.ListProductMediaByProductIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	rolesByID, err := r.CatalogSvc.ListProductMediaRolesByProductIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
 	out := make([]*model.Product, len(kept))
 	for i, p := range kept {
-		p.MediaRoles = rolesByID[p.ID]
-		mediaItems := mediaByID[p.ID]
-		mediaList := make([]*model.ProductMedia, len(mediaItems))
-		for j, m := range mediaItems {
-			mediaList[j] = toProductMediaModel(m)
-		}
-		out[i] = toProductBaseModel(p, nil, nil, nil, mediaList, nil, nil, nil, nil)
+		out[i] = toProductBaseModel(p)
 	}
 	return out, nil
 }
