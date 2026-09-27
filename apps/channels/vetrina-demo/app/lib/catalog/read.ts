@@ -19,6 +19,7 @@ import {
   CartRecommendationsDocument,
 } from "@/app/lib/catalog/operations.gql";
 import { gqlFetch } from "@/app/lib/graphql";
+import { normalizeBrowseVars } from "@/app/lib/catalog/browse-vars";
 import { surfaceCacheOpts } from "@/app/lib/config/read";
 
 // Storefront cache surface for the PDP product fetch. Matches the backend
@@ -467,7 +468,7 @@ const browseProductsByKey = cache(
 export async function browseProducts(
   vars: BrowseProductsQueryVariables,
 ): Promise<BrowseProductsResponse> {
-  return browseProductsByKey(stableStringify(vars));
+  return browseProductsByKey(stableStringify(normalizeBrowseVars(vars)));
 }
 
 type BrowseProductsSlimResponse = { data: BrowseProductsSlimQuery["browseProducts"] };
@@ -493,7 +494,7 @@ const browseProductsSlimByKey = cache(
 export async function browseProductsSlim(
   vars: BrowseProductsQueryVariables,
 ): Promise<BrowseProductsSlimResponse> {
-  return browseProductsSlimByKey(stableStringify(vars));
+  return browseProductsSlimByKey(stableStringify(normalizeBrowseVars(vars)));
 }
 
 export type ProductSortOption = ProductSortOptionsQuery["productSortOptions"][number];
