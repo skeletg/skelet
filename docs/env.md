@@ -410,7 +410,7 @@ read at runtime too, so compose sets it on the container rather than the
 build. Besides GraphQL it carries the backend links the browser loads from the
 shop's own origin: `/media/t/*` thumbnails, `/download/*`, `/unsubscribe/*`,
 the `/e/*` email pixels and clicks, and the `/t/*` beacons. Left unset it
-falls back to `http://localhost:8080`, which only fits `npm run dev` on the
+falls back to `http://localhost:8080`, which only fits `pnpm run dev` on the
 host.
 
 A purge reaches one storefront process, since the page cache lives in it. Run

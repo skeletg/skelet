@@ -27,7 +27,7 @@ for: [docs/layout.md](docs/layout.md).
 
 ## 2. Commands
 
-**Use `./skelet`, not raw `docker compose` / `npm` / `go`.** It resolves the right
+**Use `./skelet`, not raw `docker compose` / `pnpm` / `go`.** It resolves the right
 container, the right database URL and the right node_modules. `./skelet` with no
 arguments lists every verb; `./skelet help <verb>` explains one. The `bin/` scripts
 underneath are the implementation: read one when you need the detail, but drive the
@@ -107,12 +107,12 @@ let sqlc generate the Go.
   tally: a skip count that isn't near zero means a database went missing, not that
   the tests are fine. One run at a time - a second `./skelet test` refuses while the
   first holds the databases
-- Dashboard: Vitest, `*.test.tsx` beside the component. `./skelet npm dashboard run test`
-- Storefront: Vitest. `./skelet npm <name> run test`
+- Dashboard: Vitest, `*.test.tsx` beside the component. `./skelet pnpm dashboard run test`
+- Storefront: Vitest. `./skelet pnpm <name> run test`
 - E2E money paths: `./skelet test e2e`, own databases, dropped and recreated each run (`--keep` to reuse), ~40 seconds
 
 **Dashboard typecheck trap:** `tsc --noEmit` on its own is a no-op here. Use
-`./skelet npm dashboard run typecheck:all`, or `npx tsc -p tsconfig.app.json --noEmit`.
+`./skelet pnpm dashboard run typecheck:all`, or `pnpm exec tsc -p tsconfig.app.json --noEmit`.
 
 ## 6. Formatting
 
@@ -177,8 +177,13 @@ codegen outright.
 ## 8. Environment traps
 
 - `rg <pattern> apps/backend` silently skips `cmd/server` - use `grep -r` for sweeps
-- New dashboard dependencies need `SKELET_FORCE_DOCKER=1 ./skelet npm dashboard install` plus a
+- New dashboard dependencies need `SKELET_FORCE_DOCKER=1 ./skelet pnpm dashboard install` plus a
   container restart; a host-only install crashes the container's vite
+- The frontends use pnpm, one project per app (`pnpm-workspace.yaml` beside each
+  `package.json` holds its settings - pnpm ignores `package.json`'s `pnpm` field). Three
+  differences from npm bite: an import of a package the app doesn't declare fails, `--` reaches
+  the script verbatim (`pnpm run dev --host`, not `-- --host`), and a version published less
+  than a day ago won't install (`minimumReleaseAge`)
 - `core.fileMode` is off here, so `chmod +x` on a `bin/` script needs
   `git update-index --chmod=+x <file>` to stick
 - Air's hot reload misses changes on WSL2 - `docker compose restart app`
