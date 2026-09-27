@@ -23,7 +23,7 @@ import { getCMSPage, getHomePage, type CMSPage } from "@/app/lib/cms/read";
 import { cmsPageMetadata } from "@/app/lib/seo-metadata";
 import { displayName } from "@/app/lib/display";
 import { PAGE_MARKER, splitSlug } from "@/app/lib/filter-path";
-import { renderJsonText } from "@/app/[channel]/[locale]/products/[id]/parts";
+import { renderJsonText } from "@/app/lib/json-text";
 import { setRequestLocale } from "next-intl/server";
 
 import { withLocalePrefix } from "@/app/lib/locale/path";

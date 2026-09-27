@@ -7,7 +7,7 @@ import { CmsSection } from "./Section";
 import { listBlogPosts } from "@/app/lib/blog/read";
 import { displayName } from "@/app/lib/display";
 import { formatDate } from "@/app/lib/format";
-import { renderJsonText } from "@/app/[channel]/[locale]/products/[id]/parts";
+import { renderJsonText } from "@/app/lib/json-text";
 
 export async function BlogGridBlock({ block }: { block: Block }) {
   const heading = readString(block.props, "heading");
