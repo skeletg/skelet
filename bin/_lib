@@ -62,6 +62,22 @@ host_tree() { # host_tree <app dir>
     fi
 }
 
+# Why pnpm can't run this app, or nothing when it can. Asked from inside the app, where pnpm
+# switches itself to packageManager's version - the switch is what breaks, so asking from the
+# root would pass on a pnpm the app can't run
+pnpm_problem() { # pnpm_problem <app dir>
+    local want have
+    want="$(grep -oE '"packageManager": *"pnpm@[0-9.]+' "$1/package.json" 2>/dev/null | sed 's/.*@//')"
+    if ! command -v pnpm >/dev/null 2>&1; then
+        echo "no pnpm on PATH - corepack enable, or npm install -g pnpm@${want:-<version>}"
+        return
+    fi
+    [ -n "$want" ] || return 0
+    have="$(cd "$1" && pnpm --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+$')" || true
+    [ "$have" = "$want" ] \
+        || echo "pnpm in $1 answers ${have:-nothing}, the app pins $want - pnpm self-update $want"
+}
+
 npm_tree_hint() { # npm_tree_hint <app dir>
     echo "$1/node_modules is an npm install from before the switch to pnpm - replace it:" >&2
     echo "    rm -rf $1/node_modules && (cd $1 && pnpm install)" >&2

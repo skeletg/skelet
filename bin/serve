@@ -44,8 +44,8 @@ if docker compose ps --services --status running 2>/dev/null | grep -qx "$app"; 
     exit 1
 fi
 
-command -v pnpm >/dev/null 2>&1 \
-    || { echo "No pnpm on PATH - corepack enable, or npm install -g pnpm" >&2; exit 1; }
+problem="$(pnpm_problem "$dir")"
+[ -z "$problem" ] || { echo "Can't serve $app: $problem" >&2; exit 1; }
 case "$(host_tree "$dir")" in
     none) echo "==> installing $app deps"; (cd "$dir" && pnpm install --frozen-lockfile) ;;
     npm)  npm_tree_hint "$dir"; exit 1 ;;
