@@ -292,3 +292,64 @@ func TestAStreamedPageCarriesLifetimeOrders(t *testing.T) {
 		t.Errorf("streamed buyer: %d orders, %d cents, last %v", n, cents, l)
 	}
 }
+
+// Only the two writes an erased customer could still arrive on - any other spine call hits the nil interface and fails the test
+type countingSpine struct {
+	analytics.SpineStore
+	appends, engagementReads int
+}
+
+func (c *countingSpine) AppendEvent(context.Context, analytics.SpineEvent) (bool, error) {
+	c.appends++
+	return true, nil
+}
+
+func (c *countingSpine) RecentEngagementEvents(context.Context, uuid.UUID, uuid.UUID, time.Time) ([]analytics.EngagementCandidate, error) {
+	c.engagementReads++
+	return nil, nil
+}
+
+func TestAnErasedCustomerNeverReachesTheSpineAgain(t *testing.T) {
+	conn := testdb.RequireSignals(t)
+	qs := signalsdb.New(conn)
+	spine := &countingSpine{}
+	cc := dial(t, Deps{ServiceSecret: testSecret, Analytics: analytics.NewRecorder(qs, spine), CustomerRoster: analytics.NewRoster(qs)})
+	c := signalsv1.NewIngestServiceClient(cc)
+	ctx := rosterCtx(t)
+	id, channelID := uuid.New(), uuid.New()
+	t.Cleanup(func() {
+		_, _ = conn.Exec(`DELETE FROM erased_customers WHERE customer_id = $1`, id)
+		_, _ = conn.Exec(`DELETE FROM gdpr_identity_erasures WHERE customer_id = $1`, id)
+	})
+	cust := id.String()
+	activity := func() {
+		t.Helper()
+		if _, err := c.RecordActivity(ctx, &signalsv1.RecordActivityRequest{EventName: "order_shipped", Source: "commerce", ChannelId: channelID.String(), CustomerId: &cust, DedupeKey: "act:" + uuid.NewString()}); err != nil {
+			t.Fatalf("record activity: %v", err)
+		}
+	}
+	conversion := func() {
+		t.Helper()
+		if _, err := c.RecordConversion(ctx, &signalsv1.RecordConversionRequest{CustomerId: cust, ChannelId: channelID.String(), OrderId: uuid.NewString(), RevenueCents: 100, Currency: "USD"}); err != nil {
+			t.Fatalf("record conversion: %v", err)
+		}
+	}
+
+	activity()
+	conversion()
+	if spine.appends != 1 || spine.engagementReads != 1 {
+		t.Fatalf("before the erasure: %d appends, %d attribution reads - want 1 and 1", spine.appends, spine.engagementReads)
+	}
+
+	if _, err := c.EraseCustomerIdentities(ctx, &signalsv1.EraseCustomerIdentitiesRequest{CustomerId: cust, ErasedAt: timestamppb.Now()}); err != nil {
+		t.Fatalf("erase: %v", err)
+	}
+	activity()
+	conversion()
+	if spine.appends != 1 {
+		t.Error("an order event that arrived after the erasure put the customer's id back on the spine")
+	}
+	if spine.engagementReads != 1 {
+		t.Error("a conversion for an erased customer went on to attribution")
+	}
+}

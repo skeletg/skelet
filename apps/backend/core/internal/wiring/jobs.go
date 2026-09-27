@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,6 +33,8 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/scheduler"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/roster"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
@@ -64,7 +65,7 @@ type jobDeps struct {
 	Chat          *chat.Service
 	AI            *ai.Service
 	Review        *review.Service
-	Flows         *FlowEnroller
+	Flows         *enroll.Enroller
 	Inventory     *inventory.Service
 	CacheQueue    *revalidate.Queue
 	Cart          *cart.Service
@@ -101,7 +102,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 	jobScheduler.SetPollInterval(15 * time.Second)
 	if d.SignalsClient != nil && bool(d.SignalsEnabled) {
 		d.Lc.Append(fx.Hook{OnStart: func(context.Context) error {
-			go resyncRosterIfBehind(bootCtx, d.SignalsClient, jobScheduler)
+			go roster.ResyncIfBehind(bootCtx, d.SignalsClient, jobScheduler)
 			return nil
 		}})
 	}
@@ -301,7 +302,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 	// Core owns channels, so core pushes them - the suite's beacon surface resolves every request against its copy
 	// Often, because a channel switched on or retired only takes effect on the next push
 	signalsJob("channel-roster-push", "@every 5m", "Push core's channels and whether each is active to Signals, which its beacon surface resolves every request against.",
-		func(ctx context.Context) error { return PushChannelRoster(ctx, d.Channel, d.Config, d.SignalsClient) })
+		func(ctx context.Context) error { return roster.PushChannels(ctx, d.Channel, d.Config, d.SignalsClient) })
 	// Core owns customers, so core pushes them - the suite sweeps what the stream did not carry, which is the cascade a foreign key cannot give it across two databases
 	signalsJob("customer-roster-push", "@every 6h", "Stream core's customer list to Signals, so its trait and membership cleanup can tell a deleted customer from an absent one.",
 		func(ctx context.Context) error {
@@ -394,56 +395,6 @@ func notifyPluginAsyncFailures(ctx context.Context, n *notification.Service) err
 		}))
 	}
 	return errors.Join(errs...)
-}
-
-// PushChannelRoster hands the suite every channel core has, flagged active or not - one left out reads as deleted there, and takes its Pulse content with it
-// The identity fields come from the config registry, so a message sent from the suite still looks like it came from the shop
-func PushChannelRoster(ctx context.Context, chans *channel.Service, cfg *config.Service, client *signalsclient.Client) error {
-	all, err := chans.List(ctx)
-	if err != nil {
-		return err
-	}
-	if len(all) == 0 {
-		return nil // a shop always has its default channel, so an empty read is a fault, and pushing it would wipe every channel's content
-	}
-	entries := make([]signalsclient.ChannelEntry, 0, len(all))
-	for _, ch := range all {
-		id := ch.ID
-		scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &id}
-		entry := signalsclient.ChannelEntry{ID: ch.ID, IsDefault: ch.IsDefault, IsActive: ch.IsActive, Name: ch.Name, PublicURL: ch.PublicURL}
-		if cfg != nil {
-			// general/branding/store_name is the customer-facing name a mail prints; channels.name is the
-			// operator's internal label ("US Wholesale B2B"), which is what the setting exists to keep out of one
-			if name, _ := cfg.GetString(ctx, "general/branding/store_name", scope); strings.TrimSpace(name) != "" {
-				entry.Name = strings.TrimSpace(name)
-			}
-			entry.FromAddress, _ = cfg.GetString(ctx, "general/contact/email_from_address", scope)
-			entry.FromName, _ = cfg.GetString(ctx, "general/contact/email_from_name", scope)
-			entry.LogoURL, _ = cfg.GetString(ctx, "general/branding/logo_url", scope)
-		}
-		entries = append(entries, entry)
-	}
-	if _, _, err := client.PushChannels(ctx, entries); err != nil {
-		return err
-	}
-	return nil
-}
-
-// A roster migration on the suite's side leaves every row short a column until a full sweep lands - asked once at boot, so a deploy fixes itself instead of waiting for the six-hourly job
-func resyncRosterIfBehind(ctx context.Context, client *signalsclient.Client, jobs *scheduler.Service) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	behind, err := client.RosterNeedsFullSync(ctx)
-	if err != nil {
-		log.Printf("[roster] status: %v", err)
-		return
-	}
-	if !behind {
-		return
-	}
-	if err := jobs.RunNowByName(ctx, "customer-roster-push"); err != nil {
-		log.Printf("[roster] full sync requested but could not be scheduled: %v", err)
-	}
 }
 
 func signalsJobTimeout(name string) time.Duration {

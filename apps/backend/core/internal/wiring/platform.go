@@ -198,8 +198,8 @@ func wirePlatform(d platformDeps) {
 	pluginhost.SetPermissionChecker(d.Admin)                   // backs sdk.RequirePermission, so a plugin gates its fields on a permission it declared
 	pluginhost.SetEventDedup(pluginEventDedupStore{d.Queries}) // backs sdk.SubscribeAsyncOnce - without it the verb degrades to plain at-least-once delivery
 
-	d.Config.SetCache(cache.New(d.Cache.Client, "config"))           // own namespace each, so a flush never reaches another cache - fail-open to Postgres
-	d.Config.SetSignalsRepo(NewSignalsSettingsRepo(d.SignalsClient)) // the suite holds its own settings, and core reaches them over the contract
+	d.Config.SetCache(cache.New(d.Cache.Client, "config"))                  // own namespace each, so a flush never reaches another cache - fail-open to Postgres
+	d.Config.SetSignalsRepo(signalsclient.NewSettingsRepo(d.SignalsClient)) // the suite holds its own settings, and core reaches them over the contract
 
 	if d.Cipher != nil {
 		d.Config.SetCipher(d.Cipher)

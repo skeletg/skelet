@@ -1568,6 +1568,7 @@ type Order struct {
 	PoNumber            sql.NullString  `json:"po_number"`
 	HeldFromStatus      string          `json:"held_from_status"`
 	ShippingTaxAmount   int64           `json:"shipping_tax_amount"`
+	AnonID              string          `json:"anon_id"`
 }
 
 type OrderEmailLog struct {

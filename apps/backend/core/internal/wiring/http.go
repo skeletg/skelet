@@ -368,6 +368,9 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	return RootHandler{rootHandler}
 }
 
+// The consent kind a marketing mail's unsubscribe link opts out of, as consent names it
+const marketingConsentKind = "marketing_email"
+
 func maxBody(n int64) func(http.Handler) http.Handler { // GraphQL's complexity limit bounds resolver work but not raw payload size; MaxBytesReader makes oversized POSTs fail fast with 413 semantics
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

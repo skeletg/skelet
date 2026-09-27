@@ -39,6 +39,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
@@ -220,7 +221,7 @@ func wireCatalogInventory(d catalogInventoryDeps) {
 
 type marketingDeps struct {
 	fx.In
-	Flows         *FlowEnroller
+	Flows         *enroll.Enroller
 	Customer      *customer.Service
 	Form          *form.Service
 	Consent       *consent.Service
