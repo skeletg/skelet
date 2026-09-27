@@ -306,6 +306,11 @@ type EmailTemplate struct {
 	Styles    json.RawMessage `json:"styles"`
 }
 
+type ErasedCustomer struct {
+	CustomerID uuid.UUID `json:"customer_id"`
+	ErasedAt   time.Time `json:"erased_at"`
+}
+
 type EventDestination struct {
 	ID              uuid.UUID     `json:"id"`
 	ChannelID       uuid.UUID     `json:"channel_id"`

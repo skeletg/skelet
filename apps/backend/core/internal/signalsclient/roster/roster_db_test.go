@@ -1,4 +1,4 @@
-package wiring
+package roster
 
 import (
 	"context"

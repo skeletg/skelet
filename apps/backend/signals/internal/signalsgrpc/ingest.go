@@ -41,6 +41,15 @@ func (s *ingestServer) RecordActivity(ctx context.Context, req *signalsv1.Record
 		return nil, invalidArgument("event_name is required")
 	}
 	var channel, customer = uuidOrNil(req.GetChannelId()), optionalUUID(req.CustomerId)
+	if customer != nil {
+		erased, err := s.roster.Erased(ctx, *customer)
+		if err != nil {
+			return nil, err
+		}
+		if erased {
+			return &signalsv1.RecordActivityResponse{}, nil // an erased customer's id stays off the spine, however late the write naming them arrives
+		}
+	}
 	spec := analytics.ActivitySpec{
 		EventName: req.GetEventName(), Source: req.GetSource(), ChannelID: channel,
 		CustomerID: customer, AnonID: req.GetAnonId(), At: req.GetAt().AsTime(),
@@ -64,6 +73,13 @@ func (s *ingestServer) RecordConversion(ctx context.Context, req *signalsv1.Reco
 	order, err := parseID("order_id", req.GetOrderId())
 	if err != nil {
 		return nil, err
+	}
+	erased, err := s.roster.Erased(ctx, cust)
+	if err != nil {
+		return nil, err
+	}
+	if erased {
+		return &signalsv1.RecordConversionResponse{}, nil // an erased customer's id stays off the spine, however late the write naming them arrives
 	}
 	ok, err := s.rec.RecordConversion(ctx, analytics.ConversionSpec{
 		CustomerID: cust, ChannelID: uuidOrNil(req.GetChannelId()), OrderID: order,

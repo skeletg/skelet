@@ -31,6 +31,7 @@ type Order struct {
 	TaxAmount         int64
 	ShippingTaxAmount int64 // the part of TaxAmount charged on shipping
 	TotalAmount       int64
+	AnonID            string // the visitor id it was placed under - a guest order's later events reach the profile its placement did
 	// TRANSIENT and never persisted - set on the placement response for a client-side 3DS step and consumed by the storefront immediately
 	PaymentActionKind   string // "", "redirect" or "challenge" - what the client must do with PaymentActionSecret
 	PaymentActionSecret string

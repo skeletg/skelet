@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/activity"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cacheinvalidate"
@@ -31,6 +30,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/scheduler"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/activity"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/roster"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
@@ -53,7 +55,7 @@ type subscriberDeps struct {
 	RevalidateQueue     *revalidate.Queue
 	URLRewrite          *urlrewrite.Service
 	Config              *config.Service
-	Flows               *FlowEnroller
+	Flows               *enroll.Enroller
 	OrderMail           *ordermail.Service
 	Notification        *notification.Service
 	Review              *review.Service
@@ -106,7 +108,7 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)
 	cacheinvalidate.Register(bus, d.RevalidateCli, d.RevalidateQueue, d.URLRewrite, d.Config)
-	registerFlowEnrollment(bus, d.Flows)
+	d.Flows.Subscribe(bus)
 	// Owns the order-lifecycle mail: asks the flow engine first, sends directly when no flow took it.
 	// Ahead of the conversion attribution below, which also listens on order.EventPlaced
 	d.OrderMail.Register(bus)
@@ -117,11 +119,11 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	if !d.Signals {
 		return // the Recorder no-ops anyway - skipping the subscribe also skips their per-event order lookups
 	}
-	var resync rosterResync
+	var resync roster.Resync
 	if d.Jobs != nil {
 		resync = d.Jobs
 	}
-	registerRosterPush(bus, d.Queries, d.SignalsClient, resync) // keeps the suite's copy current between the 6-hourly sweeps
+	roster.Register(bus, d.Queries, d.SignalsClient, resync) // keeps the suite's copy current between the 6-hourly sweeps
 	activity.RegisterConversionAttribution(bus, d.SignalsClient)
 	activity.NewTracker(d.SignalsClient, d.Order).Subscribe(bus) // every customer-facing action onto the analytics spine, so the profile timeline reflects the whole journey
 	d.BackInStock.Register(bus)                                  // on restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail

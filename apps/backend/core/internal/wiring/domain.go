@@ -28,6 +28,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -68,7 +69,7 @@ var Domain = fx.Module("domain",
 		newCartService,
 		newEventOutbox,
 
-		NewFlowEnroller,
+		enroll.New,
 		newOrderMailService,
 		newTransactionalSender,
 		newBackInStockService,
@@ -208,7 +209,7 @@ func newTransactionalSender(sender email.Sender, cfg *config.Service) *mailsend.
 
 // On restock, resolved customers enrol into the back_in_stock flow and guests get a direct mail
 func newBackInStockService(
-	q *db.Queries, inv *inventory.Service, cust *customer.Service, flows *FlowEnroller,
+	q *db.Queries, inv *inventory.Service, cust *customer.Service, flows *enroll.Enroller,
 	ch *channel.Service, cfg *config.Service, sender email.Sender, sc *signalsclient.Client, store *objstore.Storage,
 ) *backinstock.Service {
 	svc := backinstock.New(q, inv, cust, flows, ch, cfg, sender, sc)
