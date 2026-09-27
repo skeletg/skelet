@@ -53,6 +53,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/searchmerch"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
 	"github.com/skeletg/skelet/apps/backend/core/internal/sitecrawl"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
@@ -161,7 +162,7 @@ type Svcs struct {
 	Catalog   *catalog.Service
 	Outbox    *outbox.Outbox
 
-	Flows       *FlowEnroller
+	Flows       *enroll.Enroller
 	BackInStock *backinstock.Service
 
 	Scheduler  *scheduler.Service

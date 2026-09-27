@@ -57,7 +57,7 @@ type LoginFailed struct {
 func (*LoginFailed) Type() string                { return EventLoginFailed }
 func (e *LoginFailed) EventChannelID() uuid.UUID { return e.ChannelID }
 
-type Logout struct { // fires AFTER a session is revoked, one device or all sessions for the subject - async
+type Logout struct { // fires AFTER one session is revoked by its own logout - async; revoke-all publishes RefreshRevoked instead, so AllDevices stays false and is kept for the webhook payload
 	Subject    Subject
 	SubjectID  uuid.UUID
 	AllDevices bool

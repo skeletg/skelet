@@ -1,4 +1,4 @@
-package wiring
+package enroll
 
 import (
 	"context"
@@ -26,7 +26,7 @@ func (f enrollAnswer) Enroll(context.Context, *signalsv1.EnrollRequest) (*signal
 	return f.res, f.err
 }
 
-func enrollerAgainst(t *testing.T, fake enrollAnswer) *FlowEnroller {
+func enrollerAgainst(t *testing.T, fake enrollAnswer) *Enroller {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -41,7 +41,7 @@ func enrollerAgainst(t *testing.T, fake enrollAnswer) *FlowEnroller {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = c.Close() })
-	return NewFlowEnroller(c)
+	return New(c)
 }
 
 func TestAMomentSomeFlowTookIsNotSentAgainByCore(t *testing.T) {
