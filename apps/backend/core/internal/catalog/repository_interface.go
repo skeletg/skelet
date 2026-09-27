@@ -95,6 +95,7 @@ type Repository interface {
 	FacetCounts(ctx context.Context, params db.BrowseFacetCountsFallbackParams) ([]db.BrowseFacetCountsFallbackRow, error)
 	ProductTaxClassesBySKUs(ctx context.Context, skus []string) (map[string]string, error)
 	ProductCostsBySKUs(ctx context.Context, skus []string) (map[string]int64, error)
+	ProductDimensionsBySKUs(ctx context.Context, skus []string) (map[string]Dimensions, error)
 	RemoveProductChild(ctx context.Context, parentID, childID uuid.UUID) error
 	SetConfigurableOptions(ctx context.Context, productID uuid.UUID, options []AssignAttributeInput) error
 	SetProductTaxClass(ctx context.Context, id uuid.UUID, taxClass string) (Product, error)

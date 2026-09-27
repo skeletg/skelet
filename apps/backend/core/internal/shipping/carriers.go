@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -338,12 +339,44 @@ func (s *Service) withParcels(ctx context.Context, req RateRequest) RateRequest 
 	if req.Parcels != nil {
 		return req
 	}
+	req = s.withDimensions(ctx, req)
 	boxes, err := s.repo.ListActiveBoxesByChannel(ctx, req.ChannelID)
 	if err != nil {
 		log.Printf("[shipping] list boxes for cartonization: %v", err)
 		return req
 	}
 	req.Parcels = Pack(req.Items, boxes)
+	return req
+}
+
+// Callers only know SKUs and quantities, so weights come from the catalog here
+func (s *Service) withDimensions(ctx context.Context, req RateRequest) RateRequest {
+	if s.dims == nil {
+		return req
+	}
+	var skus []string
+	for _, it := range req.Items {
+		if it.WeightGrams == 0 && it.LengthMm == 0 && it.WidthMm == 0 && it.HeightMm == 0 {
+			skus = append(skus, it.SKU)
+		}
+	}
+	if len(skus) == 0 {
+		return req
+	}
+	dims, err := s.dims.DimensionsBySKUs(ctx, skus)
+	if err != nil {
+		log.Printf("[shipping] product dimensions for rating: %v", err)
+		return req
+	}
+	items := slices.Clone(req.Items)
+	for i, it := range items {
+		d, ok := dims[it.SKU]
+		if !ok || it.WeightGrams != 0 || it.LengthMm != 0 || it.WidthMm != 0 || it.HeightMm != 0 {
+			continue
+		}
+		items[i].WeightGrams, items[i].LengthMm, items[i].WidthMm, items[i].HeightMm = d.WeightGrams, d.LengthMm, d.WidthMm, d.HeightMm
+	}
+	req.Items = items
 	return req
 }
 
