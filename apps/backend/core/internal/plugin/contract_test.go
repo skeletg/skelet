@@ -118,7 +118,7 @@ func TestTheKillSwitchReadsTheEventsChannel(t *testing.T) {
 
 func TestASubscriptionMissingFromConsumesFailsBoot(t *testing.T) {
 	freshHost(t)
-	p := sdk.RegisterPlugin(sdk.Manifest{Slug: "forgetful", Version: "0.1.0", SDKRange: "^0.2.0", Emits: []string{"test.listed"}, Consumes: []string{"test.listed"}})
+	p := sdk.RegisterPlugin(sdk.Manifest{Slug: "forgetful", Version: "0.1.0", SDKRange: "^0.1.0", Emits: []string{"test.listed"}, Consumes: []string{"test.listed"}})
 	p.SubscribeAsync("test.listed", func(context.Context, json.RawMessage) error { return nil })
 	if err := ValidateManifests(); err != nil {
 		t.Fatalf("listed subscription: %v", err)
