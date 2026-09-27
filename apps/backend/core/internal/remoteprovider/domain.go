@@ -115,6 +115,7 @@ type Repository interface {
 	GetBySlug(ctx context.Context, kind Kind, slug string, channelID *uuid.UUID) (Provider, error)
 	List(ctx context.Context) ([]Provider, error)
 	ListActiveByKind(ctx context.Context, kind Kind, channelID *uuid.UUID) ([]Provider, error)
+	ListActiveForChannel(ctx context.Context, channelID *uuid.UUID) ([]Provider, error)
 	Update(ctx context.Context, input UpdateInput) (Provider, error)
 	SetActive(ctx context.Context, id uuid.UUID, active bool) (Provider, error)
 	UpdateSecret(ctx context.Context, id uuid.UUID, secret string) (Provider, error)
