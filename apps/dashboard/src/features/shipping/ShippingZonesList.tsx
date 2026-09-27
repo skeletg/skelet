@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Link, useMatch, useNavigate, useParams } from 'react-router-dom'
-import { gql } from '@apollo/client'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { MoreHorizontalIcon, PlusIcon } from 'lucide-react'
@@ -35,62 +34,9 @@ import {
 import { useConfigScope } from '@/lib/config-scope'
 import { ShippingZoneCreatePage, ShippingZoneEditPage } from './ShippingZoneForm'
 import { usePermissions } from '@/shared/auth/usePermissions'
+import { DeleteShippingZoneDocument, ShippingZonesDocument, type ShippingZonesQuery } from './Shipping.gql'
 
-const SHIPPING_ZONES_QUERY = gql`
-  query ShippingZones($channelId: ID!) {
-    shippingZones(channelId: $channelId) {
-      id
-      channelId
-      code
-      name
-      sortOrder
-      isActive
-      countries
-      methods {
-        id
-        code
-        name
-        calcType
-        flatCents
-        freeAboveCents
-        sortOrder
-        isActive
-      }
-    }
-  }
-`
-
-const DELETE_ZONE = gql`
-  mutation DeleteShippingZone($id: ID!) {
-    deleteShippingZone(id: $id)
-  }
-`
-
-export type CalcType = 'FLAT' | 'FREE' | 'FREE_ABOVE'
-
-export type ShippingMethod = {
-  id: string
-  code: string
-  name: string
-  calcType: CalcType
-  flatCents: number
-  freeAboveCents: number
-  sortOrder: number
-  isActive: boolean
-  countryMode?: string
-  allowedCountries?: string[]
-}
-
-export type ShippingZone = {
-  id: string
-  channelId: string
-  code: string
-  name: string
-  sortOrder: number
-  isActive: boolean
-  countries: string[]
-  methods: ShippingMethod[]
-}
+type ShippingZone = ShippingZonesQuery['shippingZones'][number]
 
 // Long country lists would blow out the column, so show the first few and count the rest
 function countriesPreview(countries: string[]): string {
@@ -115,10 +61,7 @@ export function ShippingZonesList() {
 
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
 
-  const { data, loading, error } = useQuery<
-    { shippingZones: ShippingZone[] },
-    { channelId: string }
-  >(SHIPPING_ZONES_QUERY, {
+  const { data, loading, error } = useQuery(ShippingZonesDocument, {
     variables: { channelId: effectiveChannelId ?? '' },
     skip: !effectiveChannelId,
   })
@@ -135,12 +78,9 @@ export function ShippingZonesList() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const refetchQueries = effectiveChannelId
-    ? [{ query: SHIPPING_ZONES_QUERY, variables: { channelId: effectiveChannelId } }]
+    ? [{ query: ShippingZonesDocument, variables: { channelId: effectiveChannelId } }]
     : []
-  const [deleteZone, { loading: deleting }] = useMutation<
-    { deleteShippingZone: boolean },
-    { id: string }
-  >(DELETE_ZONE, { refetchQueries })
+  const [deleteZone, { loading: deleting }] = useMutation(DeleteShippingZoneDocument, { refetchQueries })
 
   async function onConfirmDelete() {
     if (!confirmingDelete) return
