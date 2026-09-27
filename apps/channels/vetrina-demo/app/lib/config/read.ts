@@ -18,12 +18,17 @@ const ALLOW_GUEST_PATH = "sales/checkout/allow_guest";
 
 export type PlpPaginationStyle = "pagination" | "load_more" | "hybrid";
 
+// Live public config, fetched once per render - getters that tolerate staleness use the Data Cache fetch below
+const getLivePublicConfig = cache(async (): Promise<PublicConfigQuery> => {
+  const res = await gqlFetch(PublicConfigDocument, {});
+  return res.data as PublicConfigQuery;
+});
+
 // getPlpPaginationStyle picks the PLP pager UI - anything absent, unknown, or unreachable falls
 // back to classic numbered pagination, the pre-setting behaviour
 export const getPlpPaginationStyle = cache(async (): Promise<PlpPaginationStyle> => {
   try {
-    const res = await gqlFetch(PublicConfigDocument, {});
-    const data = res.data as PublicConfigQuery;
+    const data = await getLivePublicConfig();
     const row = data.publicConfig.find((c) => c.path === PLP_PAGINATION_STYLE_PATH);
     return row?.value === "load_more" || row?.value === "hybrid" ? row.value : "pagination";
   } catch {
@@ -36,8 +41,7 @@ export const getPlpPaginationStyle = cache(async (): Promise<PlpPaginationStyle>
 // fill the form rather than after. Absent or unreachable reads as allowed, matching the default
 export const getGuestCheckoutAllowed = cache(async (): Promise<boolean> => {
   try {
-    const res = await gqlFetch(PublicConfigDocument, {});
-    const data = res.data as PublicConfigQuery;
+    const data = await getLivePublicConfig();
     const row = data.publicConfig.find((c) => c.path === ALLOW_GUEST_PATH);
     return row?.value !== "false";
   } catch {
@@ -49,10 +53,7 @@ export const getGuestCheckoutAllowed = cache(async (): Promise<boolean> => {
 // absent, unparseable, or the backend is unreachable - the grid must still render
 export const getBrowsePageSize = cache(async (): Promise<number> => {
   try {
-    const res = await gqlFetch(PublicConfigDocument, {});
-    // res.data is `unknown` here - the generated typed-document-node generics don't
-    // resolve under this tsconfig (see any *.gql.ts)
-    const data = res.data as PublicConfigQuery;
+    const data = await getLivePublicConfig();
     const row = data.publicConfig.find((c) => c.path === BROWSE_PAGE_SIZE_PATH);
     const n = row ? Number.parseInt(row.value, 10) : Number.NaN;
     return Number.isFinite(n) && n > 0 ? n : DEFAULT_BROWSE_PAGE_SIZE;
