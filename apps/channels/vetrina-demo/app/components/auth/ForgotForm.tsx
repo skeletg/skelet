@@ -1,32 +1,30 @@
 "use client";
 
 import { Link } from "@/app/components/LocaleLink";
-import { useActionState } from "react";
 
 import {
   Field,
-  FormError,
+  FormErrors,
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
-import {
-  requestPasswordResetAction,
-  type AuthResult,
-} from "@/app/lib/auth/actions";
+import { requestPasswordResetAction } from "@/app/lib/auth/actions";
+import { forgotSchema } from "@/app/lib/auth/schemas";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
 
 export function ForgotForm({
   onSwitchView,
 }: {
   onSwitchView?: (view: "login") => void;
 } = {}) {
-  const [state, formAction, pending] = useActionState<
-    AuthResult | null,
-    FormData
-  >(requestPasswordResetAction, null);
+  const { form, fields, formAction, pending, lastResult } = useActionForm(
+    requestPasswordResetAction,
+    forgotSchema,
+  );
 
   // After the mutation succeeds we render a static success message in place of the form
   // - even if the email doesn't exist, the backend returns ok and we stay quiet about
   // it (anti-enumeration)
-  if (state?.ok) {
+  if (lastResult?.status === "success") {
     return (
       <div className="rounded-lg border border-border bg-muted p-4 text-sm">
         <p>
@@ -56,10 +54,22 @@ export function ForgotForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      <Field label="Email" name="email" type="email" required autoComplete="email" />
+    <form
+      id={form.id}
+      onSubmit={form.onSubmit}
+      action={formAction}
+      noValidate
+      className="flex flex-col gap-4"
+    >
+      <Field
+        label="Email"
+        field={fields.email}
+        type="email"
+        required
+        autoComplete="email"
+      />
 
-      {state && !state.ok && <FormError>{state.error}</FormError>}
+      <FormErrors errors={form.errors} />
 
       <button
         type="submit"

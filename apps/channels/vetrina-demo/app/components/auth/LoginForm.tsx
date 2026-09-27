@@ -1,14 +1,16 @@
 "use client";
 
 import { Link } from "@/app/components/LocaleLink";
-import { useActionState } from "react";
 
 import {
   Field,
-  FormError,
+  FormErrors,
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
-import { loginAction, type AuthResult } from "@/app/lib/auth/actions";
+import { loginAction } from "@/app/lib/auth/actions";
+import { loginSchema } from "@/app/lib/auth/schemas";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
+
 export function LoginForm({
   returnTo,
   onSwitchView,
@@ -16,31 +18,42 @@ export function LoginForm({
   returnTo?: string | null;
   onSwitchView?: (view: "register" | "forgot") => void;
 }) {
-  // useActionState is the React 19 / Next 16 form-state hook
-  const [state, formAction, pending] = useActionState<
-    AuthResult | null,
-    FormData
-  >(loginAction, null);
+  const { form, fields, formAction, pending } = useActionForm(
+    loginAction,
+    loginSchema,
+  );
 
   const registerHref = returnTo
     ? `/account/register?returnTo=${encodeURIComponent(returnTo)}`
     : "/account/register";
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form
+      id={form.id}
+      onSubmit={form.onSubmit}
+      action={formAction}
+      noValidate
+      className="flex flex-col gap-4"
+    >
       {returnTo ? (
         <input type="hidden" name="returnTo" value={returnTo} />
       ) : null}
-      <Field label="Email" name="email" type="email" required autoComplete="email" />
+      <Field
+        label="Email"
+        field={fields.email}
+        type="email"
+        required
+        autoComplete="email"
+      />
       <Field
         label="Password"
-        name="password"
+        field={fields.password}
         type="password"
         required
         autoComplete="current-password"
       />
 
-      {state && !state.ok && <FormError>{state.error}</FormError>}
+      <FormErrors errors={form.errors} />
 
       <button
         type="submit"

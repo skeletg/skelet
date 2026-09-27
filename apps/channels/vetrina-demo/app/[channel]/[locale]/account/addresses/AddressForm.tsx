@@ -1,18 +1,15 @@
 "use client";
 
 import { Link } from "@/app/components/LocaleLink";
-import { useActionState } from "react";
 
 import {
   Field,
-  FormError,
+  FormErrors,
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
-import {
-  addAddressAction,
-  updateAddressAction,
-  type AuthResult,
-} from "@/app/lib/auth/actions";
+import { addAddressAction, updateAddressAction } from "@/app/lib/auth/actions";
+import { addressSchema } from "@/app/lib/auth/schemas";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
 
 export type AddressInitial = {
   firstName?: string;
@@ -37,93 +34,102 @@ type Props = {
 
 export function AddressForm({ id, initial, submitLabel }: Props) {
   const action = id ? updateAddressAction : addAddressAction;
-  const [state, formAction, pending] = useActionState<
-    AuthResult | null,
-    FormData
-  >(action, null);
-
   const v = initial ?? {};
+  const { form, fields, formAction, pending } = useActionForm(
+    action,
+    addressSchema,
+    {
+      defaultValue: {
+        firstName: v.firstName,
+        lastName: v.lastName,
+        company: v.company ?? undefined,
+        street1: v.street1,
+        street2: v.street2 ?? undefined,
+        city: v.city,
+        state: v.state ?? undefined,
+        postalCode: v.postalCode,
+        countryCode: v.countryCode,
+        phone: v.phone ?? undefined,
+      },
+    },
+  );
 
   return (
-    <form action={formAction} className="flex flex-col gap-3">
+    <form
+      id={form.id}
+      onSubmit={form.onSubmit}
+      action={formAction}
+      noValidate
+      className="flex flex-col gap-3"
+    >
       {id && <input type="hidden" name="id" value={id} />}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
-          name="firstName"
+          field={fields.firstName}
           label="First name"
           required
-          defaultValue={v.firstName}
           autoComplete="given-name"
         />
         <Field
-          name="lastName"
+          field={fields.lastName}
           label="Last name"
           required
-          defaultValue={v.lastName}
           autoComplete="family-name"
         />
       </div>
       <Field
-        name="company"
+        field={fields.company}
         label="Company (optional)"
-        defaultValue={v.company ?? undefined}
         autoComplete="organization"
       />
       <Field
-        name="street1"
+        field={fields.street1}
         label="Street address"
         required
-        defaultValue={v.street1}
         autoComplete="address-line1"
       />
       <Field
-        name="street2"
+        field={fields.street2}
         label="Apartment, suite, etc. (optional)"
-        defaultValue={v.street2 ?? undefined}
         autoComplete="address-line2"
       />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
-          name="city"
+          field={fields.city}
           label="City"
           required
-          defaultValue={v.city}
           autoComplete="address-level2"
         />
         <Field
-          name="state"
+          field={fields.state}
           label="State / Region"
-          defaultValue={v.state ?? undefined}
           autoComplete="address-level1"
         />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
-          name="postalCode"
+          field={fields.postalCode}
           label="Postal code"
           required
-          defaultValue={v.postalCode}
           autoComplete="postal-code"
         />
         <Field
-          name="countryCode"
+          field={fields.countryCode}
           label="Country code (2-letter)"
           required
-          defaultValue={v.countryCode}
           autoComplete="country"
           maxLength={2}
         />
       </div>
       <Field
-        name="phone"
+        field={fields.phone}
         label="Phone (optional)"
         type="tel"
-        defaultValue={v.phone ?? undefined}
         autoComplete="tel"
       />
 
-      {state && !state.ok && <FormError>{state.error}</FormError>}
+      <FormErrors errors={form.errors} />
 
       <div className="mt-2 flex items-center gap-4">
         <button type="submit" disabled={pending} className={buttonPrimary}>

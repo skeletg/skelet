@@ -1,1 +1,20 @@
-{}
+{
+  "forms": {
+    "errors": {
+      "required": "This field is required.",
+      "email": "Enter a valid email address.",
+      "passwordMin": "Password must be at least 8 characters.",
+      "passwordMismatch": "Passwords do not match.",
+      "countryCode": "Country must be a 2-letter code (e.g. US, DE, RS).",
+      "signInFailed": "Sign in failed.",
+      "registrationFailed": "Registration failed.",
+      "resetLinkMissing": "Reset link is missing.",
+      "resetLinkInvalid": "Reset link is invalid or expired.",
+      "passwordChangeFailed": "Could not change password.",
+      "profileSaveFailed": "Could not save profile.",
+      "addressAddFailed": "Could not add address.",
+      "addressSaveFailed": "Could not save address.",
+      "addressIdMissing": "Missing address id."
+    }
+  }
+}
