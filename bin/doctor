@@ -166,7 +166,9 @@ if [ -n "$running" ] && ! grep -qiE '^[[:space:]]*SIGNALS_ENABLED[[:space:]]*=[[
 fi
 
 echo "==> ports (only meaningful when the stack should be up)"
-specs=(8080:backend 5173:dashboard 5432:postgres 9900:garage-s3 9901:garage-console 9902:garage-web 8025:mailpit)
+# bin/dev may have moved Postgres off 5432 through .env when something else held it
+db_port="$(grep -E '^DB_HOST_PORT=[0-9]+$' .env 2>/dev/null | tail -1 | cut -d= -f2)"
+specs=(8080:backend 5173:dashboard "${db_port:-5432}:postgres"9900:garage-s3 9901:garage-console 9902:garage-web 8025:mailpit)
 # A storefront's published port is its own business, so ask compose instead of
 # assuming the demo's 3000 - a fork with two shops gets both listed
 for d in apps/channels/*/; do

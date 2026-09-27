@@ -177,7 +177,7 @@ services:
     working_dir: /var/www/backend/signals
     command: go run ./cmd/signals
     ports:
-      - "127.0.0.1:8090:8090"
+      - "127.0.0.1:${SIGNALS_HOST_PORT:-8090}:8090"
       # The wire contract core calls - its own listener, since grpc needs one
       - "127.0.0.1:8092:8092"
     volumes:
@@ -346,7 +346,7 @@ services:
     env_file:
       - env/db.env
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${DB_HOST_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql
     healthcheck:
@@ -387,7 +387,7 @@ services:
       - POSTGRES_PASSWORD=skelet
       - POSTGRES_DB=skelet_signals
     ports:
-      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:${SIGNALS_DB_HOST_PORT:-5433}:5432"
     volumes:
       - signals-db-data:/var/lib/postgresql
     healthcheck:
@@ -427,8 +427,8 @@ services:
       - CLICKHOUSE_USER=skelet
       - CLICKHOUSE_PASSWORD=skelet
     ports:
-      - "127.0.0.1:8123:8123" # HTTP
-      - "127.0.0.1:9000:9000" # native protocol (clickhouse-go)
+      - "127.0.0.1:${CLICKHOUSE_HTTP_HOST_PORT:-8123}:8123" # HTTP
+      - "127.0.0.1:${CLICKHOUSE_HOST_PORT:-9000}:9000" # native protocol (clickhouse-go)
     volumes:
       - clickhouse-data:/var/lib/clickhouse
     ulimits:
@@ -451,7 +451,7 @@ services:
     image: nats:2.14-alpine
     command: ["-js", "-sd", "/data", "-m", "8222"]
     ports:
-      - "127.0.0.1:4222:4222"
+      - "127.0.0.1:${NATS_HOST_PORT:-4222}:4222"
     volumes:
       - nats-data:/data
     healthcheck:
@@ -483,7 +483,7 @@ services:
   valkey:
     image: valkey/valkey:9-alpine
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:${VALKEY_HOST_PORT:-6379}:6379"
     volumes:
       - valkey-data:/data
     healthcheck:
@@ -535,7 +535,7 @@ services:
     ports:
       - "9900:3900"   # S3 API (kept on host 9900, same port MinIO used)
       - "9902:3902"   # web endpoint - anonymous public reads (vhost-addressed)
-      - "127.0.0.1:9903:3903"   # admin API (health + metrics)
+      - "127.0.0.1:${GARAGE_ADMIN_HOST_PORT:-9903}:3903"   # admin API (health + metrics)
     volumes:
       - ./env/garage.toml:/etc/garage.toml:ro
       - garage-meta:/var/lib/garage/meta
@@ -567,7 +567,7 @@ services:
         soft: -1
         hard: -1
     ports:
-      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:${OPENSEARCH_HOST_PORT:-9200}:9200"
     volumes:
       - opensearch-data:/usr/share/opensearch/data
     healthcheck:
