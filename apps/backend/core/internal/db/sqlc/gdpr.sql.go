@@ -115,7 +115,8 @@ SET email               = 'redacted-' || customer_id::text || '@anonymized.inval
     shipping_first_name = 'Redacted', shipping_last_name = '',
     shipping_company    = '', shipping_street_1 = 'Redacted', shipping_street_2 = '',
     shipping_city       = 'Redacted', shipping_state = '', shipping_postal_code = '',
-    shipping_phone      = ''
+    shipping_phone      = '',
+    anon_id             = ''
 WHERE customer_id = $1
 `
 

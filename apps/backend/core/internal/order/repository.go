@@ -753,6 +753,7 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		ShippingMethodID:    sqlnull.UUID(o.ShippingMethodID),
 		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
 		ShippingMethodCode:  sqlnull.String(o.ShippingMethodCode),
+		AnonID:              o.AnonID,
 	})
 	if err != nil {
 		return Order{}, fmt.Errorf("create order: %w", err)
@@ -1165,6 +1166,7 @@ func toOrder(row db.Order) Order {
 		TaxAmount:         row.TaxAmount,
 		ShippingTaxAmount: row.ShippingTaxAmount,
 		TotalAmount:       row.TotalAmount,
+		AnonID:            row.AnonID,
 		GiftCardAmount:    row.GiftCardAmount,
 		StoreCreditAmount: row.StoreCreditAmount,
 		CurrencyCode:      row.CurrencyCode,
