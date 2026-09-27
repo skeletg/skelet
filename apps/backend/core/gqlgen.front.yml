@@ -97,6 +97,11 @@ models:
         resolver: true
       myVote:
         resolver: true
+  ConfigValue:
+    fields:
+      # Source-backed lists cost a query each, and the storefront reads path and value only
+      options:
+        resolver: true
   Product:
     fields:
       # partOf is a resolver (returns a cheap shell); forced here so the

@@ -15,6 +15,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
 // Request-scoped batch of pre-fetched rows - list resolvers fill it once up front so per-product field resolvers and renderProduct read maps instead of one round-trip per row; every helper is nil-safe and falls through to a single-row fetch on a miss
@@ -52,6 +53,7 @@ type renderCache struct {
 	localeValues       map[uuid.UUID][]catalog.ProductAttributeLocaleValue // by product_id, plain_text translations across ALL locales - callers filter
 	localeValuesPrimed map[uuid.UUID]struct{}                              // marks ids the batch loader has seen so "no translations" doesn't re-query per product
 
+	configSources   map[string][]config.Option
 	groupsPrimed    map[string]bool
 	attributeValues map[string][]*model.ProductAttributeValue
 	childVisibility map[uuid.UUID]childVisibility
@@ -156,6 +158,7 @@ func newRenderCache() *renderCache {
 		localeValues:       map[uuid.UUID][]catalog.ProductAttributeLocaleValue{},
 		localeValuesPrimed: map[uuid.UUID]struct{}{},
 		promoAttrKVs:       map[uuid.UUID]map[string]string{},
+		configSources:      map[string][]config.Option{},
 		groupsPrimed:       map[string]bool{},
 		attributeValues:    map[string][]*model.ProductAttributeValue{},
 		childVisibility:    map[uuid.UUID]childVisibility{},
