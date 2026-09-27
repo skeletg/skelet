@@ -263,7 +263,7 @@ services:
     profiles: ["dashboard"]
     # Same uid story as the app service
     user: "${SKELET_UID:-1000}:${SKELET_GID:-1000}"
-    # dev-serve restarts the dev server under it, so something has to reap what that leaves
+    # watchexec restarts the dev server under it, so something has to reap what that leaves
     init: true
     build:
       context: .
