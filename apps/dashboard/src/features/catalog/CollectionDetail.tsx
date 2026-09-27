@@ -42,8 +42,7 @@ import {
   CollectionDocument,
   CollectionProductPickerDocument,
   CollectionsDocument,
-  type CollectionDetail as CollectionRecord,
-  type CollectionProduct,
+  type CollectionQuery,
   ConfirmCollectionCoverUploadDocument,
   RemoveProductFromCollectionDocument,
   ReorderCollectionProductsDocument,
@@ -70,6 +69,9 @@ import {
   type FacetOverrideValue,
 } from './facet-overrides-draft'
 import { COLLECTION_LABELS, collectionChanges, collectionDiff, collectionSchema, toCollectionValues } from './schemas/collection'
+
+type CollectionRecord = NonNullable<CollectionQuery['collection']>
+type CollectionProduct = CollectionRecord['products'][number]
 
 type CollectionRefetch = Array<{ query: typeof CollectionDocument; variables: { id: string } }>
 
