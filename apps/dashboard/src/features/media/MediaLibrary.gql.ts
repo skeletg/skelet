@@ -1,362 +1,167 @@
-import { gql } from '@apollo/client'
+/** Internal type. DO NOT USE DIRECTLY. */
+type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
+/** Internal type. DO NOT USE DIRECTLY. */
+export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
+import type * as Types from '../../graphql/schema.types';
 
-export type MediaAssetStatus = 'PENDING' | 'READY'
-export type MediaMimeGroup = 'IMAGE' | 'DOCUMENT'
+import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/core';
+export type MediaAssetStatus =
+  | 'PENDING'
+  | 'READY';
 
-export type MediaAsset = {
-  __typename?: 'MediaAsset'
-  id: string
-  path: string
-  directoryPath: string
-  filename: string
-  url: string
-  mimeType: string
-  mimeGroup: MediaMimeGroup
-  sizeBytes: number
-  width?: number | null
-  height?: number | null
-  status: MediaAssetStatus
-  title: string
-  altText: string
-  caption: string
-  notes: string
-  focalX?: number | null
-  focalY?: number | null
-  createdAt: string
-  updatedAt: string
-}
-
-export type MediaDirectoryChild = {
-  __typename?: 'MediaDirectoryChild'
-  path: string
-  name: string
-}
-
-export type UntrackedMediaFile = {
-  __typename?: 'UntrackedMediaFile'
-  objectKey: string
-  url: string
-  filename: string
-  mimeType: string
-  sizeBytes: number
-  lastModified: string
-}
-
-export type MediaDirectoryQuery = {
-  mediaDirectory: {
-    __typename?: 'MediaDirectory'
-    path: string
-    name: string
-    directories: MediaDirectoryChild[]
-    assets: MediaAsset[]
-    untrackedFiles: UntrackedMediaFile[]
-  }
-}
-
-export type MediaDirectoryQueryVariables = {
-  path: string
-}
-
-export type SearchMediaAssetsQuery = {
-  searchMediaAssets: {
-    __typename?: 'MediaAssetSearchResult'
-    totalCount: number
-    items: MediaAsset[]
-  }
-}
-
-export type SearchMediaAssetsQueryVariables = {
-  query?: string | null
-  path?: string | null
-  mimeGroup?: MediaMimeGroup | null
-  limit?: number | null
-  offset?: number | null
-}
-
-export type MediaAssetByIdQuery = { mediaAsset: MediaAsset }
-export type MediaAssetByIdQueryVariables = { id: string }
+export type MediaMimeGroup =
+  | 'DOCUMENT'
+  | 'IMAGE';
 
 export type RequestMediaAssetUploadInput = {
-  path: string
-  filename: string
-  mimeType: string
-  sizeBytes: number
-  title?: string | null
-  altText?: string | null
-  caption?: string | null
-  notes?: string | null
-}
+  altText?: string | null | undefined;
+  caption?: string | null | undefined;
+  filename: string;
+  mimeType: string;
+  notes?: string | null | undefined;
+  path: string;
+  sizeBytes: number;
+  title?: string | null | undefined;
+};
 
-export type RequestMediaAssetUploadMutation = {
-  requestMediaAssetUpload: {
-    __typename?: 'RequestMediaAssetUploadPayload'
-    uploadUrl: string
-    expiresAt: string
-    asset: MediaAsset
-  }
-}
+export type UpdateMediaAssetInput = {
+  altText?: string | null | undefined;
+  caption?: string | null | undefined;
+  id: string | number;
+  notes?: string | null | undefined;
+  title?: string | null | undefined;
+};
 
-export type RequestMediaAssetUploadMutationVariables = {
-  input: RequestMediaAssetUploadInput
-}
+export type MediaAssetFieldsFragment = { id: string, path: string, directoryPath: string, filename: string, url: string, mimeType: string, mimeGroup: Types.MediaMimeGroup, sizeBytes: number, width: number | null, height: number | null, status: Types.MediaAssetStatus, title: string, altText: string, caption: string, notes: string, focalX: number | null, focalY: number | null, createdAt: string, updatedAt: string };
 
-export type ConfirmMediaAssetUploadMutation = {
-  confirmMediaAssetUpload: MediaAsset
-}
+export type MediaDirectoryQueryVariables = Exact<{
+  path: string;
+}>;
 
-export type ConfirmMediaAssetUploadMutationVariables = {
-  assetId: string
-  width?: number | null
-  height?: number | null
-}
 
-export type UpdateMediaAssetMutation = {
-  updateMediaAsset: MediaAsset
-}
+export type MediaDirectoryQuery = { mediaDirectory: { path: string, name: string, directories: Array<{ path: string, name: string }>, assets: Array<{ id: string, path: string, directoryPath: string, filename: string, url: string, mimeType: string, mimeGroup: Types.MediaMimeGroup, sizeBytes: number, width: number | null, height: number | null, status: Types.MediaAssetStatus, title: string, altText: string, caption: string, notes: string, focalX: number | null, focalY: number | null, createdAt: string, updatedAt: string }>, untrackedFiles: Array<{ objectKey: string, url: string, filename: string, mimeType: string, sizeBytes: number, lastModified: string }> } };
 
-export type SetMediaFocalPointMutation = {
-  setMediaFocalPoint: MediaAsset
-}
+export type SearchMediaAssetsQueryVariables = Exact<{
+  query?: string | null | undefined;
+  path?: string | null | undefined;
+  mimeGroup?: Types.MediaMimeGroup | null | undefined;
+  limit?: number | null | undefined;
+  offset?: number | null | undefined;
+}>;
 
-export type SetMediaFocalPointMutationVariables = {
-  assetId: string
-  x?: number | null
-  y?: number | null
-}
 
-export type UpdateMediaAssetMutationVariables = {
-  input: {
-    id: string
-    title?: string | null
-    altText?: string | null
-    caption?: string | null
-    notes?: string | null
-  }
-}
+export type SearchMediaAssetsQuery = { searchMediaAssets: { totalCount: number, items: Array<{ id: string, path: string, directoryPath: string, filename: string, url: string, mimeType: string, mimeGroup: Types.MediaMimeGroup, sizeBytes: number, width: number | null, height: number | null, status: Types.MediaAssetStatus, title: string, altText: string, caption: string, notes: string, focalX: number | null, focalY: number | null, createdAt: string, updatedAt: string }> } };
 
-export type MoveMediaAssetMutation = {
-  moveMediaAsset: MediaAsset
-}
+export type MediaAssetByIdQueryVariables = Exact<{
+  id: string | number;
+}>;
 
-export type MoveMediaAssetMutationVariables = {
-  id: string
-  targetPath: string
-  filename?: string | null
-}
 
-export type DeleteMediaAssetMutation = {
-  deleteMediaAsset: boolean
-}
+export type MediaAssetByIdQuery = { mediaAsset: { id: string, path: string, directoryPath: string, filename: string, url: string, mimeType: string, mimeGroup: Types.MediaMimeGroup, sizeBytes: number, width: number | null, height: number | null, status: Types.MediaAssetStatus, title: string, altText: string, caption: string, notes: string, focalX: number | null, focalY: number | null, createdAt: string, updatedAt: string } };
 
-export type DeleteMediaAssetMutationVariables = {
-  id: string
-  deleteFromStorage?: boolean | null
-}
+export type AllMediaDirectoriesQueryVariables = Exact<{ [key: string]: never; }>;
 
-export type CreateMediaDirectoryMutation = {
-  createMediaDirectory: MediaDirectoryChild
-}
 
-export type CreateMediaDirectoryMutationVariables = {
-  path: string
-  name: string
-}
+export type AllMediaDirectoriesQuery = { allMediaDirectories: Array<{ path: string, name: string }> };
 
-export type RenameMediaDirectoryMutation = {
-  renameMediaDirectory: MediaDirectoryChild
-}
+export type CreateMediaDirectoryMutationVariables = Exact<{
+  path: string;
+  name: string;
+}>;
 
-export type RenameMediaDirectoryMutationVariables = {
-  path: string
-  newName: string
-}
 
-export type DeleteMediaDirectoryMutation = {
-  deleteMediaDirectory: boolean
-}
+export type CreateMediaDirectoryMutation = { createMediaDirectory: { path: string, name: string } };
 
-export type DeleteMediaDirectoryMutationVariables = {
-  path: string
-  recursive: boolean
-}
+export type RequestMediaAssetUploadMutationVariables = Exact<{
+  input: Types.RequestMediaAssetUploadInput;
+}>;
 
-const MediaAssetFields = gql`
-  fragment MediaAssetFields on MediaAsset {
-    id
-    path
-    directoryPath
-    filename
-    url
-    mimeType
-    mimeGroup
-    sizeBytes
-    width
-    height
-    status
-    title
-    altText
-    caption
-    notes
-    focalX
-    focalY
-    createdAt
-    updatedAt
-  }
-`
 
-export const MediaDirectoryDocument = gql`
-  ${MediaAssetFields}
-  query MediaDirectory($path: String!) {
-    mediaDirectory(path: $path) {
-      path
-      name
-      directories {
-        path
-        name
-      }
-      assets {
-        ...MediaAssetFields
-      }
-      untrackedFiles {
-        objectKey
-        url
-        filename
-        mimeType
-        sizeBytes
-        lastModified
-      }
-    }
-  }
-`
+export type RequestMediaAssetUploadMutation = { requestMediaAssetUpload: { uploadUrl: string, expiresAt: string, asset: { id: string, path: string, directoryPath: string, filename: string, url: string, mimeType: string, mimeGroup: Types.MediaMimeGroup, sizeBytes: number, width: number | null, height: number | null, status: Types.MediaAssetStatus, title: string, altText: string, caption: string, notes: string, focalX: number | null, focalY: number | null, createdAt: string, updatedAt: string } } };
 
-export const SearchMediaAssetsDocument = gql`
-  ${MediaAssetFields}
-  query SearchMediaAssets($query: String, $path: String, $mimeGroup: MediaMimeGroup, $limit: Int, $offset: Int) {
-    searchMediaAssets(query: $query, path: $path, mimeGroup: $mimeGroup, limit: $limit, offset: $offset) {
-      totalCount
-      items {
-        ...MediaAssetFields
-      }
-    }
-  }
-`
+export type ConfirmMediaAssetUploadMutationVariables = Exact<{
+  assetId: string | number;
+  width?: number | null | undefined;
+  height?: number | null | undefined;
+}>;
 
-export type AllMediaDirectoriesQuery = {
-  allMediaDirectories: { path: string; name: string }[]
-}
 
-export const MediaAssetByIdDocument = gql`
-  ${MediaAssetFields}
-  query MediaAssetById($id: ID!) {
-    mediaAsset(id: $id) {
-      ...MediaAssetFields
-    }
-  }
-`
+export type ConfirmMediaAssetUploadMutation = { confirmMediaAssetUpload: { id: string, path: string, directoryPath: string, filename: string, url: string, mimeType: string, mimeGroup: Types.MediaMimeGroup, sizeBytes: number, width: number | null, height: number | null, status: Types.MediaAssetStatus, title: string, altText: string, caption: string, notes: string, focalX: number | null, focalY: number | null, createdAt: string, updatedAt: string } };
 
-export const AllMediaDirectoriesDocument = gql`
-  query AllMediaDirectories {
-    allMediaDirectories {
-      path
-      name
-    }
-  }
-`
+export type UpdateMediaAssetMutationVariables = Exact<{
+  input: Types.UpdateMediaAssetInput;
+}>;
 
-export const CreateMediaDirectoryDocument = gql`
-  mutation CreateMediaDirectory($path: String!, $name: String!) {
-    createMediaDirectory(path: $path, name: $name) {
-      path
-      name
-    }
-  }
-`
 
-export const RequestMediaAssetUploadDocument = gql`
-  ${MediaAssetFields}
-  mutation RequestMediaAssetUpload($input: RequestMediaAssetUploadInput!) {
-    requestMediaAssetUpload(input: $input) {
-      uploadUrl
-      expiresAt
-      asset {
-        ...MediaAssetFields
-      }
-    }
-  }
-`
+export type UpdateMediaAssetMutation = { updateMediaAsset: { id: string, path: string, directoryPath: string, filename: string, url: string, mimeType: string, mimeGroup: Types.MediaMimeGroup, sizeBytes: number, width: number | null, height: number | null, status: Types.MediaAssetStatus, title: string, altText: string, caption: string, notes: string, focalX: number | null, focalY: number | null, createdAt: string, updatedAt: string } };
 
-export const ConfirmMediaAssetUploadDocument = gql`
-  ${MediaAssetFields}
-  mutation ConfirmMediaAssetUpload($assetId: ID!, $width: Int, $height: Int) {
-    confirmMediaAssetUpload(assetId: $assetId, width: $width, height: $height) {
-      ...MediaAssetFields
-    }
-  }
-`
+export type SetMediaFocalPointMutationVariables = Exact<{
+  assetId: string | number;
+  x?: number | null | undefined;
+  y?: number | null | undefined;
+}>;
 
-export const UpdateMediaAssetDocument = gql`
-  ${MediaAssetFields}
-  mutation UpdateMediaAsset($input: UpdateMediaAssetInput!) {
-    updateMediaAsset(input: $input) {
-      ...MediaAssetFields
-    }
-  }
-`
 
-export const SetMediaFocalPointDocument = gql`
-  ${MediaAssetFields}
-  mutation SetMediaFocalPoint($assetId: ID!, $x: Float, $y: Float) {
-    setMediaFocalPoint(assetId: $assetId, x: $x, y: $y) {
-      ...MediaAssetFields
-    }
-  }
-`
+export type SetMediaFocalPointMutation = { setMediaFocalPoint: { id: string, path: string, directoryPath: string, filename: string, url: string, mimeType: string, mimeGroup: Types.MediaMimeGroup, sizeBytes: number, width: number | null, height: number | null, status: Types.MediaAssetStatus, title: string, altText: string, caption: string, notes: string, focalX: number | null, focalY: number | null, createdAt: string, updatedAt: string } };
 
-// AI assistant (hand-authored - media docs aren't codegen). Named MediaAiStatus
-// to avoid an operation-name collision with the CMS AiStatus query.
-export type MediaAiStatusQuery = { aiStatus: { __typename?: 'AIStatus'; enabled: boolean } }
-export const MediaAiStatusDocument = gql`
-  query MediaAiStatus {
-    aiStatus {
-      enabled
-    }
-  }
-`
+export type MediaAiStatusQueryVariables = Exact<{ [key: string]: never; }>;
 
-export type GenerateMediaAltTextMutation = { generateMediaAltText: string }
-export type GenerateMediaAltTextMutationVariables = { assetId: string }
-export const GenerateMediaAltTextDocument = gql`
-  mutation GenerateMediaAltText($assetId: ID!) {
-    generateMediaAltText(assetId: $assetId)
-  }
-`
 
-export const MoveMediaAssetDocument = gql`
-  ${MediaAssetFields}
-  mutation MoveMediaAsset($id: ID!, $targetPath: String!, $filename: String) {
-    moveMediaAsset(id: $id, targetPath: $targetPath, filename: $filename) {
-      ...MediaAssetFields
-    }
-  }
-`
+export type MediaAiStatusQuery = { aiStatus: { enabled: boolean } };
 
-export const DeleteMediaAssetDocument = gql`
-  mutation DeleteMediaAsset($id: ID!, $deleteFromStorage: Boolean) {
-    deleteMediaAsset(id: $id, deleteFromStorage: $deleteFromStorage)
-  }
-`
+export type GenerateMediaAltTextMutationVariables = Exact<{
+  assetId: string | number;
+}>;
 
-export const RenameMediaDirectoryDocument = gql`
-  mutation RenameMediaDirectory($path: String!, $newName: String!) {
-    renameMediaDirectory(path: $path, newName: $newName) {
-      path
-      name
-    }
-  }
-`
 
-export const DeleteMediaDirectoryDocument = gql`
-  mutation DeleteMediaDirectory($path: String!, $recursive: Boolean!) {
-    deleteMediaDirectory(path: $path, recursive: $recursive)
-  }
-`
+export type GenerateMediaAltTextMutation = { generateMediaAltText: string };
+
+export type MoveMediaAssetMutationVariables = Exact<{
+  id: string | number;
+  targetPath: string;
+  filename?: string | null | undefined;
+}>;
+
+
+export type MoveMediaAssetMutation = { moveMediaAsset: { id: string, path: string, directoryPath: string, filename: string, url: string, mimeType: string, mimeGroup: Types.MediaMimeGroup, sizeBytes: number, width: number | null, height: number | null, status: Types.MediaAssetStatus, title: string, altText: string, caption: string, notes: string, focalX: number | null, focalY: number | null, createdAt: string, updatedAt: string } };
+
+export type DeleteMediaAssetMutationVariables = Exact<{
+  id: string | number;
+  deleteFromStorage?: boolean | null | undefined;
+}>;
+
+
+export type DeleteMediaAssetMutation = { deleteMediaAsset: boolean };
+
+export type RenameMediaDirectoryMutationVariables = Exact<{
+  path: string;
+  newName: string;
+}>;
+
+
+export type RenameMediaDirectoryMutation = { renameMediaDirectory: { path: string, name: string } };
+
+export type DeleteMediaDirectoryMutationVariables = Exact<{
+  path: string;
+  recursive: boolean;
+}>;
+
+
+export type DeleteMediaDirectoryMutation = { deleteMediaDirectory: boolean };
+
+export const MediaAssetFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MediaAssetFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MediaAsset"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"directoryPath"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"mimeGroup"}},{"kind":"Field","name":{"kind":"Name","value":"sizeBytes"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"caption"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"focalX"}},{"kind":"Field","name":{"kind":"Name","value":"focalY"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<MediaAssetFieldsFragment, unknown>;
+export const MediaDirectoryDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"MediaDirectory"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"path"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mediaDirectory"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"path"},"value":{"kind":"Variable","name":{"kind":"Name","value":"path"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"directories"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"assets"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MediaAssetFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"untrackedFiles"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"objectKey"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"sizeBytes"}},{"kind":"Field","name":{"kind":"Name","value":"lastModified"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MediaAssetFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MediaAsset"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"directoryPath"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"mimeGroup"}},{"kind":"Field","name":{"kind":"Name","value":"sizeBytes"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"caption"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"focalX"}},{"kind":"Field","name":{"kind":"Name","value":"focalY"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<MediaDirectoryQuery, MediaDirectoryQueryVariables>;
+export const SearchMediaAssetsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"SearchMediaAssets"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"query"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"path"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"mimeGroup"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"MediaMimeGroup"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"limit"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"offset"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"searchMediaAssets"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"query"},"value":{"kind":"Variable","name":{"kind":"Name","value":"query"}}},{"kind":"Argument","name":{"kind":"Name","value":"path"},"value":{"kind":"Variable","name":{"kind":"Name","value":"path"}}},{"kind":"Argument","name":{"kind":"Name","value":"mimeGroup"},"value":{"kind":"Variable","name":{"kind":"Name","value":"mimeGroup"}}},{"kind":"Argument","name":{"kind":"Name","value":"limit"},"value":{"kind":"Variable","name":{"kind":"Name","value":"limit"}}},{"kind":"Argument","name":{"kind":"Name","value":"offset"},"value":{"kind":"Variable","name":{"kind":"Name","value":"offset"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"totalCount"}},{"kind":"Field","name":{"kind":"Name","value":"items"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MediaAssetFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MediaAssetFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MediaAsset"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"directoryPath"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"mimeGroup"}},{"kind":"Field","name":{"kind":"Name","value":"sizeBytes"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"caption"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"focalX"}},{"kind":"Field","name":{"kind":"Name","value":"focalY"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<SearchMediaAssetsQuery, SearchMediaAssetsQueryVariables>;
+export const MediaAssetByIdDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"MediaAssetById"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mediaAsset"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MediaAssetFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MediaAssetFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MediaAsset"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"directoryPath"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"mimeGroup"}},{"kind":"Field","name":{"kind":"Name","value":"sizeBytes"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"caption"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"focalX"}},{"kind":"Field","name":{"kind":"Name","value":"focalY"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<MediaAssetByIdQuery, MediaAssetByIdQueryVariables>;
+export const AllMediaDirectoriesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"AllMediaDirectories"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"allMediaDirectories"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}}]} as unknown as DocumentNode<AllMediaDirectoriesQuery, AllMediaDirectoriesQueryVariables>;
+export const CreateMediaDirectoryDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateMediaDirectory"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"path"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"name"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createMediaDirectory"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"path"},"value":{"kind":"Variable","name":{"kind":"Name","value":"path"}}},{"kind":"Argument","name":{"kind":"Name","value":"name"},"value":{"kind":"Variable","name":{"kind":"Name","value":"name"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}}]} as unknown as DocumentNode<CreateMediaDirectoryMutation, CreateMediaDirectoryMutationVariables>;
+export const RequestMediaAssetUploadDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RequestMediaAssetUpload"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"RequestMediaAssetUploadInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"requestMediaAssetUpload"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"uploadUrl"}},{"kind":"Field","name":{"kind":"Name","value":"expiresAt"}},{"kind":"Field","name":{"kind":"Name","value":"asset"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MediaAssetFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MediaAssetFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MediaAsset"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"directoryPath"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"mimeGroup"}},{"kind":"Field","name":{"kind":"Name","value":"sizeBytes"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"caption"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"focalX"}},{"kind":"Field","name":{"kind":"Name","value":"focalY"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<RequestMediaAssetUploadMutation, RequestMediaAssetUploadMutationVariables>;
+export const ConfirmMediaAssetUploadDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"ConfirmMediaAssetUpload"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"assetId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"width"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"height"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"confirmMediaAssetUpload"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"assetId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"assetId"}}},{"kind":"Argument","name":{"kind":"Name","value":"width"},"value":{"kind":"Variable","name":{"kind":"Name","value":"width"}}},{"kind":"Argument","name":{"kind":"Name","value":"height"},"value":{"kind":"Variable","name":{"kind":"Name","value":"height"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MediaAssetFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MediaAssetFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MediaAsset"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"directoryPath"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"mimeGroup"}},{"kind":"Field","name":{"kind":"Name","value":"sizeBytes"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"caption"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"focalX"}},{"kind":"Field","name":{"kind":"Name","value":"focalY"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<ConfirmMediaAssetUploadMutation, ConfirmMediaAssetUploadMutationVariables>;
+export const UpdateMediaAssetDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdateMediaAsset"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpdateMediaAssetInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"updateMediaAsset"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MediaAssetFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MediaAssetFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MediaAsset"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"directoryPath"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"mimeGroup"}},{"kind":"Field","name":{"kind":"Name","value":"sizeBytes"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"caption"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"focalX"}},{"kind":"Field","name":{"kind":"Name","value":"focalY"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<UpdateMediaAssetMutation, UpdateMediaAssetMutationVariables>;
+export const SetMediaFocalPointDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"SetMediaFocalPoint"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"assetId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"x"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Float"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"y"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Float"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"setMediaFocalPoint"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"assetId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"assetId"}}},{"kind":"Argument","name":{"kind":"Name","value":"x"},"value":{"kind":"Variable","name":{"kind":"Name","value":"x"}}},{"kind":"Argument","name":{"kind":"Name","value":"y"},"value":{"kind":"Variable","name":{"kind":"Name","value":"y"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MediaAssetFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MediaAssetFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MediaAsset"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"directoryPath"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"mimeGroup"}},{"kind":"Field","name":{"kind":"Name","value":"sizeBytes"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"caption"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"focalX"}},{"kind":"Field","name":{"kind":"Name","value":"focalY"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<SetMediaFocalPointMutation, SetMediaFocalPointMutationVariables>;
+export const MediaAiStatusDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"MediaAiStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"aiStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"enabled"}}]}}]}}]} as unknown as DocumentNode<MediaAiStatusQuery, MediaAiStatusQueryVariables>;
+export const GenerateMediaAltTextDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"GenerateMediaAltText"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"assetId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"generateMediaAltText"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"assetId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"assetId"}}}]}]}}]} as unknown as DocumentNode<GenerateMediaAltTextMutation, GenerateMediaAltTextMutationVariables>;
+export const MoveMediaAssetDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"MoveMediaAsset"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"targetPath"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"filename"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"moveMediaAsset"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}},{"kind":"Argument","name":{"kind":"Name","value":"targetPath"},"value":{"kind":"Variable","name":{"kind":"Name","value":"targetPath"}}},{"kind":"Argument","name":{"kind":"Name","value":"filename"},"value":{"kind":"Variable","name":{"kind":"Name","value":"filename"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MediaAssetFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MediaAssetFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"MediaAsset"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"directoryPath"}},{"kind":"Field","name":{"kind":"Name","value":"filename"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"mimeGroup"}},{"kind":"Field","name":{"kind":"Name","value":"sizeBytes"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"caption"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"focalX"}},{"kind":"Field","name":{"kind":"Name","value":"focalY"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<MoveMediaAssetMutation, MoveMediaAssetMutationVariables>;
+export const DeleteMediaAssetDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteMediaAsset"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"deleteFromStorage"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Boolean"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteMediaAsset"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}},{"kind":"Argument","name":{"kind":"Name","value":"deleteFromStorage"},"value":{"kind":"Variable","name":{"kind":"Name","value":"deleteFromStorage"}}}]}]}}]} as unknown as DocumentNode<DeleteMediaAssetMutation, DeleteMediaAssetMutationVariables>;
+export const RenameMediaDirectoryDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RenameMediaDirectory"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"path"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"newName"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"renameMediaDirectory"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"path"},"value":{"kind":"Variable","name":{"kind":"Name","value":"path"}}},{"kind":"Argument","name":{"kind":"Name","value":"newName"},"value":{"kind":"Variable","name":{"kind":"Name","value":"newName"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}}]} as unknown as DocumentNode<RenameMediaDirectoryMutation, RenameMediaDirectoryMutationVariables>;
+export const DeleteMediaDirectoryDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteMediaDirectory"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"path"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"recursive"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Boolean"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteMediaDirectory"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"path"},"value":{"kind":"Variable","name":{"kind":"Name","value":"path"}}},{"kind":"Argument","name":{"kind":"Name","value":"recursive"},"value":{"kind":"Variable","name":{"kind":"Name","value":"recursive"}}}]}]}}]} as unknown as DocumentNode<DeleteMediaDirectoryMutation, DeleteMediaDirectoryMutationVariables>;

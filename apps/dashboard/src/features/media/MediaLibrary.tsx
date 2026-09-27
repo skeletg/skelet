@@ -75,7 +75,7 @@ import {
   type GenerateMediaAltTextMutation,
   type GenerateMediaAltTextMutationVariables,
   type MediaAiStatusQuery,
-  type MediaAsset,
+  type MediaAssetFieldsFragment as MediaAsset,
   type MediaDirectoryQuery,
   type MediaDirectoryQueryVariables,
   type MoveMediaAssetMutation,
@@ -86,12 +86,13 @@ import {
   type RequestMediaAssetUploadMutationVariables,
   type SearchMediaAssetsQuery,
   type SearchMediaAssetsQueryVariables,
-  type UntrackedMediaFile,
   type SetMediaFocalPointMutation,
   type SetMediaFocalPointMutationVariables,
   type UpdateMediaAssetMutation,
   type UpdateMediaAssetMutationVariables,
 } from './MediaLibrary.gql'
+
+type UntrackedMediaFile = MediaDirectoryQuery['mediaDirectory']['untrackedFiles'][number]
 
 // Exactly what the backend accepts (internal/media/allowed.go plus the sanitized SVG route). The
 // old image/* let the picker offer formats the server then refused, so you found out after choosing
