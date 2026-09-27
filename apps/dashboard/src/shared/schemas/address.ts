@@ -4,18 +4,20 @@ import { z } from 'zod'
 // The required set mirrors the backend's validEditAddress (names, street, city, postal code and a
 // 2-letter country)
 
-export const addressSchema = z.object({
-  firstName: z.string(),
-  lastName: z.string(),
-  company: z.string(),
-  street1: z.string(),
-  street2: z.string(),
-  city: z.string(),
-  state: z.string(),
-  postalCode: z.string(),
-  countryCode: z.string(),
-  phone: z.string(),
-})
+export const addressSchema = z
+  .object({
+    firstName: z.string().describe("Recipient's first name - required"),
+    lastName: z.string().describe("Recipient's last name - required"),
+    company: z.string().describe('Company name - empty string for none'),
+    street1: z.string().describe('Street address - required'),
+    street2: z.string().describe('Apartment, suite or floor - empty string for none'),
+    city: z.string().describe('City - required'),
+    state: z.string().describe('State, province or region - empty string for none'),
+    postalCode: z.string().describe('Postal or ZIP code - required'),
+    countryCode: z.string().describe('Upper-case ISO 3166-1 alpha-2 country code, such as US - required'),
+    phone: z.string().describe('Phone number - empty string for none'),
+  })
+  .describe('A postal address')
 
 export type AddressValues = z.infer<typeof addressSchema>
 

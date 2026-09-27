@@ -14,13 +14,19 @@ export type ExistingReviewLabel = {
   sortOrder: number
 }
 
-export const reviewLabelSchema = z.object({
-  slug: z.string().trim().min(1, 'Slug is required'),
-  name: z.string().trim().min(1, 'Name is required'),
-  description: z.string(),
-  isActive: z.boolean(),
-  sortOrder: wholeNumber(),
-})
+export const reviewLabelSchema = z
+  .object({
+    slug: z
+      .string()
+      .trim()
+      .min(1, 'Slug is required')
+      .describe('Stable identifier reviews and the AI verdict key on - set on create, never changed'),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the label'),
+    description: z.string().describe('Instruction the AI classifier reads to decide when a review gets this label'),
+    isActive: z.boolean().describe('Whether the classifier can pick the label'),
+    sortOrder: wholeNumber().describe('Order in label lists - lower first'),
+  })
+  .describe('A review label - a category or moderation tag the AI classifier assigns to reviews')
 
 export type ReviewLabelValues = z.infer<typeof reviewLabelSchema>
 

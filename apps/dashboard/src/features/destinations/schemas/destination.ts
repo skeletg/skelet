@@ -21,14 +21,23 @@ export const EVENT_SOURCES = ['campaign', 'flow', 'transactional', 'web', 'syste
 export function destinationSchema(opts: { isEdit: boolean }) {
   return z
     .object({
-      name: z.string().trim().min(1, 'Name is required'),
-      kind: z.string(),
-      targetUrl: absoluteUrl(),
-      secret: z.string(),
-      eventSources: z.array(z.string()),
-      eventNames: z.string(),
-      isActive: z.boolean(),
+      name: z.string().trim().min(1, 'Name is required').describe('Display name of the destination'),
+      kind: z.string().describe('Where events are sent: webhook, ga4_mp (Google Analytics 4) or meta_capi (Meta Conversions API)'),
+      targetUrl: absoluteUrl().describe('Absolute URL events are delivered to'),
+      secret: z
+        .string()
+        .describe(
+          opts.isEdit
+            ? 'New HMAC signing secret for webhook deliveries - write-only, empty string keeps the stored one'
+            : 'HMAC signing secret for webhook deliveries, write-only - required for a webhook destination',
+        ),
+      eventSources: z
+        .array(z.string())
+        .describe(`Event sources to forward, from ${EVENT_SOURCES.join(', ')} - empty for every source`),
+      eventNames: z.string().describe('Comma-separated event names to forward - empty string for every event'),
+      isActive: z.boolean().describe('Whether events are being delivered'),
     })
+    .describe('An analytics destination that analytics events are forwarded to')
     .refine((v) => opts.isEdit || v.kind !== 'webhook' || v.secret.trim() !== '', {
       message: 'A new webhook destination needs a signing secret',
       path: ['secret'],

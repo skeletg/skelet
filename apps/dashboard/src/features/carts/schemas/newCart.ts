@@ -6,12 +6,21 @@ import { EMAIL_MESSAGE, isEmail } from '@/shared/schemas/fields'
 
 export const newCartSchema = z
   .object({
-    mode: z.enum(['existing', 'new', 'guest']),
-    customer: z.object({ id: z.string(), label: z.string() }).nullable(),
-    email: z.string(),
-    firstName: z.string(),
-    lastName: z.string(),
+    mode: z
+      .enum(['existing', 'new', 'guest'])
+      .describe('Who the cart is for: an existing customer, a customer created along with it, or a guest'),
+    customer: z
+      .object({
+        id: z.string().describe('ID of the customer'),
+        label: z.string().describe('Name or email the customer is shown by'),
+      })
+      .nullable()
+      .describe('The customer the cart belongs to - required in existing mode, null otherwise'),
+    email: z.string().describe('Email of the customer to create - required in new mode'),
+    firstName: z.string().describe('First name of the customer to create - required in new mode'),
+    lastName: z.string().describe('Last name of the customer to create - required in new mode'),
   })
+  .describe('A new cart, started by an admin on behalf of a shopper')
   .superRefine((v, ctx) => {
     if (v.mode === 'existing' && !v.customer) {
       ctx.addIssue({ code: 'custom', path: ['customer'], message: 'Pick a customer' })

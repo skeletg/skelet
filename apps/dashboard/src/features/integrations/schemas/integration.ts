@@ -17,15 +17,17 @@ export type ExistingIntegration = {
 
 export const integrationSchema = z
   .object({
-    name: z.string().trim().min(1, 'Name is required'),
-    description: z.string(),
-    permissionSlugs: z.array(z.string()),
-    // '' = a global token, else the one channel it's pinned to
-    channelId: z.string(),
-    hasExpiry: z.boolean(),
-    // datetime-local text, "2026-05-01T12:30" - local time, converted to ISO on the way out
-    expiresAt: z.string(),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the integration'),
+    description: z.string().describe('What the integration is for - empty string for none'),
+    permissionSlugs: z.array(z.string()).describe("Slugs of the permissions the integration's API token grants, such as products.view"),
+    channelId: z.string().describe('ID of the one channel the token is limited to - empty string for a global token'),
+    hasExpiry: z.boolean().describe('Whether the token expires'),
+    // Converted to ISO on the way out
+    expiresAt: z
+      .string()
+      .describe('When the token expires, as local time "YYYY-MM-DDTHH:mm" - required when hasExpiry is on'),
   })
+  .describe('An integration: a named API token with a set of permissions')
   .refine((v) => !v.hasExpiry || localInputToISO(v.expiresAt) !== null, {
     message: 'Pick when the token expires',
     path: ['expiresAt'],
@@ -75,13 +77,16 @@ export function toIntegrationUpdateInput(v: IntegrationValues, id: string) {
 // set on create and not edited here, so the update leaves it alone
 export const integrationDetailSchema = z
   .object({
-    isActive: z.boolean(),
-    name: z.string().trim().min(1, 'Name is required'),
-    description: z.string(),
-    hasExpiry: z.boolean(),
-    expiresAt: z.string(),
-    permissionSlugs: z.array(z.string()),
+    isActive: z.boolean().describe("Whether the integration's API token is accepted"),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the integration'),
+    description: z.string().describe('What the integration is for - empty string for none'),
+    hasExpiry: z.boolean().describe('Whether the token expires'),
+    expiresAt: z
+      .string()
+      .describe('When the token expires, as local time "YYYY-MM-DDTHH:mm" - required when hasExpiry is on'),
+    permissionSlugs: z.array(z.string()).describe('Slugs of the permissions the token grants, such as products.view'),
   })
+  .describe("An integration's profile, expiry, permissions and active flag")
   .refine((v) => !v.hasExpiry || localInputToISO(v.expiresAt) !== null, {
     message: 'Pick when the token expires',
     path: ['expiresAt'],

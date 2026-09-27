@@ -7,12 +7,14 @@ import type { BlogAuthorRowFragment } from '../Blog.gql'
 // Blog author form - THE field list (docs/conventions.md, "Record forms"). The bio is per locale;
 // slug, display name and email are the author's own
 
-export const authorSchema = z.object({
-  slug: z.string().trim().min(1, 'Slug is required'),
-  displayName: z.string().trim().min(1, 'Display name is required'),
-  email: optionalEmail(),
-  bio: z.string(),
-})
+export const authorSchema = z
+  .object({
+    slug: z.string().trim().min(1, 'Slug is required').describe("URL slug of the author's page"),
+    displayName: z.string().trim().min(1, 'Display name is required').describe('Name shown on the posts they wrote'),
+    email: optionalEmail().describe("The author's contact email, or an empty string for none"),
+    bio: z.string().describe("Plain-text bio in the edited locale - empty string for none"),
+  })
+  .describe('A blog author')
 
 export type AuthorValues = z.infer<typeof authorSchema>
 

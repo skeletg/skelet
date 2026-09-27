@@ -19,3 +19,4 @@ export function formatCountryList(codes?: readonly string[] | null): string {
 export const countryListText = z
   .string()
   .refine((text) => parseCountryList(text).every(isCountryCode), 'Use 2-letter ISO codes, comma-separated')
+  .describe('Comma-separated ISO 3166-1 alpha-2 country codes, such as "US, CA, MX"')

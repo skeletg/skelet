@@ -14,14 +14,18 @@ export type ExistingSegment = {
   rules: unknown
 }
 
-export const segmentSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  slug: z.string().trim().min(1, 'Slug is required'),
-  description: z.string(),
-  isActive: z.boolean(),
-  // Opaque to the form - the rules builder owns its shape (../rules)
-  rules: z.unknown(),
-})
+export const segmentSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the segment'),
+    slug: z.string().trim().min(1, 'Slug is required').describe('Stable identifier of the segment'),
+    description: z.string().describe('What the segment is for - empty string for none'),
+    isActive: z.boolean().describe('Whether the segment is active'),
+    // Opaque to the form - the rules builder owns its shape (../rules)
+    rules: z
+      .unknown()
+      .describe('Membership rules, as { logic: "and" | "or", conditions: [...] } - null for manual membership'),
+  })
+  .describe('A customer segment: a group of customers defined by rules or by hand')
 
 export type SegmentValues = z.infer<typeof segmentSchema>
 

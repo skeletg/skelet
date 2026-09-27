@@ -11,13 +11,14 @@ import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEdito
 
 // ---------- General: the locale's name, SKU, tax class and default price ----------
 
-export const productGeneralSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  sku: z.string(),
-  // Blank means the default class
-  taxClass: z.string(),
-  priceDollars: money(),
-})
+export const productGeneralSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Name is required').describe('Product name in the edited locale'),
+    sku: z.string().describe('Stock keeping unit'),
+    taxClass: z.string().describe('Tax class the product is taxed under, such as standard - empty string means the default class'),
+    priceDollars: money().describe('Default price in major currency units written as text, such as "12.50"'),
+  })
+  .describe("A product's name in the edited locale, SKU, tax class and default price")
 
 export type ProductGeneralValues = z.infer<typeof productGeneralSchema>
 
@@ -81,21 +82,29 @@ export function productGeneralDiff(currency: string) {
 const blankOrMoney = money({ optional: true })
 const blankOrCount = numberText({ optional: true, min: 0 })
 
+const moneyOrBlank = (what: string) =>
+  blankOrMoney.describe(`${what} in major currency units written as text, such as "12.50" - empty string when not set`)
+const countOrBlank = (what: string) => blankOrCount.describe(`${what}, written as text - empty string when not set`)
+
 export const productAdvancedSchema = z
   .object({
-    cost: blankOrMoney,
-    compareAt: blankOrMoney,
-    special: blankOrMoney,
-    // datetime-local text, local time
-    specialFrom: z.string(),
-    specialTo: z.string(),
-    weight: blankOrCount,
-    length: blankOrCount,
-    width: blankOrCount,
-    height: blankOrCount,
-    minQty: blankOrCount,
-    maxQty: blankOrCount,
+    cost: moneyOrBlank('What one unit costs the merchant'),
+    compareAt: moneyOrBlank('Original price shown struck through beside the price'),
+    special: moneyOrBlank('Sale price, applied between specialFrom and specialTo'),
+    specialFrom: z
+      .string()
+      .describe('When the sale price starts, as local time "YYYY-MM-DDTHH:mm" - empty string starts it at once'),
+    specialTo: z
+      .string()
+      .describe('When the sale price ends, as local time "YYYY-MM-DDTHH:mm", after specialFrom - empty string never ends it'),
+    weight: countOrBlank('Shipping weight in grams'),
+    length: countOrBlank('Package length in millimetres'),
+    width: countOrBlank('Package width in millimetres'),
+    height: countOrBlank('Package height in millimetres'),
+    minQty: countOrBlank('Fewest units allowed in one order'),
+    maxQty: countOrBlank('Most units allowed in one order, at least minQty'),
   })
+  .describe("A product's cost, sale pricing, package dimensions and order quantity limits")
   .superRefine((v, ctx) => {
     dateRangeIssues(v.specialFrom, v.specialTo, ['specialTo'], ctx)
     if (v.minQty.trim() && v.maxQty.trim() && Number(v.maxQty) > 0 && Number(v.minQty) > Number(v.maxQty)) {
@@ -196,32 +205,38 @@ export function productAdvancedDiff(original: ProductAdvancedValues, draft: Prod
 
 // ---------- Tier pricing: quantity breaks, for everyone or one customer group ----------
 
-const tierRow = z.object({
-  // '' = all groups
-  customerGroupId: z.string(),
-  minQty: z.string(),
-  price: z.string(),
-})
+const tierRow = z
+  .object({
+    customerGroupId: z.string().describe('ID of the customer group the tier applies to - empty string for every customer'),
+    minQty: z.string().describe('Quantity the tier starts at, above zero, written as text'),
+    price: z.string().describe('Unit price from that quantity on, in major currency units written as text, such as "9.50"'),
+  })
+  .describe('A quantity price break')
 
 export type ProductTierRow = z.infer<typeof tierRow>
 
 const tierKey = (r: ProductTierRow) => `${r.customerGroupId}:${Number(r.minQty)}`
 
 // The set is replaced whole on save, so a half-filled row is refused rather than dropped
-export const productTiersSchema = z.object({ tiers: z.array(tierRow) }).superRefine((v, ctx) => {
-  const seen = new Set<string>()
-  v.tiers.forEach((r, i) => {
-    if (!isNumberText(r.minQty, { above: 0 })) {
-      ctx.addIssue({ code: 'custom', path: ['tiers', i, 'minQty'], message: 'More than zero' })
-    } else if (seen.has(tierKey(r))) {
-      ctx.addIssue({ code: 'custom', path: ['tiers', i, 'minQty'], message: 'This group already has a tier at this quantity' })
-    }
-    seen.add(tierKey(r))
-    if (!isNumberText(r.price, { min: 0 })) {
-      ctx.addIssue({ code: 'custom', path: ['tiers', i, 'price'], message: 'Zero or more' })
-    }
+export const productTiersSchema = z
+  .object({
+    tiers: z.array(tierRow).describe('Every price break, replaced whole on save - one per customer group and quantity'),
   })
-})
+  .describe("A product's quantity price breaks")
+  .superRefine((v, ctx) => {
+    const seen = new Set<string>()
+    v.tiers.forEach((r, i) => {
+      if (!isNumberText(r.minQty, { above: 0 })) {
+        ctx.addIssue({ code: 'custom', path: ['tiers', i, 'minQty'], message: 'More than zero' })
+      } else if (seen.has(tierKey(r))) {
+        ctx.addIssue({ code: 'custom', path: ['tiers', i, 'minQty'], message: 'This group already has a tier at this quantity' })
+      }
+      seen.add(tierKey(r))
+      if (!isNumberText(r.price, { min: 0 })) {
+        ctx.addIssue({ code: 'custom', path: ['tiers', i, 'price'], message: 'Zero or more' })
+      }
+    })
+  })
 
 export type ProductTierValues = z.infer<typeof productTiersSchema>
 
@@ -258,11 +273,13 @@ export function productTiersDiff(groupName: (id: string) => string) {
 // ---------- Recommendations: the curated related, upsell and cross-sell links ----------
 
 // Each list is the curated display order - a reorder is a change
-export const productLinksSchema = z.object({
-  related: z.array(z.string()),
-  upsell: z.array(z.string()),
-  crossSell: z.array(z.string()),
-})
+export const productLinksSchema = z
+  .object({
+    related: z.array(z.string()).describe('IDs of related products, in display order'),
+    upsell: z.array(z.string()).describe('IDs of pricier alternatives to suggest instead, in display order'),
+    crossSell: z.array(z.string()).describe('IDs of complementary products to suggest alongside, in display order'),
+  })
+  .describe("A product's curated recommendations")
 
 export type ProductLinksValues = z.infer<typeof productLinksSchema>
 
@@ -292,12 +309,14 @@ export function productLinksDiff(name: (id: string) => string) {
 // ---------- Content: the locale's short and full descriptions ----------
 
 // Rich text travels as the editor's JSON, with its plain-text read beside it for the review dialog
-export const productContentSchema = z.object({
-  shortDescription: z.unknown(),
-  shortDescriptionText: z.string(),
-  descriptionRichText: z.unknown(),
-  descriptionText: z.string(),
-})
+export const productContentSchema = z
+  .object({
+    shortDescription: z.unknown().describe('Short description in the edited locale, as Lexical rich-text JSON, or null'),
+    shortDescriptionText: z.string().describe('Plain-text read of the short description'),
+    descriptionRichText: z.unknown().describe('Full description in the edited locale, as Lexical rich-text JSON, or null'),
+    descriptionText: z.string().describe('Plain-text read of the full description'),
+  })
+  .describe("A product's short and full descriptions in the edited locale")
 
 export type ProductContentValues = z.infer<typeof productContentSchema>
 
@@ -349,17 +368,22 @@ export function productContentDiff(original: ProductContentValues, draft: Produc
 
 // ---------- SEO: the URL, canonical and noindex on the product, the locale's meta copy ----------
 
-export const productSeoSchema = z.object({
-  // On, the URL comes from the template; off, `url` is the full path (blank = generate once from the name)
-  urlAuto: z.boolean(),
-  url: z.string(),
-  urlTemplateOverride: z.string(),
-  canonicalUrl: z.string(),
-  seoNoindex: z.boolean(),
-  metaTitle: z.string(),
-  metaDescription: z.string(),
-  metaKeywords: z.string(),
-})
+export const productSeoSchema = z
+  .object({
+    urlAuto: z.boolean().describe("Derive the URL path from the product type's template instead of setting url"),
+    url: z
+      .string()
+      .describe('Full URL path of the product, used only when urlAuto is off - empty string generates one once from the name'),
+    urlTemplateOverride: z
+      .string()
+      .describe("A URL path template such as {category}/{slug}, in place of the product type's - empty string for none"),
+    canonicalUrl: z.string().describe('Canonical URL for search engines - empty string for none'),
+    seoNoindex: z.boolean().describe('Ask search engines not to index the product page'),
+    metaTitle: z.string().describe('SEO title in the edited locale - empty string for none'),
+    metaDescription: z.string().describe('SEO description in the edited locale - empty string for none'),
+    metaKeywords: z.string().describe('SEO keywords in the edited locale - empty string for none'),
+  })
+  .describe("A product's URL, canonical and noindex settings, and its meta copy in the edited locale")
 
 export type ProductSeoValues = z.infer<typeof productSeoSchema>
 
@@ -435,10 +459,13 @@ export function productSeoDiff(original: ProductSeoValues, draft: ProductSeoValu
 
 // ---------- Per-store URLs: a store's own path for the product, blank inherits ----------
 
-export const productChannelUrlsSchema = z.object({
-  // channel id -> path
-  urls: z.record(z.string(), z.string()),
-})
+export const productChannelUrlsSchema = z
+  .object({
+    urls: z
+      .record(z.string(), z.string())
+      .describe("URL path per channel, keyed by channel ID - empty string inherits the product's own URL"),
+  })
+  .describe("A product's per-store URL overrides")
 
 export type ProductChannelUrlsValues = z.infer<typeof productChannelUrlsSchema>
 
@@ -467,25 +494,30 @@ export function productChannelUrlsDiff(channelName: (id: string) => string) {
 
 // ---------- Per-store pricing & publishing: each store's price and published flag ----------
 
-const storeListing = z.object({
-  channelId: z.string(),
-  isPublished: z.boolean(),
-  // Off, `price` is the store's own amount; on, the store takes the product's default
-  inheritPrice: z.boolean(),
-  price: z.string(),
-  // Staged "Clear" - the listing goes, back to inherited and unpublished
-  clear: z.boolean(),
-})
+const storeListing = z
+  .object({
+    channelId: z.string().describe('ID of the channel (store)'),
+    isPublished: z.boolean().describe('Whether the product is on sale in this store'),
+    inheritPrice: z.boolean().describe("Charge the product's default price here instead of price"),
+    price: z
+      .string()
+      .describe("This store's own price in major currency units written as text, such as \"12.50\" - used only when inheritPrice is off"),
+    clear: z.boolean().describe('Remove the listing, reverting the store to the default price and unpublished'),
+  })
+  .describe("A product's listing in one store")
 
 export type ProductStoreListing = z.infer<typeof storeListing>
 
-export const productListingsSchema = z.object({ stores: z.array(storeListing) }).superRefine((v, ctx) => {
-  v.stores.forEach((s, i) => {
-    if (!s.clear && !s.inheritPrice && !isNumberText(s.price, { min: 0 })) {
-      ctx.addIssue({ code: 'custom', path: ['stores', i, 'price'], message: 'Zero or more, or use the default' })
-    }
+export const productListingsSchema = z
+  .object({ stores: z.array(storeListing).describe('One listing per store') })
+  .describe("A product's price and published flag in each store")
+  .superRefine((v, ctx) => {
+    v.stores.forEach((s, i) => {
+      if (!s.clear && !s.inheritPrice && !isNumberText(s.price, { min: 0 })) {
+        ctx.addIssue({ code: 'custom', path: ['stores', i, 'price'], message: 'Zero or more, or use the default' })
+      }
+    })
   })
-})
 
 export type ProductListingsValues = z.infer<typeof productListingsSchema>
 
@@ -538,11 +570,14 @@ export function productListingsDiff(store: (id: string) => { name: string; curre
 
 // ---------- Variants: the variant mode and the configurable option attributes ----------
 
-export const productVariantsSchema = z.object({
-  mode: z.enum(['ATTRIBUTE', 'LIST']),
-  // Attribute ids - a set, only meaningful in ATTRIBUTE mode
-  options: z.array(z.string()),
-})
+export const productVariantsSchema = z
+  .object({
+    mode: z
+      .enum(['ATTRIBUTE', 'LIST'])
+      .describe('ATTRIBUTE builds variants from combinations of option attributes; LIST keeps a hand-made list of variants'),
+    options: z.array(z.string()).describe('IDs of the attributes variants vary by, as a set - used only in ATTRIBUTE mode'),
+  })
+  .describe("How a product's variants are defined")
 
 export type ProductVariantsValues = z.infer<typeof productVariantsSchema>
 
@@ -595,7 +630,12 @@ const keyedMetadata = metadataSchema.superRefine((rows, ctx) => {
   }
 })
 
-export const productMetadataSchema = z.object({ metadata: keyedMetadata, privateMetadata: keyedMetadata })
+export const productMetadataSchema = z
+  .object({
+    metadata: keyedMetadata.describe('Public key/value metadata, readable by the storefront'),
+    privateMetadata: keyedMetadata.describe('Private key/value metadata, visible to admins only'),
+  })
+  .describe("A product's public and private metadata")
 
 export type ProductMetadataValues = z.infer<typeof productMetadataSchema>
 
@@ -613,10 +653,12 @@ export function productMetadataDiff(original: ProductMetadataValues, draft: Prod
 
 export const productCategoriesSchema = z
   .object({
-    assigned: z.array(z.string()),
-    // '' = none - only when nothing is assigned
-    primaryId: z.string(),
+    assigned: z.array(z.string()).describe('IDs of the categories the product sits in'),
+    primaryId: z
+      .string()
+      .describe('ID of the primary category, one of assigned - empty string only when nothing is assigned'),
   })
+  .describe('The categories a product sits in, and its primary one')
   .superRefine((v, ctx) => {
     if (v.assigned.length > 0 && !v.assigned.includes(v.primaryId)) {
       ctx.addIssue({ code: 'custom', path: ['primaryId'], message: 'Star one of the assigned categories as primary' })

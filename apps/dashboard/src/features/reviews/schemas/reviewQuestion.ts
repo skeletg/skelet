@@ -12,22 +12,26 @@ import { changed } from '@/shared/saving/diff'
 export const INPUT_TYPES = ['RATING_1_5', 'YES_NO', 'FREE_TEXT'] as const satisfies readonly ReviewQuestionInputType[]
 
 const shape = {
-  slug: z.string(),
-  label: z.string(),
-  helpText: z.string(),
-  inputType: z.enum(INPUT_TYPES),
-  isRequired: z.boolean(),
-  allowComment: z.boolean(),
-  sortOrder: wholeNumber(),
+  slug: z.string().describe('Stable identifier of the question - set on create, never changed'),
+  label: z.string().describe('Question text in the default locale - set on create'),
+  helpText: z.string().describe('Hint shown under the question in the default locale - empty string for none'),
+  inputType: z
+    .enum(INPUT_TYPES)
+    .describe('How shoppers answer: RATING_1_5 stars, YES_NO, or FREE_TEXT - set on create, never changed'),
+  isRequired: z.boolean().describe('Shoppers must answer the question'),
+  allowComment: z.boolean().describe('Shoppers can add a comment to their answer'),
+  sortOrder: wholeNumber().describe('Order on the review form - lower first'),
 }
 
 // Create seeds the label and slug; edit never shows them, so it mustn't block on them
-export const createReviewQuestionSchema = z.object({
-  ...shape,
-  slug: z.string().trim().min(1, 'Slug is required'),
-  label: z.string().trim().min(1, 'Label is required'),
-})
-export const editReviewQuestionSchema = z.object(shape)
+export const createReviewQuestionSchema = z
+  .object({
+    ...shape,
+    slug: z.string().trim().min(1, 'Slug is required').describe('Stable identifier of the question - never changed'),
+    label: z.string().trim().min(1, 'Label is required').describe('Question text in the default locale'),
+  })
+  .describe('A new question on the product review form')
+export const editReviewQuestionSchema = z.object(shape).describe('Changes to a review question')
 
 export type ReviewQuestionValues = z.infer<typeof editReviewQuestionSchema>
 
@@ -64,19 +68,22 @@ export function toReviewQuestionUpdateInput(v: ReviewQuestionValues, id: string)
 // locales to fill in. A stored row keeps its label; a new row stays empty until given one
 const translationRow = z
   .object({
-    locale: z.string(),
-    label: z.string(),
-    helpText: z.string(),
-    // Stored already - a new row is only written once it has a label
-    exists: z.boolean(),
+    locale: z.string().describe('Locale code of the translation, such as en-US'),
+    label: z.string().describe('Question text in this locale - required once the row is stored or has help text'),
+    helpText: z.string().describe('Hint shown under the question in this locale - empty string for none'),
+    // A new row is only written once it has a label
+    exists: z.boolean().describe('The translation is already stored'),
   })
+  .describe("One locale's translation of a review question")
   .superRefine((row, ctx) => {
     if (row.label.trim() === '' && (row.exists || row.helpText.trim() !== '')) {
       ctx.addIssue({ code: 'custom', path: ['label'], message: 'Label is required' })
     }
   })
 
-export const questionTranslationsSchema = z.object({ rows: z.array(translationRow) })
+export const questionTranslationsSchema = z
+  .object({ rows: z.array(translationRow).describe('One row per locale') })
+  .describe("A review question's translations")
 
 export type QuestionTranslationsValues = z.infer<typeof questionTranslationsSchema>
 type TranslationRow = QuestionTranslationsValues['rows'][number]

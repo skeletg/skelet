@@ -9,21 +9,22 @@ import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEdito
 // flags, the edited locale's translation (name, description, SEO) and both metadata lists. The cover
 // image (a file) and the storefront filter order stage as their own sections; products write at once
 
-const collectionShape = z.object({
-  slug: contentSlug(),
-  isPublished: z.boolean(),
-  seoNoindex: z.boolean(),
-  name: z.string(),
-  // Opaque rich-text JSON to the form - its recursive type would blow up TanStack's deep field paths
-  description: z.unknown(),
-  // The editor's plain-text read of the description - blank means "no description"
-  descriptionText: z.string(),
-  metaTitle: z.string(),
-  metaDescription: z.string(),
-  metaKeywords: z.string(),
-  metadata: metadataSchema,
-  privateMetadata: metadataSchema,
-})
+const collectionShape = z
+  .object({
+    slug: contentSlug().describe('URL slug of the collection - lowercase letters, numbers, dots, underscores and hyphens'),
+    isPublished: z.boolean().describe('Whether the collection is visible on the storefront'),
+    seoNoindex: z.boolean().describe('Ask search engines not to index the collection page'),
+    name: z.string().describe("Name in the edited locale - required once any of that locale's content is set"),
+    // Opaque rich-text JSON to the form - its recursive type would blow up TanStack's deep field paths
+    description: z.unknown().describe('Description in the edited locale, as Lexical rich-text JSON, or null'),
+    descriptionText: z.string().describe('Plain-text read of the description - empty string means no description'),
+    metaTitle: z.string().describe('SEO title in the edited locale - empty string for none'),
+    metaDescription: z.string().describe('SEO description in the edited locale - empty string for none'),
+    metaKeywords: z.string().describe('SEO keywords in the edited locale - empty string for none'),
+    metadata: metadataSchema.describe('Public key/value metadata, readable by the storefront'),
+    privateMetadata: metadataSchema.describe('Private key/value metadata, visible to admins only'),
+  })
+  .describe("A product collection's settings, its content in the edited locale, and its metadata")
 
 export type CollectionValues = z.infer<typeof collectionShape>
 

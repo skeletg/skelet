@@ -8,20 +8,21 @@ import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEdito
 // own page: the tree position, flags, and the edited locale's copy. The banner image, per-channel
 // availability and storefront filters stage as their own sections; products write at once
 
-export const categorySchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  slug: contentSlug(),
-  // '' = a root category
-  parentId: z.string(),
-  position: wholeNumber(),
-  isPublished: z.boolean(),
-  seoNoindex: z.boolean(),
-  // Opaque rich-text JSON to the form - its recursive type would blow up TanStack's deep field paths
-  shortDescription: z.unknown(),
-  description: z.unknown(),
-  metaTitle: z.string(),
-  metaDescription: z.string(),
-})
+export const categorySchema = z
+  .object({
+    name: z.string().trim().min(1, 'Name is required').describe('Name in the edited locale'),
+    slug: contentSlug().describe('URL slug of the category - lowercase letters, numbers, dots, underscores and hyphens'),
+    parentId: z.string().describe('ID of the parent category - empty string for a root category'),
+    position: wholeNumber().describe('Order among its sibling categories - lower first'),
+    isPublished: z.boolean().describe('Whether the category is visible on the storefront'),
+    seoNoindex: z.boolean().describe('Ask search engines not to index the category page'),
+    // Opaque rich-text JSON to the form - its recursive type would blow up TanStack's deep field paths
+    shortDescription: z.unknown().describe('Short description in the edited locale, as Lexical rich-text JSON, or null'),
+    description: z.unknown().describe('Full description in the edited locale, as Lexical rich-text JSON, or null'),
+    metaTitle: z.string().describe('SEO title in the edited locale - empty string for none'),
+    metaDescription: z.string().describe('SEO description in the edited locale - empty string for none'),
+  })
+  .describe('A catalog category: its place in the tree, flags, and content in the edited locale')
 
 export type CategoryValues = z.infer<typeof categorySchema>
 

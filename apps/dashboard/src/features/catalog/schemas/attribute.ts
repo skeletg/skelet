@@ -44,25 +44,35 @@ export function isScalarInputType(t: AttributeInputType): boolean {
   return SCALAR_INPUT_TYPES.includes(t)
 }
 
-const baseSchema = z.object({
-  slug: z.string().trim().min(1, 'Slug is required'),
-  name: z.string().trim().min(1, 'Name is required'),
-  inputType: z.string(),
-  relationshipTarget: z.string(),
-  unit: z.string(),
-  valueRequired: z.boolean(),
-  filterable: z.boolean(),
-  searchable: z.boolean(),
-  isPublic: z.boolean(),
-  facetCollapsed: z.boolean(),
-  isIndexable: z.boolean(),
-  h1Position: z.enum(['BEFORE', 'AFTER']),
-  sortOrder: wholeNumber(),
-  // Create-only default - the toggle, then a raw text value or a boolean depending on the type
-  hasDefault: z.boolean(),
-  defaultRaw: z.string(),
-  defaultBool: z.boolean(),
-})
+const baseSchema = z
+  .object({
+    slug: z.string().trim().min(1, 'Slug is required').describe('Stable identifier of the attribute - set on create, never changed'),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the attribute'),
+    inputType: z
+      .string()
+      .describe(`How values are entered, one of ${INPUT_TYPE_OPTIONS.join(', ')} - set on create, never changed`),
+    relationshipTarget: z
+      .string()
+      .describe(`What a REFERENCE attribute's values point at, one of ${REFERENCE_TARGET_OPTIONS.join(', ')} - ignored for other types`),
+    unit: z.string().describe('Unit shown after values, such as cm or kg - empty string for none'),
+    valueRequired: z.boolean().describe('Products must provide a value for this attribute'),
+    filterable: z.boolean().describe('Show the attribute as a filter facet on the storefront'),
+    searchable: z.boolean().describe("Include the attribute's values in full-text product search"),
+    isPublic: z.boolean().describe('Display the attribute on the product detail page'),
+    facetCollapsed: z.boolean().describe('Start the filter facet collapsed rather than open - ignored unless filterable'),
+    isIndexable: z
+      .boolean()
+      .describe('Master SEO opt-in: a filter value is indexable only when this and the per-value flag are both on'),
+    h1Position: z
+      .enum(['BEFORE', 'AFTER'])
+      .describe('Where the value sits in the page H1 of an indexable filter URL: BEFORE "Olive / Apparel", AFTER "Apparel / Olive"'),
+    sortOrder: wholeNumber().describe('Facet order on the storefront - lower first'),
+    // Create-only default - the toggle, then a raw text value or a boolean depending on the type
+    hasDefault: z.boolean().describe('Give new products a default value - only settable on create for scalar input types'),
+    defaultRaw: z.string().describe('The default value as text, for PLAIN_TEXT, NUMERIC, DATE and DATE_TIME attributes'),
+    defaultBool: z.boolean().describe('The default value for BOOLEAN attributes'),
+  })
+  .describe('A catalog attribute: a named property products carry, such as colour or size')
 
 export type AttributeValues = z.infer<typeof baseSchema>
 

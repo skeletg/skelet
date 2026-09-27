@@ -17,22 +17,25 @@ export type ExistingBox = {
 }
 
 // Dimensions are typed into empty boxes on create, so they stay text until they're sent
-const millimetres = numberText({ int: true, min: 1 }, 'Whole millimetres, at least 1')
-// Blank means 0 - no limit for the load, nothing added for the carton
-const grams = numberText({ optional: true, int: true, min: 0 }, 'Whole grams')
+const millimetres = (what: string) =>
+  numberText({ int: true, min: 1 }, 'Whole millimetres, at least 1').describe(`${what} in whole millimetres, at least 1, written as text`)
+const grams = (what: string, blank: string) =>
+  numberText({ optional: true, int: true, min: 0 }, 'Whole grams').describe(`${what}, in whole grams written as text - empty string or 0 ${blank}`)
 
-export const boxSchema = z.object({
-  // The upsert key - fixed after creation
-  code: z.string().trim().min(1, 'Code is required'),
-  name: z.string(),
-  length: millimetres,
-  width: millimetres,
-  height: millimetres,
-  maxWeight: grams,
-  boxWeight: grams,
-  sortOrder: wholeNumber(),
-  isActive: z.boolean(),
-})
+export const boxSchema = z
+  .object({
+    // The upsert key
+    code: z.string().trim().min(1, 'Code is required').describe('Stable identifier of the box - set on create, never changed'),
+    name: z.string().describe('Display name of the box - empty string for none'),
+    length: millimetres('Inner length'),
+    width: millimetres('Inner width'),
+    height: millimetres('Inner height'),
+    maxWeight: grams('Heaviest load the box takes', 'for no limit'),
+    boxWeight: grams("The empty carton's own weight, added to the shipment weight", 'for none'),
+    sortOrder: wholeNumber().describe('Order the packer tries boxes in - lower first'),
+    isActive: z.boolean().describe('Whether the packer can use the box'),
+  })
+  .describe('A shipping box: a real carton the packer fits order lines into')
 
 export type BoxValues = z.infer<typeof boxSchema>
 

@@ -8,10 +8,16 @@ import { addressChanged, addressIssues, addressSchema, toAddressInput, type Addr
 export type OrderAddressValues = { shipping: AddressValues; billing: AddressValues }
 
 export function orderAddressSchema(stored: OrderAddressValues) {
-  return z.object({ shipping: addressSchema, billing: addressSchema }).superRefine((v, ctx) => {
-    if (addressChanged(v.shipping, stored.shipping)) addressIssues(v.shipping, ['shipping'], ctx)
-    if (addressChanged(v.billing, stored.billing)) addressIssues(v.billing, ['billing'], ctx)
-  })
+  return z
+    .object({
+      shipping: addressSchema.describe('Shipping address - a change recomputes tax and re-quotes shipping'),
+      billing: addressSchema.describe('Billing address'),
+    })
+    .describe("A placed order's shipping and billing addresses, before fulfilment")
+    .superRefine((v, ctx) => {
+      if (addressChanged(v.shipping, stored.shipping)) addressIssues(v.shipping, ['shipping'], ctx)
+      if (addressChanged(v.billing, stored.billing)) addressIssues(v.billing, ['billing'], ctx)
+    })
 }
 
 export function toOrderAddressInput(v: OrderAddressValues, stored: OrderAddressValues, orderId: string) {

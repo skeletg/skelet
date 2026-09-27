@@ -7,11 +7,13 @@ import { added, fieldDiff, removed } from '@/shared/saving/diff'
 // Menu page - THE field list (docs/conventions.md, "Record forms"): the menu's slug, name and the
 // channels serving it. Items are rows with their own dialog (below), not fields of the page
 
-export const menuSchema = z.object({
-  slug: handleSlug(),
-  name: z.string().trim().min(1, 'Name is required'),
-  channelIds: z.array(z.string()),
-})
+export const menuSchema = z
+  .object({
+    slug: handleSlug().describe('Handle the storefront fetches the menu by - lowercase letters, numbers, underscores and hyphens'),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the menu'),
+    channelIds: z.array(z.string()).describe('IDs of the channels serving the menu'),
+  })
+  .describe('A navigation menu')
 
 export type MenuValues = z.infer<typeof menuSchema>
 
@@ -61,15 +63,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const menuItemSchema = z
   .object({
-    label: z.string().trim().min(1, 'Label is required'),
-    kind: z.string(),
-    url: z.string(),
-    targetId: z.string(),
-    // '' = top level
-    parentId: z.string(),
-    // Locale -> translated label; an emptied row is removed on save
-    translations: z.record(z.string(), z.string()),
+    label: z.string().trim().min(1, 'Label is required').describe('Label shown in the menu'),
+    kind: z.string().describe(`What the item links to, one of ${TARGET_KINDS.map((k) => k.value).join(', ')}`),
+    url: z.string().describe('Link URL - required when kind is URL, ignored otherwise'),
+    targetId: z.string().describe('UUID of the linked record - required for every kind but URL'),
+    parentId: z.string().describe('ID of the parent item - empty string for a top-level item'),
+    translations: z
+      .record(z.string(), z.string())
+      .describe('Translated labels keyed by locale code - an empty label removes that translation'),
   })
+  .describe('A navigation menu item')
   .superRefine((v, ctx) => {
     if (v.kind === 'URL') {
       if (!v.url.trim()) ctx.addIssue({ code: 'custom', path: ['url'], message: 'URL is required' })

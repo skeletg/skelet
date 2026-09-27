@@ -10,47 +10,60 @@ import { changed, fieldDiff } from '@/shared/saving/diff'
 
 export type StopMode = 'NONE' | 'SAME_ACTION_TYPE' | 'ALL'
 
-const subrow = z.object({
-  type: z.string().min(1, 'Pick a type, or remove the row'),
-  params: z.unknown(),
-  paramsVersion: z.number().optional(),
-  sortOrder: z.number().optional(),
-})
+const subrow = z
+  .object({
+    type: z.string().min(1, 'Pick a type, or remove the row').describe('Condition or action type, from the types the backend offers'),
+    params: z.unknown().describe("The type's parameters, shaped by that type's schema"),
+    paramsVersion: z.number().optional().describe('Version of the params shape'),
+    sortOrder: z.number().optional().describe('Position among the rows'),
+  })
+  .describe('One condition or action of a promotion rule')
 
 export type RuleRow = z.infer<typeof subrow>
 
-// Blank means "no limit"
-const optionalCount = numberText({ optional: true, int: true, min: 1 })
+const optionalCount = (what: string) =>
+  numberText({ optional: true, int: true, min: 1 }).describe(`${what}, a whole number written as text - empty string for no limit`)
 const HEX = /^#[0-9a-f]{6}$/i
 
 export const ruleSchema = z
   .object({
-    name: z.string().trim().min(1, 'Name is required'),
-    slug: z.string().trim().min(1, 'Slug is required'),
-    description: z.string(),
-    publicLabel: z.string(),
-    requiresCode: z.boolean(),
-    isActive: z.boolean(),
-    priority: wholeNumber(),
-    stopAfterApply: z.enum(['NONE', 'SAME_ACTION_TYPE', 'ALL']),
-    exclusivityGroup: z.string(),
-    // datetime-local text, local time - converted to ISO on the way out
-    validFrom: z.string(),
-    validTo: z.string(),
-    maxUses: optionalCount,
-    perCustomerLimit: optionalCount,
-    // '' = none - the backend clears the reference on an empty string
-    labelMediaId: z.string(),
-    bannerMediaId: z.string(),
-    pillText: z.string().max(40, 'Keep it short - 40 characters at most'),
-    pillTextColor: z.string().regex(HEX, 'A #RRGGBB colour'),
-    pillBgColor: z.string().regex(HEX, 'A #RRGGBB colour'),
-    conditions: z.array(subrow),
-    actions: z.array(subrow),
-    // The header locale's storefront copy - edit only
-    contentLabel: z.string(),
-    contentTerms: z.string(),
+    name: z.string().trim().min(1, 'Name is required').describe('Internal name of the rule'),
+    slug: z.string().trim().min(1, 'Slug is required').describe('Stable identifier of the rule'),
+    description: z.string().describe('Internal description - empty string for none'),
+    publicLabel: z.string().describe('Label shoppers see in the cart when no translated label exists'),
+    requiresCode: z.boolean().describe("Apply only when the shopper enters one of the rule's codes"),
+    isActive: z.boolean().describe('Whether the rule can apply'),
+    priority: wholeNumber().describe('Evaluation order - lower runs first'),
+    stopAfterApply: z
+      .enum(['NONE', 'SAME_ACTION_TYPE', 'ALL'])
+      .describe(
+        'Once this rule fires: NONE lets every other rule fire too; SAME_ACTION_TYPE skips lower-priority rules with the same action; ALL skips every lower-priority rule',
+      ),
+    exclusivityGroup: z
+      .string()
+      .describe('Rules sharing a group are mutually exclusive, only one fires - empty string always stacks'),
+    // Converted to ISO on the way out
+    validFrom: z.string().describe('When the rule starts, as local time "YYYY-MM-DDTHH:mm" - empty string for no start'),
+    validTo: z.string().describe('When the rule ends, as local time "YYYY-MM-DDTHH:mm", after validFrom - empty string for no end'),
+    maxUses: optionalCount('Total redemptions allowed'),
+    perCustomerLimit: optionalCount('Redemptions allowed per customer'),
+    // The backend clears the reference on an empty string
+    labelMediaId: z.string().describe('Media ID of the corner sticker on product listing cards - empty string for none'),
+    bannerMediaId: z.string().describe('Media ID of the hero strip on the product detail page - empty string for none'),
+    pillText: z
+      .string()
+      .max(40, 'Keep it short - 40 characters at most')
+      .describe('Text of the coloured badge shown when there is no label image, at most 40 characters - empty string for no badge'),
+    pillTextColor: z.string().regex(HEX, 'A #RRGGBB colour').describe('Badge text colour, as #RRGGBB'),
+    pillBgColor: z.string().regex(HEX, 'A #RRGGBB colour').describe('Badge background colour, as #RRGGBB'),
+    conditions: z.array(subrow).describe('Conditions that must all match for the rule to fire'),
+    actions: z.array(subrow).describe('Actions run top to bottom when the rule fires'),
+    contentLabel: z
+      .string()
+      .describe('Storefront label in the edited locale, edit only - required when contentTerms is set'),
+    contentTerms: z.string().describe('Storefront terms text in the edited locale, edit only - empty string for none'),
   })
+  .describe('A promotion rule: when it applies, what it does, how it stacks, and how it is shown')
   .superRefine((v, ctx) => {
     dateRangeIssues(v.validFrom, v.validTo, ['validTo'], ctx)
     // A translation row needs its label - terms alone would be silently dropped

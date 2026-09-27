@@ -12,11 +12,13 @@ export type ExistingCustomerGroup = {
   description: string
 }
 
-export const customerGroupSchema = z.object({
-  slug: z.string().trim().min(1, 'Slug is required'),
-  name: z.string().trim().min(1, 'Name is required'),
-  description: z.string(),
-})
+export const customerGroupSchema = z
+  .object({
+    slug: z.string().trim().min(1, 'Slug is required').describe('Stable identifier of the group - set on create, never changed'),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the group'),
+    description: z.string().describe('What the group is for - empty string for none'),
+  })
+  .describe('A customer group')
 
 export type CustomerGroupValues = z.infer<typeof customerGroupSchema>
 

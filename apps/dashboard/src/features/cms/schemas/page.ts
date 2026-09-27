@@ -10,12 +10,18 @@ import { dynamicFieldDiff, type PageTypeAttr } from '../page-detail/shared'
 
 // ---------- Basics: the slug, noindex and the non-translated attribute values ----------
 
-export const pageBasicsSchema = z.object({
-  slug: contentSlug(),
-  seoNoindex: z.boolean(),
-  // Attribute slug -> value, shaped by each attribute's input type (DynamicFieldRenderer)
-  data: z.record(z.string(), z.unknown()),
-})
+export const pageBasicsSchema = z
+  .object({
+    slug: contentSlug().describe(
+      'URL slug of the page - a change leaves a redirect behind. Lowercase letters, numbers, dots, underscores and hyphens',
+    ),
+    seoNoindex: z.boolean().describe('Ask search engines not to index the page'),
+    // Shaped per input type by DynamicFieldRenderer
+    data: z
+      .record(z.string(), z.unknown())
+      .describe("Values of the page type's non-translatable attributes, keyed by attribute slug"),
+  })
+  .describe("A CMS page's slug, noindex flag and non-translatable field values")
 
 export type PageBasicsValues = z.infer<typeof pageBasicsSchema>
 
@@ -49,7 +55,13 @@ export function pageBasicsDiff(scalarAttrs: PageTypeAttr[]) {
 
 // Attribute id -> the chosen value ids (selections) or linked entity ids (relationships, in order).
 // One write per changed attribute, so they're grouped by attribute rather than flattened
-export const pageLinksSchema = z.object({ byAttribute: z.record(z.string(), z.array(z.string())) })
+export const pageLinksSchema = z
+  .object({
+    byAttribute: z
+      .record(z.string(), z.array(z.string()))
+      .describe('Keyed by attribute ID: the chosen value IDs of a selection, or the linked entity IDs of a relationship in order'),
+  })
+  .describe("A CMS page's selection and relationship attribute values")
 
 export type PageLinksValues = z.infer<typeof pageLinksSchema>
 
@@ -94,7 +106,9 @@ export function pageRelationshipsDiff(attrs: PageTypeAttr[]) {
 
 // ---------- Tags: slugs from the shared library ----------
 
-export const pageTagsSchema = z.object({ tags: z.array(z.string()) })
+export const pageTagsSchema = z
+  .object({ tags: z.array(z.string()).describe('Slugs of tags from the shared tag library') })
+  .describe("A CMS page's tags")
 
 export type PageTagsValues = z.infer<typeof pageTagsSchema>
 
@@ -114,9 +128,21 @@ export function pageTagsDiff(tagName: (slug: string) => string) {
 export type ListingDraft = { listed: boolean; isPublished: boolean; isHomepage: boolean; seoNoindex: boolean }
 export const EMPTY_LISTING: ListingDraft = { listed: false, isPublished: false, isHomepage: false, seoNoindex: false }
 
-export const pageChannelsSchema = z.object({
-  listings: z.record(z.string(), z.object({ listed: z.boolean(), isPublished: z.boolean(), isHomepage: z.boolean(), seoNoindex: z.boolean() })),
-})
+export const pageChannelsSchema = z
+  .object({
+    listings: z
+      .record(
+        z.string(),
+        z.object({
+          listed: z.boolean().describe('The page has a listing in this channel - without one it follows its global publish state'),
+          isPublished: z.boolean().describe('Published in this channel'),
+          isHomepage: z.boolean().describe("The page is this channel's homepage"),
+          seoNoindex: z.boolean().describe('Ask search engines not to index the page in this channel'),
+        }),
+      )
+      .describe('Per-channel listing, keyed by channel ID'),
+  })
+  .describe("A CMS page's listing in each channel")
 
 export type PageChannelsValues = z.infer<typeof pageChannelsSchema>
 
@@ -154,15 +180,19 @@ export function pageChannelsDiff(channelName: (id: string) => string) {
 
 // ---------- Content: the edited locale's title, SEO, translatable fields and block layout ----------
 
-export const pageContentSchema = z.object({
-  // The service refuses a content row without one
-  title: z.string().trim().min(1, 'Title is required'),
-  metaTitle: z.string(),
-  metaDescription: z.string(),
-  data: z.record(z.string(), z.unknown()),
-  // Opaque to the form - the block tree's recursive type would blow up TanStack's deep field paths
-  blocks: z.array(z.unknown()),
-})
+export const pageContentSchema = z
+  .object({
+    // The service refuses a content row without one
+    title: z.string().trim().min(1, 'Title is required').describe('Title in the edited locale'),
+    metaTitle: z.string().describe("SEO title in the edited locale - empty string uses the page type's default"),
+    metaDescription: z.string().describe('SEO description in the edited locale - empty string for none'),
+    data: z
+      .record(z.string(), z.unknown())
+      .describe("Values of the page type's translatable attributes in the edited locale, keyed by attribute slug"),
+    // Opaque to the form - the block tree's recursive type would blow up TanStack's deep field paths
+    blocks: z.array(z.unknown()).describe('The page layout in the edited locale, as an ordered list of blocks'),
+  })
+  .describe("A CMS page's title, SEO copy, translatable field values and block layout in the edited locale")
 
 export type PageContentValues = z.infer<typeof pageContentSchema>
 

@@ -6,7 +6,14 @@ import { added, changed, removed } from '@/shared/saving/diff'
 // and one diff, so every form lists "Metadata · carrier: dhl → ups" the same way and none of them
 // forgets to diff it at all (several used to)
 
-export const metadataSchema = z.array(z.object({ key: z.string(), value: z.string() }))
+export const metadataSchema = z
+  .array(
+    z.object({
+      key: z.string().describe('Metadata key - unique within the record'),
+      value: z.string().describe('Metadata value'),
+    }),
+  )
+  .describe('Free-form key/value metadata stored on the record')
 
 export type MetadataEntry = z.infer<typeof metadataSchema>[number]
 

@@ -19,18 +19,28 @@ export function remainingByLine(lines: OrderLine[], fulfilments: Fulfilment[]): 
 
 export const shipmentSchema = z
   .object({
-    lines: z.array(
-      z
-        .object({ id: z.string(), checked: z.boolean(), quantity: z.string(), remaining: z.number() })
-        .refine((l) => !l.checked || isNumberText(l.quantity, { above: 0, max: l.remaining }), {
-          message: 'Between 1 and what is still unshipped',
-          path: ['quantity'],
-        }),
+    lines: z
+      .array(
+        z
+          .object({
+            id: z.string().describe('ID of the order line'),
+            checked: z.boolean().describe('Include the line in this shipment'),
+            quantity: z.string().describe('Units to ship, from 1 up to remaining, written as text'),
+            remaining: z.number().describe('Units of the line not yet shipped'),
+          })
+          .refine((l) => !l.checked || isNumberText(l.quantity, { above: 0, max: l.remaining }), {
+            message: 'Between 1 and what is still unshipped',
+            path: ['quantity'],
+          }),
+      )
+      .describe("The order's unshipped lines - at least one must be checked"),
+    carrier: z.string().describe('Shipping carrier, such as UPS - empty string for none'),
+    tracking: z.string().describe('Tracking number - empty string for none'),
+    insured: money({ optional: true }).describe(
+      'Insured value in major currency units written as text, such as "12.50" - empty string for none',
     ),
-    carrier: z.string(),
-    tracking: z.string(),
-    insured: money({ optional: true }),
   })
+  .describe("A shipment fulfilling some or all of an order's unshipped lines")
   .refine((v) => v.lines.some((l) => l.checked), { message: 'Select at least one line to ship', path: ['lines'] })
 
 export type ShipmentValues = z.infer<typeof shipmentSchema>
