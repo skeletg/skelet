@@ -1878,7 +1878,10 @@ export type QuerySharedWishlistArgs = {
 
 
 export type QueryShippingQuotesArgs = {
+  cartId?: InputMaybe<Scalars['ID']['input']>;
   countryCode: Scalars['String']['input'];
+  postalCode?: InputMaybe<Scalars['String']['input']>;
+  regionCode?: InputMaybe<Scalars['String']['input']>;
 };
 
 

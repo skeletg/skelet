@@ -52,10 +52,8 @@ export default async function CheckoutPage({ params }: PageProps<"/[channel]/[lo
 
   const currency = channel?.currency ?? "USD";
 
-  const initialCountry =
-    customer?.defaultShippingAddress?.countryCode ??
-    customer?.addresses[0]?.countryCode ??
-    "";
+  const initialAddress = customer?.defaultShippingAddress ?? customer?.addresses[0];
+  const initialCountry = initialAddress?.countryCode ?? "";
   let initialShippingQuotes: Array<{
     carrierSlug: string;
     carrierName: string;
@@ -67,6 +65,9 @@ export default async function CheckoutPage({ params }: PageProps<"/[channel]/[lo
     try {
       const res = await gqlFetch(ShippingQuotesDocument, {
         countryCode: initialCountry,
+        cartId: cart.id,
+        regionCode: initialAddress?.state || null,
+        postalCode: initialAddress?.postalCode || null,
       });
       initialShippingQuotes = res.data.shippingQuotes;
     } catch {

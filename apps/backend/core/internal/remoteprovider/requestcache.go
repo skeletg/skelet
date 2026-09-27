@@ -9,7 +9,7 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-// Scoped to one request because activation is a kill switch - a cross-request cache would keep calling a provider an operator just switched off
+// Scoped to one request because activation is a kill switch
 type requestCache struct {
 	mu        sync.Mutex
 	byChannel map[string]map[Kind][]Provider

@@ -10,7 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 )
 
-// A key the read doesn't return gets the zero value - no media or no roles is a normal answer
+// A missing key is a normal answer - no media, no roles
 func byIDBatchFn[V any](load func(context.Context, []uuid.UUID) (map[uuid.UUID]V, error)) dataloader.BatchFunc[uuid.UUID, V] {
 	return func(ctx context.Context, keys []uuid.UUID) []*dataloader.Result[V] {
 		out := make([]*dataloader.Result[V], len(keys))
@@ -67,7 +67,6 @@ func newLocaleLoader[V any](load func(context.Context, []uuid.UUID, string) (map
 	)
 }
 
-// Categories and primary category with everything unpublished on the channel dropped
 type CategoryInfo struct {
 	Categories []catalog.Category
 	Primary    *catalog.Category

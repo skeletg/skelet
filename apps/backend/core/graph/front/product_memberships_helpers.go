@@ -109,7 +109,7 @@ func (r *Resolver) buildConfigurableMembership(ctx context.Context, productIDStr
 	if err != nil {
 		return nil, err
 	}
-	optIDs := make(map[string]struct{}, len(parentOpts)) // optionValues (this variant's super-attribute values) and siblings both come off the parent's visibility-filtered children
+	optIDs := make(map[string]struct{}, len(parentOpts))
 	for _, o := range parentOpts {
 		optIDs[o.ID] = struct{}{}
 	}

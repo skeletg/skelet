@@ -60,8 +60,8 @@ fragment OrderSummaryFields on Order {
   }
 }
 
-query ShippingQuotes($countryCode: String!) {
-  shippingQuotes(countryCode: $countryCode) {
+query ShippingQuotes($countryCode: String!, $cartId: ID, $regionCode: String, $postalCode: String) {
+  shippingQuotes(countryCode: $countryCode, cartId: $cartId, regionCode: $regionCode, postalCode: $postalCode) {
     carrierSlug
     carrierName
     code
