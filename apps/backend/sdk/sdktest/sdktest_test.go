@@ -224,3 +224,22 @@ func TestPermissionDenialAndEnabledDefaults(t *testing.T) {
 		t.Errorf("ResetState did not clear the denial: %v", err)
 	}
 }
+
+func TestAnAlwaysHandlerKeepsVetoingWhileDisabled(t *testing.T) {
+	h := Install()
+	p := sdk.NewPluginForTest("t-veto")
+	refused := errors.New("the credit line is not being managed")
+	p.SubscribeSyncAlways("t.placing", 100, func(ctx context.Context, _ any) error {
+		if !p.IsEnabled(ctx, uuid.Nil) {
+			return refused
+		}
+		return nil
+	})
+	if err := h.DeliverSync(context.Background(), "t.placing", &order{}); err != nil {
+		t.Fatalf("enabled: %v", err)
+	}
+	h.Disable("t-veto")
+	if err := h.DeliverSync(context.Background(), "t.placing", &order{}); !errors.Is(err, refused) {
+		t.Fatalf("disabled plugin's veto = %v, want it to run and refuse", err)
+	}
+}
