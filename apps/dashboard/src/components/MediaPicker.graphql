@@ -1,0 +1,25 @@
+query MediaPickerSearch($query: String, $mimeGroup: MediaMimeGroup, $limit: Int) {
+  searchMediaAssets(query: $query, mimeGroup: $mimeGroup, limit: $limit) {
+    totalCount
+    items {
+      id
+      url
+      filename
+      title
+      altText
+      mimeType
+      width
+      height
+    }
+  }
+}
+
+query MediaPickerAsset($id: ID!) {
+  mediaAsset(id: $id) {
+    id
+    url
+    filename
+    title
+    altText
+  }
+}
