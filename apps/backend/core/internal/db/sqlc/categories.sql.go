@@ -653,6 +653,65 @@ func (q *Queries) ListCategoriesByProductIDs(ctx context.Context, productIds []u
 	return items, nil
 }
 
+const listCategoryChain = `-- name: ListCategoryChain :many
+WITH RECURSIVE chain(id, parent_id, depth) AS (
+    SELECT c.id, c.parent_id, 0 FROM catalog_categories c WHERE c.id = $1::uuid
+    UNION ALL
+    SELECT p.id, p.parent_id, chain.depth + 1
+    FROM catalog_categories p
+    JOIN chain ON p.id = chain.parent_id
+    WHERE chain.depth < 64
+)
+SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at
+FROM chain
+JOIN catalog_categories c ON c.id = chain.id
+ORDER BY chain.depth
+`
+
+// The category (depth 0) and its ancestors nearest first - the depth cap stops a parent cycle recursing forever
+func (q *Queries) ListCategoryChain(ctx context.Context, id uuid.UUID) ([]CatalogCategory, error) {
+	rows, err := q.db.QueryContext(ctx, listCategoryChain, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CatalogCategory{}
+	for rows.Next() {
+		var i CatalogCategory
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentID,
+			&i.Slug,
+			&i.UrlPath,
+			&i.Position,
+			&i.IsPublished,
+			&i.SeoNoindex,
+			&i.CoverID,
+			&i.CoverS3Key,
+			&i.CoverMimeType,
+			&i.CoverSizeBytes,
+			&i.CoverWidth,
+			&i.CoverHeight,
+			&i.CoverStatus,
+			&i.CoverAlt,
+			&i.Metadata,
+			&i.PrivateMetadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCategoryChildren = `-- name: ListCategoryChildren :many
 SELECT id, parent_id, slug, url_path, position, is_published, seo_noindex, cover_id, cover_s3_key, cover_mime_type, cover_size_bytes, cover_width, cover_height, cover_status, cover_alt, metadata, private_metadata, created_at, updated_at FROM catalog_categories WHERE parent_id = $1 ORDER BY position, slug
 `

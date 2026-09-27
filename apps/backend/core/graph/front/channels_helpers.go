@@ -22,22 +22,3 @@ func toFrontChannelModel(sv channel.Channel) *model.Channel { // identity fields
 		PublicURL:     sv.PublicURL,
 	}
 }
-
-func toChannelModel(sv channel.Channel) *model.Channel { // the admin shape, for ProductChannelListing.Channel and similar nested references - identity-only for the same reason
-	locales := make([]*model.Locale, len(sv.Locales))
-	for i, l := range sv.Locales {
-		locales[i] = toLocaleModel(l)
-	}
-	return &model.Channel{
-		ID:            sv.ID.String(),
-		Slug:          sv.Slug,
-		Name:          sv.Name,
-		DefaultLocale: sv.DefaultLocale,
-		Locales:       locales,
-		IsActive:      sv.IsActive,
-		CurrencyCode:  sv.CurrencyCode,
-		PublicURL:     sv.PublicURL,
-		Metadata:      toStringMapItems(sv.Metadata),
-		CreatedAt:     sv.CreatedAt,
-	}
-}

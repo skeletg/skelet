@@ -61,14 +61,6 @@ func toConfigValueModel(ctx context.Context, e config.Entry) *model.ConfigValue 
 		Scoping: scopingModel(config.ScopingFor(e.Definition.Path)),
 	}
 
-	opts, err := e.Definition.GetOptions(ctx)
-	if err == nil && len(opts) > 0 {
-		m.Options = make([]*model.ConfigOption, len(opts))
-		for i, o := range opts {
-			m.Options[i] = &model.ConfigOption{Value: o.Value, Label: o.Label}
-		}
-	}
-
 	if !e.IsDefault && !e.UpdatedAt.IsZero() {
 		m.UpdatedAt = &e.UpdatedAt
 	}
@@ -150,4 +142,41 @@ func toConfigTypeModel(t config.Type) model.ConfigType {
 		return model.ConfigTypeColor
 	}
 	return model.ConfigTypeString
+}
+
+// Resolved only when selected - one query per source per request, and a failed source reads as no options
+func (r *Resolver) configOptions(ctx context.Context, obj *model.ConfigValue) []*model.ConfigOption {
+	def, ok := config.Find(obj.Path)
+	if !ok {
+		return nil
+	}
+	opts := def.Options
+	if def.Source != "" {
+		c := getRenderCache(ctx)
+		var err error
+		opts, err = renderMemo(c, "config-source:"+def.Source,
+			func() ([]config.Option, bool) {
+				c.mu.RLock()
+				defer c.mu.RUnlock()
+				o, ok := c.configSources[def.Source]
+				return o, ok
+			},
+			func() ([]config.Option, error) { return def.GetOptions(ctx) },
+			func(o []config.Option) {
+				c.mu.Lock()
+				c.configSources[def.Source] = o
+				c.mu.Unlock()
+			})
+		if err != nil {
+			return nil
+		}
+	}
+	if len(opts) == 0 {
+		return nil
+	}
+	out := make([]*model.ConfigOption, len(opts))
+	for i, o := range opts {
+		out[i] = &model.ConfigOption{Value: o.Value, Label: o.Label}
+	}
+	return out
 }

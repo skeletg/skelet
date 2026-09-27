@@ -7,6 +7,10 @@ import (
 	model1 "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
 )
 
+func (r *configValueResolver) Options(ctx context.Context, obj *model.ConfigValue) ([]*model.ConfigOption, error) {
+	return r.configOptions(ctx, obj), nil
+}
+
 // Unauthenticated on purpose - the storefront loads store name, currency, "allow guest checkout" and the like from here
 func (r *queryResolver) PublicConfig(ctx context.Context) ([]*model.ConfigValue, error) {
 	entries, err := r.ConfigSvc.ListPublic(ctx, requestConfigScope(ctx))
@@ -31,3 +35,7 @@ func (r *queryResolver) PublicConfigSections(ctx context.Context) ([]*model.Conf
 func (r *queryResolver) Features(ctx context.Context) (*model1.StoreFeatures, error) {
 	return &model1.StoreFeatures{Signals: r.SignalsEnabled}, nil
 }
+
+func (r *Resolver) ConfigValue() ConfigValueResolver { return &configValueResolver{r} }
+
+type configValueResolver struct{ *Resolver }

@@ -8,24 +8,31 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
-	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 )
 
 // Two batch queries over the full content tables, memoized per (request, locale) - attribute metadata is small and every rendered product on the page shares the result
 func (r *Resolver) getAttributeNameMaps(ctx context.Context, locale string) (map[string]string, map[string]string) {
 	c := getRenderCache(ctx)
-	if c != nil {
-		c.mu.RLock()
-		m, ok := c.attrNameMaps[locale]
-		c.mu.RUnlock()
-		if ok {
-			return m.attrNames, m.valueNames
-		}
-	}
+	m, _ := renderMemo(c, "attrnames:"+locale,
+		func() (attrNameMaps, bool) {
+			c.mu.RLock()
+			defer c.mu.RUnlock()
+			m, ok := c.attrNameMaps[locale]
+			return m, ok
+		},
+		func() (attrNameMaps, error) { return r.buildAttributeNameMaps(ctx, locale) },
+		func(m attrNameMaps) {
+			c.mu.Lock()
+			c.attrNameMaps[locale] = m
+			c.mu.Unlock()
+		})
+	return m.attrNames, m.valueNames
+}
 
+func (r *Resolver) buildAttributeNameMaps(ctx context.Context, locale string) (attrNameMaps, error) {
 	attrs, err := r.getAttributesCached(ctx)
 	if err != nil {
-		return nil, nil
+		return attrNameMaps{}, err
 	}
 	var attrIDs, valueIDs []uuid.UUID
 	for _, a := range attrs {
@@ -56,62 +63,7 @@ func (r *Resolver) getAttributeNameMaps(ctx context.Context, locale string) (map
 		}
 	}
 
-	if c != nil {
-		c.mu.Lock()
-		c.attrNameMaps[locale] = attrNameMaps{attrNames: attrNames, valueNames: valueNames}
-		c.mu.Unlock()
-	}
-	return attrNames, valueNames
-}
-
-// Rewrites in place, children included - call after toProductBaseModel, and pass the domain product because the UUID is needed
-func (r *Resolver) localizeProductModel(ctx context.Context, p catalog.Product, m *model.Product) {
-	locale := r.activeLocale(ctx)
-
-	attrNames, valueNames := r.getAttributeNameMaps(ctx, locale)
-	if len(attrNames) > 0 || len(valueNames) > 0 {
-		applyAttributeModelNames(m, attrNames, valueNames)
-	}
-
-	ids := make([]uuid.UUID, 0, 1+len(p.Children))
-	ids = append(ids, p.ID)
-	for _, c := range p.Children {
-		ids = append(ids, c.ID)
-	}
-	r.primeProductAttributeLocaleValues(ctx, ids)
-	byProduct := map[string]map[string]string{}
-	for _, id := range ids {
-		for _, row := range r.cachedProductLocaleValues(ctx, id) {
-			if row.Locale != locale {
-				continue
-			}
-			pid := row.ProductID.String()
-			if byProduct[pid] == nil {
-				byProduct[pid] = map[string]string{}
-			}
-			byProduct[pid][row.AttributeID.String()] = row.Value
-		}
-	}
-	if len(byProduct) > 0 {
-		applyScalarLocaleValues(m.AttributeValues, byProduct[m.ID])
-		for _, child := range m.Children {
-			applyScalarLocaleValues(child.AttributeValues, byProduct[child.ID])
-		}
-	}
-
-	if storeID := channelIDFromContext(ctx); storeID != nil { // channel slug/url_path overrides ride the render cache (primed in list resolvers, loader-backed otherwise) - no per-product PK query here
-		if rows, err := r.getProductChannelListings(ctx, p.ID); err == nil {
-			for _, lst := range rows {
-				if lst.ChannelID != *storeID {
-					continue
-				}
-				if lst.URL != nil {
-					m.URL = *lst.URL
-				}
-				break
-			}
-		}
-	}
+	return attrNameMaps{attrNames: attrNames, valueNames: valueNames}, nil
 }
 
 func (r *Resolver) localizeAttributeModels(ctx context.Context, attrs []*model.Attribute) {

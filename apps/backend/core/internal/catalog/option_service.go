@@ -604,12 +604,29 @@ func (s *optionService) DeleteProductOptionValueContent(ctx context.Context, val
 
 // GetProductOptions loads every option for a product, hydrating each with its values (for select-family) and resolved titles (request locale → default-locale fallback) - Mirrors GetBundleOptions
 func (s *optionService) GetProductOptions(ctx context.Context, productID uuid.UUID, locale string) ([]ProductOption, error) {
-	options, err := s.repo.ListProductOptionsByProductID(ctx, productID)
+	byProduct, err := s.GetProductOptionsByProductIDs(ctx, []uuid.UUID{productID}, locale)
 	if err != nil {
 		return nil, err
 	}
-	if len(options) == 0 {
-		return []ProductOption{}, nil
+	if opts := byProduct[productID]; opts != nil {
+		return opts, nil
+	}
+	return []ProductOption{}, nil
+}
+
+// A product with no options is absent from the map
+func (s *optionService) GetProductOptionsByProductIDs(ctx context.Context, productIDs []uuid.UUID, locale string) (map[uuid.UUID][]ProductOption, error) {
+	byProduct, err := s.repo.ListProductOptionsByProductIDs(ctx, productIDs)
+	if err != nil {
+		return nil, err
+	}
+	if len(byProduct) == 0 {
+		return byProduct, nil
+	}
+	var options []ProductOption
+	for _, pid := range productIDs {
+		options = append(options, byProduct[pid]...)
+		delete(byProduct, pid)
 	}
 
 	defLocale := s.resolveDefaultLocale(ctx)
@@ -710,7 +727,11 @@ func (s *optionService) GetProductOptions(ctx context.Context, productID uuid.UU
 		opt.Values = vals
 	}
 
-	return options, nil
+	out := make(map[uuid.UUID][]ProductOption, len(productIDs))
+	for _, o := range options {
+		out[o.ProductID] = append(out[o.ProductID], o)
+	}
+	return out, nil
 }
 
 // resolveProductOptionContent returns the resolved (title, help_text) pair for an option, picking the requested locale

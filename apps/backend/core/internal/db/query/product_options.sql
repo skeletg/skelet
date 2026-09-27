@@ -15,6 +15,11 @@ SELECT * FROM catalog_product_options
 WHERE product_id = $1
 ORDER BY sort_order, created_at;
 
+-- name: ListProductOptionsByProductIDs :many
+SELECT * FROM catalog_product_options
+WHERE product_id = ANY(sqlc.arg(product_ids)::uuid[])
+ORDER BY product_id, sort_order, created_at;
+
 -- name: UpdateProductOption :one
 UPDATE catalog_product_options
 SET input_type      = $2,

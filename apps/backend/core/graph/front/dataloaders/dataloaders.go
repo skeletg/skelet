@@ -4,6 +4,7 @@ package dataloaders
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,6 +46,12 @@ type ReviewsKey struct {
 	Offset    int32
 }
 
+// Option titles resolve against the locale
+type ProductOptionsKey struct {
+	ProductID uuid.UUID
+	Locale    string
+}
+
 type Loaders struct {
 	Customer         *dataloader.Loader[uuid.UUID, customer.Customer]
 	ProductReviews   *dataloader.Loader[ReviewsKey, []review.Review]
@@ -55,12 +62,20 @@ type Loaders struct {
 	ProductListings  *dataloader.Loader[uuid.UUID, []catalog.ProductChannelListing]
 	// Inverse membership lookups - ConfigurableParent maps a child id to its parent link (zero value = no parent), Bundle/Grouped map a product id to its links
 	ConfigurableParent   *dataloader.Loader[uuid.UUID, catalog.ConfigurableParentLink]
+	ProductOptions       *dataloader.Loader[ProductOptionsKey, []catalog.ProductOption]
+	ChildIDs             *dataloader.Loader[uuid.UUID, []uuid.UUID] // every variant id, published or not
 	BundleMemberships    *dataloader.Loader[uuid.UUID, []catalog.BundleSelectionLink]
 	GroupedMemberships   *dataloader.Loader[uuid.UUID, []catalog.GroupedMemberLink]
 	ReviewQuestion       *dataloader.Loader[uuid.UUID, review.Question]
 	PromotionConditions  *dataloader.Loader[uuid.UUID, []promotion.Condition]
 	PromotionRuleContent *dataloader.Loader[uuid.UUID, promotion.RuleContent]
 	PromotionAsset       *dataloader.Loader[uuid.UUID, medialibrary.Asset]
+
+	productFieldLoaders
+
+	catalog    variantSource
+	variantsMu sync.Mutex
+	variants   map[uuid.UUID]*variantGroup
 
 	plugin map[string]any // registered slug -> the opaque loader Build() returned; read through the generic Plugin[K, V] below, since direct map access bypasses type safety
 }
@@ -108,6 +123,16 @@ func New(d Deps) *Loaders {
 			dataloader.WithWait[uuid.UUID, catalog.ConfigurableParentLink](loaderWait),
 			dataloader.WithCache[uuid.UUID, catalog.ConfigurableParentLink](dataloader.NewCache[uuid.UUID, catalog.ConfigurableParentLink]()),
 		),
+		ChildIDs: dataloader.NewBatchedLoader(
+			childIDsBatchFn(d.Catalog),
+			dataloader.WithWait[uuid.UUID, []uuid.UUID](loaderWait),
+			dataloader.WithCache[uuid.UUID, []uuid.UUID](dataloader.NewCache[uuid.UUID, []uuid.UUID]()),
+		),
+		ProductOptions: dataloader.NewBatchedLoader(
+			productOptionsBatchFn(d.Catalog),
+			dataloader.WithWait[ProductOptionsKey, []catalog.ProductOption](loaderWait),
+			dataloader.WithCache[ProductOptionsKey, []catalog.ProductOption](dataloader.NewCache[ProductOptionsKey, []catalog.ProductOption]()),
+		),
 		BundleMemberships: dataloader.NewBatchedLoader(
 			bundleMembershipsBatchFn(d.Catalog),
 			dataloader.WithWait[uuid.UUID, []catalog.BundleSelectionLink](loaderWait),
@@ -138,6 +163,10 @@ func New(d Deps) *Loaders {
 			dataloader.WithWait[uuid.UUID, medialibrary.Asset](loaderWait),
 			dataloader.WithCache[uuid.UUID, medialibrary.Asset](dataloader.NewCache[uuid.UUID, medialibrary.Asset]()),
 		),
+	}
+	loaders.productFieldLoaders = newProductFieldLoaders(d.Catalog)
+	if d.Catalog != nil {
+		loaders.catalog = d.Catalog
 	}
 	if len(d.PluginLoaders) > 0 {
 		loaders.plugin = make(map[string]any, len(d.PluginLoaders))
@@ -314,6 +343,48 @@ func configurableParentBatchFn(svc *catalog.Service) dataloader.BatchFunc[uuid.U
 		}
 		for i, key := range keys {
 			out[i] = &dataloader.Result[catalog.ConfigurableParentLink]{Data: byID[key]}
+		}
+		return out
+	}
+}
+
+func childIDsBatchFn(svc *catalog.Service) dataloader.BatchFunc[uuid.UUID, []uuid.UUID] {
+	return func(ctx context.Context, keys []uuid.UUID) []*dataloader.Result[[]uuid.UUID] {
+		out := make([]*dataloader.Result[[]uuid.UUID], len(keys))
+		byID, err := svc.ListProductChildIDsByParentIDs(ctx, keys)
+		for i, key := range keys {
+			if err != nil {
+				out[i] = &dataloader.Result[[]uuid.UUID]{Error: err}
+				continue
+			}
+			out[i] = &dataloader.Result[[]uuid.UUID]{Data: byID[key]}
+		}
+		return out
+	}
+}
+
+func productOptionsBatchFn(svc *catalog.Service) dataloader.BatchFunc[ProductOptionsKey, []catalog.ProductOption] {
+	return func(ctx context.Context, keys []ProductOptionsKey) []*dataloader.Result[[]catalog.ProductOption] {
+		out := make([]*dataloader.Result[[]catalog.ProductOption], len(keys))
+		idsByLocale := map[string][]uuid.UUID{}
+		for _, k := range keys {
+			idsByLocale[k.Locale] = append(idsByLocale[k.Locale], k.ProductID)
+		}
+		byLocale := make(map[string]map[uuid.UUID][]catalog.ProductOption, len(idsByLocale))
+		errByLocale := map[string]error{}
+		for loc, ids := range idsByLocale {
+			byLocale[loc], errByLocale[loc] = svc.GetProductOptionsByProductIDs(ctx, ids, loc)
+		}
+		for i, k := range keys {
+			if err := errByLocale[k.Locale]; err != nil {
+				out[i] = &dataloader.Result[[]catalog.ProductOption]{Error: err}
+				continue
+			}
+			opts := byLocale[k.Locale][k.ProductID]
+			if opts == nil {
+				opts = []catalog.ProductOption{}
+			}
+			out[i] = &dataloader.Result[[]catalog.ProductOption]{Data: opts}
 		}
 		return out
 	}

@@ -61,6 +61,14 @@ func (r *fakeRepo) ListActiveByKind(_ context.Context, kind Kind, _ *uuid.UUID) 
 	}
 	return out, nil
 }
+func (r *fakeRepo) ListActiveForChannel(ctx context.Context, ch *uuid.UUID) ([]Provider, error) {
+	var out []Provider
+	for _, k := range AllKinds {
+		ps, _ := r.ListActiveByKind(ctx, k, ch)
+		out = append(out, ps...)
+	}
+	return out, nil
+}
 func (r *fakeRepo) Update(context.Context, UpdateInput) (Provider, error) {
 	return Provider{}, ErrNotFound
 }

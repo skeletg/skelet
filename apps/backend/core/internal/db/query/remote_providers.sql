@@ -20,6 +20,13 @@ LIMIT 1;
 -- name: ListRemoteProviders :many
 SELECT * FROM remote_providers ORDER BY kind, slug;
 
+-- name: ListActiveRemoteProvidersForChannel :many
+-- Every kind for one channel, global rows included
+SELECT * FROM remote_providers
+WHERE is_active = TRUE
+  AND (channel_id IS NULL OR channel_id = sqlc.narg(channel_id)::uuid)
+ORDER BY kind, slug;
+
 -- name: ListActiveRemoteProvidersByKind :many
 -- Global rows (channel_id IS NULL) apply to every store; scoped rows only
 -- to theirs - passing NULL channel_id returns global rows only

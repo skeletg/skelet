@@ -36,6 +36,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/mediahttp"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	authpkg "github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -150,7 +151,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	}
 	// Complexity limits bound query SHAPE, not raw payload bytes - cap the body so a multi-megabyte POST can't tie up parsing - 1MB comfortably fits any legitimate mutation (rich text, bulk CSV goes elsewhere)
 	// integration.Middleware makes this endpoint double as the machine API: an X-Api-Token integration token authorizes through the same resolver permission gates as an admin role, with its grant set global - there is no separate REST tier
-	mux.Handle(adminPath, otelx.WrapHTTP(devDebug(maxBody(1<<20)(authpkg.Middleware(infra.Config.JWTSecret)(integration.Middleware(s.Integration)(authpkg.AdminSessionGuard(s.AdminRefresh.RefreshStore)(channel.AdminMiddleware(s.Channel)(locale.Middleware()(graphadmin.RenderCacheMiddleware(adminSrv)))))))), "graphql.admin"))
+	mux.Handle(adminPath, otelx.WrapHTTP(devDebug(maxBody(1<<20)(authpkg.Middleware(infra.Config.JWTSecret)(integration.Middleware(s.Integration)(authpkg.AdminSessionGuard(s.AdminRefresh.RefreshStore)(channel.AdminMiddleware(s.Channel)(locale.Middleware()(remoteprovider.RequestCacheMiddleware(graphadmin.RenderCacheMiddleware(adminSrv))))))))), "graphql.admin"))
 	voterResolverFn := func(ctx context.Context) (review.Voter, error) { // the MyReviewVote loader's voter closure lives here because dataloaders can't import graph/front (cycle) - it delegates to s.Review.ResolveVoter, so the policy chain is the resolver's own
 		customerID := channel.OptionalCustomerID(ctx)
 		var rawToken string
@@ -171,7 +172,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	}
 	// LocaleClampMiddleware sits inside both channel + locale middleware (it needs the resolved channel AND the extracted header) and snaps unsupported locales to the channel default - front surface only - admin reads must keep accepting arbitrary locales for translation tooling
 	frontRespCache := frontResponseCache(cache.New(infra.Cache.Client, "frontresp"), 60*time.Second) // sits INSIDE channel + locale resolution so its key uses the RESOLVED channel id and clamped locale - keying on the raw headers bled cached responses across host-resolved siblings that send no X-Channel-Id at all
-	mux.Handle(frontPath, otelx.WrapHTTP(frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(devDebug(maxBody(256<<10)(authpkg.Middleware(infra.Config.JWTSecret)(authpkg.CustomerSessionGuard(s.Customer.IsActive)(channel.Middleware(s.Channel)(locale.Middleware()(channel.LocaleClampMiddleware()(frontRespCache(dataloaders.Middleware(dataloaderDeps)(graphfront.RenderCacheMiddleware(frontSrv))))))))))), "graphql.front"))
+	mux.Handle(frontPath, otelx.WrapHTTP(frontRateLimit(rl.Front, infra.Config.SignalsServiceSecret)(devDebug(maxBody(256<<10)(authpkg.Middleware(infra.Config.JWTSecret)(authpkg.CustomerSessionGuard(s.Customer.IsActive)(channel.Middleware(s.Channel)(locale.Middleware()(channel.LocaleClampMiddleware()(frontRespCache(dataloaders.Middleware(dataloaderDeps)(remoteprovider.RequestCacheMiddleware(graphfront.RenderCacheMiddleware(frontSrv)))))))))))), "graphql.front"))
 
 	mux.Handle("/api/v1/payments/webhook/", otelx.WrapHTTP(paymentWebhookHandler, "payments.webhook"))
 	// Plugin-registered routes, namespaced per plugin under /api/v1/plugins/<slug>/ - public and unauthenticated like the storefront GraphQL endpoint, so they share its rate limiter; each handler is wrapped in the plugin's kill switch, timeout and panic isolation by the host - this is the seam that replaced the GraphQL bridge for plugin-owned browser endpoints

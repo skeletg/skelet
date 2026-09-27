@@ -76,6 +76,10 @@ type Repository interface {
 	ListConfigurableParentByChildIDs(ctx context.Context, childIDs []uuid.UUID) (map[uuid.UUID]ConfigurableParentLink, error)
 	ListProductChildren(ctx context.Context, parentID uuid.UUID) ([]Product, error)
 	ListProductChildrenByParentIDs(ctx context.Context, parentIDs []uuid.UUID) (map[uuid.UUID][]Product, error)
+	ListProductChildIDsByParentIDs(ctx context.Context, parentIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
+	ListProductTypeIDsByProductIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]uuid.UUID, error)
+	ListProductRowsByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Product, error)
+	ListProductContentByProductIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]ProductContent, error)
 	ListProductParents(ctx context.Context, childID uuid.UUID) ([]Product, error)
 	ListProductSelectableValuesByIDs(ctx context.Context, productIDs, attributeIDs []uuid.UUID) (map[uuid.UUID]map[uuid.UUID][]uuid.UUID, error)
 	ListProducts(ctx context.Context, rowLimit int32) ([]Product, error) // rowLimit 0 means every row - see the query comment
@@ -219,6 +223,7 @@ type Repository interface {
 	ListProductOptionValuesByOptionID(ctx context.Context, optionID uuid.UUID) ([]ProductOptionValue, error)
 	ListProductOptionValuesByOptionIDs(ctx context.Context, optionIDs []uuid.UUID) (map[uuid.UUID][]ProductOptionValue, error)
 	ListProductOptionsByProductID(ctx context.Context, productID uuid.UUID) ([]ProductOption, error)
+	ListProductOptionsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductOption, error)
 	UpdateProductOption(ctx context.Context, id uuid.UUID, params UpdateProductOptionFields) (ProductOption, error)
 	UpdateProductOptionValue(ctx context.Context, id uuid.UUID, sortOrder, priceValue int32, priceType ProductOptionPriceType, isDefault bool, sourceProductID *uuid.UUID, quantity float64, forcedLineQty *float64) (ProductOptionValue, error)
 	UpsertProductOptionContent(ctx context.Context, input UpsertProductOptionContentInput) (ProductOptionContent, error)

@@ -80,6 +80,21 @@ func (r *postgresRepository) ListProductOptionsByProductID(ctx context.Context, 
 	return out, nil
 }
 
+func (r *postgresRepository) ListProductOptionsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductOption, error) {
+	if len(productIDs) == 0 {
+		return map[uuid.UUID][]ProductOption{}, nil
+	}
+	rows, err := r.queries.ListProductOptionsByProductIDs(ctx, productIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list product options by product ids: %w", err)
+	}
+	out := make(map[uuid.UUID][]ProductOption, len(productIDs))
+	for _, row := range rows {
+		out[row.ProductID] = append(out[row.ProductID], toProductOption(row))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) UpdateProductOption(ctx context.Context, id uuid.UUID, params UpdateProductOptionFields) (ProductOption, error) {
 	row, err := r.queries.UpdateProductOption(ctx, db.UpdateProductOptionParams{
 		ID:             id,

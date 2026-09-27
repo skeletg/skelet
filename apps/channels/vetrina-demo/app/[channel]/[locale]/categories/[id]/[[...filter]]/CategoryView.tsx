@@ -8,7 +8,7 @@ import { Breadcrumbs } from "@/app/components/Breadcrumbs";
 import { JsonLd } from "@/app/components/JsonLd";
 import { ProductListShell } from "@/app/components/ProductListShell";
 import { browseProducts, getCategory, productSortOptions } from "@/app/lib/catalog/read";
-import { getSeoConfig } from "@/app/lib/config/read";
+import { getBrowsePageSize, getSeoConfig } from "@/app/lib/config/read";
 import { displayName } from "@/app/lib/display";
 import { categoryHref } from "@/app/lib/entity-href";
 import { breadcrumbJsonLd } from "@/app/lib/json-ld";
@@ -77,7 +77,7 @@ async function evaluateIndexability(
       ...baseFilter,
       attributes: pathFilters.length > 0 ? pathFilters : null,
     },
-    limit: 24,
+    limit: await getBrowsePageSize(), // the grid's page size, so both share one cached fetch
     offset: 0,
   });
   const seo = await getSeoConfig();

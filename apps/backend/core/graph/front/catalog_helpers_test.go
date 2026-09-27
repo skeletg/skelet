@@ -117,54 +117,6 @@ func TestProductCandidateFromModelHandlesAnEmptyProduct(t *testing.T) {
 	}
 }
 
-// The ids feed one batched category load, so a duplicate would fetch twice and a missed primary
-// would leave a product without its breadcrumb
-func TestCollectCategoryIDs(t *testing.T) {
-	p1, p2 := uuid.New(), uuid.New()
-	shared, only1, primaryOnly := uuid.New(), uuid.New(), uuid.New()
-
-	got := collectCategoryIDs(
-		map[uuid.UUID][]catalog.Category{
-			p1: {{ID: shared}, {ID: only1}, {ID: shared}}, // duplicate within one product
-			p2: {{ID: shared}},                            // duplicate across products
-		},
-		map[uuid.UUID]*catalog.Category{
-			p1: {ID: shared},      // already collected
-			p2: {ID: primaryOnly}, // only reachable through the primary map
-		},
-	)
-
-	seen := map[uuid.UUID]int{}
-	for _, id := range got {
-		seen[id]++
-	}
-	for id, n := range seen {
-		if n != 1 {
-			t.Errorf("id %s appears %d times, want exactly once", id, n)
-		}
-	}
-	for _, want := range []uuid.UUID{shared, only1, primaryOnly} {
-		if seen[want] != 1 {
-			t.Errorf("id %s is missing from %v", want, got)
-		}
-	}
-	if len(got) != 3 {
-		t.Errorf("collected %d ids, want 3", len(got))
-	}
-}
-
-// A nil primary is the common case for a product with no primary category set
-func TestCollectCategoryIDsSkipsNilPrimaries(t *testing.T) {
-	p := uuid.New()
-	got := collectCategoryIDs(nil, map[uuid.UUID]*catalog.Category{p: nil})
-	if got == nil || len(got) != 0 {
-		t.Errorf("collectCategoryIDs = %v, want an empty non-nil slice", got)
-	}
-	if got := collectCategoryIDs(nil, nil); got == nil || len(got) != 0 {
-		t.Errorf("collectCategoryIDs(nil, nil) = %v, want an empty non-nil slice", got)
-	}
-}
-
 // Search pins are the merchandiser's override, so pinned hits lead in their configured order and
 // everything else keeps the relevance order the engine returned
 func TestSortHitsByPin(t *testing.T) {
@@ -484,19 +436,18 @@ func TestProductTypeModelDropsPrivateAttributes(t *testing.T) {
 
 // Only an explicit setProductMediaRole call assigns MAIN, so products whose images arrived through import, a plugin or
 // the API have media and no role - with no fallback that is a blank card, a blank variant row and a blank part stub
-func TestToProductBaseModelFallsBackToTheFirstImage(t *testing.T) {
+func TestMainImageFallsBackToTheFirstImage(t *testing.T) {
 	first := &model.ProductMedia{ID: uuid.NewString(), URL: "first.jpg"}
 	second := &model.ProductMedia{ID: uuid.NewString(), URL: "second.jpg"}
 	mediaList := []*model.ProductMedia{first, second}
 
-	out := toProductBaseModel(catalog.Product{}, nil, nil, nil, mediaList, nil, nil, nil, nil)
-	if out.MainImage != first {
-		t.Errorf("MainImage = %v, want the first image as the fallback", out.MainImage)
+	if got := pickMediaRole(nil, catalog.MediaRoleMain, mediaList); got != first {
+		t.Errorf("MainImage = %v, want the first image as the fallback", got)
 	}
 	// the other two roles deliberately DON'T fall back - a hero standing in for a thumbnail is the
 	// wrong size, and a missing og image should let the page's own metadata fallback decide
-	if out.Thumbnail != nil || out.OgImage != nil {
-		t.Errorf("thumbnail/og fell back: %v / %v", out.Thumbnail, out.OgImage)
+	if th, og := pickMediaRole(nil, catalog.MediaRoleThumbnail, mediaList), pickMediaRole(nil, catalog.MediaRoleOGImage, mediaList); th != nil || og != nil {
+		t.Errorf("thumbnail/og fell back: %v / %v", th, og)
 	}
 
 	// an explicit role still wins over document order
@@ -504,13 +455,13 @@ func TestToProductBaseModelFallsBackToTheFirstImage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse id: %v", err)
 	}
-	withRole := catalog.Product{MediaRoles: map[catalog.MediaRole]uuid.UUID{catalog.MediaRoleMain: roleID}}
-	if got := toProductBaseModel(withRole, nil, nil, nil, mediaList, nil, nil, nil, nil); got.MainImage != second {
-		t.Errorf("MainImage = %v, want the role-assigned image", got.MainImage)
+	withRole := map[catalog.MediaRole]uuid.UUID{catalog.MediaRoleMain: roleID}
+	if got := pickMediaRole(withRole, catalog.MediaRoleMain, mediaList); got != second {
+		t.Errorf("MainImage = %v, want the role-assigned image", got)
 	}
 
 	// and no media at all stays nil rather than becoming a zero-value struct
-	if got := toProductBaseModel(catalog.Product{}, nil, nil, nil, nil, nil, nil, nil, nil); got.MainImage != nil {
-		t.Errorf("MainImage = %v, want nil with no media", got.MainImage)
+	if got := pickMediaRole(nil, catalog.MediaRoleMain, nil); got != nil {
+		t.Errorf("MainImage = %v, want nil with no media", got)
 	}
 }
