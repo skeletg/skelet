@@ -109,8 +109,8 @@ CORS in the browser.
 `./skelet up` runs `docker compose up -d --build` - the default file is the dev stack.
 Source edits hot-reload through the bind mounts - air for the app and the Signals process, Vite
 and Next for the frontends. A frontend container also watches its own `package.json` and
-lockfile, reinstalling and restarting its dev server when either changes (`dev-serve` in its dev
-Dockerfile). What still needs you: a Dockerfile change and a new
+lockfile, reinstalling and restarting its dev server when either changes (`watchexec` in its dev
+Dockerfile's CMD). What still needs you: a Dockerfile change and a new
 migration - `./skelet up` handles both, rebuilding images and re-running the migrate one-shots.
 
 Where the frontends run is your choice, recorded in `.skelet-apps`. Listed

@@ -177,7 +177,7 @@ codegen outright.
 ## 8. Environment traps
 
 - `rg <pattern> apps/backend` silently skips `cmd/server` - use `grep -r` for sweeps
-- A Docker frontend's dev server runs under `dev-serve` (in its dev Dockerfile), which reinstalls
+- A Docker frontend's dev server runs under `watchexec` (the CMD of its dev Dockerfile), which reinstalls
   and restarts it within a couple of seconds of `package.json` or the lockfile changing - no manual
   install into the container. A Dockerfile change still needs `./skelet up`, which rebuilds
 - The frontends use pnpm, one project per app (`pnpm-workspace.yaml` beside each
