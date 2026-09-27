@@ -5,7 +5,7 @@ import { withLocalePrefix } from "@/app/lib/locale/path";
 import { AuthCard } from "@/app/components/account/AccountUI";
 import { getCustomerOrNull } from "@/app/lib/customer/read";
 import { safeReturnTo } from "@/app/lib/auth/return-to";
-import { RegisterForm } from "./RegisterForm";
+import { RegisterForm } from "@/app/components/auth/RegisterForm";
 
 export const metadata = { title: "Create account" };
 

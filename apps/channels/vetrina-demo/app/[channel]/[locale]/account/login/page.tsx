@@ -8,7 +8,7 @@ import {
 } from "@/app/components/account/AccountUI";
 import { getCustomerOrNull } from "@/app/lib/customer/read";
 import { safeReturnTo } from "@/app/lib/auth/return-to";
-import { LoginForm } from "./LoginForm";
+import { LoginForm } from "@/app/components/auth/LoginForm";
 
 export const metadata = { title: "Sign in" };
 

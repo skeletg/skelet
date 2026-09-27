@@ -1,5 +1,5 @@
 import { AuthCard } from "@/app/components/account/AccountUI";
-import { ForgotForm } from "./ForgotForm";
+import { ForgotForm } from "@/app/components/auth/ForgotForm";
 
 export const metadata = { title: "Reset your password" };
 

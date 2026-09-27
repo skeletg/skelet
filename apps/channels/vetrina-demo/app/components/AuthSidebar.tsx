@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-import { ForgotForm } from "@/app/[channel]/[locale]/account/forgot/ForgotForm";
-import { LoginForm } from "@/app/[channel]/[locale]/account/login/LoginForm";
-import { RegisterForm } from "@/app/[channel]/[locale]/account/register/RegisterForm";
+import { ForgotForm } from "@/app/components/auth/ForgotForm";
+import { LoginForm } from "@/app/components/auth/LoginForm";
+import { RegisterForm } from "@/app/components/auth/RegisterForm";
 import { Drawer } from "./Drawer";
 import { useAuthUI, type AuthView } from "./AuthUIProvider";
 
