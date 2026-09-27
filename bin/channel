@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# npm inside a channel's container: bin/channel [name] <args> - name optional if there's only one
+# pnpm inside a channel's container: bin/channel [name] <args> - name optional if there's only one
 set -e
 cd "$(dirname "$(dirname "$0")")"
 . bin/_lib
@@ -13,7 +13,7 @@ else
         if [ -n "$name" ]; then
             echo "Multiple channels in this checkout - name one explicitly:" >&2
             for d in apps/channels/*/package.json; do
-                [ -f "$d" ] && echo "    bin/channel $(basename "$(dirname "$d")") ${*:-<npm args>}" >&2
+                [ -f "$d" ] && echo "    bin/channel $(basename "$(dirname "$d")") ${*:-<pnpm args>}" >&2
             done
             exit 2
         fi
@@ -27,22 +27,21 @@ if [ -z "$name" ] || [ ! -f "apps/channels/$name/package.json" ]; then
     exit 1
 fi
 
-# Host npm when this clone has a host install - the container keeps node_modules in its own volume,
+# Host pnpm when this clone has a host install - the container keeps node_modules in its own volume,
 # and running the gates against a different tree than the dev server is how the two silently diverge
-#
-# POPULATED, not merely present: the container mounts its named volume at node_modules, and because
-# the parent is a bind mount that creates an EMPTY directory on the host - testing -d alone sends
-# every later install to a host tree the dev server never reads
-if [ -z "${SKELET_FORCE_DOCKER:-}" ] && command -v npm >/dev/null 2>&1 \
-   && [ -n "$(ls -A "apps/channels/$name/node_modules" 2>/dev/null)" ]; then
-    cd "apps/channels/$name" && exec npm "$@"
+# (host_tree in bin/_lib says why an empty node_modules counts as no install)
+if [ -z "${SKELET_FORCE_DOCKER:-}" ]; then
+    case "$(host_tree "apps/channels/$name")" in
+        npm)  npm_tree_hint "apps/channels/$name"; exit 1 ;;
+        pnpm) if command -v pnpm >/dev/null 2>&1; then cd "apps/channels/$name" && exec pnpm "$@"; fi ;;
+    esac
 fi
 
 tty_flag=()
 [ -t 0 ] && tty_flag=(-it)
 
 if docker compose ps --status running | grep -q "skelet-$name"; then
-    docker compose exec "${tty_flag[@]}" "${USER_FLAG[@]}" "$name" npm "$@"
+    docker compose exec "${tty_flag[@]}" "${USER_FLAG[@]}" "$name" pnpm "$@"
 else
-    docker compose run --rm "${tty_flag[@]}" "${USER_FLAG[@]}" "$name" npm "$@"
+    docker compose run --rm "${tty_flag[@]}" "${USER_FLAG[@]}" "$name" pnpm "$@"
 fi

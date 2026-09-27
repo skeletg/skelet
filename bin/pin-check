@@ -52,8 +52,9 @@ pin node       '(node:[0-9][0-9.]*(-alpine)?|node-version:[[:space:]]*[0-9][0-9.
                                                                 "${WORKFLOWS[@]}" "${DOCKERFILES[@]}"
 pin alpine     'alpine3?[:.][0-9][0-9.]*'                       apps/backend/core/Dockerfile.prod
 pin caddy      'caddy:[0-9][0-9.]*'                             "${COMPOSE[@]}"
-# Corepack's field - every app has to agree, or two lockfiles get written by two npms
-pin npm        'npm@[0-9][0-9.]*'                          "${PACKAGE_JSONS[@]}"
+# packageManager plus the images' `npm install -g` - an image on another pnpm than the host
+# resolves under other defaults and writes a lockfile the host then rewrites
+pin pnpm       'pnpm@[0-9][0-9.]*'                         "${PACKAGE_JSONS[@]}" "${DOCKERFILES[@]}"
 
 # .nvmrc carries no prefix to match on, so it's compared rather than scanned. The workflows
 # read it directly (node-version-file), so what this guards is the Dockerfiles agreeing with it
