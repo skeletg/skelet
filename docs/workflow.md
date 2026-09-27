@@ -216,7 +216,9 @@ The frontends install with pnpm, one project per app - each has its own
 `pnpm-lock.yaml` and a `pnpm-workspace.yaml` holding its settings (overrides, and which
 dependency install scripts may run). A host app needs the pnpm version its
 `packageManager` field pins: `corepack enable`, or `npm install -g pnpm@<version>`, or
-`pnpm self-update <version>` over an older one. `./skelet doctor` checks it from inside an
+`pnpm self-update <version>` over an older one. `./skelet setup` refuses to start when a host
+app has no pnpm, or not the pinned one, before it writes anything - offering to run the
+frontends in Docker instead when it is interactive. `./skelet doctor` checks it from inside an
 app, because that is where pnpm switches itself to the pinned version - and on Windows a
 10.x switching itself to 12 has been seen to leave a pnpm that won't start, which
 `self-update` fixes.
