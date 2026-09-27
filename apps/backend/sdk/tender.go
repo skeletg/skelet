@@ -51,8 +51,8 @@ type Tendering interface {
 	TenderRemainingCents() int64
 }
 
-// Compile-time proof that a handler signature still matches - `var _ = sdk.AssertTendering` in a test
-// fails the build if core ever narrows the contract
+// The assertion a handler makes, as a function - core pins its own event to Tendering at compile time,
+// so a renamed accessor fails core's build rather than silently failing this assertion at checkout
 func AssertTendering(_ context.Context, e any) (Tendering, bool) {
 	t, ok := e.(Tendering)
 	return t, ok

@@ -69,6 +69,7 @@ type syncSub struct {
 	slug     string
 	priority int
 	order    int
+	always   bool // SubscribeSyncAlways - runs past the kill switch, like the host's
 	h        sdk.SyncHandler
 }
 
@@ -227,7 +228,7 @@ func (h *Host) Deliver(ctx context.Context, eventType string, payload any) error
 }
 
 // DeliverSync runs the sync subscribers in priority order (ties keep registration order), passing the live value so handlers mutate it -
-// the first error aborts, and disabled plugins are skipped without aborting, both mirroring the host
+// the first error aborts, and disabled plugins are skipped without aborting unless they subscribed with SubscribeSyncAlways, all mirroring the host
 func (h *Host) DeliverSync(ctx context.Context, eventType string, e any) error {
 	h.mu.Lock()
 	subs := append([]syncSub(nil), h.syncSubs[eventType]...)
@@ -239,7 +240,7 @@ func (h *Host) DeliverSync(ctx context.Context, eventType string, e any) error {
 		return subs[i].order < subs[j].order
 	})
 	for _, s := range subs {
-		if h.pluginDisabled(s.slug) {
+		if !s.always && h.pluginDisabled(s.slug) {
 			continue
 		}
 		if err := s.h(ctx, e); err != nil {
@@ -389,10 +390,18 @@ func (h *Host) SubscribeAsyncOnce(pluginSlug, eventType string, key sdk.DedupKey
 }
 
 func (h *Host) SubscribeSync(pluginSlug, eventType string, priority int, handler sdk.SyncHandler) error {
+	return h.subscribeSync(pluginSlug, eventType, priority, handler, false)
+}
+
+func (h *Host) SubscribeSyncAlways(pluginSlug, eventType string, priority int, handler sdk.SyncHandler) error {
+	return h.subscribeSync(pluginSlug, eventType, priority, handler, true)
+}
+
+func (h *Host) subscribeSync(pluginSlug, eventType string, priority int, handler sdk.SyncHandler, always bool) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.syncSeq++
-	h.syncSubs[eventType] = append(h.syncSubs[eventType], syncSub{slug: pluginSlug, priority: priority, order: h.syncSeq, h: handler})
+	h.syncSubs[eventType] = append(h.syncSubs[eventType], syncSub{slug: pluginSlug, priority: priority, order: h.syncSeq, always: always, h: handler})
 	return nil
 }
 
@@ -831,3 +840,9 @@ func (h *Host) SearchQuery(_ context.Context, pluginSlug, name string, _ any) (s
 	}
 	return out, nil
 }
+
+// The fake stands in for the real host on both interfaces a plugin can reach
+var (
+	_ sdk.Host           = (*Host)(nil)
+	_ sdk.AlwaysSyncHost = (*Host)(nil)
+)

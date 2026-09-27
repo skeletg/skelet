@@ -1,5 +1,5 @@
 {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "packages": {
     "github.com/skeletg/skelet/apps/backend/sdk": [
       "const ActionChallenge ActionKind = \"challenge\"",
@@ -289,6 +289,7 @@
       "func WithCarrierDisplayName(string) CarrierOption",
       "func WithDisplayName(string) ProviderOption",
       "func WithOffline() ProviderOption",
+      "ifacemethod AlwaysSyncHost.SubscribeSyncAlways(string, string, int, SyncHandler) error",
       "ifacemethod AuthorizationVerifier.VerifyAuthorization(context.Context, VerifyAuthorizationRequest) (VerifyAuthorizationResult, error)",
       "ifacemethod Carrier.Quote(context.Context, RateRequest) ([]RatedMethod, error)",
       "ifacemethod ConfigReader.Get(context.Context, string, uuid.UUID) (string, error)",
@@ -430,11 +431,13 @@
       "method (*Plugin) SubscribeAsync(string, AsyncHandler)",
       "method (*Plugin) SubscribeAsyncOnce(string, DedupKeyFunc, AsyncHandler)",
       "method (*Plugin) SubscribeSync(string, int, SyncHandler)",
+      "method (*Plugin) SubscribeSyncAlways(string, int, SyncHandler)",
       "method (*UserError) Error() string",
       "method (PendingAction) Required() bool",
       "type ActionKind string",
       "type Address struct",
       "type AdminTranslationsRegistration struct",
+      "type AlwaysSyncHost interface",
       "type AsyncHandler func(ctx context.Context, payload json.RawMessage) error",
       "type AuthorizationVerifier interface",
       "type AuthorizeRequest struct",
@@ -663,6 +666,7 @@
       "method (*Host) SubscribeAsync(string, string, sdk.AsyncHandler) error",
       "method (*Host) SubscribeAsyncOnce(string, string, sdk.DedupKeyFunc, sdk.AsyncHandler) error",
       "method (*Host) SubscribeSync(string, string, int, sdk.SyncHandler) error",
+      "method (*Host) SubscribeSyncAlways(string, string, int, sdk.SyncHandler) error",
       "type AdminTranslation struct",
       "type DraftOrder struct",
       "type GraphResolver struct",

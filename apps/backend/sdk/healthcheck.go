@@ -57,8 +57,9 @@ func PluginConfigInt(ctx context.Context, path string) (int64, error) {
 // NamespacedConfig is a default-scope ConfigReader rooted at one namespace, e.g.
 // NamespacedConfig("payment/stripe") - the reader for health probes and resolvers, which have no
 // request-scoped reader of their own. It prefixes exactly like the host's bound
-// provider reader, so short keys work identically through both, and it refuses full paths for the
-// same reason the host reader does: double-prefixing reads a path that never exists, silently
+// provider reader, so short keys work identically through both, and it refuses anything with a
+// slash for the same reason the host reader does: a short key never has one, and a full path
+// double-prefixes into one that doesn't exist, silently
 func NamespacedConfig(namespace string) ConfigReader {
 	return namespacedConfig{prefix: strings.TrimSuffix(namespace, "/") + "/"}
 }
@@ -66,7 +67,7 @@ func NamespacedConfig(namespace string) ConfigReader {
 type namespacedConfig struct{ prefix string }
 
 func (n namespacedConfig) Get(ctx context.Context, key string, _ uuid.UUID) (string, error) {
-	if strings.HasPrefix(key, "payment/") || strings.HasPrefix(key, "plugin/") {
+	if strings.Contains(key, "/") {
 		return "", fmt.Errorf("sdk: config key %q looks like a full path - this reader already prefixes %q, pass the short key", key, n.prefix)
 	}
 	return PluginConfig(ctx, n.prefix+key)
