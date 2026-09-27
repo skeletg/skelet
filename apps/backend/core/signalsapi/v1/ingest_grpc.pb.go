@@ -29,6 +29,7 @@ const (
 	IngestService_SyncCustomerRoster_FullMethodName      = "/skelet.signals.v1.IngestService/SyncCustomerRoster"
 	IngestService_UpsertRosterEntry_FullMethodName       = "/skelet.signals.v1.IngestService/UpsertRosterEntry"
 	IngestService_DeleteRosterEntry_FullMethodName       = "/skelet.signals.v1.IngestService/DeleteRosterEntry"
+	IngestService_RosterStatus_FullMethodName            = "/skelet.signals.v1.IngestService/RosterStatus"
 	IngestService_EraseCustomerIdentities_FullMethodName = "/skelet.signals.v1.IngestService/EraseCustomerIdentities"
 	IngestService_SyncChannels_FullMethodName            = "/skelet.signals.v1.IngestService/SyncChannels"
 )
@@ -52,6 +53,8 @@ type IngestServiceClient interface {
 	// A customer core no longer has - the stream's sweep would catch it eventually, which is too late
 	// to stop a campaign that sends first
 	DeleteRosterEntry(ctx context.Context, in *DeleteRosterEntryRequest, opts ...grpc.CallOption) (*DeleteRosterEntryResponse, error)
+	// Whether the suite's roster schema has grown past what the last full sync filled - core answers by running the sweep now rather than on the clock
+	RosterStatus(ctx context.Context, in *RosterStatusRequest, opts ...grpc.CallOption) (*RosterStatusResponse, error)
 	// GDPR erasure: core anonymizes or deletes a customer, and the spine identity mappings that would re-link them go with it
 	// A failure is surfaced, never swallowed - core reports the erasure as incomplete
 	EraseCustomerIdentities(ctx context.Context, in *EraseCustomerIdentitiesRequest, opts ...grpc.CallOption) (*EraseCustomerIdentitiesResponse, error)
@@ -151,6 +154,16 @@ func (c *ingestServiceClient) DeleteRosterEntry(ctx context.Context, in *DeleteR
 	return out, nil
 }
 
+func (c *ingestServiceClient) RosterStatus(ctx context.Context, in *RosterStatusRequest, opts ...grpc.CallOption) (*RosterStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RosterStatusResponse)
+	err := c.cc.Invoke(ctx, IngestService_RosterStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *ingestServiceClient) EraseCustomerIdentities(ctx context.Context, in *EraseCustomerIdentitiesRequest, opts ...grpc.CallOption) (*EraseCustomerIdentitiesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(EraseCustomerIdentitiesResponse)
@@ -190,6 +203,8 @@ type IngestServiceServer interface {
 	// A customer core no longer has - the stream's sweep would catch it eventually, which is too late
 	// to stop a campaign that sends first
 	DeleteRosterEntry(context.Context, *DeleteRosterEntryRequest) (*DeleteRosterEntryResponse, error)
+	// Whether the suite's roster schema has grown past what the last full sync filled - core answers by running the sweep now rather than on the clock
+	RosterStatus(context.Context, *RosterStatusRequest) (*RosterStatusResponse, error)
 	// GDPR erasure: core anonymizes or deletes a customer, and the spine identity mappings that would re-link them go with it
 	// A failure is surfaced, never swallowed - core reports the erasure as incomplete
 	EraseCustomerIdentities(context.Context, *EraseCustomerIdentitiesRequest) (*EraseCustomerIdentitiesResponse, error)
@@ -229,6 +244,9 @@ func (UnimplementedIngestServiceServer) UpsertRosterEntry(context.Context, *Upse
 }
 func (UnimplementedIngestServiceServer) DeleteRosterEntry(context.Context, *DeleteRosterEntryRequest) (*DeleteRosterEntryResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteRosterEntry not implemented")
+}
+func (UnimplementedIngestServiceServer) RosterStatus(context.Context, *RosterStatusRequest) (*RosterStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RosterStatus not implemented")
 }
 func (UnimplementedIngestServiceServer) EraseCustomerIdentities(context.Context, *EraseCustomerIdentitiesRequest) (*EraseCustomerIdentitiesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method EraseCustomerIdentities not implemented")
@@ -390,6 +408,24 @@ func _IngestService_DeleteRosterEntry_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IngestService_RosterStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RosterStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IngestServiceServer).RosterStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IngestService_RosterStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IngestServiceServer).RosterStatus(ctx, req.(*RosterStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _IngestService_EraseCustomerIdentities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EraseCustomerIdentitiesRequest)
 	if err := dec(in); err != nil {
@@ -460,6 +496,10 @@ var IngestService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteRosterEntry",
 			Handler:    _IngestService_DeleteRosterEntry_Handler,
+		},
+		{
+			MethodName: "RosterStatus",
+			Handler:    _IngestService_RosterStatus_Handler,
 		},
 		{
 			MethodName: "EraseCustomerIdentities",

@@ -193,20 +193,20 @@ func (s *synapseServer) GetCustomerProfile(ctx context.Context, req *signalsv1.G
 }
 
 func (s *synapseServer) GetVisitorProfile(ctx context.Context, req *signalsv1.GetVisitorProfileRequest) (*signalsv1.GetVisitorProfileResponse, error) {
-	// A visitor's activity is channel-agnostic - the scope decides who may look, not what is returned
-	if _, err := channelScope(ctx, "customers.view", req.GetChannelId()); err != nil {
+	cid, err := channelScope(ctx, "customers.view", req.GetChannelId())
+	if err != nil {
 		return nil, err
 	}
 	if req.GetAnonId() == "" {
 		return nil, invalidArgument("anon_id is required")
 	}
 	window := since(req.GetSinceDays(), 90)
-	p, err := s.rec.VisitorProfile(ctx, req.GetAnonId(), window)
+	p, err := s.rec.VisitorProfile(ctx, cid, req.GetAnonId(), window)
 	if err != nil {
 		return nil, err
 	}
 	out := profileProto(p)
-	out.Affinities = affinitiesProto(s.rec.VisitorAffinities(ctx, req.GetAnonId(), window, trackedAttrs(req.GetAttributes())))
+	out.Affinities = affinitiesProto(s.rec.VisitorAffinities(ctx, cid, req.GetAnonId(), window, trackedAttrs(req.GetAttributes())))
 	return &signalsv1.GetVisitorProfileResponse{Profile: out}, nil
 }
 

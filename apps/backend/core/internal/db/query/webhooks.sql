@@ -92,6 +92,21 @@ INSERT INTO webhook_queue (webhook_id, event_type, payload)
 VALUES ($1, $2, $3)
 RETURNING *;
 
+-- name: EnqueueWebhookDeliveryOnce :many
+-- Enqueues only when the (webhook, dedupe key) marker is new - an outbox replay of the same event returns no row
+WITH claimed AS (
+    INSERT INTO webhook_enqueue_dedup (webhook_id, dedupe_key)
+    VALUES (sqlc.arg(webhook_id)::uuid, sqlc.arg(dedupe_key)::text)
+    ON CONFLICT DO NOTHING
+    RETURNING webhook_id
+)
+INSERT INTO webhook_queue (webhook_id, event_type, payload)
+SELECT claimed.webhook_id, sqlc.arg(event_type)::text, sqlc.arg(payload)::text FROM claimed
+RETURNING *;
+
+-- name: PruneWebhookEnqueueDedup :execrows
+DELETE FROM webhook_enqueue_dedup WHERE created_at < $1;
+
 -- name: ClaimDueWebhookQueue :many
 -- Claim under a short lease by pushing next_attempt_at forward - a crash mid-delivery makes the row due again once the lease expires, so delivery is at-least-once - SKIP LOCKED partitions work across replicas
 UPDATE webhook_queue
@@ -125,6 +140,9 @@ SELECT * FROM webhook_queue
 WHERE webhook_id = $1 AND status = 'dead'
 ORDER BY updated_at DESC
 LIMIT $2;
+
+-- name: GetWebhookQueueItemWebhookID :one
+SELECT webhook_id FROM webhook_queue WHERE id = $1;
 
 -- name: RetryWebhookQueueItem :one
 -- Reset a dead letter for a fresh delivery cycle

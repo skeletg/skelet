@@ -10,6 +10,8 @@ type GiftCard {
   status:          String!
   recipientEmail:  String!
   issuedOrderId:   ID
+  # The store the card spends on - null spends on every store in its currency
+  channelId:       ID
   expiresAt:       Time
   createdAt:       Time!
   # The card's full ledger, oldest first.
@@ -36,7 +38,7 @@ extend type Query {
 
 extend type Mutation {
   # Manually issue a card (promo, support goodwill). Amount is the face value.
-  issueGiftCard(currencyCode: String!, amount: Int!, recipientEmail: String, expiresAt: Time): GiftCard!
+  issueGiftCard(currencyCode: String!, amount: Int!, recipientEmail: String, expiresAt: Time, channelId: ID): GiftCard!
   # Disable a card so it can no longer be redeemed.
   disableGiftCard(id: ID!): GiftCard!
   # Apply a signed balance correction with an 'adjust' ledger row.

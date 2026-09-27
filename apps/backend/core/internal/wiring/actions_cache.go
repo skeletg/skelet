@@ -64,7 +64,7 @@ func registerCacheActions(client *redis.Client, dev bool) {
 				targets = []string{ns}
 			}
 			for _, prefix := range targets {
-				cache.New(client, prefix).DelPattern(ctx, "*")
+				cache.New(client, prefix).Flush(ctx)
 			}
 			return action.Result{Output: fmt.Sprintf("flushed: %s", strings.Join(targets, ", "))}, nil
 		},

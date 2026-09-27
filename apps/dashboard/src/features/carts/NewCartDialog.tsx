@@ -9,7 +9,7 @@ import { FieldError } from '@/components/form/fields'
 import { useDialogForm } from '@/components/form/useDialogForm'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AdminCreateCustomerDocument, CustomersDocument } from '@/features/customers/Customers.gql'
+import { AdminCreateCustomerDocument, CustomersPagedDocument } from '@/features/customers/Customers.gql'
 import { AdminCreateCartDocument, CartsDocument } from './Carts.gql'
 import { CustomerSearch } from './pickers'
 import { emptyNewCart, newCartSchema, randomPassword, type NewCartValues } from './schemas/newCart'
@@ -37,7 +37,7 @@ function NewCartForm({ channelId, onClose }: { channelId: string | undefined; on
   const [createCart] = useMutation(AdminCreateCartDocument, {
     refetchQueries: channelId ? [{ query: CartsDocument, variables: { channelId, status: 'active' } }] : [],
   })
-  const [createCustomer] = useMutation(AdminCreateCustomerDocument, { refetchQueries: [{ query: CustomersDocument, variables: {} }] })
+  const [createCustomer] = useMutation(AdminCreateCustomerDocument, { refetchQueries: [CustomersPagedDocument] })
   const createdId = useRef('')
 
   const dialog = useDialogForm({

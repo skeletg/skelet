@@ -184,7 +184,7 @@ func TestApplyCode_RestrictedToEmail(t *testing.T) {
 			repo.cartEmails = map[uuid.UUID]string{cartID: tc.cartEmail}
 
 			svc := promotion.NewService(repo)
-			_, err := svc.ApplyCode(context.Background(), cartID, "vip50", nil)
+			_, err := svc.ApplyCode(context.Background(), cartID, uuid.Nil, "vip50", nil)
 			if !errors.Is(err, tc.wantErr) {
 				t.Errorf("got %v, want %v", err, tc.wantErr)
 			}
@@ -261,10 +261,25 @@ func TestApplyCode_CodeWindow(t *testing.T) {
 			}
 
 			svc := promotion.NewService(repo)
-			_, err := svc.ApplyCode(context.Background(), cartID, "VIP50", nil)
+			_, err := svc.ApplyCode(context.Background(), cartID, uuid.Nil, "VIP50", nil)
 			if !errors.Is(err, tc.wantErr) {
 				t.Errorf("got %v, want %v", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestAnotherChannelsCodeReadsAsUnknown(t *testing.T) {
+	home, other := uuid.New(), uuid.New()
+	repo := newFakeRepo()
+	ruleID, cartID := uuid.New(), uuid.New()
+	repo.rules = []promotion.Rule{{ID: ruleID, Slug: "home", RequiresCode: true, IsActive: true, ChannelID: &home}}
+	repo.codes["HOME10"] = promotion.Code{ID: uuid.New(), RuleID: ruleID, Code: "HOME10", IsActive: true}
+	svc := promotion.NewService(repo)
+	if _, err := svc.ApplyCode(context.Background(), cartID, other, "home10", nil); !errors.Is(err, promotion.ErrCodeNotFound) {
+		t.Fatalf("another channel's code = %v, want not found", err)
+	}
+	if _, err := svc.ApplyCode(context.Background(), cartID, home, "home10", nil); err != nil {
+		t.Fatalf("own channel's code: %v", err)
 	}
 }

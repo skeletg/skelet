@@ -9,7 +9,7 @@ import (
 )
 
 func (r *mutationResolver) CreateLocale(ctx context.Context, input model.CreateLocaleInput) (*model.Locale, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "locales.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "locales.manage"); err != nil {
 		return nil, err
 	}
 	domainInput := locale.CreateLocaleInput{
@@ -41,7 +41,7 @@ func (r *mutationResolver) CreateLocale(ctx context.Context, input model.CreateL
 }
 
 func (r *mutationResolver) UpdateLocale(ctx context.Context, input model.UpdateLocaleInput) (*model.Locale, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "locales.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "locales.manage"); err != nil {
 		return nil, err
 	}
 	domainInput := locale.UpdateLocaleInput{
@@ -82,7 +82,7 @@ func (r *mutationResolver) UpdateLocale(ctx context.Context, input model.UpdateL
 }
 
 func (r *mutationResolver) DeleteLocale(ctx context.Context, code string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "locales.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "locales.manage"); err != nil {
 		return false, err
 	}
 	if err := r.LocaleSvc.Delete(ctx, code); err != nil {

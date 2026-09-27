@@ -37,23 +37,32 @@ func (q *Queries) GetPendingReferralByReferee(ctx context.Context, refereeCustom
 	return i, err
 }
 
-const getReferralCodeByCode = `-- name: GetReferralCodeByCode :one
-SELECT customer_id, code, created_at FROM referral_codes WHERE code = $1
-`
-
-func (q *Queries) GetReferralCodeByCode(ctx context.Context, code string) (ReferralCode, error) {
-	row := q.db.QueryRowContext(ctx, getReferralCodeByCode, code)
-	var i ReferralCode
-	err := row.Scan(&i.CustomerID, &i.Code, &i.CreatedAt)
-	return i, err
-}
-
 const getReferralCodeByCustomer = `-- name: GetReferralCodeByCustomer :one
 SELECT customer_id, code, created_at FROM referral_codes WHERE customer_id = $1
 `
 
 func (q *Queries) GetReferralCodeByCustomer(ctx context.Context, customerID uuid.UUID) (ReferralCode, error) {
 	row := q.db.QueryRowContext(ctx, getReferralCodeByCustomer, customerID)
+	var i ReferralCode
+	err := row.Scan(&i.CustomerID, &i.Code, &i.CreatedAt)
+	return i, err
+}
+
+const getReferralCodeForReferee = `-- name: GetReferralCodeForReferee :one
+SELECT rc.customer_id, rc.code, rc.created_at FROM referral_codes rc
+JOIN customers owner ON owner.id = rc.customer_id
+JOIN customers referee ON referee.id = $1::uuid
+WHERE rc.code = $2 AND owner.channel_id = referee.channel_id
+`
+
+type GetReferralCodeForRefereeParams struct {
+	RefereeID uuid.UUID `json:"referee_id"`
+	Code      string    `json:"code"`
+}
+
+// A code only refers someone on its owner's own channel, since each channel runs its own program
+func (q *Queries) GetReferralCodeForReferee(ctx context.Context, arg GetReferralCodeForRefereeParams) (ReferralCode, error) {
+	row := q.db.QueryRowContext(ctx, getReferralCodeForReferee, arg.RefereeID, arg.Code)
 	var i ReferralCode
 	err := row.Scan(&i.CustomerID, &i.Code, &i.CreatedAt)
 	return i, err

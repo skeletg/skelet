@@ -55,13 +55,12 @@ var GraphQL = fx.Module("graphql", // builds both executable schemas with their 
 	),
 )
 
-// login lockout rides the cache client too - its per-(scope,email) keys could otherwise fill the noeviction primary - allkeys-lru keeps the hot keys an active attack touches while reclaiming only cold ones
-func newRateLimiters(cache CacheRedis) RateLimiters { // every budget goes through RateLimitPerMin, so all four are off until RATE_LIMIT_ENABLED
+func newRateLimiters(limits LimitsRedis) RateLimiters { // every budget goes through RateLimitPerMin, so all four are off until RATE_LIMIT_ENABLED
 	return RateLimiters{
-		General: ratelimit.NewRedis(cache.Client, RateLimitPerMin("GENERAL_RATE_LIMIT_PER_MIN", 30), time.Minute),
-		Auth:    ratelimit.NewRedis(cache.Client, RateLimitPerMin("AUTH_RATE_LIMIT_PER_MIN", 10), time.Minute),
-		Front:   ratelimit.NewRedis(cache.Client, RateLimitPerMin("FRONT_RATE_LIMIT_PER_MIN", 600), time.Minute),
-		Login:   newLoginThrottle(cache.Client),
+		General: ratelimit.NewRedis(limits.Client, RateLimitPerMin("GENERAL_RATE_LIMIT_PER_MIN", 30), time.Minute),
+		Auth:    ratelimit.NewRedis(limits.Client, RateLimitPerMin("AUTH_RATE_LIMIT_PER_MIN", 10), time.Minute),
+		Front:   ratelimit.NewRedis(limits.Client, RateLimitPerMin("FRONT_RATE_LIMIT_PER_MIN", 600), time.Minute),
+		Login:   newLoginThrottle(limits.Client),
 	}
 }
 

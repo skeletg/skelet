@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
+	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 )
 
 // entityLookupSignalTools returns the page-aware entity lookups (operational, not Signals).
@@ -99,8 +101,8 @@ func opsSignalTools() []signalTool {
 				Schema:      windowSchema(map[string]any{"limit": limitProp("Max items to return (1-50). Default 20.", 50)}),
 			},
 			perm: func(p digestPerms) bool { return p.inventory },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, a toolArgs) string {
-				return toolLowStock(ctx, r, a)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, a toolArgs) string {
+				return toolLowStock(ctx, r, cid, a)
 			},
 		},
 		// ---- Promotions (promotions.view) ----
@@ -111,8 +113,8 @@ func opsSignalTools() []signalTool {
 				Schema:      objSchema(map[string]any{}),
 			},
 			perm: func(p digestPerms) bool { return p.promotions },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
-				return toolListPromotions(ctx, r)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, _ time.Time, _ int, _ toolArgs) string {
+				return toolListPromotions(ctx, r, cid)
 			},
 		},
 		{
@@ -122,8 +124,8 @@ func opsSignalTools() []signalTool {
 				Schema:      windowSchema(nil),
 			},
 			perm: func(p digestPerms) bool { return p.promotions },
-			run: func(ctx context.Context, r *Resolver, _ uuid.UUID, since time.Time, _ int, _ toolArgs) string {
-				return toolPromotionPerformance(ctx, r, since)
+			run: func(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time, _ int, _ toolArgs) string {
+				return toolPromotionPerformance(ctx, r, cid, since)
 			},
 		},
 		// ---- Reviews (reviews.view) ----
@@ -222,36 +224,25 @@ func toolCustomer(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) s
 // ---- orders / inventory / promotions / reviews formatters ----
 
 func toolSearchOrders(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) string {
-	all, err := r.OrderSvc.ListOrders(ctx)
+	f := order.ListPageFilter{
+		ChannelIDs: []uuid.UUID{cid},
+		Search:     strings.TrimSpace(a.Query),
+		Limit:      int32(clampLimit(a.Limit, 20, 50)),
+	}
+	if status := strings.ToLower(strings.TrimSpace(a.Status)); status != "" {
+		f.Statuses = []string{status}
+	}
+	rows, _, err := r.OrderSvc.ListOrdersPage(ctx, f)
 	if err != nil {
 		return "Could not load orders."
 	}
-	q := strings.ToLower(strings.TrimSpace(a.Query))
-	status := strings.ToLower(strings.TrimSpace(a.Status))
-	limit := clampLimit(a.Limit, 20, 50)
-	var b strings.Builder
-	n := 0
-	for _, o := range all {
-		if o.ChannelID != cid {
-			continue
-		}
-		if status != "" && strings.ToLower(o.Status) != status {
-			continue
-		}
-		if q != "" && !strings.Contains(strings.ToLower(o.Number), q) && !strings.Contains(strings.ToLower(o.Email), q) {
-			continue
-		}
-		if n == 0 {
-			b.WriteString("Orders (number - status - total - customer):\n")
-		}
-		fmt.Fprintf(&b, "- %s - %s - %s - %s [id %s]\n", o.Number, o.Status, fmtMoney(o.TotalAmount, o.CurrencyCode), o.Email, o.ID)
-		n++
-		if n >= limit {
-			break
-		}
-	}
-	if n == 0 {
+	if len(rows) == 0 {
 		return "No matching orders in this channel."
+	}
+	var b strings.Builder
+	b.WriteString("Orders (number - status - total - customer):\n")
+	for _, o := range rows {
+		fmt.Fprintf(&b, "- %s - %s - %s - %s [id %s]\n", o.Number, o.Status, fmtMoney(o.TotalAmount, o.CurrencyCode), o.Email, o.ID)
 	}
 	return b.String()
 }
@@ -292,12 +283,17 @@ func toolStock(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) stri
 	return b.String()
 }
 
-func toolLowStock(ctx context.Context, r *Resolver, a toolArgs) string {
+func toolLowStock(ctx context.Context, r *Resolver, cid uuid.UUID, a toolArgs) string {
 	limit := clampLimit(a.Limit, 20, 50)
-	levels, err := r.InventorySvc.ListLowStockLevels(ctx, int32(limit))
+	all, err := r.InventorySvc.ListLowStockLevels(ctx, 500)
 	if err != nil {
 		return "Could not load low-stock levels."
 	}
+	locs, err := r.InventorySvc.ListChannelLocations(ctx, cid)
+	if err != nil {
+		return "Could not load low-stock levels."
+	}
+	levels := channelLowStock(all, locs)
 	if len(levels) == 0 {
 		return "No low-stock items."
 	}
@@ -318,10 +314,16 @@ func toolLowStock(ctx context.Context, r *Resolver, a toolArgs) string {
 	return b.String()
 }
 
-func toolListPromotions(ctx context.Context, r *Resolver) string {
-	rules, _, err := r.PromotionSvc.ListRules(ctx, 100, 0)
+func toolListPromotions(ctx context.Context, r *Resolver, cid uuid.UUID) string {
+	all, _, err := r.PromotionSvc.ListRules(ctx, 100, 0)
 	if err != nil {
 		return "Could not load promotions."
+	}
+	rules := all[:0:0]
+	for _, rl := range all {
+		if rl.ChannelID == nil || *rl.ChannelID == cid {
+			rules = append(rules, rl)
+		}
 	}
 	if len(rules) == 0 {
 		return "No promotions defined."
@@ -338,16 +340,17 @@ func toolListPromotions(ctx context.Context, r *Resolver) string {
 	return b.String()
 }
 
-func toolPromotionPerformance(ctx context.Context, r *Resolver, since time.Time) string {
+func toolPromotionPerformance(ctx context.Context, r *Resolver, cid uuid.UUID, since time.Time) string {
 	now := time.Now()
-	tot, err := r.PromotionSvc.AnalyticsTotals(ctx, since, now)
+	scope := []uuid.UUID{cid}
+	tot, err := r.promotionAnalyticsTotals(ctx, since, now, scope)
 	if err != nil {
 		return "Could not load promotion performance."
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "Promotions in window: %d redemptions, %.2f discount given, %d unique customers (store-wide, in store currency).\n",
+	fmt.Fprintf(&b, "Promotions in window: %d redemptions, %.2f discount given, %d unique customers (this channel, in its currency).\n",
 		tot.RedemptionCount, float64(tot.DiscountTotalCents)/100, tot.UniqueCustomers)
-	if rows, e := r.PromotionSvc.AnalyticsByRule(ctx, since, now); e == nil && len(rows) > 0 {
+	if rows, e := r.promotionAnalyticsByRule(ctx, since, now, scope); e == nil && len(rows) > 0 {
 		b.WriteString("By rule:\n")
 		for i, rw := range rows {
 			if i >= 15 {
@@ -384,4 +387,18 @@ func toolProductReviews(ctx context.Context, r *Resolver, a toolArgs) string {
 		fmt.Fprintf(&b, "What customers say: %s\n", sum)
 	}
 	return b.String()
+}
+
+func channelLowStock(levels []inventory.LowStockLevel, locs []inventory.Location) []inventory.LowStockLevel {
+	own := make(map[uuid.UUID]bool, len(locs))
+	for _, l := range locs {
+		own[l.ID] = true
+	}
+	out := levels[:0:0]
+	for _, lv := range levels {
+		if lv.LocationID != nil && own[*lv.LocationID] {
+			out = append(out, lv)
+		}
+	}
+	return out
 }

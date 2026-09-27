@@ -283,7 +283,7 @@ echo "==> Profile: $SKELET_TARGET, signals=$SKELET_SIGNALS ai=$SKELET_AI, search
 
 # ---------------------------------------------------------------- env files
 case "$SKELET_TARGET" in
-    dev)   backend_env=env/go.env;    want=(env/go.env env/db.env) ;;
+    dev)   backend_env=env/go.env;    want=(env/go.env env/db.env env/signals.env) ;;
     small) backend_env=env/small.env; want=(env/small.env) ;;
     prod)  backend_env=env/prod.env;  want=(env/prod.env) ;;
 esac
@@ -321,6 +321,13 @@ for key in JWT_SECRET CONFIG_ENCRYPTION_KEY SIGNALS_SERVICE_SECRET REVIEW_VOTER_
         echo "    $key already set, left alone"
     fi
 done
+# The Signals processes' own file carries the two secrets they share with core, which have to match go.env's
+if [ "$SKELET_TARGET" = dev ]; then
+    for key in JWT_SECRET SIGNALS_SERVICE_SECRET; do
+        val="$(get_env env/go.env "$key")"
+        [ -z "$val" ] || set_env env/signals.env "$key" "$val"
+    done
+fi
 if [ "$SKELET_TARGET" != dev ]; then
     cur="$(get_env "$backend_env" BACKUP_ENCRYPTION_PASSPHRASE)"
     if placeholder "$cur"; then

@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 // bare returns a Service with nil queries, so any code path reaching the database panics - the recover in guarded turns that into a named failure
@@ -153,12 +154,31 @@ func TestToQuestionsCopiesEveryRowDistinctly(t *testing.T) {
 }
 
 func TestNullableUUID(t *testing.T) {
-	if got := nullableUUID(nil); got.Valid {
+	if got := sqlnull.UUID(nil); got.Valid {
 		t.Errorf("nullableUUID(nil) = %+v, want invalid", got)
 	}
 	id := uuid.New()
-	got := nullableUUID(&id)
+	got := sqlnull.UUID(&id)
 	if !got.Valid || got.UUID != id {
 		t.Errorf("nullableUUID(&id) = %+v, want the id marked valid", got)
+	}
+}
+
+type argSpy struct {
+	db.DBTX
+	args []any
+}
+
+func (s *argSpy) QueryContext(_ context.Context, _ string, args ...any) (*sql.Rows, error) {
+	s.args = args
+	return nil, errors.New("spy")
+}
+
+func TestPublishedQuestionsAreReadForOneChannel(t *testing.T) {
+	spy := &argSpy{}
+	product, store := uuid.New(), uuid.New()
+	_, _ = NewService(db.New(spy)).Published(context.Background(), product, store, 5)
+	if len(spy.args) < 2 || spy.args[0] != product || spy.args[1] != store {
+		t.Fatalf("query args = %v, want the product then the store", spy.args)
 	}
 }

@@ -5,10 +5,12 @@ import (
 	"strings"
 )
 
-// The two Postgres error codes worth branching on - matched via SQLState so wrapped driver errors still classify, with a message fallback for drivers that only put the code in text
+// Matched via SQLState so wrapped driver errors still classify
+// The text fallback only reads the "(SQLSTATE nnnnn)" suffix a %v-flattened pgx error keeps
 const (
 	pgUniqueViolation     = "23505"
 	pgForeignKeyViolation = "23503"
+	pgRestrictViolation   = "23001"
 )
 
 func sqlState(err error) string {
@@ -27,18 +29,17 @@ func IsUniqueViolation(err error) bool {
 	if code := sqlState(err); code != "" {
 		return code == pgUniqueViolation
 	}
-	msg := err.Error()
-	return strings.Contains(msg, "SQLSTATE 23505") || strings.Contains(msg, "duplicate key") || strings.Contains(msg, "unique constraint")
+	return strings.Contains(err.Error(), "SQLSTATE "+pgUniqueViolation)
 }
 
-// IsForeignKeyViolation reports whether err is an FK error (SQLSTATE 23503) - what a RESTRICT delete hits when rows still reference the target
+// IsForeignKeyViolation reports whether err is an FK refusal - 23503 from NO ACTION, 23001 from an ON DELETE RESTRICT the delete hit
 func IsForeignKeyViolation(err error) bool {
 	if err == nil {
 		return false
 	}
 	if code := sqlState(err); code != "" {
-		return code == pgForeignKeyViolation
+		return code == pgForeignKeyViolation || code == pgRestrictViolation
 	}
 	msg := err.Error()
-	return strings.Contains(msg, "SQLSTATE 23503") || strings.Contains(msg, "foreign key constraint")
+	return strings.Contains(msg, "SQLSTATE "+pgForeignKeyViolation) || strings.Contains(msg, "SQLSTATE "+pgRestrictViolation)
 }

@@ -30,6 +30,9 @@ func (r *mutationResolver) requireCatalogManageOnAllListingChannels(ctx context.
 // since each renders on every channel listing its OWNING product, and the caller only has the child's id
 
 func (r *mutationResolver) requireCatalogManageForProductOption(ctx context.Context, optionID uuid.UUID) error {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return err
+	}
 	opt, err := r.CatalogSvc.GetProductOption(ctx, optionID)
 	if err != nil {
 		return err
@@ -38,6 +41,9 @@ func (r *mutationResolver) requireCatalogManageForProductOption(ctx context.Cont
 }
 
 func (r *mutationResolver) requireCatalogManageForProductOptionValue(ctx context.Context, valueID uuid.UUID) error {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return err
+	}
 	val, err := r.CatalogSvc.GetProductOptionValue(ctx, valueID)
 	if err != nil {
 		return err
@@ -46,6 +52,9 @@ func (r *mutationResolver) requireCatalogManageForProductOptionValue(ctx context
 }
 
 func (r *mutationResolver) requireCatalogManageForBundleOption(ctx context.Context, optionID uuid.UUID) error {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return err
+	}
 	opt, err := r.CatalogSvc.GetBundleOption(ctx, optionID)
 	if err != nil {
 		return err
@@ -56,6 +65,9 @@ func (r *mutationResolver) requireCatalogManageForBundleOption(ctx context.Conte
 // Through the OPTION, not the selection's own ProductID - that one is the product being selected,
 // while the structure being edited belongs to the bundle
 func (r *mutationResolver) requireCatalogManageForBundleSelection(ctx context.Context, selectionID uuid.UUID) error {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return err
+	}
 	sel, err := r.CatalogSvc.GetBundleSelection(ctx, selectionID)
 	if err != nil {
 		return err
@@ -64,6 +76,9 @@ func (r *mutationResolver) requireCatalogManageForBundleSelection(ctx context.Co
 }
 
 func (r *mutationResolver) requireCatalogManageForGroupedMember(ctx context.Context, memberID uuid.UUID) error {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return err
+	}
 	member, err := r.CatalogSvc.GetGroupedMember(ctx, memberID)
 	if err != nil {
 		return err
@@ -72,6 +87,9 @@ func (r *mutationResolver) requireCatalogManageForGroupedMember(ctx context.Cont
 }
 
 func (r *mutationResolver) requireCatalogManageForKitComponent(ctx context.Context, componentID uuid.UUID) error {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return err
+	}
 	comp, err := r.CatalogSvc.GetKitComponent(ctx, componentID)
 	if err != nil {
 		return err

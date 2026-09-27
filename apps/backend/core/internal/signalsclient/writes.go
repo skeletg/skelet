@@ -6,6 +6,8 @@ package signalsclient
 import (
 	"context"
 	"encoding/json"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -254,6 +256,38 @@ type RosterCustomer struct {
 	GroupSlug        string // beside the id, since segment rules are authored against slugs
 	MarketingOptedIn bool
 	SMSOptedIn       bool
+	Consents         map[string]bool
+	ReadAt           time.Time // when core's database read the row - the suite keeps whichever read is newest
+	OrderCount       int32
+	MonetaryCents    int64
+	FirstOrderAt     *time.Time
+	LastOrderAt      *time.Time
+}
+
+// TimeFromAny reads the roster query's lifetime order dates, which sqlc hands over untyped - nil for a customer with no orders
+func TimeFromAny(v any) *time.Time {
+	if t, ok := v.(time.Time); ok {
+		return &t
+	}
+	return nil
+}
+
+// ConsentsFromJSON reads the roster query's jsonb_object_agg of kind -> opted_in, which sqlc hands over untyped
+func ConsentsFromJSON(v any) map[string]bool {
+	out := map[string]bool{}
+	var raw []byte
+	switch x := v.(type) {
+	case []byte:
+		raw = x
+	case string:
+		raw = []byte(x)
+	case json.RawMessage:
+		raw = x
+	}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &out)
+	}
+	return out
 }
 
 type RosterPage struct {
@@ -296,10 +330,23 @@ func (c *Client) PushCustomerRoster(ctx context.Context, next func() (RosterPage
 	return res.GetSynced(), res.GetPruned(), nil
 }
 
-// ChannelEntry is one of core's active channels on the way to the suite
+// RosterNeedsFullSync is the suite saying its roster schema grew past the last full sync - the caller runs the sweep now
+func (c *Client) RosterNeedsFullSync(ctx context.Context) (bool, error) {
+	sys, err := c.System(ctx)
+	if err != nil {
+		return false, err
+	}
+	res, err := c.Ingest.RosterStatus(sys, &signalsv1.RosterStatusRequest{})
+	if err != nil {
+		return false, err
+	}
+	return res.GetNeedsFullSync(), nil
+}
+
 type ChannelEntry struct {
 	ID        uuid.UUID
 	IsDefault bool
+	IsActive  bool
 	// The identity a message for this channel is sent under, resolved from core's config registry
 	Name        string
 	PublicURL   string
@@ -308,7 +355,7 @@ type ChannelEntry struct {
 	LogoURL     string
 }
 
-// PushChannels replaces the suite's copy of core's active channels, which is what its beacon surface
+// PushChannels replaces the suite's copy of core's channels, which is what its beacon surface
 // resolves against - the whole set goes in one call, so a failure leaves the old copy serving
 func (c *Client) PushChannels(ctx context.Context, channels []ChannelEntry) (synced, pruned int32, err error) {
 	sys, err := c.System(ctx)
@@ -318,7 +365,7 @@ func (c *Client) PushChannels(ctx context.Context, channels []ChannelEntry) (syn
 	entries := make([]*signalsv1.ChannelEntry, 0, len(channels))
 	for _, ch := range channels {
 		entries = append(entries, &signalsv1.ChannelEntry{
-			ChannelId: ch.ID.String(), IsDefault: ch.IsDefault, Name: ch.Name, PublicUrl: ch.PublicURL,
+			ChannelId: ch.ID.String(), IsDefault: ch.IsDefault, IsActive: &ch.IsActive, Name: ch.Name, PublicUrl: ch.PublicURL,
 			FromAddress: ch.FromAddress, FromName: ch.FromName, LogoUrl: ch.LogoURL,
 		})
 	}
@@ -331,13 +378,13 @@ func (c *Client) PushChannels(ctx context.Context, channels []ChannelEntry) (syn
 
 // DeleteCustomerIdentities is the Signals half of a GDPR erasure - the mappings that would re-link an anonymized customer to everything they did
 // email is the one core is about to redact - sends from before they had an account carry only that
-func (c *Client) DeleteCustomerIdentities(ctx context.Context, customerID uuid.UUID, email string) error {
+func (c *Client) DeleteCustomerIdentities(ctx context.Context, customerID uuid.UUID, email string, erasedAt time.Time) error {
 	sys, err := c.System(ctx)
 	if err != nil {
 		return err
 	}
 	_, err = c.Ingest.EraseCustomerIdentities(sys, &signalsv1.EraseCustomerIdentitiesRequest{
-		CustomerId: customerID.String(), Email: email,
+		CustomerId: customerID.String(), Email: email, ErasedAt: stamp(erasedAt),
 	})
 	return err
 }
@@ -346,24 +393,37 @@ func rosterEntry(c RosterCustomer) *signalsv1.RosterEntry {
 	e := &signalsv1.RosterEntry{
 		CustomerId: c.CustomerID.String(), ChannelId: c.ChannelID.String(),
 		Email: c.Email, FirstName: c.FirstName, Phone: c.Phone, IsActive: c.IsActive,
-		MarketingOptedIn: c.MarketingOptedIn, SmsOptedIn: c.SMSOptedIn,
+		MarketingOptedIn: c.MarketingOptedIn, SmsOptedIn: c.SMSOptedIn, ReadAt: stamp(c.ReadAt),
+		OrderCount: c.OrderCount, MonetaryCents: c.MonetaryCents,
+	}
+	if c.FirstOrderAt != nil {
+		e.FirstOrderAt = stamp(*c.FirstOrderAt)
+	}
+	if c.LastOrderAt != nil {
+		e.LastOrderAt = stamp(*c.LastOrderAt)
 	}
 	if c.GroupID.Valid {
 		e.CustomerGroupId = c.GroupID.UUID.String()
 		e.CustomerGroupSlug = c.GroupSlug
 	}
+	for _, kind := range slices.Sorted(maps.Keys(c.Consents)) {
+		e.Consents = append(e.Consents, &signalsv1.Consent{Kind: kind, OptedIn: c.Consents[kind]})
+	}
 	return e
 }
 
 // UpsertRosterCustomer pushes one customer on a change core just committed, so an audience built
-// before the next sweep still sees it
-func (c *Client) UpsertRosterCustomer(ctx context.Context, cust RosterCustomer) error {
+// before the next sweep still sees it - the answer says whether the suite wants a full sweep too
+func (c *Client) UpsertRosterCustomer(ctx context.Context, cust RosterCustomer) (needsFullSync bool, err error) {
 	sys, err := c.System(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
-	_, err = c.Ingest.UpsertRosterEntry(sys, &signalsv1.UpsertRosterEntryRequest{Customer: rosterEntry(cust)})
-	return err
+	res, err := c.Ingest.UpsertRosterEntry(sys, &signalsv1.UpsertRosterEntryRequest{Customer: rosterEntry(cust)})
+	if err != nil {
+		return false, err
+	}
+	return res.GetNeedsFullSync(), nil
 }
 
 // DeleteRosterCustomer drops one customer ahead of the sweep that would eventually have caught them

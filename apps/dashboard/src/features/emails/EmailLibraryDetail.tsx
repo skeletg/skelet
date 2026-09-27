@@ -676,7 +676,7 @@ function PreviewDialog({
   const [customerId, setCustomerId] = useState<string | null>(null)
 
   const { data: custData } = useQuery(PreviewCustomersDocument, { variables: { channelId }, skip: !open, fetchPolicy: 'cache-first' })
-  const customers = custData?.customers ?? []
+  const customers = custData?.customersPaged.items ?? []
 
   const { data, loading } = useQuery(RenderLibraryPreviewDocument, {
     variables: { channelId, customerId, subject, preheader, blocks, styles },

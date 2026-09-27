@@ -72,6 +72,9 @@ func toCreateDraftOrderInput(in model.CreateDraftOrderInput, channelID uuid.UUID
 
 // perm is a parameter because moving money OUT needs orders.refund, not the orders.update every support role holds for editing addresses
 func (r *mutationResolver) orderForPaymentAction(ctx context.Context, id, perm string) (order.Order, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, perm); err != nil {
+		return order.Order{}, err
+	}
 	orderID, err := uuid.Parse(id)
 	if err != nil {
 		return order.Order{}, errInvalidID("order id", nil)
@@ -92,6 +95,9 @@ func (r *mutationResolver) adminTransitionOrderStatus(ctx context.Context, id, s
 
 // Transitions that don't stamp shipping pass empty carrier + trackingNumber and the fields are ignored
 func (r *mutationResolver) adminTransitionOrderStatusWithTracking(ctx context.Context, id, status, carrier, trackingNumber string) (*model.Order, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "orders.update"); err != nil {
+		return nil, err
+	}
 	orderID, err := uuid.Parse(id)
 	if err != nil {
 		return nil, errInvalidID("order id", nil)
@@ -370,6 +376,9 @@ func creditMemoAdminID(ctx context.Context) *uuid.UUID {
 
 // Lookup-first preamble the return mutations share - the channel can't be derived from the return id, so the gate needs the order row
 func (r *mutationResolver) returnForAction(ctx context.Context, id, permission string) (order.OrderReturn, order.Order, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, permission); err != nil {
+		return order.OrderReturn{}, order.Order{}, err
+	}
 	returnID, err := parseID(id, "return")
 	if err != nil {
 		return order.OrderReturn{}, order.Order{}, err
@@ -407,4 +416,31 @@ func orderEmailMessageKey(m model.OrderEmailMessage) string {
 	default:
 		return email.KeyOrderConfirmation
 	}
+}
+
+// The unpaged orders field stops here - ordersPaged is the one to page
+const unpagedOrdersCap int32 = 1000
+
+// Resolved before the SQL page so LIMIT only counts rows the caller can see
+// nil with none=false is every channel, none=true is no channel at all
+func (r *queryResolver) orderChannelScope(ctx context.Context, channelID *string) (channels []uuid.UUID, none bool, err error) {
+	perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "orders.view")
+	if err != nil {
+		return nil, false, err
+	}
+	explicit, err := r.scopedChannelID(ctx, channelID)
+	if err != nil {
+		return nil, false, err
+	}
+	switch {
+	case explicit != nil:
+		if !perm.Allows(*explicit) {
+			return nil, false, auth.ErrForbidden
+		}
+		return []uuid.UUID{*explicit}, false, nil
+	case !perm.Bypass():
+		ids := perm.IDs()
+		return ids, len(ids) == 0, nil
+	}
+	return nil, false, nil
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 type GroupPrice struct { // one tier row - nil ChannelID/CustomerGroupID = applies to every channel / every group
@@ -72,8 +73,8 @@ func (r *postgresRepository) ReplaceGroupPrices(ctx context.Context, productID u
 		for _, in := range inputs {
 			row, err := q.InsertProductGroupPrice(ctx, db.InsertProductGroupPriceParams{
 				ProductID:       productID,
-				ChannelID:       nullableUUIDPtr(in.ChannelID),
-				CustomerGroupID: nullableUUIDPtr(in.CustomerGroupID),
+				ChannelID:       sqlnull.UUID(in.ChannelID),
+				CustomerGroupID: sqlnull.UUID(in.CustomerGroupID),
 				MinQty:          in.MinQty,
 				Price:           in.Price,
 			})
@@ -106,11 +107,4 @@ func toGroupPrice(row db.CatalogProductGroupPrice) GroupPrice {
 		gp.CustomerGroupID = &v
 	}
 	return gp
-}
-
-func nullableUUIDPtr(p *uuid.UUID) uuid.NullUUID {
-	if p == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *p, Valid: true}
 }

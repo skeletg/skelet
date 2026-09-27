@@ -83,6 +83,16 @@ func (st StoreSnapshot) fromHeader() string {
 	return addr
 }
 
+func (s *Service) storeName(ctx context.Context, st StoreSnapshot) string {
+	if s.cfg != nil {
+		scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &st.ID}
+		if name, err := s.cfg.GetString(ctx, "general/branding/store_name", scope); err == nil && strings.TrimSpace(name) != "" {
+			return strings.TrimSpace(name)
+		}
+	}
+	return st.EmailFromName
+}
+
 // Optional - nil skips per-channel country/region enforcement on address writes
 type CountryValidator interface {
 	ValidateAddressForChannel(ctx context.Context, channelID uuid.UUID, countryCode string, region *string) error
@@ -347,6 +357,14 @@ func (s *Service) List(ctx context.Context) ([]Customer, error) {
 	return s.repo.List(ctx)
 }
 
+// nil channelIDs is every channel, an empty slice none
+func (s *Service) ListInChannels(ctx context.Context, channelIDs []uuid.UUID) ([]Customer, error) {
+	if channelIDs != nil && len(channelIDs) == 0 {
+		return nil, nil
+	}
+	return s.repo.ListInChannels(ctx, channelIDs)
+}
+
 func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, input UpdateCustomerInput) (Customer, error) {
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -573,7 +591,19 @@ func (s *Service) SetCustomerGroup(ctx context.Context, customerID, groupID uuid
 	if _, err := s.repo.GetGroupByID(ctx, groupID); err != nil {
 		return Customer{}, err
 	}
-	return s.repo.SetCustomerGroup(ctx, customerID, groupID)
+	c, err := s.repo.SetCustomerGroup(ctx, customerID, groupID)
+	if err != nil {
+		return Customer{}, err
+	}
+	s.publishUpdated(ctx, c, "customerGroup")
+	return c, nil
+}
+
+func (s *Service) publishUpdated(ctx context.Context, c Customer, field string) {
+	s.publishDurable(ctx, &CustomerUpdated{
+		CustomerID: c.ID, ChannelID: c.ChannelID, Email: c.Email, FirstName: c.FirstName, LastName: c.LastName,
+		IsActive: c.IsActive, ChangedFields: []string{field}, Source: "admin",
+	})
 }
 
 // Shared by Register and ResendVerificationEmail
@@ -590,7 +620,8 @@ func (s *Service) sendVerificationEmail(ctx context.Context, c Customer) error {
 	storefront := strings.TrimRight(store.PublicURL, "/")
 	link := storefront + "/verify-email?token=" + token
 	// A flow on the email_verification trigger delivers this when one is active, so operators can edit the journey
-	if s.authFlows != nil && s.authFlows.OnEmailVerification(ctx, c.ChannelID, c.ID, link, store.EmailFromName, c.FirstName) > 0 {
+	name := s.storeName(ctx, store)
+	if s.authFlows != nil && s.authFlows.OnEmailVerification(ctx, c.ChannelID, c.ID, link, name, c.FirstName) > 0 {
 		return nil
 	}
 	// Nothing handled it - send directly rather than let a missing or paused flow silently swallow a verification
@@ -599,7 +630,7 @@ func (s *Service) sendVerificationEmail(ctx context.Context, c Customer) error {
 		return nil
 	}
 	return s.authFallback.SendVerification(ctx, c.ChannelID, store.fromHeader(), c.Email, storefront, email.VerificationEmailData{
-		FirstName: c.FirstName, Link: link, StoreName: store.EmailFromName,
+		FirstName: c.FirstName, Link: link, StoreName: name,
 	})
 }
 
@@ -675,7 +706,8 @@ func (s *Service) RequestPasswordReset(ctx context.Context, channelID uuid.UUID,
 	link := storefront + "/reset-password?token=" + token
 	expiresIn := humanDuration(s.resetStore.TTL())
 	// A flow on the password_reset trigger delivers this when one is active, sent synchronously
-	if s.authFlows != nil && s.authFlows.OnPasswordReset(ctx, c.ChannelID, c.ID, link, expiresIn, store.EmailFromName, c.FirstName) > 0 {
+	name := s.storeName(ctx, store)
+	if s.authFlows != nil && s.authFlows.OnPasswordReset(ctx, c.ChannelID, c.ID, link, expiresIn, name, c.FirstName) > 0 {
 		return nil
 	}
 	// Nothing handled it - send directly, or a paused flow locks the customer out of their own account
@@ -685,7 +717,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, channelID uuid.UUID,
 	}
 	// Logged rather than returned: this function always returns nil so the response can't confirm the address exists
 	if err := s.authFallback.SendPasswordReset(ctx, c.ChannelID, store.fromHeader(), c.Email, storefront, email.PasswordResetEmailData{
-		FirstName: c.FirstName, Link: link, StoreName: store.EmailFromName, ExpiresIn: expiresIn,
+		FirstName: c.FirstName, Link: link, StoreName: name, ExpiresIn: expiresIn,
 	}); err != nil {
 		log.Printf("[email:error] password reset send to %s: %v", c.Email, err)
 	}
@@ -959,6 +991,7 @@ func (s *Service) SetCustomerActive(ctx context.Context, id uuid.UUID, active bo
 			log.Printf("[auth:warn] revoke customer %s sessions after disable: %v", id, rerr)
 		}
 	}
+	s.publishUpdated(ctx, c, "isActive")
 	return c, nil
 }
 

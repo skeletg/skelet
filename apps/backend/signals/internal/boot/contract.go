@@ -34,6 +34,8 @@ type contractDeps struct {
 	Revocations   auth.Revocations
 	Stack         *signalsboot.Stack
 	Recorder      *analytics.Recorder
+	Roster        *analytics.Roster
+	Traits        *analytics.TraitCompute
 	Channels      *analytics.ChannelRoster
 	Lens          *lens.Service
 	Experiment    *experiment.Service
@@ -51,26 +53,28 @@ type contractDeps struct {
 
 func newGRPCServer(d contractDeps) *grpc.Server {
 	return signalsgrpc.NewServer(signalsgrpc.Deps{
-		Experiment:    d.Experiment,
-		Lens:          d.Lens,
-		Destination:   d.Destination,
-		Segment:       d.Segment,
-		Analytics:     d.Recorder,
-		Behavioral:    d.Behavioral,
-		Roster:        d.Queries.Queries,
-		Channels:      d.Channels,
-		Settings:      d.ChannelScoped,
-		Queue:         d.Stack.Queue,
-		SettingsRepo:  signalsboot.NewSettingsRepository(d.Queries.Queries),
-		SendLog:       d.SendLog,
-		Suppression:   d.Suppression,
-		Flows:         d.Flow,
-		Campaigns:     d.Campaign,
-		Builder:       d.Builder,
-		Stores:        d.Stores,
-		Contacts:      PreviewContacts{RosterContacts: d.Contacts},
-		ServiceSecret: d.Config.ServiceSecret,
-		Revocations:   d.Revocations,
-		Dev:           d.Config.IsDev(),
+		Experiment:     d.Experiment,
+		Lens:           d.Lens,
+		Destination:    d.Destination,
+		Segment:        d.Segment,
+		Analytics:      d.Recorder,
+		CustomerRoster: d.Roster,
+		Traits:         d.Traits,
+		Behavioral:     d.Behavioral,
+		Roster:         d.Queries.Queries,
+		Channels:       d.Channels,
+		Settings:       d.ChannelScoped,
+		Queue:          d.Stack.Queue,
+		SettingsRepo:   signalsboot.NewSettingsRepository(d.Queries.Queries),
+		SendLog:        d.SendLog,
+		Suppression:    d.Suppression,
+		Flows:          d.Flow,
+		Campaigns:      d.Campaign,
+		Builder:        d.Builder,
+		Stores:         d.Stores,
+		Contacts:       PreviewContacts{RosterContacts: d.Contacts},
+		ServiceSecret:  d.Config.ServiceSecret,
+		Revocations:    d.Revocations,
+		Dev:            d.Config.IsDev(),
 	})
 }

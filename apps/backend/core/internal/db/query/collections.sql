@@ -120,11 +120,13 @@ SET sort_order = $3
 WHERE collection_id = $1 AND product_id = $2;
 
 -- name: ListProductsByCollection :many
+-- row_limit 0 means every member
 SELECT p.*
 FROM catalog_collection_products cp
 JOIN catalog_products p ON p.id = cp.product_id
-WHERE cp.collection_id = $1
-ORDER BY cp.sort_order, p.url;
+WHERE cp.collection_id = sqlc.arg(collection_id)
+ORDER BY cp.sort_order, p.url
+LIMIT NULLIF(sqlc.arg(row_limit)::int, 0);
 
 -- name: ListCollectionsByProduct :many
 SELECT c.*

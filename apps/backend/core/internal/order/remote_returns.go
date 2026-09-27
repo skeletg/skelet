@@ -17,6 +17,7 @@ type RemoteReturnsPolicy interface {
 
 type RemoteReturnInput struct {
 	OrderID      uuid.UUID
+	ChannelID    uuid.UUID
 	Resolution   string
 	RefundTarget string
 	Lines        []RemoteReturnLine
@@ -59,15 +60,14 @@ func NewRemoteReturnsPolicy(svc *remoteprovider.Service, invoker *remoteprovider
 }
 
 func (r *remoteReturnsPolicy) Allowed(ctx context.Context, in RemoteReturnInput) (bool, string) {
-	providers, err := r.svc.ListActiveByKind(ctx, remoteprovider.KindReturnsPolicy, nil)
+	p, found, err := r.svc.ActiveFor(ctx, remoteprovider.KindReturnsPolicy, &in.ChannelID)
 	if err != nil {
 		// Not the same as "no provider": allowing the RMA here would open a refund the policy may forbid (window expired, final sale). This seam has no error slot, so the unknown resolves the same way the Invoke path resolves a FailClosed failure - an admin sees a retryable message instead of an irreversible refund
 		return false, "returns policy check unavailable"
 	}
-	if len(providers) == 0 {
+	if !found {
 		return true, "" // no provider - native quantity guard already passed
 	}
-	p := providers[0]
 
 	lines := make([]remoteReturnReqLine, len(in.Lines))
 	for i, l := range in.Lines {

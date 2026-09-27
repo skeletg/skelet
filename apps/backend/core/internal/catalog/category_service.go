@@ -456,11 +456,11 @@ func (s *categoryService) DeleteCategory(ctx context.Context, id uuid.UUID) erro
 	if len(children) > 0 {
 		return ErrCategoryHasChildren
 	}
-	products, err := s.repo.ListProductsByCategory(ctx, id)
+	n, err := s.repo.CountProductsInCategory(ctx, id)
 	if err != nil {
 		return err
 	}
-	if len(products) > 0 {
+	if n > 0 {
 		return ErrCategoryHasProducts
 	}
 	// Snapshot slug before delete - listeners need the human handle since the row vanishes
@@ -909,6 +909,14 @@ func (s *categoryService) ListPublishedCategoryChildrenForChannel(ctx context.Co
 }
 
 // GetPublishedCategoryForChannel returns a category visible on a particular store - Returns ErrCategoryNotFound when the category exists but is not listed on the store, or is unpublished globally
+func (s *categoryService) ListProductsByCategory(ctx context.Context, categoryID uuid.UUID, locale string, limit int32) ([]Product, error) {
+	products, err := s.repo.ListProductsByCategory(ctx, categoryID, limit)
+	if err != nil {
+		return nil, err
+	}
+	return s.withProductsContent(ctx, products, locale)
+}
+
 func (s *categoryService) GetPublishedCategoryForChannel(ctx context.Context, channelID, categoryID uuid.UUID, locale string) (Category, error) {
 	c, err := s.repo.GetPublishedCategoryForChannel(ctx, channelID, categoryID)
 	if err != nil {

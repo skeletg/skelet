@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "files": {
     "address_validator.request.json": "b21e68e3653f3a33ea20dbfe9b6091964e4d3acf8bdfdeb297228a4daa85b246",
     "address_validator.schema.json": "563eff8a83c7d18af0b7e6153c1cf04415ec1defdaef6577b1d2168483c41496",
@@ -31,7 +31,7 @@
     "shipping_carrier.schema.json": "f9837f30b195ca8cb318434ab25c0f6dfb93337203a3cf9c28dd66d3387c05e7",
     "shipping_tracking.request.json": "ebbe4608d40aed7a0b9b34632534b6ca2d8f43b957d8938b28dc746b1f92ff40",
     "shipping_tracking.schema.json": "c402d10989804bf3f1b2f80b8623d5e72f521dbbcc87a413be201824b758836f",
-    "tax_provider.request.json": "0a5fa31eb08e09b45aa01613a9505bb27e3758ece95268783c1129db71a75260",
-    "tax_provider.schema.json": "49f1bd8dfa12ec8366a054cacabbbc67a91e69af0eed6966e06baf644556817d"
+    "tax_provider.request.json": "6603e6e1e9cb4aad750f8a8654a0997396d1de2d9f0e673e57d5d77dc5169928",
+    "tax_provider.schema.json": "8ace62b734910e7477b22790098d8de7a61d5f6a08537046bba59918bb4fc887"
   }
 }

@@ -242,8 +242,8 @@ type ApplyCodeResult struct {
 	AlreadyApplied bool
 }
 
-// Returns a typed error so the storefront can translate it into a UX message
-func (s *Service) ApplyCode(ctx context.Context, cartID uuid.UUID, codeText string, customerID *uuid.UUID) (ApplyCodeResult, error) {
+// Returns a typed error so the storefront can translate it into a UX message - another channel's code reads as unknown
+func (s *Service) ApplyCode(ctx context.Context, cartID, channelID uuid.UUID, codeText string, customerID *uuid.UUID) (ApplyCodeResult, error) {
 	// Codes are case-insensitive to the customer but stored uppercase, so normalise at every entry point and "welcome10" still matches
 	codeText = strings.ToUpper(strings.TrimSpace(codeText))
 	if codeText == "" {
@@ -256,6 +256,9 @@ func (s *Service) ApplyCode(ctx context.Context, cartID uuid.UUID, codeText stri
 	rule, err := s.repo.GetRule(ctx, code.RuleID)
 	if err != nil {
 		return ApplyCodeResult{}, err
+	}
+	if rule.ChannelID != nil && *rule.ChannelID != channelID {
+		return ApplyCodeResult{}, ErrCodeNotFound
 	}
 	if !rule.IsActive {
 		return ApplyCodeResult{}, ErrRuleInactive

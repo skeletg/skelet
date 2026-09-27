@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -56,16 +57,20 @@ func (r *postgresRepository) GetCategoryByID(ctx context.Context, id uuid.UUID) 
 		c.AllContent[i] = toCategoryContent(cr)
 	}
 
-	products, err := r.queries.ListProductsByCategory(ctx, id)
-	if err != nil {
-		return Category{}, fmt.Errorf("list category products: %w", err)
-	}
-	c.Products = make([]Product, len(products))
-	for i, row := range products {
-		c.Products[i] = toProduct(row)
-	}
-
 	return c, nil
+}
+
+// limit 0 means every member
+func (r *postgresRepository) ListProductsByCategory(ctx context.Context, categoryID uuid.UUID, limit int32) ([]Product, error) {
+	rows, err := r.queries.ListProductsByCategory(ctx, db.ListProductsByCategoryParams{CategoryID: categoryID, RowLimit: limit})
+	if err != nil {
+		return nil, fmt.Errorf("list products by category: %w", err)
+	}
+	out := make([]Product, len(rows))
+	for i, row := range rows {
+		out[i] = toProduct(row)
+	}
+	return out, nil
 }
 
 func (r *postgresRepository) GetCategoryBySlug(ctx context.Context, slug string) (Category, error) {
@@ -224,9 +229,9 @@ func (r *postgresRepository) UpsertCategoryContent(ctx context.Context, category
 		Name:             input.Name,
 		ShortDescription: pqtype.NullRawMessage{RawMessage: input.ShortDescription, Valid: len(input.ShortDescription) > 0},
 		Description:      pqtype.NullRawMessage{RawMessage: input.Description, Valid: len(input.Description) > 0},
-		MetaTitle:        nullableString(input.MetaTitle),
-		MetaDescription:  nullableString(input.MetaDescription),
-		MetaKeywords:     nullableString(input.MetaKeywords),
+		MetaTitle:        sqlnull.StringValueNonEmpty(input.MetaTitle),
+		MetaDescription:  sqlnull.StringValueNonEmpty(input.MetaDescription),
+		MetaKeywords:     sqlnull.StringValueNonEmpty(input.MetaKeywords),
 	})
 	if err != nil {
 		return CategoryContent{}, fmt.Errorf("upsert category content: %w", err)
@@ -353,18 +358,6 @@ func (r *postgresRepository) SetPrimaryProductCategory(ctx context.Context, prod
 		ProductID:  productID,
 		CategoryID: categoryID,
 	})
-}
-
-func (r *postgresRepository) ListProductsByCategory(ctx context.Context, categoryID uuid.UUID) ([]Product, error) {
-	rows, err := r.queries.ListProductsByCategory(ctx, categoryID)
-	if err != nil {
-		return nil, fmt.Errorf("list products by category: %w", err)
-	}
-	out := make([]Product, len(rows))
-	for i, row := range rows {
-		out[i] = toProduct(row)
-	}
-	return out, nil
 }
 
 func (r *postgresRepository) CountProductsInCategory(ctx context.Context, categoryID uuid.UUID) (int64, error) {

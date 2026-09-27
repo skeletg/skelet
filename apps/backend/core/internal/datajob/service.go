@@ -15,6 +15,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
@@ -167,8 +168,8 @@ func (s *Service) insert(ctx context.Context, p insertParams) (db.DataJob, error
 		Status:    string(p.status),
 		Options:   raw,
 		DryRun:    p.dryRun,
-		ChannelID: nullUUID(p.channelID),
-		AdminID:   nullUUID(p.adminID),
+		ChannelID: sqlnull.UUIDValueNonZero(p.channelID),
+		AdminID:   sqlnull.UUIDValueNonZero(p.adminID),
 		Filename:  p.filename,
 		ObjectKey: p.objectKey,
 		ExpiresAt: sql.NullTime{Time: s.now().Add(s.retention()), Valid: true},
@@ -192,32 +193,62 @@ type ListFilter struct {
 	Statuses  []string
 	Limit     int
 	Offset    int
+	// Nil lists every channel's runs; set, a run shows only where its resource is visible on its channel
+	Visibility *Visibility
+}
+
+type Visibility struct {
+	AnyChannel []string
+	Pairs      []VisiblePair
+}
+
+type VisiblePair struct {
+	Resource  string
+	ChannelID uuid.UUID
+}
+
+func (v *Visibility) params() (bool, []string, []string) {
+	if v == nil {
+		return false, nil, nil
+	}
+	pairs := make([]string, len(v.Pairs))
+	for i, p := range v.Pairs {
+		pairs[i] = p.Resource + "|" + p.ChannelID.String()
+	}
+	return true, append([]string{}, v.AnyChannel...), pairs
 }
 
 func (s *Service) List(ctx context.Context, f ListFilter) ([]Job, int, error) {
 	if f.Limit <= 0 || f.Limit > 200 {
 		f.Limit = 50
 	}
+	scoped, anyRes, pairs := f.Visibility.params()
 	rows, err := s.q.ListDataJobs(ctx, db.ListDataJobsParams{
-		AllResources:  len(f.Resources) == 0,
-		Resources:     f.Resources,
-		AllDirections: f.Direction == "",
-		Direction:     string(f.Direction),
-		AllStatuses:   len(f.Statuses) == 0,
-		Statuses:      f.Statuses,
-		PageSize:      int32(f.Limit),
-		PageOffset:    int32(f.Offset),
+		AllResources:        len(f.Resources) == 0,
+		Resources:           f.Resources,
+		AllDirections:       f.Direction == "",
+		Direction:           string(f.Direction),
+		AllStatuses:         len(f.Statuses) == 0,
+		Statuses:            f.Statuses,
+		Scoped:              scoped,
+		AnyChannelResources: anyRes,
+		ResourceChannels:    pairs,
+		PageSize:            int32(f.Limit),
+		PageOffset:          int32(f.Offset),
 	})
 	if err != nil {
 		return nil, 0, err
 	}
 	total, err := s.q.CountDataJobs(ctx, db.CountDataJobsParams{
-		AllResources:  len(f.Resources) == 0,
-		Resources:     f.Resources,
-		AllDirections: f.Direction == "",
-		Direction:     string(f.Direction),
-		AllStatuses:   len(f.Statuses) == 0,
-		Statuses:      f.Statuses,
+		AllResources:        len(f.Resources) == 0,
+		Resources:           f.Resources,
+		AllDirections:       f.Direction == "",
+		Direction:           string(f.Direction),
+		AllStatuses:         len(f.Statuses) == 0,
+		Statuses:            f.Statuses,
+		Scoped:              scoped,
+		AnyChannelResources: anyRes,
+		ResourceChannels:    pairs,
 	})
 	if err != nil {
 		return nil, 0, err
@@ -302,10 +333,6 @@ func withLocale(opts map[string]string, locale string) map[string]string {
 
 // Locale rides in the options blob so the job row stays schema-stable, but it is promoted onto Opts before a resource sees it
 const localeOption = "__locale"
-
-func nullUUID(id uuid.UUID) uuid.NullUUID {
-	return uuid.NullUUID{UUID: id, Valid: id != uuid.Nil}
-}
 
 func toJob(r db.DataJob) Job {
 	opts := map[string]string{}

@@ -5,24 +5,24 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 func (r *postgresRepository) UpsertProductChannelListing(ctx context.Context, input ProductChannelListingInput) (ProductChannelListing, error) {
 	row, err := r.queries.UpsertProductChannelListing(ctx, db.UpsertProductChannelListingParams{
 		ProductID:      input.ProductID,
 		ChannelID:      input.ChannelID,
-		Price:          nullableInt64(input.Price),
+		Price:          sqlnull.Int64(input.Price),
 		IsPublished:    input.IsPublished,
-		Url:            nullableStringPtr(input.URL),
-		CompareAtPrice: nullableInt64(input.CompareAtPrice),
-		SpecialPrice:   nullableInt64(input.SpecialPrice),
-		SpecialFrom:    nullableTime(input.SpecialFrom),
-		SpecialTo:      nullableTime(input.SpecialTo),
+		Url:            sqlnull.String(input.URL),
+		CompareAtPrice: sqlnull.Int64(input.CompareAtPrice),
+		SpecialPrice:   sqlnull.Int64(input.SpecialPrice),
+		SpecialFrom:    sqlnull.Time(input.SpecialFrom),
+		SpecialTo:      sqlnull.Time(input.SpecialTo),
 	})
 	if err != nil {
 		return ProductChannelListing{}, fmt.Errorf("upsert listing: %w", err)
@@ -63,6 +63,21 @@ func (r *postgresRepository) ListProductChannelListingsByProductIDs(ctx context.
 	rows, err := r.queries.ListProductChannelListingsByProductIDs(ctx, productIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list listings by product ids: %w", err)
+	}
+	out := make(map[uuid.UUID][]ProductChannelListing, len(productIDs))
+	for _, row := range rows {
+		out[row.ProductID] = append(out[row.ProductID], toListing(row))
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) ListProductChannelListingsByProductIDsForChannel(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error) {
+	if len(productIDs) == 0 {
+		return map[uuid.UUID][]ProductChannelListing{}, nil
+	}
+	rows, err := r.queries.ListProductChannelListingsByProductIDsForChannel(ctx, db.ListProductChannelListingsByProductIDsForChannelParams{ProductIds: productIDs, ChannelID: channelID})
+	if err != nil {
+		return nil, fmt.Errorf("list channel listings by product ids: %w", err)
 	}
 	out := make(map[uuid.UUID][]ProductChannelListing, len(productIDs))
 	for _, row := range rows {
@@ -128,52 +143,14 @@ func toListing(row db.ProductChannelListing) ProductChannelListing {
 	return ProductChannelListing{
 		ProductID:      row.ProductID,
 		ChannelID:      row.ChannelID,
-		Price:          int64PtrFromNull(row.Price),
+		Price:          sqlnull.Int64Ptr(row.Price),
 		IsPublished:    row.IsPublished,
-		URL:            stringPtrFromNull(row.Url),
-		CompareAtPrice: int64PtrFromNull(row.CompareAtPrice),
-		SpecialPrice:   int64PtrFromNull(row.SpecialPrice),
-		SpecialFrom:    timePtrFromNull(row.SpecialFrom),
-		SpecialTo:      timePtrFromNull(row.SpecialTo),
+		URL:            sqlnull.StringPtr(row.Url),
+		CompareAtPrice: sqlnull.Int64Ptr(row.CompareAtPrice),
+		SpecialPrice:   sqlnull.Int64Ptr(row.SpecialPrice),
+		SpecialFrom:    sqlnull.TimePtr(row.SpecialFrom),
+		SpecialTo:      sqlnull.TimePtr(row.SpecialTo),
 		CreatedAt:      row.CreatedAt,
 		UpdatedAt:      row.UpdatedAt,
 	}
-}
-
-func int64PtrFromNull(n sql.NullInt64) *int64 {
-	if !n.Valid {
-		return nil
-	}
-	v := n.Int64
-	return &v
-}
-
-func timePtrFromNull(n sql.NullTime) *time.Time {
-	if !n.Valid {
-		return nil
-	}
-	v := n.Time
-	return &v
-}
-
-func nullableTime(p *time.Time) sql.NullTime {
-	if p == nil {
-		return sql.NullTime{}
-	}
-	return sql.NullTime{Time: *p, Valid: true}
-}
-
-func nullableInt64(p *int64) sql.NullInt64 {
-	if p == nil {
-		return sql.NullInt64{}
-	}
-	return sql.NullInt64{Int64: *p, Valid: true}
-}
-
-func stringPtrFromNull(s sql.NullString) *string {
-	if !s.Valid {
-		return nil
-	}
-	v := s.String
-	return &v
 }

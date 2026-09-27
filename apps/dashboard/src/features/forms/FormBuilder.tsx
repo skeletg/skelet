@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useDraft } from '@/shared/saving/useDraft'
 import { duringCommit } from '@/lib/nav-guard'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { useFeatures } from '@/shared/features/useFeatures'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -200,7 +201,9 @@ function Builder({
   // On create, auto-suggest the slug from the name until the operator edits it
   const slugTouched = useRef(!isNew)
 
-  const { data: segData } = useQuery(FormSegmentsDocument)
+  const { enabled: featureEnabled, known: featuresKnown } = useFeatures()
+  const signalsOn = featureEnabled('signals') // segments are the suite's
+  const { data: segData } = useQuery(FormSegmentsDocument, { skip: !signalsOn })
   const segments = (segData?.customerSegments.items ?? []).map((s) => ({ id: s.id, name: s.name }))
 
   const { data: subsData } = useQuery(SignupFormSubmissionsDocument, {
@@ -404,7 +407,9 @@ function Builder({
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Optionally drop new subscribers into a segment.</p>
+                <p className="text-xs text-muted-foreground">
+                  {signalsOn || !featuresKnown ? 'Optionally drop new subscribers into a segment.' : 'Segments need Signals, which is switched off.'}
+                </p>
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <Switch checked={triggerFlow} onCheckedChange={setTriggerFlow} />

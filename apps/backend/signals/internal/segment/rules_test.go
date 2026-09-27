@@ -19,8 +19,8 @@ func TestParseRulesValidation(t *testing.T) {
 		`{"conditions":[{"kind":"trait","field":"rfm_r","op":"like","value":1}]}`,
 		`{"conditions":[{"kind":"lifecycle","op":"eq","stage":"vip"}]}`,
 		`{"conditions":[{"kind":"group"}]}`,
-		// The roster carries two consents and no others, so a rule on a third has nothing to read
-		`{"conditions":[{"kind":"consent","channel":"newsletter","granted":true}]}`,
+		`{"conditions":[{"kind":"consent","channel":"Not A Slug","granted":true}]}`,
+		`{"conditions":[{"kind":"consent","channel":"marketing_emial","granted":true}]}`,
 		`{"logic":"xor","conditions":[{"kind":"group","slug":"x"}]}`,
 		`{"conditions":[{"kind":"trait","field":"rfm_r","op":"eq","value":1,"extra":"nope"}]}`,
 	}
@@ -43,7 +43,7 @@ func TestParseRulesValidation(t *testing.T) {
 func TestCompileParameterizes(t *testing.T) {
 	r, err := ParseRules(json.RawMessage(`{"conditions":[
 		{"kind":"trait","field":"rfm_r","op":"gte","value":4},
-		{"kind":"total_spent_cents","op":"gte","value":50000,"days":365},
+		{"kind":"total_spent_cents","op":"gte","value":50000,"days":365,"channelId":"` + uuid.NewString() + `"},
 		{"kind":"lifecycle","op":"eq","stage":"active"},
 		{"kind":"group","slug":"wholesale"}
 	]}`))
@@ -68,8 +68,8 @@ func TestCompileParameterizes(t *testing.T) {
 			t.Fatalf("missing fragment %q in: %s", frag, sqlStr)
 		}
 	}
-	if len(args) != 4 { // 4, the id array, active, wholesale
-		t.Fatalf("want 4 args, got %d: %v", len(args), args)
+	if len(args) != 5 { // 4, the id array, its channel, active, wholesale
+		t.Fatalf("want 5 args, got %d: %v", len(args), args)
 	}
 	if !strings.Contains(sqlStr, " AND ") {
 		t.Fatal("default logic must be AND")
@@ -159,24 +159,30 @@ func TestWindowedConditionsResolveAgainstTheSpine(t *testing.T) {
 		t.Errorf("at most 5 orders = %+v, want only other excluded", got)
 	}
 	// Spend reads the other column
-	got = resolve(`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":1000,"days":7}]}`)[0]
+	onA := `,"channelId":"` + chA.String() + `"`
+	got = resolve(`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":1000,"days":7` + onA + `}]}`)[0]
 	if got.Exclude || !same(got.IDs, []uuid.UUID{heavy}) {
 		t.Errorf("spend >= 1000 = %+v, want heavy alone", got)
 	}
-	// Zero spend is what a customer with no row has, and none of these three qualify
-	got = resolve(`{"conditions":[{"kind":"total_spent_cents","op":"eq","value":0,"days":7}]}`)[0]
-	if !got.Exclude || !same(got.IDs, []uuid.UUID{heavy, light, other}) {
-		t.Errorf("spend == 0 = %+v, want all three excluded", got)
+	// Zero spend is what a customer with no row has, and neither of channel A's buyers qualifies - B's spend is another currency
+	got = resolve(`{"conditions":[{"kind":"total_spent_cents","op":"eq","value":0,"days":7` + onA + `}]}`)[0]
+	if !got.Exclude || !same(got.IDs, []uuid.UUID{heavy, light}) {
+		t.Errorf("spend == 0 = %+v, want channel A's two excluded", got)
 	}
 
 	// Two conditions on one window share the read - one call per channel, not per condition
 	spine.calls = 0
 	out := resolve(`{"conditions":[
 		{"kind":"order_count","op":"gte","value":1,"days":90},
-		{"kind":"total_spent_cents","op":"gte","value":1,"days":90},
+		{"kind":"order_count","op":"lte","value":9,"days":90},
 		{"kind":"group","slug":"wholesale"}]}`)
 	if spine.calls != 2 {
 		t.Errorf("the spine was read %d times for two conditions on one window over two channels, want 2", spine.calls)
+	}
+	spine.calls = 0
+	_ = resolve(`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":1,"days":90` + onA + `}]}`)
+	if spine.calls != 1 {
+		t.Errorf("a condition on one channel read the spine %d times, want only that channel", spine.calls)
 	}
 	if _, ok := out[2]; ok {
 		t.Error("a group condition was resolved against the spine")
@@ -191,5 +197,23 @@ func TestWindowedConditionsResolveAgainstTheSpine(t *testing.T) {
 	static, _ := ParseRules(json.RawMessage(`{"conditions":[{"kind":"order_count","op":"gte","value":1}]}`))
 	if out, err := (&Service{repo: rosterOnly{}}).resolveWindowedConditions(ctx, static); err != nil || out != nil {
 		t.Errorf("a lifetime condition touched the spine: %v %v", out, err)
+	}
+}
+
+func TestSpendIsComparedWithinOneChannelsCurrency(t *testing.T) {
+	if _, err := ParseRules(json.RawMessage(`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":10000}]}`)); err == nil {
+		t.Error("a spend threshold with no channel was accepted, so 10000 means $100 on one channel and 10000 yen on another")
+	}
+	if _, err := ParseRules(json.RawMessage(`{"conditions":[{"kind":"trait","field":"predicted_clv_cents","op":"gte","value":1}]}`)); err == nil {
+		t.Error("a money trait with no channel was accepted")
+	}
+	ch := uuid.New()
+	r, err := ParseRules(json.RawMessage(`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":10000,"channelId":"` + ch.String() + `"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlStr, args := r.Compile(nil)
+	if !strings.Contains(sqlStr, "c.channel_id = $") || !slices.Contains(args, any(ch)) {
+		t.Errorf("the spend condition is not narrowed to its channel: %s %v", sqlStr, args)
 	}
 }

@@ -60,11 +60,16 @@ func (q *Queries) CreateExperiment(ctx context.Context, arg CreateExperimentPara
 }
 
 const deleteExperiment = `-- name: DeleteExperiment :exec
-DELETE FROM experiments WHERE id = $1
+DELETE FROM experiments WHERE id = $1 AND channel_id = $2
 `
 
-func (q *Queries) DeleteExperiment(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteExperiment, id)
+type DeleteExperimentParams struct {
+	ID        uuid.UUID `json:"id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+}
+
+func (q *Queries) DeleteExperiment(ctx context.Context, arg DeleteExperimentParams) error {
+	_, err := q.db.ExecContext(ctx, deleteExperiment, arg.ID, arg.ChannelID)
 	return err
 }
 
@@ -173,7 +178,7 @@ const updateExperiment = `-- name: UpdateExperiment :execrows
 UPDATE experiments
 SET name = $1, status = $2, coverage = $3,
     goal_event = $4, variations = $5, segment_slug = $6, updated_at = NOW()
-WHERE id = $7
+WHERE id = $7 AND channel_id = $8
 `
 
 type UpdateExperimentParams struct {
@@ -184,6 +189,7 @@ type UpdateExperimentParams struct {
 	Variations  json.RawMessage `json:"variations"`
 	SegmentSlug string          `json:"segment_slug"`
 	ID          uuid.UUID       `json:"id"`
+	ChannelID   uuid.UUID       `json:"channel_id"`
 }
 
 func (q *Queries) UpdateExperiment(ctx context.Context, arg UpdateExperimentParams) (int64, error) {
@@ -195,6 +201,7 @@ func (q *Queries) UpdateExperiment(ctx context.Context, arg UpdateExperimentPara
 		arg.Variations,
 		arg.SegmentSlug,
 		arg.ID,
+		arg.ChannelID,
 	)
 	if err != nil {
 		return 0, err

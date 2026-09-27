@@ -77,8 +77,23 @@ Work down this list - it is roughly the order of likelihood.
    global grant). A single-channel admin is refused on a product listed in two channels -
    deliberately, since the edit would otherwise leak into a channel they can't see. If you
    need genuinely per-channel copy, give each channel its own locale.
-4. **It is a global-only resource.** Currencies, countries, locales, admin users, product
-   types and CSV import need a global grant; a channel-scoped grant never satisfies them.
+4. **It is a global-only resource.** These need a global grant, and a channel-scoped grant
+   never satisfies them:
+   - install settings: currencies, countries, locales, the audit log, the scheduler, cache
+     purges, the email suppression list, and the config-orphan actions;
+   - access: admin users, roles and integration tokens (and nobody can hand out a grant wider
+     than their own);
+   - shared catalog and content: product types, attribute groups and definitions, collections,
+     CMS schema, snippets, block types and tags, blog authors, categories and tags, inventory
+     locations, and edits to shared media;
+   - install-wide rows: webhooks, remote providers and gift cards with no channel, promotion
+     rule ordering and simulation;
+   - importing products or categories, and any data export or import that names no channel.
+
+   Creating a new CMS page, blog post, category or menu only needs the permission somewhere,
+   since the new row isn't listed on any channel yet. Adding it to another channel, or taking
+   a listing away, needs the permission on every channel that already lists it, so one store
+   can't claim another store's page and lock its admins out.
 5. **They have zero grants for the slug.** Then they see an empty list and no buttons,
    which is correct.
 

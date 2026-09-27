@@ -50,6 +50,8 @@ var Services = fx.Module("services",
 		config.NewChannelScoped,
 		newStack,
 		newRecorder,
+		newRoster,
+		newTraits,
 		newLens,
 		newExperiment,
 		newSegment,
@@ -122,8 +124,12 @@ func newStack(lc fx.Lifecycle, rc RootContext, mode QueueMode, q Queries, rq Rea
 
 func newRecorder(s *signalsboot.Stack) *analytics.Recorder { return s.Recorder }
 
-func newLens(q Queries, rec *analytics.Recorder, cfg *config.ChannelScoped) *lens.Service {
-	return lens.NewService(q.Queries, rec, cfg)
+func newRoster(s *signalsboot.Stack) *analytics.Roster { return s.Roster }
+
+func newTraits(s *signalsboot.Stack) *analytics.TraitCompute { return s.Traits }
+
+func newLens(q Queries, rec *analytics.Recorder, cfg *config.ChannelScoped, rollup *analytics.TrafficRollup) *lens.Service {
+	return lens.NewService(q.Queries, rec, cfg, rollup)
 }
 
 func newExperiment(q Queries, rec *analytics.Recorder) *experiment.Service { // after the spine engine is chosen - its repo reads exposures through the Recorder
@@ -155,8 +161,8 @@ func newDestination(q Queries, rec *analytics.Recorder, allow AllowPrivateTarget
 }
 
 // The beacon surface's copy of core's active channels, which core's push job keeps current
-func newChannelRoster(q Queries) *analytics.ChannelRoster {
-	return analytics.NewChannelRoster(q.Queries)
+func newChannelRoster(p SignalsPool) *analytics.ChannelRoster {
+	return analytics.NewChannelRoster(p.DB)
 }
 
 // Coalesces in memory and flushes aggregates, so busy sites never store a row per hit nor scan raw events

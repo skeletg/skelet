@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
+	db "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
 )
 
 // Compile hand-assembles SQL text from allowlisted fragments, and nothing else in the package ever runs the result
@@ -63,6 +64,7 @@ type rosterRow struct {
 	groupSlug string
 	marketing bool
 	sms       bool
+	consents  map[string]bool
 }
 
 func seedRoster(t *testing.T, conn *sql.DB, row rosterRow) uuid.UUID {
@@ -72,10 +74,13 @@ func seedRoster(t *testing.T, conn *sql.DB, row rosterRow) uuid.UUID {
 	if row.groupSlug != "" {
 		groupID = uuid.New()
 	}
+	consents := map[string]bool{"marketing_email": row.marketing, "marketing_sms": row.sms}
+	maps.Copy(consents, row.consents)
+	consentsJSON, _ := json.Marshal(consents)
 	if _, err := conn.Exec(
-		`INSERT INTO customer_roster (customer_id, channel_id, email, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in)
-		 VALUES ($1, $2, $3, true, $4, $5, $6, $7)`,
-		id, row.channelID, "segrule-"+id.String()[:8]+"@example.invalid", groupID, row.groupSlug, row.marketing, row.sms); err != nil {
+		`INSERT INTO customer_roster (customer_id, channel_id, email, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents)
+		 VALUES ($1, $2, $3, true, $4, $5, $6, $7, $8)`,
+		id, row.channelID, "segrule-"+id.String()[:8]+"@example.invalid", groupID, row.groupSlug, row.marketing, row.sms, consentsJSON); err != nil {
 		t.Fatalf("seed roster row: %v", err)
 	}
 	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM customer_roster WHERE customer_id = $1`, id) })
@@ -93,14 +98,14 @@ func seedTraits(t *testing.T, conn *sql.DB, customerID, channelID uuid.UUID, sta
 	}
 }
 
-// The lifetime projection trait compute lands off the spine - count and spend already netted against cancellations
-func seedOrders(t *testing.T, conn *sql.DB, customerID, channelID uuid.UUID, count int, cents int64, lastAgeDays int) {
+// The lifetime totals core pushes on the roster row - count and spend already net of cancellations
+func seedOrders(t *testing.T, conn *sql.DB, customerID, _ uuid.UUID, count int, cents int64, lastAgeDays int) {
 	t.Helper()
-	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM customer_order_agg WHERE customer_id = $1`, customerID) })
 	if _, err := conn.Exec(
-		`INSERT INTO customer_order_agg (customer_id, channel_id, order_count, monetary_cents, first_order_at, last_order_at)
-		 VALUES ($1, $2, $3, $4, NOW() - make_interval(days => $5::int + 100), NOW() - make_interval(days => $5::int))`,
-		customerID, channelID, count, cents, lastAgeDays); err != nil {
+		`UPDATE customer_roster SET order_count = $2, monetary_cents = $3,
+		 first_order_at = NOW() - make_interval(days => $4::int + 100), last_order_at = NOW() - make_interval(days => $4::int)
+		 WHERE customer_id = $1`,
+		customerID, count, cents, lastAgeDays); err != nil {
 		t.Fatalf("seed order aggregate: %v", err)
 	}
 }
@@ -123,7 +128,7 @@ func TestEveryAllowlistedTraitFieldHasAColumnBehindIt(t *testing.T) {
 	}
 	for field := range traitFields {
 		t.Run(field, func(t *testing.T) {
-			run(t, conn, mustRules(t, fmt.Sprintf(`{"conditions":[{"kind":"trait","field":%q,"op":"gte","value":1}]}`, field)), nil)
+			run(t, conn, mustRules(t, fmt.Sprintf(`{"conditions":[{"kind":"trait","field":%q,"op":"gte","value":1,"channelId":%q}]}`, field, uuid.NewString())), nil)
 		})
 	}
 }
@@ -132,20 +137,21 @@ func TestEveryConditionKindAndOperatorExecutes(t *testing.T) {
 	// Each kind is its own hand-written fragment, and the windowed variants build a second one - so
 	// every branch needs Postgres to have parsed it at least once
 	conn := testDB(t)
+	anyChannel := uuid.NewString()
 	for name, raw := range map[string]string{
 		"trait, every numeric op": `{"conditions":[
 			{"kind":"trait","field":"rfm_r","op":"eq","value":1},
 			{"kind":"trait","field":"rfm_f","op":"neq","value":1},
 			{"kind":"trait","field":"rfm_m","op":"gt","value":1},
 			{"kind":"trait","field":"frequency","op":"gte","value":1},
-			{"kind":"trait","field":"monetary_cents","op":"lt","value":1},
+			{"kind":"trait","field":"monetary_cents","op":"lt","value":1,"channelId":"` + anyChannel + `"},
 			{"kind":"trait","field":"engagement_score","op":"lte","value":1}]}`,
 		"lifecycle eq":          `{"conditions":[{"kind":"lifecycle","op":"eq","stage":"active"}]}`,
 		"lifecycle neq":         `{"conditions":[{"kind":"lifecycle","op":"neq","stage":"lapsed"}]}`,
 		"order count, all time": `{"conditions":[{"kind":"order_count","op":"gte","value":1}]}`,
 		"order count, windowed": `{"conditions":[{"kind":"order_count","op":"lte","value":5,"days":90}]}`,
-		"spend, all time":       `{"conditions":[{"kind":"total_spent_cents","op":"eq","value":0}]}`,
-		"spend, windowed":       `{"conditions":[{"kind":"total_spent_cents","op":"gte","value":1,"days":365}]}`,
+		"spend, all time":       `{"conditions":[{"kind":"total_spent_cents","op":"eq","value":0,"channelId":"` + anyChannel + `"}]}`,
+		"spend, windowed":       `{"conditions":[{"kind":"total_spent_cents","op":"gte","value":1,"days":365,"channelId":"` + anyChannel + `"}]}`,
 		"last order, at most":   `{"conditions":[{"kind":"last_order_days","op":"lte","value":30}]}`,
 		"last order, at least":  `{"conditions":[{"kind":"last_order_days","op":"gte","value":30}]}`,
 		"email consent granted": `{"conditions":[{"kind":"consent","channel":"marketing_email","granted":true}]}`,
@@ -155,7 +161,7 @@ func TestEveryConditionKindAndOperatorExecutes(t *testing.T) {
 			{"kind":"trait","field":"rfm_m","op":"gte","value":1},
 			{"kind":"lifecycle","op":"eq","stage":"active"},
 			{"kind":"order_count","op":"gte","value":1,"days":30},
-			{"kind":"total_spent_cents","op":"gte","value":1,"days":30},
+			{"kind":"total_spent_cents","op":"gte","value":1,"days":30,"channelId":"` + anyChannel + `"},
 			{"kind":"last_order_days","op":"lte","value":30},
 			{"kind":"consent","channel":"marketing_email","granted":true},
 			{"kind":"group","slug":"wholesale"}]}`,
@@ -188,9 +194,9 @@ func TestHostileValuesStayInsideBindArgs(t *testing.T) {
 			}
 		})
 	}
-	// The consent channel never reaches the query as a value at all - it picks an allowlisted column or fails validation
+	// A consent kind is a registry slug or nothing - anything else fails validation before it could reach the query
 	if _, err := ParseRules(json.RawMessage(`{"conditions":[{"kind":"consent","channel":"' UNION SELECT customer_id FROM customer_roster --","granted":true}]}`)); err == nil {
-		t.Error("an unknown consent channel passed validation")
+		t.Error("a consent kind that is not a slug passed validation")
 	}
 	var n int
 	if err := conn.QueryRow(`SELECT count(*) FROM customer_roster`).Scan(&n); err != nil {
@@ -257,8 +263,7 @@ func TestTraitAndGroupRulesSelectTheMatchingCustomer(t *testing.T) {
 }
 
 func TestOrderRulesReadTheProjection(t *testing.T) {
-	// Lifetime order conditions read customer_order_agg, which trait compute projects off the spine with
-	// cancellations already netted out - so what the rule sees is what the RFM scores beside it were built from
+	// Lifetime order conditions read the roster totals the RFM scores beside them are built from
 	conn := testDB(t)
 	channelID := uuid.New()
 	shopper := seedRoster(t, conn, rosterRow{channelID: channelID})
@@ -271,8 +276,9 @@ func TestOrderRulesReadTheProjection(t *testing.T) {
 	}{
 		"two orders all time":             {`{"conditions":[{"kind":"order_count","op":"eq","value":2}]}`, true},
 		"not three":                       {`{"conditions":[{"kind":"order_count","op":"gte","value":3}]}`, false},
-		"spend at the projected total":    {`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":100000}]}`, true},
-		"spend one cent over it":          {`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":100001}]}`, false},
+		"spend at the projected total":    {`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":100000,"channelId":"` + channelID.String() + `"}]}`, true},
+		"spend one cent over it":          {`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":100001,"channelId":"` + channelID.String() + `"}]}`, false},
+		"spend on another channel":        {`{"conditions":[{"kind":"total_spent_cents","op":"gte","value":1,"channelId":"` + uuid.NewString() + `"}]}`, false},
 		"ordered within the last 30 days": {`{"conditions":[{"kind":"last_order_days","op":"lte","value":30}]}`, true},
 		"has not ordered for 30 days":     {`{"conditions":[{"kind":"last_order_days","op":"gte","value":30}]}`, false},
 	} {
@@ -290,7 +296,7 @@ func TestOrderRulesReadTheProjection(t *testing.T) {
 	// A windowed condition composes with the projection ones through the spine's answer - here, who it says ordered recently
 	recentAndBig := mustRules(t, `{"conditions":[
 		{"kind":"order_count","op":"gte","value":1,"days":30},
-		{"kind":"total_spent_cents","op":"gte","value":100000}]}`)
+		{"kind":"total_spent_cents","op":"gte","value":100000,"channelId":"`+channelID.String()+`"}]}`)
 	if got := run(t, conn, recentAndBig, map[int]Resolved{0: {IDs: []uuid.UUID{shopper}}}); !selects(got, shopper) {
 		t.Error("the shopper the spine named was not selected alongside their lifetime spend")
 	}
@@ -326,10 +332,6 @@ func TestACustomerWhoNeverOrderedIsNotDormantByAge(t *testing.T) {
 }
 
 func TestConsentRulesSplitOnTheResolvedFlag(t *testing.T) {
-	// Campaign audiences gate on this, so an inverted case sends marketing to someone who opted out. The roster
-	// carries core's resolved answer, registry default included, so there is no "no record" case here: a customer
-	// who never answered arrives as opted out, and an explicit withheld rule does select them - which is exactly
-	// who a re-permission campaign is for
 	conn := testDB(t)
 	ch := uuid.New()
 	emailIn := seedRoster(t, conn, rosterRow{channelID: ch, marketing: true})
@@ -347,5 +349,45 @@ func TestConsentRulesSplitOnTheResolvedFlag(t *testing.T) {
 	sms := run(t, conn, mustRules(t, `{"conditions":[{"kind":"consent","channel":"marketing_sms","granted":true}]}`), nil)
 	if !selects(sms, smsIn) || selects(sms, emailIn) {
 		t.Error("the SMS rule read the email flag")
+	}
+
+	optedOut := seedRoster(t, conn, rosterRow{channelID: ch, consents: map[string]bool{"transactional_email": false}})
+	txn := run(t, conn, mustRules(t, `{"conditions":[{"kind":"consent","channel":"transactional_email","granted":true}]}`), nil)
+	if selects(txn, optedOut) || !selects(txn, emailIn) || !selects(txn, neither) {
+		t.Error("transactional_email did not split on the stored answer with the opt-in default for everyone else")
+	}
+	declined := run(t, conn, mustRules(t, `{"conditions":[{"kind":"consent","channel":"transactional_email","granted":false}]}`), nil)
+	if !selects(declined, optedOut) || selects(declined, neither) {
+		t.Error("a customer with no transactional answer read as opted out, want the registry's opt-in default")
+	}
+}
+
+func TestTheDynamicSweepStartsWithTheLongestUnrefreshed(t *testing.T) {
+	conn := testDB(t)
+	ctx := context.Background()
+	repo := NewRepository(db.New(conn))
+	mk := func(slug string) uuid.UUID {
+		var id uuid.UUID
+		if err := conn.QueryRow(`INSERT INTO customer_segments (slug, name, rules) VALUES ($1, $1, '{"conditions":[{"kind":"group","slug":"x"}]}') RETURNING id`, slug).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM customer_segments WHERE id = $1`, id) })
+		return id
+	}
+	refreshed := mk("sweep-a-" + uuid.NewString()[:8])
+	missed := mk("sweep-b-" + uuid.NewString()[:8])
+	if err := repo.RecordDailySnapshot(ctx, refreshed); err != nil {
+		t.Fatal(err)
+	}
+	dyn, err := repo.ListDynamic(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := map[uuid.UUID]int{}
+	for i, s := range dyn {
+		at[s.ID] = i
+	}
+	if at[missed] > at[refreshed] {
+		t.Error("the segment refreshed today comes first, so a sweep that times out starves the one it missed every time")
 	}
 }

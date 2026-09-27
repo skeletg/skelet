@@ -13,6 +13,8 @@ SELECT * FROM data_jobs
 WHERE (sqlc.arg(all_resources)::boolean OR resource = ANY(sqlc.arg(resources)::text[]))
   AND (sqlc.arg(all_directions)::boolean OR direction = sqlc.arg(direction))
   AND (sqlc.arg(all_statuses)::boolean OR status = ANY(sqlc.arg(statuses)::text[]))
+  AND (NOT sqlc.arg(scoped)::boolean OR resource = ANY(sqlc.arg(any_channel_resources)::text[])
+       OR resource || '|' || channel_id::text = ANY(sqlc.arg(resource_channels)::text[]))
 ORDER BY created_at DESC
 LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 
@@ -20,7 +22,9 @@ LIMIT sqlc.arg(page_size) OFFSET sqlc.arg(page_offset);
 SELECT COUNT(*)::int FROM data_jobs
 WHERE (sqlc.arg(all_resources)::boolean OR resource = ANY(sqlc.arg(resources)::text[]))
   AND (sqlc.arg(all_directions)::boolean OR direction = sqlc.arg(direction))
-  AND (sqlc.arg(all_statuses)::boolean OR status = ANY(sqlc.arg(statuses)::text[]));
+  AND (sqlc.arg(all_statuses)::boolean OR status = ANY(sqlc.arg(statuses)::text[]))
+  AND (NOT sqlc.arg(scoped)::boolean OR resource = ANY(sqlc.arg(any_channel_resources)::text[])
+       OR resource || '|' || channel_id::text = ANY(sqlc.arg(resource_channels)::text[]));
 
 -- name: ClaimDueDataJobs :many
 -- Lease-claim queued work, plus running rows whose lease lapsed (a crashed runner's) - SKIP LOCKED keeps

@@ -60,7 +60,7 @@ script_for() {
 # Compound verbs and what they fan out to - drives the help, the usage list and the errors
 subs_for() {
     case "$1" in
-        db)      echo 'migrate [--signals] | export | import | shell | move-email-sends' ;;
+        db)      echo 'migrate [--signals] | export | import | shell' ;;
         gen)     echo '(all) | sqlc | gqlgen | buf' ;;
         check)   echo '(all) | pins | structure | contracts | codegen' ;;
         test)    echo '(all) | e2e | [pkgs] [--keep] [--no-frontend]' ;;
@@ -86,7 +86,7 @@ skelet - the dev commands for this repo
 
 Common
   setup      configure this clone (run this first)
-  up         start the dev stack          [--lean skips OpenSearch + Jaeger]
+  up         start the dev stack          [--lean skips OpenSearch, Jaeger, Signals]
   serve      a frontend on the host       [skelet serve dashboard]
   down       stop and remove containers
   logs       tail service logs            [skelet logs app]
@@ -177,9 +177,6 @@ case "$cmd" in
             export) run db-export "$@" ;;
             import) run db-import "$@" ;;
             shell)  run psql "$@" ;;
-            # One-shot, for an install predating the send log's move to the commerce database -
-            # goes between `db migrate` and `db migrate --signals`, while the table exists on both sides
-            move-email-sends) run email-sends-move "$@" ;;
             *)      die "skelet db $(subs_for db)" ;;
         esac ;;
 

@@ -10,7 +10,7 @@ import (
 )
 
 func (r *mutationResolver) CreateProductType(ctx context.Context, input model.CreateProductTypeInput) (*model.ProductType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	pt, err := r.CatalogSvc.CreateProductType(ctx, catalog.CreateProductTypeInput{
@@ -30,7 +30,7 @@ func (r *mutationResolver) CreateProductType(ctx context.Context, input model.Cr
 }
 
 func (r *mutationResolver) UpdateProductType(ctx context.Context, input model.UpdateProductTypeInput) (*model.ProductType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	id, err := parseID(input.ID, "product type")
@@ -61,7 +61,7 @@ func (r *mutationResolver) UpdateProductType(ctx context.Context, input model.Up
 }
 
 func (r *mutationResolver) DeleteProductType(ctx context.Context, id string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return false, err
 	}
 	ptID, err := parseID(id, "product type")
@@ -75,7 +75,7 @@ func (r *mutationResolver) DeleteProductType(ctx context.Context, id string) (bo
 }
 
 func (r *mutationResolver) SetProductTypeURLPathTemplate(ctx context.Context, productTypeID string, template string) (*model.ProductType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	ptID, err := parseID(productTypeID, "product type")
@@ -90,7 +90,7 @@ func (r *mutationResolver) SetProductTypeURLPathTemplate(ctx context.Context, pr
 }
 
 func (r *mutationResolver) AssignAttribute(ctx context.Context, productTypeID string, attributeID string, sortOrder *int32, groupID *string) (*model.ProductType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	ptID, err := parseID(productTypeID, "product type")
@@ -121,7 +121,7 @@ func (r *mutationResolver) AssignAttribute(ctx context.Context, productTypeID st
 }
 
 func (r *mutationResolver) UnassignAttribute(ctx context.Context, productTypeID string, attributeID string) (*model.ProductType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	ptID, err := parseID(productTypeID, "product type")
@@ -140,7 +140,7 @@ func (r *mutationResolver) UnassignAttribute(ctx context.Context, productTypeID 
 }
 
 func (r *mutationResolver) CreateAttributeGroup(ctx context.Context, productTypeID string, name string, sortOrder *int32) (*model.ProductType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	ptID, err := parseID(productTypeID, "product type")
@@ -159,7 +159,7 @@ func (r *mutationResolver) CreateAttributeGroup(ctx context.Context, productType
 }
 
 func (r *mutationResolver) UpdateAttributeGroup(ctx context.Context, id string, name *string, sortOrder *int32) (*model.ProductType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	gid, err := parseID(id, "group")
@@ -178,7 +178,7 @@ func (r *mutationResolver) UpdateAttributeGroup(ctx context.Context, id string, 
 }
 
 func (r *mutationResolver) DeleteAttributeGroup(ctx context.Context, id string) (*model.ProductType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	gid, err := parseID(id, "group")
@@ -193,7 +193,7 @@ func (r *mutationResolver) DeleteAttributeGroup(ctx context.Context, id string) 
 }
 
 func (r *mutationResolver) MoveAttributeToGroup(ctx context.Context, productTypeID string, attributeID string, groupID *string) (*model.ProductType, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+	if err := r.requireGlobal(ctx, "catalog.manage"); err != nil {
 		return nil, err
 	}
 	ptID, err := parseID(productTypeID, "product type")

@@ -8,6 +8,7 @@ package signalsdb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,12 +28,13 @@ func (q *Queries) ChannelForCustomer(ctx context.Context, customerID uuid.UUID) 
 }
 
 const channelRoster = `-- name: ChannelRoster :many
-SELECT channel_id, is_default, name, public_url, from_address, from_name, logo_url FROM channel_roster
+SELECT channel_id, is_default, is_active, name, public_url, from_address, from_name, logo_url FROM channel_roster
 `
 
 type ChannelRosterRow struct {
 	ChannelID   uuid.UUID `json:"channel_id"`
 	IsDefault   bool      `json:"is_default"`
+	IsActive    bool      `json:"is_active"`
 	Name        string    `json:"name"`
 	PublicUrl   string    `json:"public_url"`
 	FromAddress string    `json:"from_address"`
@@ -52,6 +54,7 @@ func (q *Queries) ChannelRoster(ctx context.Context) ([]ChannelRosterRow, error)
 		if err := rows.Scan(
 			&i.ChannelID,
 			&i.IsDefault,
+			&i.IsActive,
 			&i.Name,
 			&i.PublicUrl,
 			&i.FromAddress,
@@ -149,6 +152,33 @@ func (q *Queries) ChannelRosterCustomerIDs(ctx context.Context, channelID uuid.U
 	return items, nil
 }
 
+const channelRosterTombstones = `-- name: ChannelRosterTombstones :many
+SELECT channel_id FROM channel_roster_tombstones
+`
+
+func (q *Queries) ChannelRosterTombstones(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, channelRosterTombstones)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var channel_id uuid.UUID
+		if err := rows.Scan(&channel_id); err != nil {
+			return nil, err
+		}
+		items = append(items, channel_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const clearChannelEngagement = `-- name: ClearChannelEngagement :exec
 DELETE FROM customer_engagement_30d WHERE channel_id = $1
 `
@@ -160,13 +190,12 @@ func (q *Queries) ClearChannelEngagement(ctx context.Context, channelID uuid.UUI
 	return err
 }
 
-const clearChannelOrderAgg = `-- name: ClearChannelOrderAgg :exec
-DELETE FROM customer_order_agg WHERE channel_id = $1
+const clearChannelRosterTombstones = `-- name: ClearChannelRosterTombstones :exec
+DELETE FROM channel_roster_tombstones WHERE channel_id = ANY($1::uuid[])
 `
 
-// The empty-refresh case: a channel whose spine holds no surviving orders
-func (q *Queries) ClearChannelOrderAgg(ctx context.Context, channelID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, clearChannelOrderAgg, channelID)
+func (q *Queries) ClearChannelRosterTombstones(ctx context.Context, channelIds []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, clearChannelRosterTombstones, pq.Array(channelIds))
 	return err
 }
 
@@ -180,6 +209,24 @@ func (q *Queries) DeleteChannelEngagementFor(ctx context.Context, customerIds []
 	return err
 }
 
+const deleteCustomerFlowRuns = `-- name: DeleteCustomerFlowRuns :exec
+DELETE FROM flow_runs WHERE customer_id = $1::uuid
+`
+
+func (q *Queries) DeleteCustomerFlowRuns(ctx context.Context, customerID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteCustomerFlowRuns, customerID)
+	return err
+}
+
+const deleteCustomerMemberships = `-- name: DeleteCustomerMemberships :exec
+DELETE FROM customer_segment_memberships WHERE customer_id = $1
+`
+
+func (q *Queries) DeleteCustomerMemberships(ctx context.Context, customerID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteCustomerMemberships, customerID)
+	return err
+}
+
 const deleteCustomerRosterEntry = `-- name: DeleteCustomerRosterEntry :execrows
 DELETE FROM customer_roster WHERE customer_id = $1
 `
@@ -187,6 +234,76 @@ DELETE FROM customer_roster WHERE customer_id = $1
 // A customer core dropped, ahead of the sweep that would have caught it
 func (q *Queries) DeleteCustomerRosterEntry(ctx context.Context, customerID uuid.UUID) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteCustomerRosterEntry, customerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteCustomerTraits = `-- name: DeleteCustomerTraits :exec
+DELETE FROM customer_traits WHERE customer_id = $1
+`
+
+func (q *Queries) DeleteCustomerTraits(ctx context.Context, customerID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteCustomerTraits, customerID)
+	return err
+}
+
+const deleteOrphanedLiveFlowRuns = `-- name: DeleteOrphanedLiveFlowRuns :execrows
+DELETE FROM flow_runs r
+WHERE r.status IN ('active', 'waiting') AND r.customer_id IS NOT NULL AND r.created_at < $1
+  AND NOT EXISTS (SELECT 1 FROM customer_roster c WHERE c.customer_id = r.customer_id)
+`
+
+// Backstop for a cleanup that died before reaching its ids - live runs only, which stay small, and none enrolled during this sync
+func (q *Queries) DeleteOrphanedLiveFlowRuns(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOrphanedLiveFlowRuns, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const detachCampaignRecipientsForCustomers = `-- name: DetachCampaignRecipientsForCustomers :execrows
+UPDATE email_campaign_recipients cr
+SET customer_id = NULL, email = 'redacted-' || id::text || '@anonymized.invalid', first_name = '',
+    error = CASE WHEN cr.status = 'pending' THEN 'customer deleted' ELSE cr.error END,
+    status = CASE WHEN cr.status = 'pending' THEN 'skipped' ELSE cr.status END
+WHERE cr.customer_id = ANY($1::uuid[])
+`
+
+// DetachCustomerCampaignRecipients for everyone the roster just dropped - a guest row keeps its address, having no account to delete
+func (q *Queries) DetachCampaignRecipientsForCustomers(ctx context.Context, customerIds []uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, detachCampaignRecipientsForCustomers, pq.Array(customerIds))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const detachCustomerCampaignRecipients = `-- name: DetachCustomerCampaignRecipients :exec
+UPDATE email_campaign_recipients
+SET customer_id = NULL, email = 'redacted-' || id::text || '@anonymized.invalid', first_name = '',
+    error = CASE WHEN status = 'pending' THEN 'customer deleted' ELSE error END,
+    status = CASE WHEN status = 'pending' THEN 'skipped' ELSE status END
+WHERE customer_id = $1::uuid
+`
+
+// A deleted customer's campaign rows stay as the campaign's history with the address gone, and a row still waiting to send is skipped
+func (q *Queries) DetachCustomerCampaignRecipients(ctx context.Context, customerID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, detachCustomerCampaignRecipients, customerID)
+	return err
+}
+
+const detachOrphanedPendingRecipients = `-- name: DetachOrphanedPendingRecipients :execrows
+UPDATE email_campaign_recipients cr
+SET customer_id = NULL, email = 'redacted-' || id::text || '@anonymized.invalid', first_name = '', error = 'customer deleted', status = 'skipped'
+WHERE cr.status = 'pending' AND cr.customer_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM customer_roster c WHERE c.customer_id = cr.customer_id)
+`
+
+func (q *Queries) DetachOrphanedPendingRecipients(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, detachOrphanedPendingRecipients)
 	if err != nil {
 		return 0, err
 	}
@@ -228,6 +345,22 @@ func (q *Queries) GetEngagementWatermark(ctx context.Context, channelID uuid.UUI
 	var ran_at time.Time
 	err := row.Scan(&ran_at)
 	return ran_at, err
+}
+
+const getRosterState = `-- name: GetRosterState :one
+SELECT filled_version, filled_at FROM customer_roster_state WHERE one_row
+`
+
+type GetRosterStateRow struct {
+	FilledVersion int32        `json:"filled_version"`
+	FilledAt      sql.NullTime `json:"filled_at"`
+}
+
+func (q *Queries) GetRosterState(ctx context.Context) (GetRosterStateRow, error) {
+	row := q.db.QueryRowContext(ctx, getRosterState)
+	var i GetRosterStateRow
+	err := row.Scan(&i.FilledVersion, &i.FilledAt)
+	return i, err
 }
 
 const lifecycleMixForCustomers = `-- name: LifecycleMixForCustomers :many
@@ -308,42 +441,163 @@ func (q *Queries) ListCustomerTraitsByChannel(ctx context.Context, channelID uui
 	return items, nil
 }
 
+const lockChannelRoster = `-- name: LockChannelRoster :exec
+SELECT pg_advisory_xact_lock(hashtext('signals.channel_roster'))
+`
+
+func (q *Queries) LockChannelRoster(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, lockChannelRoster)
+	return err
+}
+
+const markTraitComputeAttempt = `-- name: MarkTraitComputeAttempt :exec
+INSERT INTO trait_compute_runs (channel_id, attempted_at) VALUES ($1, $2::timestamptz)
+ON CONFLICT (channel_id) DO UPDATE SET attempted_at = EXCLUDED.attempted_at
+`
+
+type MarkTraitComputeAttemptParams struct {
+	ChannelID   uuid.UUID `json:"channel_id"`
+	AttemptedAt time.Time `json:"attempted_at"`
+}
+
+func (q *Queries) MarkTraitComputeAttempt(ctx context.Context, arg MarkTraitComputeAttemptParams) error {
+	_, err := q.db.ExecContext(ctx, markTraitComputeAttempt, arg.ChannelID, arg.AttemptedAt)
+	return err
+}
+
+const markTraitComputeRun = `-- name: MarkTraitComputeRun :exec
+INSERT INTO trait_compute_runs (channel_id, finished_at) VALUES ($1, $2::timestamptz)
+ON CONFLICT (channel_id) DO UPDATE SET finished_at = EXCLUDED.finished_at
+`
+
+type MarkTraitComputeRunParams struct {
+	ChannelID  uuid.UUID `json:"channel_id"`
+	FinishedAt time.Time `json:"finished_at"`
+}
+
+func (q *Queries) MarkTraitComputeRun(ctx context.Context, arg MarkTraitComputeRunParams) error {
+	_, err := q.db.ExecContext(ctx, markTraitComputeRun, arg.ChannelID, arg.FinishedAt)
+	return err
+}
+
+const orphanedLensSessionBlobKeys = `-- name: OrphanedLensSessionBlobKeys :many
+SELECT k.blob_key FROM lens_session_chunks k JOIN lens_sessions s ON s.id = k.session_id
+WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = s.channel_id)
+`
+
+func (q *Queries) OrphanedLensSessionBlobKeys(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, orphanedLensSessionBlobKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var blob_key string
+		if err := rows.Scan(&blob_key); err != nil {
+			return nil, err
+		}
+		items = append(items, blob_key)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const orphanedLensSnapshotBlobKeys = `-- name: OrphanedLensSnapshotBlobKeys :many
+SELECT s.blob_key FROM lens_page_snapshots s WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = s.channel_id)
+`
+
+func (q *Queries) OrphanedLensSnapshotBlobKeys(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, orphanedLensSnapshotBlobKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var blob_key string
+		if err := rows.Scan(&blob_key); err != nil {
+			return nil, err
+		}
+		items = append(items, blob_key)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pruneChannelRoster = `-- name: PruneChannelRoster :execrows
-DELETE FROM channel_roster WHERE synced_at < $1
-`
-
-// Channels core no longer runs, or no longer runs actively - beacons naming one stop being served
-func (q *Queries) PruneChannelRoster(ctx context.Context, before time.Time) (int64, error) {
-	result, err := q.db.ExecContext(ctx, pruneChannelRoster, before)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const pruneCustomerRoster = `-- name: PruneCustomerRoster :execrows
-DELETE FROM customer_roster WHERE synced_at < $1
-`
-
-// Customers gone from commerce since this sync started - an FK cascade to customers cannot cross databases, so this stands in for one
-func (q *Queries) PruneCustomerRoster(ctx context.Context, before time.Time) (int64, error) {
-	result, err := q.db.ExecContext(ctx, pruneCustomerRoster, before)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const pruneOrphanedCampaignRecipients = `-- name: PruneOrphanedCampaignRecipients :execrows
-DELETE FROM email_campaign_recipients cr WHERE cr.customer_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM customer_roster c WHERE c.customer_id = cr.customer_id
+WITH gone AS (
+    DELETE FROM channel_roster WHERE NOT (channel_id = ANY($1::uuid[])) RETURNING channel_id
 )
+INSERT INTO channel_roster_tombstones (channel_id) SELECT channel_id FROM gone
+ON CONFLICT (channel_id) DO UPDATE SET pruned_at = EXCLUDED.pruned_at
 `
 
-// The same cascade, for a campaign's targeted rows - the address stays where the customer was a guest,
-// since there was never an account to delete
-func (q *Queries) PruneOrphanedCampaignRecipients(ctx context.Context) (int64, error) {
-	result, err := q.db.ExecContext(ctx, pruneOrphanedCampaignRecipients)
+// Channels core no longer has at all - a deactivated one is still pushed and keeps its row
+func (q *Queries) PruneChannelRoster(ctx context.Context, keep []uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneChannelRoster, pq.Array(keep))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const pruneCustomerRoster = `-- name: PruneCustomerRoster :many
+DELETE FROM customer_roster WHERE synced_at < $1 RETURNING customer_id
+`
+
+// Customers gone from commerce since this sync started - stands in for an FK cascade that can't cross databases, and the ids scope the cleanup after
+func (q *Queries) PruneCustomerRoster(ctx context.Context, before time.Time) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, pruneCustomerRoster, before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var customer_id uuid.UUID
+		if err := rows.Scan(&customer_id); err != nil {
+			return nil, err
+		}
+		items = append(items, customer_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pruneOrphanedBrowseNotified = `-- name: PruneOrphanedBrowseNotified :execrows
+DELETE FROM browse_notified b WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = b.channel_id)
+`
+
+func (q *Queries) PruneOrphanedBrowseNotified(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneOrphanedBrowseNotified)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const pruneOrphanedBrowseSeen = `-- name: PruneOrphanedBrowseSeen :execrows
+DELETE FROM browse_seen b WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = b.channel_id)
+`
+
+func (q *Queries) PruneOrphanedBrowseSeen(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneOrphanedBrowseSeen)
 	if err != nil {
 		return 0, err
 	}
@@ -359,6 +613,31 @@ DELETE FROM email_campaigns ec WHERE NOT EXISTS (
 // The same, for campaigns - a draft for a retired channel can never send
 func (q *Queries) PruneOrphanedCampaigns(ctx context.Context) (int64, error) {
 	result, err := q.db.ExecContext(ctx, pruneOrphanedCampaigns)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const pruneOrphanedChannelSettings = `-- name: PruneOrphanedChannelSettings :execrows
+DELETE FROM config_values v WHERE v.channel_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = v.channel_id)
+`
+
+func (q *Queries) PruneOrphanedChannelSettings(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneOrphanedChannelSettings)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const pruneOrphanedDestinations = `-- name: PruneOrphanedDestinations :execrows
+DELETE FROM event_destinations d WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = d.channel_id)
+`
+
+// Destinations hold another shop's credentials, and a retired channel's must not keep forwarding
+func (q *Queries) PruneOrphanedDestinations(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneOrphanedDestinations)
 	if err != nil {
 		return 0, err
 	}
@@ -411,15 +690,12 @@ func (q *Queries) PruneOrphanedEmailTemplates(ctx context.Context) (int64, error
 	return result.RowsAffected()
 }
 
-const pruneOrphanedFlowRuns = `-- name: PruneOrphanedFlowRuns :execrows
-DELETE FROM flow_runs r WHERE r.customer_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM customer_roster c WHERE c.customer_id = r.customer_id
-)
+const pruneOrphanedExperiments = `-- name: PruneOrphanedExperiments :execrows
+DELETE FROM experiments e WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = e.channel_id)
 `
 
-// Runs for customers no longer on the roster - a live run for a deleted customer would keep trying to mail them
-func (q *Queries) PruneOrphanedFlowRuns(ctx context.Context) (int64, error) {
-	result, err := q.db.ExecContext(ctx, pruneOrphanedFlowRuns)
+func (q *Queries) PruneOrphanedExperiments(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneOrphanedExperiments)
 	if err != nil {
 		return 0, err
 	}
@@ -441,6 +717,54 @@ func (q *Queries) PruneOrphanedFlows(ctx context.Context) (int64, error) {
 	return result.RowsAffected()
 }
 
+const pruneOrphanedLensSessions = `-- name: PruneOrphanedLensSessions :execrows
+DELETE FROM lens_sessions s WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = s.channel_id)
+`
+
+func (q *Queries) PruneOrphanedLensSessions(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneOrphanedLensSessions)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const pruneOrphanedLensSnapshots = `-- name: PruneOrphanedLensSnapshots :execrows
+DELETE FROM lens_page_snapshots s WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = s.channel_id)
+`
+
+func (q *Queries) PruneOrphanedLensSnapshots(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneOrphanedLensSnapshots)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const pruneOrphanedLensTraffic = `-- name: PruneOrphanedLensTraffic :execrows
+DELETE FROM lens_traffic_daily t WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = t.channel_id)
+`
+
+func (q *Queries) PruneOrphanedLensTraffic(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneOrphanedLensTraffic)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const pruneOrphanedLensVisitors = `-- name: PruneOrphanedLensVisitors :execrows
+DELETE FROM lens_visitor_seen v WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = v.channel_id)
+`
+
+func (q *Queries) PruneOrphanedLensVisitors(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneOrphanedLensVisitors)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const pruneOrphanedMemberships = `-- name: PruneOrphanedMemberships :execrows
 DELETE FROM customer_segment_memberships m WHERE NOT EXISTS (
     SELECT 1 FROM customer_roster r WHERE r.customer_id = m.customer_id
@@ -450,6 +774,30 @@ DELETE FROM customer_segment_memberships m WHERE NOT EXISTS (
 // Memberships for customers no longer on the roster - the foreign key to customers could not cross databases, so this replaces its cascade the way PruneOrphanedTraits does for scores
 func (q *Queries) PruneOrphanedMemberships(ctx context.Context) (int64, error) {
 	result, err := q.db.ExecContext(ctx, pruneOrphanedMemberships)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const pruneOrphanedTrafficRollup = `-- name: PruneOrphanedTrafficRollup :execrows
+DELETE FROM analytics_traffic_rollup t WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = t.channel_id)
+`
+
+func (q *Queries) PruneOrphanedTrafficRollup(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneOrphanedTrafficRollup)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const pruneOrphanedTraitRuns = `-- name: PruneOrphanedTraitRuns :execrows
+DELETE FROM trait_compute_runs t WHERE NOT EXISTS (SELECT 1 FROM channel_roster c WHERE c.channel_id = t.channel_id)
+`
+
+func (q *Queries) PruneOrphanedTraitRuns(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneOrphanedTraitRuns)
 	if err != nil {
 		return 0, err
 	}
@@ -472,14 +820,26 @@ func (q *Queries) PruneOrphanedTraits(ctx context.Context) (int64, error) {
 	return result.RowsAffected()
 }
 
+const pruneRosterTombstones = `-- name: PruneRosterTombstones :execrows
+DELETE FROM customer_roster_tombstones WHERE deleted_at < $1
+`
+
+func (q *Queries) PruneRosterTombstones(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneRosterTombstones, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const recomputeChannelTraits = `-- name: RecomputeChannelTraits :execrows
 WITH agg AS (
-    -- Every input is local now: the roster is synced from commerce, and the order aggregate is fed by the spine Driven by the roster rather than customers, so a never-ordered customer still keeps a row and lands as a prospect, and the lifecycle override rides along on it rather than being derived from segments here
+    -- Driven by the roster, which carries core's lifetime order totals - a never-ordered customer still keeps a row and lands as a prospect, and the lifecycle override rides along rather than being derived from segments here
     SELECT c.customer_id                            AS customer_id,
-           COALESCE(a.order_count, 0)::int          AS order_count,
-           COALESCE(a.monetary_cents, 0)::bigint    AS monetary_cents,
-           a.last_order_at                          AS last_order_at,
-           a.first_order_at                         AS first_order_at,
+           c.order_count::int                       AS order_count,
+           c.monetary_cents::bigint                 AS monetary_cents,
+           c.last_order_at                          AS last_order_at,
+           c.first_order_at                         AS first_order_at,
            o.new_days, o.active_days, o.at_risk_days
     FROM customer_roster c
     LEFT JOIN LATERAL (
@@ -491,7 +851,6 @@ WITH agg AS (
         ORDER BY s.lifecycle_at_risk_days ASC, s.id
         LIMIT 1
     ) o ON TRUE
-    LEFT JOIN customer_order_agg a ON a.customer_id = c.customer_id
     WHERE c.channel_id = $1::uuid
 ),
 act AS (
@@ -591,6 +950,8 @@ ON CONFLICT (customer_id) DO UPDATE SET
     next_order_days = EXCLUDED.next_order_days,
     computed_at = EXCLUDED.computed_at
 WHERE customer_traits.frequency        IS DISTINCT FROM EXCLUDED.frequency
+   OR customer_traits.recency_days      IS DISTINCT FROM EXCLUDED.recency_days
+   OR customer_traits.next_order_days   IS DISTINCT FROM EXCLUDED.next_order_days
    OR customer_traits.monetary_cents    IS DISTINCT FROM EXCLUDED.monetary_cents
    OR customer_traits.rfm_r             IS DISTINCT FROM EXCLUDED.rfm_r
    OR customer_traits.rfm_f             IS DISTINCT FROM EXCLUDED.rfm_f
@@ -613,7 +974,7 @@ type RecomputeChannelTraitsParams struct {
 
 // Recompute every customer's RFM, lifecycle and engagement traits for a channel in one set-based statement, so trait-compute scales without per-customer round-trips
 // RFM are 1..5 quintile ranks among the channel's purchasers with 0 for never-ordered, recency reversed and ties broken by customer_id; lifecycle uses the channel's configured windows
-// Skip no-op writes: only rewrite a row when a DECISION-relevant column actually changed - this is what stops the long-tail of dormant customers (no orders / activity) from churning a new tuple + WAL every run - their scores/lifecycle are stable, so they're left untouched - deliberately excludes recency_days (drifts ~½ day each run with no real signal) and computed_at from the gate, so a row's computed_at means "last time its traits materially changed" (use the trait-compute job's last_run_at for "when we last recomputed") - lifecycle threshold crossings (30/90/180d) and quintile shifts DO flip a gated column, so genuine transitions are still captured
+// Rewrites a row only when a column rules read changed, so idle customers churn no WAL - computed_at means "last changed", not "last recomputed"
 func (q *Queries) RecomputeChannelTraits(ctx context.Context, arg RecomputeChannelTraitsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, recomputeChannelTraits,
 		arg.ChannelID,
@@ -649,44 +1010,6 @@ type ReplaceChannelEngagementParams struct {
 // Atomically swap a channel's projection to the given per-customer counts (paired arrays: customer_ids[i] has engagements[i]) - one statement, so a crash can't leave the projection half-cleared before RecomputeChannelTraits reads it - the delete and the upsert touch disjoint rows (NOT IN set vs in set), which single-statement row rules require
 func (q *Queries) ReplaceChannelEngagement(ctx context.Context, arg ReplaceChannelEngagementParams) error {
 	_, err := q.db.ExecContext(ctx, replaceChannelEngagement, pq.Array(arg.CustomerIds), arg.ChannelID, pq.Array(arg.Engagements))
-	return err
-}
-
-const replaceChannelOrderAgg = `-- name: ReplaceChannelOrderAgg :exec
-WITH pruned AS (
-    DELETE FROM customer_order_agg
-    WHERE channel_id = $2::uuid
-      AND NOT (customer_id = ANY($1::uuid[]))
-)
-INSERT INTO customer_order_agg (customer_id, channel_id, order_count, monetary_cents, first_order_at, last_order_at)
-SELECT unnest($1::uuid[]), $2::uuid,
-       unnest($3::int[]), unnest($4::bigint[]),
-       unnest($5::timestamptz[]), unnest($6::timestamptz[])
-ON CONFLICT (customer_id) DO UPDATE
-    SET channel_id = EXCLUDED.channel_id, order_count = EXCLUDED.order_count,
-        monetary_cents = EXCLUDED.monetary_cents, first_order_at = EXCLUDED.first_order_at,
-        last_order_at = EXCLUDED.last_order_at, computed_at = now()
-`
-
-type ReplaceChannelOrderAggParams struct {
-	CustomerIds   []uuid.UUID `json:"customer_ids"`
-	ChannelID     uuid.UUID   `json:"channel_id"`
-	OrderCounts   []int32     `json:"order_counts"`
-	MonetaryCents []int64     `json:"monetary_cents"`
-	FirstOrderAts []time.Time `json:"first_order_ats"`
-	LastOrderAts  []time.Time `json:"last_order_ats"`
-}
-
-// Atomically swap a channel's order projection to the given per-customer aggregates (paired arrays), one statement for the same reason the engagement swap is one: a crash must not leave it half-cleared before RecomputeChannelTraits reads it and zeroes everyone's RFM
-func (q *Queries) ReplaceChannelOrderAgg(ctx context.Context, arg ReplaceChannelOrderAggParams) error {
-	_, err := q.db.ExecContext(ctx, replaceChannelOrderAgg,
-		pq.Array(arg.CustomerIds),
-		arg.ChannelID,
-		pq.Array(arg.OrderCounts),
-		pq.Array(arg.MonetaryCents),
-		pq.Array(arg.FirstOrderAts),
-		pq.Array(arg.LastOrderAts),
-	)
 	return err
 }
 
@@ -733,11 +1056,9 @@ func (q *Queries) RfmDistributionForCustomers(ctx context.Context, customerIds [
 }
 
 const rosterChannels = `-- name: RosterChannels :many
-SELECT DISTINCT channel_id FROM customer_roster
+SELECT channel_id FROM channel_roster ORDER BY channel_id
 `
 
-// The channels the roster covers - what the trait recompute iterates, since a channel with no
-// customers has nothing to compute
 func (q *Queries) RosterChannels(ctx context.Context) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, rosterChannels)
 	if err != nil {
@@ -762,7 +1083,7 @@ func (q *Queries) RosterChannels(ctx context.Context) ([]uuid.UUID, error) {
 }
 
 const rosterContact = `-- name: RosterContact :one
-SELECT customer_id, channel_id, email, first_name, phone, marketing_opted_in, sms_opted_in
+SELECT customer_id, channel_id, email, first_name, phone, is_active, marketing_opted_in, sms_opted_in
 FROM customer_roster WHERE customer_id = $1
 `
 
@@ -772,6 +1093,7 @@ type RosterContactRow struct {
 	Email            string    `json:"email"`
 	FirstName        string    `json:"first_name"`
 	Phone            string    `json:"phone"`
+	IsActive         bool      `json:"is_active"`
 	MarketingOptedIn bool      `json:"marketing_opted_in"`
 	SmsOptedIn       bool      `json:"sms_opted_in"`
 }
@@ -787,6 +1109,7 @@ func (q *Queries) RosterContact(ctx context.Context, customerID uuid.UUID) (Rost
 		&i.Email,
 		&i.FirstName,
 		&i.Phone,
+		&i.IsActive,
 		&i.MarketingOptedIn,
 		&i.SmsOptedIn,
 	)
@@ -794,7 +1117,7 @@ func (q *Queries) RosterContact(ctx context.Context, customerID uuid.UUID) (Rost
 }
 
 const rosterMarketingConsent = `-- name: RosterMarketingConsent :many
-SELECT customer_id, marketing_opted_in FROM customer_roster
+SELECT customer_id, (marketing_opted_in AND is_active)::boolean AS marketing_opted_in FROM customer_roster
 WHERE customer_id = ANY($1::uuid[])
 `
 
@@ -804,7 +1127,7 @@ type RosterMarketingConsentRow struct {
 }
 
 // Marketing consent as it stands right now for a page of recipients - re-read at send time, since
-// someone who unsubscribed after the campaign was built must not be mailed
+// someone who unsubscribed or was deactivated after the campaign was built must not be mailed
 func (q *Queries) RosterMarketingConsent(ctx context.Context, customerIds []uuid.UUID) ([]RosterMarketingConsentRow, error) {
 	rows, err := q.db.QueryContext(ctx, rosterMarketingConsent, pq.Array(customerIds))
 	if err != nil {
@@ -833,7 +1156,7 @@ SELECT customer_id,
        order_count::int        AS orders,
        monetary_cents::bigint  AS spend_cents,
        last_order_at
-FROM customer_order_agg
+FROM customer_roster
 WHERE customer_id = ANY($1::uuid[])
 `
 
@@ -844,8 +1167,7 @@ type SegmentMemberOrderStatsRow struct {
 	LastOrderAt sql.NullTime `json:"last_order_at"`
 }
 
-// The order half of a segment's member panel, off the same projection the RFM scores beside it derive
-// from, so a member's orders and spend agree with their recency/frequency/monetary
+// The order half of a segment's member panel, off the same roster totals the RFM scores beside it derive from
 func (q *Queries) SegmentMemberOrderStats(ctx context.Context, customerIds []uuid.UUID) ([]SegmentMemberOrderStatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, segmentMemberOrderStats, pq.Array(customerIds))
 	if err != nil {
@@ -877,7 +1199,7 @@ func (q *Queries) SegmentMemberOrderStats(ctx context.Context, customerIds []uui
 const segmentOrderRollup = `-- name: SegmentOrderRollup :one
 SELECT COALESCE(SUM(order_count), 0)::bigint    AS orders,
        COALESCE(SUM(monetary_cents), 0)::bigint AS revenue_cents
-FROM customer_order_agg
+FROM customer_roster
 WHERE customer_id = ANY($1::uuid[])
 `
 
@@ -909,6 +1231,70 @@ type SetEngagementWatermarkParams struct {
 func (q *Queries) SetEngagementWatermark(ctx context.Context, arg SetEngagementWatermarkParams) error {
 	_, err := q.db.ExecContext(ctx, setEngagementWatermark, arg.ChannelID, arg.RanAt)
 	return err
+}
+
+const setRosterFilled = `-- name: SetRosterFilled :exec
+INSERT INTO customer_roster_state (one_row, filled_version, filled_at) VALUES (true, $1, now())
+ON CONFLICT (one_row) DO UPDATE SET filled_version = EXCLUDED.filled_version, filled_at = EXCLUDED.filled_at
+`
+
+func (q *Queries) SetRosterFilled(ctx context.Context, filledVersion int32) error {
+	_, err := q.db.ExecContext(ctx, setRosterFilled, filledVersion)
+	return err
+}
+
+const tombstoneCustomerRosterEntry = `-- name: TombstoneCustomerRosterEntry :exec
+INSERT INTO customer_roster_tombstones (customer_id) VALUES ($1)
+ON CONFLICT (customer_id) DO NOTHING
+`
+
+func (q *Queries) TombstoneCustomerRosterEntry(ctx context.Context, customerID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, tombstoneCustomerRosterEntry, customerID)
+	return err
+}
+
+const touchCustomerRoster = `-- name: TouchCustomerRoster :exec
+UPDATE customer_roster SET synced_at = $1
+WHERE customer_id = ANY($2::uuid[]) AND synced_at < $1
+`
+
+type TouchCustomerRosterParams struct {
+	SyncedAt    time.Time   `json:"synced_at"`
+	CustomerIds []uuid.UUID `json:"customer_ids"`
+}
+
+func (q *Queries) TouchCustomerRoster(ctx context.Context, arg TouchCustomerRosterParams) error {
+	_, err := q.db.ExecContext(ctx, touchCustomerRoster, arg.SyncedAt, pq.Array(arg.CustomerIds))
+	return err
+}
+
+const traitComputeChannels = `-- name: TraitComputeChannels :many
+SELECT c.channel_id FROM channel_roster c
+LEFT JOIN trait_compute_runs t ON t.channel_id = c.channel_id
+ORDER BY GREATEST(t.attempted_at, t.finished_at) NULLS FIRST, c.channel_id
+`
+
+func (q *Queries) TraitComputeChannels(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, traitComputeChannels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var channel_id uuid.UUID
+		if err := rows.Scan(&channel_id); err != nil {
+			return nil, err
+		}
+		items = append(items, channel_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const traitsForCustomers = `-- name: TraitsForCustomers :many
@@ -973,20 +1359,22 @@ func (q *Queries) UpsertChannelEngagementFor(ctx context.Context, arg UpsertChan
 }
 
 const upsertChannelRoster = `-- name: UpsertChannelRoster :exec
-INSERT INTO channel_roster (channel_id, is_default, name, public_url, from_address, from_name, logo_url, synced_at)
+INSERT INTO channel_roster (channel_id, is_default, is_active, name, public_url, from_address, from_name, logo_url, synced_at)
 SELECT unnest($1::uuid[]), unnest($2::boolean[]),
-       unnest($3::text[]), unnest($4::text[]),
-       unnest($5::text[]), unnest($6::text[]),
-       unnest($7::text[]), $8
+       unnest($3::boolean[]),
+       unnest($4::text[]), unnest($5::text[]),
+       unnest($6::text[]), unnest($7::text[]),
+       unnest($8::text[]), $9
 ON CONFLICT (channel_id) DO UPDATE
-    SET is_default = EXCLUDED.is_default, name = EXCLUDED.name, public_url = EXCLUDED.public_url,
-        from_address = EXCLUDED.from_address, from_name = EXCLUDED.from_name,
+    SET is_default = EXCLUDED.is_default, is_active = EXCLUDED.is_active, name = EXCLUDED.name,
+        public_url = EXCLUDED.public_url, from_address = EXCLUDED.from_address, from_name = EXCLUDED.from_name,
         logo_url = EXCLUDED.logo_url, synced_at = EXCLUDED.synced_at
 `
 
 type UpsertChannelRosterParams struct {
 	ChannelIds    []uuid.UUID `json:"channel_ids"`
 	IsDefaults    []bool      `json:"is_defaults"`
+	IsActives     []bool      `json:"is_actives"`
 	Names         []string    `json:"names"`
 	PublicUrls    []string    `json:"public_urls"`
 	FromAddresses []string    `json:"from_addresses"`
@@ -995,11 +1383,11 @@ type UpsertChannelRosterParams struct {
 	SyncedAt      time.Time   `json:"synced_at"`
 }
 
-// Lands the whole active-channel set - paired arrays, one statement
 func (q *Queries) UpsertChannelRoster(ctx context.Context, arg UpsertChannelRosterParams) error {
 	_, err := q.db.ExecContext(ctx, upsertChannelRoster,
 		pq.Array(arg.ChannelIds),
 		pq.Array(arg.IsDefaults),
+		pq.Array(arg.IsActives),
 		pq.Array(arg.Names),
 		pq.Array(arg.PublicUrls),
 		pq.Array(arg.FromAddresses),
@@ -1012,39 +1400,62 @@ func (q *Queries) UpsertChannelRoster(ctx context.Context, arg UpsertChannelRost
 
 const upsertCustomerRoster = `-- name: UpsertCustomerRoster :exec
 
-INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, synced_at)
-SELECT unnest($1::uuid[]), unnest($2::uuid[]),
-       unnest($3::text[]), unnest($4::text[]),
-       unnest($5::text[]), unnest($6::boolean[]),
-       unnest($7::uuid[]), unnest($8::text[]),
-       unnest($9::boolean[]), unnest($10::boolean[]), $11
+INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at,
+                             order_count, monetary_cents, first_order_at, last_order_at)
+SELECT u.customer_id, u.channel_id, u.email, u.first_name, u.phone, u.is_active, u.group_id, u.group_slug,
+       u.opted_in, u.sms_opted_in, u.consents::jsonb,
+       CASE WHEN u.read_at > 'epoch'::timestamptz THEN u.read_at END, $1,
+       u.order_count, u.monetary_cents,
+       CASE WHEN u.first_order_at > 'epoch'::timestamptz THEN u.first_order_at END,
+       CASE WHEN u.last_order_at > 'epoch'::timestamptz THEN u.last_order_at END
+FROM (SELECT unnest($2::uuid[]) AS customer_id, unnest($3::uuid[]) AS channel_id,
+             unnest($4::text[]) AS email, unnest($5::text[]) AS first_name,
+             unnest($6::text[]) AS phone, unnest($7::boolean[]) AS is_active,
+             unnest($8::uuid[]) AS group_id, unnest($9::text[]) AS group_slug,
+             unnest($10::boolean[]) AS opted_in, unnest($11::boolean[]) AS sms_opted_in,
+             unnest($12::text[]) AS consents, unnest($13::timestamptz[]) AS read_at,
+             unnest($14::int[]) AS order_count, unnest($15::bigint[]) AS monetary_cents,
+             unnest($16::timestamptz[]) AS first_order_at, unnest($17::timestamptz[]) AS last_order_at) u
+WHERE NOT EXISTS (SELECT 1 FROM customer_roster_tombstones t WHERE t.customer_id = u.customer_id)
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
         phone = EXCLUDED.phone, is_active = EXCLUDED.is_active, customer_group_id = EXCLUDED.customer_group_id,
         customer_group_slug = EXCLUDED.customer_group_slug,
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
-        synced_at = EXCLUDED.synced_at
+        consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at,
+        order_count = EXCLUDED.order_count, monetary_cents = EXCLUDED.monetary_cents,
+        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at
+    WHERE customer_roster.source_read_at IS NULL OR EXCLUDED.source_read_at IS NULL
+       OR EXCLUDED.source_read_at >= customer_roster.source_read_at
 `
 
 type UpsertCustomerRosterParams struct {
-	CustomerIds []uuid.UUID `json:"customer_ids"`
-	ChannelIds  []uuid.UUID `json:"channel_ids"`
-	Emails      []string    `json:"emails"`
-	FirstNames  []string    `json:"first_names"`
-	Phones      []string    `json:"phones"`
-	Actives     []bool      `json:"actives"`
-	GroupIds    []uuid.UUID `json:"group_ids"`
-	GroupSlugs  []string    `json:"group_slugs"`
-	OptedIn     []bool      `json:"opted_in"`
-	SmsOptedIn  []bool      `json:"sms_opted_in"`
-	SyncedAt    time.Time   `json:"synced_at"`
+	SyncedAt      time.Time   `json:"synced_at"`
+	CustomerIds   []uuid.UUID `json:"customer_ids"`
+	ChannelIds    []uuid.UUID `json:"channel_ids"`
+	Emails        []string    `json:"emails"`
+	FirstNames    []string    `json:"first_names"`
+	Phones        []string    `json:"phones"`
+	Actives       []bool      `json:"actives"`
+	GroupIds      []uuid.UUID `json:"group_ids"`
+	GroupSlugs    []string    `json:"group_slugs"`
+	OptedIn       []bool      `json:"opted_in"`
+	SmsOptedIn    []bool      `json:"sms_opted_in"`
+	Consents      []string    `json:"consents"`
+	ReadAts       []time.Time `json:"read_ats"`
+	OrderCounts   []int32     `json:"order_counts"`
+	MonetaryCents []int64     `json:"monetary_cents"`
+	FirstOrderAts []time.Time `json:"first_order_ats"`
+	LastOrderAts  []time.Time `json:"last_order_ats"`
 }
 
 // Spine half of trait compute (the `act` CTE), split out of the commerce RecomputeChannelTraits - feeds the
 // commerce-side customer_engagement_30d projection the recompute reads
 // Lands a page of the synced roster - paired arrays, one statement per page
+// A deleted customer's tombstone keeps a page read before the delete from bringing them back, and a row core read later than this page is left alone
 func (q *Queries) UpsertCustomerRoster(ctx context.Context, arg UpsertCustomerRosterParams) error {
 	_, err := q.db.ExecContext(ctx, upsertCustomerRoster,
+		arg.SyncedAt,
 		pq.Array(arg.CustomerIds),
 		pq.Array(arg.ChannelIds),
 		pq.Array(arg.Emails),
@@ -1055,35 +1466,54 @@ func (q *Queries) UpsertCustomerRoster(ctx context.Context, arg UpsertCustomerRo
 		pq.Array(arg.GroupSlugs),
 		pq.Array(arg.OptedIn),
 		pq.Array(arg.SmsOptedIn),
-		arg.SyncedAt,
+		pq.Array(arg.Consents),
+		pq.Array(arg.ReadAts),
+		pq.Array(arg.OrderCounts),
+		pq.Array(arg.MonetaryCents),
+		pq.Array(arg.FirstOrderAts),
+		pq.Array(arg.LastOrderAts),
 	)
 	return err
 }
 
 const upsertCustomerRosterEntry = `-- name: UpsertCustomerRosterEntry :exec
-INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, synced_at)
-VALUES ($1, $2, $3, $4,
-        $5, $6, $7, $8,
-        $9, $10, now())
+INSERT INTO customer_roster (customer_id, channel_id, email, first_name, phone, is_active, customer_group_id, customer_group_slug, marketing_opted_in, sms_opted_in, consents, source_read_at, synced_at,
+                             order_count, monetary_cents, first_order_at, last_order_at)
+SELECT $1::uuid, $2::uuid, $3::text, $4::text,
+       $5::text, $6::boolean, $7::uuid, $8::text,
+       $9::boolean, $10::boolean, $11::jsonb,
+       CASE WHEN $12::timestamptz > 'epoch'::timestamptz THEN $12::timestamptz END, now(),
+       $13::int, $14::bigint, $15::timestamptz, $16::timestamptz
+WHERE NOT EXISTS (SELECT 1 FROM customer_roster_tombstones t WHERE t.customer_id = $1::uuid)
 ON CONFLICT (customer_id) DO UPDATE
     SET channel_id = EXCLUDED.channel_id, email = EXCLUDED.email, first_name = EXCLUDED.first_name,
         phone = EXCLUDED.phone, is_active = EXCLUDED.is_active, customer_group_id = EXCLUDED.customer_group_id,
         customer_group_slug = EXCLUDED.customer_group_slug,
         marketing_opted_in = EXCLUDED.marketing_opted_in, sms_opted_in = EXCLUDED.sms_opted_in,
-        synced_at = EXCLUDED.synced_at
+        consents = EXCLUDED.consents, source_read_at = EXCLUDED.source_read_at, synced_at = EXCLUDED.synced_at,
+        order_count = EXCLUDED.order_count, monetary_cents = EXCLUDED.monetary_cents,
+        first_order_at = EXCLUDED.first_order_at, last_order_at = EXCLUDED.last_order_at
+    WHERE customer_roster.source_read_at IS NULL OR EXCLUDED.source_read_at IS NULL
+       OR EXCLUDED.source_read_at >= customer_roster.source_read_at
 `
 
 type UpsertCustomerRosterEntryParams struct {
-	CustomerID        uuid.UUID     `json:"customer_id"`
-	ChannelID         uuid.UUID     `json:"channel_id"`
-	Email             string        `json:"email"`
-	FirstName         string        `json:"first_name"`
-	Phone             string        `json:"phone"`
-	IsActive          bool          `json:"is_active"`
-	CustomerGroupID   uuid.NullUUID `json:"customer_group_id"`
-	CustomerGroupSlug string        `json:"customer_group_slug"`
-	MarketingOptedIn  bool          `json:"marketing_opted_in"`
-	SmsOptedIn        bool          `json:"sms_opted_in"`
+	CustomerID        uuid.UUID       `json:"customer_id"`
+	ChannelID         uuid.UUID       `json:"channel_id"`
+	Email             string          `json:"email"`
+	FirstName         string          `json:"first_name"`
+	Phone             string          `json:"phone"`
+	IsActive          bool            `json:"is_active"`
+	CustomerGroupID   uuid.NullUUID   `json:"customer_group_id"`
+	CustomerGroupSlug string          `json:"customer_group_slug"`
+	MarketingOptedIn  bool            `json:"marketing_opted_in"`
+	SmsOptedIn        bool            `json:"sms_opted_in"`
+	Consents          json.RawMessage `json:"consents"`
+	ReadAt            time.Time       `json:"read_at"`
+	OrderCount        int32           `json:"order_count"`
+	MonetaryCents     int64           `json:"monetary_cents"`
+	FirstOrderAt      sql.NullTime    `json:"first_order_at"`
+	LastOrderAt       sql.NullTime    `json:"last_order_at"`
 }
 
 // One customer, arriving on a change rather than a sweep - synced_at moves too, so the next sweep does not prune a row that just landed
@@ -1099,6 +1529,12 @@ func (q *Queries) UpsertCustomerRosterEntry(ctx context.Context, arg UpsertCusto
 		arg.CustomerGroupSlug,
 		arg.MarketingOptedIn,
 		arg.SmsOptedIn,
+		arg.Consents,
+		arg.ReadAt,
+		arg.OrderCount,
+		arg.MonetaryCents,
+		arg.FirstOrderAt,
+		arg.LastOrderAt,
 	)
 	return err
 }

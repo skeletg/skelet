@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
@@ -430,4 +431,64 @@ func (r *mutationResolver) requirePromotionRuleManage(ctx context.Context, ruleI
 		return err
 	}
 	return auth.RequireGlobalOrChannelPermission(ctx, r.AdminSvc, "promotions.manage", rule.ChannelID)
+}
+
+func (r *Resolver) promotionAnalyticsByRule(ctx context.Context, s, e time.Time, channels []uuid.UUID) ([]promotion.RuleAnalytics, error) {
+	if channels == nil {
+		return r.PromotionSvc.AnalyticsByRule(ctx, s, e)
+	}
+	rows, err := r.Queries.PromotionAnalyticsByRuleForChannels(ctx, db.PromotionAnalyticsByRuleForChannelsParams{ChannelIds: channels, StartTime: s, EndTime: e})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]promotion.RuleAnalytics, len(rows))
+	for i, row := range rows {
+		out[i] = promotion.RuleAnalytics{
+			RuleID: row.RuleID, RuleSlug: row.RuleSlug, RuleName: row.RuleName, RedemptionCount: row.RedemptionCount,
+			DiscountTotalCents: row.DiscountTotalCents, UniqueCustomers: row.UniqueCustomers, OrderRevenueCents: row.OrderRevenueCents,
+		}
+	}
+	return out, nil
+}
+
+func (r *Resolver) promotionAnalyticsTotals(ctx context.Context, s, e time.Time, channels []uuid.UUID) (promotion.AnalyticsTotals, error) {
+	if channels == nil {
+		return r.PromotionSvc.AnalyticsTotals(ctx, s, e)
+	}
+	row, err := r.Queries.PromotionAnalyticsTotalsForChannels(ctx, db.PromotionAnalyticsTotalsForChannelsParams{ChannelIds: channels, StartTime: s, EndTime: e})
+	if err != nil {
+		return promotion.AnalyticsTotals{}, err
+	}
+	return promotion.AnalyticsTotals{RedemptionCount: row.RedemptionCount, DiscountTotalCents: row.DiscountTotalCents, UniqueCustomers: row.UniqueCustomers}, nil
+}
+
+func (r *Resolver) promotionAnalyticsDaily(ctx context.Context, s, e time.Time, ruleID *uuid.UUID, channels []uuid.UUID) ([]promotion.AnalyticsDailyPoint, error) {
+	if channels == nil {
+		return r.PromotionSvc.AnalyticsDaily(ctx, s, e, ruleID)
+	}
+	var rid uuid.NullUUID
+	if ruleID != nil {
+		rid = uuid.NullUUID{UUID: *ruleID, Valid: true}
+	}
+	rows, err := r.Queries.PromotionAnalyticsDailyForChannels(ctx, db.PromotionAnalyticsDailyForChannelsParams{ChannelIds: channels, StartTime: s, EndTime: e, RuleID: rid})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]promotion.AnalyticsDailyPoint, len(rows))
+	for i, row := range rows {
+		out[i] = promotion.AnalyticsDailyPoint{Day: row.Day, RedemptionCount: row.RedemptionCount, DiscountTotalCents: row.DiscountTotalCents}
+	}
+	return out, nil
+}
+
+// nil means every channel, for a grant that holds everywhere
+func (r *Resolver) promotionAnalyticsChannels(ctx context.Context) ([]uuid.UUID, error) {
+	permitted, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "promotions.view")
+	if err != nil {
+		return nil, err
+	}
+	if permitted.Bypass() {
+		return nil, nil
+	}
+	return permitted.IDs(), nil
 }

@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next";
 
+import { requireRequestChannel } from "@/app/lib/channel/site";
 import { getSeoConfig } from "@/app/lib/config/read";
-import { absUrl as abs, applySitemapExclusions } from "@/app/lib/sitemap/read";
+import { absUrl, applySitemapExclusions, getSiteUrl } from "@/app/lib/sitemap/read";
 import { getHomePage, listCMSPagesForSitemap } from "@/app/lib/cms/read";
 import {
   blogAuthorHref,
@@ -12,8 +13,13 @@ import {
   listBlogPostsForSitemap,
 } from "@/app/lib/blog/read";
 
+// Per request: the host decides the channel, and so the origin and the entries
+export const dynamic = "force-dynamic";
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const seo = await getSeoConfig();
+  await requireRequestChannel();
+  const [seo, base] = await Promise.all([getSeoConfig(), getSiteUrl()]);
+  const abs = (path: string) => absUrl(path, base);
   // Skip the fetches for whole feeds the operator turned off, so a disabled section
   // costs nothing rather than being built and then filtered out
   const [home, cmsPages, blogPosts, taxonomy, authors] = await Promise.all([
@@ -62,5 +68,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     entries.push({ url: abs(u), changeFrequency: "weekly" });
   }
 
-  return applySitemapExclusions(entries);
+  return applySitemapExclusions(entries, base);
 }

@@ -66,6 +66,7 @@ func (b *Bus) SubscribeSync(eventType string, priority int, h SyncHandler) {
 
 // Returns immediately, handlers run detached - a panic is recovered per-handler so one bad listener can't stop the others
 func (b *Bus) Publish(ctx context.Context, e Event) {
+	ctx = withoutOutboxID(ctx)
 	b.mu.RLock()
 	handlers := append([]AsyncHandler(nil), b.asyncSubs[e.Type()]...)
 	b.mu.RUnlock()
@@ -178,6 +179,7 @@ func (b *Bus) DispatchAsyncNow(ctx context.Context, e Event) error {
 
 // Priority order, returning the first non-nil error and skipping the rest - handlers may enrich e, so the emitter reads mutable fields after a nil return
 func (b *Bus) PublishSync(ctx context.Context, e Event) error {
+	ctx = withoutOutboxID(ctx)
 	b.mu.RLock()
 	entries := append([]syncEntry(nil), b.syncSubs[e.Type()]...)
 	b.mu.RUnlock()

@@ -75,7 +75,7 @@ type UpdateChannelInput struct {
 
 var (
 	ErrChannelNotFound    = errors.New("channel not found")
-	ErrChannelInUse       = errors.New("channel still has orders, listings or carts; reassign or remove them first")
+	ErrChannelInUse       = errors.New("channel still has orders, listings, carts or gift cards; reassign or remove them first")
 	ErrSlugTaken          = errors.New("channel slug already in use")
 	ErrLocaleNotSupported = errors.New("locale is not in the channel's supported locales list")
 	ErrInvalidCurrency    = errors.New("currency_code must be a 3-letter ISO 4217 code")

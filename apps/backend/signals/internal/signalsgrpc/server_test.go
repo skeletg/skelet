@@ -2,6 +2,7 @@ package signalsgrpc
 
 import (
 	"context"
+	"errors"
 	"net"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/signalsapi"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 	"github.com/skeletg/skelet/apps/backend/signals/internal/analytics"
+	"github.com/skeletg/skelet/apps/backend/signals/internal/emailtemplate"
 )
 
 const testSecret = "test-secret-for-the-service-token"
@@ -668,5 +670,43 @@ func TestARevokedSessionIsRefusedOnTheContract(t *testing.T) {
 	_, err = c.ListExperiments(ctx, &signalsv1.ListExperimentsRequest{ChannelId: uuid.NewString()})
 	if status.Code(err) != codes.Unauthenticated {
 		t.Fatalf("after revocation the call answered %v, want Unauthenticated", err)
+	}
+}
+
+func TestAPartlyTakenMomentAnswersItsCount(t *testing.T) {
+	res, err := enrollAnswer("order_shipped", 1, errors.New("flow b: db down"))
+	if err != nil || res.GetEnrolled() != 1 || !res.GetIncomplete() {
+		t.Fatalf("partial enroll = %v, %v, want 1 taken and marked incomplete - core would mail again what flow a sent", res, err)
+	}
+	if _, err := enrollAnswer("order_shipped", 0, errors.New("db down")); status.Code(err) != codes.Internal {
+		t.Fatalf("nothing taken answered %v, want Internal so core sends its own mail", err)
+	}
+	if res, err := enrollAnswer("order_shipped", 2, nil); err != nil || res.GetEnrolled() != 2 || res.GetIncomplete() {
+		t.Fatalf("clean enroll = %v, %v", res, err)
+	}
+}
+
+func TestAnEmptyChannelPushIsRefused(t *testing.T) {
+	c := signalsv1.NewIngestServiceClient(testConn(t))
+	if got := status.Code(mustErr(c.SyncChannels(systemCtx(t), &signalsv1.SyncChannelsRequest{}))); got != codes.InvalidArgument {
+		t.Fatalf("empty push answered %s, want InvalidArgument - it would prune every channel and its Pulse content", got)
+	}
+}
+
+func TestEmailGroupsAreChangedOnlyWithAGlobalGrant(t *testing.T) {
+	c := signalsv1.NewEmailBuilderServiceClient(testConnWith(t, Deps{ServiceSecret: testSecret, Channels: analytics.NewChannelRoster(nil), Builder: emailtemplate.NewService(nil, nil)}))
+	ctx := tokenCtx(t, auth.Grant{Slug: "emails.manage", ChannelID: new(uuid.New())})
+	id := uuid.New().String()
+	for name, call := range map[string]func() error{
+		"create": func() error { _, e := c.CreateEmailGroup(ctx, &signalsv1.CreateEmailGroupRequest{Name: "x"}); return e },
+		"rename": func() error {
+			_, e := c.RenameEmailGroup(ctx, &signalsv1.RenameEmailGroupRequest{Id: id, Name: "x"})
+			return e
+		},
+		"delete": func() error { _, e := c.DeleteEmailGroup(ctx, &signalsv1.DeleteEmailGroupRequest{Id: id}); return e },
+	} {
+		if got := status.Code(call()); got != codes.PermissionDenied {
+			t.Errorf("%s with one channel's grant answered %s, want PermissionDenied - groups hold every channel's emails", name, got)
+		}
 	}
 }

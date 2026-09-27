@@ -13,7 +13,7 @@ import (
 )
 
 func (r *mutationResolver) PurgeCache(ctx context.Context, surfaceKey *string, tags []string, paths []string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cache.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "cache.manage"); err != nil {
 		return false, err
 	}
 	if r.CacheClient == nil {
@@ -39,7 +39,7 @@ func (r *mutationResolver) PurgeCache(ctx context.Context, surfaceKey *string, t
 }
 
 func (r *mutationResolver) RebuildCache(ctx context.Context, paths []string) (bool, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cache.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "cache.manage"); err != nil {
 		return false, err
 	}
 	if r.CacheClient == nil {
@@ -64,7 +64,7 @@ func (r *mutationResolver) RebuildCache(ctx context.Context, paths []string) (bo
 }
 
 func (r *mutationResolver) EnqueueRebuild(ctx context.Context, paths []string) (int32, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cache.manage"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "cache.manage"); err != nil {
 		return 0, err
 	}
 	if r.CacheQueue == nil {
@@ -94,7 +94,7 @@ func (r *mutationResolver) EnqueueRebuild(ctx context.Context, paths []string) (
 }
 
 func (r *queryResolver) CacheSurfaces(ctx context.Context) ([]*model.CacheSurface, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cache.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "cache.view"); err != nil {
 		return nil, err
 	}
 	surfaces := revalidate.Surfaces()
@@ -115,7 +115,7 @@ func (r *queryResolver) CacheSurfaces(ctx context.Context) ([]*model.CacheSurfac
 }
 
 func (r *queryResolver) CacheRevalidations(ctx context.Context, limit *int32) ([]*model.CacheRevalidation, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cache.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "cache.view"); err != nil {
 		return nil, err
 	}
 	if r.CacheClient == nil {
@@ -137,7 +137,7 @@ func (r *queryResolver) CacheRevalidations(ctx context.Context, limit *int32) ([
 }
 
 func (r *queryResolver) RebuildQueue(ctx context.Context, recentLimit *int32) (*model.RebuildQueueStatus, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "cache.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "cache.view"); err != nil {
 		return nil, err
 	}
 	if r.CacheQueue == nil {

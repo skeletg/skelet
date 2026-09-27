@@ -228,7 +228,7 @@ func (a CartCatalogAdapter) ResolveSimplePricing(ctx context.Context, channelID 
 		break
 	}
 	if !published {
-		return cart.SimplePricing{}, fmt.Errorf("sku %q is not published on this store", sku)
+		return cart.SimplePricing{}, fmt.Errorf("sku %q: %w", sku, cart.ErrProductNotPublished)
 	}
 	// Effective price folds the listing override plus any active scheduled special (internal/pricing) - the same resolution the storefront shows
 	resolved := pricing.Resolve(catalog.EffectivePricingInputs(p, chListing), time.Now())
@@ -402,13 +402,20 @@ func toCartVisibilityGroup(g *catalog.OptionConditionGroup) *cart.OptionVisibili
 	return out
 }
 
-func (a CartCatalogAdapter) ResolveBundleBySKU(ctx context.Context, sku string) (cart.BundleSnapshot, error) {
+func (a CartCatalogAdapter) ResolveBundleBySKU(ctx context.Context, channelID uuid.UUID, sku string) (cart.BundleSnapshot, error) {
 	p, err := a.svc.GetProductBySKU(ctx, sku)
 	if err != nil {
 		return cart.BundleSnapshot{}, err
 	}
 	if string(p.Kind) != "bundle" {
 		return cart.BundleSnapshot{}, fmt.Errorf("product %q is kind %q, not bundle", p.SKU, string(p.Kind))
+	}
+	listings, err := a.svc.ListProductChannelListings(ctx, p.ID)
+	if err != nil {
+		return cart.BundleSnapshot{}, err
+	}
+	if !publishedOn(listings, channelID) {
+		return cart.BundleSnapshot{}, fmt.Errorf("bundle %q: %w", sku, cart.ErrProductNotPublished)
 	}
 	opts, err := a.svc.GetBundleOptions(ctx, p.ID, locale.Active(ctx, nil)) // active request locale (header-driven via locale.Middleware), falls back to default when not set
 	if err != nil {
@@ -529,8 +536,8 @@ func (l OrderLineLookup) GetOrderLines(ctx context.Context, orderID uuid.UUID) (
 // GiftcardTender adapts giftcard.Service to order.GiftCardTender so the order service can redeem gift-card codes as a tender inside its placement transaction without importing the giftcard package
 type GiftcardTender struct{ svc *giftcard.Service }
 
-func (g GiftcardTender) RedeemTx(ctx context.Context, tx *sql.Tx, code string, amountDue int64, currency string, orderID uuid.UUID) (int64, error) {
-	return g.svc.RedeemUpToTx(ctx, tx, code, amountDue, currency, orderID)
+func (g GiftcardTender) RedeemTx(ctx context.Context, tx *sql.Tx, code string, channelID uuid.UUID, amountDue int64, currency string, orderID uuid.UUID) (int64, error) {
+	return g.svc.RedeemUpToTx(ctx, tx, code, channelID, amountDue, currency, orderID)
 }
 
 // StoreCreditTender adapts storecredit.Service to order.StoreCreditTender so placement can spend the customer's balance inside its transaction without importing the storecredit package
@@ -907,6 +914,18 @@ func NewRiskHoldThreshold(cfg *config.Service) func(context.Context, uuid.UUID) 
 	}
 }
 
+func NewShippingTax(cfg *config.Service) func(context.Context, uuid.UUID) (string, bool) {
+	return func(ctx context.Context, channelID uuid.UUID) (string, bool) {
+		scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &channelID}
+		taxable, err := cfg.GetBool(ctx, "sales/checkout/shipping_taxable", scope)
+		if err != nil {
+			taxable = true
+		}
+		class, _ := cfg.GetString(ctx, "sales/checkout/shipping_tax_class", scope)
+		return strings.TrimSpace(class), taxable
+	}
+}
+
 func NewInventoryPickupLister(inv *inventory.Service) InventoryPickupLister {
 	return InventoryPickupLister{svc: inv}
 }
@@ -959,4 +978,13 @@ func (a OrderMailSendLog) AlreadySent(ctx context.Context, orderID uuid.UUID, ki
 
 func (a OrderMailSendLog) RecordSent(ctx context.Context, orderID uuid.UUID, kind, ref string) error {
 	return a.q.InsertOrderEmailLog(ctx, db.InsertOrderEmailLogParams{OrderID: orderID, Kind: kind, Ref: ref})
+}
+
+func publishedOn(listings []catalog.ProductChannelListing, channelID uuid.UUID) bool {
+	for _, l := range listings {
+		if l.ChannelID == channelID {
+			return l.IsPublished
+		}
+	}
+	return false
 }

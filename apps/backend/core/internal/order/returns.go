@@ -241,7 +241,7 @@ func (s *Service) RequestReturn(ctx context.Context, in RequestReturnInput) (Ord
 			})
 		}
 		if allowed, reason := s.remoteReturns.Allowed(ctx, RemoteReturnInput{
-			OrderID: o.ID, Resolution: string(resolution), RefundTarget: string(target), Lines: policyLines,
+			OrderID: o.ID, ChannelID: o.ChannelID, Resolution: string(resolution), RefundTarget: string(target), Lines: policyLines,
 		}); !allowed {
 			return OrderReturn{}, apperr.New("RETURN_POLICY_DENIED", apperr.ClassConflict, reason)
 		}

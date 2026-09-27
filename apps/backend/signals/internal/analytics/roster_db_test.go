@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 	signalsdb "github.com/skeletg/skelet/apps/backend/signals/internal/db/sqlc"
@@ -15,7 +15,7 @@ import (
 // The receiving half of the roster - the sweep that keeps a prospect from carrying a trait row, and the delete that drops a customer's traits with them
 // These push entries the way core's job would and drive the sweep, the event push and the delete
 type rosterEnv struct {
-	rec       *Recorder
+	rec       *Roster
 	sigConn   *sql.DB
 	channel   uuid.UUID
 	customers []RosterEntry // what core would page across on the next sweep
@@ -30,7 +30,7 @@ func rosterFixture(t *testing.T) *rosterEnv {
 		_, _ = sigConn.Exec(`DELETE FROM customer_roster WHERE channel_id = $1`, channelID)
 		_, _ = sigConn.Exec(`DELETE FROM customer_traits WHERE channel_id = $1`, channelID)
 	})
-	return &rosterEnv{rec: &Recorder{qs: signalsdb.New(sigConn)}, sigConn: sigConn, channel: channelID, ctx: context.Background()}
+	return &rosterEnv{rec: NewRoster(signalsdb.New(sigConn)), sigConn: sigConn, channel: channelID, ctx: context.Background()}
 }
 
 // customer is one core holds - on the roster once the next sweep or push carries it across
@@ -317,5 +317,142 @@ func TestThePushCarriesWhatAnSMSNodeNeeds(t *testing.T) {
 	}
 	if emailOK {
 		t.Error("sms consent leaked into the email flag - the two are separate permissions")
+	}
+}
+
+func TestAStaleSweepPageCannotUndoAnUnsubscribe(t *testing.T) {
+	e := rosterFixture(t)
+	id := e.customer(t)
+	e.entry(id).MarketingOptedIn = true
+	e.entry(id).ReadAt = time.Now().Add(-time.Hour)
+	e.push(t)
+
+	sweep := e.rec.BeginRosterSync()
+	stale := *e.entry(id)
+	stale.ReadAt = time.Now().Add(-time.Minute)
+
+	fresh := stale
+	fresh.MarketingOptedIn = false
+	fresh.ReadAt = time.Now()
+	if err := e.rec.UpsertRosterEntry(e.ctx, fresh); err != nil {
+		t.Fatalf("push the unsubscribe: %v", err)
+	}
+	if err := sweep.Page(e.ctx, []RosterEntry{stale}); err != nil {
+		t.Fatalf("stale page: %v", err)
+	}
+	if _, _, err := sweep.Commit(e.ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	if !e.onRoster(t, id) {
+		t.Fatal("the sweep pruned a customer it carried, because the skipped upsert left them unstamped")
+	}
+	if _, _, _, optedIn, _ := e.marketingRow(t, id); optedIn {
+		t.Error("a sweep page read before the unsubscribe put the customer back to opted in")
+	}
+}
+
+func TestAStaleSweepPageCannotResurrectADeletedCustomer(t *testing.T) {
+	e := rosterFixture(t)
+	id := e.customer(t)
+	t.Cleanup(func() { _, _ = e.sigConn.Exec(`DELETE FROM customer_roster_tombstones WHERE customer_id = $1`, id) })
+	e.push(t)
+
+	sweep := e.rec.BeginRosterSync()
+	stale := append([]RosterEntry(nil), e.customers...)
+	if err := e.rec.DeleteRosterEntry(e.ctx, id); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if err := sweep.Page(e.ctx, stale); err != nil {
+		t.Fatalf("stale page: %v", err)
+	}
+	if _, _, err := sweep.Commit(e.ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if e.onRoster(t, id) {
+		t.Error("a sweep page read before the delete re-inserted the customer")
+	}
+}
+
+func TestErasureScrubsTheRosterRunsAndCampaignRows(t *testing.T) {
+	e := rosterFixture(t)
+	id := e.customer(t)
+	e.entry(id).MarketingOptedIn = true
+	e.entry(id).FirstName = "Ada"
+	e.push(t)
+	addr := e.entry(id).Email
+
+	var flowID, campaignID uuid.UUID
+	if err := e.sigConn.QueryRow(`INSERT INTO flows (channel_id, name, trigger_type) VALUES ($1, 'Erase', 'order_placed') RETURNING id`, e.channel).Scan(&flowID); err != nil {
+		t.Fatalf("seed flow: %v", err)
+	}
+	if err := e.sigConn.QueryRow(`INSERT INTO email_campaigns (channel_id, name) VALUES ($1, 'Erase') RETURNING id`, e.channel).Scan(&campaignID); err != nil {
+		t.Fatalf("seed campaign: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = e.sigConn.Exec(`DELETE FROM flows WHERE id = $1`, flowID)
+		_, _ = e.sigConn.Exec(`DELETE FROM email_campaigns WHERE id = $1`, campaignID)
+	})
+	if _, err := e.sigConn.Exec(`INSERT INTO flow_runs (flow_id, customer_id, email, current_node_id, status, context) VALUES ($1, $2, $3, 'wait', 'waiting', '{"first_name":"Ada"}'),
+		($1, NULL, $3, 'wait', 'active', '{}')`, flowID, id, addr); err != nil {
+		t.Fatalf("seed runs: %v", err)
+	}
+	if _, err := e.sigConn.Exec(`INSERT INTO email_campaign_recipients (campaign_id, customer_id, email, first_name, status) VALUES ($1, $2, $3, 'Ada', 'sent'), ($1, NULL, upper($3), 'Ada', 'pending')`,
+		campaignID, id, addr); err != nil {
+		t.Fatalf("seed recipients: %v", err)
+	}
+
+	if err := e.rec.EraseCustomer(e.ctx, id, addr, time.Time{}); err != nil {
+		t.Fatalf("erase: %v", err)
+	}
+
+	email, first, active, optedIn, _ := e.marketingRow(t, id)
+	if email != "" || first != "" || active || optedIn {
+		t.Errorf("roster after erasure = %q/%q active=%v opted=%v, want scrubbed and unmailable", email, first, active, optedIn)
+	}
+	var live, named int
+	if err := e.sigConn.QueryRow(`SELECT count(*) FILTER (WHERE status IN ('active', 'waiting')), count(*) FILTER (WHERE email <> '' OR context <> '{}'::jsonb) FROM flow_runs WHERE flow_id = $1`, flowID).Scan(&live, &named); err != nil {
+		t.Fatalf("count runs: %v", err)
+	}
+	if live != 0 || named != 0 {
+		t.Errorf("runs after erasure: %d live, %d still naming them - want none of either, guest run included", live, named)
+	}
+	var pending, addressed, kept int
+	if err := e.sigConn.QueryRow(`SELECT count(*) FILTER (WHERE status = 'pending'), count(*) FILTER (WHERE email NOT LIKE 'redacted-%' OR first_name <> ''), count(*) FROM email_campaign_recipients WHERE campaign_id = $1`, campaignID).Scan(&pending, &addressed, &kept); err != nil {
+		t.Fatalf("count recipients: %v", err)
+	}
+	if pending != 0 || addressed != 0 || kept != 2 {
+		t.Errorf("recipients after erasure: %d pending, %d addressed, %d rows - want 0, 0 and both rows kept", pending, addressed, kept)
+	}
+
+	sweep := e.rec.BeginRosterSync()
+	stale := *e.entry(id)
+	stale.ReadAt = time.Now().Add(-time.Hour)
+	if err := sweep.Page(e.ctx, []RosterEntry{stale}); err != nil {
+		t.Fatalf("stale page: %v", err)
+	}
+	if email, _, _, _, _ := e.marketingRow(t, id); email != "" {
+		t.Error("a sweep page read before the erasure restored the real address")
+	}
+}
+
+func TestAnErasureIsStampedOnCoresClock(t *testing.T) {
+	e := rosterFixture(t)
+	id := e.customer(t)
+	e.push(t)
+	addr := e.entry(id).Email
+	erasedAt := time.Now().Add(time.Hour)
+	if err := e.rec.EraseCustomer(e.ctx, id, addr, erasedAt); err != nil {
+		t.Fatalf("erase: %v", err)
+	}
+
+	sweep := e.rec.BeginRosterSync()
+	stale := *e.entry(id)
+	stale.ReadAt = erasedAt.Add(-time.Minute)
+	if err := sweep.Page(e.ctx, []RosterEntry{stale}); err != nil {
+		t.Fatalf("stale page: %v", err)
+	}
+	if email, _, _, _, _ := e.marketingRow(t, id); email != "" {
+		t.Error("a page core read before the erasure restored the address - the scrub was stamped on the suite's clock, not core's")
 	}
 }

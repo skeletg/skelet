@@ -2,6 +2,8 @@ package analytics
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -176,40 +178,59 @@ func (t *TrafficRollup) Flush(ctx context.Context) error {
 			firstErr = err
 		}
 	}
-	for k, n := range counts {
-		day, err := time.Parse("2006-01-02", k.day)
-		if err != nil {
-			continue
+	// One statement per table per window - a busy window has thousands of distinct keys
+	if len(counts) > 0 {
+		var p signalsdb.UpsertTrafficRollupsParams
+		for _, k := range sortedKeys(counts, func(k rollupKey) string {
+			return k.channelID.String() + k.day + k.kind + "\x00" + k.botName + "\x00" + k.botCat + "\x00" + k.pageKey
+		}) {
+			n := counts[k]
+			day, err := time.Parse("2006-01-02", k.day)
+			if err != nil {
+				continue
+			}
+			ls := lastSeen[k]
+			if ls.IsZero() {
+				ls = day
+			}
+			p.ChannelIds, p.Days, p.Kinds = append(p.ChannelIds, k.channelID), append(p.Days, day), append(p.Kinds, k.kind)
+			p.BotNames, p.BotCategories, p.PageKeys = append(p.BotNames, k.botName), append(p.BotCategories, k.botCat), append(p.PageKeys, k.pageKey)
+			p.Hits, p.LastSeens = append(p.Hits, n), append(p.LastSeens, ls)
 		}
-		ls := lastSeen[k]
-		if ls.IsZero() {
-			ls = day
+		if len(p.ChannelIds) > 0 {
+			setErr(t.q.UpsertTrafficRollups(ctx, p))
 		}
-		setErr(t.q.UpsertTrafficRollup(ctx, signalsdb.UpsertTrafficRollupParams{
-			ChannelID: k.channelID, Day: day, Kind: k.kind,
-			BotName: k.botName, BotCategory: k.botCat, PageKey: k.pageKey,
-			Hits: n, LastSeen: ls,
-		}))
 	}
-	for k, n := range lensViews {
-		day, err := time.Parse("2006-01-02", k.day)
-		if err != nil {
-			continue
+	if len(lensViews) > 0 {
+		var p signalsdb.UpsertLensDailiesParams
+		for _, k := range sortedKeys(lensViews, func(k lensKey) string { return k.channelID.String() + k.day + k.dim + "\x00" + k.key }) {
+			n := lensViews[k]
+			day, err := time.Parse("2006-01-02", k.day)
+			if err != nil {
+				continue
+			}
+			p.ChannelIds, p.Days, p.Dims, p.Keys, p.Views = append(p.ChannelIds, k.channelID), append(p.Days, day), append(p.Dims, k.dim), append(p.Keys, k.key), append(p.Views, n)
 		}
-		setErr(t.q.UpsertLensDaily(ctx, signalsdb.UpsertLensDailyParams{
-			ChannelID: k.channelID, Day: day, Dim: k.dim, Key: k.key, Views: n,
-		}))
+		if len(p.ChannelIds) > 0 {
+			setErr(t.q.UpsertLensDailies(ctx, p))
+		}
 	}
-	for k, ts := range seen {
-		setErr(t.q.UpsertLensVisitor(ctx, signalsdb.UpsertLensVisitorParams{
-			ChannelID: k.channelID, AnonID: k.anonID, LastSeen: ts,
-		}))
+	if len(seen) > 0 {
+		var p signalsdb.UpsertLensVisitorsParams
+		for _, k := range sortedKeys(seen, func(k seenKey) string { return k.channelID.String() + k.anonID }) {
+			ts := seen[k]
+			p.ChannelIds, p.AnonIds, p.LastSeens = append(p.ChannelIds, k.channelID), append(p.AnonIds, k.anonID), append(p.LastSeens, ts)
+		}
+		setErr(t.q.UpsertLensVisitors(ctx, p))
 	}
-	for k, v := range browse {
-		setErr(t.q.UpsertBrowseSeen(ctx, signalsdb.UpsertBrowseSeenParams{
-			ChannelID: k.channelID, AnonID: k.anonID, LastBrowseAt: v.at,
-			PageKey: v.pageKey, Sku: v.sku, ProductName: v.name, ProductImage: v.image,
-		}))
+	if len(browse) > 0 {
+		var p signalsdb.UpsertBrowseSeensParams
+		for _, k := range sortedKeys(browse, func(k browseKey) string { return k.channelID.String() + k.anonID }) {
+			v := browse[k]
+			p.ChannelIds, p.AnonIds, p.LastBrowseAts = append(p.ChannelIds, k.channelID), append(p.AnonIds, k.anonID), append(p.LastBrowseAts, v.at)
+			p.PageKeys, p.Skus, p.ProductNames, p.ProductImages = append(p.PageKeys, v.pageKey), append(p.Skus, v.sku), append(p.ProductNames, v.name), append(p.ProductImages, v.image)
+		}
+		setErr(t.q.UpsertBrowseSeens(ctx, p))
 	}
 	return firstErr
 }
@@ -229,4 +250,14 @@ func (t *TrafficRollup) Run(ctx context.Context) {
 			_ = t.Flush(ctx)
 		}
 	}
+}
+
+// Keys in one fixed order, so two processes flushing the same hot rows lock them in the same order instead of deadlocking
+func sortedKeys[K comparable, V any](m map[K]V, key func(K) string) []K {
+	ks := make([]K, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	slices.SortFunc(ks, func(a, b K) int { return strings.Compare(key(a), key(b)) })
+	return ks
 }

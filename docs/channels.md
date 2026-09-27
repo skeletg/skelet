@@ -85,7 +85,9 @@ redirects.
 **4. Global by default, overridable per channel.** These carry a nullable channel id where
 null means "applies everywhere": promotion rules, URL rewrites, webhooks, config values,
 email templates, search synonyms, customer-group prices, per-product attribute slugs,
-remote providers, subscriptions.
+remote providers, subscriptions, gift cards. A gift card bought or refunded on a channel
+belongs to it and spends only there. One issued from the dashboard spends on the store picked
+when it's issued (that store's admins can issue it), or on every store if none is picked (that needs a global grant).
 
 Three of these surprise people:
 

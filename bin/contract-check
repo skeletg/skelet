@@ -2,6 +2,7 @@
 # The SYNC comments name contracts that span two or three apps, and until now prose was the only thing holding them - this is the mechanical half, so drift fails a build
 set -uo pipefail
 cd "$(dirname "$(dirname "$0")")"
+. bin/_testdb
 
 fail=0
 pass() { printf '  ok    %s\n' "$1"; }
@@ -31,7 +32,7 @@ resolve() {
     esc=$(printf '%s' "$1" | sed -E 's/[.]/\\./g; s/[*]/[^\/]*/g')
     grep -qE "(^|/)$esc(/|$)" <<< "$TRACKED"
 }
-tokens=$(git grep -h "SYNC" -- . | grep -E '(//|#).*SYNC' \
+tokens=$(git grep -h "SYNC" -- . | grep -E '(//|#).*\bSYNC\b' \
     | grep -oE '[A-Za-z0-9_.*-]+/[A-Za-z0-9_./*-]+' | sed 's/[.,)]*$//' | sort -u)
 if [ -z "$tokens" ]; then
     bad "found no SYNC comments at all - did the marker change?"
@@ -247,14 +248,45 @@ else
 fi
 
 echo "==> the core-to-Signals proto stays backward compatible"
-# Two processes deploy separately, so an old core can meet a new Signals - a field renumbered or a
-# method dropped breaks that pair silently, and this is where it gets caught instead
-if ! git cat-file -e develop:proto/buf.yaml 2>/dev/null; then
-    pass "develop has no proto yet - nothing to compare against"
-elif buf_out=$(bin/buf breaking /var/www/proto --against "/var/www/.git#branch=develop,subdir=proto" 2>&1); then
-    pass "no breaking changes against develop"
+# Core and Signals deploy separately, so the proto must stay compatible with main's (read as a tarball on stdin) - skipped when the stack is down
+baseline=""
+for ref in origin/main main; do
+    git rev-parse --verify -q "$ref^{commit}" >/dev/null && { baseline="$ref"; break; }
+done
+buf_breaking() {
+    if [ -n "${CI:-}" ]; then
+        (cd apps/backend/core && go tool github.com/bufbuild/buf/cmd/buf breaking ../../../proto --against '-#format=tar,subdir=proto')
+    else
+        docker compose exec -T app go tool github.com/bufbuild/buf/cmd/buf breaking /var/www/proto --against '-#format=tar,subdir=proto'
+    fi
+}
+if [ -z "$baseline" ]; then
+    if [ -n "${CI:-}" ]; then
+        bad "no main branch to compare the proto against - the checkout needs origin/main (fetch-depth: 0)"
+    else
+        skip "no main or origin/main here - the proto compatibility check has nothing to compare against"
+    fi
+elif ! git cat-file -e "$baseline:proto/buf.yaml" 2>/dev/null; then
+    # Nothing deployed carries the contract yet, so hold a branch to develop's instead
+    dev_ref=""
+    for ref in develop origin/develop; do
+        git cat-file -e "$ref:proto/buf.yaml" 2>/dev/null && { dev_ref="$ref"; break; }
+    done
+    if [ -n "$dev_ref" ]; then
+        baseline="$dev_ref"
+    else
+        pass "$baseline has no proto yet - nothing deployed to stay compatible with"
+        baseline=""
+    fi
+fi
+if [ -z "$baseline" ] || ! git cat-file -e "$baseline:proto/buf.yaml" 2>/dev/null; then
+    :
+elif [ -z "${CI:-}" ] && ! service_running app; then
+    skip "proto compatibility against $baseline skipped - the app container isn't running (./skelet up, then bin/contract-check)"
+elif buf_out=$(git archive --format=tar "$baseline" proto | buf_breaking 2>&1); then
+    pass "no breaking changes against $baseline"
 else
-    bad "the Signals proto breaks compatibility with develop:"
+    bad "the Signals proto breaks compatibility with $baseline:"
     printf '%s\n' "$buf_out" | sed 's/^/        /'
 fi
 

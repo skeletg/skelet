@@ -8,10 +8,10 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -116,7 +116,7 @@ func (r *postgresRepository) GetProductTypeWithAttributes(ctx context.Context, i
 			SortOrder:          row.AttributeSortOrder,
 			Metadata:           metadataFromJSON(row.Metadata),
 			PrivateMetadata:    metadataFromJSON(row.PrivateMetadata),
-			DefaultValue:       rawMessageFromNullable(row.DefaultValue),
+			DefaultValue:       sqlnull.RawMessage(row.DefaultValue),
 			CreatedAt:          row.CreatedAt,
 			UpdatedAt:          row.UpdatedAt,
 		}
@@ -229,7 +229,7 @@ func (r *postgresRepository) ListProductTypes(ctx context.Context) ([]ProductTyp
 				SortOrder:          row.AttributeSortOrder,
 				Metadata:           metadataFromJSON(row.Metadata),
 				PrivateMetadata:    metadataFromJSON(row.PrivateMetadata),
-				DefaultValue:       rawMessageFromNullable(row.DefaultValue),
+				DefaultValue:       sqlnull.RawMessage(row.DefaultValue),
 				CreatedAt:          row.CreatedAt,
 				UpdatedAt:          row.UpdatedAt,
 			},
@@ -325,7 +325,7 @@ func (r *postgresRepository) CreateAttribute(ctx context.Context, input CreateAt
 			SortOrder:          input.SortOrder,
 			Metadata:           metadataToJSON(input.Metadata),
 			PrivateMetadata:    metadataToJSON(input.PrivateMetadata),
-			DefaultValue:       rawMessageToNullable(input.DefaultValue),
+			DefaultValue:       sqlnull.Raw(input.DefaultValue),
 			SynapseTrack:       input.SynapseTrack,
 			AutoSegment:        input.AutoSegment,
 			RelationshipTarget: nullStringFromRefTarget(input.RelationshipTarget),
@@ -490,7 +490,7 @@ func (r *postgresRepository) UpdateAttribute(ctx context.Context, input UpdateAt
 	}
 	defaultValue := current.DefaultValue
 	if input.DefaultValue != nil {
-		defaultValue = rawMessageToNullable(*input.DefaultValue)
+		defaultValue = sqlnull.Raw(*input.DefaultValue)
 	}
 	synapseTrack := current.SynapseTrack
 	if input.SynapseTrack != nil {
@@ -1246,7 +1246,7 @@ func toAttribute(row db.Attribute) Attribute {
 		SortOrder:       row.SortOrder,
 		Metadata:        metadataFromJSON(row.Metadata),
 		PrivateMetadata: metadataFromJSON(row.PrivateMetadata),
-		DefaultValue:    rawMessageFromNullable(row.DefaultValue),
+		DefaultValue:    sqlnull.RawMessage(row.DefaultValue),
 		// "" when NULL (non-reference attributes)
 		RelationshipTarget: ReferenceTarget(row.RelationshipTarget.String),
 		CreatedAt:          row.CreatedAt,
@@ -1285,22 +1285,6 @@ func metadataToJSON(m Metadata) json.RawMessage {
 		return json.RawMessage(`{}`)
 	}
 	return raw
-}
-
-// rawMessageToNullable converts a nullable JSON value coming from the domain layer (nil = no value) into the pqtype.NullRawMessage shape sqlc expects for a nullable JSONB column
-func rawMessageToNullable(raw json.RawMessage) pqtype.NullRawMessage {
-	if len(raw) == 0 {
-		return pqtype.NullRawMessage{}
-	}
-	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}
-}
-
-// rawMessageFromNullable converts a nullable JSONB row value back into the domain layer's nil-or-RawMessage convention
-func rawMessageFromNullable(n pqtype.NullRawMessage) json.RawMessage {
-	if !n.Valid {
-		return nil
-	}
-	return n.RawMessage
 }
 
 func metadataFromJSON(raw json.RawMessage) Metadata {

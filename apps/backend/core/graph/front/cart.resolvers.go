@@ -339,7 +339,7 @@ func (r *mutationResolver) ApplyCoupon(ctx context.Context, cartID string, code 
 	if err != nil {
 		return nil, err
 	}
-	if _, err := r.PromotionSvc.ApplyCode(ctx, cid, code, channel.OptionalCustomerID(ctx)); err != nil {
+	if _, err := r.PromotionSvc.ApplyCode(ctx, cid, c.ChannelID, code, channel.OptionalCustomerID(ctx)); err != nil {
 		return nil, err
 	}
 	return r.fullCartModel(ctx, c), nil
@@ -498,6 +498,9 @@ func (r *queryResolver) CartEstimate(ctx context.Context, cartID string, country
 	c, err := r.CartSvc.GetCart(ctx, cid, channel.OptionalCustomerID(ctx))
 	if err != nil {
 		return nil, err
+	}
+	if c.ChannelID != sv.ID {
+		return nil, cart.ErrCartStoreMismatch
 	}
 
 	m := toCartModel(c)

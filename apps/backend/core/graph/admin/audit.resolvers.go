@@ -10,7 +10,7 @@ import (
 )
 
 func (r *queryResolver) AuditLog(ctx context.Context, adminID *string, action *string, limit *int32, offset *int32) (*model.AuditLogPage, error) {
-	if err := auth.RequirePermission(ctx, r.AdminSvc, "audit.view"); err != nil {
+	if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, "audit.view"); err != nil {
 		return nil, err
 	}
 	var aid *uuid.UUID

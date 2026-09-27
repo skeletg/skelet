@@ -77,6 +77,9 @@
           },
           "type": "array"
         },
+        "shippingCents": {
+          "type": "integer"
+        },
         "subtotalCents": {
           "type": "integer"
         },
@@ -93,6 +96,7 @@
         "currency",
         "discountCents",
         "lines",
+        "shippingCents",
         "subtotalCents",
         "taxExempt",
         "taxInclusive"

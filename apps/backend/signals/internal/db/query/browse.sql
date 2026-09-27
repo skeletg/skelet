@@ -1,11 +1,11 @@
 -- Self-contained browse_seen queries (the anon-keyed browse rollup, fed at ingest) + the signals half of the browse-abandonment scan. The
 -- commerce half (exclude active-cart / since-browse-order) runs app-side against carts/orders
 
--- name: UpsertBrowseSeen :exec
--- Records the latest product browse for an anonymous visitor. On conflict the
+-- name: UpsertBrowseSeens :exec
+-- Records the latest product browse per anonymous visitor for one flush window. On conflict the
 -- newer browse wins (timestamp + its product context).
 INSERT INTO browse_seen (channel_id, anon_id, last_browse_at, page_key, sku, product_name, product_image)
-VALUES (sqlc.arg(channel_id), sqlc.arg(anon_id), sqlc.arg(last_browse_at), sqlc.arg(page_key), sqlc.arg(sku), sqlc.arg(product_name), sqlc.arg(product_image))
+SELECT unnest(sqlc.arg(channel_ids)::uuid[]), unnest(sqlc.arg(anon_ids)::text[]), unnest(sqlc.arg(last_browse_ats)::timestamptz[]), unnest(sqlc.arg(page_keys)::text[]), unnest(sqlc.arg(skus)::text[]), unnest(sqlc.arg(product_names)::text[]), unnest(sqlc.arg(product_images)::text[])
 ON CONFLICT (channel_id, anon_id) DO UPDATE SET
     page_key       = CASE WHEN EXCLUDED.last_browse_at >= browse_seen.last_browse_at THEN EXCLUDED.page_key      ELSE browse_seen.page_key END,
     sku            = CASE WHEN EXCLUDED.last_browse_at >= browse_seen.last_browse_at THEN EXCLUDED.sku           ELSE browse_seen.sku END,
@@ -30,6 +30,7 @@ SELECT channel_id, anon_id, last_browse_at, page_key, sku, product_name, product
 FROM browse_seen
 WHERE last_browse_at > sqlc.arg(max_age)::timestamptz
   AND (last_browse_at, anon_id) < (sqlc.arg(after_at)::timestamptz, sqlc.arg(after_anon)::text)
+  AND (sqlc.narg(channel_id)::uuid IS NULL OR channel_id = sqlc.narg(channel_id)::uuid)
 ORDER BY last_browse_at DESC, anon_id DESC
 LIMIT sqlc.arg(lim);
 

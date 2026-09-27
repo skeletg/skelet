@@ -131,6 +131,7 @@ type Repository interface { // implementations must be safe for concurrent use
 	CreateRole(ctx context.Context, input CreateRoleInput) (Role, error)
 	UpdateRole(ctx context.Context, id uuid.UUID, input UpdateRoleInput) (Role, error)
 	DeleteRole(ctx context.Context, id uuid.UUID) error
+	RoleMemberIDs(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error)
 	GetRoleByID(ctx context.Context, id uuid.UUID) (Role, error)
 	GetRoleBySlug(ctx context.Context, slug string) (Role, error)
 	ListRoles(ctx context.Context) ([]Role, error)

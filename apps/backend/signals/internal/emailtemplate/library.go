@@ -68,6 +68,14 @@ func (s *Service) ListRevisions(ctx context.Context, emailID uuid.UUID, limit in
 	return s.repo.ListRevisions(ctx, emailID, limit)
 }
 
+func (s *Service) RevisionEmailID(ctx context.Context, revisionID uuid.UUID) (uuid.UUID, error) {
+	rev, ok, err := s.repo.GetRevision(ctx, revisionID)
+	if err != nil || !ok {
+		return uuid.Nil, fmt.Errorf("revision not found")
+	}
+	return rev.EmailID, nil
+}
+
 // RestoreRevision copies a revision's content back onto its email (which itself snapshots the restored state), and
 // returns the updated email - Group + slot are organizational, not content, so they're preserved
 func (s *Service) RestoreRevision(ctx context.Context, revisionID uuid.UUID, adminID *uuid.UUID) (LibraryEmail, error) {

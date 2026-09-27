@@ -26,7 +26,7 @@ import (
 // Caps how many nodes one advance() walks before parking, so a mis-wired graph with a cycle can't spin forever
 const maxSteps = 64
 
-// Admin CRUD, event enrollment and the scheduler-driven run engine - the scheduler job lease serializes ProcessRuns, so advancement needs no extra cross-replica locking
+// Admin CRUD, event enrollment and the scheduler-driven run engine - every advance holds the run's lease, taken by the claim or by a sync enrollment's create
 type Service struct {
 	repo       Repository
 	tmpl       *emailtemplate.Service
@@ -49,14 +49,12 @@ type suppressionChecker interface {
 	IsSuppressed(ctx context.Context, email string) bool
 }
 
-func (s *Service) SetSuppression(sc suppressionChecker) { s.suppress = sc }
-
 // unsubKey signs unsubscribe and tracking links, the same key core verifies them with
-func NewService(repo Repository, tmpl *emailtemplate.Service, contacts contactReader, stores storeReader, sender emailpkg.Sender, smsSender sms.Sender, sends sendTracker, allowPrivateWebhook bool, unsubKey []byte) *Service {
+func NewService(repo Repository, tmpl *emailtemplate.Service, contacts contactReader, stores storeReader, sender emailpkg.Sender, smsSender sms.Sender, sends sendTracker, suppress suppressionChecker, allowPrivateWebhook bool, unsubKey []byte) *Service {
 	s := &Service{
 		repo: repo, tmpl: tmpl, contacts: contacts,
 		stores: stores, sender: sender, sms: smsSender,
-		sends:      sends,
+		sends: sends, suppress: suppress,
 		conditions: NewConditionRegistry(),
 		nodes:      NewNodeRegistry(),
 		track:      emailtrack.NewSigner(unsubKey),
@@ -122,8 +120,35 @@ func (s *Service) validate(in Input) error {
 	return nil
 }
 
+func (s *Service) validateEmails(ctx context.Context, channelID uuid.UUID, g Graph) error {
+	for _, n := range g.Nodes {
+		if n.Type != NodeSendEmail || strings.TrimSpace(n.Data.EmailID) == "" {
+			continue
+		}
+		if _, ok := s.ownEmail(ctx, channelID, n.Data.EmailID); !ok {
+			return fmt.Errorf("email node %q: library email %s not found", n.ID, n.Data.EmailID)
+		}
+	}
+	return nil
+}
+
+func (s *Service) ownEmail(ctx context.Context, channelID uuid.UUID, raw string) (emailtemplate.LibraryEmail, bool) {
+	eid, err := uuid.Parse(strings.TrimSpace(raw))
+	if err != nil || s.tmpl == nil {
+		return emailtemplate.LibraryEmail{}, false
+	}
+	e, ok, err := s.tmpl.GetLibraryEmail(ctx, eid)
+	if err != nil || !ok || e.ChannelID != channelID {
+		return emailtemplate.LibraryEmail{}, false
+	}
+	return e, true
+}
+
 func (s *Service) Create(ctx context.Context, in Input) (Flow, error) {
 	if err := s.validate(in); err != nil {
+		return Flow{}, err
+	}
+	if err := s.validateEmails(ctx, in.ChannelID, in.Graph); err != nil {
 		return Flow{}, err
 	}
 	return s.repo.Create(ctx, Flow{ChannelID: in.ChannelID, Name: in.Name, TriggerType: in.TriggerType, TriggerConfig: in.TriggerConfig, Graph: in.Graph})
@@ -131,6 +156,16 @@ func (s *Service) Create(ctx context.Context, in Input) (Flow, error) {
 
 func (s *Service) Update(ctx context.Context, id uuid.UUID, in Input) (Flow, error) {
 	if err := s.validate(in); err != nil {
+		return Flow{}, err
+	}
+	existing, found, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return Flow{}, err
+	}
+	if !found {
+		return Flow{}, fmt.Errorf("flow not found")
+	}
+	if err := s.validateEmails(ctx, existing.ChannelID, in.Graph); err != nil {
 		return Flow{}, err
 	}
 	ok, err := s.repo.Update(ctx, Flow{ID: id, Name: in.Name, TriggerType: in.TriggerType, TriggerConfig: in.TriggerConfig, Graph: in.Graph})
@@ -192,40 +227,78 @@ func (s *Service) RunsForCustomer(ctx context.Context, customerID uuid.UUID) ([]
 
 // --- enrollment (core raises the moments over the contract) ---
 
-// Enroll starts a run in every active flow on the trigger and answers how many active flows there were - a skipped
-// enrollment still counts, so a repeat of a keyed moment answers the same. Account triggers advance inline, past the caller's deadline
 func (s *Service) Enroll(ctx context.Context, trigger string, channelID, customerID uuid.UUID, email string, payload json.RawMessage, key string) int {
+	n, err := s.EnrollMoment(ctx, trigger, channelID, customerID, email, payload, key)
+	if err != nil {
+		log.Printf("[flow] enroll %s: %v", trigger, err)
+	}
+	return n
+}
+
+// A flow took the moment when it started a run or already holds this key's, and an error means some flow wasn't asked, so a keyed moment is safe to raise again
+func (s *Service) EnrollMoment(ctx context.Context, trigger string, channelID, customerID uuid.UUID, email string, payload json.RawMessage, key string) (int, error) {
 	if customerID == uuid.Nil && email == "" {
-		return 0 // no customer and no email - nothing to key a run on
+		return 0, nil // no customer and no email - nothing to key a run on
 	}
 	if !validTrigger(trigger) {
-		return 0
+		return 0, nil
 	}
 	flows, err := s.repo.ListActiveByTrigger(ctx, channelID, trigger)
 	if err != nil {
-		log.Printf("[flow] list %s flows: %v", trigger, err)
-		return 0
+		return 0, fmt.Errorf("list %s flows: %w", trigger, err)
 	}
 	sync := signalsapi.IsAuthTrigger(trigger)
+	sending, err := s.channelSending(ctx, channelID)
+	if err != nil {
+		log.Printf("[flow] enroll %s: %v", trigger, err)
+		return 0, nil // nothing can send under a channel off the roster, so the caller's own mail goes out
+	}
 	n := 0
+	var errs []error
 	for _, f := range flows {
-		n++
-		run, err := s.enroll(ctx, f, customerID, email, payload, key)
-		if err != nil {
-			log.Printf("[flow] enroll %s/%s into %s: %v", customerID, email, f.ID, err)
+		if !sending && !flowTransactional(f) {
 			continue
 		}
+		run, took, err := s.enroll(ctx, f, customerID, email, payload, key, sync)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("enroll %s/%s into %s: %w", customerID, email, f.ID, err))
+			continue
+		}
+		if took {
+			n++
+		}
+		// A sync run is created under its lease, so the engine can't claim it while this advance runs
 		if sync && run != nil {
 			if err := s.advance(context.WithoutCancel(ctx), *run); err != nil {
 				log.Printf("[flow] sync advance %s: %v", run.ID, err)
 			}
 		}
 	}
-	return n
+	return n, errors.Join(errs...)
 }
 
-// Creates a run for the customer, or a guest keyed by email - nil run when skipped, meaning already in-flow, a keyed moment already taken, filtered out, or a trigger wired to nothing
-func (s *Service) enroll(ctx context.Context, f Flow, customerID uuid.UUID, email string, payload json.RawMessage, key string) (*FlowRun, error) {
+func (s *Service) channelSending(ctx context.Context, channelID uuid.UUID) (bool, error) {
+	if s.stores == nil {
+		return true, nil
+	}
+	ch, err := s.stores.Get(ctx, channelID)
+	if err != nil {
+		return false, err
+	}
+	return ch.Active, nil
+}
+
+// Already in the flow, filtered out, or wired to nothing is not taken, so the caller's own mail still goes out
+func (s *Service) enroll(ctx context.Context, f Flow, customerID uuid.UUID, email string, payload json.RawMessage, key string, sync bool) (*FlowRun, bool, error) {
+	if key != "" {
+		held, err := s.repo.HasRunForKey(ctx, f.ID, key)
+		if err != nil {
+			return nil, false, err
+		}
+		if held {
+			return nil, true, nil
+		}
+	}
 	guest := customerID == uuid.Nil
 	var live int64
 	var err error
@@ -235,10 +308,10 @@ func (s *Service) enroll(ctx context.Context, f Flow, customerID uuid.UUID, emai
 		live, err = s.repo.CountLiveRuns(ctx, f.ID, customerID)
 	}
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if live > 0 {
-		return nil, nil // already in this flow
+		return nil, false, nil // one live run per customer per flow, and that run is some earlier moment's
 	}
 	// Flow-level enrollment filter gating entry on a condition, e.g. only active-lifecycle or marketing-opted-in customers - parsed from the flow's triggerConfig JSON so storage stays migration-free
 	// Guests can't be evaluated against customer traits, so a filtered flow never enrolls them
@@ -246,39 +319,47 @@ func (s *Service) enroll(ctx context.Context, f Flow, customerID uuid.UUID, emai
 		var tc TriggerConfig
 		if json.Unmarshal(f.TriggerConfig, &tc) == nil && tc.EnrollmentFilter != nil {
 			if guest || !s.evalConditionFor(ctx, tc.EnrollmentFilter, customerID) {
-				return nil, nil // filtered out - do not enroll
+				return nil, false, nil
 			}
 		}
 	}
 	trig, ok := f.Graph.triggerNode()
 	if !ok {
-		return nil, nil
+		return nil, false, nil
 	}
 	start, ok := f.Graph.next(trig.ID)
 	if !ok {
-		return nil, nil // trigger wired to nothing
+		return nil, false, nil
 	}
 	if len(payload) == 0 {
 		payload = json.RawMessage("{}")
 	}
-	now := time.Now()
+	resume := time.Now()
+	if sync {
+		resume = resume.Add(runLease)
+	}
 	run, err := s.repo.CreateRun(ctx, FlowRun{
 		FlowID: f.ID, CustomerID: customerID, Email: email, CurrentNodeID: start,
-		Status: RunActive, ResumeAt: &now, Context: payload, EnrollmentKey: key,
+		Status: RunActive, ResumeAt: &resume, Context: payload, EnrollmentKey: key,
 	})
-	if errors.Is(err, ErrMomentTaken) {
-		return nil, nil // this moment already started its run here, and a repeat must not start another
+	switch {
+	case errors.Is(err, ErrMomentTaken):
+		return nil, true, nil // a concurrent ask of this moment started its run first
+	case errors.Is(err, ErrAlreadyInFlow):
+		return nil, false, nil
+	case err != nil:
+		return nil, false, err
 	}
-	if err != nil {
-		return nil, err
-	}
-	return &run, nil
+	return &run, true, nil
 }
 
 // --- engine (scheduler job) ---
 
 // How many runs one claim takes
 const claimBatch = 100
+
+// How long a claimed run is out of every other claim's reach - longer than any batch takes, and how late a run whose advancer died resumes
+const runLease = 10 * time.Minute
 
 // ProcessRuns is one batch of the engine, for callers that tick it by hand
 func (s *Service) ProcessRuns(ctx context.Context) error {
@@ -287,7 +368,10 @@ func (s *Service) ProcessRuns(ctx context.Context) error {
 }
 
 // Drain keeps claiming batches until nothing runnable is left or the budget is spent
-// A batch that errored ends the drain - a run that couldn't persist its step would be claimed straight back
+func (s *Service) PruneFinishedRuns(ctx context.Context, before time.Time) (int64, error) {
+	return s.repo.PruneFinishedRuns(ctx, before)
+}
+
 func (s *Service) Drain(ctx context.Context, budget time.Duration) (int, error) {
 	deadline := time.Now().Add(budget)
 	total := 0
@@ -300,9 +384,8 @@ func (s *Service) Drain(ctx context.Context, budget time.Duration) (int, error) 
 	}
 }
 
-// Advances every runnable flow run one or more steps - driven by the flow-engine scheduler job, serialized by the job lease
 func (s *Service) processBatch(ctx context.Context) (int, error) {
-	runs, err := s.repo.ClaimRunnable(ctx, claimBatch)
+	runs, err := s.repo.ClaimRunnable(ctx, claimBatch, runLease)
 	if err != nil {
 		return 0, err
 	}
@@ -323,7 +406,7 @@ func (s *Service) processBatch(ctx context.Context) (int, error) {
 		}
 		flowCache[run.FlowID] = cachedFlow{f: f, ok: ok}
 	}
-	// A run that can't persist its new node is re-claimed and re-executed next tick, so these failures are how order receipts and auth links
+	// A run that can't persist its new node is re-claimed and re-executed once its lease lapses, so these failures are how order receipts and auth links
 	// get resent or stall mid-graph - they belong in the job's status, not only in stdout. One bad run still never stops the others
 	var errs []error
 	for _, run := range runs {
@@ -459,7 +542,7 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 		}
 	}
 	ch, err := s.stores.Get(ctx, f.ChannelID)
-	if err != nil {
+	if err != nil || (!ch.Active && !transactional) {
 		return
 	}
 	vars := s.mergeVars(ctx, ch, cust, run)
@@ -469,12 +552,12 @@ func (s *Service) execEmail(ctx context.Context, f Flow, node Node, run FlowRun)
 	case transactional && isOrderTrigger(f.TriggerType) && hasOrderSnapshot(run):
 		subj, html, text, err = s.renderOrderEmail(ctx, ch, f, node, run)
 	case strings.TrimSpace(node.Data.EmailID) != "":
-		eid, perr := uuid.Parse(strings.TrimSpace(node.Data.EmailID))
-		if perr != nil {
-			log.Printf("[flow] email node bad emailId %q: %v", node.Data.EmailID, perr)
+		e, ok := s.ownEmail(ctx, f.ChannelID, node.Data.EmailID)
+		if !ok {
+			log.Printf("[flow] email node %s: library email %q is not one of the flow's channel", node.ID, node.Data.EmailID)
 			return
 		}
-		subj, html, text, err = s.tmpl.RenderLibraryEmail(ctx, eid, vars)
+		subj, html, text, err = s.tmpl.RenderLibraryEmail(ctx, e.ID, vars)
 	default:
 		subj, html, text, err = s.tmpl.RenderContent(ctx, ch.ID, node.Data.Subject, "", node.Data.Blocks, node.Data.Styles, vars)
 	}
@@ -532,7 +615,7 @@ func (s *Service) execSMS(ctx context.Context, f Flow, node Node, run FlowRun) {
 		return // not opted in to marketing SMS
 	}
 	ch, err := s.stores.Get(ctx, f.ChannelID)
-	if err != nil {
+	if err != nil || !ch.Active {
 		return
 	}
 	body := renderText(node.Data.SMSBody, s.mergeVars(ctx, ch, cust, run))

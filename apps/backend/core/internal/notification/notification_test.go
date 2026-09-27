@@ -79,7 +79,7 @@ func TestCanSeeRefusesAnUnstampedNotification(t *testing.T) {
 // surface another channel's orders
 func TestCanSeeScopesToPermittedChannels(t *testing.T) {
 	mine, theirs := uuid.New(), uuid.New()
-	sc := Scope{AdminID: uuid.New(), Perms: []string{PermOrders}, Channels: []uuid.UUID{mine}}
+	sc := Scope{AdminID: uuid.New(), Perms: []string{PermOrders}, PermChannels: map[string][]uuid.UUID{PermOrders: {mine}}}
 
 	if !sc.CanSee(notif(PermOrders, &mine)) {
 		t.Error("a notification on a permitted channel was refused")
@@ -268,4 +268,21 @@ func TestHubIsSafeUnderConcurrentSubscribeAndFanOut(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	close(stop)
 	wg.Wait()
+}
+
+// Each permission reaches the inbox on its own channels - orders.view on A and reviews.view on B must not show A's reviews
+func TestCanSeeScopesEachPermissionToItsOwnChannels(t *testing.T) {
+	a, b := uuid.New(), uuid.New()
+	sc := Scope{AdminID: uuid.New(), Perms: []string{PermOrders, PermReviews},
+		PermChannels: map[string][]uuid.UUID{PermOrders: {a}, PermReviews: {b}}}
+	if !sc.CanSee(notif(PermOrders, &a)) || !sc.CanSee(notif(PermReviews, &b)) {
+		t.Error("a notification the admin holds on its channel was refused")
+	}
+	if sc.CanSee(notif(PermOrders, &b)) {
+		t.Error("orders.view on A plus reviews.view on B showed B's order notification")
+	}
+	global := Scope{AdminID: uuid.New(), Perms: []string{PermOrders}, GlobalPerms: []string{PermOrders}}
+	if !global.CanSee(notif(PermOrders, &b)) {
+		t.Error("a permission held everywhere was refused on a channel")
+	}
 }

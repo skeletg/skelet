@@ -132,7 +132,9 @@ func (f *fakeRepo) UpdateBalance(_ context.Context, id uuid.UUID, balance int64,
 	f.balanceTo, f.statusTo = &balance, &status
 	return GiftCard{ID: id, Balance: balance, Status: status}, nil
 }
-func (f *fakeRepo) List(_ context.Context, _, _ int32) ([]GiftCard, error) { return nil, nil }
+func (f *fakeRepo) List(_ context.Context, _ []uuid.UUID, _, _ int32) ([]GiftCard, error) {
+	return nil, nil
+}
 func (f *fakeRepo) ListByIssuedOrder(_ context.Context, _ uuid.UUID) ([]GiftCard, error) {
 	return nil, nil
 }
@@ -248,7 +250,7 @@ func TestTenderAmount_InactiveAndExpiredAndCurrency(t *testing.T) {
 func TestRedeemUpToTx_PartialWritesAppliedAmount(t *testing.T) {
 	r := &fakeRepo{byCode: map[string]GiftCard{"GC-X": activeCardCode("GC-X", 3000)}}
 	oid := uuid.New()
-	applied, err := redeemUpToTx(context.Background(), r, "GC-X", 5000, "USD", time.Now(), &oid)
+	applied, err := redeemUpToTx(context.Background(), r, "GC-X", uuid.Nil, 5000, "USD", time.Now(), &oid)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -265,7 +267,7 @@ func TestRedeemUpToTx_PartialWritesAppliedAmount(t *testing.T) {
 
 func TestRedeemUpToTx_EmptyCardIsNoOp(t *testing.T) {
 	r := &fakeRepo{byCode: map[string]GiftCard{"GC-X": activeCardCode("GC-X", 0)}}
-	applied, err := redeemUpToTx(context.Background(), r, "GC-X", 5000, "USD", time.Now(), nil)
+	applied, err := redeemUpToTx(context.Background(), r, "GC-X", uuid.Nil, 5000, "USD", time.Now(), nil)
 	if err != nil || applied != 0 {
 		t.Fatalf("empty card should apply 0, got applied=%d err=%v", applied, err)
 	}

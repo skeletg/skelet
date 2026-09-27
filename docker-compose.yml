@@ -10,7 +10,7 @@ x-logging: &logging
     max-size: "10m"
     max-file: "3"
 
-# Container concerns only - every backend role loads env/go.env for app config, and anything set here SHADOWS that file
+# Container concerns only - core's roles load env/go.env for app config and the Signals ones env/signals.env, and anything set here SHADOWS those files
 # - HOME because a nameless uid has no home, USER because user.Current() wants it without a passwd entry
 x-backend-base: &backend-base
   HOME: "/tmp"
@@ -56,7 +56,7 @@ services:
       GIT_CONFIG_KEY_0: safe.directory
       GIT_CONFIG_VALUE_0: "/var/www"
       <<: *backend-base
-      # true -> app stops running the Signals retention/forward jobs (the `signals` profile service runs them instead) - true -> app stops claiming scheduler jobs / webhook-queue items / outbox rows; the `worker` profile service owns them - claim-based, so safe either way - enable together: JOBS_EXTERNAL=true + --profile worker
+      # true -> app stops claiming scheduler jobs / webhook-queue items / outbox rows; the `worker` profile service owns them - claim-based, so safe either way - enable together: JOBS_EXTERNAL=true + --profile worker
       JOBS_EXTERNAL: "${JOBS_EXTERNAL:-false}"
       # Soft dependency - when it's down discovery falls back to the Postgres tier Empty disables the cluster entirely and pins everything to that tier - the bare `-` default is deliberate, so an explicitly empty value stays empty instead of rebounding
       OPENSEARCH_URL: "${OPENSEARCH_URL-http://opensearch:9200}"
@@ -107,9 +107,7 @@ services:
       <<: *backend-base
       SKELET_ROLE: "worker"
       WORKER_PORT: "8082"
-      # Follows the same switch as app - when the signals profile owns them,
-      # neither the app nor this worker should register them
-      OPENSEARCH_URL: "http://opensearch:9200"
+      OPENSEARCH_URL: "${OPENSEARCH_URL-http://opensearch:9200}"
       OTEL_SERVICE_NAME: "skelet-worker"
     env_file:
       - env/go.env
@@ -179,22 +177,23 @@ services:
     working_dir: /var/www/backend/signals
     command: go run ./cmd/signals
     ports:
-      - "8090:8090"
+      - "127.0.0.1:8090:8090"
       # The wire contract core calls - its own listener, since grpc needs one
-      - "8092:8092"
+      - "127.0.0.1:8092:8092"
     volumes:
       - ./apps/backend:/var/www/backend
     environment:
       <<: [*backend-base, *signals-env]
       SIGNALS_PORT: "8090"
       OTEL_SERVICE_NAME: "skelet-signals"
+      # Core proxies /t and /e here, so the client address arrives in X-Forwarded-For from the compose network
+      TRUSTED_PROXIES: "172.16.0.0/12"
     env_file:
-      - env/go.env
+      - path: env/signals.env
+        required: false
     depends_on:
-      db:
+      valkey:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
       signals-db:
         condition: service_healthy
       signals-migrate:
@@ -233,13 +232,13 @@ services:
       # forms/back-in-stock pass through to the app's subscriber graph
       INGEST_FALLBACK_URL: "http://app:8080"
       OTEL_SERVICE_NAME: "skelet-ingest"
+      SIGNALS_SERVICE_SECRET: ""
     env_file:
-      - env/go.env
+      - path: env/signals.env
+        required: false
     depends_on:
-      db:
+      valkey:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
       signals-db:
         condition: service_healthy
       signals-migrate:
@@ -272,7 +271,6 @@ services:
       # Bind the source, keep node_modules/.vite in volumes so the image's
       # musl install isn't shadowed by whatever the host built
       - ./apps/dashboard:/var/www/dashboard
-      # The Signals GraphQL schema, read-only - codegen.signals.ts validates against these files, and ../backend/... resolves the same here as on the host
       - dashboard-node-modules:/var/www/dashboard/node_modules
       - dashboard-vite-cache:/var/www/dashboard/node_modules/.vite
     environment:
@@ -459,7 +457,6 @@ services:
   # The spine schema on the server above, applied the same way prod does so there's one mechanism and
   # editing a migration takes effect on the next up rather than only on a fresh volume
   clickhouse-migrate:
-    # Not under `logs` - that profile shares the server, not the spine schema
     profiles: ["signals", "ingest"]
     image: migrate/migrate:v4.19.1
     volumes:
@@ -530,7 +527,7 @@ services:
     ports:
       - "9900:3900"   # S3 API (kept on host 9900, same port MinIO used)
       - "9902:3902"   # web endpoint - anonymous public reads (vhost-addressed)
-      - "9903:3903"   # admin API (health + metrics)
+      - "127.0.0.1:9903:3903"   # admin API (health + metrics)
     volumes:
       - ./env/garage.toml:/etc/garage.toml:ro
       - garage-meta:/var/lib/garage/meta

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/internal/permission"
 )
 
@@ -163,7 +164,7 @@ func (s *Service) AddSynonym(ctx context.Context, channelID *uuid.UUID, terms st
 		return Synonym{}, fmt.Errorf("a synonym group needs at least two terms")
 	}
 	row, err := s.queries.InsertSearchSynonym(ctx, db.InsertSearchSynonymParams{
-		ChannelID: nullableUUID(channelID),
+		ChannelID: sqlnull.UUID(channelID),
 		Terms:     strings.Join(group, ", "),
 	})
 	if err != nil {
@@ -313,11 +314,4 @@ func splitTerms(s string) []string {
 		out = append(out, p)
 	}
 	return out
-}
-
-func nullableUUID(p *uuid.UUID) uuid.NullUUID {
-	if p == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *p, Valid: true}
 }

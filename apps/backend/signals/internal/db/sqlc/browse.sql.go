@@ -48,15 +48,17 @@ SELECT channel_id, anon_id, last_browse_at, page_key, sku, product_name, product
 FROM browse_seen
 WHERE last_browse_at > $1::timestamptz
   AND (last_browse_at, anon_id) < ($2::timestamptz, $3::text)
+  AND ($4::uuid IS NULL OR channel_id = $4::uuid)
 ORDER BY last_browse_at DESC, anon_id DESC
-LIMIT $4
+LIMIT $5
 `
 
 type BrowseSeenSincePageParams struct {
-	MaxAge    time.Time `json:"max_age"`
-	AfterAt   time.Time `json:"after_at"`
-	AfterAnon string    `json:"after_anon"`
-	Lim       int32     `json:"lim"`
+	MaxAge    time.Time     `json:"max_age"`
+	AfterAt   time.Time     `json:"after_at"`
+	AfterAnon string        `json:"after_anon"`
+	ChannelID uuid.NullUUID `json:"channel_id"`
+	Lim       int32         `json:"lim"`
 }
 
 // One keyset page of anon-keyed browse rows newer than the lookback, newest-first, for the browse-abandonment scan. Identity resolution, the latest-per-customer pick, the idle-threshold check and the notified filter all run app-side (the identities live on the spine engine, which this Postgres table can't join); paging bounds the fetch and each resolve batch on an arbitrarily busy window.
@@ -65,6 +67,7 @@ func (q *Queries) BrowseSeenSincePage(ctx context.Context, arg BrowseSeenSincePa
 		arg.MaxAge,
 		arg.AfterAt,
 		arg.AfterAnon,
+		arg.ChannelID,
 		arg.Lim,
 	)
 	if err != nil {
@@ -137,10 +140,10 @@ func (q *Queries) PruneBrowseSeen(ctx context.Context, before time.Time) (int64,
 	return result.RowsAffected()
 }
 
-const upsertBrowseSeen = `-- name: UpsertBrowseSeen :exec
+const upsertBrowseSeens = `-- name: UpsertBrowseSeens :exec
 
 INSERT INTO browse_seen (channel_id, anon_id, last_browse_at, page_key, sku, product_name, product_image)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+SELECT unnest($1::uuid[]), unnest($2::text[]), unnest($3::timestamptz[]), unnest($4::text[]), unnest($5::text[]), unnest($6::text[]), unnest($7::text[])
 ON CONFLICT (channel_id, anon_id) DO UPDATE SET
     page_key       = CASE WHEN EXCLUDED.last_browse_at >= browse_seen.last_browse_at THEN EXCLUDED.page_key      ELSE browse_seen.page_key END,
     sku            = CASE WHEN EXCLUDED.last_browse_at >= browse_seen.last_browse_at THEN EXCLUDED.sku           ELSE browse_seen.sku END,
@@ -149,29 +152,29 @@ ON CONFLICT (channel_id, anon_id) DO UPDATE SET
     last_browse_at = GREATEST(browse_seen.last_browse_at, EXCLUDED.last_browse_at)
 `
 
-type UpsertBrowseSeenParams struct {
-	ChannelID    uuid.UUID `json:"channel_id"`
-	AnonID       string    `json:"anon_id"`
-	LastBrowseAt time.Time `json:"last_browse_at"`
-	PageKey      string    `json:"page_key"`
-	Sku          string    `json:"sku"`
-	ProductName  string    `json:"product_name"`
-	ProductImage string    `json:"product_image"`
+type UpsertBrowseSeensParams struct {
+	ChannelIds    []uuid.UUID `json:"channel_ids"`
+	AnonIds       []string    `json:"anon_ids"`
+	LastBrowseAts []time.Time `json:"last_browse_ats"`
+	PageKeys      []string    `json:"page_keys"`
+	Skus          []string    `json:"skus"`
+	ProductNames  []string    `json:"product_names"`
+	ProductImages []string    `json:"product_images"`
 }
 
 // Self-contained browse_seen queries (the anon-keyed browse rollup, fed at ingest) + the signals half of the browse-abandonment scan. The
 // commerce half (exclude active-cart / since-browse-order) runs app-side against carts/orders
-// Records the latest product browse for an anonymous visitor. On conflict the
+// Records the latest product browse per anonymous visitor for one flush window. On conflict the
 // newer browse wins (timestamp + its product context).
-func (q *Queries) UpsertBrowseSeen(ctx context.Context, arg UpsertBrowseSeenParams) error {
-	_, err := q.db.ExecContext(ctx, upsertBrowseSeen,
-		arg.ChannelID,
-		arg.AnonID,
-		arg.LastBrowseAt,
-		arg.PageKey,
-		arg.Sku,
-		arg.ProductName,
-		arg.ProductImage,
+func (q *Queries) UpsertBrowseSeens(ctx context.Context, arg UpsertBrowseSeensParams) error {
+	_, err := q.db.ExecContext(ctx, upsertBrowseSeens,
+		pq.Array(arg.ChannelIds),
+		pq.Array(arg.AnonIds),
+		pq.Array(arg.LastBrowseAts),
+		pq.Array(arg.PageKeys),
+		pq.Array(arg.Skus),
+		pq.Array(arg.ProductNames),
+		pq.Array(arg.ProductImages),
 	)
 	return err
 }

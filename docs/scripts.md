@@ -40,7 +40,7 @@ Three things they share (living in `_lib`, which is sourced, not run):
 
 | Command | What it does |
 |---|---|
-| `./skelet up` | Start the full dev stack: backend with hot reload, dashboard on :5173, storefront on :3000, plus the sidecars - Garage (S3 :9900, console :9901), Mailpit (:8025), Jaeger (:16686), webhook-tester (:8081). Idempotent - re-run any time, it only touches what changed. `./skelet up --lean` skips OpenSearch and Jaeger (~1GB less RAM; search returns empty, traces go nowhere). |
+| `./skelet up` | Start the full dev stack: backend with hot reload, dashboard on :5173, storefront on :3000, plus the sidecars - Garage (S3 :9900, console :9901), Mailpit (:8025), Jaeger (:16686), webhook-tester (:8081). Idempotent - re-run any time, it only touches what changed. `./skelet up --lean` skips OpenSearch, Jaeger and the Signals process with its ClickHouse (~1GB+ less RAM; search returns empty, traces go nowhere, and the dashboard's Signals pages have no suite to ask). |
 | `./skelet stop` | Halt everything (sidecars too) without removing containers. |
 | `./skelet down` | Remove the containers. Volumes (your data) survive. |
 | `./skelet restart` | Restart containers in place. For a full recreate: `down` then `dev`. |
@@ -56,7 +56,7 @@ Three things they share (living in `_lib`, which is sourced, not run):
 |---|---|
 | `./skelet sh` | Shell into the app container. |
 | `./skelet go` | Run go in the app container - `./skelet go build ./...`, `./skelet go test ./internal/...`. `--signals` or `--sdk` first runs it in that module instead. |
-| `./skelet cli` | The skelet ops CLI - `./skelet cli admin list`, `./skelet cli media-migrate ...`. Works with pipes and CI (only grabs a TTY when there is one). |
+| `./skelet cli` | The skelet ops CLI - `./skelet cli admin list`, `./skelet cli media-migrate ...`, `./skelet cli job run customer-roster-push` to run a scheduled job now. Works with pipes and CI (only grabs a TTY when there is one). |
 | `./skelet npm dashboard` | npm in the dashboard container - `./skelet npm dashboard run codegen`, `./skelet npm dashboard run lint`. Vite is already running via `./skelet up`, so no need for `run dev`. |
 | `./skelet npm <name>` | Same for storefronts (`apps/channels/<name>/`) - `./skelet npm <name> [name] run codegen`, `run build`; the name is optional when only one storefront exists. Note: storefront codegen/tsc only works right in the container; host runs show phantom errors (no `.next/types`). |
 | `./skelet psql` | psql shell into the dev database. |
@@ -67,8 +67,10 @@ not, they spin up a one-off. Works either way.
 ## The gates
 
 **`./skelet check` is the one you need to know.** It runs every gate below, takes
-under a second, needs no Docker and no running backend, and is exactly what
-the pre-commit hook and CI run. `./skelet check --list` prints what each gate is
+about a second, needs no running backend, and is exactly what the pre-commit
+hook and CI run. The one step that wants Docker is the proto compatibility check
+against `main`, which runs in the app container when the stack is up and says it
+skipped when it isn't - CI runs it on the host toolchain instead. `./skelet check --list` prints what each gate is
 for. The individual scripts exist so you can rerun one while fixing it.
 
 | Script | What it protects |
@@ -76,7 +78,7 @@ for. The individual scripts exist so you can rerun one while fixing it.
 | `./skelet check` | All three gates, in one command. `--codegen` adds the generated-file check (needs the container, and the backend for its TS half). `--list` explains each gate. |
 | `./skelet check pins` | Version pins that live in several files at once: postgres, clickhouse, golang-migrate, golangci-lint, node (plus `.nvmrc`), alpine, and the `golang:` images against `go.mod`. Prints every site when they disagree. Add a pin here when you introduce one more than one file has to know. |
 | `./skelet check structure` | Structural invariants a fresh clone or a forked storefront leans on: every `bin/*` script parses and is executable, no doc or workflow names a script that doesn't exist, every compose `env_file` has a committed `.example`. |
-| `./skelet check contracts` | The cross-app contracts the `SYNC` comments describe: every path a SYNC comment names still exists, CMS block types agree across backend / dashboard / storefront, the anonymous-cacheable operation lists match, every lexical node the dashboard authors has a renderer, the two conditional-option evaluators are still the same code, and the security-header copies match. Each check fails if its extractor matches nothing, so it can't rot into a no-op. |
+| `./skelet check contracts` | The cross-app contracts the `SYNC` comments describe: every path a SYNC comment names still exists, CMS block types agree across backend / dashboard / storefront, the anonymous-cacheable operation lists match, every lexical node the dashboard authors has a renderer, the two conditional-option evaluators are still the same code, the security-header copies match, and the Signals proto has no breaking change against `main` (`origin/main` in CI, where a missing ref fails rather than passing), or against `develop` while `main` has no proto yet. Each check fails if its extractor matches nothing, so it can't rot into a no-op. |
 | `./skelet hooks` | Points `.git/hooks/pre-commit` at `./skelet check`. Opt-in; bypass once with `git commit --no-verify`. |
 
 ## Codegen, lint and tests

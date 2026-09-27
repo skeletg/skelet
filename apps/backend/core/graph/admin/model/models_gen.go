@@ -1903,16 +1903,17 @@ type CustomerRegisterInput struct {
 }
 
 type CustomerSegment struct {
-	ID          string                   `json:"id"`
-	Slug        string                   `json:"slug"`
-	Name        string                   `json:"name"`
-	Description string                   `json:"description"`
-	IsActive    bool                     `json:"isActive"`
-	MemberCount int32                    `json:"memberCount"`
-	Members     []*CustomerSegmentMember `json:"members"`
-	Rules       any                      `json:"rules,omitempty"`
-	CreatedAt   time.Time                `json:"createdAt"`
-	UpdatedAt   time.Time                `json:"updatedAt"`
+	ID           string                   `json:"id"`
+	Slug         string                   `json:"slug"`
+	Name         string                   `json:"name"`
+	Description  string                   `json:"description"`
+	IsActive     bool                     `json:"isActive"`
+	MemberCount  int32                    `json:"memberCount"`
+	Members      []*CustomerSegmentMember `json:"members"`
+	Rules        any                      `json:"rules,omitempty"`
+	RulesProblem *string                  `json:"rulesProblem,omitempty"`
+	CreatedAt    time.Time                `json:"createdAt"`
+	UpdatedAt    time.Time                `json:"updatedAt"`
 }
 
 type CustomerSegmentList struct {
@@ -2373,6 +2374,7 @@ type GiftCard struct {
 	Status         string                 `json:"status"`
 	RecipientEmail string                 `json:"recipientEmail"`
 	IssuedOrderID  *string                `json:"issuedOrderId,omitempty"`
+	ChannelID      *string                `json:"channelId,omitempty"`
 	ExpiresAt      *time.Time             `json:"expiresAt,omitempty"`
 	CreatedAt      time.Time              `json:"createdAt"`
 	Transactions   []*GiftCardTransaction `json:"transactions"`

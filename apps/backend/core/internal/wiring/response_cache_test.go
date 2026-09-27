@@ -112,6 +112,11 @@ func TestFrontResponseCacheGates(t *testing.T) {
 		t.Fatalf("authenticated request must bypass the cache, got X-Cache=%q", got)
 	}
 	if got := cacheProbe(t, func(r *http.Request) {
+		r.Header.Set("X-Review-Voter-Token", "voter")
+	}); got != "" {
+		t.Fatalf("a guest's review votes must not be cached for other guests, got X-Cache=%q", got)
+	}
+	if got := cacheProbe(t, func(r *http.Request) {
 		r.Body = http.NoBody
 		r.Method = http.MethodGet
 	}); got != "" {

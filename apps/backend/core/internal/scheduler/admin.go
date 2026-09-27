@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 // Job is the admin-facing view of a scheduled job - Webhook secrets are never
@@ -150,7 +151,7 @@ func (s *Service) UpdateSchedule(ctx context.Context, in UpdateScheduleInput, by
 		AlertAfterFailures:  clampedOrKeep(in.AlertAfterFailures, 0, 1000),
 		TimeoutSeconds:      clampedOrKeep(in.TimeoutSeconds, 1, maxRunTimeoutSeconds),
 		NextRunAt:           next,
-		UpdatedBy:           nullUUID(by),
+		UpdatedBy:           sqlnull.UUID(by),
 	})
 	if err != nil {
 		return Job{}, err
@@ -211,7 +212,7 @@ func (s *Service) CreateWebhook(ctx context.Context, in CreateWebhookInput, by *
 		MaxAttempts:         clampMin(in.MaxAttempts, 1),
 		RetryBackoffSeconds: clampMin(in.RetryBackoffSeconds, 0),
 		AlertAfterFailures:  clampMin(in.AlertAfterFailures, 0),
-		CreatedBy:           nullUUID(by),
+		CreatedBy:           sqlnull.UUID(by),
 	})
 	if err != nil {
 		return Job{}, err
@@ -261,7 +262,7 @@ func (s *Service) UpdateWebhook(ctx context.Context, in UpdateWebhookInput, by *
 		ID:          in.ID,
 		Payload:     payload,
 		Description: in.Description,
-		UpdatedBy:   nullUUID(by),
+		UpdatedBy:   sqlnull.UUID(by),
 	})
 	if err != nil {
 		return Job{}, err
@@ -363,11 +364,4 @@ func clampedOrKeep(v *int32, min, max int32) sql.NullInt32 {
 		c = max
 	}
 	return sql.NullInt32{Int32: c, Valid: true}
-}
-
-func nullUUID(id *uuid.UUID) uuid.NullUUID {
-	if id == nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: *id, Valid: true}
 }

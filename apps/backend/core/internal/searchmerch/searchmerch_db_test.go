@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
 	dbsqlc "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 )
 
@@ -88,7 +88,7 @@ func seedSynonym(t *testing.T, conn *sql.DB, channelID *uuid.UUID, terms string)
 	var id uuid.UUID
 	if err := conn.QueryRow(
 		`INSERT INTO search_synonyms (channel_id, terms) VALUES ($1, $2) RETURNING id`,
-		nullableUUID(channelID), terms).Scan(&id); err != nil {
+		sqlnull.UUID(channelID), terms).Scan(&id); err != nil {
 		t.Fatalf("seed synonym: %v", err)
 	}
 	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM search_synonyms WHERE id = $1`, id) })

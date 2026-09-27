@@ -193,17 +193,6 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 		discount := min(o.DiscountAmount, subtotal)
 		synthetic := syntheticCart(o, active)
 
-		tax := o.TaxAmount
-		var taxLines []TaxLine
-		if s.tax != nil {
-			cc := &checkoutContext{customer: cust, shipping: o.ShippingAddress, store: &store, cart: synthetic, subtotal: subtotal}
-			tax, err = s.computeLineTax(ctx, cc, discount)
-			if err != nil {
-				return err
-			}
-			taxLines = cc.taxLines
-		}
-
 		// Re-quote shipping via the chosen carrier against the new subtotal - fail-soft, holding it constant when the carrier is down or the method vanished
 		// An edit should not abort on an API blip, and the OrderEdited event surfaces any change
 		shipping := o.ShippingAmount
@@ -225,6 +214,17 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 			} else {
 				shipping = cents
 			}
+		}
+
+		tax := o.TaxAmount
+		var taxLines []TaxLine
+		if s.tax != nil {
+			cc := &checkoutContext{customer: cust, shipping: o.ShippingAddress, store: &store, cart: synthetic, subtotal: subtotal}
+			tax, err = s.computeLineTax(ctx, cc, discount, shipping)
+			if err != nil {
+				return err
+			}
+			taxLines = cc.taxLines
 		}
 
 		total := computeOrderTotal(subtotal, discount, tax, shipping, store.TaxInclusivePricing, nil)
@@ -386,15 +386,6 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 			}
 			discount := min(o.DiscountAmount, subtotal)
 			synthetic := syntheticCart(o, active)
-			tax := o.TaxAmount
-			var taxLines []TaxLine
-			if s.tax != nil {
-				cc := &checkoutContext{customer: cust, shipping: shipping, store: &store, cart: synthetic, subtotal: subtotal}
-				if tax, err = s.computeLineTax(ctx, cc, discount); err != nil {
-					return err
-				}
-				taxLines = cc.taxLines
-			}
 			shipAmount := o.ShippingAmount
 			if o.ShippingCarrierSlug != nil && *o.ShippingCarrierSlug != "" && o.ShippingMethodCode != nil && s.shipping != nil {
 				req := shippingpkg.RateRequest{
@@ -414,6 +405,15 @@ func (s *Service) EditOrderAddress(ctx context.Context, in EditOrderAddressInput
 				} else {
 					shipAmount = cents
 				}
+			}
+			tax := o.TaxAmount
+			var taxLines []TaxLine
+			if s.tax != nil {
+				cc := &checkoutContext{customer: cust, shipping: shipping, store: &store, cart: synthetic, subtotal: subtotal}
+				if tax, err = s.computeLineTax(ctx, cc, discount, shipAmount); err != nil {
+					return err
+				}
+				taxLines = cc.taxLines
 			}
 			total := computeOrderTotal(subtotal, discount, tax, shipAmount, store.TaxInclusivePricing, nil)
 			if updated, err = r.UpdateOrderAmounts(ctx, o.ID, subtotal, shipAmount, discount, tax, total); err != nil {

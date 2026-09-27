@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/fx"
+	"google.golang.org/grpc"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
@@ -26,10 +27,11 @@ import (
 // The suite's own scenarios: the beacon surface against a real signals database, composed the way cmd/signals composes it
 // Core is not here - a channel is pushed the way core's job pushes it, and a customer is a token, which is all /t sees of one
 type harness struct {
-	ctx  context.Context
-	d    harnessDeps
-	jwt  string
-	mail *mailSink
+	ctx     context.Context
+	d       harnessDeps
+	jwt     string
+	service string
+	mail    *mailSink
 }
 
 // What the scenarios reach past the surface for
@@ -43,6 +45,7 @@ type harnessDeps struct {
 	Experiment *experiment.Service
 	Flow       *flow.Service
 	Builder    *emailtemplate.Service
+	Contract   *grpc.Server
 }
 
 // Stands in for the configured sender so a scenario can see what the engines actually delivered
@@ -93,7 +96,7 @@ func newHarness(t *testing.T) *harness {
 		if service == "" {
 			service = "e2e-service-secret"
 		}
-		dsn := os.Getenv("SIGNALS_DB_URL")
+		dsn, _ := testdb.URL("SIGNALS_DB_URL")
 		cfg := boot.Config{
 			Env: os.Getenv("APP_ENV"), JWTSecret: jwt, ServiceSecret: service,
 			SignalsURL: dsn, SignalsReadURL: dsn, SignalsMaxConns: 2, SignalsReadMaxConns: 2,
@@ -103,7 +106,7 @@ func newHarness(t *testing.T) *harness {
 		var d harnessDeps
 		app := fx.New(
 			fx.Supply(cfg, boot.RootContext{Context: ctx}, boot.QueueConsumer),
-			boot.Pools, boot.Services, boot.Pulse, boot.Wiring, boot.Beacon,
+			boot.Pools, boot.Services, boot.Pulse, boot.Wiring, boot.Beacon, boot.Contract,
 			fx.Decorate(func(email.Sender) email.Sender { return sink }),
 			fx.Populate(&d),
 			fx.NopLogger,
@@ -118,7 +121,7 @@ func newHarness(t *testing.T) *harness {
 			harnessErr = err
 			return
 		}
-		shared = &harness{ctx: ctx, d: d, jwt: jwt, mail: sink}
+		shared = &harness{ctx: ctx, d: d, jwt: jwt, service: service, mail: sink}
 	})
 	if harnessErr != nil {
 		t.Fatalf("boot suite graph: %v", harnessErr)
@@ -131,7 +134,7 @@ func newHarness(t *testing.T) *harness {
 func (h *harness) channel(t *testing.T) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
-	if _, _, err := h.d.Channels.SyncChannels(h.ctx, []analytics.ChannelEntry{{ID: id, IsDefault: true, Name: "E2E"}}); err != nil {
+	if _, _, err := h.d.Channels.SyncChannels(h.ctx, []analytics.ChannelEntry{{ID: id, IsDefault: true, IsActive: true, Name: "E2E"}}); err != nil {
 		t.Fatalf("push channel: %v", err)
 	}
 	return id

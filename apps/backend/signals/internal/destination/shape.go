@@ -99,7 +99,7 @@ func shapeMetaCAPI(batch []Event) ([]byte, error) {
 		data = append(data, capiEvent{
 			EventName:    e.Name,
 			EventTime:    e.OccurredAt.Unix(),
-			EventID:      e.ID.String(), // Meta dedupes on (event_name, event_id)
+			EventID:      e.EventID, // Meta dedupes on (event_name, event_id)
 			ActionSource: capiActionSource(e.Source),
 			UserData:     ud,
 			CustomData:   custom,

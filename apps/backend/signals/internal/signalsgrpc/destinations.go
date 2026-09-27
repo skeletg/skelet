@@ -2,6 +2,8 @@ package signalsgrpc
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	"github.com/google/uuid"
 
@@ -15,10 +17,7 @@ type destinationServer struct {
 }
 
 func (s *destinationServer) ListDestinations(ctx context.Context, req *signalsv1.ListDestinationsRequest) (*signalsv1.ListDestinationsResponse, error) {
-	if err := requirePermission(ctx, "settings.manage"); err != nil {
-		return nil, err
-	}
-	cid, err := parseID("channel_id", req.GetChannelId())
+	cid, err := channelScope(ctx, "settings.manage", req.GetChannelId())
 	if err != nil {
 		return nil, err
 	}
@@ -41,6 +40,9 @@ func (s *destinationServer) CreateDestination(ctx context.Context, req *signalsv
 	if err != nil {
 		return nil, err
 	}
+	if err := requireChannel(ctx, "settings.manage", in.ChannelID); err != nil {
+		return nil, err
+	}
 	d, err := s.svc.Create(ctx, in)
 	if err != nil {
 		return nil, err
@@ -49,17 +51,15 @@ func (s *destinationServer) CreateDestination(ctx context.Context, req *signalsv
 }
 
 func (s *destinationServer) UpdateDestination(ctx context.Context, req *signalsv1.UpdateDestinationRequest) (*signalsv1.UpdateDestinationResponse, error) {
-	if err := requirePermission(ctx, "settings.manage"); err != nil {
-		return nil, err
-	}
-	id, err := parseID("id", req.GetId())
+	existing, err := s.load(ctx, "id", req.GetId())
 	if err != nil {
 		return nil, err
 	}
-	in, err := destinationInput(&id, req.GetDestination())
+	in, err := destinationInput(&existing.ID, req.GetDestination())
 	if err != nil {
 		return nil, err
 	}
+	in.ChannelID = existing.ChannelID
 	d, err := s.svc.Update(ctx, in)
 	if err != nil {
 		return nil, err
@@ -68,14 +68,11 @@ func (s *destinationServer) UpdateDestination(ctx context.Context, req *signalsv
 }
 
 func (s *destinationServer) DeleteDestination(ctx context.Context, req *signalsv1.DeleteDestinationRequest) (*signalsv1.DeleteDestinationResponse, error) {
-	if err := requirePermission(ctx, "settings.manage"); err != nil {
-		return nil, err
-	}
-	id, err := parseID("id", req.GetId())
+	d, err := s.load(ctx, "id", req.GetId())
 	if err != nil {
 		return nil, err
 	}
-	if err := s.svc.Delete(ctx, id); err != nil {
+	if err := s.svc.Delete(ctx, d.ChannelID, d.ID); err != nil {
 		return nil, err
 	}
 	return &signalsv1.DeleteDestinationResponse{Deleted: true}, nil
@@ -89,15 +86,44 @@ func (s *destinationServer) SyncAudience(ctx context.Context, req *signalsv1.Syn
 	if err != nil {
 		return nil, err
 	}
-	destID, err := parseID("destination_id", req.GetDestinationId())
+	d, err := s.load(ctx, "destination_id", req.GetDestinationId())
 	if err != nil {
 		return nil, err
 	}
-	n, err := s.svc.SyncAudience(ctx, segID, destID, req.GetIdentifiers())
+	n, err := s.svc.SyncAudience(ctx, segID, d.ID, req.GetIdentifiers())
 	if err != nil {
 		return nil, err
 	}
 	return &signalsv1.SyncAudienceResponse{IdentifiersSent: int32(n)}, nil
+}
+
+func (s *destinationServer) GetDestination(ctx context.Context, req *signalsv1.GetDestinationRequest) (*signalsv1.GetDestinationResponse, error) {
+	d, err := s.load(ctx, "id", req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	return &signalsv1.GetDestinationResponse{Destination: destinationProto(d)}, nil
+}
+
+func (s *destinationServer) load(ctx context.Context, field, rawID string) (destination.Destination, error) {
+	if err := requirePermission(ctx, "settings.manage"); err != nil {
+		return destination.Destination{}, err
+	}
+	id, err := parseID(field, rawID)
+	if err != nil {
+		return destination.Destination{}, err
+	}
+	d, err := s.svc.Get(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return destination.Destination{}, notFound("destination")
+	}
+	if err != nil {
+		return destination.Destination{}, err
+	}
+	if err := requireChannel(ctx, "settings.manage", d.ChannelID); err != nil {
+		return destination.Destination{}, err
+	}
+	return d, nil
 }
 
 // The secret is write-only - it goes in on an upsert and never comes back out

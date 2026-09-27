@@ -70,11 +70,22 @@ type Notification struct {
 
 // The acting admin's visibility filter, resolved once per request from their permissions and permitted channels - Bypass short-circuits both filters, so superusers and all-channel admins see everything
 type Scope struct {
-	AdminID  uuid.UUID
-	Bypass   bool
-	Perms    []string
-	Channels []uuid.UUID
-	Muted    []string // categories this admin muted - see MutedCategoriesPref
+	AdminID      uuid.UUID
+	Bypass       bool
+	Perms        []string
+	GlobalPerms  []string
+	PermChannels map[string][]uuid.UUID
+	Muted        []string // categories this admin muted - see MutedCategoriesPref
+}
+
+func (sc Scope) permChannelPairs() []string {
+	var out []string
+	for perm, chs := range sc.PermChannels {
+		for _, ch := range chs {
+			out = append(out, perm+"|"+ch.String())
+		}
+	}
+	return out
 }
 
 // Whether a notification is visible under this scope - the in-memory mirror of ListNotifications' SQL filter, for the live subscription fan-out, which can't route every push through a DB query
@@ -94,5 +105,8 @@ func (sc Scope) CanSee(n Notification) bool {
 	if n.ChannelID == nil {
 		return true // global / system notice
 	}
-	return slices.Contains(sc.Channels, *n.ChannelID)
+	if slices.Contains(sc.GlobalPerms, n.RequiredPermission) {
+		return true
+	}
+	return slices.Contains(sc.PermChannels[n.RequiredPermission], *n.ChannelID)
 }

@@ -5,6 +5,8 @@ import (
 	"context"
 	"log"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -31,13 +33,26 @@ type Recorder interface {
 	RecordSent(ctx context.Context, sendID uuid.UUID, spec Spec) error
 }
 
+// The report runs off the request, so a hung suite can't hold up the password reset that sent the mail
+const (
+	recordTimeout  = 3 * time.Second
+	maxRecordsLive = 64
+)
+
 type Sender struct {
 	mail email.Sender
 	cfg  *config.Service
 	rec  Recorder
+
+	records sync.WaitGroup
+	slots   chan struct{}
 }
 
-func New(mail email.Sender, cfg *config.Service) *Sender { return &Sender{mail: mail, cfg: cfg} }
+func New(mail email.Sender, cfg *config.Service) *Sender {
+	return &Sender{mail: mail, cfg: cfg, slots: make(chan struct{}, maxRecordsLive)}
+}
+
+func (s *Sender) Wait() { s.records.Wait() }
 
 // Without one the mail still goes out, it just never reaches engagement reporting
 func (s *Sender) SetRecorder(r Recorder) { s.rec = r }
@@ -50,11 +65,26 @@ func (s *Sender) Send(ctx context.Context, spec Spec, subject, htmlBody, textBod
 		return err
 	}
 	if s.rec != nil {
-		if err := s.rec.RecordSent(ctx, uuid.New(), spec); err != nil {
-			log.Printf("[mailsend] record %s to %s: %v", spec.MessageKey, spec.To, err)
-		}
+		s.record(ctx, spec)
 	}
 	return nil
+}
+
+func (s *Sender) record(ctx context.Context, spec Spec) {
+	select {
+	case s.slots <- struct{}{}:
+	default:
+		log.Printf("[mailsend] record %s to %s: skipped, %d reports already waiting on the suite", spec.MessageKey, spec.To, maxRecordsLive)
+		return
+	}
+	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordTimeout)
+	s.records.Go(func() {
+		defer func() { <-s.slots }()
+		defer cancel()
+		if err := s.rec.RecordSent(rctx, uuid.New(), spec); err != nil {
+			log.Printf("[mailsend] record %s to %s: %v", spec.MessageKey, spec.To, err)
+		}
+	})
 }
 
 // The channel's configured sender identity, or the platform's when the mail belongs to no shop

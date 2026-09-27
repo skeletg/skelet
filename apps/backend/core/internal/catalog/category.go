@@ -30,7 +30,6 @@ type Category struct {
 	CoverImage      *CategoryCover
 	Ancestors       []Category               // root→immediate parent - populated on demand
 	Children        []Category               // immediate children - populated on demand
-	Products        []Product                // products directly assigned - populated on demand
 	ChannelListings []CategoryChannelListing // per-store visibility rows, populated by the admin detail loader - storefront resolvers use listing-aware queries instead of reading this slice
 	Metadata        Metadata
 	PrivateMetadata Metadata

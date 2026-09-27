@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/address"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
@@ -69,6 +70,8 @@ type Service struct {
 	paymentAuthorizer PaymentAuthorizer
 	// Resolves the channel auto-hold score - nil or 0 disables it
 	riskHoldThreshold func(ctx context.Context, channelID uuid.UUID) int
+	shippingTax       func(ctx context.Context, channelID uuid.UUID) (class string, taxable bool)
+	addresses         AddressChecker
 	// channels, pricer and inventoryEditor power pre-fulfillment editing - channel config, added-line pricing, in-tx re-reservation - All optional, and nil disables the capability
 	channels        ChannelLoader
 	pricer          ProductPricer
@@ -217,6 +220,18 @@ func (s *Service) SetPaymentValidator(v PaymentValidator)           { s.payments
 func (s *Service) SetGiftCardTender(g GiftCardTender)               { s.giftcard = g }
 func (s *Service) SetStoreCreditTender(t StoreCreditTender)         { s.storeCredit = t }
 
+type AddressChecker interface {
+	Validate(ctx context.Context, channelID uuid.UUID, in address.Input) (address.Result, error)
+	Strict(ctx context.Context, channelID uuid.UUID) bool
+}
+
+func (s *Service) SetAddressChecker(c AddressChecker) { s.addresses = c }
+
+// Resolves how a channel taxes shipping - nil taxes it at the default class
+func (s *Service) SetShippingTax(f func(ctx context.Context, channelID uuid.UUID) (class string, taxable bool)) {
+	s.shippingTax = f
+}
+
 func (s *Service) SetRiskHoldThreshold(f func(ctx context.Context, channelID uuid.UUID) int) {
 	s.riskHoldThreshold = f
 }
@@ -294,7 +309,7 @@ type PlaceOrderInput struct {
 
 // Redeems a gift card as a tender in the placement tx, where applied is the cents covered - local so order doesn't import giftcard, which imports order
 type GiftCardTender interface {
-	RedeemTx(ctx context.Context, tx *sql.Tx, code string, amountDue int64, currency string, orderID uuid.UUID) (applied int64, err error)
+	RedeemTx(ctx context.Context, tx *sql.Tx, code string, channelID uuid.UUID, amountDue int64, currency string, orderID uuid.UUID) (applied int64, err error)
 }
 
 // Spends the customer's balance as a tender in the placement tx - local so order doesn't import storecredit
@@ -409,7 +424,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			PaymentProvider: paymentProvider,
 			Billing:         billing,
 			Shipping:        shipping,
-			Lines:           remoteTaxInputFromCheckout(cc, validating.DiscountCents).Lines,
+			Lines:           remoteTaxInputFromCheckout(cc, validating.DiscountCents, 0).Lines,
 		})
 		if err != nil {
 			return Order{}, fmt.Errorf("checkout rejected: %w", err)
@@ -450,27 +465,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			}
 		}
 
-		// The remote tax provider claims the TaxCents seam ahead of core when no plugin took it - fail_open falls through to core, fail_closed aborts
-		if placing.TaxCents == nil && s.remoteTax != nil {
-			cents, ok, err := s.remoteTax.Tax(ctx, remoteTaxInputFromCheckout(cc, placing.DiscountCents))
-			if err != nil {
-				return fmt.Errorf("order rejected: %w", err)
-			}
-			if ok {
-				placing.TaxCents = &cents
-			}
-		}
-
-		// No plugin claimed the seam, so call core PER LINE - product tax classes apply, the discount is distributed proportionally, and rounding happens per line then sums - Tax-inclusive stores split out the tax PORTION rather than adding on top
-		if placing.TaxCents == nil && s.tax != nil {
-			t, err := s.computeLineTax(ctx, cc, placing.DiscountCents)
-			if err != nil {
-				return err
-			}
-			placing.TaxCents = &t
-		}
-
-		// No plugin claimed the seam, so: free-shipping promo, else shipping-override promo, else the chosen method re-priced server-side, else cheapest
+		// No plugin claimed the seam, so: free-shipping promo, else shipping-override promo, else the chosen method re-priced server-side, else cheapest - priced ahead of tax since shipping is taxed too
 		var shipSel shippingSelection
 		if placing.ShippingCents == nil && s.shipping != nil {
 			sel, err := s.resolveShippingCents(ctx, in, cc, placing.DiscountCents, ranEngine, evalResult)
@@ -482,12 +477,34 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			shipSel = sel
 		}
 
-		var taxCents, shippingCents int64
-		if placing.TaxCents != nil {
-			taxCents = *placing.TaxCents
-		}
+		var shippingCents int64
 		if placing.ShippingCents != nil {
 			shippingCents = *placing.ShippingCents
+		}
+
+		// The remote tax provider claims the TaxCents seam ahead of core when no plugin took it - fail_open falls through to core, fail_closed aborts
+		if placing.TaxCents == nil && s.remoteTax != nil {
+			cents, ok, err := s.remoteTax.Tax(ctx, remoteTaxInputFromCheckout(cc, placing.DiscountCents, shippingCents))
+			if err != nil {
+				return fmt.Errorf("order rejected: %w", err)
+			}
+			if ok {
+				placing.TaxCents = &cents
+			}
+		}
+
+		// No plugin claimed the seam, so call core PER LINE - product tax classes apply, the discount is distributed proportionally, and rounding happens per line then sums - Tax-inclusive stores split out the tax PORTION rather than adding on top
+		if placing.TaxCents == nil && s.tax != nil {
+			t, err := s.computeLineTax(ctx, cc, placing.DiscountCents, shippingCents)
+			if err != nil {
+				return err
+			}
+			placing.TaxCents = &t
+		}
+
+		var taxCents int64
+		if placing.TaxCents != nil {
+			taxCents = *placing.TaxCents
 		}
 		// Tax-inclusive stores don't add tax on top - taxCents is recorded for the receipt breakdown but is informational
 		total := computeOrderTotal(subtotal, placing.DiscountCents, taxCents, shippingCents, store.TaxInclusivePricing, placing.TotalCents)
@@ -524,7 +541,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			return err
 		}
 		// Gift-card tenders redeem codes against the full total, since tax was on it, and the provider takes the remainder - in this tx so a failure rolls the debits back
-		giftCardApplied, err := s.applyGiftCardTenders(ctx, sqlTx, orderR, order.ID, in, total, store.CurrencyCode)
+		giftCardApplied, err := s.applyGiftCardTenders(ctx, sqlTx, orderR, order.ID, store.ID, in, total, store.CurrencyCode)
 		if err != nil {
 			return err
 		}
@@ -695,6 +712,12 @@ func (s *Service) ClaimGuestOrdersByEmail(ctx context.Context, customerID uuid.U
 }
 
 // ListOrdersPage clamps like every other pager - the statuses arrive lowercase, matching the column
+// The newest limit orders in the given channels, nil for every channel - no page clamp and no count, for the unpaged admin list
+func (s *Service) ListRecentOrders(ctx context.Context, channelIDs []uuid.UUID, limit int32) ([]Order, error) {
+	rows, _, err := s.repo.ListOrdersPage(ctx, ListPageFilter{ChannelIDs: channelIDs, Limit: limit, SkipCount: true})
+	return rows, err
+}
+
 func (s *Service) ListOrdersPage(ctx context.Context, f ListPageFilter) ([]Order, int64, error) {
 	if f.Limit <= 0 {
 		f.Limit = 50
@@ -715,10 +738,6 @@ func (s *Service) ListOrdersByCustomer(ctx context.Context, customerID uuid.UUID
 
 func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (Order, error) {
 	return s.repo.GetOrderByID(ctx, id)
-}
-
-func (s *Service) ListOrders(ctx context.Context) ([]Order, error) {
-	return s.repo.ListOrders(ctx)
 }
 
 // Only pending and confirmed orders can be cancelled

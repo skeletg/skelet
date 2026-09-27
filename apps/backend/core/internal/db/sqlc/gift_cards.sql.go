@@ -10,15 +10,20 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const createGiftCard = `-- name: CreateGiftCard :one
 INSERT INTO gift_cards (
     code, currency_code, initial_balance, balance, status,
-    recipient_email, message, issued_order_id, customer_id, expires_at, issue_ref
+    recipient_email, message, issued_order_id, customer_id, expires_at, issue_ref, channel_id
 )
-VALUES ($1, $2, $3, $3, 'active', $4, $5, $6, $7, $8, $9)
-RETURNING id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref
+VALUES (
+    $1, $2, $3, $3, 'active',
+    $4, $5, $6, $7, $8, $9,
+    COALESCE($10::uuid, (SELECT o.channel_id FROM orders o WHERE o.id = $6::uuid))
+)
+RETURNING id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref, channel_id
 `
 
 type CreateGiftCardParams struct {
@@ -31,8 +36,10 @@ type CreateGiftCardParams struct {
 	CustomerID     uuid.NullUUID `json:"customer_id"`
 	ExpiresAt      sql.NullTime  `json:"expires_at"`
 	IssueRef       string        `json:"issue_ref"`
+	ChannelID      uuid.NullUUID `json:"channel_id"`
 }
 
+// A card issued against an order belongs to the order's channel unless the caller names one
 func (q *Queries) CreateGiftCard(ctx context.Context, arg CreateGiftCardParams) (GiftCard, error) {
 	row := q.db.QueryRowContext(ctx, createGiftCard,
 		arg.Code,
@@ -44,6 +51,7 @@ func (q *Queries) CreateGiftCard(ctx context.Context, arg CreateGiftCardParams) 
 		arg.CustomerID,
 		arg.ExpiresAt,
 		arg.IssueRef,
+		arg.ChannelID,
 	)
 	var i GiftCard
 	err := row.Scan(
@@ -61,12 +69,13 @@ func (q *Queries) CreateGiftCard(ctx context.Context, arg CreateGiftCardParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IssueRef,
+		&i.ChannelID,
 	)
 	return i, err
 }
 
 const getGiftCardByCode = `-- name: GetGiftCardByCode :one
-SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref FROM gift_cards WHERE code = $1
+SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref, channel_id FROM gift_cards WHERE code = $1
 `
 
 func (q *Queries) GetGiftCardByCode(ctx context.Context, code string) (GiftCard, error) {
@@ -87,12 +96,13 @@ func (q *Queries) GetGiftCardByCode(ctx context.Context, code string) (GiftCard,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IssueRef,
+		&i.ChannelID,
 	)
 	return i, err
 }
 
 const getGiftCardByCodeForUpdate = `-- name: GetGiftCardByCodeForUpdate :one
-SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref FROM gift_cards WHERE code = $1 FOR UPDATE
+SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref, channel_id FROM gift_cards WHERE code = $1 FOR UPDATE
 `
 
 // Row-locked read used inside redeem/adjust transactions so concurrent
@@ -115,12 +125,13 @@ func (q *Queries) GetGiftCardByCodeForUpdate(ctx context.Context, code string) (
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IssueRef,
+		&i.ChannelID,
 	)
 	return i, err
 }
 
 const getGiftCardByID = `-- name: GetGiftCardByID :one
-SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref FROM gift_cards WHERE id = $1
+SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref, channel_id FROM gift_cards WHERE id = $1
 `
 
 func (q *Queries) GetGiftCardByID(ctx context.Context, id uuid.UUID) (GiftCard, error) {
@@ -141,12 +152,13 @@ func (q *Queries) GetGiftCardByID(ctx context.Context, id uuid.UUID) (GiftCard, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IssueRef,
+		&i.ChannelID,
 	)
 	return i, err
 }
 
 const getGiftCardByIDForUpdate = `-- name: GetGiftCardByIDForUpdate :one
-SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref FROM gift_cards WHERE id = $1 FOR UPDATE
+SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref, channel_id FROM gift_cards WHERE id = $1 FOR UPDATE
 `
 
 // The cancel-restore path only knows card ids - it locks before checking whether the restore already ran, since the outbox delivers order.cancelled at-least-once and dispatches a claimed batch concurrently
@@ -168,12 +180,13 @@ func (q *Queries) GetGiftCardByIDForUpdate(ctx context.Context, id uuid.UUID) (G
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IssueRef,
+		&i.ChannelID,
 	)
 	return i, err
 }
 
 const getGiftCardByIssueRef = `-- name: GetGiftCardByIssueRef :one
-SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref FROM gift_cards WHERE issue_ref = $1 AND issue_ref <> ''
+SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref, channel_id FROM gift_cards WHERE issue_ref = $1 AND issue_ref <> ''
 `
 
 // The replay lookup for a keyed issue - a refund that already minted a card under this
@@ -196,6 +209,7 @@ func (q *Queries) GetGiftCardByIssueRef(ctx context.Context, issueRef string) (G
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IssueRef,
+		&i.ChannelID,
 	)
 	return i, err
 }
@@ -311,16 +325,19 @@ func (q *Queries) ListGiftCardTransactionsByOrder(ctx context.Context, orderID u
 }
 
 const listGiftCards = `-- name: ListGiftCards :many
-SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref FROM gift_cards ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref, channel_id FROM gift_cards
+WHERE $1::uuid[] IS NULL OR channel_id = ANY($1::uuid[])
+ORDER BY created_at DESC LIMIT $3 OFFSET $2
 `
 
 type ListGiftCardsParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	ChannelIds []uuid.UUID `json:"channel_ids"`
+	Off        int32       `json:"off"`
+	Lim        int32       `json:"lim"`
 }
 
 func (q *Queries) ListGiftCards(ctx context.Context, arg ListGiftCardsParams) ([]GiftCard, error) {
-	rows, err := q.db.QueryContext(ctx, listGiftCards, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listGiftCards, pq.Array(arg.ChannelIds), arg.Off, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
@@ -343,6 +360,7 @@ func (q *Queries) ListGiftCards(ctx context.Context, arg ListGiftCardsParams) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.IssueRef,
+			&i.ChannelID,
 		); err != nil {
 			return nil, err
 		}
@@ -358,7 +376,7 @@ func (q *Queries) ListGiftCards(ctx context.Context, arg ListGiftCardsParams) ([
 }
 
 const listGiftCardsByIssuedOrder = `-- name: ListGiftCardsByIssuedOrder :many
-SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref FROM gift_cards WHERE issued_order_id = $1
+SELECT id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref, channel_id FROM gift_cards WHERE issued_order_id = $1
 `
 
 // Used for issuance idempotency: if any card already references this order,
@@ -387,6 +405,7 @@ func (q *Queries) ListGiftCardsByIssuedOrder(ctx context.Context, issuedOrderID 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.IssueRef,
+			&i.ChannelID,
 		); err != nil {
 			return nil, err
 		}
@@ -407,7 +426,7 @@ SET balance    = $2,
     status     = $3,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref
+RETURNING id, code, currency_code, initial_balance, balance, status, recipient_email, message, issued_order_id, customer_id, expires_at, created_at, updated_at, issue_ref, channel_id
 `
 
 type UpdateGiftCardBalanceParams struct {
@@ -434,6 +453,7 @@ func (q *Queries) UpdateGiftCardBalance(ctx context.Context, arg UpdateGiftCardB
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IssueRef,
+		&i.ChannelID,
 	)
 	return i, err
 }

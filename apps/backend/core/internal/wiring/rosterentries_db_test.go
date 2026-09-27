@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 )
 
@@ -60,8 +61,9 @@ func (s rosterSource) consent(id uuid.UUID, kind string, optedIn bool) {
 // the same answer has to come from both, or a sweep would undo what an unsubscribe just pushed
 func (s rosterSource) swept(id uuid.UUID) db.CustomerRosterForSyncRow {
 	s.t.Helper()
-	for off := int32(0); ; off += 5000 {
-		rows, err := s.q.CustomerRosterForSync(s.ctx, db.CustomerRosterForSyncParams{Lim: 5000, Off: off})
+	var after uuid.UUID
+	for {
+		rows, err := s.q.CustomerRosterForSync(s.ctx, db.CustomerRosterForSyncParams{After: after, Lim: 5000})
 		if err != nil {
 			s.t.Fatalf("page roster: %v", err)
 		}
@@ -73,6 +75,7 @@ func (s rosterSource) swept(id uuid.UUID) db.CustomerRosterForSyncRow {
 		if len(rows) < 5000 {
 			s.t.Fatalf("customer %s is not on the sweep", id)
 		}
+		after = rows[len(rows)-1].CustomerID
 	}
 }
 
@@ -129,5 +132,67 @@ func TestSMSConsentAndPhoneTravelSeparatelyFromEmail(t *testing.T) {
 		if got.email {
 			t.Errorf("%s: sms consent leaked into the email flag", name)
 		}
+	}
+}
+
+func TestRosterSweepSurvivesDeleteBetweenPages(t *testing.T) {
+	s := rosterSourceFixture(t)
+	a, b := s.customer(), s.customer()
+	if b.String() < a.String() {
+		a, b = b, a
+	}
+	if _, err := s.conn.Exec(`DELETE FROM customers WHERE id = $1`, a); err != nil {
+		t.Fatalf("delete between pages: %v", err)
+	}
+	rows, err := s.q.CustomerRosterForSync(s.ctx, db.CustomerRosterForSyncParams{After: a, Lim: 5000})
+	if err != nil {
+		t.Fatalf("next page: %v", err)
+	}
+	for _, r := range rows {
+		if r.CustomerID == a {
+			t.Fatal("the deleted customer is still on the next page")
+		}
+		if r.CustomerID == b {
+			if r.ReadAt.IsZero() {
+				t.Error("a page row carries no read time, so the suite cannot tell it from a fresher push")
+			}
+			return
+		}
+	}
+	t.Fatal("the next live customer after a deleted one was skipped")
+}
+
+// The lifetime totals the suite scores customers on - drafts and cancellations never count, and the sweep and the push agree
+func TestRosterCarriesLifetimeOrderTotals(t *testing.T) {
+	s := rosterSourceFixture(t)
+	buyer, other := s.customer(), s.customer()
+	first, last := time.Date(2023, 3, 1, 12, 0, 0, 0, time.UTC), time.Date(2026, 1, 5, 12, 0, 0, 0, time.UTC)
+	order := func(customer uuid.UUID, status string, cents int64, at time.Time) {
+		t.Helper()
+		if _, err := s.conn.Exec(`INSERT INTO orders (channel_id, customer_id, currency_code, status, total_amount, created_at) VALUES ($1, $2, 'USD', $3, $4, $5)`,
+			s.channel, customer, status, cents, at); err != nil {
+			t.Fatalf("seed %s order: %v", status, err)
+		}
+	}
+	t.Cleanup(func() { _, _ = s.conn.Exec(`DELETE FROM orders WHERE channel_id = $1`, s.channel) })
+	order(buyer, "fulfilled", 5000, first)
+	order(buyer, "pending", 2500, last)
+	order(buyer, "cancelled", 9000, last.Add(time.Hour))
+	order(buyer, "draft", 7000, last.Add(2*time.Hour))
+	order(other, "fulfilled", 100, last)
+
+	swept, pushed := s.swept(buyer), s.pushed(buyer)
+	for name, got := range map[string][4]any{
+		"sweep": {swept.OrderCount, swept.MonetaryCents, signalsclient.TimeFromAny(swept.FirstOrderAt), signalsclient.TimeFromAny(swept.LastOrderAt)},
+		"push":  {pushed.OrderCount, pushed.MonetaryCents, signalsclient.TimeFromAny(pushed.FirstOrderAt), signalsclient.TimeFromAny(pushed.LastOrderAt)},
+	} {
+		f, l := got[2].(*time.Time), got[3].(*time.Time)
+		if got[0].(int32) != 2 || got[1].(int64) != 7500 || f == nil || !f.Equal(first) || l == nil || !l.Equal(last) {
+			t.Errorf("%s: %d orders, %d cents, first %v, last %v - want 2, 7500, %v, %v", name, got[0], got[1], f, l, first, last)
+		}
+	}
+	none := s.pushed(s.customer())
+	if none.OrderCount != 0 || none.MonetaryCents != 0 || signalsclient.TimeFromAny(none.LastOrderAt) != nil {
+		t.Errorf("a customer who never ordered: %d orders, %d cents, last %v", none.OrderCount, none.MonetaryCents, none.LastOrderAt)
 	}
 }

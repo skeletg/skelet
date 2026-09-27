@@ -11,7 +11,33 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
+
+const addCampaignCounts = `-- name: AddCampaignCounts :exec
+UPDATE email_campaigns
+SET sent_count = sent_count + $1::int, failed_count = failed_count + $2::int,
+    skipped_count = skipped_count + $3::int, updated_at = NOW()
+WHERE id = $4
+`
+
+type AddCampaignCountsParams struct {
+	Sent    int32     `json:"sent"`
+	Failed  int32     `json:"failed"`
+	Skipped int32     `json:"skipped"`
+	ID      uuid.UUID `json:"id"`
+}
+
+// One pass's outcomes - RefreshCampaignCounts squares the totals at state changes
+func (q *Queries) AddCampaignCounts(ctx context.Context, arg AddCampaignCountsParams) error {
+	_, err := q.db.ExecContext(ctx, addCampaignCounts,
+		arg.Sent,
+		arg.Failed,
+		arg.Skipped,
+		arg.ID,
+	)
+	return err
+}
 
 const assignHoldoutToWinner = `-- name: AssignHoldoutToWinner :exec
 UPDATE email_campaign_recipients SET variant = $1, phase = 'send'
@@ -71,7 +97,7 @@ WHERE id IN (
     LIMIT $1
     FOR UPDATE SKIP LOCKED
 )
-RETURNING id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at
+RETURNING id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at, materialized_at
 `
 
 // Atomically lease due scheduled campaigns for sending (multi-replica safe)
@@ -113,6 +139,7 @@ func (q *Queries) ClaimDueCampaigns(ctx context.Context, lim int32) ([]EmailCamp
 			&i.AbWinner,
 			&i.AbTestStartedAt,
 			&i.DeletedAt,
+			&i.MaterializedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -127,47 +154,12 @@ func (q *Queries) ClaimDueCampaigns(ctx context.Context, lim int32) ([]EmailCamp
 	return items, nil
 }
 
-const countCampaignRecipients = `-- name: CountCampaignRecipients :one
-SELECT COUNT(*) FROM email_campaign_recipients WHERE campaign_id = $1
-`
-
-func (q *Queries) CountCampaignRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countCampaignRecipients, campaignID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countPendingNonHoldoutRecipients = `-- name: CountPendingNonHoldoutRecipients :one
-SELECT COUNT(*) FROM email_campaign_recipients
-WHERE campaign_id = $1 AND status = 'pending' AND phase <> 'holdout'
-`
-
-func (q *Queries) CountPendingNonHoldoutRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countPendingNonHoldoutRecipients, campaignID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countPendingRecipients = `-- name: CountPendingRecipients :one
-SELECT COUNT(*) FROM email_campaign_recipients
-WHERE campaign_id = $1 AND status = 'pending'
-`
-
-func (q *Queries) CountPendingRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countPendingRecipients, campaignID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createEmailCampaign = `-- name: CreateEmailCampaign :one
 INSERT INTO email_campaigns (channel_id, name, subject, blocks, styles, audience_kind, audience_id, email_id,
     ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
     $9, $10, $11, $12, $13)
-RETURNING id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at
+RETURNING id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at, materialized_at
 `
 
 type CreateEmailCampaignParams struct {
@@ -232,23 +224,37 @@ func (q *Queries) CreateEmailCampaign(ctx context.Context, arg CreateEmailCampai
 		&i.AbWinner,
 		&i.AbTestStartedAt,
 		&i.DeletedAt,
+		&i.MaterializedAt,
 	)
 	return i, err
+}
+
+const deleteCampaignRecipients = `-- name: DeleteCampaignRecipients :execrows
+DELETE FROM email_campaign_recipients WHERE campaign_id = $1
+`
+
+func (q *Queries) DeleteCampaignRecipients(ctx context.Context, campaignID uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCampaignRecipients, campaignID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const finalizeCampaign = `-- name: FinalizeCampaign :exec
 UPDATE email_campaigns
 SET status = 'sent', sent_at = NOW(), updated_at = NOW()
-WHERE id = $1
+WHERE id = $1 AND status = 'sending'
 `
 
+// Only from sending - a campaign cancelled mid-pass stays cancelled
 func (q *Queries) FinalizeCampaign(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, finalizeCampaign, id)
 	return err
 }
 
 const getEmailCampaign = `-- name: GetEmailCampaign :one
-SELECT id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at FROM email_campaigns WHERE id = $1
+SELECT id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at, materialized_at FROM email_campaigns WHERE id = $1
 `
 
 func (q *Queries) GetEmailCampaign(ctx context.Context, id uuid.UUID) (EmailCampaign, error) {
@@ -283,39 +289,65 @@ func (q *Queries) GetEmailCampaign(ctx context.Context, id uuid.UUID) (EmailCamp
 		&i.AbWinner,
 		&i.AbTestStartedAt,
 		&i.DeletedAt,
+		&i.MaterializedAt,
 	)
 	return i, err
 }
 
-const insertCampaignRecipient = `-- name: InsertCampaignRecipient :exec
+const hasPendingNonHoldoutRecipients = `-- name: HasPendingNonHoldoutRecipients :one
+SELECT EXISTS (SELECT 1 FROM email_campaign_recipients
+WHERE campaign_id = $1 AND status = 'pending' AND phase <> 'holdout')
+`
+
+func (q *Queries) HasPendingNonHoldoutRecipients(ctx context.Context, campaignID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasPendingNonHoldoutRecipients, campaignID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const hasPendingRecipients = `-- name: HasPendingRecipients :one
+SELECT EXISTS (SELECT 1 FROM email_campaign_recipients
+WHERE campaign_id = $1 AND status = 'pending')
+`
+
+func (q *Queries) HasPendingRecipients(ctx context.Context, campaignID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasPendingRecipients, campaignID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const insertCampaignRecipients = `-- name: InsertCampaignRecipients :exec
 INSERT INTO email_campaign_recipients (campaign_id, customer_id, email, first_name, variant, phase)
-VALUES ($1, $2, $3, $4, $5, $6)
+SELECT $1, unnest($2::uuid[]), unnest($3::text[]), unnest($4::text[]), unnest($5::text[]), unnest($6::text[])
 ON CONFLICT (campaign_id, email) DO NOTHING
 `
 
-type InsertCampaignRecipientParams struct {
-	CampaignID uuid.UUID     `json:"campaign_id"`
-	CustomerID uuid.NullUUID `json:"customer_id"`
-	Email      string        `json:"email"`
-	FirstName  string        `json:"first_name"`
-	Variant    string        `json:"variant"`
-	Phase      string        `json:"phase"`
+type InsertCampaignRecipientsParams struct {
+	CampaignID  uuid.UUID   `json:"campaign_id"`
+	CustomerIds []uuid.UUID `json:"customer_ids"`
+	Emails      []string    `json:"emails"`
+	FirstNames  []string    `json:"first_names"`
+	Variants    []string    `json:"variants"`
+	Phases      []string    `json:"phases"`
 }
 
-func (q *Queries) InsertCampaignRecipient(ctx context.Context, arg InsertCampaignRecipientParams) error {
-	_, err := q.db.ExecContext(ctx, insertCampaignRecipient,
+// Re-inserting a recipient is a no-op, so a restarted materialization writes the whole audience again
+func (q *Queries) InsertCampaignRecipients(ctx context.Context, arg InsertCampaignRecipientsParams) error {
+	_, err := q.db.ExecContext(ctx, insertCampaignRecipients,
 		arg.CampaignID,
-		arg.CustomerID,
-		arg.Email,
-		arg.FirstName,
-		arg.Variant,
-		arg.Phase,
+		pq.Array(arg.CustomerIds),
+		pq.Array(arg.Emails),
+		pq.Array(arg.FirstNames),
+		pq.Array(arg.Variants),
+		pq.Array(arg.Phases),
 	)
 	return err
 }
 
 const listABTestingDue = `-- name: ListABTestingDue :many
-SELECT id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at FROM email_campaigns
+SELECT id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at, materialized_at FROM email_campaigns
 WHERE status = 'testing' AND ab_test_started_at IS NOT NULL
   AND ab_test_started_at + make_interval(mins => ab_test_minutes) <= NOW()
 ORDER BY ab_test_started_at
@@ -360,6 +392,7 @@ func (q *Queries) ListABTestingDue(ctx context.Context) ([]EmailCampaign, error)
 			&i.AbWinner,
 			&i.AbTestStartedAt,
 			&i.DeletedAt,
+			&i.MaterializedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -374,8 +407,38 @@ func (q *Queries) ListABTestingDue(ctx context.Context) ([]EmailCampaign, error)
 	return items, nil
 }
 
+const listCampaignsWithRecipientsSentBefore = `-- name: ListCampaignsWithRecipientsSentBefore :many
+SELECT c.id FROM email_campaigns c
+WHERE ((c.status = 'sent' AND c.sent_at < $1) OR (c.status = 'cancelled' AND c.updated_at < $1))
+  AND EXISTS (SELECT 1 FROM email_campaign_recipients r WHERE r.campaign_id = c.id)
+`
+
+// Sent campaigns past the send-history window that still carry recipient rows - their counts live on the campaign row
+func (q *Queries) ListCampaignsWithRecipientsSentBefore(ctx context.Context, before sql.NullTime) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listCampaignsWithRecipientsSentBefore, before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEmailCampaigns = `-- name: ListEmailCampaigns :many
-SELECT id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at FROM email_campaigns
+SELECT id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at, materialized_at FROM email_campaigns
 WHERE channel_id = $1
   AND ($2::bool OR deleted_at IS NULL)
 ORDER BY created_at DESC
@@ -424,6 +487,7 @@ func (q *Queries) ListEmailCampaigns(ctx context.Context, arg ListEmailCampaigns
 			&i.AbWinner,
 			&i.AbTestStartedAt,
 			&i.DeletedAt,
+			&i.MaterializedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -489,10 +553,10 @@ func (q *Queries) ListPendingRecipients(ctx context.Context, arg ListPendingReci
 }
 
 const listSendingCampaigns = `-- name: ListSendingCampaigns :many
-SELECT id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at FROM email_campaigns WHERE status = 'sending' AND deleted_at IS NULL ORDER BY scheduled_for
+SELECT id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at, materialized_at FROM email_campaigns WHERE status = 'sending' AND deleted_at IS NULL AND materialized_at IS NOT NULL ORDER BY updated_at, scheduled_for
 `
 
-// Campaigns mid-send (incl. ones resuming after a crash/timeout)
+// Least recently advanced first, since each pass touches updated_at - a half-written audience never sends
 func (q *Queries) ListSendingCampaigns(ctx context.Context) ([]EmailCampaign, error) {
 	rows, err := q.db.QueryContext(ctx, listSendingCampaigns)
 	if err != nil {
@@ -531,6 +595,7 @@ func (q *Queries) ListSendingCampaigns(ctx context.Context) ([]EmailCampaign, er
 			&i.AbWinner,
 			&i.AbTestStartedAt,
 			&i.DeletedAt,
+			&i.MaterializedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -543,6 +608,77 @@ func (q *Queries) ListSendingCampaigns(ctx context.Context) ([]EmailCampaign, er
 		return nil, err
 	}
 	return items, nil
+}
+
+const listUnmaterializedCampaigns = `-- name: ListUnmaterializedCampaigns :many
+SELECT id, channel_id, name, subject, blocks, styles, audience_kind, audience_id, status, scheduled_for, sent_at, total_recipients, sent_count, failed_count, skipped_count, created_at, updated_at, email_id, opened_count, clicked_count, ab_enabled, ab_subject_b, ab_test_percent, ab_winner_metric, ab_test_minutes, ab_winner, ab_test_started_at, deleted_at, materialized_at FROM email_campaigns WHERE status = 'sending' AND deleted_at IS NULL AND materialized_at IS NULL ORDER BY updated_at
+`
+
+// Claimed but not yet fully materialized, retried until complete
+func (q *Queries) ListUnmaterializedCampaigns(ctx context.Context) ([]EmailCampaign, error) {
+	rows, err := q.db.QueryContext(ctx, listUnmaterializedCampaigns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmailCampaign{}
+	for rows.Next() {
+		var i EmailCampaign
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChannelID,
+			&i.Name,
+			&i.Subject,
+			&i.Blocks,
+			&i.Styles,
+			&i.AudienceKind,
+			&i.AudienceID,
+			&i.Status,
+			&i.ScheduledFor,
+			&i.SentAt,
+			&i.TotalRecipients,
+			&i.SentCount,
+			&i.FailedCount,
+			&i.SkippedCount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EmailID,
+			&i.OpenedCount,
+			&i.ClickedCount,
+			&i.AbEnabled,
+			&i.AbSubjectB,
+			&i.AbTestPercent,
+			&i.AbWinnerMetric,
+			&i.AbTestMinutes,
+			&i.AbWinner,
+			&i.AbTestStartedAt,
+			&i.DeletedAt,
+			&i.MaterializedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markCampaignMaterialized = `-- name: MarkCampaignMaterialized :exec
+UPDATE email_campaigns c
+SET total_recipients = (SELECT COUNT(*) FROM email_campaign_recipients r WHERE r.campaign_id = c.id),
+    materialized_at = NOW(), updated_at = NOW()
+WHERE c.id = $1
+`
+
+// Written only after every batch landed
+func (q *Queries) MarkCampaignMaterialized(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, markCampaignMaterialized, id)
+	return err
 }
 
 const markCampaignTesting = `-- name: MarkCampaignTesting :execrows
@@ -669,6 +805,18 @@ func (q *Queries) RefreshCampaignCounts(ctx context.Context, id uuid.UUID) error
 	return err
 }
 
+const releaseRecipientClaim = `-- name: ReleaseRecipientClaim :exec
+UPDATE email_campaign_recipients
+SET status = 'pending', sent_at = NULL
+WHERE id = $1 AND status = 'sent'
+`
+
+// Hands a claim back untouched when the send was abandoned before any mail went out, so the next tick retries the recipient
+func (q *Queries) ReleaseRecipientClaim(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, releaseRecipientClaim, id)
+	return err
+}
+
 const restoreEmailCampaign = `-- name: RestoreEmailCampaign :execrows
 UPDATE email_campaigns SET deleted_at = NULL, updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NOT NULL
@@ -700,22 +848,6 @@ func (q *Queries) ScheduleEmailCampaign(ctx context.Context, arg ScheduleEmailCa
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const setCampaignTotal = `-- name: SetCampaignTotal :exec
-UPDATE email_campaigns
-SET total_recipients = $1, updated_at = NOW()
-WHERE id = $2
-`
-
-type SetCampaignTotalParams struct {
-	TotalRecipients int32     `json:"total_recipients"`
-	ID              uuid.UUID `json:"id"`
-}
-
-func (q *Queries) SetCampaignTotal(ctx context.Context, arg SetCampaignTotalParams) error {
-	_, err := q.db.ExecContext(ctx, setCampaignTotal, arg.TotalRecipients, arg.ID)
-	return err
 }
 
 const setCampaignWinner = `-- name: SetCampaignWinner :execrows

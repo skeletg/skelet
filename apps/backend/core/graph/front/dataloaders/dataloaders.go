@@ -353,10 +353,22 @@ func groupedMembershipsBatchFn(svc *catalog.Service) dataloader.BatchFunc[uuid.U
 	}
 }
 
-func productListingsBatchFn(svc *catalog.Service) dataloader.BatchFunc[uuid.UUID, []catalog.ProductChannelListing] { // no listings means a nil slice, not an error
+type ListingReader interface {
+	ListProductChannelListingsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]catalog.ProductChannelListing, error)
+	ListProductChannelListingsByProductIDsForChannel(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID][]catalog.ProductChannelListing, error)
+}
+
+func StorefrontListings(ctx context.Context, svc ListingReader, productIDs []uuid.UUID) (map[uuid.UUID][]catalog.ProductChannelListing, error) {
+	if ch, ok := channel.FromContext(ctx); ok {
+		return svc.ListProductChannelListingsByProductIDsForChannel(ctx, productIDs, ch.ID)
+	}
+	return svc.ListProductChannelListingsByProductIDs(ctx, productIDs)
+}
+
+func productListingsBatchFn(svc ListingReader) dataloader.BatchFunc[uuid.UUID, []catalog.ProductChannelListing] { // no listings means a nil slice, not an error
 	return func(ctx context.Context, keys []uuid.UUID) []*dataloader.Result[[]catalog.ProductChannelListing] {
 		out := make([]*dataloader.Result[[]catalog.ProductChannelListing], len(keys))
-		byID, err := svc.ListProductChannelListingsByProductIDs(ctx, keys)
+		byID, err := StorefrontListings(ctx, svc, keys)
 		if err != nil {
 			for i := range keys {
 				out[i] = &dataloader.Result[[]catalog.ProductChannelListing]{Error: err}

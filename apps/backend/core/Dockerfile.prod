@@ -32,8 +32,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # as the vips-dev the server/media binaries were compiled against
 FROM alpine:3.24
 # ca-certificates for outbound TLS, curl for the healthcheck, tzdata for scheduler time math
-# postgresql18-client for pg_dump, and vips for the two binaries built with -tags vips
-RUN apk add --no-cache ca-certificates curl tzdata postgresql18-client vips && adduser -D -u 10001 app
+# vips for the two binaries built with -tags vips
+RUN apk add --no-cache ca-certificates curl tzdata vips && adduser -D -u 10001 app
 WORKDIR /app
 COPY --from=build /out/server /app/server
 COPY --from=build /out/media /app/media

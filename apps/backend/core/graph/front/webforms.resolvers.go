@@ -93,7 +93,11 @@ func (r *mutationResolver) PresignWebFormUpload(ctx context.Context, formID stri
 	if err != nil {
 		return nil, invalidID("form")
 	}
-	url, key, err := r.WebFormSvc.PresignUpload(ctx, fid, fieldKey, filename, contentType, int64(sizeBytes))
+	sv, ok := channel.FromContext(ctx)
+	if !ok || sv == nil {
+		return nil, storeRequired()
+	}
+	url, key, err := r.WebFormSvc.PresignUpload(ctx, fid, sv.ID, fieldKey, filename, contentType, int64(sizeBytes))
 	if err != nil {
 		return nil, err
 	}

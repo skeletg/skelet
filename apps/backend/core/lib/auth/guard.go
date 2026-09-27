@@ -173,7 +173,7 @@ func RequireScopedOrGlobal(ctx context.Context, svc ScopeAwareChecker, slug stri
 		return ErrForbidden
 	}
 	if global || channelID == uuid.Nil {
-		return RequirePermission(ctx, svc, slug)
+		return RequireGlobalPermission(ctx, svc, slug)
 	}
 	return RequireChannelPermission(ctx, svc, slug, channelID, nil)
 }

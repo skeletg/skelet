@@ -6,7 +6,7 @@
 
 import { displayName } from "@/app/lib/display";
 import { lexicalPlainText } from "@/app/lib/lexical-render";
-import { absUrl as abs } from "@/app/lib/site-url";
+import { SITE_URL, absUrl as abs } from "@/app/lib/site-url";
 
 type ProductLikeForJsonLd = {
   id: string;
@@ -79,13 +79,14 @@ export function productJsonLd(
   product: ProductLikeForJsonLd,
   href: string,
   reviewsData?: ReviewsForJsonLd,
+  base: string = SITE_URL,
 ): Record<string, unknown> {
   // Media URLs come back host-relative - a relative image is invisible to a crawler
   // reading the JSON out of context
   const images: string[] = [];
-  if (product.mainImage?.url) images.push(abs(product.mainImage.url));
+  if (product.mainImage?.url) images.push(abs(product.mainImage.url, base));
   for (const m of product.media ?? []) {
-    const u = m.url ? abs(m.url) : "";
+    const u = m.url ? abs(m.url, base) : "";
     if (u && !images.includes(u)) images.push(u);
   }
 
@@ -106,7 +107,7 @@ export function productJsonLd(
     product.kind === "CONFIGURABLE" && variants.length > 0
       ? {
           "@type": "AggregateOffer",
-          url: abs(href),
+          url: abs(href, base),
           priceCurrency: product.defaultCurrencyCode,
           lowPrice: (Math.min(...variants.map((c) => c.defaultPrice)) / 100).toFixed(2),
           highPrice: (Math.max(...variants.map((c) => c.defaultPrice)) / 100).toFixed(2),
@@ -116,7 +117,7 @@ export function productJsonLd(
         }
       : {
           "@type": "Offer",
-          url: abs(href),
+          url: abs(href, base),
           priceCurrency: product.defaultCurrencyCode,
           price,
           availability: availability(product.inStock),
@@ -130,11 +131,11 @@ export function productJsonLd(
   const out: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Product",
-    "@id": abs(href),
+    "@id": abs(href, base),
     name: displayName(product.name, product.sku),
     sku: product.sku,
     productID: product.id,
-    url: abs(href),
+    url: abs(href, base),
     image: images.length > 0 ? images : undefined,
     description,
     brand: brand ? { "@type": "Brand", name: brand } : undefined,
@@ -195,6 +196,7 @@ export function itemListJsonLd(
   products: ItemListProduct[],
   toHref: (p: ItemListProduct) => string,
   offset = 0,
+  base: string = SITE_URL,
 ): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
@@ -204,7 +206,7 @@ export function itemListJsonLd(
       "@type": "ListItem",
       position: offset + i + 1,
       name: displayName(p.name, p.sku),
-      url: abs(toHref(p)),
+      url: abs(toHref(p), base),
     })),
   };
 }
@@ -216,6 +218,7 @@ type BreadcrumbItem = {
 
 export function breadcrumbJsonLd(
   items: BreadcrumbItem[],
+  base: string = SITE_URL,
 ): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
@@ -224,7 +227,7 @@ export function breadcrumbJsonLd(
       "@type": "ListItem",
       position: i + 1,
       name: it.name,
-      item: abs(it.href),
+      item: abs(it.href, base),
     })),
   };
 }
@@ -244,6 +247,7 @@ type BlogPostForJsonLd = {
 export function blogPostingJsonLd(
   post: BlogPostForJsonLd,
   href: string,
+  base: string = SITE_URL,
 ): Record<string, unknown> {
   const title = displayName(
     post.content?.metaTitle || post.content?.title,
@@ -256,9 +260,9 @@ export function blogPostingJsonLd(
   return {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
-    "@id": abs(href),
+    "@id": abs(href, base),
     headline: title,
-    url: abs(href),
+    url: abs(href, base),
     datePublished: post.publishedAt ?? undefined,
     dateModified: post.publishedAt ?? undefined,
     description,
@@ -284,6 +288,7 @@ type CMSPageForJsonLd = {
 export function cmsPageJsonLd(
   page: CMSPageForJsonLd,
   href: string,
+  base: string = SITE_URL,
 ): Record<string, unknown> {
   const title = displayName(
     page.content?.metaTitle || page.content?.title,
@@ -292,9 +297,9 @@ export function cmsPageJsonLd(
   return {
     "@context": "https://schema.org",
     "@type": "WebPage",
-    "@id": abs(href),
+    "@id": abs(href, base),
     name: title,
-    url: abs(href),
+    url: abs(href, base),
     description: page.content?.metaDescription || undefined,
     datePublished: page.publishedAt ?? undefined,
     dateModified: page.publishedAt ?? undefined,
@@ -329,6 +334,7 @@ export function cmsSchemaFromSpec(
   raw: string,
   page: CMSPageForSchemaSpec,
   href: string,
+  base: string = SITE_URL,
 ): Record<string, unknown> | null {
   let spec: CmsSchemaSpec;
   try {
@@ -339,9 +345,9 @@ export function cmsSchemaFromSpec(
   if (!spec || typeof spec !== "object") return null;
 
   const name = displayName(page.content?.metaTitle || page.content?.title, page.slug);
-  const url = abs(page.canonicalUrl?.trim() || href);
+  const url = abs(page.canonicalUrl?.trim() || href, base);
   const description = page.content?.metaDescription || undefined;
-  const image = spec.image && page.ogImage ? abs(page.ogImage) : undefined;
+  const image = spec.image && page.ogImage ? abs(page.ogImage, base) : undefined;
   // publishedAt is the only date the page carries, so it stands in for both when toggled
   const datePublished = spec.datePublished ? page.publishedAt ?? undefined : undefined;
   const dateModified = spec.dateModified ? page.publishedAt ?? undefined : undefined;
@@ -385,33 +391,36 @@ export function parseCustomJsonLd(raw: string | null): unknown {
   }
 }
 
-export function organizationJsonLd(input: {
-  name: string;
-  email?: string | null;
-}): Record<string, unknown> {
+export function organizationJsonLd(
+  input: {
+    name: string;
+    email?: string | null;
+  },
+  base: string = SITE_URL,
+): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
-    "@id": abs("/") + "#organization",
+    "@id": abs("/", base) + "#organization",
     name: input.name,
-    url: abs("/"),
+    url: abs("/", base),
     ...(input.email ? { email: input.email } : {}),
   };
 }
 
-export function webSiteJsonLd(input: { name: string }): Record<string, unknown> {
+export function webSiteJsonLd(input: { name: string }, base: string = SITE_URL): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "@id": abs("/") + "#website",
+    "@id": abs("/", base) + "#website",
     name: input.name,
-    url: abs("/"),
-    publisher: { "@id": abs("/") + "#organization" },
+    url: abs("/", base),
+    publisher: { "@id": abs("/", base) + "#organization" },
     potentialAction: {
       "@type": "SearchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate: abs("/search") + "?q={search_term_string}",
+        urlTemplate: abs("/search", base) + "?q={search_term_string}",
       },
       "query-input": "required name=search_term_string",
     },

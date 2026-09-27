@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/configstore"
 	dbsqlc "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
@@ -40,29 +39,19 @@ func someChannelID(t *testing.T, conn *sql.DB) uuid.UUID {
 	return id
 }
 
-// twoChannelIDs skips when the database has only one store to compare against
+// twoChannelIDs is the reference channel and a clone of it, so isolation is checked against a real pair on a fresh database
 func twoChannelIDs(t *testing.T, conn *sql.DB) []uuid.UUID {
 	t.Helper()
-	rows, err := conn.Query(`SELECT id FROM channels LIMIT 2`)
-	if err != nil {
-		t.Fatalf("list channels: %v", err)
+	first := someChannelID(t, conn)
+	var second uuid.UUID
+	if err := conn.QueryRow(
+		`INSERT INTO channels (slug, name, currency_code, default_locale)
+		 SELECT $1, $1, currency_code, default_locale FROM channels WHERE id = $2
+		 RETURNING id`, "cfg-"+uuid.NewString()[:8], first).Scan(&second); err != nil {
+		t.Fatalf("seed second channel: %v", err)
 	}
-	defer func() { _ = rows.Close() }()
-	var ids []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			t.Fatalf("scan channel: %v", err)
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate channels: %v", err)
-	}
-	if len(ids) < 2 {
-		t.Skip("need two channels to check isolation")
-	}
-	return ids
+	t.Cleanup(func() { _, _ = conn.Exec(`DELETE FROM channels WHERE id = $1`, second) })
+	return []uuid.UUID{first, second}
 }
 
 func valuesByScope(rows []config.StoredValue) map[string]string {

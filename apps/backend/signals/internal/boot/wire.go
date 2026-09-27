@@ -7,14 +7,13 @@ import (
 	"github.com/skeletg/skelet/apps/backend/signals/internal/lens"
 )
 
-// Wiring is the cross-service glue the constructors cannot express: Lens takes its read handle where
-// one was opened, coalesces page views through the rollup, and GCs replay blobs in the bucket
+// Wiring is the glue for what only some deployments have: Lens takes a read handle where a replica
+// was opened, and a blob store where a bucket is configured
 var Wiring = fx.Module("wiring", fx.Invoke(wire))
 
-func wire(rc RootContext, lensSvc *lens.Service, rq ReadQueries, rollup *analytics.TrafficRollup) error {
+func wire(rc RootContext, lensSvc *lens.Service, channels *analytics.ChannelRoster, rq ReadQueries) error {
 	if rq.Queries != nil {
 		lensSvc.SetReadQueries(rq.Queries)
 	}
-	lensSvc.SetRollup(rollup)
-	return wireLensBlobStore(rc.Context, lensSvc)
+	return wireLensBlobStore(rc.Context, lensSvc, channels)
 }

@@ -64,7 +64,7 @@ func TestFillPageContent(t *testing.T) {
 	}
 
 	t.Run("requested locale wins", func(t *testing.T) {
-		ps := &pageService{&core{defaultLocale: fakeDefaultLocale{"en"}}}
+		ps := &pageService{core: &core{defaultLocale: fakeDefaultLocale{"en"}}}
 		p := newPage()
 		ps.fillPageContent(ctx, p, "de")
 		if p.Content == nil || p.Content.Locale != "de" {
@@ -73,7 +73,7 @@ func TestFillPageContent(t *testing.T) {
 	})
 
 	t.Run("falls back to default locale", func(t *testing.T) {
-		ps := &pageService{&core{defaultLocale: fakeDefaultLocale{"en"}}}
+		ps := &pageService{core: &core{defaultLocale: fakeDefaultLocale{"en"}}}
 		p := newPage()
 		ps.fillPageContent(ctx, p, "fr") // no fr row
 		if p.Content == nil || p.Content.Locale != "en" {
@@ -82,7 +82,7 @@ func TestFillPageContent(t *testing.T) {
 	})
 
 	t.Run("no match and no default leaves nil", func(t *testing.T) {
-		ps := &pageService{&core{defaultLocale: fakeDefaultLocale{""}}}
+		ps := &pageService{core: &core{defaultLocale: fakeDefaultLocale{""}}}
 		p := newPage()
 		ps.fillPageContent(ctx, p, "fr")
 		if p.Content != nil {

@@ -6,6 +6,7 @@ package signalsgrpc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -25,6 +26,8 @@ import (
 )
 
 type maintenanceServer struct {
+	roster *analytics.Roster
+	traits *analytics.TraitCompute
 	signalsv1.UnimplementedMaintenanceServiceServer
 	rec         *analytics.Recorder
 	lens        *lens.Service
@@ -41,12 +44,14 @@ type maintenanceServer struct {
 // The engine ticks core's scheduler drives - one advance of the runnable runs, one pass over the due campaigns
 type flowEngine interface {
 	Drain(ctx context.Context, budget time.Duration) (int, error)
+	PruneFinishedRuns(ctx context.Context, before time.Time) (int64, error)
 	// The segment_entered moments start off the refresh that found them
 	Enroll(ctx context.Context, trigger string, channelID, customerID uuid.UUID, email string, payload json.RawMessage, key string) int
 }
 
 type campaignPipeline interface {
 	Drain(ctx context.Context, budget time.Duration) (int, error)
+	PruneRecipients(ctx context.Context, before time.Time) (int64, error)
 }
 
 // The slice of the send log the retention sweep drives
@@ -96,6 +101,21 @@ func (s *maintenanceServer) PruneSendLog(ctx context.Context, _ *signalsv1.Prune
 	if err := signalsboot.SendLogRetentionJob(s.settings, s.sends)(ctx); err != nil {
 		return nil, err
 	}
+	// The marketing history behind those sends ages out on the same window
+	cutoff, ok, err := signalsboot.SendHistoryCutoff(ctx, s.settings)
+	if err != nil || !ok {
+		return &signalsv1.PruneSendLogResponse{}, err
+	}
+	if s.flows != nil {
+		if _, err := s.flows.PruneFinishedRuns(ctx, cutoff); err != nil {
+			return nil, fmt.Errorf("prune finished flow runs: %w", err)
+		}
+	}
+	if s.campaigns != nil {
+		if _, err := s.campaigns.PruneRecipients(ctx, cutoff); err != nil {
+			return nil, fmt.Errorf("prune campaign recipients: %w", err)
+		}
+	}
 	return &signalsv1.PruneSendLogResponse{}, nil
 }
 
@@ -142,7 +162,7 @@ func (s *maintenanceServer) ComputeTraits(ctx context.Context, _ *signalsv1.Comp
 	if err := requireSystem(ctx); err != nil {
 		return nil, err
 	}
-	if err := signalsboot.TraitComputeJob(s.rec, s.settings)(ctx); err != nil {
+	if err := signalsboot.TraitComputeJob(s.roster, s.traits, s.settings)(ctx); err != nil {
 		return nil, err
 	}
 	return &signalsv1.ComputeTraitsResponse{}, nil
@@ -218,7 +238,15 @@ func (s *maintenanceServer) ListBrowseAbandoners(ctx context.Context, req *signa
 	if err := requireSystem(ctx); err != nil {
 		return nil, err
 	}
-	cands, err := s.lens.ListBrowseAbandoners(ctx, req.GetIdleSince().AsTime(), req.GetMaxAge().AsTime(), req.GetLimit())
+	var channelID uuid.UUID
+	if raw := req.GetChannelId(); raw != "" {
+		id, err := parseID("channel_id", raw)
+		if err != nil {
+			return nil, err
+		}
+		channelID = id
+	}
+	cands, err := s.lens.ListBrowseAbandoners(ctx, channelID, req.GetIdleSince().AsTime(), req.GetMaxAge().AsTime(), req.GetLimit())
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +309,7 @@ func (s *maintenanceServer) RefreshBehavioralSegments(ctx context.Context, req *
 		for _, a := range attrs {
 			auto = append(auto, analytics.AffinityAttr{Slug: a.GetSlug(), Name: a.GetName()})
 		}
-		channels, err := s.rec.RosterChannels(ctx) // core's channels, already copied across for the trait recompute
+		channels, err := s.roster.RosterChannels(ctx) // core's channels, already copied across for the trait recompute
 		if err != nil {
 			return nil, err
 		}

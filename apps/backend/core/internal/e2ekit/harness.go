@@ -183,7 +183,7 @@ func Options(cfg wiring.Config, ctx context.Context, bg *sync.WaitGroup, populat
 }
 
 func Config() (wiring.Config, bool) {
-	dbURL := os.Getenv("DATABASE_URL")
+	dbURL, _ := testdb.URL("DATABASE_URL")
 	if dbURL == "" {
 		return wiring.Config{}, false
 	}
