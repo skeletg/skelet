@@ -36,6 +36,7 @@ func NewService(repo Repository) *Service {
 }
 
 func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, error) {
+	defer invalidateRequestCache(ctx)
 	if !input.Kind.Valid() {
 		return CreateResult{}, fmt.Errorf("%w: %q", ErrInvalidKind, input.Kind)
 	}
@@ -63,6 +64,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 }
 
 func (s *Service) Update(ctx context.Context, input UpdateInput) (Provider, error) {
+	defer invalidateRequestCache(ctx)
 	if input.TargetURL != nil {
 		if err := urlguard.ValidateTargetURL(*input.TargetURL, s.AllowPrivateTargets); err != nil {
 			return Provider{}, err
@@ -107,12 +109,12 @@ func (s *Service) GetBySlug(ctx context.Context, kind Kind, slug string, channel
 // ListActiveByKind returns the providers a consumer should invoke for one
 // decision: global providers plus the ones scoped to the given channel
 func (s *Service) ListActiveByKind(ctx context.Context, kind Kind, channelID *uuid.UUID) ([]Provider, error) {
-	return s.repo.ListActiveByKind(ctx, kind, channelID)
+	return s.listActive(ctx, kind, channelID)
 }
 
 // A single-answer kind consults the channel's own provider when it has one, else a global one
 func (s *Service) ActiveFor(ctx context.Context, kind Kind, channelID *uuid.UUID) (Provider, bool, error) {
-	ps, err := s.repo.ListActiveByKind(ctx, kind, channelID)
+	ps, err := s.listActive(ctx, kind, channelID)
 	if err != nil || len(ps) == 0 {
 		return Provider{}, false, err
 	}
@@ -125,6 +127,7 @@ func (s *Service) ActiveFor(ctx context.Context, kind Kind, channelID *uuid.UUID
 }
 
 func (s *Service) SetActive(ctx context.Context, id uuid.UUID, active bool) (Provider, error) {
+	defer invalidateRequestCache(ctx)
 	p, err := s.repo.SetActive(ctx, id, active)
 	if err != nil {
 		return Provider{}, err
@@ -136,6 +139,7 @@ func (s *Service) SetActive(ctx context.Context, id uuid.UUID, active bool) (Pro
 }
 
 func (s *Service) RotateSecret(ctx context.Context, id uuid.UUID) (CreateResult, error) {
+	defer invalidateRequestCache(ctx)
 	raw, err := generateSecret()
 	if err != nil {
 		return CreateResult{}, fmt.Errorf("generate secret: %w", err)
@@ -148,6 +152,7 @@ func (s *Service) RotateSecret(ctx context.Context, id uuid.UUID) (CreateResult,
 }
 
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
+	defer invalidateRequestCache(ctx)
 	invocationCache.invalidate(id)
 	return s.repo.Delete(ctx, id)
 }

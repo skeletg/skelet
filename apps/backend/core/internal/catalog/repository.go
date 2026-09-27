@@ -1194,6 +1194,68 @@ func (r *postgresRepository) ListProductParents(ctx context.Context, childID uui
 	return out, nil
 }
 
+func (r *postgresRepository) ListProductChildIDsByParentIDs(ctx context.Context, parentIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+	out := make(map[uuid.UUID][]uuid.UUID, len(parentIDs))
+	if len(parentIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListProductChildIDsByParentIDs(ctx, parentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list product child ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.ParentID] = append(out[row.ParentID], row.ChildID)
+	}
+	return out, nil
+}
+
+// Bare rows - no attribute graph, content or children
+func (r *postgresRepository) ListProductRowsByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Product, error) {
+	out := make(map[uuid.UUID]Product, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.GetProductsByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("get products by ids: %w", err)
+	}
+	for _, row := range rows {
+		p := toProduct(row)
+		out[p.ID] = p
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) ListProductContentByProductIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]ProductContent, error) {
+	out := make(map[uuid.UUID][]ProductContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListProductContentByProductIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("list product content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.ProductID] = append(out[row.ProductID], toProductContent(row))
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) ListProductTypeIDsByProductIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]uuid.UUID, error) {
+	out := make(map[uuid.UUID]uuid.UUID, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListProductTypeIDsByProductIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("list product type ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.ID] = row.ProductTypeID
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ListConfigurableParentByChildIDs(ctx context.Context, childIDs []uuid.UUID) (map[uuid.UUID]ConfigurableParentLink, error) {
 	out := make(map[uuid.UUID]ConfigurableParentLink, len(childIDs))
 	if len(childIDs) == 0 {

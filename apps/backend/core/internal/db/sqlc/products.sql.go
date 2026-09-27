@@ -1349,6 +1349,48 @@ func (q *Queries) ListProductContent(ctx context.Context, productID uuid.UUID) (
 	return items, nil
 }
 
+const listProductContentByProductIDs = `-- name: ListProductContentByProductIDs :many
+SELECT product_id, locale, name, description, meta_title, meta_description, created_at, updated_at, short_description, meta_keywords, search_tsv FROM catalog_product_content
+WHERE product_id = ANY($1::uuid[])
+ORDER BY product_id, locale
+`
+
+// Every locale's content for a set of products
+func (q *Queries) ListProductContentByProductIDs(ctx context.Context, productIds []uuid.UUID) ([]ProductContent, error) {
+	rows, err := q.db.QueryContext(ctx, listProductContentByProductIDs, pq.Array(productIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProductContent{}
+	for rows.Next() {
+		var i ProductContent
+		if err := rows.Scan(
+			&i.ProductID,
+			&i.Locale,
+			&i.Name,
+			&i.Description,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ShortDescription,
+			&i.MetaKeywords,
+			&i.SearchTsv,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProductContentByScope = `-- name: ListProductContentByScope :many
 SELECT product_id, locale, name, description, meta_title, meta_description, created_at, updated_at, short_description, meta_keywords, search_tsv FROM catalog_product_content
 WHERE product_id = ANY($1::uuid[])
@@ -1492,6 +1534,38 @@ func (q *Queries) ListProductParents(ctx context.Context, childID uuid.UUID) ([]
 			&i.MaxOrderQty,
 			&i.CostCents,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProductTypeIDsByProductIDs = `-- name: ListProductTypeIDsByProductIDs :many
+SELECT id, product_type_id FROM catalog_products WHERE id = ANY($1::uuid[])
+`
+
+type ListProductTypeIDsByProductIDsRow struct {
+	ID            uuid.UUID `json:"id"`
+	ProductTypeID uuid.UUID `json:"product_type_id"`
+}
+
+func (q *Queries) ListProductTypeIDsByProductIDs(ctx context.Context, ids []uuid.UUID) ([]ListProductTypeIDsByProductIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProductTypeIDsByProductIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProductTypeIDsByProductIDsRow{}
+	for rows.Next() {
+		var i ListProductTypeIDsByProductIDsRow
+		if err := rows.Scan(&i.ID, &i.ProductTypeID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

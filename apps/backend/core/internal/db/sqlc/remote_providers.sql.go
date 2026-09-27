@@ -203,6 +203,52 @@ func (q *Queries) ListActiveRemoteProvidersByKind(ctx context.Context, arg ListA
 	return items, nil
 }
 
+const listActiveRemoteProvidersForChannel = `-- name: ListActiveRemoteProvidersForChannel :many
+SELECT id, kind, slug, name, target_url, signing_secret, config, timeout_ms, cache_ttl_s, failure_policy, channel_id, is_active, created_at, updated_at FROM remote_providers
+WHERE is_active = TRUE
+  AND (channel_id IS NULL OR channel_id = $1::uuid)
+ORDER BY kind, slug
+`
+
+// Every kind for one channel, global rows included
+func (q *Queries) ListActiveRemoteProvidersForChannel(ctx context.Context, channelID uuid.NullUUID) ([]RemoteProvider, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveRemoteProvidersForChannel, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RemoteProvider{}
+	for rows.Next() {
+		var i RemoteProvider
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Slug,
+			&i.Name,
+			&i.TargetUrl,
+			&i.SigningSecret,
+			&i.Config,
+			&i.TimeoutMs,
+			&i.CacheTtlS,
+			&i.FailurePolicy,
+			&i.ChannelID,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRemoteProviders = `-- name: ListRemoteProviders :many
 SELECT id, kind, slug, name, target_url, signing_secret, config, timeout_ms, cache_ttl_s, failure_policy, channel_id, is_active, created_at, updated_at FROM remote_providers ORDER BY kind, slug
 `
