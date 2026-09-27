@@ -4,17 +4,18 @@ import { email, newPassword } from '@/shared/schemas/fields'
 // New-customer page. Accounts are scoped to one store, so the header must point at a channel; the
 // password is only ever typed here and is kept out of the stored draft
 
-export const newCustomerSchema = z.object({
-  firstName: z.string().trim().min(1, 'First name is required'),
-  lastName: z.string().trim().min(1, 'Last name is required'),
-  email: email(),
-  password: newPassword(),
-  phone: z.string(),
-  isActive: z.boolean(),
-  isEmailVerified: z.boolean(),
-  // '' = the store's default group
-  groupSlug: z.string(),
-})
+export const newCustomerSchema = z
+  .object({
+    firstName: z.string().trim().min(1, 'First name is required').describe("Customer's first name"),
+    lastName: z.string().trim().min(1, 'Last name is required').describe("Customer's last name"),
+    email: email().describe("Customer's sign-in email address"),
+    password: newPassword(),
+    phone: z.string().describe('Phone number - empty string for none'),
+    isActive: z.boolean().describe('Whether the customer can sign in'),
+    isEmailVerified: z.boolean().describe('Mark the email address as already verified'),
+    groupSlug: z.string().describe("Slug of the customer group to join - empty string for the store's default group"),
+  })
+  .describe('A new customer account in the current store')
 
 export type NewCustomerValues = z.infer<typeof newCustomerSchema>
 

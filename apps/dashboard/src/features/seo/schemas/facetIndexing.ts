@@ -9,20 +9,25 @@ import type { FacetAttr } from '../facet-indexing'
 export const COMBINATIONS_PATH = 'seo/facets/indexable_combinations'
 export const MAX_SLOTS = 4
 
-export const facetIndexingSchema = z.object({
-  // Attribute id -> indexable
-  facets: z.record(z.string(), z.boolean()),
-  // Attribute value id -> indexable
-  values: z.record(z.string(), z.boolean()),
-  // Each row is a combination of facet slugs; a blank slot is one not picked yet
-  combos: z.array(z.array(z.string())).superRefine((rows, ctx) => {
-    rows.forEach((row, i) => {
-      if (row.some((slug) => slug === '')) {
-        ctx.addIssue({ code: 'custom', path: [i], message: 'Pick a facet for every slot, or remove the row' })
-      }
-    })
-  }),
-})
+export const facetIndexingSchema = z
+  .object({
+    facets: z
+      .record(z.string(), z.boolean())
+      .describe('Per-attribute SEO opt-in, keyed by attribute ID - a filter URL is indexable only when its attribute and value are both on'),
+    values: z.record(z.string(), z.boolean()).describe('Per-value SEO opt-in, keyed by attribute value ID'),
+    // A blank slot is one not picked yet
+    combos: z
+      .array(z.array(z.string()))
+      .superRefine((rows, ctx) => {
+        rows.forEach((row, i) => {
+          if (row.some((slug) => slug === '')) {
+            ctx.addIssue({ code: 'custom', path: [i], message: 'Pick a facet for every slot, or remove the row' })
+          }
+        })
+      })
+      .describe(`Multi-facet filter combinations that may be indexed, each a list of 2 to ${MAX_SLOTS} facet slugs`),
+  })
+  .describe('Which storefront filter URLs search engines may index')
 
 export type FacetIndexingValues = z.infer<typeof facetIndexingSchema>
 

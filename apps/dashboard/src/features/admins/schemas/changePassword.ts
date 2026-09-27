@@ -5,10 +5,11 @@ import { newPassword } from '@/shared/schemas/fields'
 
 export const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(1, 'Enter your current password'),
+    currentPassword: z.string().min(1, 'Enter your current password').describe("The signed-in admin's current password"),
     newPassword: newPassword(),
-    confirmPassword: z.string(),
+    confirmPassword: z.string().describe('The new password typed again - must match it exactly'),
   })
+  .describe("A change to the signed-in admin's own password")
   .refine((v) => v.confirmPassword === v.newPassword, { message: "Passwords don't match", path: ['confirmPassword'] })
   .refine((v) => !v.newPassword || v.newPassword !== v.currentPassword, {
     message: 'Has to be different from the current password',

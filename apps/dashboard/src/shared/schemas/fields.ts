@@ -1,7 +1,10 @@
 import { z } from 'zod'
 
 // Field rules every form shares - email, password, numbers typed as text, slugs, URLs, ISO codes and
-// datetime-local text - so a schema says what a field is rather than how it is checked
+// datetime-local text - so a schema says what a field is rather than how it is checked.
+//
+// Each rule carries a default .describe() naming the format, since a refine leaves nothing behind in
+// a JSON Schema. A field's own .describe() replaces it, so one that overrides restates the format
 
 // ---------- Email ----------
 
@@ -10,10 +13,13 @@ export const EMAIL_MESSAGE = 'Enter a valid email address'
 // Padding is forgiven - the submit mappers trim before sending
 export const isEmail = (v: string) => z.email().safeParse(v.trim()).success
 
-export const email = (message = EMAIL_MESSAGE) => z.string().refine(isEmail, message)
+export const email = (message = EMAIL_MESSAGE) => z.string().refine(isEmail, message).describe('An email address')
 
-// Blank means "none"
-export const optionalEmail = (message = EMAIL_MESSAGE) => z.string().refine((v) => v.trim() === '' || isEmail(v), message)
+export const optionalEmail = (message = EMAIL_MESSAGE) =>
+  z
+    .string()
+    .refine((v) => v.trim() === '' || isEmail(v), message)
+    .describe('An email address, or an empty string for none')
 
 // ---------- Password ----------
 
@@ -21,7 +27,8 @@ export const optionalEmail = (message = EMAIL_MESSAGE) => z.string().refine((v) 
 export const MIN_PASSWORD_LENGTH = 8
 export const PASSWORD_HINT = `At least ${MIN_PASSWORD_LENGTH} characters`
 
-export const newPassword = () => z.string().min(MIN_PASSWORD_LENGTH, PASSWORD_HINT)
+export const newPassword = () =>
+  z.string().min(MIN_PASSWORD_LENGTH, PASSWORD_HINT).describe(`A new password, at least ${MIN_PASSWORD_LENGTH} characters`)
 
 // ---------- Numbers ----------
 
@@ -70,13 +77,19 @@ export function numberTextMessage({ int, min, above, max }: NumberTextRule): str
   return bound ? bound[0].toUpperCase() + bound.slice(1) : 'A number'
 }
 
+const orNone = (optional?: boolean) => (optional ? ', or an empty string when not set' : '')
+
 export const numberText = (rule: NumberTextRule = {}, message = numberTextMessage(rule)) =>
-  z.string().refine((v) => isNumberText(v, rule), message)
+  z
+    .string()
+    .refine((v) => isNumberText(v, rule), message)
+    .describe(`A number written as text - ${numberTextMessage(rule).toLowerCase()}${orNone(rule.optional)}`)
 
 // ---------- Money ----------
 
-// Typed in major units ("12.50"), stored as integer cents
-export const money = (opts: { optional?: boolean } = {}) => numberText({ ...opts, min: 0 })
+// Stored as integer cents
+export const money = (opts: { optional?: boolean } = {}) =>
+  numberText({ ...opts, min: 0 }).describe(`An amount in major currency units written as text, such as "12.50"${orNone(opts.optional)}`)
 
 export const centsToDollars = (cents: number) => (cents / 100).toFixed(2)
 export const dollarsToCents = (v: string) => Math.round((parseNumberText(v) ?? 0) * 100)
@@ -91,6 +104,7 @@ export const contentSlug = () =>
     .trim()
     .min(1, 'Slug is required')
     .regex(/^[a-z0-9._-]+$/, 'Lowercase letters, numbers, dots, underscores and hyphens only')
+    .describe('A URL slug - lowercase letters, numbers, dots, underscores and hyphens')
 
 // Menu (internal/menu validateSlug) and channel slugs - the content rule without dots
 export const handleSlug = () =>
@@ -99,26 +113,32 @@ export const handleSlug = () =>
     .trim()
     .min(1, 'Slug is required')
     .regex(/^[a-z0-9_-]+$/, 'Lowercase letters, numbers, underscores and hyphens only')
+    .describe('A handle - lowercase letters, numbers, underscores and hyphens')
 
 // ---------- URLs ----------
 
 export const URL_MESSAGE = 'Enter a full URL, starting with https://'
 
-export const absoluteUrl = (message = URL_MESSAGE) => z.url(message)
+export const absoluteUrl = (message = URL_MESSAGE) => z.url(message).describe('An absolute URL, such as https://example.com')
 
-// Blank means "none"
-export const optionalAbsoluteUrl = (message = URL_MESSAGE) => z.union([z.literal(''), z.url(message)])
+export const optionalAbsoluteUrl = (message = URL_MESSAGE) =>
+  z.union([z.literal(''), z.url(message)]).describe('An absolute URL, such as https://example.com, or an empty string for none')
 
 // ---------- ISO codes ----------
 
 export const isCountryCode = (v: string) => /^[A-Z]{2}$/.test(v)
 
-// ISO 3166-1 alpha-2
 export const countryCode = (opts: { optional?: boolean } = {}, message = 'A 2-letter ISO 3166-1 code, such as US') =>
-  z.string().refine((v) => (opts.optional && v === '') || isCountryCode(v), message)
+  z
+    .string()
+    .refine((v) => (opts.optional && v === '') || isCountryCode(v), message)
+    .describe(`An upper-case ISO 3166-1 alpha-2 country code, such as US${opts.optional ? ', or an empty string for none' : ''}`)
 
-// ISO 4217
-export const currencyCode = (message = 'A 3-letter ISO 4217 code, such as USD') => z.string().regex(/^[A-Z]{3}$/, message)
+export const currencyCode = (message = 'A 3-letter ISO 4217 code, such as USD') =>
+  z
+    .string()
+    .regex(/^[A-Z]{3}$/, message)
+    .describe('An upper-case ISO 4217 currency code, such as USD')
 
 // ---------- Date and time ----------
 

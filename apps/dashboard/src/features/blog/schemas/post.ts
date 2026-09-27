@@ -8,20 +8,23 @@ import { richTextToPlainText, type RichTextValue } from '@/features/catalog/Lexi
 // edited locale's content, and its categories and tags. Publishing, scheduling, archiving and the
 // per-store listings are actions, not fields
 
-const postShape = z.object({
-  slug: contentSlug(),
-  seoNoindex: z.boolean(),
-  // As typed - blank means "let the storefront estimate it"
-  readingTime: numberText({ optional: true, int: true, min: 1 }, 'Whole minutes, one or more'),
-  title: z.string(),
-  // Opaque rich-text JSON to the form - its recursive type would blow up TanStack's deep field paths
-  body: z.unknown(),
-  excerpt: z.unknown(),
-  metaTitle: z.string(),
-  metaDescription: z.string(),
-  categoryIds: z.array(z.string()),
-  tagIds: z.array(z.string()),
-})
+const postShape = z
+  .object({
+    slug: contentSlug().describe('URL slug of the post - lowercase letters, numbers, dots, underscores and hyphens'),
+    seoNoindex: z.boolean().describe('Ask search engines not to index the post'),
+    readingTime: numberText({ optional: true, int: true, min: 1 }, 'Whole minutes, one or more').describe(
+      'Reading time in whole minutes, as text - empty string lets the storefront estimate it',
+    ),
+    title: z.string().describe("Title in the edited locale - required once any of that locale's content is set"),
+    // Opaque rich-text JSON to the form - its recursive type would blow up TanStack's deep field paths
+    body: z.unknown().describe('Body in the edited locale, as Lexical rich-text JSON, or null'),
+    excerpt: z.unknown().describe('Teaser in the edited locale, as Lexical rich-text JSON, or null'),
+    metaTitle: z.string().describe('SEO title in the edited locale - empty string for none'),
+    metaDescription: z.string().describe('SEO description in the edited locale - empty string for none'),
+    categoryIds: z.array(z.string()).describe('IDs of the blog categories the post is filed under'),
+    tagIds: z.array(z.string()).describe('IDs of the blog tags on the post'),
+  })
+  .describe("A blog post's settings, its content in the edited locale, and its categories and tags")
 
 export type PostValues = z.infer<typeof postShape>
 

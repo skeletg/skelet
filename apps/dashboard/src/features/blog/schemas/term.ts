@@ -14,11 +14,15 @@ export type ExistingTerm = {
 }
 
 export function termSchema(opts: { nameRequired: boolean }) {
-  return z.object({
-    slug: z.string().trim().min(1, 'Slug is required'),
-    name: opts.nameRequired ? z.string().trim().min(1, 'Name is required') : z.string(),
-    isPublished: z.boolean(),
-  })
+  return z
+    .object({
+      slug: z.string().trim().min(1, 'Slug is required').describe('URL slug of the term'),
+      name: (opts.nameRequired ? z.string().trim().min(1, 'Name is required') : z.string()).describe(
+        opts.nameRequired ? 'Name in the edited locale' : 'Name in the edited locale - empty string falls back to the slug',
+      ),
+      isPublished: z.boolean().describe('Whether the term is visible on the storefront'),
+    })
+    .describe(opts.nameRequired ? 'A blog category' : 'A blog tag')
 }
 
 export type TermValues = z.infer<ReturnType<typeof termSchema>>

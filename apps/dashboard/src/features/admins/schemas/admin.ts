@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { added, fieldDiff, removed } from '@/shared/saving/diff'
-import { email, newPassword } from '@/shared/schemas/fields'
+import { email, MIN_PASSWORD_LENGTH, newPassword } from '@/shared/schemas/fields'
 
 // Admin dialog. Email and password are set once on create; an edit changes the profile, roles and
 // active flag only. Dialogs keep no stored draft, so the password never reaches storage
@@ -17,20 +17,22 @@ export type ExistingAdmin = {
 }
 
 const shape = {
-  firstName: z.string().trim().min(1, 'First name is required'),
-  lastName: z.string().trim().min(1, 'Last name is required'),
-  email: z.string(),
-  password: z.string(),
-  isActive: z.boolean(),
-  roleSlugs: z.array(z.string()),
+  firstName: z.string().trim().min(1, 'First name is required').describe("The admin's first name"),
+  lastName: z.string().trim().min(1, 'Last name is required').describe("The admin's last name"),
+  email: z.string().describe('The sign-in email - set on create, read-only afterwards'),
+  password: z.string().describe('The initial password - set on create, left empty on edit'),
+  isActive: z.boolean().describe('Whether the admin can sign in'),
+  roleSlugs: z.array(z.string()).describe('Slugs of the roles granted to the admin'),
 }
 
-export const createAdminSchema = z.object({
-  ...shape,
-  email: email(),
-  password: newPassword(),
-})
-export const editAdminSchema = z.object(shape)
+export const createAdminSchema = z
+  .object({
+    ...shape,
+    email: email().describe('The sign-in email address'),
+    password: newPassword().describe(`The initial password, at least ${MIN_PASSWORD_LENGTH} characters`),
+  })
+  .describe('A new dashboard admin account')
+export const editAdminSchema = z.object(shape).describe("Edits to an admin's profile, roles and active flag")
 
 export type AdminValues = z.infer<typeof editAdminSchema>
 
@@ -47,7 +49,9 @@ export function toAdminValues(admin?: ExistingAdmin): AdminValues {
 
 // The admin's own page - the same profile and roles, never the email or password, which are the
 // admin's own to change
-export const adminDetailSchema = editAdminSchema.omit({ email: true, password: true })
+export const adminDetailSchema = editAdminSchema
+  .omit({ email: true, password: true })
+  .describe("An admin's profile, roles and active flag, as edited on their own page")
 
 export type AdminDetailValues = z.infer<typeof adminDetailSchema>
 

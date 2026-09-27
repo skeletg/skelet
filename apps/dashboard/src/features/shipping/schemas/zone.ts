@@ -17,14 +17,19 @@ export type ExistingZone = {
   countries: string[]
 }
 
-export const zoneSchema = z.object({
-  // Stable across renames - carrier-integration plugins look zones up by it
-  code: z.string().trim().min(1, 'Code is required'),
-  name: z.string(),
-  countries: countryListText,
-  sortOrder: wholeNumber(),
-  isActive: z.boolean(),
-})
+export const zoneSchema = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .min(1, 'Code is required')
+      .describe('Stable identifier carrier-integration plugins look the zone up by - survives renames'),
+    name: z.string().describe('Display name of the zone - empty string for none'),
+    countries: countryListText.describe('Comma-separated ISO 3166-1 alpha-2 codes of the countries in the zone, such as "US, CA"'),
+    sortOrder: wholeNumber().describe('Order in zone lists - lower first'),
+    isActive: z.boolean().describe('Whether the zone offers shipping'),
+  })
+  .describe('A shipping zone: a set of countries with its own shipping methods')
 
 export type ZoneValues = z.infer<typeof zoneSchema>
 

@@ -10,18 +10,30 @@ const positive = (v: string) => isNumberText(v, { above: 0 })
 
 export const editOrderSchema = z
   .object({
-    lines: z.array(
-      z
-        .object({ id: z.string(), quantity: z.string(), removed: z.boolean() })
-        // 0 used to be silently ignored - a line is dropped with its remove button, not by zeroing it
-        .refine((l) => l.removed || positive(l.quantity), { message: 'Above 0 - use remove to drop the line', path: ['quantity'] }),
-    ),
-    adds: z.array(
-      z
-        .object({ sku: z.string(), quantity: z.string() })
-        .refine((a) => a.sku.trim() === '' || positive(a.quantity), { message: 'Above 0', path: ['quantity'] }),
-    ),
+    lines: z
+      .array(
+        z
+          .object({
+            id: z.string().describe('ID of the order line'),
+            quantity: z.string().describe('New quantity, above 0, written as text'),
+            removed: z.boolean().describe('Drop the line from the order'),
+          })
+          // 0 used to be silently ignored - a line is dropped with its remove button, not by zeroing it
+          .refine((l) => l.removed || positive(l.quantity), { message: 'Above 0 - use remove to drop the line', path: ['quantity'] }),
+      )
+      .describe("The order's existing lines"),
+    adds: z
+      .array(
+        z
+          .object({
+            sku: z.string().describe('SKU of the product to add - rows with an empty SKU are ignored'),
+            quantity: z.string().describe('Units to add, above 0, written as text'),
+          })
+          .refine((a) => a.sku.trim() === '' || positive(a.quantity), { message: 'Above 0', path: ['quantity'] }),
+      )
+      .describe('New lines to add'),
   })
+  .describe("Changes to a placed order's lines before fulfilment - totals and stock reservations are recomputed")
 
 export type EditOrderValues = z.infer<typeof editOrderSchema>
 

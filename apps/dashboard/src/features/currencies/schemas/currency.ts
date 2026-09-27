@@ -25,19 +25,22 @@ export type ExistingCurrency = {
   rateUpdatedAt?: string | null
 }
 
-export const currencySchema = z.object({
-  code: currencyCode(),
-  name: z.string().trim().min(1, 'Name is required'),
-  symbol: z.string(),
-  decimals: wholeNumber().min(0, 'Between 0 and 4').max(4, 'Between 0 and 4'),
-  // The service's own vocabulary - uppercase BEFORE/AFTER fails its check in internal/currency/service.go
-  symbolPosition: z.enum(['prefix', 'suffix']),
-  isActive: z.boolean(),
-  sortOrder: wholeNumber(),
-  // A manual override, edit-only - '' means "leave it to the currency-rates job"
-  exchangeRate: numberText({ optional: true, above: 0 }, 'Must be a positive number'),
-  metadata: metadataSchema,
-})
+export const currencySchema = z
+  .object({
+    code: currencyCode().describe('Upper-case ISO 4217 code, such as USD - set on create, never changed'),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the currency'),
+    symbol: z.string().describe('Symbol prices are shown with, such as $ - empty string for none'),
+    decimals: wholeNumber().min(0, 'Between 0 and 4').max(4, 'Between 0 and 4').describe('Decimal places amounts are shown with, 0 to 4'),
+    // The service's own vocabulary - uppercase BEFORE/AFTER fails its check in internal/currency/service.go
+    symbolPosition: z.enum(['prefix', 'suffix']).describe('Whether the symbol goes before or after the amount'),
+    isActive: z.boolean().describe('Whether the currency is available for use'),
+    sortOrder: wholeNumber().describe('Order in currency lists - lower first'),
+    exchangeRate: numberText({ optional: true, above: 0 }, 'Must be a positive number').describe(
+      'Manual exchange-rate override, a positive number written as text, edit only - empty string leaves the rate to the currency-rates job',
+    ),
+    metadata: metadataSchema,
+  })
+  .describe('A currency')
 
 export type CurrencyValues = z.infer<typeof currencySchema>
 

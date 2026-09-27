@@ -6,12 +6,14 @@ import { changed, fieldDiff } from '@/shared/saving/diff'
 // New CMS page type - a page template. The name and description are seeded for the locale being
 // edited; attributes are assigned on the type's own page afterwards
 
-export const newPageTypeSchema = z.object({
-  slug: z.string().trim().min(1, 'Slug is required'),
-  name: z.string().trim().min(1, 'Name is required'),
-  description: z.string(),
-  icon: z.string(),
-})
+export const newPageTypeSchema = z
+  .object({
+    slug: z.string().trim().min(1, 'Slug is required').describe('Stable identifier of the page type'),
+    name: z.string().trim().min(1, 'Name is required').describe('Name in the edited locale'),
+    description: z.string().describe('What the page type is for, in the edited locale - empty string for none'),
+    icon: z.string().describe('Lucide icon name, such as FileText - empty string for none'),
+  })
+  .describe('A new CMS page type: a template pages are created from')
 
 export type NewPageTypeValues = z.infer<typeof newPageTypeSchema>
 
@@ -41,19 +43,26 @@ const ROOT_MESSAGE = 'Lowercase letters, digits, dots, dashes and underscores, s
 
 export const pageTypeSchema = z
   .object({
-    name: z.string(),
-    description: z.string(),
-    position: numberText({ optional: true, int: true }),
-    icon: z.string(),
-    rootSlug: z.string().refine(validRoot, ROOT_MESSAGE),
-    // Channel id -> its root override; blank means "use the global root"
-    channelRoots: z.record(z.string(), z.string()),
-    isSingleton: z.boolean(),
-    defaultMetaTitle: z.string(),
-    defaultSeoNoindex: z.boolean(),
+    name: z.string().describe('Name in the edited locale - required when a description is set'),
+    description: z.string().describe('What the page type is for, in the edited locale - empty string for none'),
+    position: numberText({ optional: true, int: true }).describe('Sort position among page types, lower first, as a whole number written as text'),
+    icon: z.string().describe('Lucide icon name, such as FileText - empty string for none'),
+    rootSlug: z
+      .string()
+      .refine(validRoot, ROOT_MESSAGE)
+      .describe('URL prefix for pages of this type, such as blog/guides - empty string for the bare path'),
+    channelRoots: z
+      .record(z.string(), z.string())
+      .describe('Per-channel URL prefix overrides, keyed by channel ID - empty string uses rootSlug'),
+    isSingleton: z.boolean().describe('Only one page of this type may exist'),
+    defaultMetaTitle: z
+      .string()
+      .describe('SEO title pattern, such as "{title} | Guides", used by pages of this type that leave theirs blank - empty string for none'),
+    defaultSeoNoindex: z.boolean().describe('Noindex setting inherited by pages of this type that leave theirs unset'),
     // Opaque to the form - the block tree's recursive type would blow up TanStack's deep field paths
-    blocks: z.array(z.unknown()),
+    blocks: z.array(z.unknown()).describe('Starter block layout new pages of this type begin with'),
   })
+  .describe("A CMS page type's naming, URL structure, SEO defaults and starter layout")
   .superRefine((v, ctx) => {
     // The translation row needs a name - a description alone would be silently dropped
     if (v.name.trim() === '' && v.description.trim() !== '') {

@@ -57,20 +57,31 @@ export function decodeDefault(inputType: AttributeInputType, draft: string): Dec
 export function attributeSettingsSchema(inputType: AttributeInputType) {
   return z
     .object({
-      name: z.string().trim().min(1, 'Name is required'),
-      unit: z.string(),
-      sortOrder: wholeNumber(),
-      valueRequired: z.boolean(),
-      filterable: z.boolean(),
-      searchable: z.boolean(),
-      isPublic: z.boolean(),
-      facetCollapsed: z.boolean(),
-      h1Position: z.enum(['BEFORE', 'AFTER']),
-      synapseTrack: z.boolean(),
-      autoSegment: z.boolean(),
-      hasDefault: z.boolean(),
-      defaultDraft: z.string(),
+      name: z.string().trim().min(1, 'Name is required').describe('Display name of the attribute'),
+      unit: z.string().describe('Unit shown after values, such as cm or kg - empty string for none'),
+      sortOrder: wholeNumber().describe('Facet order on the storefront - lower first'),
+      valueRequired: z.boolean().describe('Products must provide a value - needs a default value'),
+      filterable: z.boolean().describe('Show the attribute as a filter facet on the storefront'),
+      searchable: z.boolean().describe("Include the attribute's values in full-text product search"),
+      isPublic: z.boolean().describe('Display the attribute on the product detail page'),
+      facetCollapsed: z.boolean().describe('Start the filter facet collapsed rather than open - ignored unless filterable'),
+      h1Position: z
+        .enum(['BEFORE', 'AFTER'])
+        .describe('Where the value sits in the page H1 of an indexable filter URL: BEFORE "Olive / Apparel", AFTER "Apparel / Olive"'),
+      synapseTrack: z
+        .boolean()
+        .describe('Record the values a customer filters by or views as a Synapse profile affinity'),
+      autoSegment: z
+        .boolean()
+        .describe('Auto-create a managed customer segment per popular value - takes effect only while synapseTrack is on'),
+      hasDefault: z.boolean().describe('Auto-fill new products with a default value'),
+      defaultDraft: z
+        .string()
+        .describe(
+          `The default value: typed text for PLAIN_TEXT, NUMERIC, DATE and DATE_TIME; 'true' or 'false' for BOOLEAN; a value ID for DROPDOWN and SWATCH; newline-separated value IDs for MULTISELECT. This attribute is ${inputType}`,
+        ),
     })
+    .describe("A catalog attribute's settings: name, unit, behaviour flags and default value")
     .superRefine((v, ctx) => {
       // Required => default: new products auto-fill from the default, which is what makes "required" hold
       if (v.valueRequired && !v.hasDefault) {

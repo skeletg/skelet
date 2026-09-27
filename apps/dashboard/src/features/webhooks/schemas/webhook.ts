@@ -21,18 +21,37 @@ export type ExistingWebhook = {
   customHeaders?: unknown
 }
 
-export const webhookSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  targetUrl: absoluteUrl(),
-  kind: z.enum(['ASYNC', 'SYNC']),
-  eventTypes: z.array(z.string()).min(1, 'Select at least one event type'),
-  // '' = every store
-  channelId: z.string(),
-  failurePolicy: z.enum(['FAIL_OPEN', 'FAIL_CLOSED']),
-  timeoutMs: numberText({ optional: true, int: true, min: 0, max: 30000 }),
-  // Extra request headers - often auth tokens, so they're kept out of stored drafts
-  headers: z.array(z.object({ key: z.string(), value: z.string() })),
-})
+export const webhookSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the webhook'),
+    targetUrl: absoluteUrl().describe('Absolute URL deliveries are sent to'),
+    kind: z
+      .enum(['ASYNC', 'SYNC'])
+      .describe('ASYNC reports events after the fact; SYNC is called mid-operation and can gate it - set on create, never changed'),
+    eventTypes: z
+      .array(z.string())
+      .min(1, 'Select at least one event type')
+      .describe('Event types to deliver: exact types, "*", or "<prefix>.*" wildcards - at least one'),
+    channelId: z
+      .string()
+      .describe("ID of the one channel whose events are delivered, set on create - empty string for every channel"),
+    failurePolicy: z
+      .enum(['FAIL_OPEN', 'FAIL_CLOSED'])
+      .describe('What a failed SYNC delivery does: FAIL_CLOSED aborts the operation, FAIL_OPEN logs and continues - ignored for ASYNC'),
+    timeoutMs: numberText({ optional: true, int: true, min: 0, max: 30000 }).describe(
+      'Per-attempt timeout in milliseconds, up to 30000, written as text - empty string uses the kind default',
+    ),
+    // Often auth tokens, so they're kept out of stored drafts
+    headers: z
+      .array(
+        z.object({
+          key: z.string().describe('Header name, such as Authorization - Content-Type and X-Webhook-* are reserved'),
+          value: z.string().describe('Header value'),
+        }),
+      )
+      .describe('Extra request headers sent with every delivery'),
+  })
+  .describe('A webhook subscription: an HTTP endpoint that receives platform events')
 
 export type WebhookValues = z.infer<typeof webhookSchema>
 

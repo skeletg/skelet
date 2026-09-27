@@ -19,18 +19,27 @@ export type ExistingTaxRule = {
   effects: StoredRow[]
 }
 
-// A condition or effect: a registered type plus its JSON-schema params, edited by SchemaForm
-const ruleRowSchema = z.object({ type: z.string().min(1, 'Pick a type'), params: z.unknown() })
+// Edited by SchemaForm
+const ruleRowSchema = z
+  .object({
+    type: z.string().min(1, 'Pick a type').describe('Registered condition or effect type'),
+    params: z.unknown().describe("The type's parameters, shaped by its JSON schema"),
+  })
+  .describe('One condition or effect of a tax rule')
 
-export const taxRuleSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  priority: wholeNumber(),
-  exclusivityGroup: z.string(),
-  sortOrder: wholeNumber(),
-  isActive: z.boolean(),
-  conditions: z.array(ruleRowSchema),
-  effects: z.array(ruleRowSchema),
-})
+export const taxRuleSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the rule'),
+    priority: wholeNumber().describe('Evaluation order - lower is evaluated earlier'),
+    exclusivityGroup: z
+      .string()
+      .describe('At most one rule per group applies, the most specific by priority - empty string always stacks'),
+    sortOrder: wholeNumber().describe('Order in rule lists - lower first'),
+    isActive: z.boolean().describe('Whether the rule applies'),
+    conditions: z.array(ruleRowSchema).describe('Conditions that decide when the rule applies, evaluated in order'),
+    effects: z.array(ruleRowSchema).describe('Effects applied when the rule matches, such as a rate, in order'),
+  })
+  .describe('A tax rule: conditions that pick where it applies and effects that set the tax')
 
 export type TaxRuleValues = z.infer<typeof taxRuleSchema>
 export type RuleRow = TaxRuleValues['conditions'][number]

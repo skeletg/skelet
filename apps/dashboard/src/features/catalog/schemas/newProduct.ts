@@ -27,30 +27,42 @@ function attributeMissing(a: AttributeSummary, s: AttrState | undefined): boolea
 export function newProductSchema(ctx: { fallbackLocale: string; attributes: (productTypeId: string) => AttributeSummary[] | null }) {
   return z
     .object({
-      kind: z.enum(PRODUCT_KINDS),
-      productTypeId: z.string().min(1, 'Pick a product type first'),
-      name: z.string().trim().min(1, 'Name is required'),
-      // Blank lets the service generate one from the name
-      sku: z.string(),
-      priceDollars: money(),
-      currencyCode: currencyCode(),
-      locale: z.string().refine((v) => (v || ctx.fallbackLocale) !== '', 'Pick a translation locale'),
+      kind: z.enum(PRODUCT_KINDS).describe('What sort of product this is - fixes how it is sold and fulfilled'),
+      productTypeId: z
+        .string()
+        .min(1, 'Pick a product type first')
+        .describe('ID of the product type the product inherits its attributes and shipping rules from'),
+      name: z.string().trim().min(1, 'Name is required').describe('Product name in the translation locale'),
+      sku: z.string().describe('Stock keeping unit - empty string generates one from the name'),
+      priceDollars: money().describe('Default price in major currency units written as text, such as "12.50"'),
+      currencyCode: currencyCode().describe('Currency of the default price, as an upper-case ISO 4217 code such as USD'),
+      locale: z
+        .string()
+        .refine((v) => (v || ctx.fallbackLocale) !== '', 'Pick a translation locale')
+        .describe(`Locale code the first translation is written in - empty string uses ${ctx.fallbackLocale || 'the default locale'}`),
       // Opaque rich-text JSON to the form - its recursive type would blow up TanStack's deep field paths
-      shortDescription: z.unknown(),
-      shortDescriptionText: z.string(),
-      description: z.unknown(),
-      descriptionText: z.string(),
-      // Auto derives the path from the type's template; the service refuses auto together with a path
-      urlAuto: z.boolean(),
-      url: z.string(),
-      urlTemplateOverride: z.string(),
-      metaTitle: z.string(),
-      metaDescription: z.string(),
-      metaKeywords: z.string(),
-      canonicalUrl: optionalAbsoluteUrl(),
-      seoNoindex: z.boolean(),
-      attrState: z.record(z.string(), z.unknown()),
+      shortDescription: z.unknown().describe('Short description, as Lexical rich-text JSON, or null'),
+      shortDescriptionText: z.string().describe('Plain-text read of the short description - empty string means none'),
+      description: z.unknown().describe('Full description, as Lexical rich-text JSON, or null'),
+      descriptionText: z.string().describe('Plain-text read of the full description - empty string means none'),
+      // The service refuses auto together with a path
+      urlAuto: z.boolean().describe("Derive the URL path from the product type's template instead of setting url"),
+      url: z.string().describe('Explicit URL path of the product - used only when urlAuto is off'),
+      urlTemplateOverride: z
+        .string()
+        .describe("A URL path template such as {category}/{slug}, in place of the product type's - used only when urlAuto is on"),
+      metaTitle: z.string().describe('SEO title - empty string for none'),
+      metaDescription: z.string().describe('SEO description - empty string for none'),
+      metaKeywords: z.string().describe('SEO keywords - empty string for none'),
+      canonicalUrl: optionalAbsoluteUrl().describe('Absolute canonical URL for search engines - empty string for none'),
+      seoNoindex: z.boolean().describe('Ask search engines not to index the product page'),
+      attrState: z
+        .record(z.string(), z.unknown())
+        .describe(
+          "Attribute values keyed by attribute ID, each { valueIds, scalarString, scalarBool, hasScalarValue } - required attributes of the product type must be set",
+        ),
     })
+    .describe('A new product: its basics and first translation')
     .superRefine((v, rc) => {
       if (!v.productTypeId) return
       const attributes = ctx.attributes(v.productTypeId)

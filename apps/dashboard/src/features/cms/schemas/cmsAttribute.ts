@@ -28,15 +28,21 @@ export const CMS_RELATIONSHIP_TARGETS: CmsRelationshipTarget[] = ['CMS_PAGE', 'B
 
 export const newCmsAttributeSchema = z
   .object({
-    slug: z.string().trim().min(1, 'Slug is required'),
-    name: z.string().trim().min(1, 'Display name is required'),
-    inputType: z.string(),
-    translatable: z.boolean(),
-    requiredDefault: z.boolean(),
-    unit: z.string(),
-    // '' until picked - only a relationship needs one
-    target: z.string(),
+    slug: z.string().trim().min(1, 'Slug is required').describe('Stable identifier of the attribute - set on create, never changed'),
+    name: z.string().trim().min(1, 'Display name is required').describe('Display name in the edited locale'),
+    inputType: z
+      .string()
+      .describe(`How values are entered, one of ${CMS_INPUT_TYPES.map((t) => t.value).join(', ')} - set on create, never changed`),
+    translatable: z.boolean().describe('Hold a separate value per locale rather than one for every locale'),
+    requiredDefault: z.boolean().describe('Required by default wherever a page type assigns the attribute'),
+    unit: z.string().describe('Unit shown after the value, such as cm - NUMBER attributes only, empty string for none'),
+    target: z
+      .string()
+      .describe(
+        `What a RELATIONSHIP attribute links to, one of ${CMS_RELATIONSHIP_TARGETS.join(', ')} - required for RELATIONSHIP, empty string otherwise`,
+      ),
   })
+  .describe('A new CMS attribute: a custom field definition page types reuse')
   .refine((v) => v.inputType !== 'RELATIONSHIP' || v.target !== '', {
     message: 'A relationship needs something to point at',
     path: ['target'],
@@ -94,14 +100,25 @@ export function cmsAttributeDefaultsSchema(inputType: CmsInputType) {
   const { isNum } = attributeKind(inputType)
   return z
     .object({
-      defaultValue: z.string().refine((v) => !isNum || isNumberText(v, { optional: true }), 'A number'),
-      defaultBool: z.boolean(),
-      min: numberText({ optional: true }),
-      max: numberText({ optional: true }),
-      minLength: numberText({ optional: true, int: true, min: 0 }),
-      maxLength: numberText({ optional: true, int: true, min: 0 }),
-      regex: z.string().refine((v) => v.trim() === '' || compiles(v.trim()), 'Not a valid regular expression'),
+      defaultValue: z
+        .string()
+        .refine((v) => !isNum || isNumberText(v, { optional: true }), 'A number')
+        .describe(`Value seeded into new pages, as text${isNum ? ' holding a number' : ''} - empty string for none`),
+      defaultBool: z.boolean().describe('Value seeded into new pages, for BOOLEAN attributes'),
+      min: numberText({ optional: true }).describe('Smallest number allowed, as text - NUMBER only, empty string for no rule'),
+      max: numberText({ optional: true }).describe('Largest number allowed, at least min, as text - NUMBER only, empty string for no rule'),
+      minLength: numberText({ optional: true, int: true, min: 0 }).describe(
+        'Fewest characters allowed, as text - text types only, empty string for no rule',
+      ),
+      maxLength: numberText({ optional: true, int: true, min: 0 }).describe(
+        'Most characters allowed, at least minLength, as text - text types only, empty string for no rule',
+      ),
+      regex: z
+        .string()
+        .refine((v) => v.trim() === '' || compiles(v.trim()), 'Not a valid regular expression')
+        .describe('JavaScript regular expression text values must match - text types only, empty string for no rule'),
     })
+    .describe(`A CMS attribute's default value and the validation rules enforced when a page is saved. This attribute is ${inputType}`)
     .superRefine((v, ctx) => {
       if (v.min.trim() !== '' && v.max.trim() !== '' && Number(v.min) > Number(v.max)) {
         ctx.addIssue({ code: 'custom', path: ['max'], message: 'Max must be at least min' })

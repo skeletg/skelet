@@ -8,12 +8,16 @@ import type { CmsSnippetsQuery } from '../Cms.gql'
 
 type Snippet = CmsSnippetsQuery['cmsSnippets'][number]
 
-export const snippetSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  slug: contentSlug(),
-  // Opaque to the form - the block tree's recursive type would blow up TanStack's deep field paths
-  blocks: z.array(z.unknown()),
-})
+export const snippetSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the section'),
+    slug: contentSlug().describe(
+      'How pages reference the section, never changed once created - lowercase letters, numbers, dots, underscores and hyphens',
+    ),
+    // Opaque to the form - the block tree's recursive type would blow up TanStack's deep field paths
+    blocks: z.array(z.unknown()).describe("The section's blocks, in order"),
+  })
+  .describe('A reusable CMS section (snippet) pages can embed')
 
 export type SnippetValues = z.infer<typeof snippetSchema>
 

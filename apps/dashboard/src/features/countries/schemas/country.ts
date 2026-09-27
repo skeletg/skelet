@@ -27,18 +27,20 @@ export type ExistingCountry = {
   regions: { code: string; name: string; isActive: boolean; sortOrder: number }[]
 }
 
-export const countrySchema = z.object({
-  // Uppercased as typed; the service keys everything on it, so it has to be exact ISO 3166-1 alpha-2
-  code: countryCode(),
-  name: z.string().trim().min(1, 'Name is required'),
-  nativeName: z.string(),
-  emojiFlag: z.string(),
-  phoneCode: z.string(),
-  defaultCurrencyCode: z.string(),
-  isActive: z.boolean(),
-  sortOrder: wholeNumber(),
-  metadata: metadataSchema,
-})
+export const countrySchema = z
+  .object({
+    // Uppercased as typed; the service keys everything on it, so it has to be exact
+    code: countryCode().describe('Upper-case ISO 3166-1 alpha-2 code, such as US - set on create, never changed'),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the country'),
+    nativeName: z.string().describe("Name in the country's own language - empty string for none"),
+    emojiFlag: z.string().describe('Flag emoji, such as 🇺🇸 - empty string for none'),
+    phoneCode: z.string().describe('International dialling code, such as +1 - empty string for none'),
+    defaultCurrencyCode: z.string().describe('ISO 4217 code of the local currency, such as USD - empty string for none'),
+    isActive: z.boolean().describe('Whether the country is available for use'),
+    sortOrder: wholeNumber().describe('Order in country lists - lower first'),
+    metadata: metadataSchema,
+  })
+  .describe('A country')
 
 export type CountryValues = z.infer<typeof countrySchema>
 

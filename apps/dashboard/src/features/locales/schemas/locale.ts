@@ -36,34 +36,45 @@ export type ExistingLocale = {
 
 export const WEEKDAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-export const localeSchema = z.object({
-  // Lowercased as typed - BCP 47 style, the service keys on it
-  code: z
-    .string()
-    .min(1, 'Code is required')
-    .regex(
-      /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/,
-      'Use BCP-47 style: lowercase, 2-3 letters then optional -region (e.g. en, es-mx, pt-br).',
-    ),
-  name: z.string().trim().min(1, 'Name is required'),
-  nativeName: z.string(),
-  description: z.string(),
-  isActive: z.boolean(),
-  isRTL: z.boolean(),
-  sortOrder: wholeNumber(),
-  flagEmoji: z.string(),
-  dateFormat: z.string(),
-  timeFormat: z.string(),
-  decimalSeparator: z.string().max(1, 'One character'),
-  thousandsSeparator: z.string().max(1, 'One character'),
-  firstDayOfWeek: z.number().int().min(0, 'First day of week must be 0..6.').max(6, 'First day of week must be 0..6.'),
-  defaultCountryCode: countryCode({ optional: true }),
-  hreflangValue: z.string(),
-  script: z.string(),
-  pluralRule: z.string(),
-  emailFromNameOverride: z.string(),
-  metadata: metadataSchema,
-})
+export const localeSchema = z
+  .object({
+    // Lowercased as typed - the service keys on it
+    code: z
+      .string()
+      .min(1, 'Code is required')
+      .regex(
+        /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/,
+        'Use BCP-47 style: lowercase, 2-3 letters then optional -region (e.g. en, es-mx, pt-br).',
+      )
+      .describe('Lower-case BCP 47 code, such as en, es-mx or pt-br - set on create, never changed'),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the locale'),
+    nativeName: z.string().describe('Name in the language itself, such as Deutsch - empty string for none'),
+    description: z.string().describe('Description of the locale - empty string for none'),
+    isActive: z.boolean().describe('Offered in locale pickers - existing translations persist either way'),
+    isRTL: z.boolean().describe('Written right to left - the storefront flips its layout'),
+    sortOrder: wholeNumber().describe('Order in admin lists - lower first'),
+    flagEmoji: z.string().describe('Flag emoji, such as 🇩🇪 - empty string for none'),
+    dateFormat: z.string().describe("Date format for the storefront's date library - empty string for its default"),
+    timeFormat: z.string().describe("Time format for the storefront's date library - empty string for its default"),
+    decimalSeparator: z.string().max(1, 'One character').describe('Decimal separator, one character - empty string for the default'),
+    thousandsSeparator: z
+      .string()
+      .max(1, 'One character')
+      .describe('Thousands separator, one character - empty string for the default'),
+    firstDayOfWeek: z
+      .number()
+      .int()
+      .min(0, 'First day of week must be 0..6.')
+      .max(6, 'First day of week must be 0..6.')
+      .describe('First day of the week, 0 = Sunday through 6 = Saturday'),
+    defaultCountryCode: countryCode({ optional: true }),
+    hreflangValue: z.string().describe('hreflang value for SEO - empty string falls back to the code'),
+    script: z.string().describe('ISO 15924 script code, such as Latn or Cyrl - empty string for none'),
+    pluralRule: z.string().describe('Plural rule for translations - empty string for none'),
+    emailFromNameOverride: z.string().describe('Sender name on emails sent in this locale - empty string for the default'),
+    metadata: metadataSchema,
+  })
+  .describe('A locale: a language, with the formatting conventions that go with it')
 
 export type LocaleValues = z.infer<typeof localeSchema>
 

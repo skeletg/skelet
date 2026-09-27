@@ -8,12 +8,16 @@ import type { ChannelQuery } from '@/features/channels/Channels.gql'
 // Slug is fixed after create and the default locale is edited beside the supported locales, so
 // neither is here
 
-export const channelIdentitySchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  currencyCode: currencyCode('Pick a currency'),
-  publicUrl: optionalAbsoluteUrl(),
-  isActive: z.boolean(),
-})
+export const channelIdentitySchema = z
+  .object({
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the channel (store)'),
+    currencyCode: currencyCode('Pick a currency').describe('Currency the channel sells in, as an upper-case ISO 4217 code such as USD'),
+    publicUrl: optionalAbsoluteUrl().describe(
+      "Storefront base URL that password-reset and verification email links are built on - empty string for none",
+    ),
+    isActive: z.boolean().describe('Whether the channel is live'),
+  })
+  .describe("A channel's name, currency, public URL and active flag")
 
 export type ChannelIdentityValues = z.infer<typeof channelIdentitySchema>
 

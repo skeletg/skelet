@@ -31,17 +31,36 @@ function parseJson(text: string): { ok: true; value: unknown } | { ok: false } {
 // Blank means "use the default" - otherwise a whole number within the service's bounds
 const boundedInt = (max: number) => numberText({ optional: true, int: true, min: 0, max })
 
-export const remoteProviderSchema = z.object({
-  kind: z.string(),
-  slug: z.string().trim().min(1, 'Slug is required'),
-  name: z.string().trim().min(1, 'Name is required'),
-  targetUrl: absoluteUrl(),
-  channelId: z.string(),
-  config: z.string().refine((v) => parseJson(v).ok, 'Config must be valid JSON'),
-  timeoutMs: boundedInt(30000),
-  cacheTtlS: boundedInt(3600),
-  failurePolicy: z.enum(['FAIL_OPEN', 'FAIL_CLOSED']),
-})
+export const remoteProviderSchema = z
+  .object({
+    kind: z
+      .string()
+      .describe(
+        'The role the endpoint implements: SHIPPING_CARRIER, TAX_PROVIDER, ADDRESS_VALIDATOR, PROMOTION_CONDITION, PROMOTION_ACTION, FRAUD_RISK, CURRENCY_RATE or PRICING - set on create, never changed',
+      ),
+    slug: z
+      .string()
+      .trim()
+      .min(1, 'Slug is required')
+      .describe('Stable identifier consumers such as promotion rules reference - set on create, never changed'),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the provider'),
+    targetUrl: absoluteUrl().describe('Absolute URL of the endpoint core calls'),
+    channelId: z.string().describe('ID of the one channel the provider serves, set on create - empty string for every channel'),
+    config: z
+      .string()
+      .refine((v) => parseJson(v).ok, 'Config must be valid JSON')
+      .describe('JSON text forwarded verbatim with every call, such as API keys or options - empty string for none'),
+    timeoutMs: boundedInt(30000).describe(
+      'Per-call HTTP timeout in milliseconds, up to 30000, written as text - empty string or 0 uses the 5 second default',
+    ),
+    cacheTtlS: boundedInt(3600).describe(
+      'Seconds to cache a successful response per request payload, up to 3600, written as text - empty string or 0 disables caching',
+    ),
+    failurePolicy: z
+      .enum(['FAIL_OPEN', 'FAIL_CLOSED'])
+      .describe('When a call fails: FAIL_OPEN falls back to core behaviour, FAIL_CLOSED aborts the operation'),
+  })
+  .describe('A remote provider: an HTTP endpoint that implements a pluggable role, such as shipping rates or tax')
 
 export type RemoteProviderValues = z.infer<typeof remoteProviderSchema>
 

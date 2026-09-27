@@ -58,39 +58,49 @@ export type ExistingLocation = {
 // is typed - they become numbers only on the way into the mutation
 const coordinate = (limit: number) => numberText({ optional: true, min: -limit, max: limit })
 
-const dayHoursSchema = z.object({ closed: z.boolean(), open: z.string(), close: z.string() })
+const dayHoursSchema = z
+  .object({
+    closed: z.boolean().describe('Closed all day'),
+    open: z.string().describe('Opening time, as "HH:mm" in the location\'s timezone'),
+    close: z.string().describe('Closing time, as "HH:mm" in the location\'s timezone'),
+  })
+  .describe("One day's opening hours")
 
-export const locationSchema = z.object({
-  slug: z.string().trim().min(1, 'Slug is required'),
-  name: z.string().trim().min(1, 'Name is required'),
-  isActive: z.boolean(),
-  type: z.string(),
-  line1: z.string(),
-  line2: z.string(),
-  city: z.string(),
-  region: z.string(),
-  postalCode: z.string(),
-  countryCode: z.string(),
-  latitude: coordinate(90),
-  longitude: coordinate(180),
-  timezone: z.string(),
-  hours: z.object({
-    monday: dayHoursSchema,
-    tuesday: dayHoursSchema,
-    wednesday: dayHoursSchema,
-    thursday: dayHoursSchema,
-    friday: dayHoursSchema,
-    saturday: dayHoursSchema,
-    sunday: dayHoursSchema,
-  }),
-  email: optionalEmail(),
-  phone: z.string(),
-  contactName: z.string(),
-  externalReference: z.string(),
-  pickupEnabled: z.boolean(),
-  pickupInstructions: z.string(),
-  metadata: metadataSchema,
-})
+export const locationSchema = z
+  .object({
+    slug: z.string().trim().min(1, 'Slug is required').describe('Stable identifier of the location'),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the location'),
+    isActive: z.boolean().describe('Whether the location is in use'),
+    type: z.string().describe('Kind of location, such as warehouse, retail, drop-shipper or fulfillment-center'),
+    line1: z.string().describe('Street address - empty string for none'),
+    line2: z.string().describe('Apartment, suite or floor - empty string for none'),
+    city: z.string().describe('City - empty string for none'),
+    region: z.string().describe('State, province or region - empty string for none'),
+    postalCode: z.string().describe('Postal or ZIP code - empty string for none'),
+    countryCode: z.string().describe('Upper-case ISO 3166-1 alpha-2 country code, such as US - empty string for none'),
+    latitude: coordinate(90).describe('Latitude in decimal degrees, -90 to 90, written as text - empty string for none'),
+    longitude: coordinate(180).describe('Longitude in decimal degrees, -180 to 180, written as text - empty string for none'),
+    timezone: z.string().describe('IANA timezone the opening hours are in, such as Europe/Berlin'),
+    hours: z
+      .object({
+        monday: dayHoursSchema,
+        tuesday: dayHoursSchema,
+        wednesday: dayHoursSchema,
+        thursday: dayHoursSchema,
+        friday: dayHoursSchema,
+        saturday: dayHoursSchema,
+        sunday: dayHoursSchema,
+      })
+      .describe('Weekly opening hours'),
+    email: optionalEmail().describe('Contact email of the location, or an empty string for none'),
+    phone: z.string().describe('Contact phone number - empty string for none'),
+    contactName: z.string().describe('Person to contact at the location - empty string for none'),
+    externalReference: z.string().describe("The location's ID in an outside system, such as an ERP - empty string for none"),
+    pickupEnabled: z.boolean().describe('Customers can collect orders here'),
+    pickupInstructions: z.string().describe('Instructions shown to customers collecting here - empty string for none'),
+    metadata: metadataSchema,
+  })
+  .describe('An inventory location: a place that holds stock')
 
 export type LocationValues = z.infer<typeof locationSchema>
 

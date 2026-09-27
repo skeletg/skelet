@@ -7,19 +7,26 @@ import type { Scope } from '../useRoleDraft'
 // Admin role - THE field list (docs/conventions.md, "Record forms"). Identity plus the grant list; the
 // slug is set on create only, since changing it would orphan every audit entry that names the role
 
-const scopeSchema = z.object({
-  permissionId: z.string(),
-  permissionSlug: z.string(),
-  channelId: z.string().nullable(),
-  locale: z.string().nullable(),
-})
+const scopeSchema = z
+  .object({
+    permissionId: z.string().describe('ID of the granted permission'),
+    permissionSlug: z.string().describe('Slug of the granted permission, such as products.update'),
+    channelId: z.string().nullable().describe('The channel the grant is limited to, or null for every channel'),
+    locale: z.string().nullable().describe('The locale the grant is limited to, or null for every locale'),
+  })
+  .describe('One permission grant, optionally narrowed to a channel and a locale')
 
-export const roleSchema = z.object({
-  slug: z.string().trim().min(1, 'Slug is required'),
-  name: z.string().trim().min(1, 'Name is required'),
-  description: z.string(),
-  scopes: z.array(scopeSchema).min(1, 'A role with zero grants does nothing - grant at least one permission'),
-})
+export const roleSchema = z
+  .object({
+    slug: z.string().trim().min(1, 'Slug is required').describe('Stable identifier for the role - set on create, never changed'),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the role'),
+    description: z.string().describe('What the role is for - empty string for none'),
+    scopes: z
+      .array(scopeSchema)
+      .min(1, 'A role with zero grants does nothing - grant at least one permission')
+      .describe('The permissions the role grants'),
+  })
+  .describe('An admin role: a named set of permission grants')
 
 export type RoleValues = z.infer<typeof roleSchema>
 

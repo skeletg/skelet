@@ -12,10 +12,12 @@ const PATHS = {
   historyRetentionDays: 'system/scheduler/history_retention_days',
 } as const
 
-export const schedulerSettingsSchema = z.object({
-  alertWebhookUrl: optionalAbsoluteUrl(),
-  historyRetentionDays: wholeNumber('Whole days').min(1, 'At least one day'),
-})
+export const schedulerSettingsSchema = z
+  .object({
+    alertWebhookUrl: optionalAbsoluteUrl().describe('Absolute URL alerted when a scheduled job fails - empty string for none'),
+    historyRetentionDays: wholeNumber('Whole days').min(1, 'At least one day').describe('Days to keep job run history, at least 1'),
+  })
+  .describe("The job scheduler's global settings")
 
 export type SchedulerSettingsValues = z.infer<typeof schedulerSettingsSchema>
 

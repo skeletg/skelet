@@ -5,29 +5,40 @@ import { addressIssues, addressSchema, toAddressInput, toAddressValues } from '@
 // Manual (draft) order - a customer or a guest email, simple-product lines, addresses and an optional
 // flat discount. Prices shown here are hints: the server re-derives them from the catalog
 
-const lineSchema = z.object({
-  sku: z.string(),
-  name: z.string(),
-  unitPrice: z.number(),
-  currency: z.string(),
-  quantity: z.number().positive('Above 0'),
-})
+const lineSchema = z
+  .object({
+    sku: z.string().describe('SKU of the product - one line per SKU'),
+    name: z.string().describe('Product name, for display'),
+    unitPrice: z.number().describe('Unit price in minor units (cents), for display - the server re-derives it'),
+    currency: z.string().describe('ISO 4217 code of unitPrice, such as USD'),
+    quantity: z.number().positive('Above 0').describe('Units ordered, above 0'),
+  })
+  .describe('One product line')
 
 export type DraftLine = z.infer<typeof lineSchema>
 export type DraftCustomer = { id: string; email: string; label: string }
 
 export const draftOrderSchema = z
   .object({
-    customer: z.object({ id: z.string(), email: z.string(), label: z.string() }).nullable(),
-    email: email('Enter the order email'),
-    lines: z.array(lineSchema).min(1, 'Add at least one product'),
-    billing: addressSchema,
-    shipping: addressSchema,
-    shipSame: z.boolean(),
-    // Whole minor units (cents), clamped to the subtotal server-side
-    discount: numberText({ optional: true, int: true, min: 0 }, 'Whole cents, 0 or more'),
-    note: z.string(),
+    customer: z
+      .object({
+        id: z.string().describe('ID of the customer'),
+        email: z.string().describe("Customer's email"),
+        label: z.string().describe('Name or email the customer is shown by'),
+      })
+      .nullable()
+      .describe('The customer placing the order, or null for a guest order'),
+    email: email('Enter the order email').describe('Email the order confirmation goes to'),
+    lines: z.array(lineSchema).min(1, 'Add at least one product').describe('Product lines, at least one'),
+    billing: addressSchema.describe('Billing address - names may be left empty'),
+    shipping: addressSchema.describe('Shipping address - ignored when shipSame is on, names may be left empty'),
+    shipSame: z.boolean().describe('Ship to the billing address'),
+    discount: numberText({ optional: true, int: true, min: 0 }, 'Whole cents, 0 or more').describe(
+      'Flat discount in whole minor units (cents) written as text, capped at the subtotal - empty string for none',
+    ),
+    note: z.string().describe('Note on the order - empty string for none'),
   })
+  .describe('A manual (draft) order placed by an admin')
   .superRefine((v, ctx) => {
     // A draft needs where it goes - the names can follow, as they always could here
     addressIssues(v.billing, ['billing'], ctx, { requireNames: false })

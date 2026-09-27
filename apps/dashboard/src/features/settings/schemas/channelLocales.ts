@@ -7,9 +7,10 @@ import { added, changed, removed } from '@/shared/saving/diff'
 
 export const channelLocalesSchema = z
   .object({
-    codes: z.array(z.string()),
-    defaultLocale: z.string(),
+    codes: z.array(z.string()).describe('Codes of the locales the channel supports, such as en-US'),
+    defaultLocale: z.string().describe("Code of the channel's default locale - one of codes"),
   })
+  .describe('The locales a channel supports, and its default')
   .refine((v) => v.defaultLocale === '' || v.codes.includes(v.defaultLocale), {
     message: 'The default locale must be one of the supported locales',
     path: ['defaultLocale'],

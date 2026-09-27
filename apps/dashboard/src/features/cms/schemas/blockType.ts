@@ -15,35 +15,45 @@ export type ExistingBlockType = {
 }
 
 // One editable field row - options stay comma-separated text until they're sent
-const fieldRowSchema = z.object({
-  key: z.string(),
-  label: z.string(),
-  kind: z.string(),
-  required: z.boolean(),
-  placeholder: z.string(),
-  description: z.string(),
-  options: z.string(),
-})
+const fieldRowSchema = z
+  .object({
+    key: z.string().describe('Field key, filled into the template as {{key}} - rows with an empty key are dropped'),
+    label: z.string().describe('Label shown to editors'),
+    kind: z.string().describe(`Input kind, one of ${CUSTOM_FIELD_KINDS.join(', ')}`),
+    required: z.boolean().describe('Editors must fill the field in'),
+    placeholder: z.string().describe('Placeholder text in the empty input - empty string for none'),
+    description: z.string().describe('Help text shown under the input - empty string for none'),
+    options: z.string().describe('Comma-separated choices for a select field - ignored for other kinds'),
+  })
+  .describe('One editable field of a custom block')
 
 export type FieldRow = z.infer<typeof fieldRowSchema>
 
-export const blockTypeSchema = z.object({
-  // Permanent once placed blocks reference it
-  key: z.string().trim().min(1, 'Key is required'),
-  name: z.string().trim().min(1, 'Name is required'),
-  icon: z.string(),
-  template: z.string(),
-  fields: z.array(fieldRowSchema).superRefine((rows, ctx) => {
-    // Two fields on one key would fight over the same {{key}} placeholder
-    const seen = new Set<string>()
-    rows.forEach((row, i) => {
-      const key = row.key.trim()
-      if (!key) return
-      if (seen.has(key)) ctx.addIssue({ code: 'custom', message: `Field key "${key}" is used twice`, path: [i, 'key'] })
-      seen.add(key)
-    })
-  }),
-})
+export const blockTypeSchema = z
+  .object({
+    key: z
+      .string()
+      .trim()
+      .min(1, 'Key is required')
+      .describe('Stable identifier placed blocks reference - set on create, never changed'),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name in the block picker'),
+    icon: z.string().describe('Lucide icon name, such as sparkles - empty string for none'),
+    template: z.string().describe('HTML template the block renders, with {{key}} placeholders for its fields'),
+    fields: z
+      .array(fieldRowSchema)
+      .superRefine((rows, ctx) => {
+        // Two fields on one key would fight over the same {{key}} placeholder
+        const seen = new Set<string>()
+        rows.forEach((row, i) => {
+          const key = row.key.trim()
+          if (!key) return
+          if (seen.has(key)) ctx.addIssue({ code: 'custom', message: `Field key "${key}" is used twice`, path: [i, 'key'] })
+          seen.add(key)
+        })
+      })
+      .describe('The fields editors fill in, each with a unique key'),
+  })
+  .describe('A custom CMS block type: an HTML template plus the fields that fill it')
 
 export type BlockTypeValues = z.infer<typeof blockTypeSchema>
 

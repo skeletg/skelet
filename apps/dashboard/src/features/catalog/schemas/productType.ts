@@ -14,15 +14,19 @@ export type ExistingProductType = {
   tracksInventory: boolean
 }
 
-export const productTypeSchema = z.object({
-  slug: z.string().trim().min(1, 'Slug is required'),
-  name: z.string().trim().min(1, 'Name is required'),
-  isDigital: z.boolean(),
-  isShippingRequired: z.boolean(),
-  tracksInventory: z.boolean(),
-  // Checked server-side against the token grammar - empty turns auto-generation off
-  urlTemplate: z.string(),
-})
+export const productTypeSchema = z
+  .object({
+    slug: z.string().trim().min(1, 'Slug is required').describe('Stable identifier of the product type - set on create, never changed'),
+    name: z.string().trim().min(1, 'Name is required').describe('Display name of the product type'),
+    isDigital: z.boolean().describe('Products of this type are digital goods'),
+    isShippingRequired: z.boolean().describe('Products of this type need shipping'),
+    tracksInventory: z.boolean().describe('Track stock levels for products of this type'),
+    // Checked server-side against the token grammar
+    urlTemplate: z
+      .string()
+      .describe('URL path template products derive their path from, such as {category}/{slug} - empty string turns auto-generation off'),
+  })
+  .describe('A product type: the blueprint its products inherit')
 
 export type ProductTypeValues = z.infer<typeof productTypeSchema>
 

@@ -11,21 +11,21 @@ import { cleanMetadata, metadataDiff, metadataIssues, metadataSchema, toMetadata
 
 export const customerSchema = z
   .object({
-    firstName: z.string().trim().min(1, 'First name is required'),
-    lastName: z.string().trim().min(1, 'Last name is required'),
-    email: email(),
-    phone: z.string(),
-    isActive: z.boolean(),
-    isEmailVerified: z.boolean(),
-    note: z.string(),
-    groupId: z.string(),
-    taxExempt: z.boolean(),
-    taxExemptionNote: z.string(),
-    vatId: z.string(),
-    // Consent kind -> opted in
-    consents: z.record(z.string(), z.boolean()),
+    firstName: z.string().trim().min(1, 'First name is required').describe("Customer's first name"),
+    lastName: z.string().trim().min(1, 'Last name is required').describe("Customer's last name"),
+    email: email().describe("Customer's sign-in email address"),
+    phone: z.string().describe('Phone number - empty string for none'),
+    isActive: z.boolean().describe('Whether the customer can sign in'),
+    isEmailVerified: z.boolean().describe('Whether the email address is verified'),
+    note: z.string().describe('Internal note, visible to admins only - empty string for none'),
+    groupId: z.string().describe('ID of the customer group the customer belongs to'),
+    taxExempt: z.boolean().describe('Exempt the customer from tax'),
+    taxExemptionNote: z.string().describe('Why the customer is tax exempt - empty string for none'),
+    vatId: z.string().describe('VAT identification number - empty string for none'),
+    consents: z.record(z.string(), z.boolean()).describe('Communication consents, keyed by consent kind - true when opted in'),
     metadata: metadataSchema,
   })
+  .describe("A customer's profile, account status, note, group, tax status, consents and metadata")
   .superRefine((v, ctx) => metadataIssues(v.metadata, 'metadata', ctx))
 
 export type CustomerValues = z.infer<typeof customerSchema>
@@ -142,4 +142,5 @@ export function customerDiff(names: { group: (id: string) => string; consent: (k
 // the shared AddressFields group can render it
 export const newAddressSchema = z
   .object({ address: addressSchema })
+  .describe("A new address for the customer's address book")
   .superRefine((v, ctx) => addressIssues(v.address, ['address'], ctx))
