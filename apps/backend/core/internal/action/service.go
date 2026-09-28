@@ -2,13 +2,9 @@ package action
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 const defaultTimeout = 30 * time.Second
@@ -17,9 +13,8 @@ type Service struct{}
 
 func NewService() *Service { return &Service{} }
 
-// Permission is NOT checked here - the resolver checks it before calling Run
-// actingAdminID is audit-only, pass uuid.Nil for a superuser or unknown caller
-func (s *Service) Run(ctx context.Context, slug string, rawArgs map[string]any, actingAdminID uuid.UUID) (Result, error) {
+// Permission is NOT checked and nothing is audited here - the resolver gates before calling Run and records the outcome after
+func (s *Service) Run(ctx context.Context, slug string, rawArgs map[string]any) (Result, error) {
 	def, ok := Find(slug)
 	if !ok {
 		return Result{}, ErrUnknownAction
@@ -35,21 +30,7 @@ func (s *Service) Run(ctx context.Context, slug string, rawArgs map[string]any, 
 	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-
-	start := time.Now()
-	result, runErr := def.Handler(runCtx, Args{raw: validated})
-	duration := time.Since(start)
-
-	entry, _ := json.Marshal(map[string]any{
-		"type":        "admin_action",
-		"slug":        slug,
-		"admin_id":    actingAdminID.String(),
-		"duration_ms": duration.Milliseconds(),
-		"success":     runErr == nil,
-	})
-	log.Printf("[admin_action] %s", entry)
-
-	return result, runErr
+	return def.Handler(runCtx, Args{raw: validated})
 }
 
 func validateArgs(schema []Argument, raw map[string]any) (map[string]any, error) {

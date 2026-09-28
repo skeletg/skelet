@@ -36,8 +36,8 @@ func RequireChannelPermission(ctx context.Context, slug string, channelID uuid.U
 // same as an empty id list, which means the caller may see NOTHING; conflating the two turns a
 // scoped-out admin into an unrestricted one, so branch on bypass explicitly
 //
-// Check the permission is held BEFORE calling this: a caller with no admin claims at all comes back
-// as bypass, which a listing would read as see-everything
+// A caller who doesn't hold the permission at all gets the refusal as the error, so this is safe as
+// a listing's first line
 //
 //	ids, bypass, err := sdk.PermittedChannels(ctx, PermView)
 func PermittedChannels(ctx context.Context, slug string) (ids []uuid.UUID, bypass bool, err error) {

@@ -15,6 +15,7 @@ import (
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/internal/permission"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
@@ -45,6 +46,18 @@ type Entry struct {
 	IP         string
 	Success    bool
 	DurationMS int64
+}
+
+func Identify(ctx context.Context, e *Entry) { // fills who and from where off the request context - machine callers have no admin row, so the email column carries the integration's name instead
+	if claims, ok := auth.AdminFromContext(ctx); ok && claims != nil {
+		e.AdminID = claims.AdminID
+		e.AdminEmail = claims.Email
+	} else if tok, ok := auth.ApiTokenFromContext(ctx); ok && tok != nil {
+		e.AdminEmail = "integration:" + tok.Name
+	}
+	if r, ok := auth.RequestFromContext(ctx); ok && r != nil {
+		e.IP = auth.ClientIP(r)
+	}
 }
 
 func (s *Service) Record(ctx context.Context, e Entry) { // redacts secret-ish keys and caps size - best-effort, so failures are logged and never returned
