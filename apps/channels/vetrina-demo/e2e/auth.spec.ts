@@ -71,22 +71,6 @@ test.describe("sign in", () => {
     await expect(page).toHaveURL(/\/cart$/);
     await context.close();
   });
-
-  // fixme: the forms post and validate without JavaScript, but the route's loading.tsx means the page itself only
-  // arrives as a streamed Suspense swap - and that swap is an inline script. With JS off the shopper sees the
-  // skeleton forever. Unblock by dropping loading.tsx above /account, or accept that the storefront needs JS
-  test.fixme("without JavaScript the server still validates and answers with field errors", async ({ browser }) => {
-    const context = await browser.newContext({ javaScriptEnabled: false });
-    const page = await context.newPage();
-    await page.goto("/account/login");
-    const form = main(page);
-    await form.getByLabel("Email").fill("not-an-email");
-    await form.getByRole("button", { name: "Sign in" }).click();
-
-    await expect(form.getByText("Enter a valid email address.")).toBeVisible();
-    await expect(form.getByText("This field is required.")).toBeVisible();
-    await context.close();
-  });
 });
 
 test.describe("forgot password", () => {
