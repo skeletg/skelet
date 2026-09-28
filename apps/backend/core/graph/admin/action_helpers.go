@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
-	"github.com/skeletg/skelet/apps/backend/core/internal/action"
+	"github.com/skeletg/skelet/apps/backend/core/internal/adminaction"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 const auditedActionOutputBytes = 2 * 1024 // keeps the row well under audit's detail cap, which would otherwise swap the whole detail for a truncation marker
 
-func (r *mutationResolver) requireActionPermission(ctx context.Context, def action.Definition) error {
+func (r *mutationResolver) requireActionPermission(ctx context.Context, def adminaction.Definition) error {
 	if def.RequireGlobalPermission { // a channel-scoped grant would let one tenant's admin act for every tenant
 		return auth.RequireGlobalPermission(ctx, r.AdminSvc, def.Permission)
 	}
@@ -40,7 +40,7 @@ func (r *mutationResolver) runAdminAction(ctx context.Context, slug string, args
 	durationMs := int32(time.Since(start).Milliseconds())
 
 	if runErr != nil {
-		if errors.Is(runErr, action.ErrUnknownAction) { // registered-then-removed race - GraphQL error, the UI already saw the definition
+		if errors.Is(runErr, adminaction.ErrUnknownAction) { // registered-then-removed race - GraphQL error, the UI already saw the definition
 			return nil, runErr
 		}
 		return &model.AdminActionResult{ // handler/arg failures come back success=false so the UI renders them inline, no error toast

@@ -4,8 +4,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/action"
 	"github.com/skeletg/skelet/apps/backend/core/internal/address"
+	"github.com/skeletg/skelet/apps/backend/core/internal/adminaction"
 	"github.com/skeletg/skelet/apps/backend/core/internal/adminprefs"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
@@ -149,7 +149,7 @@ func newMenuService(q *db.Queries) *menu.Service { return menu.NewService(menu.N
 
 func newChatService(q *db.Queries) *chat.Service { return chat.NewService(q) }
 
-func newActionService() *action.Service { return action.NewService() }
+func newActionService() *adminaction.Service { return adminaction.NewService() }
 
 func newPaymentService(q *db.Queries, txMgr *txrunner.Manager, ch *channel.Service) *payment.Service {
 	return payment.NewService(payment.NewRepository(q), txMgr, ch)
