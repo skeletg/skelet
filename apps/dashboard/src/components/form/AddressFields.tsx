@@ -7,9 +7,10 @@ import { withFieldGroup } from './form'
 // holds an address: <AddressFields form={form} fields="billing" idPrefix="bill" />
 export const AddressFields = withFieldGroup({
   defaultValues: toAddressValues(),
-  // Types only - withFieldGroup reads the shape, the defaults live in the render
-  props: {} as { idPrefix?: string; optionalNames?: boolean },
-  render: function Render({ group, idPrefix = 'address', optionalNames = false }) {
+  // Types only - withFieldGroup reads the shape, the defaults live in the render. idPrefix is required:
+  // two groups on one page (billing + shipping) would otherwise both render address-firstName
+  props: {} as { idPrefix: string; optionalNames?: boolean },
+  render: function Render({ group, idPrefix, optionalNames = false }) {
     // the country is a known list - typing it only ever produced a rejected save
     const countries = useQuery(CountriesPickerDocument).data?.countries ?? []
     return (
