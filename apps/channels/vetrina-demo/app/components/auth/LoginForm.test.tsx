@@ -42,13 +42,19 @@ describe("LoginForm", () => {
     expect(loginAction).not.toHaveBeenCalled();
   });
 
-  it("flags a malformed email when the field loses focus", async () => {
+  it("waits for a submit before flagging a field, then clears the error as soon as it's fixed", async () => {
     const user = userEvent.setup();
     renderWithIntl(<LoginForm />);
     await user.type(screen.getByLabelText("Email"), "not-an-email");
     await user.tab();
+    expect(screen.queryByText("Enter a valid email address.")).not.toBeInTheDocument();
 
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(await screen.findByText("Enter a valid email address.")).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Email"));
+    await user.type(screen.getByLabelText("Email"), "ana@example.com");
+    expect(screen.queryByText("Enter a valid email address.")).not.toBeInTheDocument();
   });
 
   it("keeps the email, clears the password and shows the backend's error after a rejected sign-in", async () => {

@@ -8,8 +8,8 @@ import type { z } from "zod";
 import { parseForm, type FormResult } from "@/app/lib/forms/schema";
 
 // useActionState + Conform's useForm wired the one way every storefront form uses them: the server action returns a
-// SubmissionResult, the same schema validates on the client first (on blur, then on input once a field has been
-// touched), and the submitted values survive a failed round trip because the result carries them back. An action with
+// SubmissionResult, the same schema validates on the client first (on submit, then live as the shopper fixes a field),
+// and the submitted values survive a failed round trip because the result carries them back. An action with
 // more to say on success (the updated cart, an RMA number) returns a FormResult widened with it
 //
 // Forms bind onSubmit from here, not form.onSubmit. React 19 resets any form it submits through <form action>, and
@@ -30,7 +30,9 @@ export function useActionForm<
     defaultValue: options.defaultValue,
     constraint: getZodConstraint(schema),
     onValidate: ({ formData }) => parseForm(formData, schema),
-    shouldValidate: "onBlur",
+    // Not onBlur: pressing Submit blurs the field being typed in, its error renders above the button, the button moves
+    // before the mouse comes up - and the click that should have submitted lands on nothing
+    shouldValidate: "onSubmit",
     shouldRevalidate: "onInput",
   });
   // The actions never echo a password back (hideFields), but with React's reset out of the way the typed one would
