@@ -1,0 +1,119 @@
+fragment CategorySummaryFields on Category {
+  id slug urlPath position level isPublished seoNoindex name productCount
+  content { locale name }
+  children {
+    id slug urlPath position level isPublished seoNoindex name productCount
+    content { locale name }
+    children {
+      id slug urlPath position level isPublished seoNoindex name productCount
+      content { locale name }
+      children {
+        id slug urlPath position level isPublished name productCount
+        content { locale name }
+        children { id slug urlPath position level isPublished name productCount content { locale name } }
+      }
+    }
+  }
+  createdAt updatedAt
+}
+
+fragment CategoryDetailFields on Category {
+  id slug urlPath position level isPublished seoNoindex
+  name shortDescription description metaTitle metaDescription contentLocale
+  content { locale name shortDescription description metaTitle metaDescription metaKeywords updatedAt }
+  coverImage { url altText width height mimeType status }
+  parent { id slug urlPath name }
+  ancestors { id slug urlPath name }
+  products { id name sku }
+  listings {
+    categoryId channelId
+    channel { id slug name }
+    isPublished sortOrderOverride updatedAt
+  }
+  facetOverrides { attributeId attributeSlug sortOrder hidden }
+  createdAt updatedAt
+}
+
+query RootCategories($channelId: ID) {
+  rootCategories(channelId: $channelId) {
+    ...CategorySummaryFields
+  }
+}
+
+query Category($id: ID!) {
+  category(id: $id) {
+    ...CategoryDetailFields
+  }
+}
+
+mutation CreateCategory($input: CreateCategoryInput!) {
+  createCategory(input: $input) {
+    ...CategoryDetailFields
+  }
+}
+
+mutation UpdateCategory($input: UpdateCategoryInput!) {
+  updateCategory(input: $input) {
+    ...CategoryDetailFields
+  }
+}
+
+mutation DeleteCategory($id: ID!) {
+  deleteCategory(id: $id)
+}
+
+# Refuses the default locale while other translations exist - the caller
+# surfaces that error in its confirm dialog
+mutation DeleteCategoryContent($categoryId: ID!, $locale: String!) {
+  deleteCategoryContent(categoryId: $categoryId, locale: $locale)
+}
+
+mutation UpsertCategoryContent($categoryId: ID!, $input: UpsertCategoryContentInput!) {
+  upsertCategoryContent(categoryId: $categoryId, input: $input) {
+    ...CategoryDetailFields
+  }
+}
+
+mutation SetCategoryListing($input: SetCategoryListingInput!) {
+  setCategoryListing(input: $input) {
+    ...CategoryDetailFields
+  }
+}
+
+mutation ClearCategoryListing($categoryId: ID!, $channelId: ID!) {
+  clearCategoryListing(categoryId: $categoryId, channelId: $channelId) {
+    ...CategoryDetailFields
+  }
+}
+
+# List order IS the storefront order; an empty list resets the category to defaults
+mutation SetCategoryFacetOverrides($categoryId: ID!, $overrides: [FacetOverrideInput!]!) {
+  setCategoryFacetOverrides(categoryId: $categoryId, overrides: $overrides) {
+    ...CategoryDetailFields
+  }
+}
+
+# The payload's non-null collection field stays unselected on purpose - the
+# category resolver only fills uploadUrl/expiresAt
+mutation RequestCategoryCoverUpload($input: RequestCategoryCoverUploadInput!) {
+  requestCategoryCoverUpload(input: $input) {
+    uploadUrl
+    expiresAt
+  }
+}
+
+mutation ConfirmCategoryCoverUpload($categoryId: ID!, $width: Int!, $height: Int!) {
+  confirmCategoryCoverUpload(categoryId: $categoryId, width: $width, height: $height) {
+    id
+    updatedAt
+    coverImage { url altText width height mimeType status }
+  }
+}
+
+mutation ClearCategoryCover($categoryId: ID!) {
+  clearCategoryCover(categoryId: $categoryId) {
+    id
+    updatedAt
+    coverImage { url altText width height mimeType status }
+  }
+}

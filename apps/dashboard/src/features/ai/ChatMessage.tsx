@@ -1,16 +1,13 @@
 import { useState, type ReactNode } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart'
+import { CHART_ACCENT } from '@/lib/chart-colors'
 import { cn } from '@/lib/utils'
 
 // The assistant can embed lightweight UI widgets by emitting a fenced ```skelet-widget``` block whose
 // body is one JSON object, a format taught to the model in the system prompt - Those blocks split
 // out into real components and everything else renders as text - parsing is fully defensive, so
 // a malformed or unknown block degrades to verbatim text rather than crashing the panel
-
-// Indigo accent, matching the Signals dashboards (PulseHome/SynapseHome) - The
-// theme's --chart-1 token is a muted gray, so those pages hardcode this too
-const ACCENT = '#6366f1'
 
 type StatItem = { label?: string; value?: string | number; delta?: string; trend?: string }
 type BarDatum = { label?: string; value?: number }
@@ -133,7 +130,7 @@ function StatWidget({ items }: { items?: StatItem[] }) {
                 it.trend === 'down'
                   ? 'text-destructive'
                   : it.trend === 'up'
-                    ? 'text-emerald-600 dark:text-emerald-400'
+                    ? 'text-success'
                     : 'text-muted-foreground',
               )}
             >
@@ -196,7 +193,7 @@ function BarWidget({ title, data, unit }: { title?: string; data?: BarDatum[]; u
             tickFormatter={(v: string) => (v.length > 16 ? `${v.slice(0, 15)}…` : v)}
           />
           <Tooltip cursor={{ fill: 'var(--color-muted)' }} content={<ChartTooltipContent valueFormatter={fmt} />} />
-          <Bar dataKey="value" name={title || 'Value'} fill={ACCENT} radius={[0, 4, 4, 0]} barSize={14} />
+          <Bar dataKey="value" name={title || 'Value'} fill={CHART_ACCENT} radius={[0, 4, 4, 0]} barSize={14} />
         </BarChart>
       </ChartContainer>
     </div>
@@ -226,7 +223,7 @@ function LineWidget({ title, series, unit }: { title?: string; series?: LineSeri
     })
   })
   if (!rows.length) return null
-  const colors = [ACCENT, 'var(--color-muted-foreground)']
+  const colors = [CHART_ACCENT, 'var(--color-muted-foreground)']
   const fmt = (v: number | string | undefined) => {
     const n = typeof v === 'number' ? v.toLocaleString() : String(v ?? '')
     if (unit === '$') return `$${n}`
@@ -292,7 +289,7 @@ function ActionWidget({ action, label, args, onAction }: { action?: string; labe
   const [msg, setMsg] = useState('')
   if (!action || !onAction) return null
   if (status === 'done') {
-    return <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">✓ {msg || 'Done.'}</p>
+    return <p className="text-xs font-medium text-success">✓ {msg || 'Done.'}</p>
   }
   return (
     <div className="space-y-1.5">

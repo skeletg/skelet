@@ -70,6 +70,7 @@ export function CmsPageExperimentSection({
               </SelectContent>
             </Select>
             <Button
+              className="h-10"
               size="sm"
               disabled={!canManage || !pick || binding}
               onClick={() => setExperiment({ variables: { pageId: page.id, experimentKey: pick } })}
@@ -196,7 +197,7 @@ function VariantBodyEditor({
           <Button size="sm" onClick={save} disabled={saving}>
             {saving ? 'Saving…' : `Save ${variationName} layout`}
           </Button>
-          {ok && <span className="text-xs text-emerald-600">Saved.</span>}
+          {ok && <span className="text-xs text-success">Saved.</span>}
         </div>
       )}
     </div>

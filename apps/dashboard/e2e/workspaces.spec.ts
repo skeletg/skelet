@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
-import { closeMenu, dragTabToEdge, menuAction, navigate, newTab, openWorkspaceMenu, paneCount, startClean, strips, workspaceName } from './helpers'
+import { expect, type Page } from '@playwright/test'
+import { closeMenu, dragTabToEdge, menuAction, navigate, newTab, openWorkspaceMenu, paneCount, startClean, strips, test, workspaceName } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await startClean(page)

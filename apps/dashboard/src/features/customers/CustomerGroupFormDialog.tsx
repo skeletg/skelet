@@ -1,31 +1,17 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useMutation } from '@apollo/client/react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+import { FormDialog } from '@/components/form/FormDialog'
+import { FormDialogBody } from '@/components/form/FormDialogBody'
+import { useDialogForm } from '@/components/form/useDialogForm'
+import { CreateCustomerGroupDocument, CustomerGroupsDocument, UpdateCustomerGroupDocument } from './CustomerGroups.gql'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  CreateCustomerGroupDocument,
-  CustomerGroupsDocument,
-  UpdateCustomerGroupDocument,
-} from './CustomerGroups.gql'
+  customerGroupSchema,
+  toCustomerGroupInput,
+  toCustomerGroupValues,
+  type ExistingCustomerGroup,
+} from './schemas/customerGroup'
 
-export type ExistingCustomerGroup = {
-  id: string
-  slug: string
-  name: string
-  description: string
-}
+export type { ExistingCustomerGroup }
 
 export function CustomerGroupFormDialog({
   group,
@@ -38,129 +24,59 @@ export function CustomerGroupFormDialog({
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
-  const isEdit = !!group
-  const [internalOpen, setInternalOpen] = useState(false)
-  const actualOpen = open ?? internalOpen
-  const setOpen = onOpenChange ?? setInternalOpen
+  return (
+    <FormDialog open={open} onOpenChange={onOpenChange} trigger={trigger}>
+      {(close) => <CustomerGroupForm group={group} onClose={close} />}
+    </FormDialog>
+  )
+}
 
-  const [slug, setSlug] = useState(group?.slug ?? '')
-  const [name, setName] = useState(group?.name ?? '')
-  const [description, setDescription] = useState(group?.description ?? '')
-  const [submitError, setSubmitError] = useState<string | null>(null)
-
-  // Re-hydrate the draft whenever the dialog opens (or the group changes
-  // while open) - adjust state during render instead of an effect
-  const [prevOpen, setPrevOpen] = useState(actualOpen)
-  const [prevGroup, setPrevGroup] = useState(group)
-  if (prevOpen !== actualOpen || prevGroup !== group) {
-    setPrevOpen(actualOpen)
-    setPrevGroup(group)
-    if (actualOpen) {
-      setSlug(group?.slug ?? '')
-      setName(group?.name ?? '')
-      setDescription(group?.description ?? '')
-      setSubmitError(null)
-    }
-  }
-
+function CustomerGroupForm({ group, onClose }: { group?: ExistingCustomerGroup; onClose: () => void }) {
   const refetchQueries = [{ query: CustomerGroupsDocument }]
-  const [createGroup, { loading: creating }] = useMutation(CreateCustomerGroupDocument, { refetchQueries })
-  const [updateGroup, { loading: updating }] = useMutation(UpdateCustomerGroupDocument, { refetchQueries })
-  const loading = creating || updating
+  const [createGroup] = useMutation(CreateCustomerGroupDocument, { refetchQueries })
+  const [updateGroup] = useMutation(UpdateCustomerGroupDocument, { refetchQueries })
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSubmitError(null)
-    try {
-      if (isEdit && group) {
-        await updateGroup({
-          variables: {
-            id: group.id,
-            input: { name, description: description || null },
-          },
-        })
-      } else {
-        await createGroup({
-          variables: { input: { slug, name, description: description || null } },
-        })
-      }
-      setOpen(false)
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Something went wrong.')
-    }
-  }
+  const dialog = useDialogForm({
+    baseline: toCustomerGroupValues(group),
+    schema: customerGroupSchema,
+    submit: async (value) => {
+      const input = toCustomerGroupInput(value)
+      if (group) await updateGroup({ variables: { id: group.id, input } })
+      else await createGroup({ variables: { input: { slug: value.slug.trim(), ...input } } })
+    },
+    onSaved: onClose,
+  })
+  const { form } = dialog
 
   return (
-    <Dialog open={actualOpen} onOpenChange={setOpen}>
-      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? `Edit ${group?.name}` : 'New customer group'}</DialogTitle>
-          <DialogDescription>
-            {isEdit
-              ? 'Update the group. Slug is immutable - create a new group instead if you need a different slug.'
-              : 'Create a customer group. Customers can be assigned to it individually.'}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form id="customer-group-form" onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="cg-slug">Slug</Label>
-              <Input
-                id="cg-slug"
-                required
-                disabled={isEdit}
-                placeholder="wholesale"
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-              />
-              {isEdit && <p className="text-xs text-muted-foreground">Slug is immutable.</p>}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="cg-name">Name</Label>
-              <Input
-                id="cg-name"
-                required
-                placeholder="Wholesale"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-              {isEdit && (
-                <p aria-hidden="true" className="invisible min-h-4 text-xs text-muted-foreground">
-                  Helper text placeholder
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="cg-description">Description</Label>
-            <Textarea
-              id="cg-description"
-              placeholder="Who belongs in this group?"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+    <FormDialogBody
+      dialog={dialog}
+      title={group ? `Edit ${group.name}` : 'New customer group'}
+      description={
+        group
+          ? 'Update the group. Slug is immutable - create a new group instead if you need a different slug.'
+          : 'Create a customer group. Customers can be assigned to it individually.'
+      }
+      submitLabel={group ? 'Save changes' : 'Create group'}
+      onCancel={onClose}
+    >
+      <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+        <form.AppField name="slug">
+          {(f) => (
+            <f.TextField
+              id="cg-slug"
+              label="Slug"
+              placeholder="wholesale"
+              disabled={!!group}
+              hint={group ? 'Slug is immutable.' : undefined}
             />
-          </div>
-
-          {submitError && (
-            <Alert variant="destructive">
-              <AlertTitle>Save failed</AlertTitle>
-              <AlertDescription>{submitError}</AlertDescription>
-            </Alert>
           )}
-        </form>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" form="customer-group-form" disabled={loading}>
-            {loading ? 'Saving…' : isEdit ? 'Save changes' : 'Create group'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </form.AppField>
+        <form.AppField name="name">{(f) => <f.TextField id="cg-name" label="Name" placeholder="Wholesale" />}</form.AppField>
+      </div>
+      <form.AppField name="description">
+        {(f) => <f.TextareaField id="cg-description" label="Description" placeholder="Who belongs in this group?" />}
+      </form.AppField>
+    </FormDialogBody>
   )
 }

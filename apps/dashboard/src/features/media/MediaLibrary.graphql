@@ -1,0 +1,131 @@
+fragment MediaAssetFields on MediaAsset {
+  id
+  path
+  directoryPath
+  filename
+  url
+  mimeType
+  mimeGroup
+  sizeBytes
+  width
+  height
+  status
+  title
+  altText
+  caption
+  notes
+  focalX
+  focalY
+  createdAt
+  updatedAt
+}
+
+query MediaDirectory($path: String!) {
+  mediaDirectory(path: $path) {
+    path
+    name
+    directories {
+      path
+      name
+    }
+    assets {
+      ...MediaAssetFields
+    }
+    untrackedFiles {
+      objectKey
+      url
+      filename
+      mimeType
+      sizeBytes
+      lastModified
+    }
+  }
+}
+
+query SearchMediaAssets($query: String, $path: String, $mimeGroup: MediaMimeGroup, $limit: Int, $offset: Int) {
+  searchMediaAssets(query: $query, path: $path, mimeGroup: $mimeGroup, limit: $limit, offset: $offset) {
+    totalCount
+    items {
+      ...MediaAssetFields
+    }
+  }
+}
+
+query MediaAssetById($id: ID!) {
+  mediaAsset(id: $id) {
+    ...MediaAssetFields
+  }
+}
+
+query AllMediaDirectories {
+  allMediaDirectories {
+    path
+    name
+  }
+}
+
+mutation CreateMediaDirectory($path: String!, $name: String!) {
+  createMediaDirectory(path: $path, name: $name) {
+    path
+    name
+  }
+}
+
+mutation RequestMediaAssetUpload($input: RequestMediaAssetUploadInput!) {
+  requestMediaAssetUpload(input: $input) {
+    uploadUrl
+    expiresAt
+    asset {
+      ...MediaAssetFields
+    }
+  }
+}
+
+mutation ConfirmMediaAssetUpload($assetId: ID!, $width: Int, $height: Int) {
+  confirmMediaAssetUpload(assetId: $assetId, width: $width, height: $height) {
+    ...MediaAssetFields
+  }
+}
+
+mutation UpdateMediaAsset($input: UpdateMediaAssetInput!) {
+  updateMediaAsset(input: $input) {
+    ...MediaAssetFields
+  }
+}
+
+mutation SetMediaFocalPoint($assetId: ID!, $x: Float, $y: Float) {
+  setMediaFocalPoint(assetId: $assetId, x: $x, y: $y) {
+    ...MediaAssetFields
+  }
+}
+
+query MediaAiStatus {
+  aiStatus {
+    enabled
+  }
+}
+
+mutation GenerateMediaAltText($assetId: ID!) {
+  generateMediaAltText(assetId: $assetId)
+}
+
+mutation MoveMediaAsset($id: ID!, $targetPath: String!, $filename: String) {
+  moveMediaAsset(id: $id, targetPath: $targetPath, filename: $filename) {
+    ...MediaAssetFields
+  }
+}
+
+mutation DeleteMediaAsset($id: ID!, $deleteFromStorage: Boolean) {
+  deleteMediaAsset(id: $id, deleteFromStorage: $deleteFromStorage)
+}
+
+mutation RenameMediaDirectory($path: String!, $newName: String!) {
+  renameMediaDirectory(path: $path, newName: $newName) {
+    path
+    name
+  }
+}
+
+mutation DeleteMediaDirectory($path: String!, $recursive: Boolean!) {
+  deleteMediaDirectory(path: $path, recursive: $recursive)
+}

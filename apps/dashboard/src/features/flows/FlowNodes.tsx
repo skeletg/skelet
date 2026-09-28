@@ -93,8 +93,8 @@ export function SplitNode({ data, selected }: NodeProps) {
       <Box type="split" summary={nodeSummary('split', data as FlowNodeData)} selected={selected} />
       <Handle id="yes" type="source" position={Position.Bottom} style={{ left: '28%' }} />
       <Handle id="no" type="source" position={Position.Bottom} style={{ left: '72%' }} />
-      <span className="absolute -bottom-4 left-[20%] text-[9px] font-medium text-green-600">yes</span>
-      <span className="absolute -bottom-4 left-[66%] text-[9px] font-medium text-rose-600">no</span>
+      <span className="absolute -bottom-4 left-[20%] text-[9px] font-medium text-success">yes</span>
+      <span className="absolute -bottom-4 left-[66%] text-[9px] font-medium text-destructive">no</span>
     </div>
   )
 }

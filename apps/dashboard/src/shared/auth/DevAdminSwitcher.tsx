@@ -70,13 +70,13 @@ export function DevAdminSwitcher() {
             <SidebarMenuButton
               size="lg"
               tooltip="Dev: switch admin identity"
-              className="border border-dashed border-amber-500/50 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="border border-dashed border-warning/50 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-amber-500/15">
-                <FlaskConicalIcon className="size-4 text-amber-500" />
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-warning-soft">
+                <FlaskConicalIcon className="size-4 text-warning" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-mono text-[10px] font-semibold uppercase tracking-wider text-amber-500">
+                <span className="truncate font-mono text-[10px] font-semibold uppercase tracking-wider text-warning">
                   dev mode
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
@@ -118,7 +118,7 @@ export function DevAdminSwitcher() {
                     {switchingTo === a.id ? (
                       <Loader2Icon className="size-3 animate-spin" />
                     ) : current ? (
-                      <CheckIcon className="size-3 text-emerald-500" />
+                      <CheckIcon className="size-3 text-success" />
                     ) : (
                       <span className="size-3" />
                     )}

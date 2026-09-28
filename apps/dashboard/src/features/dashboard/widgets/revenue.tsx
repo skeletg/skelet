@@ -8,11 +8,11 @@ import {
   YAxis,
 } from 'recharts'
 import { ChartTooltipContent } from '@/components/ui/chart'
+import { CHART_ACCENT } from '@/lib/chart-colors'
 import { formatCents } from '@/lib/format'
 import { SALES_DAYS, useSalesReport } from './sales'
 import { Empty, Tile, WidgetSection } from './primitives'
 
-const ACCENT = '#6366f1'
 const dayLabel = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
 
 // The money section: reporting-grade figures (margin and refunds included, which the tiles can't
@@ -53,8 +53,8 @@ export function RevenueWidget() {
               <AreaChart data={points} margin={{ top: 8, right: 12, bottom: 0, left: -8 }}>
                 <defs>
                   <linearGradient id="home-rev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={ACCENT} stopOpacity={0.35} />
-                    <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
+                    <stop offset="0%" stopColor={CHART_ACCENT} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={CHART_ACCENT} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
@@ -65,7 +65,7 @@ export function RevenueWidget() {
                   tickFormatter={(v: number) => formatCents(v, currency)}
                 />
                 <Tooltip content={<ChartTooltipContent />} formatter={(v) => formatCents(Number(v), currency)} />
-                <Area type="monotone" dataKey="revenue" name="Revenue" stroke={ACCENT} strokeWidth={2} fill="url(#home-rev)" />
+                <Area type="monotone" dataKey="revenue" name="Revenue" stroke={CHART_ACCENT} strokeWidth={2} fill="url(#home-rev)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

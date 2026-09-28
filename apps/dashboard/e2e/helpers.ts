@@ -1,11 +1,14 @@
-import { expect, type Page } from '@playwright/test'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { expect, test as base, type Page } from '@playwright/test'
 
 const API = process.env.E2E_API_URL ?? 'http://localhost:8080'
 const EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'dev-super@skelet.test'
 const PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'devpassword'
+// ADMIN_API_SLUG moves the admin endpoint (see the root .env) - the same variable finds it here
+const ADMIN_GRAPHQL = process.env.ADMIN_API_SLUG ? `/api/admin/${process.env.ADMIN_API_SLUG}/graphql` : '/api/admin/graphql'
 
 async function api(query: string, variables: unknown, token?: string) {
-  const res = await fetch(`${API}/api/admin/graphql`, {
+  const res = await fetch(`${API}${ADMIN_GRAPHQL}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ query, variables }),
@@ -13,23 +16,93 @@ async function api(query: string, variables: unknown, token?: string) {
   return (await res.json()) as { data?: Record<string, unknown>; errors?: unknown }
 }
 
-// One API sign-in per worker: the login endpoint is rate limited, and a token per test trips it
-let cachedToken: Promise<string> | null = null
+// ---------- The one session ----------
+//
+// The suite signs in once (auth.setup) and every spec runs on that session - the login endpoint is
+// rate limited. Access tokens live 15 minutes, and an admin refresh token is single-use: the refresh
+// that consumes it hands back its successor. So a run longer than one token can't just replay the
+// saved sign-in - the first page to refresh burns the token every later context starts from, and
+// the rest land on the sign-in page. Instead this module owns the session: it refreshes over the API
+// before the access token runs low, writes the result back to AUTH_FILE (so a worker restarted after
+// a failure starts from the live token too), and every context starts from it (see `test` below)
 
-export function adminToken(): Promise<string> {
-  cachedToken ??= signIn()
-  return cachedToken
+const AUTH_KEY = 'skelet-dash:auth'
+// A refresh drops the old session server-side, which signs out any page still running on it - so only
+// a context about to start may refresh early, with enough left to outlast any one test. API calls made
+// during a test refresh only when the token is about to lapse, which no single test lasts long enough to see
+const CONTEXT_MARGIN_MS = 8 * 60_000
+const API_MARGIN_MS = 60_000
+
+type AuthState = { accessToken: string; refreshToken: string; admin: unknown }
+type SavedState = { cookies: unknown[]; origins: { origin: string; localStorage: { name: string; value: string }[] }[] }
+
+let session: AuthState | null = null
+let refreshing: Promise<AuthState> | null = null
+
+const msLeft = (jwt: string) => {
+  const payload = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString()) as { exp: number }
+  return payload.exp * 1000 - Date.now()
 }
 
-async function signIn(): Promise<string> {
+function readSaved(): SavedState {
+  return JSON.parse(readFileSync(AUTH_FILE, 'utf8')) as SavedState
+}
+
+function sessionFrom(saved: SavedState): AuthState {
+  for (const origin of saved.origins) {
+    const entry = origin.localStorage.find((e) => e.name === AUTH_KEY)
+    if (entry) return JSON.parse(entry.value) as AuthState
+  }
+  throw new Error(`${AUTH_FILE} holds no ${AUTH_KEY} - did the setup project sign in?`)
+}
+
+function withSession(saved: SavedState, auth: AuthState): SavedState {
+  return {
+    ...saved,
+    origins: saved.origins.map((o) => ({
+      ...o,
+      localStorage: o.localStorage.map((e) => (e.name === AUTH_KEY ? { ...e, value: JSON.stringify(auth) } : e)),
+    })),
+  }
+}
+
+async function refresh(current: AuthState): Promise<AuthState> {
   const out = await api(
-    'mutation($e:String!,$p:String!){ adminLogin(input:{email:$e,password:$p}){ accessToken } }',
-    { e: EMAIL, p: PASSWORD },
+    `mutation($t:String!){ refreshToken(token:$t){ accessToken refreshToken admin { id email firstName lastName isSuperuser roles { id slug name } } } }`,
+    { t: current.refreshToken },
   )
-  const token = (out.data?.adminLogin as { accessToken?: string } | undefined)?.accessToken
-  if (!token) throw new Error(`e2e cannot sign in as ${EMAIL} - is the stack up and seeded? ${JSON.stringify(out).slice(0, 200)}`)
-  return token
+  const next = out.data?.refreshToken as AuthState | undefined
+  if (!next) throw new Error(`e2e session refresh failed - rerun so the setup project signs in again: ${JSON.stringify(out.errors).slice(0, 200)}`)
+  writeFileSync(AUTH_FILE, JSON.stringify(withSession(readSaved(), next), null, 2))
+  return next
 }
+
+/** The live session - refreshed first when its access token has less than `margin` left */
+async function currentSession(margin: number): Promise<AuthState> {
+  // Re-read the file each time a worker starts over: a restarted worker must not replay a consumed token
+  session ??= sessionFrom(readSaved())
+  if (msLeft(session.accessToken) > margin) return session
+  // One refresh at a time - the token is single-use, so a second concurrent call would fail
+  refreshing ??= refresh(session).finally(() => (refreshing = null))
+  session = await refreshing
+  return session
+}
+
+export async function adminToken(): Promise<string> {
+  return (await currentSession(API_MARGIN_MS)).accessToken
+}
+
+/**
+ * The suite's `test`: every browser context starts from the live session rather than the sign-in
+ * the setup project saved, which is long dead by the end of a full run. Specs that sign in as
+ * someone else pass their own storage state to browser.newContext and are unaffected
+ */
+export const test = base.extend({
+  // eslint-disable-next-line no-empty-pattern -- Playwright reads a fixture's dependencies off this pattern
+  storageState: async ({}, provide) => {
+    await provide(withSession(readSaved(), await currentSession(CONTEXT_MARGIN_MS)) as never)
+  },
+})
 
 /**
  * Workspaces roam, so they outlive the browser context AND the run - every spec starts from nothing
@@ -38,6 +111,30 @@ async function signIn(): Promise<string> {
 export async function resetWorkspaces(): Promise<void> {
   const token = await adminToken()
   await api('mutation($k:String!,$v:JSON){ setMyPreference(key:$k, value:$v) }', { k: 'workspaces', v: null }, token)
+}
+
+/** An admin API call as the e2e admin - throws on any GraphQL error, so a failed seed stops the spec */
+export async function adminApi<T = Record<string, unknown>>(query: string, variables: unknown = {}): Promise<T> {
+  const out = await api(query, variables, await adminToken())
+  if (out.errors || !out.data) throw new Error(`admin API: ${JSON.stringify(out.errors ?? out).slice(0, 400)}`)
+  return out.data as T
+}
+
+/**
+ * The page-header Save: opens the review dialog, checks it lists each expected row, applies, and
+ * waits for the header Save to go idle again - "No changes" on some pages, a disabled "Save changes"
+ * on the record-form pages, or gone when the page returns to its list
+ */
+export async function saveThroughDialog(page: Page, expectedRows: (string | RegExp)[] = []): Promise<void> {
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog).toBeVisible()
+  for (const row of expectedRows) await expect(dialog.getByText(row).first()).toBeVisible()
+  await dialog.getByRole('button', { name: /^Apply/ }).click()
+  await expect(dialog).toBeHidden()
+  // Pages that go back to their list after a save leave no header Save behind to check
+  const idle = page.getByRole('button', { name: /^(No changes|Save changes)$/ }).first()
+  await expect.poll(async () => (await idle.count()) === 0 || (await idle.isDisabled())).toBe(true)
 }
 
 export const AUTH_FILE = 'e2e/.auth/admin.json'

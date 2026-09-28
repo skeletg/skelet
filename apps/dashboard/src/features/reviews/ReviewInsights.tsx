@@ -4,6 +4,7 @@ import { Area, AreaChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from 'r
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { ChartContainer } from '@/components/ui/chart'
+import { CHART_DESTRUCTIVE, CHART_SUCCESS, CHART_WARNING, SERIES, SERIES_OTHER } from '@/lib/chart-colors'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -14,15 +15,15 @@ import { ReviewInsightsDocument } from './Reviews.gql'
 
 type Bucket = 'day' | 'week' | 'month'
 
-const COLORS = ['#0ea5e9', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#14b8a6', '#ec4899', '#6366f1']
-const UNCATEGORIZED_COLOR = '#94a3b8'
+const COLORS = SERIES
+const UNCATEGORIZED_COLOR = SERIES_OTHER
 const MAX_TREND_SERIES = 8
 
 // Status display: order + color for the share bars + legend
 const STATUS_META: Record<string, { label: string; color: string }> = {
-  APPROVED: { label: 'Approved', color: '#10b981' },
-  PENDING: { label: 'Pending', color: '#f59e0b' },
-  REJECTED: { label: 'Rejected', color: '#ef4444' },
+  APPROVED: { label: 'Approved', color: CHART_SUCCESS },
+  PENDING: { label: 'Pending', color: CHART_WARNING },
+  REJECTED: { label: 'Rejected', color: CHART_DESTRUCTIVE },
 }
 
 const nfmt = (n: number) => n.toLocaleString()
@@ -247,7 +248,7 @@ export function ReviewInsightsContent() {
                     <span
                       className={cn(
                         'text-xs font-medium tabular-nums',
-                        totalDelta > 0 ? 'text-emerald-600' : totalDelta < 0 ? 'text-red-600' : 'text-muted-foreground',
+                        totalDelta > 0 ? 'text-success' : totalDelta < 0 ? 'text-destructive' : 'text-muted-foreground',
                       )}
                     >
                       {totalDelta > 0 ? '▲' : totalDelta < 0 ? '▼' : ''} {Math.abs(totalDelta)}%
@@ -273,7 +274,7 @@ export function ReviewInsightsContent() {
                 <p className="mt-1 truncate text-2xl font-semibold">{mover ? mover.name : '-'}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {mover ? (
-                    <span className={mover.change > 0 ? 'text-emerald-600' : 'text-red-600'}>
+                    <span className={mover.change > 0 ? 'text-success' : 'text-destructive'}>
                       {mover.change > 0 ? '▲ +' : '▼ '}
                       {nfmt(Math.abs(mover.change))} vs prior
                     </span>
@@ -449,7 +450,7 @@ function ShareTable({
                     {r.change === 0 ? (
                       <span className="text-muted-foreground">-</span>
                     ) : (
-                      <span className={r.change > 0 ? 'text-emerald-600' : 'text-red-600'}>
+                      <span className={r.change > 0 ? 'text-success' : 'text-destructive'}>
                         {r.change > 0 ? `+${nfmt(r.change)}` : nfmt(r.change)}
                       </span>
                     )}

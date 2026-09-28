@@ -603,3 +603,27 @@ export function LexicalRichTextEditor({
     </LexicalComposer>
   )
 }
+
+// The editor for a rich text held in a form. LexicalRichTextEditor reads `value` only when it mounts,
+// so a value put there from outside - a restored draft, a discard - would sit in the form while the
+// editor kept showing the old copy. This remounts it for those, and never for its own edits
+export function FormRichTextEditor(props: Parameters<typeof LexicalRichTextEditor>[0]) {
+  const { value, onChange } = props
+  const [emitted, setEmitted] = useState(value)
+  const [seen, setSeen] = useState(value)
+  const [revision, setRevision] = useState(0)
+  if (value !== seen) {
+    setSeen(value)
+    if (value !== emitted) setRevision((r) => r + 1)
+  }
+  return (
+    <LexicalRichTextEditor
+      key={revision}
+      {...props}
+      onChange={(next, plainText) => {
+        setEmitted(next)
+        onChange(next, plainText)
+      }}
+    />
+  )
+}

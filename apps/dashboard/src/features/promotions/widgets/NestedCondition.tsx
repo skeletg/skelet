@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { gql } from '@apollo/client'
 import { useQuery } from '@apollo/client/react'
 
 import {
@@ -15,31 +14,12 @@ import { CategoryPicker } from './CategoryPicker'
 import { SkuPicker } from './SkuPicker'
 import { CustomerGroupPicker } from './CustomerGroupPicker'
 import { AttributePicker } from './AttributePicker'
-
-// Introspects the condition catalog (built-in + plugin) for the type dropdown and the chosen
-// type's paramsSchema
-const PROMOTION_CONDITION_TYPES = gql`
-  query NestedConditionTypes {
-    promotionConditionTypes {
-      slug
-      label
-      description
-      paramsSchema
-    }
-  }
-`
-
-type Descriptor = {
-  slug: string
-  label: string
-  description: string
-  paramsSchema: unknown
-}
+import { PromotionConditionTypesDocument } from '../Promotions.gql'
 
 // A recursive condition picker for composites (core.all_of / any_of / not) and matching-line actions, over a `{ type, params }` value -
 // recursion works because the widget ships its own `nested-condition` slug to the inner SchemaForm, so nesting has no depth limit
 export function NestedCondition({ value, onChange }: WidgetProps) {
-  const { data } = useQuery<{ promotionConditionTypes: Descriptor[] }>(PROMOTION_CONDITION_TYPES)
+  const { data } = useQuery(PromotionConditionTypesDocument)
   const types = useMemo(() => data?.promotionConditionTypes ?? [], [data])
 
   const v =

@@ -16,6 +16,7 @@ type tagStore interface {
 	DeleteTagContent(ctx context.Context, tagID uuid.UUID, locale string) error
 	GetTagByID(ctx context.Context, id uuid.UUID) (Tag, error)
 	GetTagBySlug(ctx context.Context, slug string) (Tag, error)
+	ListTagContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]TagContent, error)
 	ListTags(ctx context.Context) ([]Tag, error)
 	UpdateTag(ctx context.Context, in UpdateTagInput) (Tag, error)
 	UpsertTagContent(ctx context.Context, tagID uuid.UUID, in TagContentInput) (TagContent, error)
@@ -222,4 +223,9 @@ func (s *core) fillTagContent(ctx context.Context, t *Tag, locale string) {
 			}
 		}
 	}
+}
+
+// ListTagTranslations returns every locale's content row for each tag, in one query - list reads only carry the resolved locale, so the admin allContent field reads the full set here
+func (s *tagService) ListTagTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]TagContent, error) {
+	return s.repo.ListTagContentFor(ctx, ids)
 }

@@ -30,6 +30,7 @@ type postStore interface {
 	ListPostChannelListings(ctx context.Context, postID uuid.UUID) ([]PostChannelListing, error)
 	ListPostContent(ctx context.Context, postID uuid.UUID) ([]PostContent, error)
 	ListPostContentByScope(ctx context.Context, postIDs []uuid.UUID, locale string) (map[uuid.UUID]PostContent, error)
+	ListPostContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PostContent, error)
 	ListPostTags(ctx context.Context, postID uuid.UUID) ([]Tag, error)
 	ListPosts(ctx context.Context, filter PostListFilter) ([]Post, error)
 	ListTagsByPostIDs(ctx context.Context, postIDs []uuid.UUID) (map[uuid.UUID][]Tag, error)
@@ -537,4 +538,9 @@ func (s *postService) PromoteDuePosts(ctx context.Context) (int, error) { // fli
 		}
 	}
 	return count, nil
+}
+
+// ListPostTranslations returns every locale's content row for each post, in one query - list reads only carry the resolved locale, so the admin allContent field reads the full set here
+func (s *postService) ListPostTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PostContent, error) {
+	return s.repo.ListPostContentFor(ctx, ids)
 }

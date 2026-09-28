@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { dividers, dragTabToEdge, dragTo, navigate, newTab, paneCount, startClean, strips, tabCentre, workspaceBox } from './helpers'
+import { expect } from '@playwright/test'
+import { dividers, dragTabToEdge, dragTo, navigate, newTab, paneCount, startClean, strips, tabCentre, test, workspaceBox } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await startClean(page)
@@ -44,7 +44,8 @@ test('a drop in the outer gutter still counts as the edge', async ({ page }) => 
 test('the page a tab carries into a new pane is never reloaded', async ({ page }) => {
   const ops: string[] = []
   page.on('request', (r) => {
-    if (!r.url().includes('/api/admin/graphql')) return
+    // ADMIN_API_SLUG moves the endpoint to /api/admin/<slug>/graphql
+    if (!/\/api\/admin\/(.+\/)?graphql/.test(r.url())) return
     try {
       const body = JSON.parse(r.postData() ?? '{}') as { operationName?: string }
       if (body.operationName) ops.push(body.operationName)
@@ -52,8 +53,11 @@ test('the page a tab carries into a new pane is never reloaded', async ({ page }
   })
   await twoTabs(page)
   const count = (name: string) => ops.filter((o) => o === name).length
+  // The list queries once the header scope resolves, a beat after the tab opens
+  await expect
+    .poll(() => ops.find((o) => /order/i.test(o)), { message: 'the orders page should have issued at least one query' })
+    .toBeTruthy()
   const watched = ops.find((o) => /order/i.test(o))
-  expect(watched, 'the orders page should have issued at least one query').toBeTruthy()
 
   const before = count(watched!)
   await dragTabToEdge(page, 'All orders', 'right')

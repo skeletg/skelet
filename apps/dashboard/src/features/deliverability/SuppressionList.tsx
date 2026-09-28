@@ -37,11 +37,11 @@ const REASON_LABELS: Record<string, string> = {
 }
 
 const REASON_TONE: Record<string, string> = {
-  hard_bounce: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
-  complaint: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
-  soft_bounce: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
-  manual: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
-  unsubscribe: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
+  hard_bounce: 'bg-destructive-soft text-destructive',
+  complaint: 'bg-destructive-soft text-destructive',
+  soft_bounce: 'bg-warning-soft text-warning',
+  manual: 'bg-muted text-muted-foreground',
+  unsubscribe: 'bg-info-soft text-info',
 }
 
 type SuppressionRow = {
@@ -189,7 +189,7 @@ export function SuppressionList() {
                 onKeyDown={(e) => e.key === 'Enter' && void add()}
                 className="w-64"
               />
-              <Button size="sm" onClick={() => void add()} disabled={adding || !newEmail.trim()}>
+              <Button className="h-10" size="sm" onClick={() => void add()} disabled={adding || !newEmail.trim()}>
                 <PlusIcon className="size-4" /> Suppress
               </Button>
             </div>

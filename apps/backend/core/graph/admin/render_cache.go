@@ -21,6 +21,10 @@ type renderCache struct {
 	channels         map[uuid.UUID]channel.Channel
 	salable          map[uuid.UUID]float64
 	channelLocations map[uuid.UUID][]inventory.Location
+	// Every locale's translation rows, for the content fields - an entry with a nil slice means "loaded, none"
+	categoryContent   map[uuid.UUID][]catalog.CategoryContent
+	productContent    map[uuid.UUID][]catalog.ProductContent
+	collectionContent map[uuid.UUID][]catalog.CollectionContent
 }
 
 type renderCacheCtxKey struct{}
@@ -43,11 +47,14 @@ func getRenderCache(ctx context.Context) *renderCache {
 
 func newRenderCache() *renderCache {
 	return &renderCache{
-		productTypes:     map[uuid.UUID]catalog.ProductType{},
-		listings:         map[uuid.UUID][]catalog.ProductChannelListing{},
-		channels:         map[uuid.UUID]channel.Channel{},
-		salable:          map[uuid.UUID]float64{},
-		channelLocations: map[uuid.UUID][]inventory.Location{},
+		productTypes:      map[uuid.UUID]catalog.ProductType{},
+		listings:          map[uuid.UUID][]catalog.ProductChannelListing{},
+		channels:          map[uuid.UUID]channel.Channel{},
+		salable:           map[uuid.UUID]float64{},
+		channelLocations:  map[uuid.UUID][]inventory.Location{},
+		categoryContent:   map[uuid.UUID][]catalog.CategoryContent{},
+		productContent:    map[uuid.UUID][]catalog.ProductContent{},
+		collectionContent: map[uuid.UUID][]catalog.CollectionContent{},
 	}
 }
 
@@ -182,4 +189,128 @@ func (r *Resolver) cachedSalable(ctx context.Context, productID uuid.UUID) (floa
 	defer c.mu.RUnlock()
 	v, ok := c.salable[productID]
 	return v, ok
+}
+
+// Loads every locale's rows for the categories a list is about to render, in one query - ids with no rows are
+// cached as loaded-and-empty so the content resolver doesn't go back for them
+func (r *Resolver) primeCategoryContent(ctx context.Context, ids []uuid.UUID) error {
+	c := getRenderCache(ctx)
+	if c == nil || len(ids) == 0 {
+		return nil
+	}
+	byID, err := r.CatalogSvc.ListCategoryTranslations(ctx, ids)
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	for _, id := range ids {
+		c.categoryContent[id] = byID[id]
+	}
+	c.mu.Unlock()
+	return nil
+}
+
+// A category's rows from the primed cache, else its own query - also cached, for a category reached twice
+func (r *Resolver) getCategoryContent(ctx context.Context, id uuid.UUID) ([]catalog.CategoryContent, error) {
+	c := getRenderCache(ctx)
+	if c != nil {
+		c.mu.RLock()
+		rows, ok := c.categoryContent[id]
+		c.mu.RUnlock()
+		if ok {
+			return rows, nil
+		}
+	}
+	byID, err := r.CatalogSvc.ListCategoryTranslations(ctx, []uuid.UUID{id})
+	if err != nil {
+		return nil, err
+	}
+	if c != nil {
+		c.mu.Lock()
+		c.categoryContent[id] = byID[id]
+		c.mu.Unlock()
+	}
+	return byID[id], nil
+}
+
+// The product counterpart of primeCategoryContent
+func (r *Resolver) primeProductContent(ctx context.Context, ids []uuid.UUID) error {
+	c := getRenderCache(ctx)
+	if c == nil || len(ids) == 0 {
+		return nil
+	}
+	byID, err := r.CatalogSvc.ListProductTranslations(ctx, ids)
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	for _, id := range ids {
+		c.productContent[id] = byID[id]
+	}
+	c.mu.Unlock()
+	return nil
+}
+
+// The product counterpart of getCategoryContent
+func (r *Resolver) getProductContent(ctx context.Context, id uuid.UUID) ([]catalog.ProductContent, error) {
+	c := getRenderCache(ctx)
+	if c != nil {
+		c.mu.RLock()
+		rows, ok := c.productContent[id]
+		c.mu.RUnlock()
+		if ok {
+			return rows, nil
+		}
+	}
+	byID, err := r.CatalogSvc.ListProductTranslations(ctx, []uuid.UUID{id})
+	if err != nil {
+		return nil, err
+	}
+	if c != nil {
+		c.mu.Lock()
+		c.productContent[id] = byID[id]
+		c.mu.Unlock()
+	}
+	return byID[id], nil
+}
+
+// The collection counterpart of primeCategoryContent
+func (r *Resolver) primeCollectionContent(ctx context.Context, ids []uuid.UUID) error {
+	c := getRenderCache(ctx)
+	if c == nil || len(ids) == 0 {
+		return nil
+	}
+	byID, err := r.CatalogSvc.ListCollectionTranslations(ctx, ids)
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	for _, id := range ids {
+		c.collectionContent[id] = byID[id]
+	}
+	c.mu.Unlock()
+	return nil
+}
+
+// The collection counterpart of getCategoryContent
+func (r *Resolver) getCollectionContent(ctx context.Context, id uuid.UUID) ([]catalog.CollectionContent, error) {
+	c := getRenderCache(ctx)
+	if c != nil {
+		c.mu.RLock()
+		rows, ok := c.collectionContent[id]
+		c.mu.RUnlock()
+		if ok {
+			return rows, nil
+		}
+	}
+	byID, err := r.CatalogSvc.ListCollectionTranslations(ctx, []uuid.UUID{id})
+	if err != nil {
+		return nil, err
+	}
+	if c != nil {
+		c.mu.Lock()
+		c.collectionContent[id] = byID[id]
+		c.mu.Unlock()
+	}
+	return byID[id], nil
 }

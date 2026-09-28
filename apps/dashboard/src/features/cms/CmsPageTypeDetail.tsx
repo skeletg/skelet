@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { useStore } from '@tanstack/react-form'
 import { PlusIcon, Trash2Icon } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -27,15 +28,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { FieldError } from '@/components/form/fields'
 import {
   DetailPageBody,
   DetailPageHeader,
   DetailPageLayout,
   DetailPageSection,
 } from '@/components/layout/detail-page'
-import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
-import { SaveRegistryContext, useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
-import { fieldDiff } from '@/shared/saving/diff'
+import { RecordFormPage } from '@/shared/saving/RecordFormPage'
+import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { useConfigScope } from '@/lib/config-scope'
 import {
@@ -56,6 +57,14 @@ import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { PageBlockCanvas } from './PageBlockCanvas'
 import { PageTypePagesPanel } from './CmsPageTypePages'
 import { parseDocument, serializeDocument, type CmsBlock } from './page-blocks'
+import {
+  PAGE_TYPE_LABELS,
+  normalizeRoot,
+  pageTypeChanges,
+  pageTypeDiff,
+  pageTypeSchema,
+  toPageTypeValues,
+} from './schemas/pageType'
 
 function typeName(t: CmsPageTypeRowFragment) {
   return t.content?.name ?? t.slug
@@ -65,51 +74,12 @@ function typeName(t: CmsPageTypeRowFragment) {
 // and finds the type by id rather than adding a dedicated query
 export function CmsPageTypeDetail() {
   const { id = '' } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const { has } = usePermissions()
-  const canManage = has('cms.types_manage')
-
   const { data, loading, error, refetch } = useQuery(CmsPageTypesDocument)
   const type = (data?.cmsPageTypes ?? []).find((t) => t.id === id)
+  const { effectiveLocale, globalDefaultLocale } = useConfigScope()
+  const locale = effectiveLocale || globalDefaultLocale || 'en'
 
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-
-  // All four panels stage into this registry and the ONE header Save applies every dirty one
-  // through a single review dialog, rather than each carrying a Save of its own
-  const { contextValue: saveContextValue, dirtySections, isDirty, saveAll } = useSaveRegistry()
-  const [confirmingSave, setConfirmingSave] = useState(false)
-  const [savingAll, setSavingAll] = useState(false)
-  const [saveAllError, setSaveAllError] = useState<string | null>(null)
-
-  async function onConfirmSave() {
-    setSaveAllError(null)
-    setSavingAll(true)
-    try {
-      await saveAll()
-      setConfirmingSave(false)
-    } catch (err) {
-      setSaveAllError(err instanceof Error ? err.message : 'Save failed.')
-    } finally {
-      setSavingAll(false)
-    }
-  }
-  const [deleteType, { loading: deleting }] = useMutation(DeleteCmsPageTypeDocument, {
-    refetchQueries: [{ query: CmsPageTypesDocument }],
-  })
-
-  async function onDelete() {
-    if (!type) return
-    setDeleteError(null)
-    try {
-      await deleteType({ variables: { id: type.id } })
-      navigate('/cms/page-types', { replace: true })
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
-  }
-
-  if (loading) return <LoadingState label="Loading page type…" />
+  if (loading && !type) return <LoadingState label="Loading page type…" />
   if (error)
     return (
       <LoadError
@@ -125,113 +95,269 @@ export function CmsPageTypeDetail() {
         <DetailPageHeader backTo="/cms/page-types" backLabel="Back to page types" title="Page type not found" />
         <DetailPageBody>
           <DetailPageSection>
-            <p className="text-sm text-muted-foreground">
-              This page type doesn't exist or was deleted.
-            </p>
+            <p className="text-sm text-muted-foreground">This page type doesn't exist or was deleted.</p>
           </DetailPageSection>
         </DetailPageBody>
       </DetailPageLayout>
     )
+  // Keyed on the locale too - the name and description are the edited locale's translation
+  return <PageTypeForm key={`${type.id}:${locale}`} type={type} locale={locale} />
+}
+
+// Naming, URL structure, SEO defaults and the starter template are one form behind the header
+// Save; each part goes through its own mutation, only when it changed. The page list and the
+// attribute rows act on their own
+function PageTypeForm({ type, locale }: { type: CmsPageTypeRowFragment; locale: string }) {
+  const navigate = useNavigate()
+  const { has } = usePermissions()
+  const canManage = has('cms.types_manage')
+
+  const refetchQueries = [{ query: CmsPageTypesDocument }]
+  const { data: chData } = useQuery(ChannelsDocument)
+  const channels = useMemo(() => (chData?.channels ?? []).filter((c) => c.isActive), [chData])
+  const [updateType] = useMutation(UpdateCmsPageTypeDocument, { refetchQueries })
+  // These answer with the type hydrated exactly as the list hydrates it, but still refetch: they run
+  // after updateType in the same save, and its bare-row answer can otherwise land last through its
+  // own refetch
+  const [upsertContent] = useMutation(UpsertCmsPageTypeContentDocument, { refetchQueries })
+  const [updateStructure] = useMutation(UpdateCmsPageTypeStructureDocument, { refetchQueries })
+  const [setChannelRoot] = useMutation(SetCmsPageTypeChannelRootDocument, { refetchQueries })
+  const [setDefaultBlocks] = useMutation(SetCmsPageTypeDefaultBlocksDocument, { refetchQueries })
+  const [deleteType, { loading: deleting }] = useMutation(DeleteCmsPageTypeDocument, { refetchQueries })
+
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const baseline = useMemo(
+    () => toPageTypeValues(type, locale, parseDocument(type.defaultBlocks)?.blocks ?? []),
+    [type, locale],
+  )
+  const diff = useMemo(() => pageTypeDiff((id) => channels.find((c) => c.id === id)?.name ?? id), [channels])
+
+  const record = useRecordForm({
+    id: 'page-type',
+    title: 'Page type',
+    label: `Page type · ${typeName(type)}`,
+    isEdit: true,
+    baseline,
+    schema: pageTypeSchema,
+    diff,
+    persist: { routeKey: `cms-page-type:${type.id}:${locale}` },
+    submit: async (v) => {
+      const changes = pageTypeChanges(baseline, v)
+      if (changes.display) {
+        await updateType({ variables: { input: { id: type.id, icon: v.icon.trim() || null, position: Number(v.position) || 0 } } })
+      }
+      if (changes.content && v.name.trim()) {
+        await upsertContent({
+          variables: { input: { pageTypeId: type.id, locale, name: v.name.trim(), description: v.description.trim() || null } },
+        })
+      }
+      if (changes.structure) {
+        await updateStructure({
+          variables: {
+            input: {
+              id: type.id,
+              rootSlug: normalizeRoot(v.rootSlug),
+              isSingleton: v.isSingleton,
+              defaultMetaTitle: v.defaultMetaTitle,
+              defaultSeoNoindex: v.defaultSeoNoindex,
+            },
+          },
+        })
+      }
+      for (const r of changes.channelRoots) {
+        await setChannelRoot({ variables: { pageTypeId: type.id, channelId: r.channelId, rootSlug: r.rootSlug } })
+      }
+      if (changes.blocks) {
+        const blocks = v.blocks as CmsBlock[]
+        await setDefaultBlocks({ variables: { pageTypeId: type.id, blocks: blocks.length > 0 ? serializeDocument(blocks) : null } })
+      }
+    },
+  })
+  const { form } = record
+  const rootSlug = useStore(form.store, (s) => normalizeRoot(s.values.rootSlug))
+
+  async function onDelete() {
+    setDeleteError(null)
+    try {
+      await deleteType({ variables: { id: type.id } })
+      navigate('/cms/page-types', { replace: true })
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
+    }
+  }
 
   return (
-    <SaveRegistryContext.Provider value={saveContextValue}>
-    <DetailPageLayout>
-      <DetailPageHeader
-        backTo="/cms/page-types"
-        backLabel="Back to page types"
-        title={typeName(type)}
-        badges={
-          <>
-            <code className="font-mono text-xs text-muted-foreground">{type.slug}</code>
-            {type.isSystem && <Badge variant="secondary">system</Badge>}
-            {type.isSingleton && <Badge variant="secondary">singleton</Badge>}
-            {type.rootSlug && <Badge variant="outline">/{type.rootSlug}</Badge>}
-          </>
-        }
-        meta={type.content?.description ? <span>{type.content.description}</span> : undefined}
-        actions={
-          canManage ? (
-            <>
-              {!type.isSystem && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => {
-                    setDeleteError(null)
-                    setConfirmDelete(true)
-                  }}
-                  disabled={deleting}
-                >
-                  <Trash2Icon className="size-4" />
-                  Delete
-                </Button>
-              )}
-              <Button
-                type="button"
-                size="sm"
-                disabled={!isDirty || savingAll}
-                onClick={() => setConfirmingSave(true)}
-              >
-                {savingAll ? 'Saving…' : 'Save changes'}
-              </Button>
-            </>
-          ) : null
-        }
-      />
-
-      <DetailPageBody>
-        <DetailPageSection
-          title="Pages"
-          description="All pages of this type. Search, sort, and filter by status or tag; open one to edit it."
-        >
-          <PageTypePagesPanel pageTypeId={type.id} canManage={canManage} />
-        </DetailPageSection>
-
-        <DetailPageSection
-          title="Naming & display"
-          description="The label and icon this type shows under in the CMS, plus its per-locale name."
-        >
-          <PageTypeDetailsPanel type={type} canManage={canManage} />
-        </DetailPageSection>
-
-        <DetailPageSection
-          title="URL & behavior"
-          description="Give pages of this type a URL root (per-channel optional), and control single-instance behavior."
-        >
-          <PageTypeStructurePanel type={type} canManage={canManage} />
-        </DetailPageSection>
-
-        <DetailPageSection
-          title="SEO defaults"
-          description="Pages of this type inherit these unless they set their own. Use {title} in the meta-title pattern."
-        >
-          <PageTypeSEOPanel type={type} canManage={canManage} />
-        </DetailPageSection>
-
-        <DetailPageSection
-          title="Default content template"
-          description="New pages of this type start pre-filled with these blocks (block IDs are regenerated per page)."
-        >
-          <PageTypeTemplatePanel type={type} canManage={canManage} />
-        </DetailPageSection>
-
+    <RecordFormPage
+      record={record}
+      backTo="/cms/page-types"
+      backLabel="Back to page types"
+      title={typeName(type)}
+      badges={
+        <>
+          <code className="font-mono text-xs text-muted-foreground">{type.slug}</code>
+          {type.isSystem && <Badge variant="secondary">system</Badge>}
+          {type.isSingleton && <Badge variant="secondary">singleton</Badge>}
+          {type.rootSlug && <Badge variant="outline">/{type.rootSlug}</Badge>}
+        </>
+      }
+      meta={type.content?.description ? <span>{type.content.description}</span> : undefined}
+      actions={
+        canManage &&
+        !type.isSystem && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => {
+              setDeleteError(null)
+              setConfirmDelete(true)
+            }}
+            disabled={deleting}
+          >
+            <Trash2Icon className="size-4" />
+            Delete
+          </Button>
+        )
+      }
+      createLabel="Save changes"
+      labels={PAGE_TYPE_LABELS}
+      // The page list's search stays usable read-only, so only the form's own sections disable
+      hideSave={!canManage}
+      after={
         <DetailPageSection
           title="Attributes"
           description="Attributes assigned to this type become editable fields on every page of this type."
         >
           <PageTypeAttributesPanel type={type} canManage={canManage} />
         </DetailPageSection>
-      </DetailPageBody>
+      }
+    >
+      <DetailPageSection
+        title="Pages"
+        description="All pages of this type. Search, sort, and filter by status or tag; open one to edit it."
+      >
+        <PageTypePagesPanel pageTypeId={type.id} canManage={canManage} />
+      </DetailPageSection>
+
+      <DetailPageSection
+        title="Naming & display"
+        description="The label and icon this type shows under in the CMS, plus its per-locale name."
+      >
+        <fieldset disabled={!canManage} className="grid gap-4">
+          <div className="grid items-start gap-3 sm:grid-cols-[1fr_8rem]">
+            <form.AppField name="name">{(f) => <f.TextField id="pt-name" label={`Name (${locale})`} placeholder={type.slug} />}</form.AppField>
+            <form.AppField name="position">{(f) => <f.TextField id="pt-position" label="Position" type="number" />}</form.AppField>
+          </div>
+          <form.AppField name="description">{(f) => <f.TextField id="pt-desc" label={`Description (${locale})`} />}</form.AppField>
+          <form.AppField name="icon">
+            {(f) => <f.TextField id="pt-icon" label="Icon" placeholder="lucide icon name, e.g. FileText" />}
+          </form.AppField>
+          {type.allContent.length > 0 && (
+            <p className="text-xs text-muted-foreground">Translations stored: {type.allContent.map((c) => c.locale).join(', ')}</p>
+          )}
+        </fieldset>
+      </DetailPageSection>
+
+      <DetailPageSection
+        title="URL & behavior"
+        description="Give pages of this type a URL root (per-channel optional), and control single-instance behavior."
+      >
+        <fieldset disabled={!canManage} className="grid max-w-xl gap-4">
+          <form.AppField name="rootSlug">
+            {(f) => (
+              <f.TextField
+                id="root-slug"
+                label="URL root"
+                placeholder="e.g. help - pages live at /help/<slug>"
+                hint={
+                  <>
+                    Empty = bare paths. Pages of this type are served at <code>/{rootSlug || '<slug>'}{rootSlug ? '/<slug>' : ''}</code>.
+                  </>
+                }
+              />
+            )}
+          </form.AppField>
+
+          {channels.length > 1 && (
+            <div className="grid gap-1.5">
+              <Label className="text-sm font-medium">Per-channel root overrides</Label>
+              <ul className="grid gap-1.5">
+                {channels.map((c) => (
+                  <li key={c.id} className="flex items-start gap-2">
+                    <span className="w-32 shrink-0 truncate pt-2 text-sm">{c.name}</span>
+                    <form.Field name={`channelRoots.${c.id}`}>
+                      {(f) => (
+                        <div className="grid flex-1 gap-1">
+                          <Input
+                            aria-label={`Root on ${c.name}`}
+                            value={f.state.value ?? ''}
+                            onChange={(e) => f.handleChange(e.target.value)}
+                            onBlur={f.handleBlur}
+                            placeholder={rootSlug || '(global root)'}
+                            className="h-9"
+                          />
+                          <FieldError field={f} />
+                        </div>
+                      )}
+                    </form.Field>
+                  </li>
+                ))}
+              </ul>
+              <span className="text-xs text-muted-foreground">Blank = use the global root above on that channel.</span>
+            </div>
+          )}
+
+          <form.Field name="isSingleton">
+            {(f) => (
+              <div className="flex items-center gap-2">
+                <Switch id="singleton" checked={f.state.value} onCheckedChange={f.handleChange} />
+                <Label htmlFor="singleton" className="text-sm">
+                  Singleton - allow only one page of this type
+                </Label>
+              </div>
+            )}
+          </form.Field>
+        </fieldset>
+      </DetailPageSection>
+
+      <DetailPageSection
+        title="SEO defaults"
+        description="Pages of this type inherit these unless they set their own. Use {title} in the meta-title pattern."
+      >
+        <fieldset disabled={!canManage} className="grid max-w-xl gap-4">
+          <form.AppField name="defaultMetaTitle">
+            {(f) => <f.TextField id="default-meta-title" label="Default meta title" placeholder="e.g. {title} - Help Center" />}
+          </form.AppField>
+          <form.Field name="defaultSeoNoindex">
+            {(f) => (
+              <div className="flex items-center gap-2">
+                <Switch id="default-noindex" checked={f.state.value} onCheckedChange={f.handleChange} />
+                <Label htmlFor="default-noindex" className="text-sm">
+                  Default to noindex (hide from search engines)
+                </Label>
+              </div>
+            )}
+          </form.Field>
+        </fieldset>
+      </DetailPageSection>
+
+      <DetailPageSection
+        title="Default content template"
+        description="New pages of this type start pre-filled with these blocks (block IDs are regenerated per page)."
+      >
+        <form.Field name="blocks">
+          {(f) => <PageBlockCanvas blocks={f.state.value as CmsBlock[]} onChange={(next) => f.handleChange(next)} disabled={!canManage} />}
+        </form.Field>
+      </DetailPageSection>
 
       <AlertDialog open={confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {typeName(type)}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the page type and its attribute assignments. It must have no pages.
-            </AlertDialogDescription>
+            <AlertDialogDescription>This removes the page type and its attribute assignments. It must have no pages.</AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError && (
             <Alert variant="destructive">
@@ -245,7 +371,7 @@ export function CmsPageTypeDetail() {
               disabled={deleting}
               onClick={(e) => {
                 e.preventDefault()
-                onDelete()
+                void onDelete()
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
@@ -254,439 +380,7 @@ export function CmsPageTypeDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <SaveConfirmDialog
-        open={confirmingSave}
-        scopeLabel={`Page type · ${typeName(type)}`}
-        sections={dirtySections}
-        saving={savingAll}
-        error={saveAllError}
-        onCancel={() => { if (!savingAll) { setConfirmingSave(false); setSaveAllError(null) } }}
-        onConfirm={onConfirmSave}
-      />
-    </DetailPageLayout>
-    </SaveRegistryContext.Provider>
-  )
-}
-
-// PageTypeStructurePanel edits the URL root (global + per-channel overrides)
-// and the singleton flag - Uses the partial-update mutation so it only writes
-// PageTypeDetailsPanel owns the presentation bits: the sidebar icon and
-// ordering (updateCMSPageType) plus the localized name/description
-// (upsertCMSPageTypeContent, one row per locale)
-function PageTypeDetailsPanel({
-  type,
-  canManage,
-}: {
-  type: CmsPageTypeRowFragment
-  canManage: boolean
-}) {
-  const refetch = [{ query: CmsPageTypesDocument }]
-  const [updateType] = useMutation(UpdateCmsPageTypeDocument, { refetchQueries: refetch })
-  const [upsertContent] = useMutation(UpsertCmsPageTypeContentDocument, { refetchQueries: refetch })
-  const { effectiveLocale, globalDefaultLocale } = useConfigScope()
-  const locale = effectiveLocale || globalDefaultLocale || 'en'
-  const existing = type.allContent.find((c) => c.locale === locale)
-
-  const [icon, setIcon] = useState(type.icon ?? '')
-  const [position, setPosition] = useState(String(type.position))
-  const [name, setName] = useState(existing?.name ?? '')
-  const [description, setDescription] = useState(existing?.description ?? '')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [ok, setOk] = useState(false)
-
-  useSaveSection({
-    id: 'page-type-details',
-    title: 'Details',
-    diff: fieldDiff(
-      {
-        icon: type.icon ?? '',
-        position: String(type.position),
-        name: existing?.name ?? '',
-        description: existing?.description ?? '',
-      },
-      { icon, position, name, description },
-      [
-        { label: 'Icon', value: (o) => o.icon },
-        { label: 'Position', value: (o) => o.position },
-        { label: 'Name', value: (o) => o.name },
-        { label: 'Description', value: (o) => o.description },
-      ],
-    ),
-    save: () => save(),
-  })
-
-  async function save() {
-    setError(null)
-    setOk(false)
-    setSaving(true)
-    try {
-      await updateType({
-        variables: {
-          input: { id: type.id, icon: icon.trim() || null, position: Number(position) || 0 },
-        },
-      })
-      // name is required by the mutation, so only send content when set
-      if (name.trim()) {
-        await upsertContent({
-          variables: {
-            input: {
-              pageTypeId: type.id,
-              locale,
-              name: name.trim(),
-              description: description.trim() || null,
-            },
-          },
-        })
-      }
-      setOk(true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed.')
-      throw e // the header dialog keeps itself open and surfaces the message
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="grid gap-4">
-      {error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Save failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      <div className="grid gap-3 sm:grid-cols-[1fr_8rem]">
-        <div className="grid gap-1.5">
-          <Label htmlFor="pt-name">Name ({locale})</Label>
-          <Input
-            id="pt-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={type.slug}
-            disabled={!canManage}
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="pt-position">Position</Label>
-          <Input
-            id="pt-position"
-            type="number"
-            value={position}
-            onChange={(e) => setPosition(e.target.value)}
-            disabled={!canManage}
-          />
-        </div>
-      </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor="pt-desc">Description ({locale})</Label>
-        <Input
-          id="pt-desc"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          disabled={!canManage}
-        />
-      </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor="pt-icon">Icon</Label>
-        <Input
-          id="pt-icon"
-          value={icon}
-          onChange={(e) => setIcon(e.target.value)}
-          placeholder="lucide icon name, e.g. FileText"
-          disabled={!canManage}
-        />
-      </div>
-      {type.allContent.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Translations stored: {type.allContent.map((c) => c.locale).join(', ')}
-        </p>
-      )}
-      {canManage && (
-        <div className="flex items-center gap-3">
-          {/* No per-panel Save - the page header applies every staged panel through one dialog */}
-          {saving ? <span className="text-xs text-muted-foreground">Saving…</span> : null}
-          {ok && <span className="text-xs text-emerald-600">Saved.</span>}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// the fields it owns (SEO defaults are a separate panel)
-function PageTypeStructurePanel({
-  type,
-  canManage,
-}: {
-  type: CmsPageTypeRowFragment
-  canManage: boolean
-}) {
-  const refetch = [{ query: CmsPageTypesDocument }]
-  const { data: chData } = useQuery(ChannelsDocument)
-  const channels = (chData?.channels ?? []).filter((c) => c.isActive)
-  const [updateStructure] = useMutation(UpdateCmsPageTypeStructureDocument, { refetchQueries: refetch })
-  const [setChannelRoot] = useMutation(SetCmsPageTypeChannelRootDocument, { refetchQueries: refetch })
-
-  const currentRoots: Record<string, string> = {}
-  for (const cr of type.channelRoots) currentRoots[cr.channelId] = cr.rootSlug
-
-  const [rootSlug, setRootSlug] = useState(type.rootSlug ?? '')
-  const [isSingleton, setIsSingleton] = useState(type.isSingleton)
-  const [roots, setRoots] = useState<Record<string, string>>(currentRoots)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [ok, setOk] = useState(false)
-
-  useSaveSection({
-    id: 'page-type-structure',
-    title: 'Structure',
-    diff: fieldDiff(
-      {
-        rootSlug: type.rootSlug ?? '',
-        isSingleton: type.isSingleton,
-        roots: Object.entries(currentRoots).map(([k, v]) => `${k}=${v}`).sort().join(', '),
-      },
-      {
-        rootSlug,
-        isSingleton,
-        roots: Object.entries(roots).map(([k, v]) => `${k}=${(v ?? '').trim()}`).sort().join(', '),
-      },
-      [
-        { label: 'Root slug', value: (o) => o.rootSlug },
-        { label: 'Singleton', value: (o) => o.isSingleton },
-        { label: 'Per-channel roots', value: (o) => o.roots },
-      ],
-    ),
-    save: () => save(),
-  })
-
-  async function save() {
-    setError(null)
-    setOk(false)
-    setSaving(true)
-    try {
-      await updateStructure({ variables: { input: { id: type.id, rootSlug, isSingleton } } })
-      for (const c of channels) {
-        const next = (roots[c.id] ?? '').trim()
-        if (next !== (currentRoots[c.id] ?? '')) {
-          await setChannelRoot({ variables: { pageTypeId: type.id, channelId: c.id, rootSlug: next } })
-        }
-      }
-      setOk(true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed.')
-      throw e // the header dialog keeps itself open and surfaces the message
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="grid max-w-xl gap-4">
-      <div className="grid gap-1.5">
-        <Label htmlFor="root-slug" className="text-sm font-medium">URL root</Label>
-        <Input
-          id="root-slug"
-          value={rootSlug}
-          onChange={(e) => setRootSlug(e.target.value)}
-          placeholder="e.g. help - pages live at /help/<slug>"
-          disabled={!canManage}
-          className="h-9"
-        />
-        <span className="text-xs text-muted-foreground">
-          Empty = bare paths. Pages of this type are served at <code>/{rootSlug || '<slug>'}{rootSlug ? '/<slug>' : ''}</code>.
-        </span>
-      </div>
-
-      {channels.length > 1 && (
-        <div className="grid gap-1.5">
-          <Label className="text-sm font-medium">Per-channel root overrides</Label>
-          <ul className="grid gap-1.5">
-            {channels.map((c) => (
-              <li key={c.id} className="flex items-center gap-2">
-                <span className="w-32 shrink-0 truncate text-sm">{c.name}</span>
-                <Input
-                  value={roots[c.id] ?? ''}
-                  onChange={(e) => setRoots((prev) => ({ ...prev, [c.id]: e.target.value }))}
-                  placeholder={rootSlug || '(global root)'}
-                  disabled={!canManage}
-                  className="h-9"
-                />
-              </li>
-            ))}
-          </ul>
-          <span className="text-xs text-muted-foreground">Blank = use the global root above on that channel.</span>
-        </div>
-      )}
-
-      <div className="flex items-center gap-2">
-        <Switch id="singleton" checked={isSingleton} onCheckedChange={setIsSingleton} disabled={!canManage} />
-        <Label htmlFor="singleton" className="text-sm">Singleton - allow only one page of this type</Label>
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Save failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {canManage && (
-        <div className="flex items-center gap-3">
-          {/* No per-panel Save - the page header applies every staged panel through one dialog */}
-          {saving ? <span className="text-xs text-muted-foreground">Saving…</span> : null}
-          {ok && <span className="text-xs text-emerald-600">Saved.</span>}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// PageTypeSEOPanel edits the inherited meta-title pattern + noindex default
-function PageTypeSEOPanel({
-  type,
-  canManage,
-}: {
-  type: CmsPageTypeRowFragment
-  canManage: boolean
-}) {
-  const [updateStructure] = useMutation(UpdateCmsPageTypeStructureDocument, {
-    refetchQueries: [{ query: CmsPageTypesDocument }],
-  })
-  const [metaTitle, setMetaTitle] = useState(type.defaultMetaTitle ?? '')
-  const [noindex, setNoindex] = useState(type.defaultSeoNoindex)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [ok, setOk] = useState(false)
-
-  useSaveSection({
-    id: 'page-type-seo',
-    title: 'SEO defaults',
-    diff: fieldDiff(
-      { metaTitle: type.defaultMetaTitle ?? '', noindex: type.defaultSeoNoindex },
-      { metaTitle, noindex },
-      [
-        { label: 'Default meta title', value: (o) => o.metaTitle },
-        { label: 'Default noindex', value: (o) => o.noindex },
-      ],
-    ),
-    save: () => save(),
-  })
-
-  async function save() {
-    setError(null)
-    setOk(false)
-    setSaving(true)
-    try {
-      await updateStructure({
-        variables: { input: { id: type.id, defaultMetaTitle: metaTitle, defaultSeoNoindex: noindex } },
-      })
-      setOk(true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed.')
-      throw e // the header dialog keeps itself open and surfaces the message
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="grid max-w-xl gap-4">
-      <div className="grid gap-1.5">
-        <Label htmlFor="default-meta-title" className="text-sm font-medium">Default meta title</Label>
-        <Input
-          id="default-meta-title"
-          value={metaTitle}
-          onChange={(e) => setMetaTitle(e.target.value)}
-          placeholder="e.g. {title} - Help Center"
-          disabled={!canManage}
-          className="h-9"
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <Switch id="default-noindex" checked={noindex} onCheckedChange={setNoindex} disabled={!canManage} />
-        <Label htmlFor="default-noindex" className="text-sm">Default to noindex (hide from search engines)</Label>
-      </div>
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Save failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {canManage && (
-        <div className="flex items-center gap-3">
-          {/* No per-panel Save - the page header applies every staged panel through one dialog */}
-          {saving ? <span className="text-xs text-muted-foreground">Saving…</span> : null}
-          {ok && <span className="text-xs text-emerald-600">Saved.</span>}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// PageTypeTemplatePanel authors the starter block document seeded into new
-// pages of this type, reusing the page builder canvas
-function PageTypeTemplatePanel({
-  type,
-  canManage,
-}: {
-  type: CmsPageTypeRowFragment
-  canManage: boolean
-}) {
-  const [setDefaultBlocks] = useMutation(SetCmsPageTypeDefaultBlocksDocument, {
-    refetchQueries: [{ query: CmsPageTypesDocument }],
-  })
-  const [blocks, setBlocks] = useState<CmsBlock[]>(() => parseDocument(type.defaultBlocks)?.blocks ?? [])
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  // A block document can't diff field-by-field, so it reports its block count and type order -
-  // enough to see the starter template changed, and the save thunk reads live state
-  useSaveSection({
-    id: 'page-type-template',
-    title: 'Starter template',
-    diff: fieldDiff(
-      { blocks: (parseDocument(type.defaultBlocks)?.blocks ?? []).map((b) => b.type).join(', ') },
-      { blocks: blocks.map((b) => b.type).join(', ') },
-      [{ label: 'Starter blocks', value: (o) => o.blocks }],
-    ),
-    save: () => save(),
-  })
-  const [ok, setOk] = useState(false)
-
-  async function save() {
-    setError(null)
-    setOk(false)
-    setSaving(true)
-    try {
-      const doc = blocks.length > 0 ? serializeDocument(blocks) : null
-      await setDefaultBlocks({ variables: { pageTypeId: type.id, blocks: doc } })
-      setOk(true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed.')
-      throw e // the header dialog keeps itself open and surfaces the message
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="grid gap-3">
-      <PageBlockCanvas blocks={blocks} onChange={setBlocks} disabled={!canManage} />
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Save failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {canManage && (
-        <div className="flex items-center gap-3">
-          {/* No per-panel Save - the page header applies every staged panel through one dialog */}
-          {saving ? <span className="text-xs text-muted-foreground">Saving…</span> : null}
-          {ok && <span className="text-xs text-emerald-600">Saved.</span>}
-        </div>
-      )}
-    </div>
+    </RecordFormPage>
   )
 }
 
@@ -701,12 +395,8 @@ function PageTypeAttributesPanel({
 }) {
   const { data: attrsData } = useQuery(CmsAttributesDocument)
   const allAttrs = attrsData?.cmsAttributes ?? []
-  const [assignMut] = useMutation(AssignCmsAttributeDocument, {
-    refetchQueries: [{ query: CmsPageTypesDocument }, { query: CmsAttributesDocument }],
-  })
-  const [unassignMut] = useMutation(UnassignCmsAttributeDocument, {
-    refetchQueries: [{ query: CmsPageTypesDocument }, { query: CmsAttributesDocument }],
-  })
+  const [assignMut] = useMutation(AssignCmsAttributeDocument, { refetchQueries: [{ query: CmsAttributesDocument }] })
+  const [unassignMut] = useMutation(UnassignCmsAttributeDocument, { refetchQueries: [{ query: CmsAttributesDocument }] })
 
   const [picked, setPicked] = useState('')
   const [required, setRequired] = useState(false)
@@ -839,6 +529,7 @@ function PageTypeAttributesPanel({
             </div>
           )}
           <Button
+            className="h-10"
             size="sm"
             disabled={!picked}
             onClick={async () => {

@@ -93,7 +93,7 @@ function localizedName(
 
 function PublishedBadge({ published }: { published: boolean }) {
   return published ? (
-    <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+    <span className="inline-flex items-center gap-1.5 text-sm text-success">
       <CheckCircle2Icon className="size-3.5" /> Published
     </span>
   ) : (

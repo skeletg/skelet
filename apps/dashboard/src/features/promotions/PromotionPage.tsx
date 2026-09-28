@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { useMatch, useParams } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 
 import { DetailPageLayout, DetailPageSection } from '@/components/layout/detail-page'
@@ -12,7 +12,8 @@ import { RedemptionsTrend } from './analyticsShared'
 export function PromotionPage() {
   const params = useParams<{ id?: string }>()
   const id = params.id ?? ''
-  const isCreate = id === 'new'
+  // /promotions/new is a literal route with no :id, so match the path rather than the param
+  const isCreate = useMatch('/promotions/new') !== null || id === 'new'
 
   return (
     <DetailPageLayout>

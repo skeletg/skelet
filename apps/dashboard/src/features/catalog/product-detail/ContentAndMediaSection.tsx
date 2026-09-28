@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation } from '@apollo/client/react'
 import { ChevronDownIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -10,16 +10,22 @@ import {
   ConfirmProductMediaUploadDocument,
   ProductDocument,
   RequestProductMediaUploadDocument,
-  UpsertProductContentDocument,
+  ProductsPagedDocument,
 } from '../Catalog.gql'
-import { LexicalRichTextEditor, type RichTextImageUploadResult, type RichTextValue } from '../LexicalRichTextEditor'
+import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
+import { useSectionForm } from '@/shared/saving/useSectionForm'
+import { FormRichTextEditor, type RichTextImageUploadResult, type RichTextValue } from '../LexicalRichTextEditor'
 import {
-  useProductSaveSection,
-  type SectionDiffEntry,
-} from '../productSaveRegistry'
+  PRODUCT_CONTENT_LABELS,
+  productContentChanges,
+  productContentDiff,
+  productContentSchema,
+  toProductContentValues,
+} from '../schemas/product'
 import { Section, type ContentProduct } from './shared'
 import { readImageDimensions } from './media-utils'
 import { ProductMediaPanel } from './ProductMediaPanel'
+import { useProductContentWrite } from './productContent'
 
 const DESCRIPTION_UPLOAD_TARGET: ProductMediaUploadTarget = 'DESCRIPTION'
 const SHORT_DESCRIPTION_UPLOAD_TARGET: ProductMediaUploadTarget = 'SHORT_DESCRIPTION'
@@ -37,23 +43,13 @@ export function ContentAndMediaSection({
   canManage: boolean
   productVariables: { id: string }
 }) {
-  const content = product.content.find((entry) => entry.locale === locale)
-  // Wire JSON -> editor boundary: the scalars arrive as unknown; the editor
-  // narrows malformed values itself (isSerializedEditorState fallback)
-  const originalShortDescription = (content?.shortDescription ?? product.shortDescription ?? null) as RichTextValue
-  const originalDescriptionRichText = (content?.descriptionRichText ??
-    product.descriptionRichText ??
-    null) as RichTextValue
-  const [shortDescription, setShortDescription] = useState<RichTextValue>(originalShortDescription)
-  const [descriptionRichText, setDescriptionRichText] = useState<RichTextValue>(originalDescriptionRichText)
   const [mediaOpen, setMediaOpen] = useState(false)
-  const existingName = content?.name ?? product.name ?? product.content[0]?.name ?? 'Untitled product'
 
   const refetchQueries = [
-    'ProductsPaged',
+    ProductsPagedDocument,
     { query: ProductDocument, variables: productVariables },
   ]
-  const [upsertContent] = useMutation(UpsertProductContentDocument, { refetchQueries })
+  const writeContent = useProductContentWrite(product.id, locale)
   const [requestUpload] = useMutation(RequestProductMediaUploadDocument)
   const [confirmUpload] = useMutation(ConfirmProductMediaUploadDocument, { refetchQueries })
 
@@ -119,36 +115,20 @@ export function ContentAndMediaSection({
     return uploadRichTextImage(file, SHORT_DESCRIPTION_UPLOAD_TARGET)
   }
 
-  const shortDescriptionDirty = JSON.stringify(shortDescription) !== JSON.stringify(originalShortDescription)
-  const descriptionDirty = JSON.stringify(descriptionRichText) !== JSON.stringify(originalDescriptionRichText)
-
-  const diff = useMemo<SectionDiffEntry[]>(() => {
-    const entries: SectionDiffEntry[] = []
-    if (shortDescriptionDirty) {
-      entries.push({ label: 'Short description', before: 'previous', after: 'updated' })
-    }
-    if (descriptionDirty) {
-      entries.push({ label: 'Description', before: 'previous', after: 'updated' })
-    }
-    return entries
-  }, [shortDescriptionDirty, descriptionDirty])
-
-  const save = useCallback(async () => {
-    if (!shortDescriptionDirty && !descriptionDirty) return
-    await upsertContent({
-      variables: {
-        productId: product.id,
-        locale,
-        input: {
-          name: existingName,
-          shortDescription: shortDescription ?? undefined,
-          descriptionRichText: descriptionRichText ?? undefined,
-        },
-      },
-    })
-  }, [shortDescriptionDirty, descriptionDirty, shortDescription, descriptionRichText, existingName, product.id, locale, upsertContent])
-
-  useProductSaveSection({ id: 'content', title: 'Content & media', diff, save })
+  // Wire JSON -> editor boundary: the scalars arrive as unknown; the editor narrows malformed values
+  // itself (isSerializedEditorState fallback)
+  const baseline = useMemo(() => toProductContentValues(product, locale), [product, locale])
+  const { form, draft } = useSectionForm({
+    id: 'content',
+    title: 'Content & media',
+    baseline,
+    schema: productContentSchema,
+    diff: productContentDiff,
+    routeKey: `product-content:${product.id}:${locale}`,
+    submit: async (v) => {
+      await writeContent(productContentChanges(baseline, v))
+    },
+  })
 
   return (
     <Section
@@ -161,29 +141,44 @@ export function ContentAndMediaSection({
       }
     >
       <div className="grid gap-6">
+        {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_CONTENT_LABELS} />}
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="pd-short-description">Short description</Label>
-            <LexicalRichTextEditor
-              value={shortDescription}
-              fallbackText=""
-              disabled={!canManage}
-              placeholder="One-line teaser shown in listings"
-              contentClassName="min-h-24"
-              onUploadImage={canManage ? uploadShortDescriptionImage : undefined}
-              onChange={setShortDescription}
-            />
+            <Label>Short description</Label>
+            <form.Field name="shortDescription">
+              {(f) => (
+                <FormRichTextEditor
+                  value={f.state.value as RichTextValue}
+                  fallbackText=""
+                  disabled={!canManage}
+                  placeholder="One-line teaser shown in listings"
+                  contentClassName="min-h-24"
+                  onUploadImage={canManage ? uploadShortDescriptionImage : undefined}
+                  onChange={(next, plainText) => {
+                    f.handleChange(next)
+                    form.setFieldValue('shortDescriptionText', plainText)
+                  }}
+                />
+              )}
+            </form.Field>
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="pd-description">Description</Label>
-            <LexicalRichTextEditor
-              value={descriptionRichText}
-              fallbackText=""
-              disabled={!canManage}
-              onUploadImage={canManage ? uploadDescriptionImage : undefined}
-              onChange={setDescriptionRichText}
-            />
+            <Label>Description</Label>
+            <form.Field name="descriptionRichText">
+              {(f) => (
+                <FormRichTextEditor
+                  value={f.state.value as RichTextValue}
+                  fallbackText=""
+                  disabled={!canManage}
+                  onUploadImage={canManage ? uploadDescriptionImage : undefined}
+                  onChange={(next, plainText) => {
+                    f.handleChange(next)
+                    form.setFieldValue('descriptionText', plainText)
+                  }}
+                />
+              )}
+            </form.Field>
           </div>
         </div>
 

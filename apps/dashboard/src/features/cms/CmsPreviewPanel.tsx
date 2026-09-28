@@ -8,7 +8,6 @@
 
 import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@apollo/client/react'
-import { gql } from '@apollo/client'
 import {
   ExternalLinkIcon,
   MonitorIcon,
@@ -20,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button'
 import type { CmsBlock } from './page-blocks'
 import { STOREFRONT_ORIGIN } from '@/lib/app-origins'
+import { MintCmsPagePreviewTokenDocument } from './Cms.gql'
 
 // Same rationale as BlogPreviewPanel - rendered at this CSS-pixel width then scaled, so the
 // storefront's media queries fire at the real breakpoint
@@ -50,16 +50,6 @@ function readSavedPanelWidth(): number {
   }
   return DEFAULT_PANEL_WIDTH
 }
-
-// Inlined to dodge a codegen dependency - swap to MintCmsPagePreviewTokenDocument later
-const MINT_PREVIEW_TOKEN = gql`
-  mutation MintCMSPagePreviewToken($input: MintCMSPagePreviewTokenInput!) {
-    mintCMSPagePreviewToken(input: $input) {
-      token
-      expiresAt
-    }
-  }
-`
 
 const MESSAGE_TYPE = 'skelet:cms-preview:update'
 const SELECT_TYPE = 'skelet:cms-preview:select'
@@ -127,10 +117,7 @@ export function CmsPreviewPanel({ onClose, pageId, locale, blocks, dirty, onSele
     obs.observe(el)
     return () => obs.disconnect()
   }, [])
-  const [mintMutation, { loading: minting }] = useMutation<
-    { mintCMSPagePreviewToken: { token: string; expiresAt: string } },
-    { input: { pageId: string; locale?: string | null } }
-  >(MINT_PREVIEW_TOKEN)
+  const [mintMutation, { loading: minting }] = useMutation(MintCmsPagePreviewTokenDocument)
 
   const mint = useMemo(
     () => async () => {

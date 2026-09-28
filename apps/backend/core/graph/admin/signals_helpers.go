@@ -80,7 +80,7 @@ func signalsErr(err error) error {
 
 // The permission gate core can make on its own - the suite gates again on the channel the data belongs to
 func (r *Resolver) signalsScoped(ctx context.Context, perm string) (context.Context, error) {
-	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), perm); err != nil {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, perm); err != nil {
 		return nil, err
 	}
 	return signalsCtx(ctx, r)
@@ -88,14 +88,14 @@ func (r *Resolver) signalsScoped(ctx context.Context, perm string) (context.Cont
 
 // Adds the channel gate too, where the operation names one
 func (r *Resolver) signalsChannel(ctx context.Context, perm, channelID string) (context.Context, error) {
-	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), perm); err != nil {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, perm); err != nil {
 		return nil, err
 	}
 	cid, err := uuid.Parse(channelID)
 	if err != nil {
 		return nil, errInvalidID("channelId", err)
 	}
-	if err := auth.RequireChannelPermission(ctx, auth.GrantCheckerFrom(ctx), perm, cid, nil); err != nil {
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, perm, cid, nil); err != nil {
 		return nil, err
 	}
 	return signalsCtx(ctx, r)

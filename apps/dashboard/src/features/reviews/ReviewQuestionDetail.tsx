@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { useStore } from '@tanstack/react-form'
 import { PencilIcon, Trash2Icon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -15,7 +16,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LoadingState } from '@/components/ui/loading-state'
 import { LoadError } from '@/shared/errors/LoadError'
@@ -25,9 +25,10 @@ import {
   DetailPageLayout,
   DetailPageSection,
 } from '@/components/layout/detail-page'
+import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
-import { SaveRegistryContext, useSaveRegistry, useSaveSection } from '@/shared/saving/saveRegistry'
-import { changed } from '@/shared/saving/diff'
+import { SaveRegistryContext } from '@/shared/saving/saveRegistry'
+import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { useConfigScope } from '@/lib/config-scope'
 import {
@@ -35,11 +36,23 @@ import {
   ReviewQuestionDocument,
   ReviewQuestionsDocument,
   UpsertReviewQuestionContentDocument,
+  type ReviewQuestionFieldsFragment,
 } from './Reviews.gql'
 import { ReviewQuestionFormDialog } from './ReviewQuestionFormDialog'
+import {
+  QUESTION_TRANSLATIONS_LABELS,
+  changedTranslations,
+  questionTranslationsDiff,
+  questionTranslationsSchema,
+  toQuestionTranslationsValues,
+  toTranslationInput,
+} from './schemas/reviewQuestion'
 
 // Per-question editor - Header carries the slug + type + required/comment badges and the Edit/Delete actions; body
 // sections cover settings recap and translations - Mirrors the ProductDetail template layout
+
+// Missing locales offered as blank rows to fill in - a handful, not the whole list
+const NEW_LOCALE_ROWS = 3
 
 // Standalone route wrapper: gives ReviewQuestionDetail the page scroll container it needs when reached directly at
 // /reviews/questions/:id (outside the Reviews shell, which otherwise provides the layout)
@@ -54,11 +67,6 @@ export function ReviewQuestionDetailPage() {
 export function ReviewQuestionDetail({ questionId }: { questionId?: string } = {}) {
   const params = useParams<{ id?: string }>()
   const id = questionId ?? params.id ?? ''
-  const navigate = useNavigate()
-  const { has } = usePermissions()
-  const canManage = has('reviews.manage')
-  const { availableLocales, globalDefaultLocale } = useConfigScope()
-
   const { data, loading, error, refetch } = useQuery(ReviewQuestionDocument, {
     variables: { id },
     skip: !id,
@@ -66,46 +74,7 @@ export function ReviewQuestionDetail({ questionId }: { questionId?: string } = {
   })
   const question = data?.reviewQuestion
 
-  const [editingSettings, setEditingSettings] = useState(false)
-
-  // Every translation row stages into this registry and the ONE header Save applies them together -
-  // a per-row Save button is what the convention forbids
-  const { contextValue: saveContextValue, dirtySections, isDirty, saveAll } = useSaveRegistry()
-  const [confirmingSave, setConfirmingSave] = useState(false)
-  const [savingAll, setSavingAll] = useState(false)
-  const [saveAllError, setSaveAllError] = useState<string | null>(null)
-
-  async function onConfirmSave() {
-    setSaveAllError(null)
-    setSavingAll(true)
-    try {
-      await saveAll()
-      setConfirmingSave(false)
-    } catch (err) {
-      setSaveAllError(err instanceof Error ? err.message : 'Save failed.')
-    } finally {
-      setSavingAll(false)
-    }
-  }
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-
-  const [deleteQuestion, { loading: deleting }] = useMutation(DeleteReviewQuestionDocument, {
-    refetchQueries: [{ query: ReviewQuestionsDocument }],
-  })
-
-  async function onDelete() {
-    if (!question) return
-    setDeleteError(null)
-    try {
-      await deleteQuestion({ variables: { id: question.id } })
-      navigate('/reviews/questions')
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
-  }
-
-  if (loading) return <LoadingState />
+  if (loading && !question) return <LoadingState />
   if (error) {
     return (
       <LoadError
@@ -123,15 +92,72 @@ export function ReviewQuestionDetail({ questionId }: { questionId?: string } = {
       </Alert>
     )
   }
+  // Keyed on the question - picking another one in the list starts a fresh form
+  return <QuestionEditor key={question.id} question={question} />
+}
 
-  const localesNeedingTranslation = availableLocales.filter(
-    (code) => !question.allContent.some((c) => c.locale === code),
+// Every translation row is one form - the ONE header Save reviews and writes them together; a
+// per-row Save button is what the convention forbids
+function QuestionEditor({ question }: { question: ReviewQuestionFieldsFragment }) {
+  const navigate = useNavigate()
+  const { has } = usePermissions()
+  const canManage = has('reviews.manage')
+  const { availableLocales, globalDefaultLocale } = useConfigScope()
+
+  const [editingSettings, setEditingSettings] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const [deleteQuestion, { loading: deleting }] = useMutation(DeleteReviewQuestionDocument, {
+    refetchQueries: [{ query: ReviewQuestionsDocument }],
+  })
+  const [upsert] = useMutation(UpsertReviewQuestionContentDocument, {
+    refetchQueries: [{ query: ReviewQuestionsDocument }],
+  })
+
+  // The locale list comes back as a fresh array each render - key the offered rows on its content
+  const newLocalesKey = availableLocales
+    .filter((code) => !question.allContent.some((c) => c.locale === code))
+    .slice(0, NEW_LOCALE_ROWS)
+    .join(',')
+  const baseline = useMemo(
+    () => toQuestionTranslationsValues(question, newLocalesKey ? newLocalesKey.split(',') : []),
+    [question, newLocalesKey],
   )
 
+  const record = useRecordForm({
+    id: 'translations',
+    title: 'Translations',
+    label: `Review question · ${question.slug}`,
+    isEdit: true,
+    baseline,
+    schema: questionTranslationsSchema,
+    diff: questionTranslationsDiff,
+    persist: { routeKey: `review-question:${question.id}` },
+    submit: async (v) => {
+      for (const row of changedTranslations(baseline, v)) {
+        await upsert({ variables: { input: toTranslationInput(question.id, row) } })
+      }
+    },
+  })
+  const { form, registry, confirm, draft } = record
+  const submitting = useStore(form.store, (s) => s.isSubmitting)
+
+  async function onDelete() {
+    setDeleteError(null)
+    try {
+      await deleteQuestion({ variables: { id: question.id } })
+      navigate('/reviews/questions')
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
+    }
+  }
+
   const displayName = question.content?.label || question.slug
+  const existingCount = question.allContent.length
 
   return (
-    <SaveRegistryContext.Provider value={saveContextValue}>
+    <SaveRegistryContext.Provider value={registry.contextValue}>
       <DetailPageHeader
         backTo="/reviews/questions"
         backLabel="Back to questions"
@@ -152,8 +178,7 @@ export function ReviewQuestionDetail({ questionId }: { questionId?: string } = {
             <span>Sort {question.sortOrder}</span>
             <span>·</span>
             <span>
-              {question.allContent.length}{' '}
-              {question.allContent.length === 1 ? 'translation' : 'translations'}
+              {existingCount} {existingCount === 1 ? 'translation' : 'translations'}
             </span>
           </>
         }
@@ -174,20 +199,10 @@ export function ReviewQuestionDetail({ questionId }: { questionId?: string } = {
                 <Trash2Icon className="size-4" />
                 Delete
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={!isDirty || savingAll}
-                onClick={() => setConfirmingSave(true)}
-              >
-                {savingAll ? 'Saving…' : 'Save changes'}
+              <Button type="button" size="sm" variant="outline" disabled={!registry.isDirty || submitting} onClick={confirm.open}>
+                {submitting ? 'Saving…' : 'Save changes'}
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setEditingSettings(true)}
-              >
+              <Button type="button" size="sm" onClick={() => setEditingSettings(true)}>
                 <PencilIcon className="size-4" />
                 Edit settings
               </Button>
@@ -197,63 +212,70 @@ export function ReviewQuestionDetail({ questionId }: { questionId?: string } = {
       />
 
       <DetailPageBody>
+        {draft.offer !== null && (
+          <div className="px-6 py-4">
+            <RestoredDraftBanner draft={draft} labels={QUESTION_TRANSLATIONS_LABELS} />
+          </div>
+        )}
         <DetailPageSection
           title="Translations"
           description="Per-locale label and help text shown on the channel review form. Missing locales fall back to the slug."
         >
-          <div className="grid gap-4">
-            {question.allContent.length === 0 ? (
+          <fieldset disabled={!canManage} className="grid gap-4">
+            {existingCount === 0 && (
               <p className="text-sm text-muted-foreground">
-                No translations yet. The channel will fall back to the
-                slug as the prompt. Add at least one locale below.
+                No translations yet. The channel will fall back to the slug as the prompt. Add at least one locale below.
               </p>
-            ) : (
-              question.allContent.map((c) => (
-                <TranslationRow
-                  key={c.locale}
-                  questionId={question.id}
-                  locale={c.locale}
-                  initialLabel={c.label}
-                  initialHelpText={c.helpText}
-                  canManage={canManage}
-                />
-              ))
             )}
-            {canManage && localesNeedingTranslation.length > 0 ? (
-              <div className="mt-2 grid gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Add a translation
-                </p>
-                {localesNeedingTranslation.slice(0, 3).map((code) => (
-                  <TranslationRow
-                    key={`new-${code}`}
-                    questionId={question.id}
-                    locale={code}
-                    initialLabel=""
-                    initialHelpText=""
-                    canManage={canManage}
-                    emphasize={code === globalDefaultLocale}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
+            <form.Field name="rows" mode="array">
+              {(rows) =>
+                rows.state.value.map((row, i) => {
+                  const stored = baseline.rows.find((r) => r.locale === row.locale)
+                  const dirty = !stored || stored.label !== row.label || stored.helpText !== row.helpText
+                  return (
+                    <div key={row.locale} className="grid gap-2">
+                      {i === existingCount && canManage && (
+                        <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Add a translation</p>
+                      )}
+                      <div
+                        className={`grid gap-2 rounded-lg border p-3 ${!row.exists && row.locale === globalDefaultLocale ? 'border-foreground/30 bg-muted/40' : ''}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                            {row.locale}
+                            {row.exists ? null : <span className="ml-2 text-[10px] text-warning">missing</span>}
+                          </Label>
+                          {dirty ? (
+                            <span className="text-[10px] text-warning">unsaved</span>
+                          ) : row.exists ? null : (
+                            <span className="text-[10px] text-muted-foreground">not translated</span>
+                          )}
+                        </div>
+                        <form.AppField name={`rows[${i}].label`}>
+                          {(f) => <f.TextField aria-label={`Label (${row.locale})`} placeholder="Question label" />}
+                        </form.AppField>
+                        <form.AppField name={`rows[${i}].helpText`}>
+                          {(f) => <f.TextField aria-label={`Help text (${row.locale})`} placeholder="Optional help text" />}
+                        </form.AppField>
+                      </div>
+                    </div>
+                  )
+                })
+              }
+            </form.Field>
+          </fieldset>
         </DetailPageSection>
       </DetailPageBody>
 
-      <ReviewQuestionFormDialog
-        open={editingSettings}
-        onOpenChange={setEditingSettings}
-        attribute={question}
-      />
+      <ReviewQuestionFormDialog open={editingSettings} onOpenChange={setEditingSettings} attribute={question} />
 
       <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this question?</AlertDialogTitle>
             <AlertDialogDescription>
-              Removes the question from every product type and erases every
-              existing answer row. Past reviews keep their headers.
+              Removes the question from every product type and erases every existing answer row. Past reviews keep their
+              headers.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError ? (
@@ -277,122 +299,7 @@ export function ReviewQuestionDetail({ questionId }: { questionId?: string } = {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <SaveConfirmDialog
-        open={confirmingSave}
-        scopeLabel={`Review question · ${question.slug}`}
-        sections={dirtySections}
-        saving={savingAll}
-        error={saveAllError}
-        onCancel={() => { if (!savingAll) { setConfirmingSave(false); setSaveAllError(null) } }}
-        onConfirm={onConfirmSave}
-      />
+      <SaveConfirmDialog {...confirm.dialogProps} scopeLabel={record.label} sections={registry.dirtySections} />
     </SaveRegistryContext.Provider>
-  )
-}
-
-function TranslationRow({
-  questionId,
-  locale,
-  initialLabel,
-  initialHelpText,
-  canManage,
-  emphasize,
-}: {
-  questionId: string
-  locale: string
-  initialLabel: string
-  initialHelpText: string
-  canManage: boolean
-  emphasize?: boolean
-}) {
-  const [label, setLabel] = useState(initialLabel)
-  const [helpText, setHelpText] = useState(initialHelpText)
-  const [savedAt, setSavedAt] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- intentional: resync the form fields when a different question/locale loads into this row */
-    setLabel(initialLabel)
-    setHelpText(initialHelpText)
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [initialLabel, initialHelpText])
-
-  const [upsert] = useMutation(UpsertReviewQuestionContentDocument, {
-    refetchQueries: [
-      { query: ReviewQuestionDocument, variables: { id: questionId } },
-      { query: ReviewQuestionsDocument },
-    ],
-  })
-
-  const dirty = label !== initialLabel || helpText !== initialHelpText
-  const exists = initialLabel !== ''
-
-  // Registered with the page: the diff is what the header dialog lists, and `save` is a call-time
-  // thunk reading live state, so a clipped label can never persist a stale draft
-  useSaveSection({
-    id: `content:${locale}`,
-    title: `Translation · ${locale}`,
-    diff: [
-      ...(label !== initialLabel ? [changed(`Label (${locale})`, initialLabel, label)] : []),
-      ...(helpText !== initialHelpText
-        ? [changed(`Help text (${locale})`, initialHelpText, helpText)]
-        : []),
-    ].filter((d): d is NonNullable<typeof d> => d !== null),
-    save: () => onSave(),
-  })
-
-  async function onSave() {
-    setError(null)
-    try {
-      await upsert({
-        variables: {
-          input: {
-            questionId,
-            locale,
-            label: label.trim(),
-            helpText: helpText.trim() || null,
-          },
-        },
-      })
-      setSavedAt(Date.now())
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed.')
-      throw err // the header dialog keeps itself open and surfaces the message
-    }
-  }
-
-  return (
-    <div className={`grid gap-2 rounded-lg border p-3 ${emphasize ? 'border-primary/40 bg-primary/5' : ''}`}>
-      <div className="flex items-center justify-between gap-2">
-        <Label className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          {locale}
-          {exists ? null : <span className="ml-2 text-[10px] text-amber-600">missing</span>}
-        </Label>
-        {/* No per-row Save - the page header applies every staged row through one dialog */}
-        {dirty ? (
-          <span className="text-[10px] text-amber-600">unsaved</span>
-        ) : exists ? null : (
-          <span className="text-[10px] text-muted-foreground">not translated</span>
-        )}
-      </div>
-      <Input
-        value={label}
-        onChange={(e) => setLabel(e.target.value)}
-        placeholder="Question label"
-        disabled={!canManage}
-      />
-      <Input
-        value={helpText}
-        onChange={(e) => setHelpText(e.target.value)}
-        placeholder="Optional help text"
-        disabled={!canManage}
-      />
-      {savedAt && !dirty ? (
-        <p className="text-[10px] text-muted-foreground">Saved.</p>
-      ) : null}
-      {error ? (
-        <p className="text-[10px] text-destructive">{error}</p>
-      ) : null}
-    </div>
   )
 }

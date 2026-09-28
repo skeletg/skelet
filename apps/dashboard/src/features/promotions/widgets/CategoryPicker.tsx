@@ -1,35 +1,12 @@
 import { useMemo } from 'react'
-import { gql } from '@apollo/client'
 import { useQuery } from '@apollo/client/react'
 
 import type { WidgetProps } from '../SchemaForm'
 import { AutocompletePicker, type Option } from './AutocompletePicker'
+import { SchemaFormRootCategoriesDocument, type SchemaFormRootCategoriesQuery } from './SchemaFormPickers.gql'
 
-// Lazy - many conditions don't use categories, and Apollo dedupes so several pickers share one request
-const ROOT_CATEGORIES_QUERY = gql`
-  query SchemaFormRootCategories {
-    rootCategories {
-      id
-      slug
-      effectiveName
-      children {
-        id
-        slug
-        effectiveName
-        children {
-          id
-          slug
-          effectiveName
-        }
-      }
-    }
-  }
-`
-
-type CategoryNode = {
-  id: string
-  slug: string
-  effectiveName: string
+// The query nests three levels; the walker takes any depth
+type CategoryNode = Pick<SchemaFormRootCategoriesQuery['rootCategories'][number], 'id' | 'slug' | 'name'> & {
   children?: CategoryNode[]
 }
 
@@ -38,10 +15,10 @@ type CategoryNode = {
 function flattenTree(nodes: CategoryNode[], prefix: string[] = []): Option[] {
   const out: Option[] = []
   for (const n of nodes) {
-    const label = [...prefix, n.effectiveName || n.slug].join(' › ')
+    const label = [...prefix, n.name || n.slug].join(' › ')
     out.push({ value: n.id, label, hint: n.slug })
     if (n.children && n.children.length > 0) {
-      out.push(...flattenTree(n.children, [...prefix, n.effectiveName || n.slug]))
+      out.push(...flattenTree(n.children, [...prefix, n.name || n.slug]))
     }
   }
   return out
@@ -51,7 +28,7 @@ function flattenTree(nodes: CategoryNode[], prefix: string[] = []): Option[] {
 // schema declares `type: array`
 export function CategoryPicker({ schema, value, onChange }: WidgetProps) {
   const isMulti = schema.type === 'array'
-  const { data, loading } = useQuery<{ rootCategories: CategoryNode[] }>(ROOT_CATEGORIES_QUERY)
+  const { data, loading } = useQuery(SchemaFormRootCategoriesDocument)
   const options = useMemo(() => flattenTree(data?.rootCategories ?? []), [data])
 
   return (

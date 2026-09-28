@@ -889,7 +889,7 @@ function PlainTextTranslationEditor({
             {translatedCount}/{localeOptions.length}
           </span>
           {dirtyLocales.length > 0 && (
-            <span className="size-1.5 rounded-full bg-amber-500" aria-label="unsaved translation edits" />
+            <span className="size-1.5 rounded-full bg-warning" aria-label="unsaved translation edits" />
           )}
         </Button>
       </PopoverTrigger>
@@ -921,7 +921,7 @@ function PlainTextTranslationEditor({
                   <span
                     className={cn(
                       'size-1.5 shrink-0 rounded-full',
-                      dirty ? 'bg-amber-500' : translated ? 'bg-emerald-500' : 'bg-transparent',
+                      dirty ? 'bg-warning' : translated ? 'bg-success' : 'bg-transparent',
                     )}
                     aria-hidden
                   />

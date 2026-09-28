@@ -685,6 +685,23 @@ func (r *productResolver) InStock(ctx context.Context, obj *model.Product, chann
 	return item.Backorderable, nil
 }
 
+// Content is the resolver for the content field. Every locale's row, primed by renderProductRows
+func (r *productResolver) Content(ctx context.Context, obj *model.Product) ([]*model.ProductContent, error) {
+	// The detail path loaded every row already - lists leave it nil and read the primed cache instead
+	if obj.Content != nil {
+		return obj.Content, nil
+	}
+	id, err := parseID(obj.ID, "product")
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.getProductContent(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return toProductContentModels(rows), nil
+}
+
 // Downloads is the resolver for the downloads field. Lazy - only queries that select downloads (the product detail
 // editor) pay the per-product load; the products list doesn't
 func (r *productResolver) Downloads(ctx context.Context, obj *model.Product) ([]*model.ProductDownload, error) {

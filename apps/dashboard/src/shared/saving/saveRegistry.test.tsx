@@ -144,4 +144,17 @@ describe('unsaved-changes bridge', () => {
     expect(unsavedLabels()).toEqual(["Product 'Acme Widget'"])
     view.unmount()
   })
+
+  it('lets a refresh through only while every dirty section keeps a stored draft', () => {
+    const drafted = { ...section('form', [{ label: 'Name', before: 'a', after: 'b' }]), persisted: true }
+    const staged = section('values', [{ label: 'Value · red', before: '', after: 'red', kind: 'add' }])
+    const { rerender, unmount } = render(<Harness onApi={() => {}} sections={[drafted]} />)
+    // The unload guard leaves persisted work out; closing the tab still counts it
+    expect(hasUnsavedChanges()).toBe(false)
+    expect(hasUnsavedChanges(undefined, { includePersisted: true })).toBe(true)
+
+    rerender(<Harness onApi={() => {}} sections={[drafted, staged]} />)
+    expect(hasUnsavedChanges()).toBe(true)
+    unmount()
+  })
 })

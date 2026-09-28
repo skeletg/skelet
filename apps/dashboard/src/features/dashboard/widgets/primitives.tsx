@@ -111,7 +111,7 @@ export function QueueRow({
       <span
         className={cn(
           'h-8 w-0.5 shrink-0 rounded-full',
-          count === 0 ? 'bg-transparent' : tone === 'bad' ? 'bg-destructive' : tone === 'warn' ? 'bg-amber-500' : 'bg-primary/40',
+          count === 0 ? 'bg-transparent' : tone === 'bad' ? 'bg-destructive' : tone === 'warn' ? 'bg-warning' : 'bg-primary/40',
         )}
       />
       <span className="min-w-0 flex-1">

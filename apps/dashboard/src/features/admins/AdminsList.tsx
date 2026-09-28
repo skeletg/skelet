@@ -42,6 +42,7 @@ import {
 import { useAuth } from '@/shared/auth/auth'
 import { AdminFormDialog, type ExistingAdmin } from './AdminFormDialog'
 import { AdminsDocument, DeleteAdminDocument, UpdateAdminDocument } from './Admins.gql'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 // the form's shape plus what only the list shows
 type AdminRow = ExistingAdmin & { lastLoginAt?: string | null }
@@ -57,6 +58,8 @@ function statusOf(row: AdminRow): StatusKey {
 export function AdminsList() {
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
+  // Creating, disabling and deleting admins all need admins.manage - a viewer only met a refused save
+  const canManage = usePermissions().has('admins.manage')
   const { auth } = useAuth()
   const myId = auth?.admin.id
 
@@ -97,8 +100,8 @@ export function AdminsList() {
 
   // Bulk actions are a config list - DataTable renders buttons + confirm dialogs uniformly - Superusers are ignored by
   // enable/disable since isActive doesn't apply to them in a meaningful way for this flow
-  const bulkActions = useMemo<BulkAction<AdminRow>[]>(
-    () => [
+  const bulkActions = useMemo<BulkAction<AdminRow>[] | undefined>(
+    () => !canManage ? undefined : [
       {
         id: 'disable',
         label: 'Disable',
@@ -151,12 +154,13 @@ export function AdminsList() {
         },
       },
     ],
-    [updateAdmin, deleteAdminBulk],
+    [canManage, updateAdmin, deleteAdminBulk],
   )
 
   const columns = useMemo<ColumnDef<AdminRow>[]>(
     () => [
-      selectColumn<AdminRow>(),
+      // Selection only feeds the bulk actions
+      ...(canManage ? [selectColumn<AdminRow>()] : []),
       {
         id: 'name',
         accessorFn: (row) => `${row.firstName} ${row.lastName}`,
@@ -257,25 +261,29 @@ export function AdminsList() {
                 <DropdownMenuItem asChild>
                   <Link to={`/admins/${row.original.id}`}>View</Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  disabled={isSelf}
-                  onSelect={() => {
-                    if (isSelf) return
-                    setRowDeleteError(null)
-                    setConfirmingRowDelete(row.original)
-                  }}
-                >
-                  {isSelf ? "Delete (can't delete yourself)" : 'Delete'}
-                </DropdownMenuItem>
+                {canManage && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      disabled={isSelf}
+                      onSelect={() => {
+                        if (isSelf) return
+                        setRowDeleteError(null)
+                        setConfirmingRowDelete(row.original)
+                      }}
+                    >
+                      {isSelf ? "Delete (can't delete yourself)" : 'Delete'}
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )
         },
       },
     ],
-    [myId],
+    [myId, canManage],
   )
 
   return (
@@ -306,14 +314,16 @@ export function AdminsList() {
         ]}
         bulkActions={bulkActions}
         toolbarRightSlot={
-          <AdminFormDialog
-            trigger={
-              <Button size="sm">
-                <PlusIcon className="size-4" />
-                New admin
-              </Button>
-            }
-          />
+          canManage && (
+            <AdminFormDialog
+              trigger={
+                <Button size="sm">
+                  <PlusIcon className="size-4" />
+                  New admin
+                </Button>
+              }
+            />
+          )
         }
       />
 

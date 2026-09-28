@@ -75,7 +75,7 @@ import {
   type GenerateMediaAltTextMutation,
   type GenerateMediaAltTextMutationVariables,
   type MediaAiStatusQuery,
-  type MediaAsset,
+  type MediaAssetFieldsFragment as MediaAsset,
   type MediaDirectoryQuery,
   type MediaDirectoryQueryVariables,
   type MoveMediaAssetMutation,
@@ -86,12 +86,13 @@ import {
   type RequestMediaAssetUploadMutationVariables,
   type SearchMediaAssetsQuery,
   type SearchMediaAssetsQueryVariables,
-  type UntrackedMediaFile,
   type SetMediaFocalPointMutation,
   type SetMediaFocalPointMutationVariables,
   type UpdateMediaAssetMutation,
   type UpdateMediaAssetMutationVariables,
 } from './MediaLibrary.gql'
+
+type UntrackedMediaFile = MediaDirectoryQuery['mediaDirectory']['untrackedFiles'][number]
 
 // Exactly what the backend accepts (internal/media/allowed.go plus the sanitized SVG route). The
 // old image/* let the picker offer formats the server then refused, so you found out after choosing
@@ -396,7 +397,7 @@ export function MediaLibrary() {
           {untrackedFiles.length > 0 ? (
             <div className="mt-8 grid gap-3">
               <div className="flex items-center gap-2">
-                <AlertTriangleIcon className="size-3.5 text-amber-600" />
+                <AlertTriangleIcon className="size-3.5 text-warning" />
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {untrackedFiles.length} untracked
                   {untrackedExtensions ? ` · ${untrackedExtensions}` : ''}
@@ -539,7 +540,7 @@ function UntrackedFileCard({ file, onSelect }: { file: UntrackedMediaFile; onSel
     <button
       type="button"
       onClick={onSelect}
-      className="group relative aspect-square overflow-hidden rounded-lg border border-amber-500/40 bg-muted text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+      className="group relative aspect-square overflow-hidden rounded-lg border border-warning/40 bg-muted text-left transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-warning"
     >
       {isImage ? (
         <img
@@ -553,7 +554,7 @@ function UntrackedFileCard({ file, onSelect }: { file: UntrackedMediaFile; onSel
           <FileTextIcon className="size-10" />
         </div>
       )}
-      <Badge variant="outline" className="absolute left-2 top-2 bg-background/85 text-amber-600 backdrop-blur">
+      <Badge variant="outline" className="absolute left-2 top-2 bg-background/85 text-warning backdrop-blur">
         untracked
       </Badge>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2.5 text-white opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
@@ -593,7 +594,7 @@ function UntrackedFileSheet({
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <Badge variant="outline" className="text-amber-600">untracked</Badge>
+                <Badge variant="outline" className="text-warning">untracked</Badge>
                 <Badge variant="outline">{file.mimeType}</Badge>
                 <span>{formatBytes(file.sizeBytes)}</span>
                 <Button variant="ghost" size="xs" asChild>

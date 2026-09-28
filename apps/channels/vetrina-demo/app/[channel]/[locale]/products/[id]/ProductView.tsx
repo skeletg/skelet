@@ -52,7 +52,7 @@ export async function generateMetadata(
   const title = displayName(product.metaTitle ?? product.name, product.sku);
   const description = product.metaDescription ?? undefined;
   const href = productHref(product);
-  const image = product.media?.[0];
+  const image = product.ogImage ?? product.media?.[0];
   const base = await getSiteUrl();
   return {
     title,

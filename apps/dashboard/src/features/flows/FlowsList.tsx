@@ -133,11 +133,13 @@ export function FlowsList() {
                 checked={showDeleted}
                 onCheckedChange={setShowDeleted}
               />
-              <Button asChild size="sm">
-                <Link to="/flows/new">
-                  <PlusIcon className="size-4" /> New flow
-                </Link>
-              </Button>
+              {canManage && (
+                <Button asChild size="sm">
+                  <Link to="/flows/new">
+                    <PlusIcon className="size-4" /> New flow
+                  </Link>
+                </Button>
+              )}
             </div>
           ) : undefined
         }
@@ -164,9 +166,11 @@ export function FlowsList() {
                 <div className="py-8 text-center">
                   <WorkflowIcon className="mx-auto mb-2 size-6 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">No flows yet.</p>
-                  <Button asChild variant="outline" size="sm" className="mt-3">
-                    <Link to="/flows/new">Build your first flow</Link>
-                  </Button>
+                  {canManage && (
+                    <Button asChild variant="outline" size="sm" className="mt-3">
+                      <Link to="/flows/new">Build your first flow</Link>
+                    </Button>
+                  )}
                 </div>
               }
             />

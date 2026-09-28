@@ -383,3 +383,19 @@ func toPostContent(row db.BlogPostContent) PostContent {
 		UpdatedAt:       row.UpdatedAt,
 	}
 }
+
+// Every locale's row per post, keyed by id - one with no rows is simply absent
+func (r *postgresRepository) ListPostContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PostContent, error) {
+	out := make(map[uuid.UUID][]PostContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListBlogPostContentForPosts(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("post content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.PostID] = append(out[row.PostID], toPostContent(row))
+	}
+	return out, nil
+}
