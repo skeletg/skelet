@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   Field,
@@ -18,6 +19,9 @@ export function ResetForm({ token }: { token: string }) {
     () => resetPasswordAction.bind(null, token),
     [token],
   );
+  const t = useTranslations("auth.reset");
+  const tf = useTranslations("forms.fields");
+  const tc = useTranslations("common");
   const { form, fields, formAction, pending } = useActionForm(
     boundAction,
     resetSchema,
@@ -32,7 +36,7 @@ export function ResetForm({ token }: { token: string }) {
       className="flex flex-col gap-4"
     >
       <Field
-        label="New password"
+        label={t("newPassword")}
         field={fields.newPassword}
         type="password"
         required
@@ -40,7 +44,7 @@ export function ResetForm({ token }: { token: string }) {
         autoComplete="new-password"
       />
       <Field
-        label="Confirm password"
+        label={tf("confirmPassword")}
         field={fields.confirmPassword}
         type="password"
         required
@@ -55,7 +59,7 @@ export function ResetForm({ token }: { token: string }) {
         disabled={pending}
         className={`${buttonPrimary} w-full`}
       >
-        {pending ? "Saving…" : "Save new password"}
+        {pending ? tc("saving") : t("submit")}
       </button>
     </form>
   );

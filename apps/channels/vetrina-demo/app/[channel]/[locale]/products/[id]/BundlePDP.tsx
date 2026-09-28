@@ -3,6 +3,7 @@
 // BUNDLE PDP shell
 
 import { useMemo, useState, useActionState } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 
 import { addBundleToCart } from "@/app/lib/cart/actions";
@@ -58,6 +59,8 @@ function initialPicks(options: BundleOption[]): Picks {
 
 export function BundlePDP({ product }: { product: ProductDetail }) {
   const [addState, formAction] = useActionState(addBundleToCart, null);
+  const t = useTranslations("product.pdp");
+  const tp = useTranslations("product");
   const options = useMemo(
     () =>
       [...product.bundleOptions].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -176,7 +179,7 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
         <p className="text-2xl font-bold tracking-tight">
           {formatPrice(bundleTotal, product.defaultCurrencyCode)}
           {chosen.length === 0 && product.defaultPrice > 0
-            ? ` (from ${formatPrice(product.defaultPrice, product.defaultCurrencyCode)})`
+            ? ` ${t("from", { price: formatPrice(product.defaultPrice, product.defaultCurrencyCode) })}`
             : null}
         </p>
 
@@ -237,34 +240,37 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
             }}
             className="flex-1"
           >
-            {missingRequired.length > 0
-              ? "Pick required options"
-              : "Add bundle to cart"}
+            {missingRequired.length > 0 ? t("pickRequired") : t("addBundle")}
           </AddToCartButton>
         </form>
         </StickyBuyRow>
         <AddToCartFeedback state={addState} />
         {attempted && missingRequired.length > 0 ? (
           <SelectionHint key={attemptSeq}>
-            Pick required option{missingRequired.length > 1 ? "s" : ""}:{" "}
-            <MissingOptionLinks items={missingRequiredItems} />
+            {t.rich("pickRequiredOptions", {
+              count: missingRequired.length,
+              links: () => <MissingOptionLinks items={missingRequiredItems} />,
+            })}
           </SelectionHint>
         ) : null}
 
         <section className="mt-8 rounded-xl border border-border/60 bg-muted/30 p-4 text-sm">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Your bundle
+            {t("yourBundle")}
           </h2>
           {missingRequired.length > 0 ? (
             <p className="mt-2 text-muted-foreground">
-              Pick one for required option
-              {missingRequired.length > 1 ? "s" : ""}:{" "}
-              <span className="text-foreground">
-                {missingRequired.join(", ")}
-              </span>
+              {t.rich("pickOneFor", {
+                count: missingRequired.length,
+                names: () => (
+                  <span className="text-foreground">
+                    {missingRequired.join(", ")}
+                  </span>
+                ),
+              })}
             </p>
           ) : chosen.length === 0 ? (
-            <p className="mt-2 text-muted-foreground">Nothing picked yet.</p>
+            <p className="mt-2 text-muted-foreground">{t("nothingPicked")}</p>
           ) : (
             <>
               <ul className="mt-2 space-y-1">
@@ -281,8 +287,7 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
                 ))}
               </ul>
               <p className="mt-3 text-xs text-muted-foreground">
-                {totalItemsPerBundle} item
-                {totalItemsPerBundle === 1 ? "" : "s"} per bundle
+                {t("perBundle", { count: totalItemsPerBundle })}
               </p>
             </>
           )}
@@ -292,13 +297,13 @@ export function BundlePDP({ product }: { product: ProductDetail }) {
         </div>
 
         <Description
-          label="Summary"
+          label={tp("summary")}
           value={product.shortDescription}
           className="mt-6"
         />
 
         <Description
-          label="Description"
+          label={tp("description")}
           value={product.description}
           className="mt-8"
         />
@@ -324,6 +329,7 @@ function BundleOptionPanel({
     (a, b) => a.sortOrder - b.sortOrder,
   );
   const multi = !isSingleSelect(option.inputType);
+  const tc = useTranslations("common");
 
   return (
     <fieldset>
@@ -369,7 +375,7 @@ function BundleOptionPanel({
                   </Link>
                   <p className="text-xs text-muted-foreground">
                     {sel.product.sku} ·{" "}
-                    {sel.product.inStock ? "In stock" : "Out of stock"}
+                    {sel.product.inStock ? tc("inStock") : tc("outOfStock")}
                   </p>
                 </div>
                 <span className="shrink-0 text-sm font-medium tabular-nums">

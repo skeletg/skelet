@@ -5,13 +5,14 @@
 
 import { useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
+import { useTranslations } from "next-intl";
 
 export function SubmitButton({
   className,
   children,
-  pendingLabel = "Working…",
+  pendingLabel,
   confirmLabel,
-  cancelLabel = "Keep",
+  cancelLabel,
 }: {
   className: string;
   children: ReactNode;
@@ -20,6 +21,7 @@ export function SubmitButton({
   confirmLabel?: string;
   cancelLabel?: string;
 }) {
+  const t = useTranslations("common");
   const { pending } = useFormStatus();
   const [armed, setArmed] = useState(false);
 
@@ -42,7 +44,7 @@ export function SubmitButton({
       aria-busy={pending}
       className={`${className} disabled:opacity-50`}
     >
-      {pending ? pendingLabel : (confirmLabel ?? children)}
+      {pending ? (pendingLabel ?? t("working")) : (confirmLabel ?? children)}
     </button>
   );
 
@@ -57,7 +59,7 @@ export function SubmitButton({
           onClick={() => setArmed(false)}
           className="text-xs text-muted-foreground hover:text-foreground"
         >
-          {cancelLabel}
+          {cancelLabel ?? t("keep")}
         </button>
       )}
     </span>

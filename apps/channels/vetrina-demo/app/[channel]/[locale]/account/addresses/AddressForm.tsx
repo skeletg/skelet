@@ -1,6 +1,7 @@
 "use client";
 
 import { Link } from "@/app/components/LocaleLink";
+import { useTranslations } from "next-intl";
 
 import {
   Field,
@@ -34,6 +35,9 @@ type Props = {
 
 export function AddressForm({ id, initial, submitLabel }: Props) {
   const action = id ? updateAddressAction : addAddressAction;
+  const t = useTranslations("account.addressForm");
+  const tf = useTranslations("forms.fields");
+  const tc = useTranslations("common");
   const v = initial ?? {};
   const { form, fields, formAction, pending } = useActionForm(
     action,
@@ -67,56 +71,56 @@ export function AddressForm({ id, initial, submitLabel }: Props) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
           field={fields.firstName}
-          label="First name"
+          label={tf("firstName")}
           required
           autoComplete="given-name"
         />
         <Field
           field={fields.lastName}
-          label="Last name"
+          label={tf("lastName")}
           required
           autoComplete="family-name"
         />
       </div>
       <Field
         field={fields.company}
-        label="Company (optional)"
+        label={t("company")}
         autoComplete="organization"
       />
       <Field
         field={fields.street1}
-        label="Street address"
+        label={t("street1")}
         required
         autoComplete="address-line1"
       />
       <Field
         field={fields.street2}
-        label="Apartment, suite, etc. (optional)"
+        label={t("street2")}
         autoComplete="address-line2"
       />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
           field={fields.city}
-          label="City"
+          label={t("city")}
           required
           autoComplete="address-level2"
         />
         <Field
           field={fields.state}
-          label="State / Region"
+          label={t("state")}
           autoComplete="address-level1"
         />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
           field={fields.postalCode}
-          label="Postal code"
+          label={t("postalCode")}
           required
           autoComplete="postal-code"
         />
         <Field
           field={fields.countryCode}
-          label="Country code (2-letter)"
+          label={t("countryCode")}
           required
           autoComplete="country"
           maxLength={2}
@@ -124,7 +128,7 @@ export function AddressForm({ id, initial, submitLabel }: Props) {
       </div>
       <Field
         field={fields.phone}
-        label="Phone (optional)"
+        label={t("phone")}
         type="tel"
         autoComplete="tel"
       />
@@ -133,13 +137,13 @@ export function AddressForm({ id, initial, submitLabel }: Props) {
 
       <div className="mt-2 flex items-center gap-4">
         <button type="submit" disabled={pending} className={buttonPrimary}>
-          {pending ? "Saving…" : submitLabel}
+          {pending ? tc("saving") : submitLabel}
         </button>
         <Link
           href="/account/addresses"
           className="text-sm text-muted-foreground hover:underline"
         >
-          Cancel
+          {tc("cancel")}
         </Link>
       </div>
     </form>

@@ -1,3 +1,5 @@
+import { getTranslations } from "next-intl/server";
+
 import type { Block } from "./blocks";
 import { readNumber, readString } from "./blocks";
 import { getContainer, getLayout, getProductCard } from "./variants";
@@ -7,6 +9,7 @@ import type { ProductSummary } from "@/app/lib/catalog/read";
 // product_grid - newest / collection / category, all through the deduped browseProducts
 // loader (OpenSearch-backed, degrades to empty on outage so the page still renders)
 export async function ProductGridBlock({ block }: { block: Block }) {
+  const t = await getTranslations("home");
   const heading = readString(block.props, "heading");
   const source = readString(block.props, "source") ?? "newest";
   const limit = readNumber(block.props, "limit") ?? 12;
@@ -40,7 +43,7 @@ export async function ProductGridBlock({ block }: { block: Block }) {
   return renderContainer({
     heading,
     href: "/products",
-    hrefLabel: "View all",
+    hrefLabel: t("viewAll"),
     children: renderLayout({
       items: products,
       renderItem: (p) => Card({ product: p as ProductSummary }),

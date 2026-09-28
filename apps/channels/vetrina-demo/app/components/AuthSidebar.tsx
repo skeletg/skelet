@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { ForgotForm } from "@/app/components/auth/ForgotForm";
 import { LoginForm } from "@/app/components/auth/LoginForm";
@@ -8,17 +9,18 @@ import { RegisterForm } from "@/app/components/auth/RegisterForm";
 import { Drawer } from "./Drawer";
 import { useAuthUI, type AuthView } from "./AuthUIProvider";
 
-const TITLES: Record<AuthView, string> = {
-  login: "Sign in",
-  register: "Create an account",
-  forgot: "Reset your password",
-};
+// auth.drawer message keys per view
+const TITLES = {
+  login: "loginTitle",
+  register: "registerTitle",
+  forgot: "forgotTitle",
+} as const satisfies Record<AuthView, string>;
 
-const SUBTITLES: Record<AuthView, string> = {
-  login: "Welcome back. Sign in to continue.",
-  register: "It only takes a minute.",
-  forgot: "We'll email you a link to set a new password.",
-};
+const SUBTITLES = {
+  login: "loginSubtitle",
+  register: "registerSubtitle",
+  forgot: "forgotSubtitle",
+} as const satisfies Record<AuthView, string>;
 
 // Auth pages are never a sensible landing spot, and /account/reset/<token> would put a
 // live reset secret into a form field the drawer renders
@@ -33,6 +35,8 @@ function currentReturnTo(): string | null {
 
 export function AuthSidebar() {
   const { isOpen, view, close, setView } = useAuthUI();
+  const t = useTranslations("auth.drawer");
+  const tc = useTranslations("common");
   // Read at open time from window rather than useSearchParams - the drawer is mounted in
   // the root layout, and useSearchParams there would need a Suspense boundary
   // Captured on open rather than during render: window is server-undefined, and the value
@@ -48,30 +52,30 @@ export function AuthSidebar() {
       open={isOpen}
       onOpenChange={(next) => (next ? null : close())}
       side="right"
-      title={TITLES[view]}
+      title={t(TITLES[view])}
       hideTitle
     >
       <header className="flex flex-col gap-1 border-b border-border px-5 py-4">
         <h2 className="text-lg font-semibold tracking-tight">
-          {TITLES[view]}
+          {t(TITLES[view])}
         </h2>
-        <p className="text-xs text-muted-foreground">{SUBTITLES[view]}</p>
+        <p className="text-xs text-muted-foreground">{t(SUBTITLES[view])}</p>
         <div
           role="tablist"
-          aria-label="Authentication"
+          aria-label={t("tabs")}
           className="mt-3 inline-flex rounded-md border border-border bg-background p-0.5 text-sm"
         >
           <TabButton
             active={view === "login"}
             onClick={() => setView("login")}
           >
-            Sign in
+            {tc("signIn")}
           </TabButton>
           <TabButton
             active={view === "register"}
             onClick={() => setView("register")}
           >
-            Register
+            {tc("register")}
           </TabButton>
         </div>
       </header>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { MessageCircleQuestionIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { FieldErrors, FormErrors } from "@/app/components/account/AccountUI";
 import { askQuestionAction } from "@/app/lib/qna/actions";
@@ -18,6 +19,9 @@ export function AskQuestionForm({ productId }: { productId: string }) {
   // Resolved after hydration - the page is cached HTML, so the server render has no session
   // Unresolved reads as anonymous, which just shows the name/email fields the form needs anyway
   const signedIn = useCustomerIdentity().identity != null;
+  const t = useTranslations("product.qna");
+  const tf = useTranslations("forms.fields");
+  const tc = useTranslations("common");
   const [open, setOpen] = useState(false);
   const boundAction = useMemo(
     () => askQuestionAction.bind(null, productId),
@@ -35,8 +39,7 @@ export function AskQuestionForm({ productId }: { productId: string }) {
   if (lastResult?.status === "success") {
     return (
       <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm">
-        Thanks - your question was sent to the store team. It will appear here
-        once answered.
+        {t("thanks")}
       </p>
     );
   }
@@ -49,7 +52,7 @@ export function AskQuestionForm({ productId }: { productId: string }) {
         className="inline-flex h-10 items-center gap-2 rounded-md border border-foreground/25 px-5 text-sm font-semibold transition hover:border-foreground"
       >
         <MessageCircleQuestionIcon className="h-4 w-4" aria-hidden="true" />
-        Ask a question
+        {t("ask")}
       </button>
     );
   }
@@ -63,7 +66,7 @@ export function AskQuestionForm({ productId }: { productId: string }) {
       className="glass flex max-w-xl flex-col gap-4 rounded-lg p-5"
     >
       <label className="flex flex-col gap-1.5">
-        <span className={LABEL}>Your question</span>
+        <span className={LABEL}>{t("yourQuestion")}</span>
         <textarea
           key={fields.question.key}
           name={fields.question.name}
@@ -78,7 +81,7 @@ export function AskQuestionForm({ productId }: { productId: string }) {
             fields.question.errors ? fields.question.errorId : undefined
           }
           className={FIELD}
-          placeholder="What would you like to know about this product?"
+          placeholder={t("placeholder")}
         />
         {fields.question.errors ? (
           <FieldErrors
@@ -90,7 +93,7 @@ export function AskQuestionForm({ productId }: { productId: string }) {
       {!signedIn && (
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
-            <span className={LABEL}>Display name</span>
+            <span className={LABEL}>{t("displayName")}</span>
             <input
               key={fields.authorName.key}
               name={fields.authorName.name}
@@ -111,7 +114,7 @@ export function AskQuestionForm({ productId }: { productId: string }) {
             ) : null}
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className={LABEL}>Email</span>
+            <span className={LABEL}>{tf("email")}</span>
             <input
               key={fields.authorEmail.key}
               name={fields.authorEmail.name}
@@ -135,7 +138,7 @@ export function AskQuestionForm({ productId }: { productId: string }) {
                 id={fields.authorEmail.descriptionId}
                 className="text-xs text-muted-foreground"
               >
-                Never shown publicly
+                {t("neverShown")}
               </span>
             )}
           </label>
@@ -148,14 +151,14 @@ export function AskQuestionForm({ productId }: { productId: string }) {
           disabled={pending}
           className="inline-flex h-10 items-center rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/85 disabled:opacity-50"
         >
-          {pending ? "Sending…" : "Submit question"}
+          {pending ? tc("sending") : t("submit")}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
           className="inline-flex h-10 items-center rounded-md border border-foreground/25 px-5 text-sm font-semibold transition hover:border-foreground"
         >
-          Cancel
+          {tc("cancel")}
         </button>
       </div>
     </form>

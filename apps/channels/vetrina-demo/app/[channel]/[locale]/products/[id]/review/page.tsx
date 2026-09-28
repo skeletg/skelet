@@ -1,7 +1,7 @@
 // Review submission page
 
 import { redirect } from "next/navigation";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { withLocalePrefix } from "@/app/lib/locale/path";
 
 import { getProduct } from "@/app/lib/catalog/read";
@@ -35,16 +35,18 @@ export default async function ReviewSubmissionPage({
     if (eligibility.reason !== "ALREADY_REVIEWED") redirect(await productPage(id));
   }
 
+  const t = await getTranslations("product.reviewForm");
   return (
     <main className="mx-auto w-full max-w-2xl px-6 pt-6 pb-10">
-      <h1 className="text-2xl font-extrabold tracking-tight">
-        Write a review
-      </h1>
+      <h1 className="text-2xl font-extrabold tracking-tight">{t("title")}</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Reviewing{" "}
-        <span className="font-medium text-foreground">
-          {product!.name ?? product!.sku}
-        </span>
+        {t.rich("reviewing", {
+          name: () => (
+            <span className="font-medium text-foreground">
+              {product!.name ?? product!.sku}
+            </span>
+          ),
+        })}
       </p>
       <ReviewForm
         productId={id}

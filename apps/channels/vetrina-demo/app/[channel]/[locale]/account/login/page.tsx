@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getLocale } from "next-intl/server";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { withLocalePrefix } from "@/app/lib/locale/path";
 
 import {
@@ -10,18 +11,20 @@ import { getCustomerOrNull } from "@/app/lib/customer/read";
 import { safeReturnTo } from "@/app/lib/auth/return-to";
 import { LoginForm } from "@/app/components/auth/LoginForm";
 
-export const metadata = { title: "Sign in" };
-
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/account/login">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "auth.login" });
+  return { title: t("title") };
+}
 
 export default async function LoginPage({
+  params,
   searchParams,
-}: {
-  searchParams: Promise<{
-    returnTo?: string | string[];
-    reset?: string | string[];
-    verify?: string | string[];
-  }>;
-}) {
+}: PageProps<"/[channel]/[locale]/account/login">) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "auth.login" });
   const sp = await searchParams;
   const returnTo = safeReturnTo(sp.returnTo);
   const justReset =
@@ -30,22 +33,17 @@ export default async function LoginPage({
     (Array.isArray(sp.verify) ? sp.verify[0] : sp.verify) === "required";
 
   const customer = await getCustomerOrNull();
-  if (customer) redirect(await withLocalePrefix(returnTo ?? "/account", await getLocale()));
+  if (customer) redirect(await withLocalePrefix(returnTo ?? "/account", locale));
 
   return (
     <AuthCard
-      title="Sign in"
-      description="Welcome back. Sign in to view your orders and addresses."
+      title={t("title")}
+      description={t("description")}
       banner={
         needsVerify ? (
-          <FormSuccess>
-            Account created. Check your inbox and confirm your email address,
-            then sign in.
-          </FormSuccess>
+          <FormSuccess>{t("verifyBanner")}</FormSuccess>
         ) : justReset ? (
-          <FormSuccess>
-            Password updated. Sign in with your new password to continue.
-          </FormSuccess>
+          <FormSuccess>{t("resetBanner")}</FormSuccess>
         ) : undefined
       }
     >

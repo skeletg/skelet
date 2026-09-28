@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useActionState } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 
 import { addGroupedToCart } from "@/app/lib/cart/actions";
@@ -38,6 +39,8 @@ const FORM_ID = "grouped-add-form";
 
 export function GroupedPDP({ product }: { product: ProductDetail }) {
   const [addState, formAction] = useActionState(addGroupedToCart, null);
+  const t = useTranslations("product.pdp");
+  const tp = useTranslations("product");
   const members = useMemo(
     () =>
       [...product.groupedMembers].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -181,7 +184,7 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
               )}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Each item is priced and added separately
+              {t("pricedSeparately")}
             </p>
           </>
         ) : (
@@ -197,7 +200,7 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
 
         <section className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            What&rsquo;s included
+            {t("included")}
           </h2>
           <RequiredFlag
             active={attempted && totalQty === 0}
@@ -225,13 +228,14 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
 
         <section className="mt-6 rounded-xl border border-border/60 bg-muted/30 p-4 text-sm">
           {totalQty === 0 ? (
-            <p className="text-muted-foreground">No items selected.</p>
+            <p className="text-muted-foreground">{t("noneSelected")}</p>
           ) : (
             <p className="text-foreground">
-              <span className="font-medium">{totalQty}</span> item
-              {totalQty === 1 ? "" : "s"} across{" "}
-              <span className="font-medium">{totalMembers}</span> product
-              {totalMembers === 1 ? "" : "s"}
+              {t.rich("selectedSummary", {
+                items: totalQty,
+                products: totalMembers,
+                b: (chunks) => <span className="font-medium">{chunks}</span>,
+              })}
             </p>
           )}
         </section>
@@ -250,7 +254,7 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
               }}
               className="w-full"
             >
-              {totalQty === 0 ? "Pick at least one" : "Add selected to cart"}
+              {totalQty === 0 ? t("pickAtLeastOne") : t("addSelected")}
             </AddToCartButton>
           }
         >
@@ -268,17 +272,20 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
             }}
             className="flex-1"
           >
-            {totalQty === 0 ? "Pick at least one" : "Add selected to cart"}
+            {totalQty === 0 ? t("pickAtLeastOne") : t("addSelected")}
           </AddToCartButton>
         </form>
         </StickyBuyRow>
         <AddToCartFeedback state={addState} />
         {attempted && totalQty === 0 ? (
           <SelectionHint key={attemptSeq}>
-            Choose at least one item from{" "}
-            <MissingOptionLinks
-              items={[{ id: GROUPED_ITEMS_ANCHOR, label: "what's included" }]}
-            />
+            {t.rich("chooseAtLeastOne", {
+              links: () => (
+                <MissingOptionLinks
+                  items={[{ id: GROUPED_ITEMS_ANCHOR, label: t("whatsIncluded") }]}
+                />
+              ),
+            })}
           </SelectionHint>
         ) : null}
 
@@ -286,13 +293,13 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
         </div>
 
         <Description
-          label="Summary"
+          label={tp("summary")}
           value={product.shortDescription}
           className="mt-6"
         />
 
         <Description
-          label="Description"
+          label={tp("description")}
           value={product.description}
           className="mt-8"
         />
@@ -338,6 +345,8 @@ function GroupedRow({
 }) {
   const p = member.member;
   const hasOptions = p.options.length > 0;
+  const t = useTranslations("product.pdp");
+  const tc = useTranslations("common");
   const opts = useConfiguredOptions(p.options, {
     defaultPrice: p.defaultPrice,
     effectivePrice: p.price ?? p.defaultPrice,
@@ -395,8 +404,8 @@ function GroupedRow({
           </Link>
           <p className="text-xs text-muted-foreground">
             {formatPrice(opts.configuredTotal, p.defaultCurrencyCode)}
-            {opts.optionsDelta !== 0 ? " configured" : ""} ·{" "}
-            {p.inStock ? "In stock" : "Out of stock"}
+            {opts.optionsDelta !== 0 ? t("configured") : ""} ·{" "}
+            {p.inStock ? tc("inStock") : tc("outOfStock")}
           </p>
         </div>
         {/* min=0 so a row can be dialed out - the real floor lives in
@@ -452,12 +461,12 @@ function GroupedRow({
           ))}
           {qtyLocked ? (
             <p className="text-xs text-muted-foreground">
-              Quantity {opts.forcedQty} - set by your selection
+              {t("qtyLocked", { qty: opts.forcedQty ?? 0 })}
             </p>
           ) : null}
           {opts.forcedQtyConflict ? (
             <p role="alert" className="text-xs font-medium text-red-600 dark:text-red-400">
-              These choices set different fixed quantities - keep only one of them.
+              {t("qtyConflict")}
             </p>
           ) : null}
           {/* Quiet note until an add is blocked on it, then the same
@@ -465,15 +474,20 @@ function GroupedRow({
               option state so they clear the instant the shopper picks */}
           {opts.missingRequired.length === 0 ? null : attempted ? (
             <SelectionHint key={attemptSeq}>
-              Pick <MissingOptionLinks items={opts.missingRequiredItems} /> for
-              this item
+              {t.rich("pickForItem", {
+                links: () => <MissingOptionLinks items={opts.missingRequiredItems} />,
+              })}
             </SelectionHint>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Required option{opts.missingRequired.length > 1 ? "s" : ""}:{" "}
-              <span className="text-foreground">
-                {opts.missingRequired.join(", ")}
-              </span>
+              {t.rich("requiredList", {
+                count: opts.missingRequired.length,
+                names: () => (
+                  <span className="text-foreground">
+                    {opts.missingRequired.join(", ")}
+                  </span>
+                ),
+              })}
             </p>
           )}
         </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import {
   FieldErrors,
   FormErrors,
@@ -35,12 +37,14 @@ export function ReturnRequestForm({
     },
   );
   const lineFields = fields.lines.getFieldList();
+  const t = useTranslations("account.returnForm");
 
   if (lastResult?.rmaNumber) {
     return (
       <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
-        Return request <span className="font-mono">{lastResult.rmaNumber}</span>{" "}
-        submitted. We&rsquo;ll review it and email you with the next steps.
+        {t.rich("submitted", {
+          rma: () => <span className="font-mono">{lastResult.rmaNumber}</span>,
+        })}
       </div>
     );
   }
@@ -67,7 +71,7 @@ export function ReturnRequestForm({
                     {it.productName}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {it.productSku} · up to {it.returnableQty}
+                    {t("upTo", { sku: it.productSku, max: it.returnableQty })}
                   </p>
                 </div>
                 <input
@@ -83,7 +87,7 @@ export function ReturnRequestForm({
                   max={it.returnableQty}
                   step={1}
                   defaultValue={typeof initial === "string" ? initial : 0}
-                  aria-label={`Return quantity for ${it.productName}`}
+                  aria-label={t("qtyLabel", { name: it.productName })}
                   aria-invalid={qty?.errors ? true : undefined}
                   aria-describedby={qty?.errors ? qty.errorId : undefined}
                   className={`${inputClass} w-20 text-right`}
@@ -98,7 +102,7 @@ export function ReturnRequestForm({
       </ul>
 
       <fieldset className="text-sm">
-        <legend className="mb-1">What would you like?</legend>
+        <legend className="mb-1">{t("resolution")}</legend>
         <label className="mr-4 inline-flex items-center gap-1.5">
           <input
             type="radio"
@@ -108,7 +112,7 @@ export function ReturnRequestForm({
             defaultChecked={fields.resolution.initialValue !== "exchange"}
             className="h-3.5 w-3.5"
           />
-          Refund
+          {t("refund")}
         </label>
         <label className="inline-flex items-center gap-1.5">
           <input
@@ -119,19 +123,19 @@ export function ReturnRequestForm({
             defaultChecked={fields.resolution.initialValue === "exchange"}
             className="h-3.5 w-3.5"
           />
-          Exchange (replacement item)
+          {t("exchange")}
         </label>
       </fieldset>
 
       <label className="block text-sm">
-        Reason (optional)
+        {t("reason")}
         <textarea
           key={fields.reason.key}
           name={fields.reason.name}
           defaultValue={fields.reason.initialValue ?? ""}
           rows={2}
           className={`${inputClass} mt-1 w-full`}
-          placeholder="e.g. wrong size, changed my mind"
+          placeholder={t("reasonPlaceholder")}
         />
       </label>
 
@@ -142,7 +146,7 @@ export function ReturnRequestForm({
         disabled={pending}
         className="inline-flex h-10 items-center rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
       >
-        {pending ? "Submitting…" : "Request return"}
+        {pending ? t("submitting") : t("submit")}
       </button>
     </form>
   );

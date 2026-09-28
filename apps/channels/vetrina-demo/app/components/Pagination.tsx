@@ -1,6 +1,7 @@
 // Listing pagination
 
 import { Link } from "@/app/components/LocaleLink";
+import { useTranslations } from "next-intl";
 import { hrefForPage } from "@/app/lib/pagination";
 
 type Props = {
@@ -20,6 +21,7 @@ export function Pagination({
   basePath,
   preservedParams,
 }: Props) {
+  const t = useTranslations("listing");
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   if (totalPages <= 1) return null;
 
@@ -55,7 +57,7 @@ export function Pagination({
 
   return (
     <nav
-      aria-label="Pagination"
+      aria-label={t("pagination")}
       className="mt-10 flex flex-wrap items-center justify-center gap-1"
     >
       {prevPage ? (
@@ -64,14 +66,14 @@ export function Pagination({
           rel="prev"
           className={`${baseBtn} ${hoverBtn}`}
         >
-          ← Prev
+          {t("prev")}
         </Link>
       ) : (
         <span
           aria-disabled="true"
           className={`${baseBtn} opacity-40`}
         >
-          ← Prev
+          {t("prev")}
         </span>
       )}
 
@@ -108,14 +110,14 @@ export function Pagination({
           rel="next"
           className={`${baseBtn} ${hoverBtn}`}
         >
-          Next →
+          {t("next")}
         </Link>
       ) : (
         <span
           aria-disabled="true"
           className={`${baseBtn} opacity-40`}
         >
-          Next →
+          {t("next")}
         </span>
       )}
     </nav>

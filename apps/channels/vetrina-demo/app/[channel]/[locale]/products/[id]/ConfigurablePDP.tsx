@@ -8,6 +8,7 @@ import {
   useState,
   ViewTransition,
 } from "react";
+import { useTranslations } from "next-intl";
 
 import { addConfiguredToCart, addSimpleToCart } from "@/app/lib/cart/actions";
 import { displayName } from "@/app/lib/display";
@@ -72,6 +73,9 @@ export function ConfigurablePDP({
   variantOwnUrl?: boolean;
 }) {
   const [addState, formAction] = useActionState(addSimpleToCart, null);
+  const t = useTranslations("product.pdp");
+  const tp = useTranslations("product");
+  const tc = useTranslations("common");
   const [cfgState, cfgFormAction] = useActionState(addConfiguredToCart, null);
   const isList = product.variantMode === "LIST";
 
@@ -308,13 +312,15 @@ export function ConfigurablePDP({
           {!matched && (
             <p className="mt-3 text-xs text-muted-foreground">
               {isList
-                ? "Choose a variant to add to cart."
+                ? t("chooseVariantToAdd")
                 : product.configurableOptions.some((o) => !selection[o.id])
-                  ? `Pick ${product.configurableOptions
-                      .filter((o) => !selection[o.id])
-                      .map((o) => o.name)
-                      .join(" + ")} to see the matching variant.`
-                  : "No variant matches this combination."}
+                  ? t("pickToSee", {
+                      options: product.configurableOptions
+                        .filter((o) => !selection[o.id])
+                        .map((o) => o.name)
+                        .join(" + "),
+                    })
+                  : t("noMatch")}
             </p>
           )}
 
@@ -342,14 +348,14 @@ export function ConfigurablePDP({
                     onFile={(e) => opts.onFileChange(opt, e)}
                     invalid={invalid}
                     fileDisabled={!matched}
-                    fileDisabledHint="Pick your options first"
+                    fileDisabledHint={t("pickOptionsFirst")}
                   />
                   )}
                 </RequiredFlag>
               ))}
               {opts.forcedQtyConflict && (
                 <p role="alert" className="text-xs font-medium text-red-600 dark:text-red-400">
-                  These choices set different fixed quantities - keep only one of them.
+                  {t("qtyConflict")}
                 </p>
               )}
               {opts.optionsDelta !== 0 && (
@@ -404,16 +410,16 @@ export function ConfigurablePDP({
                 className="flex-1"
               >
                 {opts.uploading
-                  ? "Uploading…"
+                  ? t("uploading")
                   : !matched
-                    ? "Select options"
+                    ? t("selectOptions")
                     : !matched.inStock
-                      ? "Out of stock"
+                      ? tc("outOfStock")
                       : opts.missingRequired.length > 0
-                        ? "Complete required options"
+                        ? t("completeRequired")
                         : opts.forcedQtyConflict
-                          ? "Resolve quantity conflict"
-                          : "Add to cart"}
+                          ? t("resolveConflict")
+                          : tp("addToCart")}
               </AddToCartButton>
             </form>
             </StickyBuyRow>
@@ -454,10 +460,10 @@ export function ConfigurablePDP({
                 className="flex-1"
               >
                 {!matched
-                  ? "Select options"
+                  ? t("selectOptions")
                   : !matched.inStock
-                    ? "Out of stock"
-                    : "Add to cart"}
+                    ? tc("outOfStock")
+                    : tp("addToCart")}
               </AddToCartButton>
             </form>
             </StickyBuyRow>
@@ -465,19 +471,19 @@ export function ConfigurablePDP({
           {attempted && !matched ? (
             <SelectionHint key={attemptSeq}>
               {isList ? (
-                <>
-                  Still to choose:{" "}
-                  <MissingOptionLinks
-                    items={[{ id: LIST_VARIANT_ANCHOR, label: "a variant" }]}
-                  />
-                </>
+                t.rich("stillToChoose", {
+                  links: () => (
+                    <MissingOptionLinks
+                      items={[{ id: LIST_VARIANT_ANCHOR, label: t("aVariant") }]}
+                    />
+                  ),
+                })
               ) : unansweredVariantOptions.length > 0 ? (
-                <>
-                  Still to choose:{" "}
-                  <MissingOptionLinks items={unansweredVariantOptions} />
-                </>
+                t.rich("stillToChoose", {
+                  links: () => <MissingOptionLinks items={unansweredVariantOptions} />,
+                })
               ) : (
-                "That combination isn't available. Try a different one."
+                t("unavailableCombo")
               )}
             </SelectionHint>
           ) : attempted &&
@@ -485,8 +491,10 @@ export function ConfigurablePDP({
             matched?.inStock &&
             opts.missingRequired.length > 0 ? (
             <SelectionHint key={attemptSeq}>
-              Required option{opts.missingRequired.length > 1 ? "s" : ""}:{" "}
-              <MissingOptionLinks items={opts.missingRequiredItems} />
+              {t.rich("requiredOptions", {
+                count: opts.missingRequired.length,
+                links: () => <MissingOptionLinks items={opts.missingRequiredItems} />,
+              })}
             </SelectionHint>
           ) : null}
           <AddToCartFeedback state={hasOptions ? cfgState : addState} />
@@ -496,12 +504,12 @@ export function ConfigurablePDP({
         </div>
 
         <Description
-          label="Summary"
+          label={tp("summary")}
           value={displayShortDesc}
           className="mt-8"
         />
         <Description
-          label="Description"
+          label={tp("description")}
           value={displayDesc}
           className="mt-6"
         />
@@ -512,23 +520,29 @@ export function ConfigurablePDP({
           <section className="mt-8 text-sm">
             {product.primaryCategory && (
               <p className="text-muted-foreground">
-                Primary category:{" "}
-                <span className="text-foreground">
-                  {displayName(
-                    product.primaryCategory.name,
-                    product.primaryCategory.slug,
-                  )}
-                </span>
+                {tp.rich("primaryCategory", {
+                  value: () => (
+                    <span className="text-foreground">
+                      {displayName(
+                        product.primaryCategory!.name,
+                        product.primaryCategory!.slug,
+                      )}
+                    </span>
+                  ),
+                })}
               </p>
             )}
             {product.collections.length > 0 && (
               <p className="mt-1 text-muted-foreground">
-                Collections:{" "}
-                <span className="text-foreground">
-                  {product.collections
-                    .map((c) => displayName(c.name, c.slug))
-                    .join(", ")}
-                </span>
+                {tp.rich("collections", {
+                  value: () => (
+                    <span className="text-foreground">
+                      {product.collections
+                        .map((c) => displayName(c.name, c.slug))
+                        .join(", ")}
+                    </span>
+                  ),
+                })}
               </p>
             )}
           </section>

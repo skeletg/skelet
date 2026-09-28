@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useTranslations } from "next-intl";
+
+import { useErrorText } from "@/app/components/account/AccountUI";
 
 import { requestProductOptionFileUploadAction } from "@/app/lib/cart/actions";
 import { displayName } from "@/app/lib/display";
@@ -100,9 +103,13 @@ function formatBytes(n: number): string {
 }
 
 // Mirror of the server-side constraint check so the customer gets instant feedback
-function validateFile(option: ProductCustomOption, file: File): string | null {
+function validateFile(
+  option: ProductCustomOption,
+  file: File,
+  t: ReturnType<typeof useTranslations<"product.options">>,
+): string | null {
   if (option.maxFileBytes != null && file.size > option.maxFileBytes) {
-    return `File is too large (max ${formatBytes(option.maxFileBytes)}).`;
+    return t("fileTooLarge", { max: formatBytes(option.maxFileBytes) });
   }
   if (option.fileExtensions) {
     const allow = option.fileExtensions
@@ -110,7 +117,7 @@ function validateFile(option: ProductCustomOption, file: File): string | null {
       .map((e) => e.trim().replace(/^\./, "").toLowerCase())
       .filter(Boolean);
     if (allow.length > 0 && !allow.includes(fileExt(file.name))) {
-      return `Allowed file types: ${allow.join(", ")}.`;
+      return t("allowedTypes", { types: allow.join(", ") });
     }
   }
   return null;
@@ -161,6 +168,8 @@ export function useConfiguredOptions(
     [options],
   );
 
+  const t = useTranslations("product.options");
+  const tr = useTranslations("product.reviewForm");
   const [sel, setSel] = useState<SelState>(() => initialSelections(sorted));
   const [text, setText] = useState<TextState>({});
   const [files, setFiles] = useState<FileState>({});
@@ -190,7 +199,7 @@ export function useConfiguredOptions(
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-picking the same file
     if (!file) return;
-    const clientError = validateFile(option, file);
+    const clientError = validateFile(option, file, t);
     if (clientError) {
       setFiles((p) => ({ ...p, [option.id]: { status: "error", error: clientError } }));
       return;
@@ -213,7 +222,7 @@ export function useConfiguredOptions(
         body: file,
         headers: { "Content-Type": file.type || "application/octet-stream" },
       });
-      if (!put.ok) throw new Error(`Upload failed (HTTP ${put.status})`);
+      if (!put.ok) throw new Error(tr("uploadFailedStatus", { status: put.status }));
       setFiles((p) => ({
         ...p,
         [option.id]: { status: "ready", assetId: req.assetId, filename: file.name },
@@ -223,7 +232,7 @@ export function useConfiguredOptions(
         ...p,
         [option.id]: {
           status: "error",
-          error: err instanceof Error ? err.message : "Upload failed",
+          error: err instanceof Error ? err.message : tr("uploadFailed"),
         },
       }));
     }
@@ -514,11 +523,13 @@ function FileControl({
   disabled?: boolean;
   disabledHint?: string;
 }) {
+  const t = useTranslations("product.options");
+  const errorText = useErrorText();
   const price = priceLabel(option.priceValue, option.priceType, currency);
   const constraints: string[] = [];
   if (option.fileExtensions) constraints.push(option.fileExtensions);
   if (option.maxFileBytes != null)
-    constraints.push(`up to ${formatBytes(option.maxFileBytes)}`);
+    constraints.push(t("upTo", { size: formatBytes(option.maxFileBytes) }));
   return (
     <div>
       <label
@@ -553,7 +564,7 @@ function FileControl({
         <p className="mt-1 text-xs text-muted-foreground">{constraints.join(" · ")}</p>
       ) : null}
       {file?.status === "uploading" ? (
-        <p className="mt-1 text-xs text-muted-foreground">Uploading {file.filename}…</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("uploading", { name: file.filename })}</p>
       ) : null}
       {file?.status === "ready" ? (
         <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
@@ -561,7 +572,7 @@ function FileControl({
         </p>
       ) : null}
       {file?.status === "error" ? (
-        <p className="mt-1 text-xs text-red-600 dark:text-red-400">{file.error}</p>
+        <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errorText(file.error)}</p>
       ) : null}
     </div>
   );

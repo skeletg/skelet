@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { getLocale } from "next-intl/server";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
 import { withLocalePrefix } from "@/app/lib/locale/path";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
@@ -14,20 +15,24 @@ import { MyOrderDocument } from "@/app/lib/checkout/operations.gql";
 import { ReorderButton } from "@/app/[channel]/[locale]/account/orders/ReorderButton";
 import { ReturnRequestForm, type ReturnableItem } from "@/app/[channel]/[locale]/account/orders/ReturnRequestForm";
 
-export const metadata = { title: "Order" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/account/orders/[id]">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.orders" });
+  return { title: t("detailTitle") };
+}
 
 export default async function OrderDetailPage({
   params,
   searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ just_placed?: string | string[] }>;
-}) {
+}: PageProps<"/[channel]/[locale]/account/orders/[id]">) {
+  const { id, locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.orders" });
   const customer = await getCurrentCustomer();
   if (!customer) {
-    redirect(await withLocalePrefix("/account/login", await getLocale()));
+    redirect(await withLocalePrefix("/account/login", locale));
   }
-  const { id } = await params;
   const sp = await searchParams;
   const justPlacedRaw = Array.isArray(sp.just_placed)
     ? sp.just_placed[0]
@@ -84,16 +89,13 @@ export default async function OrderDetailPage({
       )}
 
       <div className="mb-4">
-        <BackButton fallbackHref="/account/orders" label="All orders" />
+        <BackButton fallbackHref="/account/orders" label={t("allOrders")} />
       </div>
 
       {justPlaced ? (
         <section className="glass mb-6 rounded-xl p-5">
-          <h2 className="text-lg font-semibold">Thanks for your order</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            A confirmation is on its way to your inbox. You can track everything
-            from this page.
-          </p>
+          <h2 className="text-lg font-semibold">{t("thanksTitle")}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t("thanksBody")}</p>
         </section>
       ) : null}
 
@@ -105,7 +107,7 @@ export default async function OrderDetailPage({
             {order.returns.length > 0 ? (
               <section className="glass mt-6 rounded-xl p-5">
                 <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Returns
+                  {t("returns")}
                 </h2>
                 <ul className="mt-3 divide-y divide-border">
                   {order.returns.map((ret) => (
@@ -119,9 +121,11 @@ export default async function OrderDetailPage({
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {ret.lines.reduce((n, l) => n + l.quantity, 0)} item(s)
+                        {t("returnSummary", {
+                          count: ret.lines.reduce((n, l) => n + l.quantity, 0),
+                        })}
                         {ret.refundAmount > 0
-                          ? ` · refunded ${formatPrice(ret.refundAmount, order.currencyCode)}`
+                          ? ` · ${t("refunded", { amount: formatPrice(ret.refundAmount, order.currencyCode) })}`
                           : ""}
                       </p>
                     </li>
@@ -133,11 +137,10 @@ export default async function OrderDetailPage({
             {returnableItems.length > 0 ? (
               <section className="glass mt-6 rounded-xl p-5">
                 <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Request a return
+                  {t("requestReturn")}
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Choose how many of each item to return. We&rsquo;ll review your
-                  request and email you.
+                  {t("requestReturnHint")}
                 </p>
                 <div className="mt-3">
                   <ReturnRequestForm

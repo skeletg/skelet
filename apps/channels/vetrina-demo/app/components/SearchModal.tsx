@@ -4,6 +4,7 @@ import { Link, useRouter } from "@/app/components/LocaleLink";
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import { useTranslations } from "next-intl";
 
 import { displayName } from "@/app/lib/display";
 import { productHref } from "@/app/lib/entity-href";
@@ -17,6 +18,7 @@ const DEBOUNCE_MS = 180;
 const TRANSITION_MS = 200;
 
 export function SearchModal() {
+  const t = useTranslations("search");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ProductSearchHit[]>([]);
@@ -113,13 +115,13 @@ export function SearchModal() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Search products"
-        title="Search (⌘K)"
+        aria-label={t("label")}
+        title={t("shortcut")}
         className="flex h-9 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-sm text-muted-foreground transition hover:border-foreground/40 sm:w-64"
       >
         <SearchIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="hidden min-w-0 flex-1 truncate text-left sm:inline">
-          Search products…
+          {t("placeholder")}
         </span>
         <kbd className="hidden rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground lg:inline">
           ⌘K
@@ -144,7 +146,7 @@ export function SearchModal() {
             <div
               role="dialog"
               aria-modal="true"
-              aria-label="Search products"
+              aria-label={t("label")}
               className={[
                 // Fullscreen sheet below sm, floating panel from sm up
                 "glass-strong fixed z-50 shadow-2xl transition-[opacity,transform] ease-out",
@@ -169,8 +171,8 @@ export function SearchModal() {
                       submit();
                     }
                   }}
-                  placeholder="Search products…"
-                  aria-label="Search products"
+                  placeholder={t("placeholder")}
+                  aria-label={t("label")}
                   autoComplete="off"
                   className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                 />
@@ -183,7 +185,7 @@ export function SearchModal() {
                 <button
                   type="button"
                   onClick={close}
-                  aria-label="Close search"
+                  aria-label={t("close")}
                   className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground sm:hidden"
                 >
                   <svg
@@ -203,12 +205,12 @@ export function SearchModal() {
               <div className="overflow-y-auto p-2 max-sm:min-h-0 max-sm:flex-1 sm:max-h-[60vh]">
                 {trimmedQuery === "" && (
                   <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-                    Start typing to search products.
+                    {t("startTyping")}
                   </p>
                 )}
                 {trimmedQuery !== "" && !pending && visibleResults.length === 0 && (
                   <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-                    No products match “{trimmedQuery}”.
+                    {t("noMatch", { query: trimmedQuery })}
                   </p>
                 )}
                 {visibleResults.length > 0 && (
@@ -237,7 +239,7 @@ export function SearchModal() {
                     onClick={close}
                     className="mt-2 flex items-center justify-center rounded-lg px-3 py-2 text-xs text-muted-foreground transition hover:bg-accent"
                   >
-                    View all {visibleTotal} results →
+                    {t("viewAll", { count: visibleTotal })}
                   </Link>
                 )}
               </div>

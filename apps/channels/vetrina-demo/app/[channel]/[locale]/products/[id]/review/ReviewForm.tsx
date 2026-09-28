@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useTranslations } from "next-intl";
 
 import { FieldErrors, FormErrors } from "@/app/components/account/AccountUI";
 import { useActionForm } from "@/app/lib/forms/use-action-form";
@@ -26,6 +27,7 @@ export function ReviewForm({
   // When true, the visitor has no JWT cookie
   isGuest: boolean;
 }) {
+  const t = useTranslations("product.reviewForm");
   const schema = useMemo(() => reviewSchema({ guest: isGuest }), [isGuest]);
   const {
     form,
@@ -61,7 +63,7 @@ export function ReviewForm({
           body: file,
           headers: { "Content-Type": file.type || "application/octet-stream" },
         });
-        if (!put.ok) throw new Error(`Upload failed (HTTP ${put.status})`);
+        if (!put.ok) throw new Error(t("uploadFailedStatus", { status: put.status }));
         const previewUrl = URL.createObjectURL(file);
         setMedia((prev) =>
           prev.map((m) =>
@@ -77,7 +79,7 @@ export function ReviewForm({
           ),
         );
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Upload failed";
+        const message = err instanceof Error ? err.message : t("uploadFailed");
         setMedia((prev) =>
           prev.map((m) =>
             m.kind === "uploading" && m.key === key
@@ -127,11 +129,11 @@ export function ReviewForm({
       {isGuest ? (
         <fieldset className="grid gap-4 rounded-lg border p-4">
           <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            About you
+            {t("aboutYou")}
           </legend>
           <div className="grid gap-2">
             <label htmlFor="rv-name" className="text-sm font-medium">
-              Display name <span className="text-red-500">*</span>
+              {t("displayName")} <span className="text-red-500">*</span>
             </label>
             <input
               id="rv-name"
@@ -144,7 +146,7 @@ export function ReviewForm({
               required
               maxLength={80}
               className="rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-ring"
-              placeholder="How you want to appear on the review"
+              placeholder={t("displayNamePlaceholder")}
               autoComplete="name"
             />
             {fields.guestName.errors ? (
@@ -153,7 +155,7 @@ export function ReviewForm({
           </div>
           <div className="grid gap-2">
             <label htmlFor="rv-email" className="text-sm font-medium">
-              Email (optional)
+              {t("emailOptional")}
             </label>
             <input
               id="rv-email"
@@ -165,7 +167,7 @@ export function ReviewForm({
               type="email"
               maxLength={120}
               className="rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-ring"
-              placeholder="We won't show it publicly"
+              placeholder={t("emailPlaceholder")}
               autoComplete="email"
             />
             {fields.guestEmail.errors ? (
@@ -177,7 +179,7 @@ export function ReviewForm({
 
       <fieldset className="grid gap-2">
         <label htmlFor="rv-title" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Title (optional)
+          {t("titleOptional")}
         </label>
         <input
           id="rv-title"
@@ -189,7 +191,7 @@ export function ReviewForm({
           type="text"
           maxLength={140}
           className="rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-ring"
-          placeholder="Summarise your experience"
+          placeholder={t("titlePlaceholder")}
         />
         {fields.title.errors ? (
           <FieldErrors id={fields.title.errorId} errors={fields.title.errors} />
@@ -198,7 +200,7 @@ export function ReviewForm({
 
       <fieldset className="grid gap-2">
         <label htmlFor="rv-body" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Your review
+          {t("body")}
         </label>
         <textarea
           id="rv-body"
@@ -209,7 +211,7 @@ export function ReviewForm({
           aria-describedby={fields.body.errors ? fields.body.errorId : undefined}
           rows={4}
           className="rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-ring"
-          placeholder="What did you like or dislike?"
+          placeholder={t("bodyPlaceholder")}
         />
         {fields.body.errors ? (
           <FieldErrors id={fields.body.errorId} errors={fields.body.errors} />
@@ -219,7 +221,7 @@ export function ReviewForm({
       {questions.length > 0 ? (
         <fieldset className="grid gap-4 rounded-lg border p-4">
           <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Rate this product
+            {t("rate")}
           </legend>
           {questions.map((q) => (
             <QuestionField
@@ -238,7 +240,7 @@ export function ReviewForm({
 
       <fieldset className="grid gap-2">
         <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Photos &amp; videos (optional)
+          {t("media")}
         </label>
         <input
           ref={fileInputRef}
@@ -261,7 +263,7 @@ export function ReviewForm({
                   )
                 ) : m.kind === "uploading" ? (
                   <div className="flex aspect-square w-full items-center justify-center rounded bg-muted text-[10px] text-muted-foreground">
-                    Uploading…
+                    {t("uploading")}
                   </div>
                 ) : (
                   <div className="flex aspect-square w-full items-center justify-center rounded bg-red-500/10 p-1 text-center text-[10px] text-red-600">
@@ -274,7 +276,7 @@ export function ReviewForm({
                     removeMedia(m.kind === "ready" ? m.assetId : m.key)
                   }
                   className="absolute right-1 top-1 rounded-sm bg-black/60 px-1.5 text-[10px] text-white"
-                  aria-label={`Remove ${m.filename}`}
+                  aria-label={t("removeFile", { name: m.filename })}
                 >
                   ✕
                 </button>
@@ -289,8 +291,9 @@ export function ReviewForm({
       <div className="flex items-center justify-end gap-3">
         {missingRequired.length > 0 ? (
           <p className="text-xs text-amber-600">
-            Required:{" "}
-            {missingRequired.map((q) => q.label).join(", ")}
+            {t("required", {
+              labels: missingRequired.map((q) => q.label).join(", "),
+            })}
           </p>
         ) : null}
         <button
@@ -298,7 +301,7 @@ export function ReviewForm({
           disabled={isPending}
           className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
         >
-          {isPending ? "Submitting…" : "Submit review"}
+          {isPending ? t("submitting") : t("submit")}
         </button>
       </div>
     </form>
@@ -322,6 +325,8 @@ function QuestionField({
   text: string;
   setText: (v: string) => void;
 }) {
+  const t = useTranslations("product.reviewForm");
+  const tc = useTranslations("common");
   return (
     <div className="grid gap-2">
       <input
@@ -351,7 +356,7 @@ function QuestionField({
                   ? "text-amber-500"
                   : "text-border hover:text-muted-foreground"
               }`}
-              aria-label={`${n} star${n === 1 ? "" : "s"}`}
+              aria-label={t("stars", { count: n })}
             >
               ★
             </button>
@@ -367,8 +372,8 @@ function QuestionField({
       {question.inputType === "YES_NO" ? (
         <div className="flex items-center gap-2">
           {[
-            { label: "Yes", value: true },
-            { label: "No", value: false },
+            { label: tc("yes"), value: true },
+            { label: tc("no"), value: false },
           ].map((opt) => (
             <button
               key={opt.label}
@@ -399,8 +404,8 @@ function QuestionField({
           rows={2}
           placeholder={
             question.inputType === "FREE_TEXT"
-              ? "Your answer"
-              : "Optional comment"
+              ? t("answer")
+              : t("comment")
           }
           className="rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-ring"
         />

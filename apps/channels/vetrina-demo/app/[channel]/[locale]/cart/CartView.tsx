@@ -1,6 +1,7 @@
 "use client";
 
 import { Link } from "@/app/components/LocaleLink";
+import { useTranslations } from "next-intl";
 
 import { CartQuantity } from "@/app/components/CartQuantity";
 import { CartRemovedRow } from "@/app/components/CartRemovedRow";
@@ -33,6 +34,9 @@ export function CartView({
   const { cart, pendingRemovals, removeLine, clear, lineNotices, cartNotice } =
     useCartStore();
   const channel = useChannel();
+  const t = useTranslations("cart");
+  const td = useTranslations("cart.drawer");
+  const tc = useTranslations("common");
   const currency = channel?.currency ?? FALLBACK_CURRENCY;
 
   const items = cart ? mergePendingRemovals(cart.lines, pendingRemovals) : [];
@@ -43,13 +47,13 @@ export function CartView({
     // parked here, so surface them instead of a bare "empty cart"
     return (
       <main className="mx-auto w-full max-w-3xl px-6 pt-6 pb-12">
-        <h1 className="text-3xl font-extrabold tracking-tight">Cart</h1>
-        <p className="mt-6 text-muted-foreground">Your cart is empty.</p>
+        <h1 className="text-3xl font-extrabold tracking-tight">{t("title")}</h1>
+        <p className="mt-6 text-muted-foreground">{td("empty")}</p>
         <Link
           href="/products"
           className="mt-6 inline-block text-sm text-foreground underline underline-offset-2 transition-colors hover:text-signal"
         >
-          Browse products →
+          {td("browse")}
         </Link>
         <SavedForLater />
         <RecentlyViewedRail />
@@ -71,7 +75,7 @@ export function CartView({
           loading="lazy" decoding="async" />
         ) : (
           <div className="flex size-16 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-[10px] text-muted-foreground">
-            No image
+            {tc("noImage")}
           </div>
         )}
         <div className="flex-1 min-w-0">
@@ -117,7 +121,7 @@ export function CartView({
             onClick={() => removeLine(line.id)}
             className="text-xs text-muted-foreground transition-colors hover:text-destructive"
           >
-            Remove
+            {tc("remove")}
           </button>
           {line.components.length === 0 && line.options.length === 0 && (
             <SaveForLaterButton lineId={line.id} />
@@ -129,7 +133,7 @@ export function CartView({
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 pt-6 pb-12">
-      <h1 className="text-3xl font-extrabold tracking-tight">Cart</h1>
+      <h1 className="text-3xl font-extrabold tracking-tight">{t("title")}</h1>
 
       {cartNotice ? (
         <p role="alert" className="mt-4 rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
@@ -173,11 +177,11 @@ export function CartView({
               onClick={() => clear()}
               className="text-xs text-muted-foreground transition-colors hover:text-destructive"
             >
-              Clear cart
+              {t("clear")}
             </button>
             <div className="text-right">
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Subtotal
+                {td("subtotal")}
               </p>
               <p className="text-sm tabular-nums text-muted-foreground">
                 {formatPrice(cart.subtotal, currency)}
@@ -185,11 +189,11 @@ export function CartView({
               </p>
               {cart.totalDiscount > 0 ? (
                 <p className="text-sm tabular-nums text-emerald-700">
-                  Discount −{formatPrice(cart.totalDiscount, currency)}
+                  {t("discount", { amount: formatPrice(cart.totalDiscount, currency) })}
                 </p>
               ) : null}
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Total
+                {t("total")}
               </p>
               <p className="text-2xl font-semibold tabular-nums">
                 {formatPrice(netSubtotal, currency)}
@@ -202,7 +206,7 @@ export function CartView({
               href="/checkout"
               className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-8 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              Proceed to checkout →
+              {t("proceed")}
             </Link>
             <Slots zone="cart:actions" />
           </div>

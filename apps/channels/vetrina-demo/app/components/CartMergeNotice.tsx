@@ -4,11 +4,14 @@
 // the guest cart cookie, so this says "not lost, try again" rather than leaving an empty basket unexplained
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { CART_MERGE_FAILED, CART_MERGE_FLAG } from "@/app/lib/cart/merge-flag";
 
 export function CartMergeNotice() {
   const [show, setShow] = useState(false);
+  const t = useTranslations("cart");
+  const tc = useTranslations("common");
 
   // The flag lives in the URL and has to be read after hydration, then stripped - reading
   // window during render would desync the server pass
@@ -30,15 +33,14 @@ export function CartMergeNotice() {
       className="flex flex-wrap items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-center text-sm font-medium text-black"
     >
       <span>
-        We couldn&rsquo;t move your basket over just now - nothing is lost.
-        Reload the cart in a moment and it should be there.
+        {t("mergeFailed")}
       </span>
       <button
         type="button"
         onClick={() => setShow(false)}
         className="underline underline-offset-2"
       >
-        Dismiss
+        {tc("dismiss")}
       </button>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   moveSavedToCartAction,
@@ -13,6 +14,8 @@ import type { SavedItem } from "@/app/lib/cart/types";
 import { mediaThumb } from "@/app/lib/media-thumb";
 
 export function SaveForLaterButton({ lineId }: { lineId: string }) {
+  const t = useTranslations("cart.saved");
+  const tc = useTranslations("common");
   const [pending, start] = useTransition();
   const { applyServerCart } = useCartStore();
   return (
@@ -27,19 +30,20 @@ export function SaveForLaterButton({ lineId }: { lineId: string }) {
       }
       className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:opacity-50"
     >
-      {pending ? "Saving…" : "Save for later"}
+      {pending ? tc("saving") : t("save")}
     </button>
   );
 }
 
 export function SavedForLater() {
+  const t = useTranslations("cart.saved");
   const { cart } = useCartStore();
   const items = cart?.savedItems ?? [];
   if (items.length === 0) return null;
   return (
     <section className="mt-12">
       <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        Saved for later ({items.length})
+        {t("title", { count: items.length })}
       </h2>
       <ul className="glass mt-3 divide-y divide-border rounded-xl px-5">
         {items.map((it) => (
@@ -51,6 +55,9 @@ export function SavedForLater() {
 }
 
 function SavedRow({ item }: { item: SavedItem }) {
+  const t = useTranslations("cart.saved");
+  const tw = useTranslations("account.wishlist");
+  const tc = useTranslations("common");
   const [pending, start] = useTransition();
   const { applyServerCart } = useCartStore();
   return (
@@ -64,7 +71,7 @@ function SavedRow({ item }: { item: SavedItem }) {
         loading="lazy" decoding="async" />
       ) : (
         <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-[9px] text-muted-foreground">
-          No image
+          {tc("noImage")}
         </div>
       )}
       <div className="min-w-0 flex-1">
@@ -73,7 +80,7 @@ function SavedRow({ item }: { item: SavedItem }) {
         </p>
         <p className="text-xs text-muted-foreground">
           {item.productSku}
-          {item.quantity > 1 ? ` · qty ${item.quantity}` : ""}
+          {item.quantity > 1 ? t("qty", { count: item.quantity }) : ""}
         </p>
       </div>
       <button
@@ -87,7 +94,7 @@ function SavedRow({ item }: { item: SavedItem }) {
         }
         className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-muted disabled:opacity-50"
       >
-        {pending ? "Moving…" : "Move to cart"}
+        {pending ? tw("moving") : tw("moveToCart")}
       </button>
       <button
         type="button"
@@ -100,7 +107,7 @@ function SavedRow({ item }: { item: SavedItem }) {
         }
         className="text-xs text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
       >
-        Remove
+        {tc("remove")}
       </button>
     </li>
   );

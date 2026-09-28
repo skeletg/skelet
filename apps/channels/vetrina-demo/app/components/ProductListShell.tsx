@@ -6,7 +6,7 @@
 import { getSiteUrl } from "@/app/lib/channel/site";
 import type { ReactNode } from "react";
 import { permanentRedirect } from "next/navigation";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { ViewTransition } from "react";
 
@@ -106,8 +106,9 @@ export async function ProductListShell({
   pathPage,
   basePath,
   limit,
-  emptyText = "No products match the current filters.",
+  emptyText,
 }: Props) {
+  const t = await getTranslations("listing");
   // Page size: caller override wins; otherwise the admin-configured value
   const pageSize = limit ?? (await getBrowsePageSize());
   // Path-based callers feed pathFilters directly; query-based callers (/products today, the [...slug] catch-all when no
@@ -263,7 +264,7 @@ export async function ProductListShell({
         <section className="min-w-0">
           <div className="flex flex-wrap items-baseline justify-between gap-4">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Products
+              {t("products")}
             </h2>
             <div className="flex items-center gap-4">
               <SortSelect
@@ -278,7 +279,7 @@ export async function ProductListShell({
             </div>
           </div>
           {data.items.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">{emptyText}</p>
+            <p className="mt-3 text-sm text-muted-foreground">{emptyText ?? t("empty")}</p>
           ) : (
             <>
               {/* Re-filtering, re-sorting or paging swaps the grid's contents while everything around

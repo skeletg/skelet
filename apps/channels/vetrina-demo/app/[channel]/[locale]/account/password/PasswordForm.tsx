@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import {
   Field,
   FormErrors,
@@ -11,6 +13,9 @@ import { changePasswordSchema } from "@/app/lib/auth/schemas";
 import { useActionForm } from "@/app/lib/forms/use-action-form";
 
 export function PasswordForm() {
+  const t = useTranslations("account.password");
+  const tf = useTranslations("forms.fields");
+  const tc = useTranslations("common");
   const { form, fields, formAction, pending, lastResult } = useActionForm(
     changePasswordAction,
     changePasswordSchema,
@@ -25,23 +30,23 @@ export function PasswordForm() {
       className="flex flex-col gap-4"
     >
       <Field
-        label="Current password"
+        label={t("current")}
         field={fields.currentPassword}
         type="password"
         required
         autoComplete="current-password"
       />
       <Field
-        label="New password"
+        label={t("new")}
         field={fields.newPassword}
         type="password"
         required
         autoComplete="new-password"
         minLength={8}
-        hint="At least 8 characters."
+        hint={tf("passwordHint")}
       />
       <Field
-        label="Confirm new password"
+        label={t("confirm")}
         field={fields.confirmPassword}
         type="password"
         required
@@ -51,12 +56,12 @@ export function PasswordForm() {
 
       <FormErrors errors={form.errors} />
       {lastResult?.status === "success" && (
-        <FormSuccess>Password updated.</FormSuccess>
+        <FormSuccess>{t("updated")}</FormSuccess>
       )}
 
       <div className="mt-1">
         <button type="submit" disabled={pending} className={buttonPrimary}>
-          {pending ? "Saving…" : "Update password"}
+          {pending ? tc("saving") : t("submit")}
         </button>
       </div>
     </form>

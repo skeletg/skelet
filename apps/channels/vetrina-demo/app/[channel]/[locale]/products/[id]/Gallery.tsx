@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, ViewTransition } from "react";
+import { useTranslations } from "next-intl";
 
 import { Modal } from "@/app/components/Modal";
 import { SnapButton, SnapTrack, useSnapCarousel } from "@/app/components/SnapCarousel";
@@ -21,11 +22,12 @@ type Props = {
 export function ProductGallery({ media, fallback, alt, morphFromProductId }: Props) {
   const items: ProductMedia[] =
     media.length > 0 ? media : fallback ? [fallback] : [];
+  const tc = useTranslations("common");
 
   if (items.length === 0) {
     return (
       <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl border border-border/60 bg-muted">
-        <span className="text-sm text-muted-foreground">No image</span>
+        <span className="text-sm text-muted-foreground">{tc("noImage")}</span>
       </div>
     );
   }
@@ -51,6 +53,7 @@ function ProductGalleryInner({
   alt: string;
   morphFromProductId?: string;
 }) {
+  const t = useTranslations("product.gallery");
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const count = items.length;
   const { ref, index, scrollTo, prev, next } = useSnapCarousel(count);
@@ -69,7 +72,7 @@ function ProductGalleryInner({
             <button
               type="button"
               onClick={() => setLightboxOpen(true)}
-              aria-label="Open image in lightbox"
+              aria-label={t("open")}
               className="group block aspect-square w-full cursor-zoom-in overflow-hidden rounded-2xl border border-border/60 bg-muted"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -110,7 +113,7 @@ function ProductGalleryInner({
                 <button
                   type="button"
                   onClick={() => scrollTo(i)}
-                  aria-label={`Show image ${i + 1}`}
+                  aria-label={t("show", { index: i + 1 })}
                   aria-pressed={picked}
                   className={[
                     "block aspect-square w-full overflow-hidden rounded-lg transition",
@@ -139,7 +142,7 @@ function ProductGalleryInner({
       <Modal
         open={lightboxOpen}
         onOpenChange={setLightboxOpen}
-        label="Image viewer"
+        label={t("viewer")}
         className="lightbox"
       >
         {lightboxOpen && (
@@ -168,6 +171,7 @@ function Lightbox({
 }) {
   const count = items.length;
   const { ref, index, prev, next } = useSnapCarousel(count, startAt);
+  const tc = useTranslations("common");
 
   return (
     <div className="relative w-full max-w-5xl">
@@ -216,7 +220,7 @@ function Lightbox({
         >
           <path d="M18 6 6 18M6 6l12 12" />
         </svg>
-        <span className="sr-only">Close</span>
+        <span className="sr-only">{tc("close")}</span>
       </button>
     </div>
   );
