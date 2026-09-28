@@ -12,15 +12,17 @@ func RegisterConfigSources() {
 	config.RegisterSource("address_validators", func(context.Context) ([]config.Option, error) {
 		mu.RLock()
 		slugs := make([]string, 0, len(validators))
-		for slug := range validators {
+		labels := make(map[string]string, len(validators))
+		for slug, reg := range validators {
 			slugs = append(slugs, slug)
+			labels[slug] = reg.label
 		}
 		mu.RUnlock()
 		sort.Strings(slugs)
 		// "none" is a sentinel Validate() honours directly, not a registered validator, so it is prepended
 		opts := []config.Option{{Value: "none", Label: "None - skip address checking"}}
 		for _, s := range slugs {
-			opts = append(opts, config.Option{Value: s, Label: s})
+			opts = append(opts, config.Option{Value: s, Label: labels[s]})
 		}
 		return opts, nil
 	})
