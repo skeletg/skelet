@@ -33,6 +33,7 @@ export function ReviewForm({
     form,
     fields,
     formAction,
+    onSubmit,
     pending: isPending,
   } = useActionForm(submitReviewAction, schema);
   const [media, setMedia] = useState<MediaItem[]>([]);
@@ -118,7 +119,7 @@ export function ReviewForm({
   return (
     <form
       id={form.id}
-      onSubmit={form.onSubmit}
+      onSubmit={onSubmit}
       action={formAction}
       noValidate
       className="mt-6 grid gap-6"

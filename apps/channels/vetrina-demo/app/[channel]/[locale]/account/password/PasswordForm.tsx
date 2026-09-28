@@ -16,7 +16,7 @@ export function PasswordForm() {
   const t = useTranslations("account.password");
   const tf = useTranslations("forms.fields");
   const tc = useTranslations("common");
-  const { form, fields, formAction, pending, lastResult } = useActionForm(
+  const { form, fields, formAction, onSubmit, pending, lastResult } = useActionForm(
     changePasswordAction,
     changePasswordSchema,
   );
@@ -24,7 +24,7 @@ export function PasswordForm() {
   return (
     <form
       id={form.id}
-      onSubmit={form.onSubmit}
+      onSubmit={onSubmit}
       action={formAction}
       noValidate
       className="flex flex-col gap-4"

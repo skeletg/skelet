@@ -8,7 +8,7 @@ import { revalidatePublicPath } from "@/app/lib/revalidate";
 import { gqlFetch, GraphQLRequestError } from "@/app/lib/graphql";
 import { ReorderDocument, RequestReturnDocument } from "@/app/lib/checkout/operations.gql";
 import { returnRequestSchema } from "@/app/lib/account/schemas";
-import { parseForm, type FormResult } from "@/app/lib/forms/schema";
+import { parseForm, replyReset, type FormResult } from "@/app/lib/forms/schema";
 import { replyError } from "@/app/lib/forms/reply";
 
 export type ReorderResult = {
@@ -56,7 +56,7 @@ export async function requestReturnAction(
     });
     await revalidatePublicPath(`/account/orders/${orderId}`);
     return {
-      ...submission.reply({ resetForm: true }),
+      ...replyReset(submission),
       rmaNumber: res.data.requestReturn.rmaNumber,
     };
   } catch (err) {

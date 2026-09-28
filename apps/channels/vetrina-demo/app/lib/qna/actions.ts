@@ -5,7 +5,7 @@ import { revalidatePublicPath } from "@/app/lib/revalidate";
 import { getAccessToken } from "@/app/lib/auth/session";
 import { getProduct } from "@/app/lib/catalog/read";
 import { productHref } from "@/app/lib/entity-href";
-import { parseForm, type FormResult } from "@/app/lib/forms/schema";
+import { parseForm, replyReset, type FormResult } from "@/app/lib/forms/schema";
 import { replyError } from "@/app/lib/forms/reply";
 import { gqlFetch } from "@/app/lib/graphql";
 import {
@@ -59,5 +59,5 @@ export async function askQuestionAction(
   }
   const { product } = await getProduct(productId);
   if (product) await revalidatePublicPath(productHref(product));
-  return submission.reply({ resetForm: true });
+  return replyReset(submission);
 }

@@ -25,7 +25,7 @@ export function ReturnRequestForm({
   orderId: string;
   items: ReturnableItem[];
 }) {
-  const { form, fields, formAction, pending, lastResult } = useActionForm(
+  const { form, fields, formAction, onSubmit, pending, lastResult } = useActionForm(
     requestReturnAction,
     returnRequestSchema,
     {
@@ -52,7 +52,7 @@ export function ReturnRequestForm({
   return (
     <form
       id={form.id}
-      onSubmit={form.onSubmit}
+      onSubmit={onSubmit}
       action={formAction}
       noValidate
       className="space-y-4"

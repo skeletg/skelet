@@ -1,4 +1,4 @@
-import { parseWithZod, type SubmissionResult } from "@conform-to/zod/v4";
+import { parseWithZod, type Submission, type SubmissionResult } from "@conform-to/zod/v4";
 import { z } from "zod";
 
 // Shared by the client (onValidate) and the server action, so no "use server" and no server imports here
@@ -8,6 +8,14 @@ import { z } from "zod";
 // so "missing" surfaces as an invalid_type issue - hence the input check rather than a min(1) alone
 
 export type FormResult = SubmissionResult<string[]>;
+
+// A success that empties the form. Conform's own reset reply is a bare { initialValue: null } with no status, so a form
+// checking status === "success" never saw its confirmation - this keeps the reset and says it succeeded
+export function replyReset(
+  submission: Submission<unknown, string[], unknown>,
+): FormResult {
+  return { ...submission.reply({ resetForm: true }), status: "success" };
+}
 
 export function parseForm<S extends z.ZodType>(formData: FormData, schema: S) {
   return parseWithZod(formData, { schema });

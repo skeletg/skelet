@@ -22,7 +22,7 @@ import {
 } from "@/app/lib/cart/mutations.gql";
 import { CART_COOKIE } from "@/app/lib/cart/read";
 import { couponSchema } from "@/app/lib/cart/schemas";
-import { parseForm, type FormResult } from "@/app/lib/forms/schema";
+import { parseForm, replyReset, type FormResult } from "@/app/lib/forms/schema";
 import { getAccessToken } from "@/app/lib/auth/session";
 import { getCartRecommendations } from "@/app/lib/catalog/read";
 import { getCart } from "@/app/lib/cart/read";
@@ -476,7 +476,7 @@ export async function applyCoupon(
       code: submission.value.code,
     });
     return {
-      ...submission.reply({ resetForm: true }),
+      ...replyReset(submission),
       cart: res.data.applyCoupon,
     };
   } catch (err) {

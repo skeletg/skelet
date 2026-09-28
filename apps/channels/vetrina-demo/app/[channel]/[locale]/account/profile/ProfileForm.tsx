@@ -24,7 +24,7 @@ export function ProfileForm({ firstName, lastName, phone, email }: Props) {
   const t = useTranslations("account.profile");
   const tf = useTranslations("forms.fields");
   const tc = useTranslations("common");
-  const { form, fields, formAction, pending, lastResult } = useActionForm(
+  const { form, fields, formAction, onSubmit, pending, lastResult } = useActionForm(
     updateProfileAction,
     profileSchema,
     { defaultValue: { firstName, lastName, phone } },
@@ -33,7 +33,7 @@ export function ProfileForm({ firstName, lastName, phone, email }: Props) {
   return (
     <form
       id={form.id}
-      onSubmit={form.onSubmit}
+      onSubmit={onSubmit}
       action={formAction}
       noValidate
       className="flex flex-col gap-4"
