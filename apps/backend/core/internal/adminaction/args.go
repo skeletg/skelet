@@ -1,4 +1,4 @@
-package action
+package adminaction
 
 // Validated arg bag for a handler - values come from JSON so numbers arrive as float64, which is why you go through the accessors and never read raw
 type Args struct {

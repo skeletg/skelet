@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
-	"github.com/skeletg/skelet/apps/backend/core/internal/action"
+	"github.com/skeletg/skelet/apps/backend/core/internal/adminaction"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 func (r *mutationResolver) RunAdminAction(ctx context.Context, slug string, args interface{}) (*model.AdminActionResult, error) {
 	start := time.Now()
-	def, ok := action.Find(slug)
+	def, ok := adminaction.Find(slug)
 	if !ok {
 		err := fmt.Errorf("unknown admin action: %s", slug)
 		r.recordAdminAction(ctx, slug, args, nil, err, time.Since(start))
@@ -34,11 +34,11 @@ func (r *queryResolver) AdminActions(ctx context.Context) ([]*model.AdminAction,
 	}
 
 	// superusers have no admin_user_roles rows, so AllAvailable's per-action HasPermission filter would return empty - give them everything
-	var defs []action.Definition
+	var defs []adminaction.Definition
 	if claims.IsSuperuser {
-		defs = action.AllDefinitions()
+		defs = adminaction.AllDefinitions()
 	} else {
-		defs = action.AllAvailable(ctx, r.AdminSvc, claims.AdminID)
+		defs = adminaction.AllAvailable(ctx, r.AdminSvc, claims.AdminID)
 	}
 
 	out := make([]*model.AdminAction, len(defs))
