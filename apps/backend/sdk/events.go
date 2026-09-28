@@ -60,18 +60,18 @@ func (pl *Plugin) SubscribeAsyncOnce(eventType string, key DedupKeyFunc, handler
 }
 
 // priority orders the chain low-to-high, ties keeping registration order - use it to sequence several plugins, e.g. validate at 100, enrich at 200, final-check at 300
-// Mutation through a pointer field on the event is the deliberate seam for altering core behaviour without forking, and returning an error is how a plugin vetoes an operation outright
+// Changing the event is the deliberate seam for altering core behaviour without forking, and returning an error is how a plugin vetoes an operation outright
 // A disabled plugin is skipped (nil, operation continues unmodified) rather than aborting - a handler that must keep refusing while the plugin is off registers with SubscribeSyncAlways instead - and sync handlers get NO timeout - they run under the caller's deadline, because cutting one mid-mutation is worse than letting it finish
 //
-// This is the only place plugins are expected to import internal/* - pointer mutation costs structural coupling to the emitting domain's event shape, so a rename there breaks the plugin at compile time, which is the failure mode we want:
+// The event arrives as `any` - type-assert it to its SDK interface (CartLineAdding, OrderPlacing, Tendering and the rest in syncevents.go), since the concrete types sit in core's internal packages, which a plugin module cannot import. Core pins its events to those interfaces at compile time, so a rename there breaks core's build rather than silently failing the assertion:
 //
-//	p.SubscribeSync(cart.EventLineAdding, 100, func(ctx context.Context, e any) error {
-//	    ev, ok := e.(*cart.LineAdding)
+//	p.SubscribeSync(sdk.EventCartLineAdding, 100, func(ctx context.Context, e any) error {
+//	    line, ok := e.(sdk.CartLineAdding)
 //	    if !ok {
 //	        return nil // not our event shape, leave it alone
 //	    }
-//	    if price := staffPrice(ev.ProductSku); price > 0 {
-//	        ev.UnitPrice = &price // nil would have meant "keep the input price"
+//	    if cents, ok := staffPrice(line.LineSKU()); ok {
+//	        return line.SetLineUnitPrice(cents)
 //	    }
 //	    return nil
 //	})
