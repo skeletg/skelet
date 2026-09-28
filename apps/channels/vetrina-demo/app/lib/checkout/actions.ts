@@ -25,6 +25,10 @@ export type CheckoutResult =
   | { ok: false; error: string };
 
 function errorMessage(err: unknown, fallback: string): string {
+  // The front API scrubs an unavailable-class message, so the code is all that survives
+  if (err instanceof GraphQLRequestError && err.errors[0]?.extensions?.code === "ADDRESS_VALIDATION_UNAVAILABLE") {
+    return "We can't check your address right now. Please try again in a moment.";
+  }
   if (err instanceof GraphQLRequestError && err.errors[0]?.message) {
     return err.errors[0].message;
   }

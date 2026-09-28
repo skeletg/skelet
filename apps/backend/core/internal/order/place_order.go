@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"slices"
@@ -77,7 +78,7 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 		}
 	}
 
-	if err := s.checkStrictAddress(ctx, store.ID, shipping); err != nil {
+	if err := s.checkStrictAddresses(ctx, store.ID, shipping, billing); err != nil {
 		return nil, err
 	}
 
@@ -133,19 +134,26 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 	}, nil
 }
 
-// A validator outage never blocks placement, same as the storefront
-func (s *Service) checkStrictAddress(ctx context.Context, channelID uuid.UUID, a OrderAddress) error {
+// Only a fail_closed provider's outage refuses placement - any other validator failure lets the order through, same as the storefront
+func (s *Service) checkStrictAddresses(ctx context.Context, channelID uuid.UUID, shipping, billing OrderAddress) error {
 	if s.addresses == nil || !s.addresses.Strict(ctx, channelID) {
 		return nil
 	}
-	res, err := s.addresses.Validate(ctx, channelID, address.Input{
-		Street1:     a.Street1,
-		Street2:     ptr.Deref(a.Street2),
-		City:        a.City,
-		State:       ptr.Deref(a.State),
-		PostalCode:  a.PostalCode,
-		CountryCode: a.CountryCode,
-	})
+	ship, bill := addressInput(shipping), addressInput(billing)
+	if err := s.checkStrictAddress(ctx, channelID, "shipping", ship); err != nil {
+		return err
+	}
+	if bill == ship { // same address, already answered
+		return nil
+	}
+	return s.checkStrictAddress(ctx, channelID, "billing", bill)
+}
+
+func (s *Service) checkStrictAddress(ctx context.Context, channelID uuid.UUID, which string, in address.Input) error {
+	res, err := s.addresses.Validate(ctx, channelID, in)
+	if errors.Is(err, address.ErrUnavailable) {
+		return fmt.Errorf("%s address: %w", which, err) // ErrUnavailable is a registered sentinel, so the storefront gets its code
+	}
 	if err != nil {
 		log.Printf("[order] address validator failed on channel %s, not blocking: %v", channelID, err)
 		return nil
@@ -153,11 +161,22 @@ func (s *Service) checkStrictAddress(ctx context.Context, channelID uuid.UUID, a
 	if res.Valid {
 		return nil
 	}
-	msg := "Please check the shipping address"
+	msg := "Please check the " + which + " address"
 	if len(res.Messages) > 0 {
 		msg += ": " + strings.Join(res.Messages, "; ")
 	}
 	return apperr.New("ADDRESS_INVALID", apperr.ClassValidation, msg+".")
+}
+
+func addressInput(a OrderAddress) address.Input {
+	return address.Input{
+		Street1:     a.Street1,
+		Street2:     ptr.Deref(a.Street2),
+		City:        a.City,
+		State:       ptr.Deref(a.State),
+		PostalCode:  a.PostalCode,
+		CountryCode: a.CountryCode,
+	}
 }
 
 // resolveCheckoutCart loads the cart to place - an explicit id (checked for store
