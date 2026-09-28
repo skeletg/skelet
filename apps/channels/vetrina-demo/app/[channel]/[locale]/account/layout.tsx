@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { getTranslations } from "next-intl/server";
 
 import { AccountNav } from "@/app/components/account/AccountNav";
 import { SubmitButton } from "@/app/components/account/SubmitButton";
@@ -7,9 +7,10 @@ import { logoutAction } from "@/app/lib/auth/actions";
 
 export default async function AccountLayout({
   children,
-}: {
-  children: ReactNode;
-}) {
+  params,
+}: LayoutProps<"/[channel]/[locale]/account">) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account" });
   const customer = await getCurrentCustomer();
 
   if (!customer) {
@@ -38,9 +39,9 @@ export default async function AccountLayout({
           <form action={logoutAction}>
             <SubmitButton
               className="shrink-0 text-sm text-muted-foreground hover:text-foreground"
-              pendingLabel="Signing out…"
+              pendingLabel={t("signingOut")}
             >
-              Sign out
+              {t("signOut")}
             </SubmitButton>
           </form>
         </div>
@@ -67,9 +68,9 @@ export default async function AccountLayout({
             <form action={logoutAction} className="mt-6 border-t border-border pt-3">
               <SubmitButton
                 className="w-full rounded-lg px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                pendingLabel="Signing out…"
+                pendingLabel={t("signingOut")}
               >
-                Sign out
+                {t("signOut")}
               </SubmitButton>
             </form>
           </div>

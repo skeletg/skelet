@@ -125,7 +125,7 @@ function formatAddError(err: unknown): string {
     const msg = err.errors[0]?.message ?? err.message;
     return msg.replace(/^add to cart(?: rejected)?:\s*/i, "");
   }
-  return err instanceof Error ? err.message : "Could not add to cart.";
+  return err instanceof Error ? err.message : "addFailed";
 }
 function addErrorCode(err: unknown): string | undefined {
   if (err instanceof GraphQLRequestError) {
@@ -144,7 +144,7 @@ export async function addSimpleToCart(
   const unitPrice = Number(formData.get("unitPrice") ?? 0);
   const rawQty = Number(formData.get("quantity") ?? 1);
   const quantity = rawQty > 0 ? rawQty : 1;
-  if (!productSku || !productName) return { ok: false, error: "Missing product details." };
+  if (!productSku || !productName) return { ok: false, error: "missingProduct" };
   try {
     const cartId = await ensureCartID();
     const res = await gqlFetch(AddToCartDocument, {
@@ -174,9 +174,9 @@ export async function addBundleToCart(
   try {
     selections = JSON.parse(selectionsJson);
   } catch {
-    return { ok: false, error: "Invalid bundle selection." };
+    return { ok: false, error: "invalidBundle" };
   }
-  if (!productSku) return { ok: false, error: "Missing product details." };
+  if (!productSku) return { ok: false, error: "missingProduct" };
   try {
     const cartId = await ensureCartID();
     const res = await gqlFetch(AddBundleToCartDocument, {
@@ -207,9 +207,9 @@ export async function addConfiguredToCart(
   try {
     options = JSON.parse(optionsJson);
   } catch {
-    return { ok: false, error: "Invalid option selection." };
+    return { ok: false, error: "invalidOption" };
   }
-  if (!productSku) return { ok: false, error: "Missing product details." };
+  if (!productSku) return { ok: false, error: "missingProduct" };
   try {
     const cartId = await ensureCartID();
     const res = await gqlFetch(AddConfiguredToCartDocument, {
@@ -251,7 +251,7 @@ export async function requestProductOptionFileUploadAction(input: {
     }
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Upload failed",
+      error: err instanceof Error ? err.message : "uploadFailed",
     };
   }
 }
@@ -280,10 +280,10 @@ export async function addGroupedToCart(
   try {
     lines = formData.getAll("line").map((raw) => JSON.parse(String(raw)));
   } catch {
-    return { ok: false, error: "Invalid selection." };
+    return { ok: false, error: "invalidSelection" };
   }
   const real = lines.filter((l) => l.productSku && l.quantity > 0);
-  if (real.length === 0) return { ok: false, error: "Choose at least one item." };
+  if (real.length === 0) return { ok: false, error: "chooseAtLeastOne" };
   // Pre-flight guards for friendlier errors - the backend re-validates required/hidden
   // options authoritatively on the configured add
   for (const l of real) {

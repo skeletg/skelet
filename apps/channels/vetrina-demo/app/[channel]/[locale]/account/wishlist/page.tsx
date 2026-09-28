@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
 import { withLocalePrefix } from "@/app/lib/locale/path";
@@ -19,12 +21,20 @@ import { MoveToCartButton } from "./MoveToCartButton";
 import type { ProductSummary } from "@/app/lib/catalog/read";
 import { WishlistMerge } from "./WishlistMerge";
 
-export const metadata = { title: "Wishlist" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/account/wishlist">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.wishlist" });
+  return { title: t("title") };
+}
 
 export default async function WishlistPage({ params }: PageProps<"/[channel]/[locale]/account/wishlist">) {
   // Locale straight off the segment - a page taking no props has no request scope for
   // getLocale() to read, so it silently answered with the default language
   const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.wishlist" });
+  const tc = await getTranslations({ locale, namespace: "common" });
 
   const customer = await getCurrentCustomer();
   if (!customer) redirect(await withLocalePrefix("/account/login?returnTo=/account/wishlist", locale));
@@ -49,11 +59,9 @@ export default async function WishlistPage({ params }: PageProps<"/[channel]/[lo
   return (
     <>
       <AccountPageHeader
-        title="Wishlist"
+        title={t("title")}
         description={
-          products.length > 0
-            ? `${products.length} item${products.length === 1 ? "" : "s"} saved for later.`
-            : undefined
+          products.length > 0 ? t("count", { count: products.length }) : undefined
         }
         action={shareToken ? <ShareLinkButton token={shareToken} /> : undefined}
       />
@@ -61,10 +69,10 @@ export default async function WishlistPage({ params }: PageProps<"/[channel]/[lo
       {products.length === 0 ? (
         <EmptyState
           icon={<HeartIcon className="size-5" aria-hidden="true" />}
-          title="Nothing saved yet"
-          description="Tap the heart on any product and it waits for you here."
+          title={t("emptyTitle")}
+          description={t("emptyBody")}
           actionHref="/products"
-          actionLabel="Browse products"
+          actionLabel={tc("browseProducts")}
         />
       ) : (
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">

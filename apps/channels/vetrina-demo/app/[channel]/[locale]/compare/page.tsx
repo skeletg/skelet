@@ -2,6 +2,7 @@
 
 import { Link } from "@/app/components/LocaleLink";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { PlusIcon } from "lucide-react";
 
 import { BackButton } from "@/app/components/BackButton";
@@ -35,6 +36,9 @@ type CompareProduct = {
 
 export default function ComparePage() {
   const ids = useCompareIds();
+  const t = useTranslations("compare.page");
+  const tt = useTranslations("compare");
+  const tc = useTranslations("common");
   const [products, setProducts] = useState<CompareProduct[] | null>(null);
   const [currency, setCurrency] = useState("USD");
   const [diffOnly, setDiffOnly] = useState(false);
@@ -61,7 +65,7 @@ export default function ComparePage() {
   if (ids.length > 0 && products === null) {
     return (
       <main className="mx-auto w-full max-w-8xl px-6 pt-6 pb-14 md:px-10">
-        <h1 className="text-3xl font-extrabold tracking-tight">Compare</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight">{tt("title")}</h1>
         <div className="glass mt-6 h-72 animate-pulse rounded-xl" />
       </main>
     );
@@ -70,18 +74,17 @@ export default function ComparePage() {
   if (ids.length === 0 || !products || products.length === 0) {
     return (
       <main className="mx-auto w-full max-w-8xl px-6 pt-6 pb-14 md:px-10">
-        <h1 className="text-3xl font-extrabold tracking-tight">Compare</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight">{tt("title")}</h1>
         <div className="glass mt-6 rounded-xl p-10 text-center">
-          <p className="text-base font-semibold">Nothing to compare yet</p>
+          <p className="text-base font-semibold">{t("nothing")}</p>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-            Add up to {COMPARE_MAX} products with the Compare button on any
-            product page - they will show up here side by side.
+            {t("nothingBody", { max: COMPARE_MAX })}
           </p>
           <Link
             href="/products"
             className="mt-5 inline-flex h-10 items-center rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Browse products
+            {tc("browseProducts")}
           </Link>
         </div>
       </main>
@@ -124,7 +127,7 @@ export default function ComparePage() {
   };
   const rows: Row[] = [
     {
-      label: "Price",
+      label: t("price"),
       text: (p) => formatPrice(p.price ?? p.defaultPrice, currency),
       cell: (p) => {
         const sell = p.price ?? p.defaultPrice;
@@ -144,11 +147,11 @@ export default function ComparePage() {
       },
     },
     {
-      label: "Rating",
+      label: t("rating"),
       text: (p) =>
         p.reviewAggregates?.count && p.reviewAggregates.overallAverage != null
           ? `${p.reviewAggregates.overallAverage.toFixed(1)} (${p.reviewAggregates.count})`
-          : "No reviews yet",
+          : t("noReviews"),
       cell: (p) =>
         p.reviewAggregates?.count && p.reviewAggregates.overallAverage != null ? (
           <RatingStars
@@ -156,12 +159,12 @@ export default function ComparePage() {
             count={p.reviewAggregates.count}
           />
         ) : (
-          <span className="text-muted-foreground">No reviews yet</span>
+          <span className="text-muted-foreground">{t("noReviews")}</span>
         ),
     },
     {
-      label: "Availability",
-      text: (p) => (p.inStock ? "In stock" : "Out of stock"),
+      label: t("availability"),
+      text: (p) => (p.inStock ? tc("inStock") : tc("outOfStock")),
       cell: (p) => (
         <span className="inline-flex items-center gap-1.5 text-sm font-medium">
           <span
@@ -169,12 +172,12 @@ export default function ComparePage() {
             className={`size-1.5 rounded-full ${p.inStock ? "bg-emerald-500" : "bg-border"}`}
           />
           <span className={p.inStock ? "text-emerald-700" : "text-muted-foreground"}>
-            {p.inStock ? "In stock" : "Out of stock"}
+            {p.inStock ? tc("inStock") : tc("outOfStock")}
           </span>
         </span>
       ),
     },
-    { label: "SKU", text: (p) => p.sku, cell: (p) => <span className="font-mono text-xs">{p.sku}</span> },
+    { label: t("sku"), text: (p) => p.sku, cell: (p) => <span className="font-mono text-xs">{p.sku}</span> },
     ...attrs.map((a) => ({ label: a.name, text: (p: CompareProduct) => attrText(p, a.slug) })),
   ];
 
@@ -198,9 +201,9 @@ export default function ComparePage() {
       <BackButton className="mb-4" />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Compare</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight">{tt("title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {ordered.length} of {COMPARE_MAX} products side by side
+            {t("sideBySide", { count: ordered.length, max: COMPARE_MAX })}
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -212,7 +215,7 @@ export default function ComparePage() {
                 onChange={(e) => setDiffOnly(e.target.checked)}
                 className="size-4 rounded border-input accent-primary"
               />
-              Only show differences
+              {t("diffOnly")}
             </label>
           )}
           <button
@@ -220,7 +223,7 @@ export default function ComparePage() {
             onClick={clearCompare}
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-destructive"
           >
-            Clear all
+            {tc("clearAll")}
           </button>
         </div>
       </div>
@@ -244,7 +247,7 @@ export default function ComparePage() {
                         />
                       ) : (
                         <span className="flex size-full items-center justify-center text-xs text-muted-foreground">
-                          No image
+                          {tc("noImage")}
                         </span>
                       )}
                     </span>
@@ -254,7 +257,7 @@ export default function ComparePage() {
                   </Link>
                   {cheapestId === p.id && (
                     <span className="mt-2 inline-flex items-center rounded-sm bg-emerald-500/10 px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-emerald-700">
-                      Lowest price
+                      {t("lowest")}
                     </span>
                   )}
                   <div className="mt-3 flex items-center gap-3">
@@ -262,14 +265,14 @@ export default function ComparePage() {
                       href={productHref(p)}
                       className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                     >
-                      View product
+                      {t("view")}
                     </Link>
                     <button
                       type="button"
                       onClick={() => removeFromCompare(p.id)}
                       className="text-xs font-medium text-muted-foreground transition-colors hover:text-destructive"
                     >
-                      Remove
+                      {tc("remove")}
                     </button>
                   </div>
                 </th>
@@ -281,7 +284,7 @@ export default function ComparePage() {
                     className="flex aspect-square w-full max-w-56 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
                   >
                     <PlusIcon className="size-6" aria-hidden="true" />
-                    <span className="text-xs font-medium">Add another</span>
+                    <span className="text-xs font-medium">{t("addAnother")}</span>
                   </Link>
                 </th>
               )}
@@ -313,7 +316,7 @@ export default function ComparePage() {
 
       {diffOnly && visibleRows.length === 0 && (
         <p className="mt-4 text-sm text-muted-foreground">
-          These products match on every row.
+          {t("allMatch")}
         </p>
       )}
     </main>

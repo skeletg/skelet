@@ -1,6 +1,7 @@
 "use client";
 
 import { Link } from "@/app/components/LocaleLink";
+import { useTranslations } from "next-intl";
 
 import {
   Field,
@@ -18,6 +19,8 @@ export function LoginForm({
   returnTo?: string | null;
   onSwitchView?: (view: "register" | "forgot") => void;
 }) {
+  const t = useTranslations("auth.login");
+  const tf = useTranslations("forms.fields");
   const { form, fields, formAction, pending } = useActionForm(
     loginAction,
     loginSchema,
@@ -39,14 +42,14 @@ export function LoginForm({
         <input type="hidden" name="returnTo" value={returnTo} />
       ) : null}
       <Field
-        label="Email"
+        label={tf("email")}
         field={fields.email}
         type="email"
         required
         autoComplete="email"
       />
       <Field
-        label="Password"
+        label={tf("password")}
         field={fields.password}
         type="password"
         required
@@ -60,7 +63,7 @@ export function LoginForm({
         disabled={pending}
         className={`${buttonPrimary} w-full`}
       >
-        {pending ? "Signing in…" : "Sign in"}
+        {pending ? t("submitting") : t("submit")}
       </button>
 
       <p className="mt-1 text-center text-sm">
@@ -70,34 +73,34 @@ export function LoginForm({
             onClick={() => onSwitchView("forgot")}
             className="text-muted-foreground hover:text-foreground hover:underline"
           >
-            Forgot your password?
+            {t("forgot")}
           </button>
         ) : (
           <Link
             href="/account/forgot"
             className="text-muted-foreground hover:text-foreground hover:underline"
           >
-            Forgot your password?
+            {t("forgot")}
           </Link>
         )}
       </p>
 
       <p className="mt-2 text-center text-sm text-muted-foreground">
-        New here?{" "}
+        {t("newHere")}{" "}
         {onSwitchView ? (
           <button
             type="button"
             onClick={() => onSwitchView("register")}
             className="text-foreground underline underline-offset-2"
           >
-            Create an account
+            {t("createAccount")}
           </button>
         ) : (
           <Link
             href={registerHref}
             className="text-foreground underline underline-offset-2"
           >
-            Create an account
+            {t("createAccount")}
           </Link>
         )}
       </p>

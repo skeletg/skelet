@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { getSiteUrl } from "@/app/lib/channel/site";
 import { canonicalPathMapper, localizedAlternates } from "@/app/lib/locale/alternates";
 import { notFound } from "next/navigation";
@@ -48,7 +49,10 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { id } = await props.params;
   const { product } = await getProduct(id);
-  if (!product) return { title: "Product not found" };
+  if (!product) {
+    const t = await getTranslations("product");
+    return { title: t("notFound") };
+  }
   const title = displayName(product.metaTitle ?? product.name, product.sku);
   const description = product.metaDescription ?? undefined;
   const href = productHref(product);
@@ -92,11 +96,13 @@ export default async function ProductPage(
   // Reviews are fetched at the page level (not lazily inside ReviewsSection) so the
   // aggregate rating + review bodies land in the initial SSR payload. Always NEWEST -
   // re-sorting is client state inside the section, never a URL param
-  const [{ product }, reviewsResult, signalsEnabled] =
+  const [{ product }, reviewsResult, signalsEnabled, tp, tc] =
     await Promise.all([
       getProduct(id),
       getProductWithReviews(id),
       getSignalsEnabled(),
+      getTranslations("product"),
+      getTranslations("common"),
     ]);
   if (!product) notFound();
 // Per-variant URLs (Settings -> URLs & Redirects): a variant's own URL renders as its
@@ -143,7 +149,7 @@ export default async function ProductPage(
   const [canonical, base] = await Promise.all([canonicalPathMapper(), getSiteUrl()]);
   const href = canonical(productHref(product));
   const breadcrumbItems = [
-    { name: "Home", href: "/" },
+    { name: tc("home"), href: "/" },
     ...(product.primaryCategory
       ? [
           ...product.primaryCategory.ancestors.slice(1).map((a) => ({
@@ -327,7 +333,7 @@ export default async function ProductPage(
               ) : null}
               {product.onSale ? (
                 <span className="ml-2 inline-block -translate-y-1 rounded-sm bg-signal px-2.5 py-0.5 align-middle font-mono text-xs font-semibold uppercase tracking-wider text-white">
-                  Sale
+                  {tp("sale")}
                 </span>
               ) : null}
               {product.subscriptionTerms ? (
@@ -348,18 +354,21 @@ export default async function ProductPage(
             {product.tierPrices && product.tierPrices.length > 0 ? (
               <div className="mt-3 w-fit rounded-lg border border-border/60 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Volume pricing
+                  {tp("volumePricing")}
                 </p>
                 <ul className="mt-1.5 grid gap-0.5 text-sm">
                   {[...product.tierPrices]
                     .sort((a, b) => a.minQty - b.minQty)
                     .map((t) => (
                       <li key={t.minQty} className="tabular-nums">
-                        Buy {t.minQty}+ for{" "}
-                        <span className="font-semibold">
-                          {formatPrice(t.price, product.defaultCurrencyCode)}
-                        </span>{" "}
-                        each
+                        {tp.rich("tierPrice", {
+                          min: t.minQty,
+                          price: () => (
+                            <span className="font-semibold">
+                              {formatPrice(t.price, product.defaultCurrencyCode)}
+                            </span>
+                          ),
+                        })}
                       </li>
                     ))}
                 </ul>
@@ -373,7 +382,7 @@ export default async function ProductPage(
 
             {!product.inStock && product.backorderable ? (
               <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">
-                Available on backorder - ships as soon as we restock.
+                {tp("backorder")}
               </p>
             ) : null}
 
@@ -396,7 +405,7 @@ export default async function ProductPage(
               />
               <ExperimentGate experiment={PDP_LAYOUT_EXPERIMENT} value="prominent_cta">
                 <p className="mt-2 text-center text-xs text-muted-foreground">
-                  Free 30-day returns · Ships today
+                  {tp("ctaNote")}
                 </p>
               </ExperimentGate>
             </div>
@@ -405,12 +414,12 @@ export default async function ProductPage(
             </div>
 
             <Description
-              label="Summary"
+              label={tp("summary")}
               value={product.shortDescription}
               className="mt-6"
             />
             <Description
-              label="Description"
+              label={tp("description")}
               value={product.description}
               className="mt-6"
             />
@@ -425,21 +434,27 @@ export default async function ProductPage(
               <section className="mt-8 text-sm">
                 {product.primaryCategory && (
                   <p className="text-muted-foreground">
-                    Primary category:{" "}
-                    <span className="text-foreground">
-                      {product.primaryCategory.name ??
-                        product.primaryCategory.slug}
-                    </span>
+                    {tp.rich("primaryCategory", {
+                      value: () => (
+                        <span className="text-foreground">
+                          {product.primaryCategory!.name ??
+                            product.primaryCategory!.slug}
+                        </span>
+                      ),
+                    })}
                   </p>
                 )}
                 {product.collections.length > 0 && (
                   <p className="mt-1 text-muted-foreground">
-                    Collections:{" "}
-                    <span className="text-foreground">
-                      {product.collections
-                        .map((c) => displayName(c.name, c.slug))
-                        .join(", ")}
-                    </span>
+                    {tp.rich("collections", {
+                      value: () => (
+                        <span className="text-foreground">
+                          {product.collections
+                            .map((c) => displayName(c.name, c.slug))
+                            .join(", ")}
+                        </span>
+                      ),
+                    })}
                   </p>
                 )}
               </section>
@@ -462,7 +477,7 @@ export default async function ProductPage(
 
       {recs.length > 0 ? (
         <section className="mt-16">
-          <h2 className="text-lg font-semibold tracking-tight">You may also like</h2>
+          <h2 className="text-lg font-semibold tracking-tight">{tp("alsoLike")}</h2>
           <div className="mt-4 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
             {recs.map((p) => (
               <ProductCard key={p.id} product={p} variant="compact" />

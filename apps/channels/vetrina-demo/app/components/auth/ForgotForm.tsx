@@ -1,6 +1,7 @@
 "use client";
 
 import { Link } from "@/app/components/LocaleLink";
+import { useTranslations } from "next-intl";
 
 import {
   Field,
@@ -16,6 +17,9 @@ export function ForgotForm({
 }: {
   onSwitchView?: (view: "login") => void;
 } = {}) {
+  const t = useTranslations("auth.forgot");
+  const tf = useTranslations("forms.fields");
+  const tc = useTranslations("common");
   const { form, fields, formAction, pending, lastResult } = useActionForm(
     requestPasswordResetAction,
     forgotSchema,
@@ -27,10 +31,7 @@ export function ForgotForm({
   if (lastResult?.status === "success") {
     return (
       <div className="rounded-lg border border-border bg-muted p-4 text-sm">
-        <p>
-          If an account exists for that email, you&rsquo;ll receive a
-          reset link shortly. The link expires after 30 minutes.
-        </p>
+        <p>{t("sent")}</p>
         <p className="mt-3 text-muted-foreground">
           {onSwitchView ? (
             <button
@@ -38,14 +39,14 @@ export function ForgotForm({
               onClick={() => onSwitchView("login")}
               className="text-foreground underline underline-offset-2"
             >
-              Back to sign in
+              {t("backToSignIn")}
             </button>
           ) : (
             <Link
               href="/account/login"
               className="text-foreground underline underline-offset-2"
             >
-              Back to sign in
+              {t("backToSignIn")}
             </Link>
           )}
         </p>
@@ -62,7 +63,7 @@ export function ForgotForm({
       className="flex flex-col gap-4"
     >
       <Field
-        label="Email"
+        label={tf("email")}
         field={fields.email}
         type="email"
         required
@@ -76,25 +77,25 @@ export function ForgotForm({
         disabled={pending}
         className={`${buttonPrimary} w-full`}
       >
-        {pending ? "Sending…" : "Send reset link"}
+        {pending ? t("submitting") : t("submit")}
       </button>
 
       <p className="mt-2 text-center text-sm text-muted-foreground">
-        Remembered it?{" "}
+        {t("remembered")}{" "}
         {onSwitchView ? (
           <button
             type="button"
             onClick={() => onSwitchView("login")}
             className="text-foreground underline underline-offset-2"
           >
-            Sign in
+            {tc("signIn")}
           </button>
         ) : (
           <Link
             href="/account/login"
             className="text-foreground underline underline-offset-2"
           >
-            Sign in
+            {tc("signIn")}
           </Link>
         )}
       </p>

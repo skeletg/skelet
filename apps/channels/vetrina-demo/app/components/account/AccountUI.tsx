@@ -217,9 +217,13 @@ export function Field({
 }
 
 // Zod messages are forms.errors keys; backend text isn't, and shows as sent
-function useErrorText() {
+export function useErrorText() {
   const t = useTranslations("forms.errors");
-  return (msg: string) => (t.has(msg) ? t(msg) : msg);
+  // The one untyped lookup: an action's message is only known at runtime, and t.has is what vets it
+  return (msg: string) => {
+    const key = msg as Parameters<typeof t>[0];
+    return t.has(key) ? t(key) : msg;
+  };
 }
 
 export function FieldErrors({ id, errors }: { id?: string; errors: string[] }) {

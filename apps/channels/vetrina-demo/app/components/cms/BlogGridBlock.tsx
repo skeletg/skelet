@@ -1,4 +1,5 @@
 import { Link } from "@/app/components/LocaleLink";
+import { getTranslations } from "next-intl/server";
 import { NewspaperIcon } from "lucide-react";
 
 import type { Block } from "./blocks";
@@ -12,12 +13,15 @@ import { renderJsonText } from "@/app/lib/json-text";
 export async function BlogGridBlock({ block }: { block: Block }) {
   const heading = readString(block.props, "heading");
   const limit = readNumber(block.props, "limit") ?? 3;
-  const { posts } = await listBlogPosts({ limit });
+  const [{ posts }, t] = await Promise.all([
+    listBlogPosts({ limit }),
+    getTranslations("home"),
+  ]);
 
   if (posts.length === 0) return null;
 
   return (
-    <CmsSection heading={heading} href="/blog" hrefLabel="All posts">
+    <CmsSection heading={heading} href="/blog" hrefLabel={t("allPosts")}>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {posts.map((p) => {
           const title = displayName(p.content?.title, p.slug);

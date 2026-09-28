@@ -23,7 +23,7 @@ export async function reorderAction(
   formData: FormData,
 ): Promise<ReorderResult> {
   const orderId = String(formData.get("orderId") ?? "");
-  if (!orderId) return { ok: false, error: "Missing order." };
+  if (!orderId) return { ok: false, error: "orderMissing" };
   try {
     const res = await gqlFetch(ReorderDocument, { orderId });
     const r = res.data.reorder;
@@ -34,7 +34,7 @@ export async function reorderAction(
       error:
         err instanceof GraphQLRequestError
           ? err.message
-          : "Could not reorder. Please try again.",
+          : "reorderFailed",
     };
   }
 }

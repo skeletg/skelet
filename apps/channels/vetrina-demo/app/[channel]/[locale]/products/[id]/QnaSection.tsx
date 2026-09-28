@@ -1,3 +1,5 @@
+import { getTranslations } from "next-intl/server";
+
 import { getProductQuestions } from "@/app/lib/qna/actions";
 import { formatDate } from "@/app/lib/format";
 import { AskQuestionForm } from "./AskQuestionForm";
@@ -6,7 +8,10 @@ import { AskQuestionForm } from "./AskQuestionForm";
 // rest. The Q/A letters are plates, not text prefixes - ink for the shopper's question,
 // signal orange for the store's answer, so the pair reads at a glance
 export async function QnaSection({ productId }: { productId: string }) {
-  const questions = await getProductQuestions(productId);
+  const [questions, t] = await Promise.all([
+    getProductQuestions(productId),
+    getTranslations("product.qna"),
+  ]);
 
   return (
     <section
@@ -16,16 +21,15 @@ export async function QnaSection({ productId }: { productId: string }) {
       <div className="grid gap-x-12 gap-y-8 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">
-            Questions &amp; answers
+            {t("title")}
           </h2>
           <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
             {questions.length === 0
-              ? "Answered by the store team"
-              : `${questions.length} answered by the store team`}
+              ? t("answeredNone")
+              : t("answeredCount", { count: questions.length })}
           </p>
           <p className="mt-4 max-w-sm text-sm text-muted-foreground">
-            Something the description doesn&rsquo;t cover? Ask - answers are
-            published here for everyone.
+            {t("intro")}
           </p>
           <div className="mt-5">
             <AskQuestionForm productId={productId} />
@@ -35,7 +39,7 @@ export async function QnaSection({ productId }: { productId: string }) {
         {questions.length === 0 ? (
           <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-border p-8 text-center">
             <p className="text-sm text-muted-foreground">
-              No questions yet. Ask the first one.
+              {t("empty")}
             </p>
           </div>
         ) : (
@@ -51,11 +55,11 @@ export async function QnaSection({ productId }: { productId: string }) {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold leading-snug">
-                      <span className="sr-only">Question: </span>
+                      <span className="sr-only">{t("questionSr")}</span>
                       {q.question}
                     </p>
                     <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                      {q.authorName || "Anonymous"} · {formatDate(q.createdAt)}
+                      {q.authorName || t("anonymous")} · {formatDate(q.createdAt)}
                     </p>
                   </div>
                 </div>
@@ -68,11 +72,11 @@ export async function QnaSection({ productId }: { productId: string }) {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="whitespace-pre-line text-sm leading-relaxed">
-                      <span className="sr-only">Answer: </span>
+                      <span className="sr-only">{t("answerSr")}</span>
                       {q.answer}
                     </p>
                     <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
-                      Store team
+                      {t("storeTeam")}
                       {q.answeredAt && <> · {formatDate(q.answeredAt)}</>}
                     </p>
                   </div>

@@ -5,15 +5,18 @@
 // cumulatively (items 1..N), so the click appends and scroll stays put via scroll={false}
 
 import { useLinkStatus } from "next/link";
+import { useTranslations } from "next-intl";
 
 import { Link } from "@/app/components/LocaleLink";
 import { hrefForPage } from "@/app/lib/pagination";
 
 function LoadMoreLabel({ remaining }: { remaining: number }) {
   const { pending } = useLinkStatus();
+  const t = useTranslations("listing");
+  const tc = useTranslations("common");
   return (
     <span className={pending ? "opacity-60" : undefined}>
-      {pending ? "Loading…" : `Load ${remaining} more`}
+      {pending ? tc("loading") : t("loadMore", { count: remaining })}
     </span>
   );
 }
@@ -33,10 +36,11 @@ export function LoadMore({
   shownCount: number;
   totalCount: number;
 }) {
+  const t = useTranslations("listing");
   if (shownCount >= totalCount) {
     return totalCount > 0 ? (
       <p className="mt-10 text-center text-xs text-muted-foreground" aria-live="polite">
-        Showing all {totalCount} products
+        {t("showingAll", { count: totalCount })}
       </p>
     ) : null;
   }
@@ -52,7 +56,7 @@ export function LoadMore({
         <LoadMoreLabel remaining={remaining} />
       </Link>
       <p className="text-xs text-muted-foreground" aria-live="polite">
-        Showing {shownCount} of {totalCount}
+        {t("showingOf", { shown: shownCount, total: totalCount })}
       </p>
     </div>
   );

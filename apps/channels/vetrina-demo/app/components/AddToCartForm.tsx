@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useActionState } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 
 import { addSimpleToCart } from "@/app/lib/cart/actions";
@@ -46,6 +47,9 @@ export function AddToCartForm({
   const disabled = !product.inStock && !backorder;
   const { min, max, step, decimals, defaultValue } = deriveQtyBounds(product);
   const [state, formAction] = useActionState(addSimpleToCart, null);
+  const t = useTranslations("product");
+  const tcard = useTranslations("product.card");
+  const tc = useTranslations("common");
 
   // A SIMPLE with required options can't quick-add - present it like the non-simple
   // kinds do instead of echoing the server rejection
@@ -57,7 +61,7 @@ export function AddToCartForm({
         href={productHref(product)}
         className={`inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary font-semibold text-primary-foreground transition-colors duration-200 hover:bg-primary/85 ${linkSize}`}
       >
-        Choose options
+        {tcard("chooseOptions")}
       </Link>
     );
   }
@@ -93,10 +97,10 @@ export function AddToCartForm({
       )}
       <AddToCartButton disabled={disabled} size={size} stickyPrice={stickyPrice} className="flex-1">
         {product.inStock
-          ? "Add to cart"
+          ? t("addToCart")
           : backorder
-            ? "Add to cart (backorder)"
-            : "Out of stock"}
+            ? t("addToCartBackorder")
+            : tc("outOfStock")}
       </AddToCartButton>
     </form>
     </Row>

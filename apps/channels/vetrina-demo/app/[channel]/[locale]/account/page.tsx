@@ -1,5 +1,6 @@
 import { Link } from "@/app/components/LocaleLink";
-import { getLocale } from "next-intl/server";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
 import { withLocalePrefix } from "@/app/lib/locale/path";
 import { redirect } from "next/navigation";
@@ -36,22 +37,26 @@ import { gqlFetch } from "@/app/lib/graphql";
 import { MyOrdersDocument } from "@/app/lib/checkout/operations.gql";
 import { formatPrice } from "@/app/lib/format";
 
-export const metadata = { title: "Account" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/account">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.overview" });
+  return { title: t("title") };
+}
 
 const RECENT_ORDER_COUNT = 3;
 
 export default async function AccountPage({
+  params,
   searchParams,
-}: {
-  searchParams: Promise<{
-    welcome?: string | string[];
-    resent?: string | string[];
-    error?: string | string[];
-    done?: string | string[];
-  }>;
-}) {
+}: PageProps<"/[channel]/[locale]/account">) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.overview" });
+  const tn = await getTranslations({ locale, namespace: "account.nav" });
+  const tc = await getTranslations({ locale, namespace: "common" });
   const customer = await getCurrentCustomer();
-  if (!customer) redirect(await withLocalePrefix("/account/login", await getLocale()));
+  if (!customer) redirect(await withLocalePrefix("/account/login", locale));
   const channel = await getChannel();
   const currency = channel?.currencyCode ?? "USD";
   const [loyalty, referral, orders] = await Promise.all([
@@ -84,46 +89,34 @@ export default async function AccountPage({
       )}
 
       <AccountPageHeader
-        title={`Hi, ${customer.firstName}`}
-        description="Everything you've bought and every detail we hold, in one place."
+        title={t("greeting", { name: customer.firstName })}
+        description={t("description")}
       />
 
       {actionError === "redeem" ? (
         <div className="mb-6">
-          <FormError>
-            We couldn&rsquo;t redeem those points - your balance is unchanged.
-            Please try again.
-          </FormError>
+          <FormError>{t("redeemFailed")}</FormError>
         </div>
       ) : actionDone === "redeem" ? (
         <div className="mb-6">
-          <FormSuccess>
-            Points redeemed - the credit is on your account.
-          </FormSuccess>
+          <FormSuccess>{t("redeemDone")}</FormSuccess>
         </div>
       ) : null}
 
       {!customer.isEmailVerified && (
         <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-900">
-          <p className="font-semibold">Confirm your email address</p>
-          <p className="mt-1">
-            Check your inbox for the confirmation link. Until then some
-            features stay locked.
-          </p>
+          <p className="font-semibold">{t("verifyTitle")}</p>
+          <p className="mt-1">{t("verifyBody")}</p>
           {resent === "1" ? (
-            <p className="mt-3 font-semibold">
-              Sent - give it a minute, then check your inbox.
-            </p>
+            <p className="mt-3 font-semibold">{t("verifySent")}</p>
           ) : (
             <form action={resendVerificationEmailAction} className="mt-3">
               <input type="hidden" name="returnTo" value="/account" />
               <SubmitButton
                 className="inline-flex h-9 items-center rounded-md border border-amber-400 px-4 text-xs font-semibold hover:bg-amber-100"
-                pendingLabel="Sending…"
+                pendingLabel={tc("sending")}
               >
-                {resent === "0"
-                  ? "Sending failed - try again"
-                  : "Resend verification email"}
+                {resent === "0" ? t("verifyResendFailed") : t("verifyResend")}
               </SubmitButton>
             </form>
           )}
@@ -134,27 +127,26 @@ export default async function AccountPage({
       {(customer.storeCreditBalance > 0 || loyalty?.enabled) && (
         <div className="mb-6 grid gap-4 sm:grid-cols-2">
           {customer.storeCreditBalance > 0 && (
-            <AccountCard title="Store credit">
+            <AccountCard title={t("storeCredit")}>
               <p className="mt-2 text-3xl font-semibold tabular-nums">
                 {formatPrice(customer.storeCreditBalance, currency)}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Tick &ldquo;use my store credit&rdquo; at checkout to spend it.
+                {t("storeCreditHint")}
               </p>
             </AccountCard>
           )}
           {loyalty?.enabled && (
-            <AccountCard title="Loyalty points">
+            <AccountCard title={t("loyalty")}>
               <p className="mt-2 text-3xl font-semibold tabular-nums">
                 {loyalty.balancePoints.toLocaleString()}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {loyaltyWorth
-                  ? `Worth ${loyaltyWorth} in store credit. `
-                  : ""}
-                Earn {loyalty.earnPointsPerUnit} point
-                {loyalty.earnPointsPerUnit === 1 ? "" : "s"} per{" "}
-                {formatPrice(100, currency)} spent.
+                {loyaltyWorth ? `${t("loyaltyWorth", { amount: loyaltyWorth })} ` : ""}
+                {t("loyaltyEarn", {
+                  points: loyalty.earnPointsPerUnit,
+                  amount: formatPrice(100, currency),
+                })}
               </p>
               {loyalty.balancePoints > 0 && (
                 <form
@@ -167,14 +159,14 @@ export default async function AccountPage({
                     min={1}
                     max={loyalty.balancePoints}
                     defaultValue={loyalty.balancePoints}
-                    aria-label="Points to redeem"
+                    aria-label={t("pointsToRedeem")}
                     className={`${inputClass} w-28`}
                   />
                   <SubmitButton
                     className={buttonSecondary}
-                    pendingLabel="Redeeming…"
+                    pendingLabel={t("redeeming")}
                   >
-                    Redeem for credit
+                    {t("redeem")}
                   </SubmitButton>
                 </form>
               )}
@@ -184,22 +176,22 @@ export default async function AccountPage({
       )}
 
       <AccountCard
-        title="Recent orders"
+        title={t("recentOrders")}
         padded={false}
         action={
           <Link
             href="/account/orders"
             className="text-sm text-muted-foreground hover:text-foreground"
           >
-            View all
+            {tc("viewAll")}
           </Link>
         }
       >
         {orders.length === 0 ? (
           <p className="px-5 pt-3 pb-5 text-sm text-muted-foreground">
-            No orders yet.{" "}
+            {t("noOrders")}{" "}
             <Link href="/products" className="underline underline-offset-2">
-              Start shopping
+              {t("startShopping")}
             </Link>
             .
           </p>
@@ -230,54 +222,54 @@ export default async function AccountPage({
         )}
       </AccountCard>
 
-      <nav aria-label="Account shortcuts" className="mt-6">
+      <nav aria-label={t("shortcuts")} className="mt-6">
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Shortcut
             href="/account/orders"
-            label="Orders"
-            hint="Track, reorder, return"
+            label={tn("orders")}
+            hint={t("ordersHint")}
             Icon={PackageIcon}
           />
           <Shortcut
             href="/account/wishlist"
-            label="Wishlist"
-            hint="Saved for later"
+            label={tn("wishlist")}
+            hint={t("wishlistHint")}
             Icon={HeartIcon}
           />
           <Shortcut
             href="/account/addresses"
-            label="Addresses"
-            hint={`${customer.addresses.length} saved`}
+            label={tn("addresses")}
+            hint={t("addressesHint", { count: customer.addresses.length })}
             Icon={MapPinIcon}
           />
           <Shortcut
             href="/account/payment-methods"
-            label="Payment methods"
-            hint="Saved cards"
+            label={tn("paymentMethods")}
+            hint={t("paymentMethodsHint")}
             Icon={CreditCardIcon}
           />
           <Shortcut
             href="/account/downloads"
-            label="Downloads"
-            hint="Digital purchases"
+            label={tn("downloads")}
+            hint={t("downloadsHint")}
             Icon={DownloadIcon}
           />
           <Shortcut
             href="/account/subscriptions"
-            label="Subscriptions"
-            hint="Recurring deliveries"
+            label={tn("subscriptions")}
+            hint={t("subscriptionsHint")}
             Icon={RefreshCwIcon}
           />
         </ul>
       </nav>
 
       {referral?.enabled && (
-        <AccountCard title="Refer a friend" className="mt-6">
+        <AccountCard title={t("referTitle")} className="mt-6">
           <p className="mt-2 text-sm">
-            Share your link - they get{" "}
-            {formatPrice(referral.refereeRewardCents, currency)} in store credit
-            on their first order, you get{" "}
-            {formatPrice(referral.referrerRewardCents, currency)}.
+            {t("referBody", {
+              referee: formatPrice(referral.refereeRewardCents, currency),
+              referrer: formatPrice(referral.referrerRewardCents, currency),
+            })}
           </p>
           <p className="mt-3 rounded-lg bg-muted px-3 py-2 font-mono text-xs break-all">
             {(channel?.publicUrl ?? "").replace(/\/$/, "")}
@@ -285,8 +277,11 @@ export default async function AccountPage({
           </p>
           {referral.referredCount > 0 && (
             <p className="mt-2 text-xs text-muted-foreground">
-              {referral.referredCount} referred · {referral.rewardedCount}{" "}
-              converted · {formatPrice(referral.earnedCents, currency)} earned
+              {t("referStats", {
+                referred: referral.referredCount,
+                converted: referral.rewardedCount,
+                earned: formatPrice(referral.earnedCents, currency),
+              })}
             </p>
           )}
         </AccountCard>

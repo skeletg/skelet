@@ -1,22 +1,32 @@
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+
 import { AuthCard } from "@/app/components/account/AccountUI";
 import { ResetForm } from "./ResetForm";
 
-export const metadata = {
-  title: "Choose a new password",
-  // The token-bearing URL must never end up in a search index
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/account/reset/[token]">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "auth.reset" });
+  return {
+    title: t("title"),
+    // The token-bearing URL must never end up in a search index
+    robots: { index: false, follow: false },
+  };
+}
 
 export default async function ResetPasswordPage(
   props: PageProps<"/[channel]/[locale]/account/reset/[token]">,
 ) {
-  const { token } = await props.params;
+  const { token, locale } = await props.params;
+  const t = await getTranslations({ locale, namespace: "auth.reset" });
   return (
     // lens-block keeps the whole reset surface out of session replay + DOM snapshots
     <div className="lens-block">
       <AuthCard
-        title="Choose a new password"
-        description="At least 8 characters. You'll sign in with the new one afterwards."
+        title={t("title")}
+        description={t("description")}
       >
         <ResetForm token={token} />
       </AuthCard>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { addConfiguredToCart } from "@/app/lib/cart/actions";
 import { displayName } from "@/app/lib/display";
@@ -31,6 +32,8 @@ import {
 
 export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
   const [addState, formAction] = useActionState(addConfiguredToCart, null);
+  const t = useTranslations("product.pdp");
+  const tp = useTranslations("product");
   const opts = useConfiguredOptions(product.options, {
     defaultPrice: product.defaultPrice,
     effectivePrice: product.price ?? product.defaultPrice,
@@ -103,23 +106,30 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
         </p>
         {opts.optionsDelta !== 0 ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            {formatPrice(effectiveBase, product.defaultCurrencyCode)} base
-            {" + "}
-            {formatPrice(opts.optionsDelta, product.defaultCurrencyCode)} options
+            {t("basePlusOptions", {
+              base: formatPrice(effectiveBase, product.defaultCurrencyCode),
+              options: formatPrice(opts.optionsDelta, product.defaultCurrencyCode),
+            })}
           </p>
         ) : null}
         {opts.forcedQty != null ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            Quantity {opts.forcedQty} - set by your selection ·{" "}
-            <span className="font-medium text-foreground">
-              {formatPrice(opts.configuredTotal * opts.forcedQty, product.defaultCurrencyCode)}
-            </span>{" "}
-            total
+            {t.rich("qtyLockedTotal", {
+              qty: opts.forcedQty,
+              total: () => (
+                <span className="font-medium text-foreground">
+                  {formatPrice(
+                    opts.configuredTotal * (opts.forcedQty ?? 0),
+                    product.defaultCurrencyCode,
+                  )}
+                </span>
+              ),
+            })}
           </p>
         ) : null}
         {opts.forcedQtyConflict ? (
           <p role="alert" className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
-            These choices set different fixed quantities - keep only one of them.
+            {t("qtyConflict")}
           </p>
         ) : null}
 
@@ -188,12 +198,12 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
             className="flex-1"
           >
             {opts.uploading
-              ? "Uploading…"
+              ? t("uploading")
               : opts.missingRequired.length > 0
-                ? "Complete required options"
+                ? t("completeRequired")
                 : opts.forcedQtyConflict
-                  ? "Resolve quantity conflict"
-                  : "Add to cart"}
+                  ? t("resolveConflict")
+                  : tp("addToCart")}
           </AddToCartButton>
         </form>
         </StickyBuyRow>
@@ -201,8 +211,10 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
 
         {attempted && opts.missingRequired.length > 0 ? (
           <SelectionHint key={attemptSeq}>
-            Required option{opts.missingRequired.length > 1 ? "s" : ""}:{" "}
-            <MissingOptionLinks items={opts.missingRequiredItems} />
+            {t.rich("requiredOptions", {
+              count: opts.missingRequired.length,
+              links: () => <MissingOptionLinks items={opts.missingRequiredItems} />,
+            })}
           </SelectionHint>
         ) : null}
 
@@ -210,13 +222,13 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
         </div>
 
         <Description
-          label="Summary"
+          label={tp("summary")}
           value={product.shortDescription}
           className="mt-6"
         />
 
         <Description
-          label="Description"
+          label={tp("description")}
           value={product.description}
           className="mt-8"
         />

@@ -2,7 +2,9 @@
 
 import { Link } from "@/app/components/LocaleLink";
 import { useActionState } from "react";
+import { useTranslations } from "next-intl";
 
+import { useErrorText } from "@/app/components/account/AccountUI";
 import { reorderAction, type ReorderResult } from "@/app/lib/account/actions";
 
 export function ReorderButton({ orderId }: { orderId: string }) {
@@ -10,6 +12,8 @@ export function ReorderButton({ orderId }: { orderId: string }) {
     reorderAction,
     null,
   );
+  const t = useTranslations("account.orders");
+  const errorText = useErrorText();
 
   return (
     <div>
@@ -20,16 +24,16 @@ export function ReorderButton({ orderId }: { orderId: string }) {
           disabled={pending}
           className="inline-flex h-10 items-center rounded-md border border-border bg-background px-5 text-sm font-semibold hover:bg-accent disabled:opacity-60"
         >
-          {pending ? "Adding to cart…" : "Buy it again"}
+          {pending ? t("reordering") : t("reorder")}
         </button>
       </form>
 
       {state?.ok && (
         <div className="mt-2 text-sm">
           <p>
-            Added {state.added} item{state.added === 1 ? "" : "s"} to your cart.{" "}
+            {t("reordered", { count: state.added ?? 0 })}{" "}
             <Link href="/cart" className="font-medium underline">
-              View cart →
+              {t("viewCart")}
             </Link>
           </p>
           {state.skipped && state.skipped.length > 0 && (
@@ -46,7 +50,7 @@ export function ReorderButton({ orderId }: { orderId: string }) {
 
       {state && !state.ok && (
         <p role="alert" className="mt-2 text-sm text-red-700">
-          {state.error}
+          {errorText(state.error ?? "reorderFailed")}
         </p>
       )}
     </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import {
   Field,
   FormErrors,
@@ -19,6 +21,9 @@ type Props = {
 };
 
 export function ProfileForm({ firstName, lastName, phone, email }: Props) {
+  const t = useTranslations("account.profile");
+  const tf = useTranslations("forms.fields");
+  const tc = useTranslations("common");
   const { form, fields, formAction, pending, lastResult } = useActionForm(
     updateProfileAction,
     profileSchema,
@@ -34,7 +39,7 @@ export function ProfileForm({ firstName, lastName, phone, email }: Props) {
       className="flex flex-col gap-4"
     >
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium">Email</span>
+        <span className="font-medium">{tf("email")}</span>
         <input
           value={email}
           readOnly
@@ -42,26 +47,26 @@ export function ProfileForm({ firstName, lastName, phone, email }: Props) {
           className={`${inputClass} w-full bg-muted text-muted-foreground`}
         />
         <span className="text-xs text-muted-foreground">
-          Email is permanent on this account. Contact support to change it.
+          {t("emailHint")}
         </span>
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
-          label="First name"
+          label={tf("firstName")}
           field={fields.firstName}
           required
           autoComplete="given-name"
         />
         <Field
-          label="Last name"
+          label={tf("lastName")}
           field={fields.lastName}
           required
           autoComplete="family-name"
         />
       </div>
       <Field
-        label="Phone"
+        label={tf("phone")}
         field={fields.phone}
         type="tel"
         autoComplete="tel"
@@ -69,12 +74,12 @@ export function ProfileForm({ firstName, lastName, phone, email }: Props) {
 
       <FormErrors errors={form.errors} />
       {lastResult?.status === "success" && (
-        <FormSuccess>Profile saved.</FormSuccess>
+        <FormSuccess>{t("saved")}</FormSuccess>
       )}
 
       <div className="mt-1">
         <button type="submit" disabled={pending} className={buttonPrimary}>
-          {pending ? "Saving…" : "Save changes"}
+          {pending ? tc("saving") : tc("saveChanges")}
         </button>
       </div>
     </form>
