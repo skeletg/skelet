@@ -1,5 +1,6 @@
 import { ExternalLinkIcon } from 'lucide-react'
 import { JAEGER_URL } from '@/lib/app-origins'
+import { GQ } from './graphiqlTheme'
 import {
   formatBytes,
   formatDuration,
@@ -8,13 +9,12 @@ import {
   type ResponseTone,
 } from './responseDetails'
 
-// GraphiQL themes itself apart from the dashboard, so its footer takes GraphiQL's colours - the dashboard's tokens put dark text on its dark theme
-const MUTED = 'text-[hsla(var(--color-neutral),var(--alpha-secondary))]'
-const STRONG = 'text-[hsl(var(--color-neutral))]'
+const MUTED = GQ.muted
+const STRONG = GQ.strong
 const TONE_CLASS: Record<ResponseTone, string> = {
-  success: 'bg-[hsla(var(--color-success),var(--alpha-background-medium))] text-[hsl(var(--color-success))]',
-  warning: 'bg-[hsla(var(--color-warning),var(--alpha-background-medium))] text-[hsl(var(--color-warning))]',
-  destructive: 'bg-[hsla(var(--color-error),var(--alpha-background-medium))] text-[hsl(var(--color-error))]',
+  success: GQ.success,
+  warning: GQ.warning,
+  destructive: GQ.errorBadge,
 }
 
 export function ResponseDetailsBar({ details }: { details: ResponseDetails | null }) {
@@ -46,7 +46,7 @@ export function ResponseDetailsBar({ details }: { details: ResponseDetails | nul
           href={`${JAEGER_URL}/trace/${details.traceId}`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 hover:text-[hsl(var(--color-neutral))]"
+          className="inline-flex items-center gap-1 hover:underline"
         >
           Trace <ExternalLinkIcon className="size-3" aria-hidden />
         </a>
