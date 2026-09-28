@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePublicPath } from "@/app/lib/revalidate";
 
 import { getAccessToken } from "@/app/lib/auth/session";
 import { getProduct } from "@/app/lib/catalog/read";
@@ -58,6 +58,6 @@ export async function askQuestionAction(
     return replyError(submission, err, "questionFailed");
   }
   const { product } = await getProduct(productId);
-  if (product) revalidatePath(productHref(product));
+  if (product) await revalidatePublicPath(productHref(product));
   return submission.reply({ resetForm: true });
 }

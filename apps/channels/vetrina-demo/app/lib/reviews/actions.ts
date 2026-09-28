@@ -6,7 +6,7 @@
 import { createHmac } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePublicPath } from "@/app/lib/revalidate";
 
 import { getAccessToken } from "@/app/lib/auth/session";
 import { getProduct } from "@/app/lib/catalog/read";
@@ -139,7 +139,7 @@ export async function voteReviewAction(formData: FormData): Promise<void> {
     // The PDP lives only at its pretty URL now (served via the catch-all), so
     // revalidate that path rather than the removed /products/<id> route
     const { product } = await getProduct(productId);
-    if (product) revalidatePath(productHref(product));
+    if (product) await revalidatePublicPath(productHref(product));
   }
 }
 
@@ -196,6 +196,6 @@ export async function submitReviewAction(
   // /products/<id> route was removed
   const { product } = await getProduct(productId);
   const dest = product ? productHref(product) : "/";
-  revalidatePath(dest);
+  await revalidatePublicPath(dest);
   redirect(`${dest}?reviewSubmitted=1`);
 }

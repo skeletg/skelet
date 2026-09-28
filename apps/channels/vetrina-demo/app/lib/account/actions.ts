@@ -3,7 +3,7 @@
 // Reorder and RMA actions for the customer's past orders
 // Both are reachable by direct POST, so the resolvers re-verify order ownership
 
-import { revalidatePath } from "next/cache";
+import { revalidatePublicPath } from "@/app/lib/revalidate";
 
 import { gqlFetch, GraphQLRequestError } from "@/app/lib/graphql";
 import { ReorderDocument, RequestReturnDocument } from "@/app/lib/checkout/operations.gql";
@@ -54,7 +54,7 @@ export async function requestReturnAction(
     const res = await gqlFetch(RequestReturnDocument, {
       input: { orderId, lines, reason, resolution },
     });
-    revalidatePath(`/account/orders/${orderId}`);
+    await revalidatePublicPath(`/account/orders/${orderId}`);
     return {
       ...submission.reply({ resetForm: true }),
       rmaNumber: res.data.requestReturn.rmaNumber,

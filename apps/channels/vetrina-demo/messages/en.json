@@ -39,7 +39,9 @@
       "invalidOption": "Invalid option selection.",
       "invalidSelection": "Invalid selection.",
       "chooseAtLeastOne": "Choose at least one item.",
-      "uploadFailed": "Upload failed"
+      "uploadFailed": "Upload failed",
+      "moveFailed": "Could not move to cart.",
+      "needsOptions": "This product needs options - open its page to choose them."
     },
     "fields": {
       "email": "Email",
@@ -273,8 +275,7 @@
       "copied": "Link copied!",
       "copyLink": "Copy share link",
       "moving": "Moving…",
-      "moveToCart": "Move to cart",
-      "moveFailed": "Could not move to cart."
+      "moveToCart": "Move to cart"
     },
     "downloads": {
       "title": "Downloads",

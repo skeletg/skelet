@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
+import { revalidateAccount } from "@/app/lib/revalidate";
 import {
   AccountAddAddressDocument,
   AccountDeleteAddressDocument,
@@ -222,7 +223,7 @@ export async function changePasswordAction(
   } catch (err) {
     return replyError(submission, err, "passwordChangeFailed", PASSWORD_FIELDS);
   }
-  revalidatePath("/account");
+  revalidateAccount();
   return submission.reply({ resetForm: true });
 }
 
@@ -239,7 +240,7 @@ export async function updateProfileAction(
   } catch (err) {
     return replyError(submission, err, "profileSaveFailed");
   }
-  revalidatePath("/account");
+  revalidateAccount();
   return submission.reply();
 }
 
@@ -257,8 +258,7 @@ export async function addAddressAction(
   } catch (err) {
     return replyError(submission, err, "addressAddFailed");
   }
-  revalidatePath("/account");
-  revalidatePath("/account/addresses");
+  revalidateAccount();
   redirect("/account/addresses");
 }
 
@@ -278,8 +278,7 @@ export async function updateAddressAction(
   } catch (err) {
     return replyError(submission, err, "addressSaveFailed");
   }
-  revalidatePath("/account");
-  revalidatePath("/account/addresses");
+  revalidateAccount();
   redirect("/account/addresses");
 }
 
@@ -288,8 +287,7 @@ const ADDRESSES_PAGE = "/account/addresses";
 // The address list re-renders from the server, so a failure that isn't announced looks
 // exactly like a click that never registered
 function finishAddressAction(ok: boolean, errorKey: string): never {
-  revalidatePath("/account");
-  revalidatePath(ADDRESSES_PAGE);
+  revalidateAccount();
   redirect(ok ? ADDRESSES_PAGE : `${ADDRESSES_PAGE}?error=${errorKey}`);
 }
 
