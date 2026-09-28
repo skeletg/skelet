@@ -153,6 +153,19 @@ func NewService(
 	}
 }
 
+// The group a customer.registering plugin routed the account into, or nil for the default - a group deleted since the
+// plugin was configured falls back to the default rather than refusing every signup it would have routed
+func (s *Service) registeringGroup(ctx context.Context, ing *CustomerRegistering) *uuid.UUID {
+	if ing.GroupID == nil {
+		return nil
+	}
+	if _, err := s.repo.GetGroupByID(ctx, *ing.GroupID); err != nil {
+		log.Printf("[registration:warn] customer group %s picked by a customer.registering subscriber is missing, using the default: %v", *ing.GroupID, err)
+		return nil
+	}
+	return ing.GroupID
+}
+
 // The verification email and the consent write are both non-fatal - a failing SMTP server or Valkey blip shouldn't block account creation
 // marketingOptIn is three-state: nil means no checkbox was shown (leave consent at the registry default, opt-out for GDPR), *true is an explicit opt-in with source=registration, *false records an audit-visible "no"
 func (s *Service) Register(ctx context.Context, channelID uuid.UUID, emailAddr, password, firstName, lastName string, marketingOptIn *bool) (Customer, error) {
@@ -183,6 +196,7 @@ func (s *Service) Register(ctx context.Context, channelID uuid.UUID, emailAddr, 
 		PasswordHash: string(hash),
 		FirstName:    firstName,
 		LastName:     lastName,
+		GroupID:      s.registeringGroup(ctx, ing),
 	})
 	if err != nil {
 		return Customer{}, err
@@ -191,8 +205,13 @@ func (s *Service) Register(ctx context.Context, channelID uuid.UUID, emailAddr, 
 		// Log, don't fail registration - ops can alarm on [email:error]
 		log.Printf("[email:error] send verification to customer %s: %v", c.ID, err)
 	}
-	if marketingOptIn != nil {
-		if _, cerr := s.consentSvc.SetConsent(ctx, c.ID, "marketing_email", *marketingOptIn, consent.SourceRegistration); cerr != nil {
+	// The shopper's own answer wins - a plugin only decides where no checkbox was shown, since it can't consent on anyone's behalf
+	optIn, source := marketingOptIn, consent.SourceRegistration
+	if optIn == nil && ing.MarketingConsent != nil {
+		optIn, source = ing.MarketingConsent, consent.SourcePlugin
+	}
+	if optIn != nil {
+		if _, cerr := s.consentSvc.SetConsent(ctx, c.ID, "marketing_email", *optIn, source); cerr != nil {
 			// Non-fatal - the account exists, consent stays at the registry default
 			log.Printf("[consent:error] record marketing opt-in for customer %s: %v", c.ID, cerr)
 		}

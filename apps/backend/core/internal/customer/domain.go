@@ -99,6 +99,7 @@ type CreateCustomerInput struct {
 	PasswordHash string
 	FirstName    string
 	LastName     string
+	GroupID      *uuid.UUID // nil takes the default group
 }
 
 type UpdateCustomerInput struct {
