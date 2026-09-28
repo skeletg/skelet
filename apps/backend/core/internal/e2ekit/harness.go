@@ -40,6 +40,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/referral"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
@@ -100,7 +101,7 @@ type Deps struct {
 	AdminPrefs    *adminprefs.Service
 	Notification  *notification.Service
 	SignalsClient *signalsclient.Client // core's plug into the suite, which bin/test-e2e runs beside this harness - flows and saved emails are driven through it
-	Flows         *wiring.FlowEnroller
+	Flows         *enroll.Enroller
 	Root          wiring.RootHandler
 }
 

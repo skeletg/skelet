@@ -20,6 +20,9 @@ SELECT * FROM catalog_products WHERE id = $1;
 -- name: GetProductsByIDs :many
 SELECT * FROM catalog_products WHERE id = ANY(sqlc.arg(ids)::uuid[]);
 
+-- name: ListProductTypeIDsByProductIDs :many
+SELECT id, product_type_id FROM catalog_products WHERE id = ANY(sqlc.arg(ids)::uuid[]);
+
 -- name: GetPublishedProductForChannel :one
 -- Front endpoint single-product fetch - returns the product only when a listing exists on the given channel with is_published=TRUE - mirrors the (product, channel) gating that ListPublishedRootCategoriesForChannel applies to categories
 SELECT p.* FROM catalog_products p
@@ -255,6 +258,12 @@ SELECT * FROM catalog_product_content
 WHERE product_id = $1
 ORDER BY locale;
 
+-- name: ListProductContentByProductIDs :many
+-- Every locale's content for a set of products
+SELECT * FROM catalog_product_content
+WHERE product_id = ANY(sqlc.arg(product_ids)::uuid[])
+ORDER BY product_id, locale;
+
 -- name: ListProductContentByScope :many
 -- Batch-loads content for a set of products at one specific locale
 SELECT * FROM catalog_product_content
@@ -282,6 +291,10 @@ RETURNING *;
 -- Order-placement lookup: resolve each cart line's product tax class
 -- from its SKU so the tax engine can evaluate per line
 SELECT sku, tax_class FROM catalog_products
+WHERE sku = ANY(sqlc.arg(skus)::text[]);
+
+-- name: GetProductDimensionsBySKUs :many
+SELECT sku, weight_grams, length_mm, width_mm, height_mm FROM catalog_products
 WHERE sku = ANY(sqlc.arg(skus)::text[]);
 
 -- name: GetProductCostsBySKUs :many

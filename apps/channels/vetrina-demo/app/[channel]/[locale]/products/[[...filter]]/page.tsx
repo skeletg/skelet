@@ -5,7 +5,7 @@ import { ProductListShell } from "@/app/components/ProductListShell";
 import { localizedAlternates } from "@/app/lib/locale/alternates";
 
 import { browseProducts, productSortOptions } from "@/app/lib/catalog/read";
-import { getSeoConfig } from "@/app/lib/config/read";
+import { getBrowsePageSize, getSeoConfig } from "@/app/lib/config/read";
 import {
   isPagedUrlIndexable,
   parsePageFromSegments,
@@ -28,7 +28,7 @@ async function indexabilityFor(
     filter: {
       attributes: pathFilters.length > 0 ? pathFilters : null,
     },
-    limit: 24,
+    limit: await getBrowsePageSize(),
     offset: 0,
   });
   const seo = await getSeoConfig();

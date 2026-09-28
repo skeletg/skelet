@@ -36,11 +36,15 @@ jobs:
             (cd "$mod" && govulncheck ./...) || exit 1
           done
 
-  npm-audit:
-    name: npm audit
+  pnpm-audit:
+    name: pnpm audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Any app's packageManager will do - bin/pin-check holds them all to one version
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/dashboard/package.json
       # .nvmrc is the pin - bin/pin-check keeps it in step with the app Dockerfiles,
       # which stay literal because a Dockerfile has to build on its own
       - uses: actions/setup-node@v4
@@ -54,6 +58,6 @@ jobs:
           for dir in apps/dashboard apps/channels/*/; do
             [ -f "$dir/package.json" ] || continue
             echo "==> $dir"
-            (cd "$dir" && npm audit --audit-level=high) || fail=1
+            (cd "$dir" && pnpm audit --audit-level high) || fail=1
           done
           exit $fail

@@ -215,6 +215,10 @@ type UpdateProductInput struct {
 	CostCents   *int64
 }
 
+type Dimensions struct {
+	WeightGrams, LengthMm, WidthMm, HeightMm int32
+}
+
 type ProductContentInput struct {
 	Locale           string
 	Name             string

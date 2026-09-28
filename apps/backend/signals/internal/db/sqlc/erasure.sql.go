@@ -21,6 +21,33 @@ func (q *Queries) DetachErasedLensSessions(ctx context.Context, customerID uuid.
 	return err
 }
 
+const isCustomerErased = `-- name: IsCustomerErased :one
+SELECT EXISTS (SELECT 1 FROM erased_customers WHERE customer_id = $1)::bool
+`
+
+func (q *Queries) IsCustomerErased(ctx context.Context, customerID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isCustomerErased, customerID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const markCustomerErased = `-- name: MarkCustomerErased :exec
+INSERT INTO erased_customers (customer_id, erased_at)
+VALUES ($1, COALESCE($2::timestamptz, now()))
+ON CONFLICT (customer_id) DO NOTHING
+`
+
+type MarkCustomerErasedParams struct {
+	CustomerID uuid.UUID    `json:"customer_id"`
+	ErasedAt   sql.NullTime `json:"erased_at"`
+}
+
+func (q *Queries) MarkCustomerErased(ctx context.Context, arg MarkCustomerErasedParams) error {
+	_, err := q.db.ExecContext(ctx, markCustomerErased, arg.CustomerID, arg.ErasedAt)
+	return err
+}
+
 const scrubErasedCampaignRecipients = `-- name: ScrubErasedCampaignRecipients :exec
 UPDATE email_campaign_recipients
 SET email = 'redacted-' || id::text || '@anonymized.invalid', first_name = '',

@@ -861,6 +861,26 @@ func (r *postgresRepository) ProductTaxClassesBySKUs(ctx context.Context, skus [
 	return out, nil
 }
 
+func (r *postgresRepository) ProductDimensionsBySKUs(ctx context.Context, skus []string) (map[string]Dimensions, error) {
+	if len(skus) == 0 {
+		return map[string]Dimensions{}, nil
+	}
+	rows, err := r.queries.GetProductDimensionsBySKUs(ctx, skus)
+	if err != nil {
+		return nil, fmt.Errorf("get product dimensions: %w", err)
+	}
+	out := make(map[string]Dimensions, len(rows))
+	for _, row := range rows {
+		out[row.Sku] = Dimensions{
+			WeightGrams: row.WeightGrams.Int32,
+			LengthMm:    row.LengthMm.Int32,
+			WidthMm:     row.WidthMm.Int32,
+			HeightMm:    row.HeightMm.Int32,
+		}
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ProductCostsBySKUs(ctx context.Context, skus []string) (map[string]int64, error) {
 	if len(skus) == 0 {
 		return map[string]int64{}, nil

@@ -164,11 +164,11 @@ input AddBundleToCartInput {
 extend type Query {
   myCart:        Cart!
   cart(id: ID!): Cart
-  # Returns active shipping methods + their computed prices for the cart's storefront and a destination country. Empty list when no zone covers the country (storefront UI shows "delivery not available"). subtotalCents drives free_above thresholds.
-  shippingQuotes(countryCode: String!): [ShippingQuote!]!
+  # Active shipping methods priced for a cart at a destination, the way placement will price them - post-discount subtotal, product weights, region and postal code. cartId names a guest cart; without it a signed-in customer's own cart is used, and no cart at all quotes an empty one. Empty list when nothing covers the destination (storefront UI shows "delivery not available").
+  shippingQuotes(countryCode: String!, cartId: ID, regionCode: String, postalCode: String): [ShippingQuote!]!
   # Collect-in-store points, for rendering the pickup options in shippingQuotes as real stores (address + instructions) instead of bare method names. Empty when click-and-collect is switched off.
   pickupLocations: [PickupLocation!]!
-  # Pre-checkout estimate for a cart at a destination: shipping options + a tax estimate on the post-discount subtotal + an estimated total. Powers the cart's shipping/tax estimator so shoppers see landed cost before checkout.
+  # Pre-checkout estimate for a cart at a destination: shipping options + the tax placement would charge with the cheapest option (goods and shipping, tax classes, customer group and exemption) + an estimated total. Powers the cart's shipping/tax estimator so shoppers see landed cost before checkout.
   cartEstimate(cartId: ID!, countryCode: String!, regionCode: String): CartEstimate!
   # Lowest free-shipping spend threshold (cents) offered to a country, or 0 when none applies. The storefront compares it to the cart subtotal to render a "add $X for free shipping" progress nudge.
   freeShippingThreshold(countryCode: String): Int!

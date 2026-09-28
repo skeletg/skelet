@@ -2936,6 +2936,8 @@ type Order struct {
 	ShippingAmount      int32                 `json:"shippingAmount"`
 	DiscountAmount      int32                 `json:"discountAmount"`
 	TaxAmount           int32                 `json:"taxAmount"`
+	ShippingTaxAmount   int32                 `json:"shippingTaxAmount"`
+	ShippingRefundable  int32                 `json:"shippingRefundable"`
 	Total               int32                 `json:"total"`
 	GiftCardAmount      int32                 `json:"giftCardAmount"`
 	StoreCreditAmount   int32                 `json:"storeCreditAmount"`

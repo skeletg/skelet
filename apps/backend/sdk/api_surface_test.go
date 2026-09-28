@@ -1,7 +1,7 @@
 package sdk
 
 // Two gates guard the plugin-facing surface: TestAPISurface records every exported declaration in api.json, so drift shows up in review and demands a Version bump
-// TestAPICompatibility is the authoritative one, running apidiff against the last release tag, which knows Go's real rules where a line diff does not - it skips until a v* tag exists
+// TestAPICompatibility is the authoritative one, running apidiff against the last SDK release, which knows Go's real rules where a line diff does not - it skips until an apps/backend/sdk/v* tag exists
 
 import (
 	"archive/tar"
@@ -39,6 +39,8 @@ const (
 	modulePath          = "github.com/skeletg/skelet/apps/backend/sdk"
 	// apidiff names symbols relative to the path it is handed, which is the module's parent so the root package reads as ./sdk
 	versionConstChange = "./sdk.Version:"
+	// Go versions a module in a subdirectory by tags prefixed with its path
+	sdkTagPattern = "apps/backend/sdk/v*"
 )
 
 // The checked-in record - Packages is keyed by import path so adding or dropping a public package
@@ -90,7 +92,7 @@ func TestAPISurface(t *testing.T) {
 func TestAPICompatibility(t *testing.T) {
 	tag, err := lastReleaseTag()
 	if err != nil {
-		t.Skipf("no release tag to compare against (%v) - this gate starts enforcing once the first v* tag is cut", err)
+		t.Skipf("no release tag to compare against (%v) - this gate starts enforcing once the first apps/backend/sdk/v* tag is cut", err)
 	}
 
 	oldDir, oldPattern := materializeAt(t, tag)
@@ -236,7 +238,8 @@ func lastReleaseTag() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("locate repo root: %w", err)
 	}
-	out, err := exec.Command("git", "-C", root, "describe", "--tags", "--abbrev=0", "--match", "v*").Output()
+	// The SDK module's own tags, which are what `go get .../apps/backend/sdk@vX.Y.Z` resolves - skelet's v* project tags mark app releases, not SDK ones
+	out, err := exec.Command("git", "-C", root, "describe", "--tags", "--abbrev=0", "--match", sdkTagPattern).Output()
 	if err != nil {
 		if ee, ok := errors.AsType[*exec.ExitError](err); ok {
 			return "", fmt.Errorf("git describe: %s", strings.TrimSpace(string(ee.Stderr)))

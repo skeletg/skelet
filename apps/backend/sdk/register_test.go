@@ -529,3 +529,24 @@ func (h *fakeHost) SearchDeleteByField(_ context.Context, _, _, _, _ string) err
 func (h *fakeHost) SearchQuery(_ context.Context, _, _ string, _ any) (SearchResult, error) {
 	return SearchResult{}, nil
 }
+
+// A host that can't honour it must say so at registration - falling back to a skippable handler would reopen the gap
+func TestSubscribeSyncAlwaysRefusesAHostThatCannotRunIt(t *testing.T) {
+	ResetForTest()
+	t.Cleanup(ResetForTest)
+	Install(&fakeHost{})
+	defer func() {
+		if recover() == nil {
+			t.Fatal("registered an always-run veto on a host that would skip it")
+		}
+	}()
+	NewPluginForTest("veto").SubscribeSyncAlways("t.placing", 100, func(context.Context, any) error { return nil })
+}
+
+func TestNamespacedConfigRefusesAnySlash(t *testing.T) {
+	for _, key := range []string{"payment/stripe/api_key", "shipping/ups/api_key", "nested/key"} {
+		if _, err := NamespacedConfig("shipping/ups").Get(context.Background(), key, uuid.Nil); err == nil {
+			t.Errorf("Get(%q) read a double-prefixed path instead of refusing", key)
+		}
+	}
+}

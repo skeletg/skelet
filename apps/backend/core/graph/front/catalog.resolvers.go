@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"sort"
 	"strings"
 
@@ -49,6 +50,14 @@ func (r *collectionResolver) Products(ctx context.Context, obj *model.Collection
 		return nil, err
 	}
 	return r.renderMemberProducts(ctx, products, *storeID)
+}
+
+func (r *productResolver) ProductType(ctx context.Context, obj *model.Product) (*model.ProductType, error) {
+	return r.productTypeOf(ctx, obj)
+}
+
+func (r *productResolver) URL(ctx context.Context, obj *model.Product) (string, error) {
+	return r.productURL(ctx, obj)
 }
 
 // Sellable means salable > 0 OR backorderable - the second branch unblocks "tracked, threshold set, no physical stock yet, backorderable=true" from sitting at inStock=false forever, which would disable Add to cart and keep the customer from ever reaching checkout, where Reserve does allow the backorder
@@ -115,6 +124,31 @@ func (r *productResolver) SalableQuantity(ctx context.Context, obj *model.Produc
 	return &v, nil
 }
 
+func (r *productResolver) Price(ctx context.Context, obj *model.Product) (int32, error) {
+	res, err := r.productPricing(ctx, obj)
+	if err != nil {
+		return 0, err
+	}
+	return int32(res.Price), nil
+}
+
+func (r *productResolver) CompareAtPrice(ctx context.Context, obj *model.Product) (*int32, error) {
+	res, err := r.productPricing(ctx, obj)
+	if err != nil || res.CompareAt == nil {
+		return nil, err
+	}
+	v := int32(*res.CompareAt)
+	return &v, nil
+}
+
+func (r *productResolver) OnSale(ctx context.Context, obj *model.Product) (bool, error) {
+	res, err := r.productPricing(ctx, obj)
+	if err != nil {
+		return false, err
+	}
+	return res.OnSale, nil
+}
+
 func (r *productResolver) TierPrices(ctx context.Context, obj *model.Product) ([]*model1.TierPrice, error) {
 	pid, err := uuid.Parse(obj.ID)
 	if err != nil {
@@ -157,20 +191,45 @@ func (r *productResolver) AlsoBought(ctx context.Context, obj *model.Product, li
 	return r.renderProductsByIDs(ctx, ids), nil
 }
 
+func (r *productResolver) AttributeValues(ctx context.Context, obj *model.Product) ([]*model.ProductAttributeValue, error) {
+	return r.productAttributeValues(ctx, obj)
+}
+
 func (r *productResolver) Backorderable(ctx context.Context, obj *model.Product) (bool, error) {
 	pid, err := uuid.Parse(obj.ID) // a missing item row (untracked product) is simply not backorderable, and never errors the product query
 	if err != nil {
 		return false, nil
 	}
-	// List surfaces prime this so cards don't each fire an inventory lookup - an unprimed PDP falls through to one call
+	// List surfaces prime this so cards don't each fire an inventory lookup
 	if v, ok := r.cachedBackorderable(ctx, pid); ok {
 		return v, nil
+	}
+	if r.primeGroupOnce(ctx, "backorderable", pid, func(ids []uuid.UUID) error { return r.primeBackorderable(ctx, ids) }) {
+		if v, ok := r.cachedBackorderable(ctx, pid); ok {
+			return v, nil
+		}
 	}
 	item, err := r.InventorySvc.GetItemByProduct(ctx, pid)
 	if err != nil {
 		return false, nil
 	}
 	return item.Backorderable, nil
+}
+
+func (r *productResolver) Children(ctx context.Context, obj *model.Product) ([]*model.Product, error) {
+	return r.productChildren(ctx, obj)
+}
+
+func (r *productResolver) ConfigurableOptions(ctx context.Context, obj *model.Product) ([]*model.Attribute, error) {
+	return r.productConfigurableOptions(ctx, obj)
+}
+
+func (r *productResolver) BundleOptions(ctx context.Context, obj *model.Product) ([]*model.BundleOption, error) {
+	return r.productBundleOptions(ctx, obj)
+}
+
+func (r *productResolver) GroupedMembers(ctx context.Context, obj *model.Product) ([]*model.GroupedMember, error) {
+	return r.productGroupedMembers(ctx, obj)
 }
 
 func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*model1.ProductCustomOption, error) {
@@ -181,18 +240,16 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 	if err != nil {
 		return nil, err
 	}
-	opts, err := r.CatalogSvc.GetProductOptions(ctx, pid, r.activeLocale(ctx))
+	opts, err := r.loadProductOptions(ctx, pid)
 	if err != nil {
 		return nil, err
 	}
 	// A variant carries its configurable parent's product-wide options too - the cart resolution merges and ENFORCES them (adapters.ResolveProductOptions), so a variant-own URL that didn't render them could never satisfy a required parent option - fail-open, a hiccup here degrades to the variant-only set rather than killing the PDP
 	if obj.Kind == model.ProductKindSimple {
-		if parents, perr := r.CatalogSvc.ListConfigurableParentByChildIDs(ctx, []uuid.UUID{pid}); perr == nil {
-			if link, ok := parents[pid]; ok && link.ParentID != uuid.Nil {
-				if parentOpts, poerr := r.CatalogSvc.GetProductOptions(ctx, link.ParentID, r.activeLocale(ctx)); poerr == nil {
-					opts = append(opts, parentOpts...)
-					sort.SliceStable(opts, func(i, j int) bool { return opts[i].SortOrder < opts[j].SortOrder })
-				}
+		if link, perr := r.loadConfigurableParentLink(ctx, pid); perr == nil && link.ParentID != uuid.Nil {
+			if parentOpts, poerr := r.loadProductOptions(ctx, link.ParentID); poerr == nil {
+				opts = append(slices.Clone(opts), parentOpts...) // the loader's slice is shared across the request
+				sort.SliceStable(opts, func(i, j int) bool { return opts[i].SortOrder < opts[j].SortOrder })
 			}
 		}
 	}
@@ -278,6 +335,34 @@ func (r *productResolver) SubscriptionTerms(ctx context.Context, obj *model.Prod
 	return toFrontSubscriptionTermsModel(terms), nil
 }
 
+func (r *productResolver) Media(ctx context.Context, obj *model.Product) ([]*model.ProductMedia, error) {
+	return r.productMediaModels(ctx, obj)
+}
+
+func (r *productResolver) MainImage(ctx context.Context, obj *model.Product) (*model.ProductMedia, error) {
+	return r.productMediaRole(ctx, obj, catalog.MediaRoleMain)
+}
+
+func (r *productResolver) Thumbnail(ctx context.Context, obj *model.Product) (*model.ProductMedia, error) {
+	return r.productMediaRole(ctx, obj, catalog.MediaRoleThumbnail)
+}
+
+func (r *productResolver) OgImage(ctx context.Context, obj *model.Product) (*model.ProductMedia, error) {
+	return r.productMediaRole(ctx, obj, catalog.MediaRoleOGImage)
+}
+
+func (r *productResolver) Categories(ctx context.Context, obj *model.Product) ([]*model.Category, error) {
+	return r.productCategories(ctx, obj)
+}
+
+func (r *productResolver) PrimaryCategory(ctx context.Context, obj *model.Product) (*model.Category, error) {
+	return r.productPrimaryCategory(ctx, obj)
+}
+
+func (r *productResolver) Collections(ctx context.Context, obj *model.Product) ([]*model.Collection, error) {
+	return r.productCollections(ctx, obj)
+}
+
 // Walks active rules whose PRODUCT-level conditions could match, sorted by priority asc - cart-level conditions are ignored on purpose, see promotion.MatchesProduct - and the locale-resolved label falls back to the rule's English-default `public_label` when promotion_rule_contents has no per-locale row
 func (r *productResolver) PromotionalDisplays(ctx context.Context, obj *model.Product) ([]*model1.PromotionalDisplay, error) {
 	if r.PromotionSvc == nil || obj == nil {
@@ -289,8 +374,14 @@ func (r *productResolver) PromotionalDisplays(ctx context.Context, obj *model.Pr
 	}
 	// The model's values are isPublic-filtered, so match on the pre-filter KVs renderProduct stashed - a rule conditioned on a private attribute still badges
 	if pid, perr := uuid.Parse(obj.ID); perr == nil {
-		if kvs, ok := r.cachedPromotionAttrKVs(ctx, pid); ok {
+		if kvs, ok := r.promotionAttrKVs(ctx, obj, pid); ok {
 			candidate.AttributeKVs = kvs
+		}
+	}
+	if info, cerr := r.productCategoryInfo(ctx, obj); cerr == nil {
+		candidate.CategoryIDs = make([]uuid.UUID, 0, len(info.Categories))
+		for _, c := range info.Categories {
+			candidate.CategoryIDs = append(candidate.CategoryIDs, c.ID)
 		}
 	}
 	store, _ := channel.FromContext(ctx)
@@ -422,71 +513,10 @@ func (r *queryResolver) Product(ctx context.Context, id string) (*model.Product,
 	if storeID == nil {
 		return nil, catalog.ErrProductNotFound
 	}
-	p, err := r.CatalogSvc.GetProductForChannel(ctx, pid, *storeID, r.activeLocale(ctx))
+	p, err := r.CatalogSvc.GetProductHeaderForChannel(ctx, pid, *storeID, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err
 	}
-	// One batched prime so the per-variant inStock / salableQuantity resolvers read the request cache - without it a configurable with many options is one Salable query per variant
-	primeIDs := make([]uuid.UUID, 0, len(p.Children)+1)
-	primeIDs = append(primeIDs, pid)
-	for _, c := range p.Children {
-		primeIDs = append(primeIDs, c.ID)
-	}
-	if err := r.primeSalable(ctx, primeIDs, *storeID); err != nil {
-		return nil, err
-	}
-	cols, err := r.CatalogSvc.ListCollectionsByProductIDs(ctx, []uuid.UUID{pid}, r.activeLocale(ctx))
-	if err != nil {
-		return nil, err
-	}
-	p.Collections = publishedCollections(cols[pid])
-	cats, err := r.CatalogSvc.ListCategoriesByProductIDs(ctx, []uuid.UUID{pid}, r.activeLocale(ctx))
-	if err != nil {
-		return nil, err
-	}
-	p.Categories = cats[pid]
-	primaryCats, err := r.CatalogSvc.ListPrimaryCategoryByProductIDs(ctx, []uuid.UUID{pid})
-	if err != nil {
-		return nil, err
-	}
-	p.PrimaryCategory = primaryCats[pid]
-	// Same affiliation gate as Products - strip unpublished categories and null the primary when it isn't visible on this store
-	{
-		oneCats := map[uuid.UUID][]catalog.Category{pid: p.Categories}
-		onePrimary := map[uuid.UUID]*catalog.Category{pid: p.PrimaryCategory}
-		if catIDs := collectCategoryIDs(oneCats, onePrimary); len(catIDs) > 0 {
-			visible, err := r.CatalogSvc.FilterVisibleCategoryIDsForChannel(ctx, catIDs, *storeID)
-			if err != nil {
-				return nil, err
-			}
-			kept := p.Categories[:0]
-			for _, c := range p.Categories {
-				if _, ok := visible[c.ID]; ok {
-					kept = append(kept, c)
-				}
-			}
-			p.Categories = kept
-			if p.PrimaryCategory != nil {
-				if _, ok := visible[p.PrimaryCategory.ID]; !ok {
-					p.PrimaryCategory = nil
-				}
-			}
-		}
-	}
-
-	// The fetch above is locale-agnostic and skips ancestors, so the breadcrumb name comes back unresolved - re-resolve it the way the Category page does, falling back to the un-hydrated primary category on error rather than sinking the PDP
-	if p.PrimaryCategory != nil {
-		locale := r.activeLocale(ctx)
-		if hydrated, err := r.CatalogSvc.GetPublishedCategoryForChannel(ctx, *storeID, p.PrimaryCategory.ID, locale); err == nil {
-			ancestors, err := r.CatalogSvc.GetCategoryAncestors(ctx, p.PrimaryCategory.ID, locale)
-			if err != nil {
-				return nil, err
-			}
-			hydrated.Ancestors = ancestors
-			p.PrimaryCategory = &hydrated
-		}
-	}
-
 	return r.renderProduct(ctx, p)
 }
 
@@ -812,8 +842,9 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 	// Hydrated through the standard storefront loader so the response carries the same Product shape as Products / Product(id), dropping any ID the channel filter rejects - the index can briefly lag a depublish
 	// Every per-product association is batched up-front so the per-card loop is a lookup, but the store-scoped publication gate stays per-id because that is what drops the stale index entries
 	hydratedIDs := res.IDs
+	dataloaders.For(ctx).RegisterGroup(hydratedIDs)
 	if len(hydratedIDs) > 0 {
-		if err := r.primeListingsAndChannels(ctx, hydratedIDs); err != nil {
+		if err := r.primeListings(ctx, hydratedIDs); err != nil {
 			return empty, nil
 		}
 		if err := r.primeSalable(ctx, hydratedIDs, *storeID); err != nil {
@@ -825,34 +856,17 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 		}
 		r.primeProductAttributeLocaleValues(ctx, hydratedIDs)
 	}
-	collectionsByProduct, err := r.CatalogSvc.ListCollectionsByProductIDs(ctx, hydratedIDs, locale)
-	if err != nil {
-		return empty, nil
-	}
-	categoriesByProduct, err := r.CatalogSvc.ListCategoriesByProductIDs(ctx, hydratedIDs, locale)
-	if err != nil {
-		return empty, nil
-	}
-	primaryCategoryByProduct, err := r.CatalogSvc.ListPrimaryCategoryByProductIDs(ctx, hydratedIDs)
-	if err != nil {
-		return empty, nil
-	}
 
-	// One publication-gated load for the whole page (attribute graph + locale content) plus one media batch, instead of ~9 queries per product - renderProduct takes the pre-fetched media and skips its own
-	products, err := r.CatalogSvc.ListProductsForChannelByIDs(ctx, res.IDs, *storeID, locale)
+	products, err := r.CatalogSvc.ListProductHeadersForChannelByIDs(ctx, res.IDs, *storeID, locale)
 	if err != nil {
 		return empty, nil
 	}
-	mediaByProduct, err := r.CatalogSvc.ListProductMediaByProductIDs(ctx, hydratedIDs)
-	if err != nil {
+	if err := r.primeChildVisibility(ctx, products); err != nil {
 		return empty, nil
 	}
 	items := make([]*model.Product, 0, len(products))
 	for _, p := range products {
-		p.Collections = publishedCollections(collectionsByProduct[p.ID])
-		p.Categories = categoriesByProduct[p.ID]
-		p.PrimaryCategory = primaryCategoryByProduct[p.ID]
-		m, err := r.renderProduct(ctx, p, mediaByProduct[p.ID])
+		m, err := r.renderProduct(ctx, p)
 		if err != nil {
 			continue
 		}

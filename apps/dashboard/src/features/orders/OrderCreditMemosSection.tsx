@@ -294,6 +294,7 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
                   type="number"
                   min="0"
                   step="0.01"
+                  placeholder={`Up to ${formatCents(order.shippingRefundable, order.currencyCode)}`}
                   value={shippingRefund}
                   onChange={(e) => setShippingRefund(e.target.value)}
                 />

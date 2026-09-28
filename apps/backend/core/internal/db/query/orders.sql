@@ -9,14 +9,14 @@ INSERT INTO orders (
     shipping_postal_code, shipping_country, shipping_phone,
     subtotal_amount, shipping_amount, discount_amount, tax_amount, total_amount,
     currency_code, customer_note, payment_provider, shipping_method_id,
-    shipping_carrier_slug, shipping_method_code, po_number
+    shipping_carrier_slug, shipping_method_code, po_number, shipping_tax_amount, anon_id
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
     $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
     $27, $28, $29, $30, $31,
     $32, $33, $34, $35,
-    $36, $37, $38
+    $36, $37, $38, $39, $40
 ) RETURNING *;
 
 -- name: GetOrderByID :one
@@ -180,7 +180,7 @@ RETURNING *;
 -- the edit records payment drift separately rather than silently re-settling
 UPDATE orders
 SET    subtotal_amount = $2, shipping_amount = $3, discount_amount = $4,
-       tax_amount = $5, total_amount = $6, updated_at = NOW()
+       tax_amount = $5, total_amount = $6, shipping_tax_amount = $7, updated_at = NOW()
 WHERE  id = $1
 RETURNING *;
 

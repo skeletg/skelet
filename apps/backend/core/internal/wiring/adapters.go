@@ -914,6 +914,20 @@ func NewRiskHoldThreshold(cfg *config.Service) func(context.Context, uuid.UUID) 
 	}
 }
 
+type ShippingDimensions struct{ catalog *catalog.Service }
+
+func (a ShippingDimensions) DimensionsBySKUs(ctx context.Context, skus []string) (map[string]shipping.Dimensions, error) {
+	dims, err := a.catalog.ProductDimensionsBySKUs(ctx, skus)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]shipping.Dimensions, len(dims))
+	for sku, d := range dims {
+		out[sku] = shipping.Dimensions(d)
+	}
+	return out, nil
+}
+
 func NewShippingTax(cfg *config.Service) func(context.Context, uuid.UUID) (string, bool) {
 	return func(ctx context.Context, channelID uuid.UUID) (string, bool) {
 		scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &channelID}

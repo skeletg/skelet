@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -76,6 +77,7 @@ type pendingAsyncSub struct {
 	slug      string
 	eventType string
 	handler   sdk.AsyncHandler
+	retry     bool // SubscribeAsyncOnce - a failure goes back to the outbox for redelivery
 }
 
 type pendingSyncSub struct {
@@ -83,6 +85,7 @@ type pendingSyncSub struct {
 	eventType string
 	priority  int
 	handler   sdk.SyncHandler
+	always    bool // SubscribeSyncAlways - runs past the kill switch
 }
 
 // The package-level reference so SetConfigService can reach the Host after Install - one instance, since there's exactly one Host per server process
@@ -242,10 +245,10 @@ func SetEventBus(bus *events.Bus) {
 	h.pendingSync = nil
 	h.pendingMu.Unlock()
 	for _, p := range pendingAsync {
-		attachAsyncHandler(bus, p.slug, p.eventType, p.handler)
+		attachAsyncHandler(bus, p.slug, p.eventType, p.handler, p.retry)
 	}
 	for _, p := range pendingSync {
-		attachSyncHandler(bus, p.slug, p.eventType, p.priority, p.handler)
+		attachSyncHandler(bus, p.slug, p.eventType, p.priority, p.handler, p.always)
 	}
 }
 
@@ -414,7 +417,21 @@ var (
 	eventOwners      = map[string]string{}
 	migrationOwners  = map[string]string{}
 	datapatchOwners  = map[string]string{}
+	// every event type a plugin subscribed to, so boot can hold the subscriptions to the manifest's Consumes
+	subscriptions = map[string]map[string]struct{}{}
 )
+
+func recordSubscription(slug, eventType string) {
+	if slug == "" {
+		return // core-side callers have no manifest to answer to
+	}
+	ownersMu.Lock()
+	defer ownersMu.Unlock()
+	if subscriptions[slug] == nil {
+		subscriptions[slug] = map[string]struct{}{}
+	}
+	subscriptions[slug][eventType] = struct{}{}
+}
 
 func recordOwnership(m *map[string]string, key, slug, what string) {
 	ownersMu.Lock()
@@ -442,32 +459,47 @@ func ConfigPathsFor(pluginSlug string) []string {
 
 // SubscribeAsync attaches a plugin handler to a post-commit event (attaches now if the bus is wired, else queues)
 func (h *Host) SubscribeAsync(slug, eventType string, handler sdk.AsyncHandler) error {
+	return h.subscribeAsync(slug, eventType, handler, false)
+}
+
+func (h *Host) subscribeAsync(slug, eventType string, handler sdk.AsyncHandler, retry bool) error {
+	recordSubscription(slug, eventType)
 	if bus := h.bus.Load(); bus != nil {
-		attachAsyncHandler(bus, slug, eventType, handler)
+		attachAsyncHandler(bus, slug, eventType, handler, retry)
 		return nil
 	}
 	h.pendingMu.Lock()
 	defer h.pendingMu.Unlock()
 	// re-check under lock - SetEventBus may have run since the Load, else the subscription is lost
 	if bus := h.bus.Load(); bus != nil {
-		attachAsyncHandler(bus, slug, eventType, handler)
+		attachAsyncHandler(bus, slug, eventType, handler, retry)
 		return nil
 	}
-	h.pendingAsync = append(h.pendingAsync, pendingAsyncSub{slug: slug, eventType: eventType, handler: handler})
+	h.pendingAsync = append(h.pendingAsync, pendingAsyncSub{slug: slug, eventType: eventType, handler: handler, retry: retry})
 	return nil
 }
 
 // SubscribeSync attaches a plugin handler to a pre-commit event at priority - like SubscribeAsync
 // but runs in the publisher's goroutine and its error aborts the publish (see sdk.SubscribeSync for the mutation contract)
 func (h *Host) SubscribeSync(slug, eventType string, priority int, handler sdk.SyncHandler) error {
+	return h.subscribeSync(slug, eventType, priority, handler, false)
+}
+
+// SubscribeSyncAlways backs sdk.SubscribeSyncAlways - the handler runs whatever the kill switch says, so a veto holds while the plugin is off
+func (h *Host) SubscribeSyncAlways(slug, eventType string, priority int, handler sdk.SyncHandler) error {
+	return h.subscribeSync(slug, eventType, priority, handler, true)
+}
+
+func (h *Host) subscribeSync(slug, eventType string, priority int, handler sdk.SyncHandler, always bool) error {
+	recordSubscription(slug, eventType)
 	if bus := h.bus.Load(); bus != nil {
-		attachSyncHandler(bus, slug, eventType, priority, handler)
+		attachSyncHandler(bus, slug, eventType, priority, handler, always)
 		return nil
 	}
 	h.pendingMu.Lock()
 	defer h.pendingMu.Unlock()
 	if bus := h.bus.Load(); bus != nil {
-		attachSyncHandler(bus, slug, eventType, priority, handler)
+		attachSyncHandler(bus, slug, eventType, priority, handler, always)
 		return nil
 	}
 	h.pendingSync = append(h.pendingSync, pendingSyncSub{
@@ -475,17 +507,37 @@ func (h *Host) SubscribeSync(slug, eventType string, priority int, handler sdk.S
 		eventType: eventType,
 		priority:  priority,
 		handler:   handler,
+		always:    always,
 	})
 	return nil
 }
 
-// attachAsyncHandler wraps a plugin's JSON handler as events.AsyncHandler, gated by the enabled flag + hook timeout (Instrument's guarantees minus the rate limit - async is already off the request path) - Errors logged and recorded, never propagated: a plugin failure must not make the outbox replay an event every core subscriber already handled
+// The event's own channel when it names one, so a per-channel kill switch reaches event handlers too - default scope otherwise
+type channelScopedEvent interface{ EventChannelID() uuid.UUID }
+
+func eventChannel(e events.Event) uuid.UUID {
+	if c, ok := e.(channelScopedEvent); ok {
+		return c.EventChannelID()
+	}
+	return uuid.Nil
+}
+
+// A panic is the plugin failing, not the event - recovered here so it lands in the same log, tally and retry decision as a returned error
+func callAsync(ctx context.Context, handler sdk.AsyncHandler, payload json.RawMessage) (err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			err = fmt.Errorf("%w: %w", ErrPluginPanicked, errFromPanic(rec))
+		}
+	}()
+	return handler(ctx, payload)
+}
+
+// attachAsyncHandler wraps a plugin's JSON handler as events.AsyncHandler, gated by the enabled flag + hook timeout (Instrument's guarantees minus the rate limit - async is already off the request path)
+// Errors and panics are logged and recorded; only a retry subscription (SubscribeAsyncOnce, whose claim makes its own replay safe) returns one, so the outbox redelivers - a plain subscriber's failure must not replay an event every core subscriber already handled
 // The timeout is cooperative - it cancels ctx, so a handler ignoring ctx still runs to completion
-func attachAsyncHandler(bus *events.Bus, slug, eventType string, handler sdk.AsyncHandler) {
+func attachAsyncHandler(bus *events.Bus, slug, eventType string, handler sdk.AsyncHandler, retry bool) {
 	bus.Subscribe(eventType, func(ctx context.Context, e events.Event) error {
-		// Kill switch (default scope - event handlers aren't reliably
-		// channel-scoped, so this respects the global enable flag)
-		if slug != "" && !isEnabledFromContext(ctx, slug, uuid.Nil) {
+		if slug != "" && !isEnabledFromContext(ctx, slug, eventChannel(e)) {
 			return nil
 		}
 		payload, err := json.Marshal(e)
@@ -499,10 +551,13 @@ func attachAsyncHandler(bus *events.Bus, slug, eventType string, handler sdk.Asy
 			ctx, cancel = context.WithTimeout(ctx, hookTimeoutFromContext(ctx, slug))
 			defer cancel()
 		}
-		if err := handler(ctx, payload); err != nil {
+		if err := callAsync(ctx, handler, payload); err != nil {
 			slog.Error("plugin: async event handler returned error",
-				"plugin", slug, "event_type", eventType, "err", err)
+				"plugin", slug, "event_type", eventType, "err", err, "redelivered", retry)
 			recordAsyncFailure(slug, eventType, err) // the notification scan drains this - a log line alone is invisible
+			if retry {
+				return &PluginError{Slug: slug, Hook: "event " + eventType, Err: err}
+			}
 		}
 		return nil
 	})
@@ -510,9 +565,9 @@ func attachAsyncHandler(bus *events.Bus, slug, eventType string, handler sdk.Asy
 
 // attachSyncHandler wraps a plugin's typed handler as events.SyncHandler (pass-through so it can mutate; errors abort the publish) - A disabled plugin is SKIPPED (returns nil, not abort)
 // No timeout - sync runs under the request deadline; a mid-mutation cut would be worse - No recover either: the bus's callSyncWithRecover already turns a handler panic into an error that aborts the publish
-func attachSyncHandler(bus *events.Bus, slug, eventType string, priority int, handler sdk.SyncHandler) {
+func attachSyncHandler(bus *events.Bus, slug, eventType string, priority int, handler sdk.SyncHandler, always bool) {
 	bus.SubscribeSync(eventType, priority, func(ctx context.Context, e events.Event) error {
-		if slug != "" && !isEnabledFromContext(ctx, slug, uuid.Nil) {
+		if slug != "" && !always && !isEnabledFromContext(ctx, slug, eventChannel(e)) {
 			return nil // disabled - don't participate, don't abort
 		}
 		// A sync veto is the plugin telling the SHOPPER why their order was refused ("your company credit line is short"), so classify it here for the same reason the graph boundary does - unclassified, the presenter scrubs it to "internal error" and the message is wasted
@@ -533,7 +588,7 @@ type pluginConfigReader struct {
 func (r *pluginConfigReader) Get(ctx context.Context, key string, channelID uuid.UUID) (string, error) {
 	// a full path through a prefixing reader double-prefixes and reads a path that never exists - the
 	// paypal plugin shipped exactly that and was silently inert, so it fails loudly now
-	if strings.HasPrefix(key, "payment/") || strings.HasPrefix(key, "plugin/") {
+	if strings.Contains(key, "/") { // a short key never has one, whichever namespace the reader serves
 		return "", fmt.Errorf("plugin config: key %q looks like a full path - this reader already prefixes %q, pass the short key", key, r.prefix)
 	}
 	if r.host == nil {
@@ -1158,13 +1213,39 @@ func ValidateManifests() error {
 	maps.Copy(bySlug, h.manifestBySlug)
 	h.manifestMu.Unlock()
 
-	// Collect known core events from the webhook registry so plugin
-	// Consumes entries can resolve to them
+	// Core's own events from the webhook registry - a plugin's RegisterEvent lands there too, so those names are
+	// left out: they resolve through the plugin's Emits, and counting them as core would read as a collision
+	ownersMu.Lock()
 	known := make(map[string]struct{})
 	for _, e := range webhook.AllEvents() {
-		known[e.Type] = struct{}{}
+		if _, pluginOwned := eventOwners[e.Type]; !pluginOwned {
+			known[e.Type] = struct{}{}
+		}
 	}
-	return sdk.ValidateManifestSet(sdk.Version, manifests, bySlug, known)
+	subscribed := make(map[string][]string, len(subscriptions))
+	for slug, types := range subscriptions {
+		for t := range types {
+			subscribed[slug] = append(subscribed[slug], t)
+		}
+	}
+	ownersMu.Unlock()
+	if err := sdk.ValidateManifestSet(sdk.Version, manifests, bySlug, known); err != nil {
+		return err
+	}
+	// Consumes only checks what a plugin declared - a subscription it forgot to list, to a name nothing emits, would never fire and never fail
+	for slug, types := range subscribed {
+		m, ok := bySlug[slug]
+		if !ok {
+			continue // manifest-less plugins are opt-in, as above
+		}
+		sort.Strings(types)
+		for _, t := range types {
+			if !slices.Contains(m.Consumes, t) {
+				return fmt.Errorf("plugin %q subscribes to %q but its manifest does not list it in Consumes - boot resolves every Consumes entry, so an unlisted subscription could name an event nothing emits", slug, t)
+			}
+		}
+	}
+	return nil
 }
 
 // OrderedManifestSlugs returns plugin slugs in dependency order: every plugin appears after all of its dependencies - Used by the migration runner (apply dep schemas first) and by any other system that needs deterministic init ordering - Returns slugs in registration order if validation hasn't run, but a cycle would have failed ValidateManifests already so the worst case is "deps not strictly ordered" not "broken"

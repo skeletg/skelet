@@ -1028,6 +1028,42 @@ func (q *Queries) ListProductAttributeSlugsByProductIDs(ctx context.Context, pro
 	return items, nil
 }
 
+const listProductChildIDsByParentIDs = `-- name: ListProductChildIDsByParentIDs :many
+SELECT parent_id, child_id
+FROM catalog_product_children
+WHERE parent_id = ANY($1::uuid[])
+ORDER BY parent_id, sort_order
+`
+
+type ListProductChildIDsByParentIDsRow struct {
+	ParentID uuid.UUID `json:"parent_id"`
+	ChildID  uuid.UUID `json:"child_id"`
+}
+
+// Ids only, for the stock aggregate over a configurable's variants
+func (q *Queries) ListProductChildIDsByParentIDs(ctx context.Context, parentIds []uuid.UUID) ([]ListProductChildIDsByParentIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProductChildIDsByParentIDs, pq.Array(parentIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProductChildIDsByParentIDsRow{}
+	for rows.Next() {
+		var i ListProductChildIDsByParentIDsRow
+		if err := rows.Scan(&i.ParentID, &i.ChildID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProductChildren = `-- name: ListProductChildren :many
 SELECT p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents
 FROM catalog_product_children pc

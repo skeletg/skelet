@@ -15,7 +15,10 @@ type Service struct {
 	remoteRates RemoteRateSource
 	// remoteTracking resolves tracking via a universal tracker before the carrier's own (remote_tracking.go)
 	remoteTracking RemoteTrackingSource
+	dims           DimensionLookup
 }
+
+func (s *Service) SetDimensionLookup(l DimensionLookup) { s.dims = l }
 
 func NewService(repo Repository) *Service {
 	return &Service{repo: repo}

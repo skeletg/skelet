@@ -145,6 +145,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 	// UI-pref writes are chatty and carry layout blobs - auditing them buries the real trail; keyed on the FIELD so a renamed operation can't dodge auditing of anything else
 	unauditedMutations := map[string]bool{
 		"setMyPreference": true,
+		"runAdminAction":  true, // the resolver writes its own row, keyed on the action slug and carrying the handler's real outcome
 	}
 	adminSrv.AroundOperations(func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
 		oc := graphql.GetOperationContext(ctx)
@@ -172,15 +173,7 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 				Success:    resp == nil || len(resp.Errors) == 0,
 				DurationMS: time.Since(start).Milliseconds(),
 			}
-			if claims, ok := authpkg.AdminFromContext(ctx); ok && claims != nil {
-				entry.AdminID = claims.AdminID
-				entry.AdminEmail = claims.Email
-			} else if tok, ok := authpkg.ApiTokenFromContext(ctx); ok && tok != nil { // machine callers have no admin row - the email column carries the integration's name so the trail still says who
-				entry.AdminEmail = "integration:" + tok.Name
-			}
-			if r, ok := authpkg.RequestFromContext(ctx); ok && r != nil {
-				entry.IP = authpkg.ClientIP(r)
-			}
+			audit.Identify(ctx, &entry)
 			s.Audit.Record(ctx, entry)
 			return resp
 		}
@@ -277,7 +270,6 @@ func newGQL(infra Infra, s Svcs, tel observability.Telemetry, rl RateLimiters, h
 		PromotionSvc:         s.Promotion,
 		SegmentSvc:           s.SegmentReads,
 		ShippingSvc:          s.Shipping,
-		TaxSvc:               s.Tax,
 		PaymentSvc:           s.Payment,
 		MediaLibrarySvc:      s.MediaLibrary,
 		DownloadSvc:          s.Download,

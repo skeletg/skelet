@@ -36,7 +36,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
-	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webform"
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
@@ -81,7 +80,6 @@ type Resolver struct {
 	PromotionSvc         *promotion.Service
 	SegmentSvc           CustomerSegments
 	ShippingSvc          *shipping.Service
-	TaxSvc               *tax.Service
 	PaymentSvc           *payment.Service
 	ReviewSvc            *review.Service       // storefront-readable on the PDP AND writable via submit
 	MediaLibrarySvc      *medialibrary.Service // backs review photo + video uploads through the same presign/confirm pair the admin uses for product media

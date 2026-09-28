@@ -707,6 +707,11 @@ func (s *core) ProductTaxClassesBySKUs(ctx context.Context, skus []string) (map[
 	return s.repo.ProductTaxClassesBySKUs(ctx, skus)
 }
 
+// An unset dimension reads 0
+func (s *core) ProductDimensionsBySKUs(ctx context.Context, skus []string) (map[string]Dimensions, error) {
+	return s.repo.ProductDimensionsBySKUs(ctx, skus)
+}
+
 // ProductCostsBySKUs maps each SKU to its product's unit COGS (cost_cents), for the order-placement margin snapshot - SKUs with no cost are absent
 func (s *core) ProductCostsBySKUs(ctx context.Context, skus []string) (map[string]int64, error) {
 	return s.repo.ProductCostsBySKUs(ctx, skus)
