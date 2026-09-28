@@ -744,6 +744,7 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		ShippingAmount:      o.ShippingAmount,
 		DiscountAmount:      o.DiscountAmount,
 		TaxAmount:           o.TaxAmount,
+		ShippingTaxAmount:   o.ShippingTaxAmount,
 		TotalAmount:         o.TotalAmount,
 		CurrencyCode:        o.CurrencyCode,
 		CustomerNote:        sqlnull.String(stringPtr(o.CustomerNote)),
@@ -752,6 +753,7 @@ func (r *postgresRepository) CreateOrder(ctx context.Context, o Order) (Order, e
 		ShippingMethodID:    sqlnull.UUID(o.ShippingMethodID),
 		ShippingCarrierSlug: sqlnull.String(o.ShippingCarrierSlug),
 		ShippingMethodCode:  sqlnull.String(o.ShippingMethodCode),
+		AnonID:              o.AnonID,
 	})
 	if err != nil {
 		return Order{}, fmt.Errorf("create order: %w", err)
@@ -779,14 +781,15 @@ func (r *postgresRepository) SoftDeleteOrderLine(ctx context.Context, lineID uui
 	return toOrderLine(row), nil
 }
 
-func (r *postgresRepository) UpdateOrderAmounts(ctx context.Context, id uuid.UUID, subtotal, shipping, discount, tax, total int64) (Order, error) {
+func (r *postgresRepository) UpdateOrderAmounts(ctx context.Context, id uuid.UUID, a OrderAmounts) (Order, error) {
 	row, err := r.queries.UpdateOrderAmounts(ctx, db.UpdateOrderAmountsParams{
-		ID:             id,
-		SubtotalAmount: subtotal,
-		ShippingAmount: shipping,
-		DiscountAmount: discount,
-		TaxAmount:      tax,
-		TotalAmount:    total,
+		ID:                id,
+		SubtotalAmount:    a.Subtotal,
+		ShippingAmount:    a.Shipping,
+		DiscountAmount:    a.Discount,
+		TaxAmount:         a.Tax,
+		ShippingTaxAmount: a.ShippingTax,
+		TotalAmount:       a.Total,
 	})
 	if err != nil {
 		return Order{}, fmt.Errorf("update order amounts: %w", err)
@@ -1161,7 +1164,9 @@ func toOrder(row db.Order) Order {
 		ShippingAmount:    row.ShippingAmount,
 		DiscountAmount:    row.DiscountAmount,
 		TaxAmount:         row.TaxAmount,
+		ShippingTaxAmount: row.ShippingTaxAmount,
 		TotalAmount:       row.TotalAmount,
+		AnonID:            row.AnonID,
 		GiftCardAmount:    row.GiftCardAmount,
 		StoreCreditAmount: row.StoreCreditAmount,
 		CurrencyCode:      row.CurrencyCode,

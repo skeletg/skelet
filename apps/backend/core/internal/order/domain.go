@@ -20,16 +20,18 @@ type Order struct {
 	PaymentStatus   string
 	PaymentProvider string
 	// The gateway's handle (a Stripe PaymentIntent id, say), set at authorize and used to capture, refund, void and correlate webhooks - empty until authorized
-	PaymentReference string
-	BillingAddress   OrderAddress
-	ShippingAddress  OrderAddress
-	Lines            []OrderLine
-	Events           []OrderEvent
-	SubtotalAmount   int64
-	ShippingAmount   int64
-	DiscountAmount   int64
-	TaxAmount        int64
-	TotalAmount      int64
+	PaymentReference  string
+	BillingAddress    OrderAddress
+	ShippingAddress   OrderAddress
+	Lines             []OrderLine
+	Events            []OrderEvent
+	SubtotalAmount    int64
+	ShippingAmount    int64
+	DiscountAmount    int64
+	TaxAmount         int64
+	ShippingTaxAmount int64 // the part of TaxAmount charged on shipping
+	TotalAmount       int64
+	AnonID            string // the visitor id it was placed under - a guest order's later events reach the profile its placement did
 	// TRANSIENT and never persisted - set on the placement response for a client-side 3DS step and consumed by the storefront immediately
 	PaymentActionKind   string // "", "redirect" or "challenge" - what the client must do with PaymentActionSecret
 	PaymentActionSecret string
@@ -67,6 +69,10 @@ type OrderAddress struct {
 	PostalCode  string
 	CountryCode string
 	Phone       *string
+}
+
+type OrderAmounts struct {
+	Subtotal, Shipping, Discount, Tax, ShippingTax, Total int64
 }
 
 // One line item, prices in cents - a bundle line carries the bundle total with picks in Components, and simple lines leave it empty
@@ -167,7 +173,7 @@ type Repository interface {
 	UpdateOrderStatusFrom(ctx context.Context, id uuid.UUID, fromStatus, status string) (Order, error)
 	UpdateOrderLineQuantity(ctx context.Context, lineID uuid.UUID, quantity float64, totalPrice int64) (OrderLine, error)
 	SoftDeleteOrderLine(ctx context.Context, lineID uuid.UUID) (OrderLine, error)
-	UpdateOrderAmounts(ctx context.Context, id uuid.UUID, subtotal, shipping, discount, tax, total int64) (Order, error)
+	UpdateOrderAmounts(ctx context.Context, id uuid.UUID, a OrderAmounts) (Order, error)
 	UpdateOrderAddresses(ctx context.Context, id uuid.UUID, billing, shipping OrderAddress) (Order, error)
 	SetReturnExchangeOrder(ctx context.Context, returnID, orderID uuid.UUID) (OrderReturn, error)
 	// Stamps carrier and tracking inside the fulfill tx, so status and tracking commit atomically

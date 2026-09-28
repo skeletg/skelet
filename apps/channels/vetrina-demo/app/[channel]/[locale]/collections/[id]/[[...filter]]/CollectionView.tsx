@@ -7,7 +7,7 @@ import { Breadcrumbs } from "@/app/components/Breadcrumbs";
 import { JsonLd } from "@/app/components/JsonLd";
 import { ProductListShell } from "@/app/components/ProductListShell";
 import { browseProducts, getCollection, productSortOptions } from "@/app/lib/catalog/read";
-import { getSeoConfig } from "@/app/lib/config/read";
+import { getBrowsePageSize, getSeoConfig } from "@/app/lib/config/read";
 import { displayName } from "@/app/lib/display";
 import { collectionHref } from "@/app/lib/entity-href";
 import {
@@ -33,7 +33,7 @@ async function indexabilityFor(
       collectionId,
       attributes: pathFilters.length > 0 ? pathFilters : null,
     },
-    limit: 24,
+    limit: await getBrowsePageSize(),
     offset: 0,
   });
   const seo = await getSeoConfig();

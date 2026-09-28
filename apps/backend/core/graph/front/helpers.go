@@ -20,14 +20,12 @@ var ( // aliases onto graph/modelconv, the single source of truth - they keep ex
 	toOrderAddressModel       = modelconv.OrderAddressModel
 	toOrderEventModel         = modelconv.OrderEventModel
 	toOrderLineModel          = modelconv.OrderLineModel
-	toProductContentModels    = modelconv.ProductContentModels
 	toProductMediaModel       = modelconv.ProductMediaModel
 	toStringMapItems          = modelconv.StringMapItems
 	attributeInputTypeToGQL   = modelconv.AttributeInputTypeToGQL
 	boolOrFalse               = modelconv.BoolOrFalse
 	customerMetadataItems     = modelconv.CustomerMetadataItems
 	resolveMediaRole          = modelconv.ResolveMediaRole
-	effectiveTracksInventory  = modelconv.EffectiveTracksInventory
 	toGroupedMemberModels     = modelconv.GroupedMemberModels
 	productVariantModeModel   = modelconv.ProductVariantModeModel
 

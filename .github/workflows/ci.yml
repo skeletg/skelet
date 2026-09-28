@@ -160,28 +160,33 @@ jobs:
       matrix: ${{ fromJSON(needs.discover.outputs.frontends) }}
     steps:
       - uses: actions/checkout@v4
+      # Version from the app's packageManager field - there's no root package.json for the
+      # action's default to read. Before setup-node, whose pnpm cache needs pnpm on PATH
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: ${{ matrix.dir }}/package.json
       # .nvmrc is the pin - bin/pin-check keeps it in step with the app Dockerfiles,
       # which stay literal because a Dockerfile has to build on its own
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.dir }}/pnpm-lock.yaml
       - name: Install
         working-directory: ${{ matrix.dir }}
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       - name: Typecheck
         working-directory: ${{ matrix.dir }}
-        run: npm run typecheck
+        run: pnpm run typecheck
       # eslint stays out - it has accepted findings and bin/lint treats it as non-blocking
       - name: Test
         working-directory: ${{ matrix.dir }}
-        run: npm test
+        run: pnpm test
       # Production build - catches what typecheck+tests can't (vite chunking, next's prerender pass). Needs no live backend: every
       # storefront route is dynamic (gqlFetch reads cookies/headers), so next build fetches nothing at build time
       - name: Build
         working-directory: ${{ matrix.dir }}
-        run: npm run build
+        run: pnpm run build
 
   # The prod images are how this actually deploys, so a Dockerfile that stops building must fail the PR, not the release evening.
   # Build only - no push, no tags The dashboard's workspace shell is pointer gestures and cross-device state - dragging tabs between panes, splits, workspaces roaming through the preferences store.
@@ -193,11 +198,14 @@ jobs:
       E2E_ADMIN_PASSWORD: e2e-password
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/dashboard/package.json
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: apps/dashboard/package-lock.json
+          cache: pnpm
+          cache-dependency-path: apps/dashboard/pnpm-lock.yaml
       # bin/setup writes these from the templates on a dev machine; CI has no interactive setup
       - name: Environment files
         run: |
@@ -218,13 +226,13 @@ jobs:
         run: timeout 180 bash -c 'until curl -sf -o /dev/null http://localhost:5173/login; do sleep 2; done'
       - name: Install
         working-directory: apps/dashboard
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       - name: Install the browser
         working-directory: apps/dashboard
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
       - name: Run the suite
         working-directory: apps/dashboard
-        run: npm run test:e2e
+        run: pnpm run test:e2e
       # A failed browser test says little without the trace, and nothing at all about why the
       # stack behind it misbehaved
       - name: Playwright report

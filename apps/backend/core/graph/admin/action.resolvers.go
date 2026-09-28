@@ -2,65 +2,29 @@ package admin
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/action"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 func (r *mutationResolver) RunAdminAction(ctx context.Context, slug string, args interface{}) (*model.AdminActionResult, error) {
+	start := time.Now()
 	def, ok := action.Find(slug)
 	if !ok {
-		return nil, fmt.Errorf("unknown admin action: %s", slug)
-	}
-	if def.RequireGlobalPermission { // a channel-scoped grant would let one tenant's admin act for every tenant
-		if err := auth.RequireGlobalPermission(ctx, r.AdminSvc, def.Permission); err != nil {
-			return nil, err
-		}
-	} else if err := auth.RequirePermission(ctx, r.AdminSvc, def.Permission); err != nil {
+		err := fmt.Errorf("unknown admin action: %s", slug)
+		r.recordAdminAction(ctx, slug, args, nil, err, time.Since(start))
 		return nil, err
 	}
-
-	var rawArgs map[string]any // the JSON scalar arrives as map[string]any for objects - any other shape is a client error
-	if args != nil {
-		m, ok := args.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("args must be a JSON object")
-		}
-		rawArgs = m
-	} else {
-		rawArgs = map[string]any{}
+	if err := r.requireActionPermission(ctx, def); err != nil {
+		r.recordAdminAction(ctx, slug, args, nil, err, time.Since(start))
+		return nil, err
 	}
-
-	actingID := uuid.Nil
-	if claims, ok := auth.AdminFromContext(ctx); ok {
-		actingID = claims.AdminID
-	}
-
-	start := time.Now()
-	result, runErr := r.ActionSvc.Run(ctx, slug, rawArgs, actingID)
-	durationMs := int32(time.Since(start).Milliseconds())
-
-	if runErr != nil {
-		if errors.Is(runErr, action.ErrUnknownAction) { // registered-then-removed race - GraphQL error, the UI already saw the definition
-			return nil, runErr
-		}
-		return &model.AdminActionResult{ // handler/arg failures come back success=false so the UI renders them inline, no error toast
-			Success:    false,
-			Output:     runErr.Error(),
-			DurationMs: durationMs,
-		}, nil
-	}
-	return &model.AdminActionResult{
-		Success:    true,
-		Output:     result.Output,
-		Data:       result.Data,
-		DurationMs: durationMs,
-	}, nil
+	res, err := r.runAdminAction(ctx, slug, args)
+	r.recordAdminAction(ctx, slug, args, res, err, time.Since(start))
+	return res, err
 }
 
 func (r *queryResolver) AdminActions(ctx context.Context) ([]*model.AdminAction, error) {

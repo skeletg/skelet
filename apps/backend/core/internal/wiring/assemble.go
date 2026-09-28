@@ -39,6 +39,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
 	"github.com/skeletg/skelet/apps/backend/core/internal/storecredit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
@@ -122,6 +123,7 @@ type orderPlacementDeps struct {
 func wireOrderPlacement(d orderPlacementDeps) {
 	d.Order.SetTax(d.Tax)
 	d.Order.SetShipping(d.Shipping)
+	d.Shipping.SetDimensionLookup(ShippingDimensions{catalog: d.Catalog})
 	d.Order.SetPromotion(d.Promotion)
 	d.Order.SetCountryValidator(d.Country)
 	d.Order.SetProductTaxClassLookup(d.Catalog) // per-line tax needs each line's product tax class, resolved by SKU at placement time
@@ -219,7 +221,7 @@ func wireCatalogInventory(d catalogInventoryDeps) {
 
 type marketingDeps struct {
 	fx.In
-	Flows         *FlowEnroller
+	Flows         *enroll.Enroller
 	Customer      *customer.Service
 	Form          *form.Service
 	Consent       *consent.Service

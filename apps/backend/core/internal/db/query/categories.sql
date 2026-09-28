@@ -8,6 +8,21 @@ RETURNING *;
 -- name: GetCategoryByID :one
 SELECT * FROM catalog_categories WHERE id = $1;
 
+-- name: ListCategoryChain :many
+-- The category (depth 0) and its ancestors nearest first - the depth cap stops a parent cycle recursing forever
+WITH RECURSIVE chain(id, parent_id, depth) AS (
+    SELECT c.id, c.parent_id, 0 FROM catalog_categories c WHERE c.id = sqlc.arg(id)::uuid
+    UNION ALL
+    SELECT p.id, p.parent_id, chain.depth + 1
+    FROM catalog_categories p
+    JOIN chain ON p.id = chain.parent_id
+    WHERE chain.depth < 64
+)
+SELECT c.*
+FROM chain
+JOIN catalog_categories c ON c.id = chain.id
+ORDER BY chain.depth;
+
 -- name: GetCategoryBySlug :one
 SELECT * FROM catalog_categories WHERE slug = $1;
 

@@ -21,7 +21,7 @@ func (r *Resolver) fetchMembershipProduct(ctx context.Context, id uuid.UUID) (*c
 	if storeID == nil {
 		return nil, nil
 	}
-	p, err := r.CatalogSvc.GetProductForChannel(ctx, id, *storeID, r.activeLocale(ctx))
+	p, err := r.CatalogSvc.GetProductHeaderForChannel(ctx, id, *storeID, r.activeLocale(ctx))
 	if err != nil {
 		if errors.Is(err, catalog.ErrProductNotFound) {
 			return nil, nil
@@ -33,13 +33,31 @@ func (r *Resolver) fetchMembershipProduct(ctx context.Context, id uuid.UUID) (*c
 
 func (r *Resolver) loadConfigurableParentLink(ctx context.Context, childID uuid.UUID) (catalog.ConfigurableParentLink, error) {
 	if l := dataloaders.For(ctx); l != nil {
-		return l.ConfigurableParent.Load(ctx, childID)()
+		return l.LoadConfigurableParent(ctx, childID)
 	}
 	m, err := r.CatalogSvc.ListConfigurableParentByChildIDs(ctx, []uuid.UUID{childID})
 	if err != nil {
 		return catalog.ConfigurableParentLink{}, err
 	}
 	return m[childID], nil
+}
+
+func (r *Resolver) loadProductOptions(ctx context.Context, productID uuid.UUID) ([]catalog.ProductOption, error) {
+	if l := dataloaders.For(ctx); l != nil {
+		return l.LoadProductOptions(ctx, dataloaders.ProductOptionsKey{ProductID: productID, Locale: r.activeLocale(ctx)})
+	}
+	return r.CatalogSvc.GetProductOptions(ctx, productID, r.activeLocale(ctx))
+}
+
+func (r *Resolver) loadChildIDs(ctx context.Context, parentID uuid.UUID) ([]uuid.UUID, error) {
+	if l := dataloaders.For(ctx); l != nil {
+		return l.ChildIDs.Load(ctx, parentID)()
+	}
+	m, err := r.CatalogSvc.ListProductChildIDsByParentIDs(ctx, []uuid.UUID{parentID})
+	if err != nil {
+		return nil, err
+	}
+	return m[parentID], nil
 }
 
 func (r *Resolver) loadBundleLinks(ctx context.Context, productID uuid.UUID) ([]catalog.BundleSelectionLink, error) {
@@ -87,13 +105,21 @@ func (r *Resolver) buildConfigurableMembership(ctx context.Context, productIDStr
 	if err != nil {
 		return nil, err
 	}
-	optIDs := make(map[string]struct{}, len(rendered.ConfigurableOptions)) // optionValues (this variant's super-attribute values) and siblings both come off the parent's already-built, visibility-filtered children
-	for _, o := range rendered.ConfigurableOptions {
+	parentOpts, err := r.productConfigurableOptions(ctx, rendered)
+	if err != nil {
+		return nil, err
+	}
+	optIDs := make(map[string]struct{}, len(parentOpts))
+	for _, o := range parentOpts {
 		optIDs[o.ID] = struct{}{}
 	}
+	children, err := r.productChildren(ctx, rendered)
+	if err != nil {
+		return nil, err
+	}
 	optionValues := []*model.ProductAttributeValue{}
-	siblings := make([]*model.Product, 0, len(rendered.Children))
-	for _, c := range rendered.Children {
+	siblings := make([]*model.Product, 0, len(children))
+	for _, c := range children {
 		if c.ID == productIDStr {
 			for _, av := range c.AttributeValues {
 				if av.Attribute == nil {

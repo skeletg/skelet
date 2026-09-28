@@ -124,7 +124,7 @@ func (s *Service) RecordCreditMemoIntent(ctx context.Context, in IssueCreditMemo
 		return CreditMemoIntent{}, apperr.New("CREDIT_MEMO_NEGATIVE_ADJUSTMENT", apperr.ClassValidation,
 			"shipping refund, adjustment refund and adjustment fee must all be zero or positive")
 	}
-	if in.ShippingRefundCents > o.ShippingAmount {
+	if in.ShippingRefundCents > o.ShippingRefundable() {
 		return CreditMemoIntent{}, apperr.New("CREDIT_MEMO_SHIPPING_EXCEEDED", apperr.ClassValidation,
 			"shipping refund exceeds what was charged for shipping")
 	}

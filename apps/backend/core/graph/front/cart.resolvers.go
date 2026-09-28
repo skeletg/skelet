@@ -12,9 +12,8 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
-	"github.com/skeletg/skelet/apps/backend/core/internal/money"
-	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
-	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
+	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
@@ -401,7 +400,7 @@ func (r *queryResolver) Cart(ctx context.Context, id string) (*model1.Cart, erro
 }
 
 // Empty list when no zone covers the country - the storefront checkout renders this as the "Standard / Express / Free over $50" picker
-func (r *queryResolver) ShippingQuotes(ctx context.Context, countryCode string) ([]*model1.ShippingQuote, error) {
+func (r *queryResolver) ShippingQuotes(ctx context.Context, countryCode string, cartID *string, regionCode *string, postalCode *string) ([]*model1.ShippingQuote, error) {
 	if r.ShippingSvc == nil {
 		return nil, nil
 	}
@@ -409,43 +408,27 @@ func (r *queryResolver) ShippingQuotes(ctx context.Context, countryCode string) 
 	if !ok || sv == nil {
 		return nil, storeRequired()
 	}
-	// Subtotal drives free_above thresholds, and guest carts come via cookie + channel filter (mirrors Cart above)
-	// An empty cart quotes subtotal 0 so free_above methods don't qualify, which is right - the quote is what they'd pay checking out right now
-	var subtotal int64
-	var items []shipping.RateItem
-	if claims := channel.OptionalCustomerID(ctx); claims != nil {
-		c, err := r.CartSvc.GetOrCreateCart(ctx, *claims, sv.ID)
-		if err == nil {
-			for _, l := range c.Lines {
-				subtotal += money.LineTotal(l.UnitPrice, l.Quantity)
-				item := shipping.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice}
-				// Weight/dimension carriers need these - a lookup miss (deleted product, custom line) quotes weightless
-				if p, perr := r.CatalogSvc.GetProductBySKU(ctx, l.ProductSku); perr == nil {
-					if p.WeightGrams != nil {
-						item.WeightGrams = *p.WeightGrams
-					}
-					if p.LengthMm != nil {
-						item.LengthMm = *p.LengthMm
-					}
-					if p.WidthMm != nil {
-						item.WidthMm = *p.WidthMm
-					}
-					if p.HeightMm != nil {
-						item.HeightMm = *p.HeightMm
-					}
-				}
-				items = append(items, item)
-			}
+	var c cart.Cart
+	switch {
+	case cartID != nil && *cartID != "":
+		cid, err := uuid.Parse(*cartID)
+		if err != nil {
+			return nil, invalidID("cart")
+		}
+		if c, err = r.CartSvc.GetCart(ctx, cid, channel.OptionalCustomerID(ctx)); err != nil {
+			return nil, err
+		}
+		if c.ChannelID != sv.ID {
+			return nil, cart.ErrCartStoreMismatch
+		}
+	case channel.OptionalCustomerID(ctx) != nil:
+		// An empty cart quotes what they'd pay checking out right now
+		if own, err := r.CartSvc.GetOrCreateCart(ctx, *channel.OptionalCustomerID(ctx), sv.ID); err == nil {
+			c = own
 		}
 	}
-	// Aggregated across every enabled carrier, built-in and plugin - each option is keyed by (carrierSlug, code) and placeOrder echoes those back
-	quotes, err := r.ShippingSvc.QuoteAll(ctx, shipping.RateRequest{
-		ChannelID:     sv.ID,
-		Destination:   shipping.Address{CountryCode: strings.ToUpper(strings.TrimSpace(countryCode))},
-		SubtotalCents: subtotal,
-		CurrencyCode:  sv.CurrencyCode,
-		Items:         items,
-	})
+	req, _ := r.cartRateRequest(ctx, sv, c, countryCode, ptr.Deref(regionCode), ptr.Deref(postalCode))
+	quotes, err := r.ShippingSvc.QuoteAll(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -502,49 +485,13 @@ func (r *queryResolver) CartEstimate(ctx context.Context, cartID string, country
 	if c.ChannelID != sv.ID {
 		return nil, cart.ErrCartStoreMismatch
 	}
-
-	m := toCartModel(c)
-	// Post-discount subtotal is the taxable + free-shipping base, matching placement, so the live discount comes from the same promotion hydrator
-	// The destination is known here, so country-gated rules resolve the way placement will - the plain cart page has no address yet and passes ""
-	r.HydrateCartPromotions(ctx, m, c, countryCode)
-	taxable := max(int64(m.Subtotal)-int64(m.TotalDiscount), 0)
-
-	var items []shipping.RateItem
-	for _, l := range c.Lines {
-		item := shipping.RateItem{SKU: l.ProductSku, Quantity: l.Quantity, UnitPriceCents: l.UnitPrice}
-		if p, perr := r.CatalogSvc.GetProductBySKU(ctx, l.ProductSku); perr == nil {
-			if p.WeightGrams != nil {
-				item.WeightGrams = *p.WeightGrams
-			}
-			if p.LengthMm != nil {
-				item.LengthMm = *p.LengthMm
-			}
-			if p.WidthMm != nil {
-				item.WidthMm = *p.WidthMm
-			}
-			if p.HeightMm != nil {
-				item.HeightMm = *p.HeightMm
-			}
-		}
-		items = append(items, item)
-	}
-	country := strings.ToUpper(strings.TrimSpace(countryCode))
-	region := ""
-	if regionCode != nil {
-		region = strings.ToUpper(strings.TrimSpace(*regionCode))
-	}
+	req, m := r.cartRateRequest(ctx, sv, c, countryCode, ptr.Deref(regionCode), "")
 
 	out := make([]*model1.ShippingQuote, 0)
 	cheapest := int64(0)
 	haveShip := false
 	if r.ShippingSvc != nil {
-		quotes, qerr := r.ShippingSvc.QuoteAll(ctx, shipping.RateRequest{
-			ChannelID:     sv.ID,
-			Destination:   shipping.Address{CountryCode: country, Region: region},
-			SubtotalCents: taxable,
-			CurrencyCode:  sv.CurrencyCode,
-			Items:         items,
-		})
+		quotes, qerr := r.ShippingSvc.QuoteAll(ctx, req)
 		if qerr != nil {
 			return nil, qerr
 		}
@@ -561,25 +508,27 @@ func (r *queryResolver) CartEstimate(ctx context.Context, cartID string, country
 	}
 
 	var taxCents int64
-	if r.TaxSvc != nil {
-		if res, terr := r.TaxSvc.Compute(ctx, tax.ComputeInput{
-			ChannelID:    sv.ID,
-			CountryCode:  country,
-			RegionCode:   region,
-			TaxableCents: taxable,
-			TaxInclusive: sv.TaxInclusivePricing,
+	if r.OrderSvc != nil {
+		if t, terr := r.OrderSvc.EstimateTax(ctx, order.TaxEstimateInput{
+			Store:         sv,
+			CustomerID:    channel.OptionalCustomerID(ctx),
+			Cart:          c,
+			DiscountCents: int64(m.TotalDiscount),
+			ShippingCents: cheapest,
+			CountryCode:   req.Destination.CountryCode,
+			RegionCode:    req.Destination.Region,
 		}); terr == nil {
-			taxCents = res.Cents
+			taxCents = t
 		}
 	}
 
-	total := taxable + cheapest // tax-inclusive stores already fold tax into the subtotal, so it isn't added on top
+	total := req.SubtotalCents + cheapest
 	if !sv.TaxInclusivePricing {
 		total += taxCents
 	}
 
 	return &model1.CartEstimate{
-		SubtotalCents:         int32(taxable),
+		SubtotalCents:         int32(req.SubtotalCents),
 		ShippingOptions:       out,
 		CheapestShippingCents: int32(cheapest),
 		TaxCents:              int32(taxCents),

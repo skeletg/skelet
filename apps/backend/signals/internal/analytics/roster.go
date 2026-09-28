@@ -255,6 +255,11 @@ func (r *Roster) EraseCustomer(ctx context.Context, customerID uuid.UUID, email 
 	if r == nil || r.qs == nil {
 		return nil
 	}
+	if err := r.qs.MarkCustomerErased(ctx, signalsdb.MarkCustomerErasedParams{
+		CustomerID: customerID, ErasedAt: sql.NullTime{Time: erasedAt, Valid: !erasedAt.IsZero()},
+	}); err != nil {
+		return fmt.Errorf("mark erased: %w", err)
+	}
 	if err := r.qs.ScrubErasedRosterEntry(ctx, signalsdb.ScrubErasedRosterEntryParams{
 		CustomerID: customerID, ErasedAt: sql.NullTime{Time: erasedAt, Valid: !erasedAt.IsZero()},
 	}); err != nil {
@@ -278,6 +283,14 @@ func (r *Roster) EraseCustomer(ctx context.Context, customerID uuid.UUID, email 
 		return fmt.Errorf("detach lens sessions: %w", err)
 	}
 	return nil
+}
+
+// Erased reports whether core erased this customer - their id must not reach the spine again, whenever the write that names them arrives
+func (r *Roster) Erased(ctx context.Context, customerID uuid.UUID) (bool, error) {
+	if r == nil || r.qs == nil {
+		return false, nil
+	}
+	return r.qs.IsCustomerErased(ctx, customerID)
 }
 
 func timeOrZero(t *time.Time) time.Time {

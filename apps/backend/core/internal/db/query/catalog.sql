@@ -342,6 +342,13 @@ JOIN catalog_products p ON p.id = pc.child_id
 WHERE pc.parent_id = $1
 ORDER BY pc.sort_order, p.url;
 
+-- name: ListProductChildIDsByParentIDs :many
+-- Ids only, for the stock aggregate over a configurable's variants
+SELECT parent_id, child_id
+FROM catalog_product_children
+WHERE parent_id = ANY(sqlc.arg(parent_ids)::uuid[])
+ORDER BY parent_id, sort_order;
+
 -- name: ListProductChildrenByParentIDs :many
 SELECT pc.parent_id, p.*
 FROM catalog_product_children pc

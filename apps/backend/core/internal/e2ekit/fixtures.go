@@ -10,7 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
-	"github.com/skeletg/skelet/apps/backend/core/internal/wiring"
+	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/roster"
 )
 
 // A Store built from scratch through the real services: channel, product type, published listing,
@@ -141,7 +141,7 @@ func (h *Harness) NewStoreOpt(t TB, stock float64, priceCents int64, mutate func
 // harness's channels - over the contract, to the Signals process bin/test-e2e started
 func (h *Harness) SyncChannelRoster(t TB) {
 	t.Helper()
-	if err := wiring.PushChannelRoster(h.Ctx, h.D.Channel, h.D.Config, h.D.SignalsClient); err != nil {
+	if err := roster.PushChannels(h.Ctx, h.D.Channel, h.D.Config, h.D.SignalsClient); err != nil {
 		t.Fatalf("push channel roster: %v", err)
 	}
 }

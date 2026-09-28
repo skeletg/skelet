@@ -208,6 +208,8 @@ export function CheckoutForm({
   // shipping fieldset rather than a saved-address pick
   const [guestShippingCountry, setGuestShippingCountry] = useState("");
   const guestShippingCountryUpper = guestShippingCountry.trim().toUpperCase();
+  const [guestShippingRegion, setGuestShippingRegion] = useState("");
+  const [guestShippingPostal, setGuestShippingPostal] = useState("");
 
   const [customerNote, setCustomerNote] = useState(initialNote);
   const [giftCardCodes, setGiftCardCodes] = useState("");
@@ -260,6 +262,8 @@ export function CheckoutForm({
   const shippingCountry = isGuest
     ? guestShippingCountryUpper
     : shippingAddress?.countryCode ?? "";
+  const shippingRegion = isGuest ? guestShippingRegion : shippingAddress?.state ?? "";
+  const shippingPostal = (isGuest ? guestShippingPostal : shippingAddress?.postalCode ?? "").trim();
 
   useEffect(() => {
     if (!shippingCountry) {
@@ -271,22 +275,27 @@ export function CheckoutForm({
     }
     let cancelled = false;
     setShippingLoading(true);
-    fetch(`/api/shipping-quotes?country=${encodeURIComponent(shippingCountry)}`)
-      .then((r) => r.json())
-      .then((data: { quotes?: ShippingQuote[] }) => {
-        if (cancelled) return;
-        setShippingQuotes(data.quotes ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setShippingQuotes([]);
-      })
-      .finally(() => {
-        if (!cancelled) setShippingLoading(false);
-      });
+    const params = new URLSearchParams({ country: shippingCountry, region: shippingRegion, postal: shippingPostal });
+    // Postal codes arrive a keystroke at a time, so wait for a pause before re-quoting
+    const timer = setTimeout(() => {
+      fetch(`/api/shipping-quotes?${params}`)
+        .then((r) => r.json())
+        .then((data: { quotes?: ShippingQuote[] }) => {
+          if (cancelled) return;
+          setShippingQuotes(data.quotes ?? []);
+        })
+        .catch(() => {
+          if (!cancelled) setShippingQuotes([]);
+        })
+        .finally(() => {
+          if (!cancelled) setShippingLoading(false);
+        });
+    }, 350);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [shippingCountry]);
+  }, [shippingCountry, shippingRegion, shippingPostal]);
 
   // Re-fetch eligible payment methods when the destination country changes (a method
   // may be restricted to specific countries)
@@ -500,6 +509,8 @@ export function CheckoutForm({
                 regionsByCountry={regionsByCountry}
                 defaultCountry={countrySettings.defaultCountryCode}
                 onCountryChange={setGuestShippingCountry}
+                onRegionChange={setGuestShippingRegion}
+                onPostalChange={setGuestShippingPostal}
               />
             ) : addresses.length === 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">
@@ -1106,17 +1117,22 @@ function InlineAddressFieldset({
   regionsByCountry,
   defaultCountry,
   onCountryChange,
+  onRegionChange,
+  onPostalChange,
 }: {
   slot: "billing" | "shipping";
   countries: CountryOption[];
   regionsByCountry: Record<string, RegionOption[]>;
   defaultCountry?: string;
   onCountryChange?: (value: string) => void;
+  onRegionChange?: (value: string) => void;
+  onPostalChange?: (value: string) => void;
 }) {
   const [country, setCountry] = useState(defaultCountry ?? "");
   const handleCountryChange = (value: string) => {
     setCountry(value);
     onCountryChange?.(value);
+    onRegionChange?.("");
   };
   return (
     <div className="mt-3 grid gap-3 rounded-lg border border-border p-4">
@@ -1129,7 +1145,7 @@ function InlineAddressFieldset({
       <InlineInput slot={slot} field="street2" label="Apt, suite, etc. (optional)" />
       <InlineInput slot={slot} field="city" label="City" required />
       <div className="grid grid-cols-2 gap-3">
-        <InlineInput slot={slot} field="postalCode" label="Postal code" required />
+        <InlineInput slot={slot} field="postalCode" label="Postal code" required onChange={onPostalChange} />
         <CountrySelect
           name={`${slot}.countryCode`}
           label="Country"
@@ -1145,6 +1161,7 @@ function InlineAddressFieldset({
         name={`${slot}.state`}
         country={country}
         regions={regionsByCountry[country]}
+        onChange={onRegionChange}
       />
       <InlineInput slot={slot} field="phone" label="Phone (optional)" />
     </div>
@@ -1220,9 +1237,11 @@ function StateField({
   country,
   regions,
   formId = "place-order-form",
+  onChange,
 }: {
   name: string;
   country: string;
+  onChange?: (value: string) => void;
   // Backend-seeded subdivisions for this country; falls back to the static list when not provided (keeps the picker
   // working offline / for countries the channel hasn't fetched)
   regions?: RegionOption[];
@@ -1237,6 +1256,7 @@ function StateField({
           name={name}
           form={formId ?? undefined}
           defaultValue=""
+          onChange={onChange ? (e) => onChange(e.target.value) : undefined}
           className="rounded-lg border border-input bg-card px-3 py-2 outline-none focus:border-ring"
         >
           <option value="" disabled>
@@ -1254,6 +1274,7 @@ function StateField({
           name={name}
           form={formId ?? undefined}
           disabled={!country}
+          onChange={onChange ? (e) => onChange(e.target.value) : undefined}
           placeholder={country ? "" : "Pick a country first"}
           className="rounded-lg border border-input bg-card px-3 py-2 outline-none focus:border-ring disabled:opacity-50"
         />

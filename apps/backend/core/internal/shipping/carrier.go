@@ -31,6 +31,14 @@ type RateRequest struct {
 	Parcels []Parcel
 }
 
+type Dimensions struct {
+	WeightGrams, LengthMm, WidthMm, HeightMm int32
+}
+
+type DimensionLookup interface {
+	DimensionsBySKUs(ctx context.Context, skus []string) (map[string]Dimensions, error)
+}
+
 // One line summarized for rating - physical fields are 0 when the product doesn't specify them, and carriers should fall back to a default parcel
 type RateItem struct {
 	SKU            string

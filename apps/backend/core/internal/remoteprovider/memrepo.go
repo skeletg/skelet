@@ -74,6 +74,15 @@ func (r *MemRepo) List(_ context.Context) ([]Provider, error) {
 	return out, nil
 }
 
+func (r *MemRepo) ListActiveForChannel(ctx context.Context, channelID *uuid.UUID) ([]Provider, error) {
+	var out []Provider
+	for _, k := range AllKinds {
+		ps, _ := r.ListActiveByKind(ctx, k, channelID)
+		out = append(out, ps...)
+	}
+	return out, nil
+}
+
 func (r *MemRepo) ListActiveByKind(_ context.Context, kind Kind, channelID *uuid.UUID) ([]Provider, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
