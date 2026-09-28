@@ -1,5 +1,5 @@
-// Package action registers admin operations for the "Tools" surface - can't use init() like other registries since handlers need live service references, so domain packages call RegisterActions(svc) once main.go has built everything
-package action
+// Package adminaction registers admin operations for the "Tools" surface - can't use init() like other registries since handlers need live service references, so domain packages call RegisterActions(svc) once main.go has built everything
+package adminaction
 
 import (
 	"context"

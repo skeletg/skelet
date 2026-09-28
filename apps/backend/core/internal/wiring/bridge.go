@@ -6,9 +6,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/action"
 	"github.com/skeletg/skelet/apps/backend/core/internal/address"
 	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/adminaction"
 	"github.com/skeletg/skelet/apps/backend/core/internal/adminprefs"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
@@ -138,7 +138,7 @@ type Svcs struct {
 	WebForm      *webform.Service
 	Menu         *menu.Service
 	Chat         *chat.Service
-	Action       *action.Service
+	Action       *adminaction.Service
 	DataJob      *datajob.Service
 	Payment      *payment.Service
 	PaymentVault *paymentvault.Service

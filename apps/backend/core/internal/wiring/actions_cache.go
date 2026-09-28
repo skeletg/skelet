@@ -7,7 +7,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/action"
+	"github.com/skeletg/skelet/apps/backend/core/internal/adminaction"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 )
 
@@ -22,10 +22,10 @@ var flushableCaches = []struct{ Prefix, Label string }{
 	{"frontresp", "Storefront response cache"},
 }
 
-func flushOptions() []action.ArgumentOption {
-	opts := []action.ArgumentOption{{Value: "all", Label: "All namespaces"}}
+func flushOptions() []adminaction.ArgumentOption {
+	opts := []adminaction.ArgumentOption{{Value: "all", Label: "All namespaces"}}
 	for _, f := range flushableCaches {
-		opts = append(opts, action.ArgumentOption{Value: f.Prefix, Label: f.Label})
+		opts = append(opts, adminaction.ArgumentOption{Value: f.Prefix, Label: f.Label})
 	}
 	return opts
 }
@@ -43,21 +43,21 @@ func registerCacheActions(client *redis.Client, dev bool) {
 	if !dev {
 		return
 	}
-	action.Register(action.Definition{
+	adminaction.Register(adminaction.Definition{
 		Slug:        "dev.flush_caches",
 		Name:        "Flush Valkey caches",
 		Description: "Drops cached read-through namespaces (channel resolution, channel paths, category tree, url rewrites, config, menus, storefront responses) so the next read rebuilds from Postgres. Use when hand-editing rows in psql or chasing stale-cache suspicions.",
 		Group:       "Developer",
 		Permission:  "config.manage",
-		Arguments: []action.Argument{{
+		Arguments: []adminaction.Argument{{
 			Name:     "namespace",
 			Label:    "Namespace",
-			Type:     action.ArgSelect,
+			Type:     adminaction.ArgSelect,
 			Required: true,
 			Default:  "all",
 			Options:  flushOptions(),
 		}},
-		Handler: func(ctx context.Context, args action.Args) (action.Result, error) {
+		Handler: func(ctx context.Context, args adminaction.Args) (adminaction.Result, error) {
 			ns, _ := args.String("namespace")
 			targets := flushPrefixes()
 			if ns != "" && ns != "all" {
@@ -66,7 +66,7 @@ func registerCacheActions(client *redis.Client, dev bool) {
 			for _, prefix := range targets {
 				cache.New(client, prefix).Flush(ctx)
 			}
-			return action.Result{Output: fmt.Sprintf("flushed: %s", strings.Join(targets, ", "))}, nil
+			return adminaction.Result{Output: fmt.Sprintf("flushed: %s", strings.Join(targets, ", "))}, nil
 		},
 	})
 }
