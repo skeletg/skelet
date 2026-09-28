@@ -110,6 +110,8 @@ let sqlc generate the Go.
 - Dashboard: Vitest, `*.test.tsx` beside the component. `./skelet pnpm dashboard run test`
 - Storefront: Vitest. `./skelet pnpm <name> run test`
 - E2E money paths: `./skelet test e2e`, own databases, dropped and recreated each run (`--keep` to reuse), ~40 seconds
+- Storefront browser tests: `./skelet test storefront [name]`, Playwright against the running dev container,
+  ~1.5 minutes. Writes throwaway customers to the dev database. Needs `./skelet up` first
 
 **Dashboard typecheck trap:** `tsc --noEmit` on its own is a no-op here. Use
 `./skelet pnpm dashboard run typecheck:all`, or `pnpm exec tsc -p tsconfig.app.json --noEmit`.
