@@ -35,11 +35,12 @@ func NewRepository(queries *db.Queries, signals SignalsEraser, txMgr *txrunner.M
 
 func (r *postgresRepository) Create(ctx context.Context, input CreateCustomerInput) (Customer, error) {
 	row, err := r.queries.CreateCustomer(ctx, db.CreateCustomerParams{
-		ChannelID:    input.ChannelID,
-		Email:        input.Email,
-		PasswordHash: input.PasswordHash,
-		FirstName:    input.FirstName,
-		LastName:     input.LastName,
+		ChannelID:       input.ChannelID,
+		Email:           input.Email,
+		PasswordHash:    input.PasswordHash,
+		FirstName:       input.FirstName,
+		LastName:        input.LastName,
+		CustomerGroupID: sqlnull.UUID(input.GroupID),
 	})
 	if err != nil {
 		// the (channel, email) unique index firing means "already registered", not a server fault - the update paths mapped this and registration never did, so every reused email surfaced as a bare INTERNAL to the storefront

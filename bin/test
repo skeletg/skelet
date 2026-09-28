@@ -101,6 +101,7 @@ summarize() {
         if (match($0, /"Output":"([^"\\]|\\.)*"/))           # up to the closing quote, skipping escaped ones - OutputType follows it
             out = unescape(substr($0, RSTART + 10, RLENGTH - 11))
         k = pkg SUBSEP test
+        if (action == "build-output") { printf "%s", out; next }   # the compiler errors - they carry ImportPath, not Package
         if (action == "output") {
             if (test == "") {                                # ok / FAIL / ? lines, build errors, panics
                 if (out !~ /^(PASS|FAIL)\n$/) printf "%s", out   # the test binary verdict - the ok/FAIL line that follows carries it
@@ -111,9 +112,14 @@ summarize() {
             if (out !~ /^--- / && out ~ /[^[:space:]]/) last[k] = out
             next
         }
-        if (test == "") next                                 # package-level pass/fail/skip - the output line already said it
+        # A package-level fail is the verdict on tests already counted - unless none of its tests failed, which is a build
+        # failure or a binary that died outside any test (a TestMain panic), and would otherwise leave the tally at 0 failed
+        if (test == "") {
+            if (action == "fail" && !(pkg in testfailed)) broken[pkg] = (index($0, "\"FailedBuild\"") ? "build failed" : "failed outside any test")
+            next
+        }
         if (action == "pass") { passed++; delete buf[k]; delete last[k] }
-        else if (action == "fail") { failed++; printf "%s", buf[k]; delete buf[k]; delete last[k] }
+        else if (action == "fail") { failed++; testfailed[pkg] = 1; printf "%s", buf[k]; delete buf[k]; delete last[k] }
         else if (action == "skip") {
             skipped++
             reason = last[k]; sub(/^[[:space:]]*[^[:space:]]+\.go:[0-9]+: /, "", reason); sub(/\n$/, "", reason)
@@ -123,7 +129,12 @@ summarize() {
         }
     }
     END {
-        printf "==> %s: %d passed, %d failed, %d skipped\n", label, passed, failed, skipped
+        nbroken = 0
+        for (p in broken) nbroken++
+        printf "==> %s: %d passed, %d failed, %d skipped", label, passed, failed, skipped
+        if (nbroken) printf ", %d package%s broken", nbroken, (nbroken == 1 ? "" : "s")
+        printf "\n"
+        for (p in broken) printf "    broken: %s (%s)\n", p, broken[p]
         for (r in reasons) printf "    %4d skipped: %s\n", reasons[r], r
     }'
 }

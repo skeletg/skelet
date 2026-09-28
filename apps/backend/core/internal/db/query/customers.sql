@@ -1,8 +1,9 @@
 -- name: CreateCustomer :one
--- customer_group_id is auto-resolved to the current default group via subquery;
--- callers don't need to know which group to assign on registration
+-- customer_group_id falls back to the current default group, so a caller names one only when it
+-- means to - a customer.registering plugin routing the account, say
 INSERT INTO customers (email, password_hash, first_name, last_name, channel_id, customer_group_id)
-VALUES ($1, $2, $3, $4, $5, (SELECT id FROM customer_groups WHERE is_default))
+VALUES (sqlc.arg(email), sqlc.arg(password_hash), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.arg(channel_id),
+        COALESCE(sqlc.narg(customer_group_id)::uuid, (SELECT id FROM customer_groups WHERE is_default)))
 RETURNING *;
 
 -- name: GetCustomerByChannelAndEmail :one

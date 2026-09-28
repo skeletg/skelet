@@ -268,7 +268,7 @@ func TestArgsAccessors(t *testing.T) {
 
 func TestRunRejectsUnknownActions(t *testing.T) {
 	isolateRegistry(t)
-	if _, err := NewService().Run(context.Background(), "test.nope", nil, uuid.Nil); !errors.Is(err, ErrUnknownAction) {
+	if _, err := NewService().Run(context.Background(), "test.nope", nil); !errors.Is(err, ErrUnknownAction) {
 		t.Errorf("Run on an unregistered slug = %v, want ErrUnknownAction", err)
 	}
 }
@@ -286,7 +286,7 @@ func TestRunValidatesBeforeCallingTheHandler(t *testing.T) {
 		},
 	})
 
-	_, err := NewService().Run(context.Background(), "test.guarded", map[string]any{}, uuid.Nil)
+	_, err := NewService().Run(context.Background(), "test.guarded", map[string]any{})
 	if !errors.Is(err, ErrInvalidArgs) {
 		t.Fatalf("Run without the required argument = %v, want ErrInvalidArgs", err)
 	}
@@ -314,7 +314,7 @@ func TestRunReturnsTheHandlerResultAndError(t *testing.T) {
 		},
 	})
 
-	res, err := NewService().Run(context.Background(), "test.result", nil, uuid.New())
+	res, err := NewService().Run(context.Background(), "test.result", nil)
 	if !errors.Is(err, boom) {
 		t.Errorf("Run error = %v, want the handler's %v", err, boom)
 	}
@@ -338,7 +338,7 @@ func TestRunAppliesTheDeclaredTimeout(t *testing.T) {
 			return Result{}, nil
 		},
 	})
-	if _, err := NewService().Run(context.Background(), "test.timeout", nil, uuid.Nil); err != nil {
+	if _, err := NewService().Run(context.Background(), "test.timeout", nil); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if deadline <= 0 || deadline > 250*time.Millisecond {
@@ -357,7 +357,7 @@ func TestRunFallsBackToTheDefaultTimeout(t *testing.T) {
 			return Result{}, nil
 		},
 	})
-	if _, err := NewService().Run(context.Background(), "test.deftimeout", nil, uuid.Nil); err != nil {
+	if _, err := NewService().Run(context.Background(), "test.deftimeout", nil); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if deadline <= defaultTimeout-time.Second || deadline > defaultTimeout {
