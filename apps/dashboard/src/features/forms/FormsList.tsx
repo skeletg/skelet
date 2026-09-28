@@ -15,6 +15,7 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { SignupFormsDocument } from './Forms.gql'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -28,6 +29,8 @@ const TYPE_LABEL: Record<string, string> = {
 }
 
 export function FormsList() {
+  // Creating a form needs forms.manage - without it the button only led to an access-restricted page
+  const canCreate = usePermissions().has('forms.manage')
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
@@ -94,7 +97,7 @@ export function FormsList() {
           </span>
         }
         actions={
-          isChannel ? (
+          isChannel && canCreate ? (
             <Button asChild size="sm">
               <Link to="/forms/new">
                 <PlusIcon className="size-4" /> New form

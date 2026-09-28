@@ -52,7 +52,7 @@ const columns: ColumnDef<PointsEntry>[] = [
     size: 140,
     cell: ({ row }) => (
       <div
-        className={`text-right tabular-nums ${row.original.points < 0 ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'}`}
+        className={`text-right tabular-nums ${row.original.points < 0 ? 'text-destructive' : 'text-success'}`}
       >
         {row.original.points > 0 ? '+' : ''}
         {row.original.points.toLocaleString()}

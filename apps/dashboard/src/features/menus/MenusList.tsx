@@ -1,7 +1,5 @@
-import { useMemo, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useDraft } from '@/shared/saving/useDraft'
-import { duringCommit } from '@/lib/nav-guard'
+import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { PlusIcon, Trash2Icon } from 'lucide-react'
@@ -18,18 +16,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/data-table'
-import {
-  DetailPageBody,
-  DetailPageSection,
-} from '@/components/layout/detail-page'
 import { usePermissions } from '@/shared/auth/usePermissions'
-import { slugify } from '@/lib/slug'
 
 import {
-  CreateMenuDocument,
   DeleteMenuDocument,
   MenusListDocument,
 } from './Menus.gql'
@@ -191,118 +181,5 @@ export function MenusList() {
         </AlertDialogContent>
       </AlertDialog>
     </>
-  )
-}
-
-// MenuCreatePane is the standalone /menus/new create page (reached from the
-// table's "New menu" button)
-export function MenuCreatePane() {
-  const navigate = useNavigate()
-  const draft = useDraft({
-    slug: '',
-    name: '',
-  }, 'New menu')
-  const { slug, name } = draft.values
-  const { setSlug, setName } = draft.setters
-  const [slugTouched, setSlugTouched] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-
-  const [createMenu, { loading: creating }] = useMutation(CreateMenuDocument, {
-    refetchQueries: [{ query: MenusListDocument }],
-  })
-
-  function onNameChange(next: string) {
-    setName(next)
-    if (!slugTouched) setSlug(slugify(next))
-  }
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSubmitError(null)
-    try {
-      const res = await createMenu({
-        variables: { input: { slug: slug.trim(), name: name.trim() } },
-      })
-      const id = res.data?.createMenu.id
-      await duringCommit(() => (id ? navigate(`/menus/${id}`) : navigate('/menus')))
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Create failed.')
-    }
-  }
-
-  return (
-    <form id="menu-create-form" onSubmit={onSubmit} className="flex flex-col">
-      <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-semibold tracking-tight">
-              New menu
-            </h1>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              Admin-curated navigation menus for the channel header, footer, and
-              any other slot.
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button type="button" variant="outline" size="sm" asChild>
-              <Link to="/menus">Cancel</Link>
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={creating || !slug.trim() || !name.trim()}
-            >
-              {creating ? 'Creating…' : 'Create menu'}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <DetailPageBody>
-        {submitError && (
-          <div className="px-6 py-4">
-            <Alert variant="destructive">
-              <AlertTitle>Create failed</AlertTitle>
-              <AlertDescription>{submitError}</AlertDescription>
-            </Alert>
-          </div>
-        )}
-
-        <DetailPageSection
-          title="Basics"
-          description="Pick a slug the channel will reference (e.g. main-nav, footer-shop) and a human-readable name. Items can be added on the next screen."
-        >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="menu-name">Name</Label>
-              <Input
-                id="menu-name"
-                required
-                placeholder="Main Navigation"
-                value={name}
-                onChange={(e) => onNameChange(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="menu-slug">Slug</Label>
-              <Input
-                id="menu-slug"
-                required
-                placeholder="main-nav"
-                value={slug}
-                onChange={(e) => {
-                  setSlug(e.target.value)
-                  setSlugTouched(true)
-                }}
-              />
-              <p className="text-xs text-muted-foreground">
-                Auto-filled from name - edit to override.
-              </p>
-            </div>
-          </div>
-        </DetailPageSection>
-      </DetailPageBody>
-    </form>
   )
 }

@@ -38,8 +38,11 @@ import {
 import { visibleOptionIds } from './optionVisibility'
 import { ProductSearch } from './pickers'
 import { PluginSections } from '@/plugins/detail-sections'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 export function CartDetail() {
+  // Turning a cart into an order needs orders.update - without it the button only led to an access-restricted page or a refused save
+  const canCreateOrder = usePermissions().has('orders.update')
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { data, loading, error, refetch } = useQuery(CartDocument, { variables: { id }, skip: !id })
@@ -103,14 +106,16 @@ export function CartDetail() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              disabled={!isActive || cart.lines.length === 0}
-              onClick={() => navigate(`/orders/new?cartId=${cart.id}`)}
-            >
-              <FileTextIcon className="size-4" />
-              Create order
-            </Button>
+            {canCreateOrder && (
+              <Button
+                size="sm"
+                disabled={!isActive || cart.lines.length === 0}
+                onClick={() => navigate(`/orders/new?cartId=${cart.id}`)}
+              >
+                <FileTextIcon className="size-4" />
+                Create order
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"

@@ -24,9 +24,9 @@ import { CATEGORY_LABEL, NOTIFICATION_CATEGORIES } from './preferences'
 type Row = NotificationsQuery['notifications'][number]
 
 const SEVERITY: Record<string, { label: string; cls: string }> = {
-  critical: { label: 'Critical', cls: 'bg-red-500/15 text-red-700 dark:text-red-400' },
-  warning: { label: 'Warning', cls: 'bg-amber-500/15 text-amber-700 dark:text-amber-400' },
-  info: { label: 'Info', cls: 'bg-sky-500/15 text-sky-700 dark:text-sky-400' },
+  critical: { label: 'Critical', cls: 'bg-destructive-soft text-destructive' },
+  warning: { label: 'Warning', cls: 'bg-warning-soft text-warning' },
+  info: { label: 'Info', cls: 'bg-info-soft text-info' },
 }
 
 function fmtWhen(v: string): string {

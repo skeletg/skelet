@@ -261,7 +261,7 @@ export function CmsPagesPage() {
           !value?.length || value.includes(row.original.isPublished ? 'published' : 'draft'),
         cell: ({ row }) =>
           row.original.isPublished ? (
-            <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1.5 text-sm text-success">
               <CheckCircle2Icon className="size-3.5" /> Published
             </span>
           ) : (

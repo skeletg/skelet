@@ -11,9 +11,9 @@ import { WidgetSection } from './primitives'
 const ROWS = 5
 
 const SEVERITY_DOT: Record<string, string> = {
-  critical: 'bg-red-500',
-  warning: 'bg-amber-500',
-  info: 'bg-sky-500',
+  critical: 'bg-destructive',
+  warning: 'bg-warning',
+  info: 'bg-info',
 }
 
 function ago(iso: string): string {

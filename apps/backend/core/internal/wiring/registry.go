@@ -7,8 +7,8 @@ import (
 	graphadmin "github.com/skeletg/skelet/apps/backend/core/graph/admin"
 	graphfront "github.com/skeletg/skelet/apps/backend/core/graph/front"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/action"
 	"github.com/skeletg/skelet/apps/backend/core/internal/address"
+	"github.com/skeletg/skelet/apps/backend/core/internal/adminaction"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
@@ -64,7 +64,7 @@ func RegisterAdminActions(cfg *config.Service, tier SearchTier, vk CacheRedis, w
 	search.RegisterActions(tier.Indexes)
 	registerCacheActions(vk.Client, wcfg.IsDev())
 
-	if err := action.Validate(); err != nil {
+	if err := adminaction.Validate(); err != nil {
 		return fmt.Errorf("action registry: %w", err)
 	}
 	return nil

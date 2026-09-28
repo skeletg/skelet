@@ -39,6 +39,7 @@ type pageStore interface {
 	ListPageChannelListings(ctx context.Context, pageID uuid.UUID) ([]PageChannelListing, error)
 	ListPageChildren(ctx context.Context, parentID uuid.UUID) ([]Page, error)
 	ListPageContentByScope(ctx context.Context, pageIDs []uuid.UUID, locale string) (map[uuid.UUID]PageContent, error)
+	ListPageContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PageContent, error)
 	ListPageVariantContent(ctx context.Context, pageID uuid.UUID, locale string) ([]PageVariant, error)
 	ListPages(ctx context.Context, filter PageListFilter) ([]Page, error)
 	ListPagesSearch(ctx context.Context, filter PageListFilter, locale, query string) ([]Page, error)
@@ -856,4 +857,9 @@ func (s *pageService) fillPageContent(ctx context.Context, p *Page, locale strin
 			}
 		}
 	}
+}
+
+// ListPageTranslations returns every locale's content row for each page, in one query - list reads only carry the resolved locale, so the admin allContent field reads the full set here
+func (s *pageService) ListPageTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PageContent, error) {
+	return s.repo.ListPageContentFor(ctx, ids)
 }

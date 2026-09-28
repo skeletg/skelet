@@ -42,7 +42,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import {
   DetailPageBody,
   DetailPageHeader,
@@ -50,11 +49,20 @@ import {
   DetailPageSection,
 } from '@/components/layout/detail-page'
 import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
+import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
+import { useSectionForm } from '@/shared/saving/useSectionForm'
+import { useStore } from '@tanstack/react-form'
+import {
+  PRODUCT_TYPE_LABELS,
+  productTypeDiff,
+  productTypeSchema,
+  toProductTypeUpdateInput,
+  toProductTypeValues,
+  type ExistingProductType,
+} from './schemas/productType'
 import {
   SaveRegistryContext,
   useSaveRegistry,
-  useSaveSection,
-  type SectionDiffEntry,
 } from '@/shared/saving/saveRegistry'
 import {
   Select,
@@ -86,6 +94,7 @@ import {
   ProductTypesDocument,
   UnassignAttributeDocument,
   UpdateAttributeGroupDocument,
+  SetProductTypeUrlPathTemplateDocument,
   UpdateProductTypeDocument,
 } from './Catalog.gql'
 import { AttributeInputTypeBadge } from './AttributeInputTypeBadge'
@@ -935,177 +944,96 @@ function DraggableAttributeRow({ pa, canManage, unassigning, onUnassign }: Attri
 
 // ---------- Inline general settings ----------
 
-function GeneralProductTypeSection({
-  productType,
-  canManage,
-}: {
-  productType: {
-    id: string
-    slug: string
-    name: string
-    isDigital: boolean
-    isShippingRequired: boolean
-    urlTemplate: string
-  }
-  canManage: boolean
-}) {
-  const [name, setName] = useState(productType.name)
-  const [isDigital, setIsDigital] = useState(productType.isDigital)
-  const [isShippingRequired, setIsShippingRequired] = useState(productType.isShippingRequired)
-  const [urlTemplate, setUrlPathTemplate] = useState(productType.urlTemplate)
+// The product type's own fields - a form staged into the page's registry, with its own stored draft.
+// The attribute and group rows above and below are explicit actions, so they're not in here
+function GeneralProductTypeSection({ productType, canManage }: { productType: ExistingProductType; canManage: boolean }) {
+  const refetchQueries = [{ query: ProductTypesDocument }, { query: ProductTypeDocument, variables: { id: productType.id } }]
+  const [updateProductType] = useMutation(UpdateProductTypeDocument, { refetchQueries })
+  const [setUrlTemplate] = useMutation(SetProductTypeUrlPathTemplateDocument, { refetchQueries })
 
-  // Re-sync the form when the loaded product type refetches (state adjusted
-  // during render, keyed on the editable source fields)
-  const sourceKey = JSON.stringify([
-    productType.name,
-    productType.isDigital,
-    productType.isShippingRequired,
-    productType.urlTemplate,
-  ])
-  const [prevSourceKey, setPrevSourceKey] = useState(sourceKey)
-  if (prevSourceKey !== sourceKey) {
-    setPrevSourceKey(sourceKey)
-    setName(productType.name)
-    setIsDigital(productType.isDigital)
-    setIsShippingRequired(productType.isShippingRequired)
-    setUrlPathTemplate(productType.urlTemplate)
-  }
-
-  const [updateProductType] = useMutation(UpdateProductTypeDocument, {
-    refetchQueries: [
-      { query: ProductTypesDocument },
-      { query: ProductTypeDocument, variables: { id: productType.id } },
-    ],
-  })
-
-  // Staged save: field edits register with the page save registry; the
-  // header Save + confirm modal applies them - No section-local Save
-  const diff = useMemo<SectionDiffEntry[]>(() => {
-    const out: SectionDiffEntry[] = []
-    const field = (label: string, before: string, after: string) => {
-      if (before !== after) out.push({ label, before, after })
-    }
-    field('name', productType.name, name)
-    field('digital', String(productType.isDigital), String(isDigital))
-    field('requires shipping', String(productType.isShippingRequired), String(isShippingRequired))
-    field('URL path template', productType.urlTemplate, urlTemplate)
-    return out
-  }, [productType, name, isDigital, isShippingRequired, urlTemplate])
-
-  useSaveSection({
+  const baseline = useMemo(() => toProductTypeValues(productType), [productType])
+  const { form, draft } = useSectionForm({
     id: 'general',
     title: 'General',
-    diff,
-    save: async () => {
-      if (name.trim() === '') throw new Error('Name is required.')
-      await updateProductType({
-        variables: {
-          input: {
-            id: productType.id,
-            name,
-            isDigital,
-            isShippingRequired,
-            urlTemplate,
-          },
-        },
-      })
+    baseline,
+    schema: productTypeSchema,
+    diff: productTypeDiff,
+    routeKey: `product-type:${productType.id}`,
+    label: `Product type · ${productType.name}`,
+    submit: async (value) => {
+      // A changed template goes through its own mutation, which also recomputes the products' paths
+      const { input, newTemplate } = toProductTypeUpdateInput(value, productType)
+      await updateProductType({ variables: { input } })
+      if (newTemplate !== null) await setUrlTemplate({ variables: { productTypeId: productType.id, template: newTemplate } })
     },
   })
+  const isDigital = useStore(form.store, (s) => s.values.isDigital)
 
   return (
-    <DetailPageSection
-      title="General"
-      description="Slug is immutable after creation. Other settings can be edited at any time."
-    >
-      <div className="grid gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="pt-name">Name</Label>
-              <Input
-                id="pt-name"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={!canManage}
-                placeholder="T-shirt"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="pt-slug">Slug</Label>
-              <Input
-                id="pt-slug"
-                value={productType.slug}
-                disabled
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">Slug is immutable.</p>
-            </div>
+    <DetailPageSection title="General" description="Slug is immutable after creation. Other settings can be edited at any time.">
+      {draft.offer !== null && (
+        <div className="mb-4">
+          <RestoredDraftBanner draft={draft} labels={PRODUCT_TYPE_LABELS} />
+        </div>
+      )}
+      <fieldset disabled={!canManage} className="grid gap-4">
+        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
+          <form.AppField name="name">{(f) => <f.TextField id="pt-name" label="Name" placeholder="T-shirt" />}</form.AppField>
+          <div className="grid gap-1.5">
+            <Label htmlFor="pt-slug">Slug</Label>
+            <Input id="pt-slug" value={productType.slug} disabled className="font-mono" />
+            <p className="text-xs text-muted-foreground">Slug is immutable.</p>
           </div>
+        </div>
 
-          <div className="grid gap-3 rounded-md border p-4">
-            <PtSwitchRow
-              id="pt-digital"
-              label="Digital"
-              description="Digital goods have no physical shipment (e.g. downloads, gift cards)."
-              checked={isDigital}
-              onCheckedChange={(v) => {
-                setIsDigital(v)
-                if (v) setIsShippingRequired(false)
-              }}
-              disabled={!canManage}
-            />
-            <PtSwitchRow
-              id="pt-shipping"
-              label="Requires shipping"
-              description="Physical goods that need a fulfillment step."
-              checked={isShippingRequired}
-              onCheckedChange={setIsShippingRequired}
-              disabled={!canManage || isDigital}
-            />
-          </div>
+        <div className="grid gap-3 rounded-md border p-4">
+          <form.AppField
+            name="isDigital"
+            listeners={{
+              // Digital goods never ship
+              onChange: ({ value }) => {
+                if (value) form.setFieldValue('isShippingRequired', false)
+              },
+            }}
+          >
+            {(f) => (
+              <f.SwitchField
+                id="pt-digital"
+                label="Digital"
+                description="Digital goods have no physical shipment (e.g. downloads, gift cards)."
+                bordered={false}
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="isShippingRequired">
+            {(f) => (
+              <f.SwitchField
+                id="pt-shipping"
+                label="Requires shipping"
+                description="Physical goods that need a fulfillment step."
+                bordered={false}
+                disabled={!canManage || isDigital}
+              />
+            )}
+          </form.AppField>
+        </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="pt-url-template">URL path template</Label>
-            <Input
+        <form.AppField name="urlTemplate">
+          {(f) => (
+            <f.TextField
               id="pt-url-template"
+              label="URL path template"
               placeholder="{category}/{attr:brand}/{slug}"
-              value={urlTemplate}
-              onChange={(e) => setUrlPathTemplate(e.target.value)}
-              disabled={!canManage}
+              hint={
+                <>
+                  Empty disables auto-generation. Tokens: <code>{'{slug}'}</code> (required), <code>{'{category}'}</code>,{' '}
+                  <code>{'{categorySlug}'}</code>, <code>{'{attr:<slug>}'}</code>. Multiselect attributes aren&apos;t allowed.
+                </>
+              }
             />
-            <p className="text-xs text-muted-foreground">
-              Empty disables auto-generation. Tokens: <code>{'{slug}'}</code> (required),
-              {' '}<code>{'{category}'}</code>, <code>{'{categorySlug}'}</code>,
-              {' '}<code>{'{attr:<slug>}'}</code>. Multiselect attributes aren&apos;t allowed.
-            </p>
-          </div>
-      </div>
+          )}
+        </form.AppField>
+      </fieldset>
     </DetailPageSection>
-  )
-}
-
-function PtSwitchRow({
-  id,
-  label,
-  description,
-  checked,
-  onCheckedChange,
-  disabled,
-}: {
-  id: string
-  label: string
-  description: string
-  checked: boolean
-  onCheckedChange: (v: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <div className="grid gap-0.5">
-        <Label htmlFor={id} className="text-sm">{label}</Label>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </div>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
-    </div>
   )
 }

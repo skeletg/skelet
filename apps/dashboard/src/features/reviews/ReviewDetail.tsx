@@ -66,28 +66,20 @@ export function ReviewDetail() {
   const [note, setNote] = useState('')
   const [mutationError, setMutationError] = useState<string | null>(null)
 
-  const [approve, { loading: approving }] = useMutation(ApproveReviewDocument, {
-    refetchQueries: [
-      { query: ReviewDocument, variables: { id } },
-      { query: ReviewsDocument },
-    ],
-  })
-  const [reject, { loading: rejecting }] = useMutation(RejectReviewDocument, {
-    refetchQueries: [
-      { query: ReviewDocument, variables: { id } },
-      { query: ReviewsDocument },
-    ],
-  })
+  // Every review mutation returns ReviewFields through the same hydration as the Review query, so
+  // the cache updates this page from the response - only the list needs a refetch, for status
+  // filtering, and by name so it keeps its own filter and page
+  const [approve, { loading: approving }] = useMutation(ApproveReviewDocument, { refetchQueries: [ReviewsDocument] })
+  const [reject, { loading: rejecting }] = useMutation(RejectReviewDocument, { refetchQueries: [ReviewsDocument] })
 
   // --- AI tools ---
   const { data: aiData } = useQuery(ReviewsAiStatusDocument)
   const aiEnabled = aiData?.aiStatus.enabled ?? false
-  const refetchThis = [{ query: ReviewDocument, variables: { id } }]
-  const [recheck, { loading: rechecking }] = useMutation(RecheckReviewModerationDocument, { refetchQueries: refetchThis })
+  const [recheck, { loading: rechecking }] = useMutation(RecheckReviewModerationDocument)
   const { data: catData } = useQuery(ReviewCategoriesDocument, { fetchPolicy: 'cache-and-network' })
   const categories = catData?.reviewCategories ?? []
   const categoryNameOf = new Map(categories.map((c) => [c.slug, c.name]))
-  const [setCategories, { loading: settingCategory }] = useMutation(SetReviewCategoriesDocument, { refetchQueries: refetchThis })
+  const [setCategories, { loading: settingCategory }] = useMutation(SetReviewCategoriesDocument)
 
   // Toggle one category on/off and persist the new set (multi-category)
   function toggleCategory(slug: string) {
@@ -101,7 +93,7 @@ export function ReviewDetail() {
   const { data: tagData } = useQuery(ReviewModerationTagsDocument, { fetchPolicy: 'cache-and-network' })
   const modTags = tagData?.reviewModerationTags ?? []
   const tagNameOf = new Map(modTags.map((t) => [t.slug, t.name]))
-  const [setModTags, { loading: settingTags }] = useMutation(SetReviewModerationTagsDocument, { refetchQueries: refetchThis })
+  const [setModTags, { loading: settingTags }] = useMutation(SetReviewModerationTagsDocument)
 
   // Toggle one moderation flag on/off and persist the new set
   function toggleTag(slug: string) {
@@ -111,7 +103,7 @@ export function ReviewDetail() {
       : [...review.moderationTags, slug]
     void runAI(() => setModTags({ variables: { id: review.id, tagSlugs: next } }))
   }
-  const [replyMut, { loading: replying }] = useMutation(ReplyToReviewDocument, { refetchQueries: refetchThis })
+  const [replyMut, { loading: replying }] = useMutation(ReplyToReviewDocument)
   const [draftReply, { loading: drafting }] = useMutation(DraftReviewReplyDocument)
   const [genSummary, { loading: genningSummary }] = useMutation(GenerateProductReviewSummaryDocument)
   const [reply, setReply] = useState('')

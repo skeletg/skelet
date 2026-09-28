@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { LoadingState } from '@/components/ui/loading-state'
+import { CHART_ACCENT, CHART_SUCCESS, SERIES_OTHER } from '@/lib/chart-colors'
 import { cn } from '@/lib/utils'
 import {
   DetailPageBody,
@@ -375,7 +376,7 @@ function Results({ id, goalEvent }: { id: string; goalEvent: string }) {
           <div
             className={cn(
               'mb-4 rounded border px-3 py-2 text-sm',
-              winnerName ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600' : 'text-muted-foreground',
+              winnerName ? 'border-success/40 bg-success-soft text-success' : 'text-muted-foreground',
             )}
           >
             {winnerName ? (
@@ -398,9 +399,9 @@ function Results({ id, goalEvent }: { id: string; goalEvent: string }) {
                     <Tooltip content={<RateTooltip />} cursor={{ fill: 'transparent' }} />
                     <Bar dataKey="ratePct" radius={[4, 4, 0, 0]} maxBarSize={72}>
                       {chartData.map((d, i) => (
-                        <Cell key={i} fill={d.isWinner ? '#10b981' : d.isControl ? '#94a3b8' : '#6366f1'} />
+                        <Cell key={i} fill={d.isWinner ? CHART_SUCCESS : d.isControl ? SERIES_OTHER : CHART_ACCENT} />
                       ))}
-                      <ErrorBar dataKey="ci" width={4} strokeWidth={1.5} stroke="#64748b" direction="y" />
+                      <ErrorBar dataKey="ci" width={4} strokeWidth={1.5} stroke="var(--color-muted-foreground)" direction="y" />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -465,7 +466,7 @@ function Results({ id, goalEvent }: { id: string; goalEvent: string }) {
                         {r.isControl || r.exposed === 0 ? (
                           '-'
                         ) : (
-                          <span className={r.uplift > 0 ? 'text-emerald-600' : r.uplift < 0 ? 'text-red-600' : ''}>
+                          <span className={r.uplift > 0 ? 'text-success' : r.uplift < 0 ? 'text-destructive' : ''}>
                             {r.uplift > 0 ? '+' : ''}
                             {pct(r.uplift)}
                           </span>
@@ -475,7 +476,7 @@ function Results({ id, goalEvent }: { id: string; goalEvent: string }) {
                         {r.isControl || r.exposed === 0 ? (
                           '-'
                         ) : (
-                          <span className={strong ? 'font-medium text-emerald-600' : weak ? 'text-red-600' : 'text-muted-foreground'}>
+                          <span className={strong ? 'font-medium text-success' : weak ? 'text-destructive' : 'text-muted-foreground'}>
                             {pct(r.chanceToWin)}
                           </span>
                         )}
@@ -528,14 +529,14 @@ function ChanceBar({ name, chance, exposed }: { name: string; chance: number; ex
     <div className="grid gap-1">
       <div className="flex items-center justify-between text-xs">
         <span className="truncate">{name}</span>
-        <span className={cn('tabular-nums', win ? 'font-medium text-emerald-600' : lose ? 'text-red-600' : 'text-muted-foreground')}>
+        <span className={cn('tabular-nums', win ? 'font-medium text-success' : lose ? 'text-destructive' : 'text-muted-foreground')}>
           {exposed === 0 ? '-' : `${(chance * 100).toFixed(1)}%`}
         </span>
       </div>
       <div className="relative h-2 overflow-hidden rounded-full bg-muted">
         {exposed > 0 && (
           <span
-            className={cn('block h-full rounded-full', win ? 'bg-emerald-500' : lose ? 'bg-red-400' : 'bg-primary')}
+            className={cn('block h-full rounded-full', win ? 'bg-success' : lose ? 'bg-destructive' : 'bg-primary')}
             style={{ width: `${w}%` }}
           />
         )}

@@ -423,7 +423,7 @@ export function ProductInventorySection({ productId }: { productId: string }) {
                         />
                       </TableCell>
                       <TableCell>
-                        <span className={`font-mono text-sm ${reserved < 0 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
+                        <span className={`font-mono text-sm ${reserved < 0 ? 'text-warning' : 'text-muted-foreground'}`}>
                           {cur ? formatQty(reserved) : '-'}
                         </span>
                       </TableCell>

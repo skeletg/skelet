@@ -17,6 +17,7 @@ type authorStore interface {
 	GetAuthorByID(ctx context.Context, id uuid.UUID) (Author, error)
 	GetAuthorBySlug(ctx context.Context, slug string) (Author, error)
 	ListAuthorContentByScope(ctx context.Context, authorIDs []uuid.UUID, locale string) (map[uuid.UUID]AuthorContent, error)
+	ListAuthorContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]AuthorContent, error)
 	ListAuthors(ctx context.Context) ([]Author, error)
 	UpdateAuthor(ctx context.Context, in UpdateAuthorInput) (Author, error)
 	UpsertAuthorContent(ctx context.Context, authorID uuid.UUID, in AuthorContentInput) (AuthorContent, error)
@@ -220,4 +221,9 @@ func (s *core) fillAuthorContent(ctx context.Context, a *Author, locale string) 
 			}
 		}
 	}
+}
+
+// ListAuthorTranslations returns every locale's content row for each author, in one query - list reads only carry the resolved locale, so the admin allContent field reads the full set here
+func (s *authorService) ListAuthorTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]AuthorContent, error) {
+	return s.repo.ListAuthorContentFor(ctx, ids)
 }

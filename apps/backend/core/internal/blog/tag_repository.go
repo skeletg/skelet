@@ -195,3 +195,19 @@ func toTagContent(row db.BlogTagContent) TagContent {
 		UpdatedAt:       row.UpdatedAt,
 	}
 }
+
+// Every locale's row per tag, keyed by id - one with no rows is simply absent
+func (r *postgresRepository) ListTagContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]TagContent, error) {
+	out := make(map[uuid.UUID][]TagContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListBlogTagContentForTags(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("tag content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.TagID] = append(out[row.TagID], toTagContent(row))
+	}
+	return out, nil
+}

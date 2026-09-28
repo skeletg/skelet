@@ -9,6 +9,27 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
+// Content is the resolver for the content field. Every locale's row, primed by the list resolvers
+func (r *categoryResolver) Content(ctx context.Context, obj *model.Category) ([]*model.CategoryContent, error) {
+	// The detail path loaded every row already - lists leave it nil and read the primed cache instead
+	if obj.Content != nil {
+		return obj.Content, nil
+	}
+	id, err := parseID(obj.ID, "category")
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.getCategoryContent(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.CategoryContent, len(rows))
+	for i, row := range rows {
+		out[i] = toCategoryContentModel(row)
+	}
+	return out, nil
+}
+
 func (r *categoryResolver) Products(ctx context.Context, obj *model.Category) ([]*model.Product, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
 		return nil, err
@@ -455,21 +476,13 @@ func (r *queryResolver) RootCategories(ctx context.Context, channelID *string) (
 		if err != nil {
 			return nil, err
 		}
-		out := make([]*model.Category, len(cats))
-		for i, c := range cats {
-			out[i] = toCategoryModel(c)
-		}
-		return out, nil
+		return r.renderCategoryList(ctx, cats)
 	}
 	cats, err := r.CatalogSvc.ListRootCategories(ctx, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.Category, len(cats))
-	for i, c := range cats {
-		out[i] = toCategoryModel(c)
-	}
-	return out, nil
+	return r.renderCategoryList(ctx, cats)
 }
 
 // Filters by channelId when present.
@@ -490,21 +503,13 @@ func (r *queryResolver) CategoryChildren(ctx context.Context, parentID string, c
 		if err != nil {
 			return nil, err
 		}
-		out := make([]*model.Category, len(cats))
-		for i, c := range cats {
-			out[i] = toCategoryModel(c)
-		}
-		return out, nil
+		return r.renderCategoryList(ctx, cats)
 	}
 	cats, err := r.CatalogSvc.ListCategoryChildren(ctx, pid, r.activeLocale(ctx))
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.Category, len(cats))
-	for i, c := range cats {
-		out[i] = toCategoryModel(c)
-	}
-	return out, nil
+	return r.renderCategoryList(ctx, cats)
 }
 
 func (r *queryResolver) Category(ctx context.Context, id string) (*model.Category, error) {

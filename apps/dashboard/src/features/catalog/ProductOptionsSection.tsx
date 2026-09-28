@@ -530,7 +530,7 @@ function OptionCard({
               </Badge>
             )}
             {pending && (
-              <Badge variant="outline" className="font-normal text-amber-700 dark:text-amber-400">Unsaved</Badge>
+              <Badge variant="outline" className="font-normal text-warning">Unsaved</Badge>
             )}
           </div>
           {content.helpText && (
@@ -580,7 +580,7 @@ function OptionCard({
                   {sortedValues.map((v) => {
                     const vp = isTemp(v.id)
                     return (
-                      <TableRow key={v.id} className={vp ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}>
+                      <TableRow key={v.id} className={vp ? 'bg-warning-soft' : ''}>
                         <TableCell className="font-medium">{valueContentFor(v, locale)}</TableCell>
                         <TableCell className="font-mono text-xs">
                           {v.sourceProduct ? (
@@ -782,7 +782,7 @@ function AddOptionForm({
               <div className="grid gap-2">
                 <Label htmlFor="po-price-type">Type</Label>
                 <Select value={priceType} onValueChange={(v) => setPriceType(v as ProductOptionPriceType)}>
-                  <SelectTrigger id="po-price-type"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full" id="po-price-type"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="FIXED">Fixed (¢)</SelectItem>
                     <SelectItem value="PERCENT">Percent (%)</SelectItem>
@@ -980,7 +980,7 @@ function EditOptionForm({
               <div className="grid gap-2">
                 <Label htmlFor="po-price-type-edit">Type</Label>
                 <Select value={priceType} onValueChange={(v) => setPriceType(v as ProductOptionPriceType)}>
-                  <SelectTrigger id="po-price-type-edit"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full" id="po-price-type-edit"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="FIXED">Fixed (¢)</SelectItem>
                     <SelectItem value="PERCENT">Percent (%)</SelectItem>
@@ -1413,7 +1413,7 @@ function AddValueForm({
             <Label htmlFor="pov-title">Title ({locale})</Label>
             <Input id="pov-title" required value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 items-start">
             <div className="grid gap-2">
               <Label htmlFor="pov-price">{sourceProduct ? 'Markup' : 'Price adjustment'}</Label>
               <Input id="pov-price" type="number" value={priceValue} onChange={(e) => setPriceValue(e.target.value)} />
@@ -1425,7 +1425,7 @@ function AddValueForm({
                 onValueChange={(v) => setPriceType(v as ProductOptionPriceType)}
                 disabled={!!sourceProduct}
               >
-                <SelectTrigger id="pov-type"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full" id="pov-type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="FIXED">Fixed (¢)</SelectItem>
                   <SelectItem value="PERCENT" disabled={!!sourceProduct}>Percent (%)</SelectItem>
@@ -1570,7 +1570,7 @@ function EditValueForm({
                 onValueChange={(v) => setPriceType(v as ProductOptionPriceType)}
                 disabled={!!sourceProduct}
               >
-                <SelectTrigger id="pov-type-edit"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full" id="pov-type-edit"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="FIXED">Fixed (¢)</SelectItem>
                   <SelectItem value="PERCENT" disabled={!!sourceProduct}>Percent (%)</SelectItem>

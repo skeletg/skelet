@@ -4376,6 +4376,8 @@ type CMSPageTypeResolver interface {
 	PageCount(ctx context.Context, obj *model.CMSPageType) (int32, error)
 }
 type CategoryResolver interface {
+	Content(ctx context.Context, obj *model.Category) ([]*model.CategoryContent, error)
+
 	Products(ctx context.Context, obj *model.Category) ([]*model.Product, error)
 	ProductCount(ctx context.Context, obj *model.Category) (int32, error)
 	Listings(ctx context.Context, obj *model.Category) ([]*model.CategoryChannelListing, error)
@@ -4389,6 +4391,8 @@ type ChannelResolver interface {
 	InventoryLocations(ctx context.Context, obj *model.Channel) ([]*model.ChannelInventoryLocation, error)
 }
 type CollectionResolver interface {
+	Content(ctx context.Context, obj *model.Collection) ([]*model.CollectionContent, error)
+
 	Products(ctx context.Context, obj *model.Collection) ([]*model.Product, error)
 
 	FacetOverrides(ctx context.Context, obj *model.Collection) ([]*model.FacetOverride, error)
@@ -4881,6 +4885,8 @@ type OrderResolver interface {
 type ProductResolver interface {
 	SalableQuantity(ctx context.Context, obj *model.Product, channelID *string) (*float64, error)
 	InStock(ctx context.Context, obj *model.Product, channelID *string) (bool, error)
+
+	Content(ctx context.Context, obj *model.Product) ([]*model.ProductContent, error)
 
 	Downloads(ctx context.Context, obj *model.Product) ([]*model.ProductDownload, error)
 
@@ -69062,7 +69068,7 @@ func (ec *executionContext) _Category_content(ctx context.Context, field graphql
 			return ec.fieldContext_Category_content(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Content, nil
+			return ec.Resolvers.Category().Content(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.CategoryContent) graphql.Marshaler {
@@ -69076,8 +69082,8 @@ func (ec *executionContext) fieldContext_Category_content(_ context.Context, fie
 	fc = &graphql.FieldContext{
 		Object:     "Category",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_CategoryContent(ctx, field)
 		},
@@ -70578,7 +70584,7 @@ func (ec *executionContext) _Collection_content(ctx context.Context, field graph
 			return ec.fieldContext_Collection_content(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Content, nil
+			return ec.Resolvers.Collection().Content(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.CollectionContent) graphql.Marshaler {
@@ -70592,8 +70598,8 @@ func (ec *executionContext) fieldContext_Collection_content(_ context.Context, f
 	fc = &graphql.FieldContext{
 		Object:     "Collection",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_CollectionContent(ctx, field)
 		},
@@ -115910,7 +115916,7 @@ func (ec *executionContext) _Product_content(ctx context.Context, field graphql.
 			return ec.fieldContext_Product_content(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Content, nil
+			return ec.Resolvers.Product().Content(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.ProductContent) graphql.Marshaler {
@@ -115924,8 +115930,8 @@ func (ec *executionContext) fieldContext_Product_content(_ context.Context, fiel
 	fc = &graphql.FieldContext{
 		Object:     "Product",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ProductContent(ctx, field)
 		},
@@ -166559,10 +166565,43 @@ func (ec *executionContext) _Category(ctx context.Context, sel ast.SelectionSet,
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "content":
-			out.Values[i] = ec._Category_content(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Category_content(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "name":
 			out.Values[i] = ec._Category_name(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -167364,10 +167403,43 @@ func (ec *executionContext) _Collection(ctx context.Context, sel ast.SelectionSe
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "content":
-			out.Values[i] = ec._Collection_content(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Collection_content(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "coverImage":
 			out.Values[i] = ec._Collection_coverImage(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -180840,10 +180912,43 @@ func (ec *executionContext) _Product(ctx context.Context, sel ast.SelectionSet, 
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "content":
-			out.Values[i] = ec._Product_content(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Product_content(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "attributeValues":
 			out.Values[i] = ec._Product_attributeValues(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

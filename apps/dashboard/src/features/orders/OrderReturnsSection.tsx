@@ -35,6 +35,7 @@ import {
   IssueReturnRefundDocument,
   OrderDocument,
   type OrderQuery,
+  OrdersPagedDocument,
 } from './Orders.gql'
 
 type OrderData = OrderQuery['order']
@@ -47,7 +48,7 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
   const permissions = usePermissions()
   const canUpdate = permissions.canAccessChannelScope('orders.update', order.channelId)
   const canRefund = permissions.canAccessChannelScope('orders.refund', order.channelId)
-  const refetch = [{ query: OrderDocument, variables: { id: order.id } }, 'OrdersPaged']
+  const refetch = [{ query: OrderDocument, variables: { id: order.id } }, OrdersPagedDocument]
 
   const [requestReturn, requestState] = useMutation(RequestReturnDocument, { refetchQueries: refetch })
   const [approveReturn] = useMutation(ApproveReturnDocument, { refetchQueries: refetch })

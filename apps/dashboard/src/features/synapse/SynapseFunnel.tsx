@@ -147,7 +147,7 @@ export function SynapseFunnel() {
                           <div className="h-full rounded-full bg-primary" style={{ width: `${overall}%` }} />
                         </div>
                         {i > 0 && (
-                          <div className={cn('mt-1 text-xs', fromPrev < 50 ? 'text-amber-600' : 'text-muted-foreground')}>
+                          <div className={cn('mt-1 text-xs', fromPrev < 50 ? 'text-warning' : 'text-muted-foreground')}>
                             {fromPrev}% from previous step · {100 - fromPrev}% drop-off
                           </div>
                         )}

@@ -304,7 +304,7 @@ function IssueGiftCardDialog({
             <div className="grid gap-2">
               <Label htmlFor="gc-currency">Currency</Label>
               <Select value={currencyCode} onValueChange={setCurrencyCode}>
-                <SelectTrigger id="gc-currency">
+                <SelectTrigger className="w-full" id="gc-currency">
                   <SelectValue placeholder="Pick a currency" />
                 </SelectTrigger>
                 <SelectContent>

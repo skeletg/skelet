@@ -639,3 +639,19 @@ func toPageContent(row db.CmsPageContent) PageContent {
 		UpdatedAt:       row.UpdatedAt,
 	}
 }
+
+// Every locale's row per page, keyed by id - one with no rows is simply absent
+func (r *postgresRepository) ListPageContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PageContent, error) {
+	out := make(map[uuid.UUID][]PageContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListCMSPageContentForPages(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("page content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.PageID] = append(out[row.PageID], toPageContent(row))
+	}
+	return out, nil
+}

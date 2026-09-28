@@ -19,6 +19,7 @@ import { formatCents } from '@/lib/format'
 import { useConfigScope } from '@/lib/config-scope'
 import { CartsDocument } from './Carts.gql'
 import { NewCartDialog } from './NewCartDialog'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 type CartRow = {
   id: string
@@ -35,6 +36,8 @@ type CartRow = {
 // CartsList is the Order Manager's cart console: search/list a channel's carts (active by default; abandoned = old
 // active), open one to edit, or start a new cart - Channel-scoped via the header picker
 export function CartsList() {
+  // Creating a cart needs orders.update - without it the button only led to a refused save
+  const canCreate = usePermissions().has('orders.update')
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
   const { effectiveChannelId, scope } = useConfigScope()
@@ -147,10 +150,12 @@ export function CartsList() {
                 <SelectItem value="all">All</SelectItem>
               </SelectContent>
             </Select>
-            <Button size="sm" onClick={() => setNewOpen(true)}>
-              <PlusIcon className="size-4" />
-              New cart
-            </Button>
+            {canCreate && (
+              <Button size="sm" onClick={() => setNewOpen(true)}>
+                <PlusIcon className="size-4" />
+                New cart
+              </Button>
+            )}
           </div>
         }
       />

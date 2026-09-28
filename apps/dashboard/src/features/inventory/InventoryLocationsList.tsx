@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useMatch, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useDebounced } from '@/shared/hooks/useDebounced'
 import { type ColumnDef } from '@/components/data-table/tanstack'
@@ -53,10 +53,10 @@ export function InventoryLocationsList() {
   const debouncedSearch = useDebounced(search.trim(), 300)
   const navigate = useNavigate()
   const params = useParams<{ id?: string }>()
-  // /inventory/locations/new is its own URL but routes to this same
-  // component - Disambiguate by raw param
+  // /inventory/locations/new is its own literal route (no :id) to this same component, so match the path - the
+  // param is undefined there. The rawId check keeps /inventory/locations/:id from treating 'new' as an id
   const rawId = params.id ?? null
-  const isCreate = rawId === 'new'
+  const isCreate = useMatch('/inventory/locations/new') !== null || rawId === 'new'
   const activeID = !isCreate && rawId ? rawId : null
 
   const { has } = usePermissions()
@@ -89,7 +89,7 @@ export function InventoryLocationsList() {
   const [confirmingDelete, setConfirmingDelete] = useState<LocationRow | null>(null)
 
   const [deleteLocation] = useMutation(DeleteInventoryLocationDocument, {
-    refetchQueries: ['InventoryLocationsPaged'],
+    refetchQueries: [InventoryLocationsPagedDocument],
   })
 
   // Throws on failure - ConfirmDialog keeps itself open and shows the message

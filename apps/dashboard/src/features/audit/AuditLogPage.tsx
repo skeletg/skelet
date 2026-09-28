@@ -81,9 +81,9 @@ export function AuditLogPage() {
         header: ({ column }) => <DataTableColumnHeader column={column} title="Result" />,
         cell: ({ row }) =>
           row.original.success ? (
-            <Badge variant="outline" className="text-emerald-700 dark:text-emerald-300">ok</Badge>
+            <Badge variant="outline" className="text-success">ok</Badge>
           ) : (
-            <Badge variant="outline" className="text-red-700 dark:text-red-300">failed</Badge>
+            <Badge variant="outline" className="text-destructive">failed</Badge>
           ),
       },
       {

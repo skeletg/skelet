@@ -246,3 +246,19 @@ func toAuthorContent(row db.BlogAuthorContent) AuthorContent {
 		UpdatedAt: row.UpdatedAt,
 	}
 }
+
+// Every locale's row per author, keyed by id - one with no rows is simply absent
+func (r *postgresRepository) ListAuthorContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]AuthorContent, error) {
+	out := make(map[uuid.UUID][]AuthorContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListBlogAuthorContentForAuthors(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("author content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.AuthorID] = append(out[row.AuthorID], toAuthorContent(row))
+	}
+	return out, nil
+}

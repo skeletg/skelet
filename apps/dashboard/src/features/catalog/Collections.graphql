@@ -1,0 +1,236 @@
+query CollectionProductPicker {
+  products {
+    id
+    sku
+    name
+  }
+}
+
+query Collections {
+  collections {
+    id
+    slug
+    isPublished
+    seoNoindex
+    name
+    content {
+      locale
+      name
+    }
+    coverImage {
+      url
+      altText
+      status
+    }
+    products {
+      id
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+query Collection($id: ID!) {
+  collection(id: $id) {
+    id
+    slug
+    isPublished
+    seoNoindex
+    name
+    description
+    metaTitle
+    metaDescription
+    metaKeywords
+    contentLocale
+    content {
+      locale
+      name
+      description
+      metaTitle
+      metaDescription
+      metaKeywords
+      updatedAt
+    }
+    coverImage {
+      url
+      altText
+      width
+      height
+      mimeType
+      status
+    }
+    products {
+      id
+      name
+      sku
+      defaultPrice
+      defaultCurrencyCode
+      thumbnail {
+        id
+        url
+        altText
+        status
+      }
+    }
+    metadata {
+      key
+      value
+    }
+    privateMetadata {
+      key
+      value
+    }
+    facetOverrides {
+      attributeId
+      attributeSlug
+      sortOrder
+      hidden
+    }
+    createdAt
+    updatedAt
+  }
+}
+
+# List order IS the storefront order; an empty list resets the collection to defaults
+mutation SetCollectionFacetOverrides($collectionId: ID!, $overrides: [FacetOverrideInput!]!) {
+  setCollectionFacetOverrides(collectionId: $collectionId, overrides: $overrides) {
+    id
+    updatedAt
+  }
+}
+
+mutation CreateCollection($input: CreateCollectionInput!) {
+  createCollection(input: $input) {
+    id
+    slug
+    name
+  }
+}
+
+mutation UpdateCollection($input: UpdateCollectionInput!) {
+  updateCollection(input: $input) {
+    id
+    slug
+    isPublished
+    seoNoindex
+    updatedAt
+    metadata {
+      key
+      value
+    }
+    privateMetadata {
+      key
+      value
+    }
+  }
+}
+
+mutation DeleteCollection($id: ID!) {
+  deleteCollection(id: $id)
+}
+
+mutation UpsertCollectionContent(
+  $collectionId: ID!
+  $locale: String!
+  $input: UpsertCollectionContentInput!
+) {
+  upsertCollectionContent(collectionId: $collectionId, locale: $locale, input: $input) {
+    id
+    name
+    description
+    metaTitle
+    metaDescription
+    metaKeywords
+    updatedAt
+    content {
+      locale
+      name
+      description
+      metaTitle
+      metaDescription
+      metaKeywords
+      updatedAt
+    }
+  }
+}
+
+mutation DeleteCollectionContent($collectionId: ID!, $locale: String!) {
+  deleteCollectionContent(collectionId: $collectionId, locale: $locale)
+}
+
+fragment CollectionProductsSelection on Collection {
+  id
+  updatedAt
+  products {
+    id
+    name
+    sku
+    defaultPrice
+    defaultCurrencyCode
+    thumbnail {
+      id
+      url
+      altText
+      status
+    }
+  }
+}
+
+mutation AddProductToCollection($collectionId: ID!, $productId: ID!, $sortOrder: Int) {
+  addProductToCollection(collectionId: $collectionId, productId: $productId, sortOrder: $sortOrder) {
+    ...CollectionProductsSelection
+  }
+}
+
+mutation RemoveProductFromCollection($collectionId: ID!, $productId: ID!) {
+  removeProductFromCollection(collectionId: $collectionId, productId: $productId) {
+    ...CollectionProductsSelection
+  }
+}
+
+mutation ReorderCollectionProducts($collectionId: ID!, $productIds: [ID!]!) {
+  reorderCollectionProducts(collectionId: $collectionId, productIds: $productIds) {
+    ...CollectionProductsSelection
+  }
+}
+
+mutation RequestCollectionCoverUpload($input: RequestCollectionCoverUploadInput!) {
+  requestCollectionCoverUpload(input: $input) {
+    uploadUrl
+    expiresAt
+    collection {
+      id
+      slug
+    }
+  }
+}
+
+mutation ConfirmCollectionCoverUpload($collectionId: ID!, $width: Int!, $height: Int!) {
+  confirmCollectionCoverUpload(collectionId: $collectionId, width: $width, height: $height) {
+    id
+    updatedAt
+    coverImage {
+      url
+      altText
+      width
+      height
+      mimeType
+      status
+    }
+  }
+}
+
+mutation ClearCollectionCover($collectionId: ID!) {
+  clearCollectionCover(collectionId: $collectionId) {
+    id
+    updatedAt
+    coverImage {
+      url
+      altText
+      width
+      height
+      mimeType
+      status
+    }
+  }
+}

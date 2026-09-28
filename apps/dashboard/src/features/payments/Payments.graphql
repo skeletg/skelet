@@ -1,0 +1,25 @@
+query PaymentMethods($channelId: ID!) {
+  paymentMethods(channelId: $channelId) {
+    providerSlug
+    displayName
+    isEnabled
+    sortOrder
+    countryMode
+    allowedCountries
+  }
+}
+
+mutation SetPaymentMethodEnabled($channelId: ID!, $providerSlug: String!, $enabled: Boolean!) {
+  setPaymentMethodEnabled(channelId: $channelId, providerSlug: $providerSlug, enabled: $enabled) {
+    providerSlug
+    isEnabled
+  }
+}
+
+mutation SetPaymentMethodCountries($channelId: ID!, $providerSlug: String!, $mode: String!, $countries: [String!]!) {
+  setPaymentMethodCountries(channelId: $channelId, providerSlug: $providerSlug, mode: $mode, countries: $countries) {
+    providerSlug
+    countryMode
+    allowedCountries
+  }
+}

@@ -11,7 +11,6 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   ImageIcon,
-  PlusIcon,
   ShapesIcon,
   Trash2Icon,
   XIcon,
@@ -32,14 +31,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  DetailPageBody,
-  DetailPageHeader,
-  DetailPageLayout,
-  DetailPageSection,
-} from '@/components/layout/detail-page'
+import { DetailPageSection } from '@/components/layout/detail-page'
 import { formatCents } from '@/lib/format'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
@@ -50,28 +42,22 @@ import {
   CollectionDocument,
   CollectionProductPickerDocument,
   CollectionsDocument,
-  type CollectionDetail as CollectionRecord,
-  type CollectionProduct,
+  type CollectionQuery,
   ConfirmCollectionCoverUploadDocument,
   RemoveProductFromCollectionDocument,
   ReorderCollectionProductsDocument,
   DeleteCollectionContentDocument,
   DeleteCollectionDocument,
-  type MetadataEntry,
   RequestCollectionCoverUploadDocument,
   UpdateCollectionDocument,
   UpsertCollectionContentDocument,
 } from './Collections.gql'
-import { LexicalRichTextEditor, richTextToPlainText, type RichTextValue } from './LexicalRichTextEditor'
+import { FormRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
 import { UrlRewritesSection } from './UrlRewritesSection'
 import { AutocompletePicker, type Option } from '@/features/promotions/widgets/AutocompletePicker'
-import { SaveConfirmDialog } from '@/shared/saving/SaveConfirmDialog'
-import {
-  SaveRegistryContext,
-  useSaveRegistry,
-  useSaveSection,
-  type SectionDiffEntry,
-} from '@/shared/saving/saveRegistry'
+import { RecordFormPage } from '@/shared/saving/RecordFormPage'
+import { useRecordForm } from '@/shared/saving/useRecordForm'
+import { useSaveSection, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
 import { LoadingState } from '@/components/ui/loading-state'
 import { PluginSections } from '@/plugins/detail-sections'
 import { AttributesDocument } from './Catalog.gql'
@@ -82,6 +68,10 @@ import {
   useFacetOverridesDraft,
   type FacetOverrideValue,
 } from './facet-overrides-draft'
+import { COLLECTION_LABELS, collectionChanges, collectionDiff, collectionSchema, toCollectionValues } from './schemas/collection'
+
+type CollectionRecord = NonNullable<CollectionQuery['collection']>
+type CollectionProduct = CollectionRecord['products'][number]
 
 type CollectionRefetch = Array<{ query: typeof CollectionDocument; variables: { id: string } }>
 
@@ -115,110 +105,21 @@ function resolveProductName(product: CollectionProduct) {
   return product.name?.trim() || product.sku?.trim() || product.id
 }
 
-function cleanMetadata(entries: MetadataEntry[]): MetadataEntry[] {
-  return entries
-    .map((entry) => ({ key: entry.key.trim(), value: entry.value }))
-    .filter((entry) => entry.key || entry.value)
-}
-
-function findDuplicateKey(entries: MetadataEntry[]): string | null {
-  const seen = new Set<string>()
-  for (const entry of entries) {
-    if (!entry.key) continue
-    if (seen.has(entry.key)) return entry.key
-    seen.add(entry.key)
-  }
-  return null
-}
-
-function clip(value: string, max = 80): string {
-  return value.length > max ? `${value.slice(0, max - 1)}…` : value
-}
-
-function metadataDiffEntries(
-  prefix: string,
-  before: MetadataEntry[],
-  after: MetadataEntry[],
-): SectionDiffEntry[] {
-  const cleanedAfter = cleanMetadata(after)
-  const beforeMap = new Map(before.map((entry) => [entry.key, entry.value]))
-  const afterMap = new Map(cleanedAfter.map((entry) => [entry.key, entry.value]))
-  const out: SectionDiffEntry[] = []
-  for (const [key, value] of afterMap) {
-    const prev = beforeMap.get(key)
-    if (prev !== value) {
-      out.push({ label: `${prefix} · ${key || '(no key)'}`, before: clip(prev ?? ''), after: clip(value) })
-    }
-  }
-  for (const [key, value] of beforeMap) {
-    if (!afterMap.has(key)) out.push({ label: `${prefix} · ${key}`, before: clip(value), after: '' })
-  }
-  return out
-}
-
 export function CollectionDetail() {
   const { id = '' } = useParams()
-  const navigate = useNavigate()
-  const { has } = usePermissions()
   const { scope, selectedChannel, globalDefaultLocale } = useConfigScope()
-  const canManage = has('catalog.manage')
-  // Locale comes from the `Locale` request header (set by the Apollo
-  // localeLink); we still derive `scopedLocale` for client-side rendering
-  // - picking the active translation row to seed the form state
-  const scopedLocale =
-    scope.mode === 'CHANNEL'
-      ? scope.locale || selectedChannel?.defaultLocale || undefined
-      : undefined
-  const collectionVariables = { id }
+  // Locale comes from the `Locale` request header (set by the Apollo localeLink); we still derive
+  // `scopedLocale` for client-side rendering - picking the active translation row to seed the form
+  const scopedLocale = scope.mode === 'CHANNEL' ? scope.locale || selectedChannel?.defaultLocale || undefined : undefined
 
   const collectionQuery = useQuery(CollectionDocument, {
-    variables: collectionVariables,
+    variables: { id },
     skip: !id,
     notifyOnNetworkStatusChange: true,
   })
   const collection = collectionQuery.data?.collection
 
-  const collectionRefetch = [{ query: CollectionDocument, variables: collectionVariables }]
-  const [deleteCollection, { loading: deleting }] = useMutation(DeleteCollectionDocument, {
-    refetchQueries: [{ query: CollectionsDocument }],
-  })
-
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-
-  // Page save registry: every editable section (basics, cover, content, metadata) stages its edits and the header Save
-  // applies them through the SaveConfirmDialog diff modal - the dashboard-wide convention (see docs/conventions.md)
-  const { contextValue: saveContextValue, dirtySections, isDirty, saveAll } = useSaveRegistry()
-  const [confirmingSave, setConfirmingSave] = useState(false)
-  const [savingAll, setSavingAll] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
-
-  async function onConfirmSave() {
-    setSaveError(null)
-    setSavingAll(true)
-    try {
-      await saveAll()
-      setConfirmingSave(false)
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Save failed.')
-    } finally {
-      setSavingAll(false)
-    }
-  }
-
-  async function onDelete() {
-    setDeleteError(null)
-    try {
-      await deleteCollection({ variables: { id } })
-      navigate('/collections', { replace: true })
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
-  }
-
-  if (collectionQuery.loading) {
-    return <LoadingState label="Loading collection…" />
-  }
+  if (collectionQuery.loading && !collection) return <LoadingState label="Loading collection…" />
   if (collectionQuery.error) {
     return (
       <LoadError
@@ -229,94 +130,275 @@ export function CollectionDetail() {
       />
     )
   }
-  if (!collection) {
-    return <p className="text-sm text-muted-foreground">Collection not found.</p>
+  if (!collection) return <p className="text-sm text-muted-foreground">Collection not found.</p>
+
+  const locale = scopedLocale ?? collection.contentLocale ?? collection.content[0]?.locale ?? globalDefaultLocale
+  // Keyed on the locale too - the name, description and SEO fields are that locale's translation
+  return <CollectionForm key={`${collection.id}:${locale}`} collection={collection} locale={locale} />
+}
+
+// Slug, flags, the translation and metadata are one form behind the header Save; the cover upload and
+// the storefront filter order stage as their own sections into the same registry, and products and
+// URL paths write as they're edited
+function CollectionForm({ collection, locale }: { collection: CollectionRecord; locale: string }) {
+  const navigate = useNavigate()
+  const { has } = usePermissions()
+  const canManage = has('catalog.manage')
+  const refetchQueries: CollectionRefetch = [{ query: CollectionDocument, variables: { id: collection.id } }]
+
+  const [updateCollection] = useMutation(UpdateCollectionDocument, { refetchQueries })
+  const [upsertContent] = useMutation(UpsertCollectionContentDocument, { refetchQueries })
+  const [deleteContent, { loading: deletingContent }] = useMutation(DeleteCollectionContentDocument, { refetchQueries })
+  const [deleteCollection, { loading: deleting }] = useMutation(DeleteCollectionDocument, {
+    refetchQueries: [{ query: CollectionsDocument }],
+  })
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [confirmingContentDelete, setConfirmingContentDelete] = useState(false)
+  const [contentDeleteError, setContentDeleteError] = useState<string | null>(null)
+
+  const baseline = useMemo(() => toCollectionValues(collection, locale), [collection, locale])
+  const schema = useMemo(() => collectionSchema(baseline), [baseline])
+  const displayName = resolveCollectionName(collection)
+  const hasTranslation = collection.content.some((c) => c.locale === locale)
+
+  const record = useRecordForm({
+    id: 'collection',
+    title: `Collection (${locale})`,
+    label: `Collection · ${displayName} · ${locale}`,
+    isEdit: true,
+    baseline,
+    schema,
+    diff: collectionDiff,
+    persist: { routeKey: `collection:${collection.id}:${locale}` },
+    submit: async (v) => {
+      const changes = collectionChanges(baseline, v)
+      if (changes.update) await updateCollection({ variables: { input: { id: collection.id, ...changes.update } } })
+      if (changes.content) await upsertContent({ variables: { collectionId: collection.id, locale, input: changes.content } })
+    },
+  })
+  const { form } = record
+
+  async function onDelete() {
+    setDeleteError(null)
+    try {
+      await deleteCollection({ variables: { id: collection.id } })
+      navigate('/collections', { replace: true })
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed.')
+    }
   }
 
-  const displayName = resolveCollectionName(collection)
-  const activeLocale =
-    scopedLocale ?? collection.contentLocale ?? collection.content[0]?.locale ?? globalDefaultLocale
+  async function onDeleteContent() {
+    setContentDeleteError(null)
+    try {
+      await deleteContent({ variables: { collectionId: collection.id, locale } })
+      setConfirmingContentDelete(false)
+    } catch (err) {
+      setContentDeleteError(err instanceof Error ? err.message : 'Delete failed.')
+    }
+  }
 
   return (
-    <SaveRegistryContext.Provider value={saveContextValue}>
-    <DetailPageLayout>
-      <DetailPageHeader
-        backTo="/collections"
-        backLabel="Back to collections"
-        title={displayName}
-        badges={
-          <Badge variant={collection.isPublished ? 'default' : 'outline'}>
-            {collection.isPublished ? 'Published' : 'Draft'}
+    <RecordFormPage
+      record={record}
+      backTo="/collections"
+      backLabel="Back to collections"
+      title={displayName}
+      badges={
+        collection.isPublished ? (
+          <Badge variant="secondary">Published</Badge>
+        ) : (
+          <Badge variant="outline" className="text-muted-foreground">
+            Draft
           </Badge>
-        }
-        meta={<code className="font-mono">{collection.slug}</code>}
-        actions={
-          canManage ? (
-            <>
+        )
+      }
+      meta={<code className="font-mono">{collection.slug}</code>}
+      actions={
+        canManage && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => {
+              setDeleteError(null)
+              setConfirmingDelete(true)
+            }}
+            disabled={deleting}
+          >
+            <Trash2Icon className="size-4" />
+            Delete
+          </Button>
+        )
+      }
+      createLabel="Save changes"
+      labels={COLLECTION_LABELS}
+      hideSave={!canManage}
+    >
+      <DetailPageSection title="General" description="Slug, visibility, cover image, and public name and description.">
+        <div className="grid gap-6">
+          <fieldset disabled={!canManage} className="grid gap-4">
+            <form.AppField name="slug">{(f) => <f.TextField id="collection-detail-slug" label="Slug" />}</form.AppField>
+            <form.AppField name="isPublished">
+              {(f) => (
+                <f.SwitchField id="collection-published" label="Published" description="Make this collection visible on channels." bordered={false} />
+              )}
+            </form.AppField>
+            <form.AppField name="seoNoindex">
+              {(f) => (
+                <f.SwitchField id="collection-noindex" label="Noindex" description="Ask search engines not to index this collection." bordered={false} />
+              )}
+            </form.AppField>
+          </fieldset>
+          <Separator />
+          <CollectionCoverBlock collection={collection} canManage={canManage} refetchQueries={refetchQueries} />
+          <Separator />
+          <fieldset disabled={!canManage} className="grid gap-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-medium">Translation</h4>
+                <p className="text-xs text-muted-foreground">Channel name and description for this locale.</p>
+              </div>
+              <Badge variant="outline" className="shrink-0">
+                {locale}
+              </Badge>
+            </div>
+            <form.AppField name="name">{(f) => <f.TextField id="collection-content-name" label="Name" />}</form.AppField>
+            <div className="grid gap-2">
+              <Label>Description</Label>
+              <form.Field name="description">
+                {(f) => (
+                  <FormRichTextEditor
+                    value={f.state.value as RichTextValue}
+                    fallbackText=""
+                    disabled={!canManage}
+                    placeholder="Describe the collection..."
+                    onChange={(next, plainText) => {
+                      f.handleChange(next)
+                      form.setFieldValue('descriptionText', plainText)
+                    }}
+                  />
+                )}
+              </form.Field>
+            </div>
+          </fieldset>
+        </div>
+      </DetailPageSection>
+
+      <CollectionProductsSection collection={collection} canManage={canManage} refetchQueries={refetchQueries} />
+
+      <DetailPageSection title="SEO" description="Meta tags and search-engine URL paths." trailing={<Badge variant="outline">{locale}</Badge>}>
+        <div className="grid gap-4">
+          <fieldset disabled={!canManage || deletingContent} className="grid gap-4">
+            <div className="grid items-start gap-4 md:grid-cols-2">
+              <form.AppField name="metaTitle">{(f) => <f.TextField id="collection-content-meta-title" label="Meta title" />}</form.AppField>
+              <form.AppField name="metaKeywords">
+                {(f) => <f.TextField id="collection-content-meta-keywords" label="Meta keywords" />}
+              </form.AppField>
+            </div>
+            <form.AppField name="metaDescription">
+              {(f) => <f.TextareaField id="collection-content-meta-description" label="Meta description" rows={4} />}
+            </form.AppField>
+          </fieldset>
+
+          {canManage && (
+            <div className="flex justify-end">
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => { setDeleteError(null); setConfirmingDelete(true) }}
-                disabled={deleting}
+                onClick={() => {
+                  setContentDeleteError(null)
+                  setConfirmingContentDelete(true)
+                }}
+                disabled={!hasTranslation || deletingContent}
               >
                 <Trash2Icon className="size-4" />
-                Delete
+                Delete translation
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                disabled={!isDirty || savingAll}
-                onClick={() => { setSaveError(null); setConfirmingSave(true) }}
-              >
-                {savingAll ? 'Saving…' : isDirty ? 'Save changes' : 'No changes'}
-              </Button>
-            </>
-          ) : null
-        }
-      />
+            </div>
+          )}
 
-      <DetailPageBody>
-        <CollectionContentSections
-          key={`${collection.id}:${activeLocale}:${collection.updatedAt}:content`}
-          collection={collection}
-          locale={activeLocale}
-          canManage={canManage}
-          refetchQueries={collectionRefetch}
-        />
+          <Separator />
 
-        <CollectionProductsSection
-          collection={collection}
-          canManage={canManage}
-          refetchQueries={collectionRefetch}
-        />
+          <div>
+            <h4 className="text-sm font-medium">URL paths</h4>
+            <p className="text-xs text-muted-foreground">Canonical path and redirects for this collection.</p>
+          </div>
+          <UrlRewritesSection entityId={collection.id} entityType="COLLECTION" entityLabel="collection" canManage={canManage} />
+        </div>
+      </DetailPageSection>
 
-        <CollectionFacetOverridesSection
-          collection={collection}
-          canManage={canManage}
-          refetchQueries={collectionRefetch}
-        />
+      <CollectionFacetOverridesSection collection={collection} canManage={canManage} refetchQueries={refetchQueries} />
 
-        <CollectionMetadataSection
-          key={`${collection.id}:${collection.updatedAt}:metadata`}
-          collection={collection}
-          canManage={canManage}
-          refetchQueries={collectionRefetch}
-        />
-        <PluginSections target="collection" entity={collection ?? null} mode="edit" />
-      </DetailPageBody>
+      <DetailPageSection title="Custom data" description="Public and private key-value pairs for integrations and workflows.">
+        <fieldset disabled={!canManage} className="grid gap-6">
+          <section className="grid gap-3">
+            <div className="grid gap-1">
+              <h3 className="text-sm font-medium">Metadata</h3>
+              <p className="text-sm text-muted-foreground">Publicly exposable values available to channels and APIs.</p>
+            </div>
+            <form.AppField name="metadata">{(f) => <f.MetadataField />}</form.AppField>
+          </section>
+          <Separator />
+          <section className="grid gap-3">
+            <div className="grid gap-1">
+              <h3 className="text-sm font-medium">Private metadata</h3>
+              <p className="text-sm text-muted-foreground">Internal-only values for admin processes and backend integrations.</p>
+            </div>
+            <form.AppField name="privateMetadata">{(f) => <f.MetadataField label="Private metadata" />}</form.AppField>
+          </section>
+        </fieldset>
+      </DetailPageSection>
+
+      <PluginSections target="collection" entity={collection} mode="edit" />
+
+      <AlertDialog
+        open={confirmingContentDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmingContentDelete(false)
+            setContentDeleteError(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {locale} translation?</AlertDialogTitle>
+            <AlertDialogDescription>This removes the locale-specific name, description, and SEO fields for this collection.</AlertDialogDescription>
+          </AlertDialogHeader>
+          {contentDeleteError && (
+            <Alert variant="destructive">
+              <AlertTitle>Delete failed</AlertTitle>
+              <AlertDescription>{contentDeleteError}</AlertDescription>
+            </Alert>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingContent}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={onDeleteContent} disabled={deletingContent}>
+              {deletingContent ? 'Deleting...' : 'Delete translation'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={confirmingDelete}
-        onOpenChange={(open) => { if (!open) { setConfirmingDelete(false); setDeleteError(null) } }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmingDelete(false)
+            setDeleteError(null)
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete collection?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the collection record, cover image reference, translations, product
-              memberships, and autogenerated public rewrite.
+              This removes the collection record, cover image reference, translations, product memberships, and autogenerated public
+              rewrite.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError && (
@@ -333,367 +415,7 @@ export function CollectionDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Review-before-save modal: lists every staged change across the
-          page's sections (basics, cover, content, metadata) */}
-      <SaveConfirmDialog
-        open={confirmingSave}
-        scopeLabel={`Collection · ${displayName} · ${activeLocale}`}
-        sections={dirtySections}
-        saving={savingAll}
-        error={saveError}
-        onCancel={() => { if (!savingAll) { setConfirmingSave(false); setSaveError(null) } }}
-        onConfirm={onConfirmSave}
-      />
-    </DetailPageLayout>
-    </SaveRegistryContext.Provider>
-  )
-}
-
-// Owns the staged drafts for the per-locale content row (name, rich-text
-// description, SEO meta tags) and registers them as ONE save section:
-// UpsertCollectionContent replaces the whole (collection, locale) row, so
-// splitting name/description and SEO into independently-saved sections
-// would let one save clobber the other's staged fields - Renders both the
-// General and SEO page sections so the UI layout stays unchanged
-function CollectionContentSections({
-  collection,
-  locale,
-  canManage,
-  refetchQueries,
-}: {
-  collection: CollectionRecord
-  locale: string
-  canManage: boolean
-  refetchQueries: CollectionRefetch
-}) {
-  const currentContent = collection.content.find((entry) => entry.locale === locale)
-
-  // Baselines mirror the seeds below so the diff is empty until the user
-  // edits - and self-clears after a save once the refetch lands
-  const baseName = currentContent?.name ?? collection.name ?? ''
-  const baseDescriptionText = richTextToPlainText(currentContent?.description as RichTextValue)
-  const baseMetaTitle = currentContent?.metaTitle ?? collection.metaTitle ?? ''
-  const baseMetaDescription = currentContent?.metaDescription ?? collection.metaDescription ?? ''
-  const baseMetaKeywords = currentContent?.metaKeywords ?? collection.metaKeywords ?? ''
-
-  const [name, setName] = useState(baseName)
-  const [description, setDescription] = useState<RichTextValue>(currentContent?.description as RichTextValue)
-  const [descriptionText, setDescriptionText] = useState(baseDescriptionText)
-  const [metaTitle, setMetaTitle] = useState(baseMetaTitle)
-  const [metaDescription, setMetaDescription] = useState(baseMetaDescription)
-  const [metaKeywords, setMetaKeywords] = useState(baseMetaKeywords)
-
-  const [confirmingContentDelete, setConfirmingContentDelete] = useState(false)
-  const [contentDeleteError, setContentDeleteError] = useState<string | null>(null)
-
-  const [upsertContent] = useMutation(UpsertCollectionContentDocument, { refetchQueries })
-  const [deleteContent, { loading: deletingContent }] = useMutation(DeleteCollectionContentDocument, { refetchQueries })
-
-  // Rich text shows its plain text in the modal; formatting-only edits (same text, different Lexical JSON) still count
-  // as dirty via the serialized compare below - otherwise a bold/heading change would be unsavable ("No changes")
-  const baseDescriptionJSON = JSON.stringify(currentContent?.description ?? null)
-  const diff = useMemo<SectionDiffEntry[]>(() => {
-    const out: SectionDiffEntry[] = []
-    const field = (label: string, before: string, after: string) => {
-      if (before !== after) out.push({ label, before: clip(before), after: clip(after) })
-    }
-    field('name', baseName, name)
-    field('description', baseDescriptionText, descriptionText)
-    if (
-      baseDescriptionText === descriptionText &&
-      JSON.stringify(description ?? null) !== baseDescriptionJSON
-    ) {
-      out.push({ label: 'description', before: 'previous formatting', after: 'updated formatting' })
-    }
-    field('meta title', baseMetaTitle, metaTitle)
-    field('meta description', baseMetaDescription, metaDescription)
-    field('meta keywords', baseMetaKeywords, metaKeywords)
-    return out
-  }, [
-    baseName, name,
-    baseDescriptionText, descriptionText,
-    baseDescriptionJSON, description,
-    baseMetaTitle, metaTitle,
-    baseMetaDescription, metaDescription,
-    baseMetaKeywords, metaKeywords,
-  ])
-
-  useSaveSection({
-    id: 'content',
-    title: `Content (${locale})`,
-    diff,
-    save: async () => {
-      if (!name.trim()) throw new Error('Name is required for this locale before content can be saved.')
-      await upsertContent({
-        variables: {
-          collectionId: collection.id,
-          locale,
-          input: {
-            name: name.trim(),
-            description: descriptionText.trim() ? description : undefined,
-            metaTitle: metaTitle.trim() || undefined,
-            metaDescription: metaDescription.trim() || undefined,
-            metaKeywords: metaKeywords.trim() || undefined,
-          },
-        },
-      })
-    },
-  })
-
-  async function onDeleteContent() {
-    setContentDeleteError(null)
-    try {
-      await deleteContent({ variables: { collectionId: collection.id, locale } })
-      setConfirmingContentDelete(false)
-    } catch (err) {
-      setContentDeleteError(err instanceof Error ? err.message : 'Delete failed.')
-    }
-  }
-
-  return (
-    <>
-      <DetailPageSection
-        title="General"
-        description="Slug, visibility, cover image, and public name and description."
-      >
-        <div className="grid gap-6">
-          <CollectionBasicsBlock
-            collection={collection}
-            canManage={canManage}
-            refetchQueries={refetchQueries}
-          />
-          <Separator />
-          <CollectionCoverBlock
-            collection={collection}
-            canManage={canManage}
-            refetchQueries={refetchQueries}
-          />
-          <Separator />
-          <div className="grid gap-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h4 className="text-sm font-medium">Translation</h4>
-                <p className="text-xs text-muted-foreground">
-                  Channel name and description for this locale.
-                </p>
-              </div>
-              <Badge variant="outline" className="shrink-0">{locale}</Badge>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="collection-content-name">Name</Label>
-              <Input
-                id="collection-content-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                disabled={!canManage}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Description</Label>
-              <LexicalRichTextEditor
-                value={description}
-                fallbackText=""
-                disabled={!canManage}
-                placeholder="Describe the collection..."
-                onChange={(next, plainText) => {
-                  setDescription(next)
-                  setDescriptionText(plainText)
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      </DetailPageSection>
-
-      <DetailPageSection
-        title="SEO"
-        description="Meta tags and search-engine URL paths."
-        trailing={<Badge variant="outline">{locale}</Badge>}
-      >
-        <div className="grid gap-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="collection-content-meta-title">Meta title</Label>
-              <Input
-                id="collection-content-meta-title"
-                value={metaTitle}
-                onChange={(event) => setMetaTitle(event.target.value)}
-                disabled={!canManage || deletingContent}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="collection-content-meta-keywords">Meta keywords</Label>
-              <Input
-                id="collection-content-meta-keywords"
-                value={metaKeywords}
-                onChange={(event) => setMetaKeywords(event.target.value)}
-                disabled={!canManage || deletingContent}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="collection-content-meta-description">Meta description</Label>
-            <Textarea
-              id="collection-content-meta-description"
-              rows={4}
-              value={metaDescription}
-              onChange={(event) => setMetaDescription(event.target.value)}
-              disabled={!canManage || deletingContent}
-            />
-          </div>
-
-          {canManage && (
-            <div className="flex justify-end">
-              <Button
-                variant="outline"
-                onClick={() => { setContentDeleteError(null); setConfirmingContentDelete(true) }}
-                disabled={!currentContent || deletingContent}
-              >
-                <Trash2Icon className="size-4" />
-                Delete translation
-              </Button>
-            </div>
-          )}
-
-          <Separator />
-
-          <div>
-            <h4 className="text-sm font-medium">URL paths</h4>
-            <p className="text-xs text-muted-foreground">
-              Canonical path and redirects for this collection.
-            </p>
-          </div>
-          <UrlRewritesSection
-            entityId={collection.id}
-            entityType="COLLECTION"
-            entityLabel="collection"
-            canManage={canManage}
-          />
-        </div>
-      </DetailPageSection>
-
-      <AlertDialog
-        open={confirmingContentDelete}
-        onOpenChange={(open) => { if (!open) { setConfirmingContentDelete(false); setContentDeleteError(null) } }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {locale} translation?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the locale-specific name, description, and SEO fields for this
-              collection.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {contentDeleteError && (
-            <Alert variant="destructive">
-              <AlertTitle>Delete failed</AlertTitle>
-              <AlertDescription>{contentDeleteError}</AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingContent}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onDeleteContent} disabled={deletingContent}>
-              {deletingContent ? 'Deleting...' : 'Delete translation'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  )
-}
-
-function CollectionBasicsBlock({
-  collection,
-  canManage,
-  refetchQueries,
-}: {
-  collection: CollectionRecord
-  canManage: boolean
-  refetchQueries: CollectionRefetch
-}) {
-  const [slug, setSlug] = useState(collection.slug)
-  const [isPublished, setIsPublished] = useState(collection.isPublished)
-  const [seoNoindex, setSeoNoindex] = useState(collection.seoNoindex)
-  const [updateCollection] = useMutation(UpdateCollectionDocument, { refetchQueries })
-
-  const diff = useMemo<SectionDiffEntry[]>(() => {
-    const out: SectionDiffEntry[] = []
-    if (slug !== collection.slug) out.push({ label: 'slug', before: collection.slug, after: slug })
-    if (isPublished !== collection.isPublished) {
-      out.push({
-        label: 'status',
-        before: collection.isPublished ? 'Published' : 'Draft',
-        after: isPublished ? 'Published' : 'Draft',
-      })
-    }
-    if (seoNoindex !== collection.seoNoindex) {
-      out.push({ label: 'noindex', before: String(collection.seoNoindex), after: String(seoNoindex) })
-    }
-    return out
-  }, [collection.slug, collection.isPublished, collection.seoNoindex, slug, isPublished, seoNoindex])
-
-  useSaveSection({
-    id: 'basics',
-    title: 'General',
-    diff,
-    save: async () => {
-      await updateCollection({
-        variables: {
-          input: {
-            id: collection.id,
-            slug: slug.trim() || undefined,
-            isPublished,
-            seoNoindex,
-          },
-        },
-      })
-    },
-  })
-
-  return (
-    <div className="grid gap-4">
-      <div className="grid gap-2">
-        <Label htmlFor="collection-detail-slug">Slug</Label>
-        <Input
-          id="collection-detail-slug"
-          value={slug}
-          onChange={(event) => setSlug(event.target.value)}
-          disabled={!canManage}
-        />
-      </div>
-      <div className="flex items-center justify-between gap-4 py-1">
-        <div>
-          <Label htmlFor="collection-published" className="text-sm">Published</Label>
-          <p className="text-xs text-muted-foreground">
-            Make this collection visible on channels.
-          </p>
-        </div>
-        <Switch
-          id="collection-published"
-          checked={isPublished}
-          onCheckedChange={setIsPublished}
-          disabled={!canManage}
-        />
-      </div>
-      <div className="flex items-center justify-between gap-4 py-1">
-        <div>
-          <Label htmlFor="collection-noindex" className="text-sm">Noindex</Label>
-          <p className="text-xs text-muted-foreground">
-            Ask search engines not to index this collection.
-          </p>
-        </div>
-        <Switch
-          id="collection-noindex"
-          checked={seoNoindex}
-          onCheckedChange={setSeoNoindex}
-          disabled={!canManage}
-        />
-      </div>
-    </div>
+    </RecordFormPage>
   )
 }
 
@@ -1162,151 +884,3 @@ function CollectionProductsSection({
   )
 }
 
-function CollectionMetadataSection({
-  collection,
-  canManage,
-  refetchQueries,
-}: {
-  collection: CollectionRecord
-  canManage: boolean
-  refetchQueries: CollectionRefetch
-}) {
-  const [publicRows, setPublicRows] = useState<MetadataEntry[]>(collection.metadata)
-  const [privateRows, setPrivateRows] = useState<MetadataEntry[]>(collection.privateMetadata)
-  const [updateCollection] = useMutation(UpdateCollectionDocument, { refetchQueries })
-
-  const diff = useMemo<SectionDiffEntry[]>(
-    () => [
-      ...metadataDiffEntries('metadata', collection.metadata, publicRows),
-      ...metadataDiffEntries('private metadata', collection.privateMetadata, privateRows),
-    ],
-    [collection.metadata, collection.privateMetadata, publicRows, privateRows],
-  )
-
-  useSaveSection({
-    id: 'metadata',
-    title: 'Custom data',
-    diff,
-    save: async () => {
-      const cleanedPublic = cleanMetadata(publicRows)
-      const cleanedPrivate = cleanMetadata(privateRows)
-      if (cleanedPublic.some((entry) => !entry.key) || cleanedPrivate.some((entry) => !entry.key)) {
-        throw new Error('Metadata entries with a value need a key.')
-      }
-      const publicDuplicate = findDuplicateKey(cleanedPublic)
-      if (publicDuplicate) throw new Error(`Duplicate metadata key: "${publicDuplicate}"`)
-      const privateDuplicate = findDuplicateKey(cleanedPrivate)
-      if (privateDuplicate) throw new Error(`Duplicate private metadata key: "${privateDuplicate}"`)
-
-      await updateCollection({
-        variables: {
-          input: {
-            id: collection.id,
-            metadata: cleanedPublic,
-            privateMetadata: cleanedPrivate,
-          },
-        },
-      })
-    },
-  })
-
-  return (
-    <DetailPageSection
-      title="Custom data"
-      description="Public and private key-value pairs for integrations and workflows."
-    >
-      <div className="grid gap-6">
-        <KeyValueMetadataEditor
-          title="Metadata"
-          description="Publicly exposable values available to channels and APIs."
-          rows={publicRows}
-          disabled={!canManage}
-          onChange={setPublicRows}
-        />
-        <Separator />
-        <KeyValueMetadataEditor
-          title="Private metadata"
-          description="Internal-only values for admin processes and backend integrations."
-          rows={privateRows}
-          disabled={!canManage}
-          onChange={setPrivateRows}
-        />
-      </div>
-    </DetailPageSection>
-  )
-}
-
-function KeyValueMetadataEditor({
-  title,
-  description,
-  rows,
-  disabled,
-  onChange,
-}: {
-  title: string
-  description: string
-  rows: MetadataEntry[]
-  disabled: boolean
-  onChange: (rows: MetadataEntry[]) => void
-}) {
-  function addRow() {
-    onChange([...rows, { key: '', value: '' }])
-  }
-
-  function removeRow(index: number) {
-    onChange(rows.filter((_, idx) => idx !== index))
-  }
-
-  function updateRow(index: number, patch: Partial<MetadataEntry>) {
-    onChange(rows.map((row, idx) => (idx === index ? { ...row, ...patch } : row)))
-  }
-
-  return (
-    <section className="grid gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="grid gap-1">
-          <h3 className="text-sm font-medium">{title}</h3>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={addRow} disabled={disabled}>
-          <PlusIcon className="size-4" />
-          Add entry
-        </Button>
-      </div>
-
-      <div className="grid gap-2">
-        {rows.length === 0 && (
-          <div className="rounded-md border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            No entries yet.
-          </div>
-        )}
-
-        {rows.map((row, index) => (
-          <div key={`${title}-${index}`} className="grid gap-2 rounded-md border p-3 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto] md:items-start">
-            <Input
-              value={row.key}
-              placeholder="key"
-              disabled={disabled}
-              onChange={(event) => updateRow(index, { key: event.target.value })}
-            />
-            <Input
-              value={row.value}
-              placeholder="value"
-              disabled={disabled}
-              onChange={(event) => updateRow(index, { value: event.target.value })}
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-9 text-destructive hover:text-destructive"
-              disabled={disabled}
-              onClick={() => removeRow(index)}
-            >
-              <Trash2Icon className="size-4" />
-            </Button>
-          </div>
-        ))}
-      </div>
-    </section>
-  )
-}

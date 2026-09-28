@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/action"
 	adminpkg "github.com/skeletg/skelet/apps/backend/core/internal/admin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/adminaction"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
@@ -53,23 +53,23 @@ func TestAdminActionRunsAreAuditedWithTheirRealOutcome(t *testing.T) {
 	conn := testdb.Require(t)
 
 	slug := "test.audit_" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
-	action.Register(action.Definition{
+	adminaction.Register(adminaction.Definition{
 		Slug:       slug,
 		Name:       "Audit probe",
 		Permission: "cache.manage",
-		Arguments: []action.Argument{
-			{Name: "mode", Type: action.ArgString},
-			{Name: "api_key", Type: action.ArgString},
+		Arguments: []adminaction.Argument{
+			{Name: "mode", Type: adminaction.ArgString},
+			{Name: "api_key", Type: adminaction.ArgString},
 		},
-		Handler: func(_ context.Context, args action.Args) (action.Result, error) {
+		Handler: func(_ context.Context, args adminaction.Args) (adminaction.Result, error) {
 			if mode, _ := args.String("mode"); mode == "fail" {
-				return action.Result{}, errors.New("probe refused")
+				return adminaction.Result{}, errors.New("probe refused")
 			}
-			return action.Result{Output: "probe ran"}, nil
+			return adminaction.Result{Output: "probe ran"}, nil
 		},
 	})
 
-	r := &mutationResolver{&Resolver{AdminSvc: f.svc, ActionSvc: action.NewService(), AuditSvc: audit.NewService(db.New(conn))}}
+	r := &mutationResolver{&Resolver{AdminSvc: f.svc, ActionSvc: adminaction.NewService(), AuditSvc: audit.NewService(db.New(conn))}}
 	permitted, permittedCtx := f.admin(t, f.role(t, adminpkg.RolePermissionScopeInput{PermissionSlug: "cache.manage"}))
 	_, deniedCtx := f.admin(t, f.role(t, adminpkg.RolePermissionScopeInput{PermissionSlug: "audit.view"}))
 

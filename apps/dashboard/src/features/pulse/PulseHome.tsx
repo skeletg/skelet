@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ChartTooltipContent } from '@/components/ui/chart'
+import { CHART_ACCENT } from '@/lib/chart-colors'
 import { ClipboardListIcon, MailIcon, MegaphoneIcon, SendIcon, ShieldOffIcon, WorkflowIcon, type LucideIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -18,7 +19,6 @@ import { FlowsDocument } from '@/features/flows/Flows.gql'
 import { LibraryEmailsDocument } from '@/features/emails/Emails.gql'
 import { PulseEngagementDocument } from './Pulse.gql'
 
-const ACCENT = '#6366f1'
 
 type NavCard = { to: string; title: string; description: string; icon: LucideIcon }
 const CARDS: NavCard[] = [
@@ -224,8 +224,8 @@ export function PulseHome() {
                 <Panel title="Delivery">
                   <DeliveryBar sent={s.sent} failed={s.failed} skipped={s.skipped} />
                   <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                    <Metric label="Delivered" value={nfmt(s.sent)} dotClass="bg-emerald-500" />
-                    <Metric label="Failed" value={nfmt(s.failed)} dotClass="bg-rose-500" />
+                    <Metric label="Delivered" value={nfmt(s.sent)} dotClass="bg-success" />
+                    <Metric label="Failed" value={nfmt(s.failed)} dotClass="bg-destructive" />
                     <Metric label="Skipped" value={nfmt(s.skipped)} dotClass="bg-muted-foreground/40" />
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">{nfmt(s.recipients)} recipients targeted across {nfmt(s.campaignCount)} campaigns.</p>
@@ -297,7 +297,7 @@ export function PulseHome() {
                           <XAxis dataKey="name" tick={{ fontSize: 11 }} tickFormatter={(v: string) => (v.length > 12 ? `${v.slice(0, 11)}…` : v)} interval={0} />
                           <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={40} />
                           <Tooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="sent" name="Delivered" fill={ACCENT} radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="sent" name="Delivered" fill={CHART_ACCENT} radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -443,8 +443,8 @@ function DeliveryBar({ sent, failed, skipped }: { sent: number; failed: number; 
   if (total === 0) return <div className="h-2.5 w-full rounded-full bg-muted" />
   return (
     <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
-      <div className="bg-emerald-500" style={{ width: pct(sent) }} />
-      <div className="bg-rose-500" style={{ width: pct(failed) }} />
+      <div className="bg-success" style={{ width: pct(sent) }} />
+      <div className="bg-destructive" style={{ width: pct(failed) }} />
       <div className="bg-muted-foreground/40" style={{ width: pct(skipped) }} />
     </div>
   )

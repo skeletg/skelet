@@ -11,14 +11,20 @@ import {
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
+  CheckIcon,
   CheckSquare2Icon,
+  ChevronDownIcon,
   GripVerticalIcon,
   ImageIcon,
+  LayoutGridIcon,
   MoreHorizontalIcon,
   PlusIcon,
+  Share2Icon,
   Square,
+  StarIcon,
   Trash2Icon,
   XIcon,
+  type LucideIcon,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -57,12 +63,12 @@ import {
   type SectionDiffEntry,
 } from '../productSaveRegistry'
 import { type ProductMediaSummary } from './shared'
-import { readImageDimensions } from './media-utils'
+import { effectiveMediaRoles, readImageDimensions } from './media-utils'
 
-const MEDIA_ROLE_OPTIONS: Array<{ role: ProductMediaRole; label: string }> = [
-  { role: 'MAIN', label: 'Main' },
-  { role: 'THUMBNAIL', label: 'Thumbnail' },
-  { role: 'OG_IMAGE', label: 'OG image' },
+const MEDIA_ROLE_OPTIONS: Array<{ role: ProductMediaRole; label: string; Icon: LucideIcon; fallbackHint: string }> = [
+  { role: 'MAIN', label: 'Main', Icon: StarIcon, fallbackHint: 'Uses the first image until one is chosen' },
+  { role: 'THUMBNAIL', label: 'Thumbnail', Icon: LayoutGridIcon, fallbackHint: 'Uses the main image until one is chosen' },
+  { role: 'OG_IMAGE', label: 'OG image', Icon: Share2Icon, fallbackHint: 'Uses the first image until one is chosen' },
 ]
 
 type ProductUploadRole = ProductMediaRole | 'GALLERY'
@@ -134,8 +140,18 @@ export function ProductMediaPanel({
     const pos = new Map(orderOverride.map((id, i) => [id, i]))
     return base.sort((a, b) => (pos.get(a.id) ?? 0) - (pos.get(b.id) ?? 0))
   }, [media, orderOverride])
+  const effectiveRoles = useMemo(() => effectiveMediaRoles(sortedMedia, draftRoleIds), [sortedMedia, draftRoleIds])
   const visibleMedia = showAllMedia ? sortedMedia : sortedMedia.slice(0, 3)
   const hiddenMediaCount = Math.max(0, sortedMedia.length - visibleMedia.length)
+  const mediaById = useMemo(() => new Map(sortedMedia.map((m) => [m.id, m])), [sortedMedia])
+
+  // Header slot click - expand the gallery first when the card sits past the first three, then bring it into view
+  function focusMedia(id: string) {
+    if (!visibleMedia.some((m) => m.id === id)) setShowAllMedia(true)
+    requestAnimationFrame(() => {
+      document.getElementById(`product-media-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }
   const refetchQueries = [{ query: ProductDocument, variables: productVariables }]
   const [requestUpload] = useMutation(RequestProductMediaUploadDocument)
   const [confirmUpload] = useMutation(ConfirmProductMediaUploadDocument, { refetchQueries })
@@ -305,21 +321,41 @@ export function ProductMediaPanel({
           <p className="text-sm text-muted-foreground">
             Add gallery images, then mark which ready image should represent the product in each
             channel context. Pending images can be reviewed here but cannot receive roles until
-            processing finishes.
+            processing finishes. Unassigned roles fall back to the first image.
           </p>
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             <Badge variant="secondary" className="font-normal">{sortedMedia.length} image{sortedMedia.length === 1 ? '' : 's'}</Badge>
-            {MEDIA_ROLE_OPTIONS.map(({ role, label }) => {
-              const draftId = draftRoleIds[role]
-              const dirty = draftId !== originalRoleIds[role]
+            {MEDIA_ROLE_OPTIONS.map(({ role, label, Icon, fallbackHint }) => {
+              const { id, auto } = effectiveRoles[role]
+              const item = id ? mediaById.get(id) : undefined
+              const dirty = draftRoleIds[role] !== originalRoleIds[role]
+              const state = !id ? 'not set' : auto ? 'automatic' : 'set'
               return (
-                <Badge
+                <button
                   key={role}
-                  variant={draftId ? 'outline' : 'secondary'}
-                  className={`font-normal ${dirty ? 'ring-1 ring-primary/40' : ''}`}
+                  type="button"
+                  disabled={!item}
+                  onClick={() => id && focusMedia(id)}
+                  title={auto ? fallbackHint : item ? `Show the ${label.toLowerCase()} image` : undefined}
+                  className={`flex items-center gap-2 rounded-md border bg-background p-1.5 pr-3 text-left transition-colors enabled:hover:bg-muted/60 ${auto || !item ? 'border-dashed border-foreground/30' : 'border-foreground/40'}`}
                 >
-                  {label}: {draftId ? 'set' : 'not set'}{dirty ? ' (pending)' : ''}
-                </Badge>
+                  {item ? (
+                    <img src={item.url} alt="" className="size-10 rounded object-cover" />
+                  ) : (
+                    <span className="flex size-10 items-center justify-center rounded border border-dashed text-muted-foreground">
+                      <Icon className="size-4" />
+                    </span>
+                  )}
+                  <span className="grid leading-tight">
+                    <span className="flex items-center gap-1 text-xs font-medium">
+                      <Icon className="size-3" />
+                      {label}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {state}{dirty ? ' · unsaved' : ''}
+                    </span>
+                  </span>
+                </button>
               )
             })}
           </div>
@@ -328,18 +364,22 @@ export function ProductMediaPanel({
           <div className="flex flex-wrap items-center justify-end gap-2">
             {!selectMode ? (
               <>
-                <select
-                  value={uploadRole}
-                  onChange={(event) => setUploadRole(event.currentTarget.value as ProductUploadRole)}
-                  disabled={uploading}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm"
-                  aria-label="Upload destination"
-                >
-                  <option value="GALLERY">Gallery</option>
-                  {MEDIA_ROLE_OPTIONS.map(({ role, label }) => (
-                    <option key={role} value={role}>{label}</option>
-                  ))}
-                </select>
+                {/* Native arrow hugs the border, so draw our own and match the button height */}
+                <div className="relative">
+                  <select
+                    value={uploadRole}
+                    onChange={(event) => setUploadRole(event.currentTarget.value as ProductUploadRole)}
+                    disabled={uploading}
+                    className="h-8 appearance-none rounded-lg border border-input bg-background pl-2.5 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+                    aria-label="Upload destination"
+                  >
+                    <option value="GALLERY">Gallery</option>
+                    {MEDIA_ROLE_OPTIONS.map(({ role, label }) => (
+                      <option key={role} value={role}>{label}</option>
+                    ))}
+                  </select>
+                  <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                </div>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
                 <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
                   <PlusIcon className="size-4" />
@@ -414,6 +454,7 @@ export function ProductMediaPanel({
               return (
                 <SortableMediaCard key={item.id} id={item.id} disabled={!canReorder}>
                 <div
+                  id={`product-media-${item.id}`}
                   className={`overflow-hidden rounded-md border bg-card transition-colors ${selectMode && isSelected ? 'ring-2 ring-primary' : ''}`}
                 >
                   <div
@@ -431,6 +472,33 @@ export function ProductMediaPanel({
                         Pending
                       </div>
                     )}
+                    {/* Role pills - solid when assigned, dashed when the image only stands in by fallback. Right-hand side in select mode so the checkbox keeps its corner */}
+                    <div className={`absolute top-2 flex flex-col gap-1 ${selectMode ? 'right-2 items-end' : 'left-2 items-start'}`}>
+                      {MEDIA_ROLE_OPTIONS.filter(({ role }) => effectiveRoles[role].id === item.id).map(({ role, label, Icon, fallbackHint }) => {
+                        if (effectiveRoles[role].auto) {
+                          return (
+                            <span
+                              key={role}
+                              title={`Not assigned. ${fallbackHint}.`}
+                              className="flex items-center gap-1 rounded-full border border-dashed border-foreground/40 bg-background/90 px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm backdrop-blur-sm"
+                            >
+                              <Icon className="size-3" />
+                              {label} · auto
+                            </span>
+                          )
+                        }
+                        const dirty = draftRoleIds[role] !== originalRoleIds[role]
+                        return (
+                          <span
+                            key={role}
+                            className="flex items-center gap-1 rounded-full border border-background/80 bg-foreground px-2 py-0.5 text-[11px] font-medium text-background shadow-md ring-1 ring-foreground/40"
+                          >
+                            <Icon className="size-3" />
+                            {label}{dirty ? ' · unsaved' : ''}
+                          </span>
+                        )
+                      })}
+                    </div>
                     {selectMode && (
                       <div className="absolute left-2 top-2 flex size-6 items-center justify-center rounded border bg-background/90 shadow-sm">
                         {isSelected
@@ -441,19 +509,7 @@ export function ProductMediaPanel({
                     )}
                   </div>
                   <div className="grid gap-2 p-3 text-xs">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="truncate text-sm font-medium">{item.altText || 'Untitled media'}</div>
-                      <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                        {MEDIA_ROLE_OPTIONS.filter(({ role }) => draftRoleIds[role] === item.id).map(({ role, label }) => {
-                          const dirty = draftRoleIds[role] !== originalRoleIds[role]
-                          return (
-                            <Badge key={role} variant="secondary" className={`text-[10px] ${dirty ? 'ring-1 ring-primary/40' : ''}`}>
-                              {label}{dirty ? ' (pending)' : ''}
-                            </Badge>
-                          )
-                        })}
-                      </div>
-                    </div>
+                    <div className="truncate text-sm font-medium">{item.altText || 'Untitled media'}</div>
                     <div className="flex items-center justify-between gap-2 text-muted-foreground">
                       <span>{item.width}x{item.height}</span>
                       <Badge variant={item.status === 'READY' ? 'secondary' : 'outline'} className="text-[10px]">
@@ -463,19 +519,33 @@ export function ProductMediaPanel({
                     {canManage && !selectMode && (
                       <div className="mt-2 grid gap-2">
                         <div className="grid grid-cols-3 gap-1.5">
-                          {MEDIA_ROLE_OPTIONS.map(({ role, label }) => {
+                          {MEDIA_ROLE_OPTIONS.map(({ role, label, Icon }) => {
                             const assignedHere = draftRoleIds[role] === item.id
+                            const autoHere = effectiveRoles[role].auto && effectiveRoles[role].id === item.id
+                            const title = item.status !== 'READY'
+                              ? 'Only ready media can receive roles'
+                              : assignedHere ? 'Click to unset'
+                              : autoHere ? 'Used automatically. Click to set explicitly'
+                              : `Set as ${label.toLowerCase()}`
                             return (
                               <Button
                                 key={role}
                                 type="button"
                                 size="sm"
-                                variant={assignedHere ? 'secondary' : 'outline'}
-                                className="h-8 px-1 text-[11px]"
+                                variant="outline"
+                                aria-pressed={assignedHere}
+                                className={`h-8 gap-1 px-1 text-[11px] ${
+                                  assignedHere
+                                    ? 'border-transparent bg-foreground text-background hover:bg-foreground/85 hover:text-background dark:border-transparent dark:bg-foreground dark:hover:bg-foreground/85'
+                                    : autoHere ? 'border-dashed border-foreground/40 dark:border-foreground/40' : ''
+                                }`}
                                 disabled={item.status !== 'READY' || activeRole === role || isDeleting}
                                 onClick={() => { if (assignedHere) removeRole(role); else assignRole(role, item.id) }}
-                                title={item.status !== 'READY' ? 'Only ready media can receive roles' : undefined}
+                                title={title}
                               >
+                                {assignedHere
+                                  ? <CheckIcon className="size-3" />
+                                  : <Icon className={`size-3 ${autoHere ? '' : 'text-muted-foreground'}`} />}
                                 {activeRole === role ? '...' : label}
                               </Button>
                             )

@@ -198,13 +198,13 @@ export function GroupedStructureSection({
               {sortedMembers.map((m) => {
                 const pending = isTemp(m.id)
                 return (
-                  <TableRow key={m.id} className={pending ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''}>
+                  <TableRow key={m.id} className={pending ? 'bg-warning-soft' : ''}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <PackagePlusIcon className="size-4 text-muted-foreground" />
                         {m.member.name ?? m.member.sku ?? ''}
                         {pending && (
-                          <Badge variant="outline" className="font-normal text-amber-700 dark:text-amber-400">
+                          <Badge variant="outline" className="font-normal text-warning">
                             Unsaved
                           </Badge>
                         )}
@@ -345,7 +345,7 @@ function EditMemberDialog({
         </DialogHeader>
 
         <form id="edit-grouped-member" onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 items-start">
             <div className="grid gap-2">
               <Label htmlFor="gm-qty-edit">Default quantity</Label>
               <Input
