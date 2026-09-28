@@ -7,16 +7,16 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
-	"github.com/skeletg/skelet/apps/backend/core/internal/action"
 	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/adminaction"
 	"github.com/skeletg/skelet/apps/backend/core/internal/permission"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
-// toAdminActionModel maps a registered action.Definition to its GraphQL representation. Handler is intentionally not
+// toAdminActionModel maps a registered adminaction.Definition to its GraphQL representation. Handler is intentionally not
 // exposed - the UI doesn't need to know what runs, only what it can invoke
-func toAdminActionModel(d action.Definition) *model.AdminAction {
+func toAdminActionModel(d adminaction.Definition) *model.AdminAction {
 	args := make([]*model.ActionArgument, len(d.Arguments))
 	for i, a := range d.Arguments {
 		args[i] = toActionArgumentModel(a)
@@ -31,7 +31,7 @@ func toAdminActionModel(d action.Definition) *model.AdminAction {
 	}
 }
 
-func toActionArgumentModel(a action.Argument) *model.ActionArgument {
+func toActionArgumentModel(a adminaction.Argument) *model.ActionArgument {
 	opts := make([]*model.ActionArgumentOption, len(a.Options))
 	for i, o := range a.Options {
 		opts[i] = &model.ActionArgumentOption{Value: o.Value, Label: o.Label}
@@ -52,15 +52,15 @@ func toActionArgumentModel(a action.Argument) *model.ActionArgument {
 	}
 }
 
-func actionArgumentTypeGQL(t action.ArgumentType) model.ActionArgumentType {
+func actionArgumentTypeGQL(t adminaction.ArgumentType) model.ActionArgumentType {
 	switch t {
-	case action.ArgString:
+	case adminaction.ArgString:
 		return model.ActionArgumentTypeString
-	case action.ArgInt:
+	case adminaction.ArgInt:
 		return model.ActionArgumentTypeInt
-	case action.ArgBool:
+	case adminaction.ArgBool:
 		return model.ActionArgumentTypeBool
-	case action.ArgSelect:
+	case adminaction.ArgSelect:
 		return model.ActionArgumentTypeSelect
 	}
 	return model.ActionArgumentType(strings.ToUpper(string(t)))

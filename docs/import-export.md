@@ -92,7 +92,7 @@ the graph (mailers, consent, the event bus), which a one-shot command doesn't ju
 
 Write a `dataio.Resource` and register it in `internal/wiring/datatransfer.go`. Both
 handlers close over live services, which is why registration happens at wiring time rather
-than from `init()` - the same reason `internal/action` does.
+than from `init()` - the same reason `internal/adminaction` does.
 
 ```go
 dataio.Register(dataio.Resource{
