@@ -1,9 +1,10 @@
-// Package address is the address-validation seam - a registry of pluggable validators, with the builtin format validator shipping by default and SmartyStreets or Loqate-style integrations registering alongside, picked per channel via config
+// Package address is the address-validation seam - core registers the builtin format validator and "remote", which forwards to a merchant endpoint (SmartyStreets or Loqate behind a remote provider), and each channel picks one via config
 // The storefront calls validateAddress before checkout submit for a soft correctness check and normalization suggestions, and strict mode lets a store block placement on invalid
 package address
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -38,19 +39,31 @@ type Validator interface { // channelID scopes the provider config
 	Validate(ctx context.Context, channelID uuid.UUID, in Input) (Result, error)
 }
 
+var ErrUnavailable = errors.New("address validation is unavailable") // a fail_closed provider could not answer - strict checkout refuses on it rather than letting an unchecked address through
+
+type registered struct {
+	label     string
+	validator Validator
+}
+
 var (
 	mu         sync.RWMutex
-	validators = map[string]Validator{}
+	validators = map[string]registered{}
 )
 
-func Register(slug string, v Validator) { // a later registration with the same slug overrides, so plugin reload works
+func Register(slug, label string, v Validator) { // label is what the settings select shows
 	mu.Lock()
 	defer mu.Unlock()
-	validators[slug] = v
+	validators[slug] = registered{label: label, validator: v}
+}
+
+type settings interface {
+	GetString(ctx context.Context, path string, scope config.Scope) (string, error)
+	GetBool(ctx context.Context, path string, scope config.Scope) (bool, error)
 }
 
 type Service struct {
-	cfg *config.Service
+	cfg settings
 }
 
 func NewService(cfg *config.Service) *Service { return &Service{cfg: cfg} }
@@ -67,12 +80,12 @@ func (s *Service) Validate(ctx context.Context, channelID uuid.UUID, in Input) (
 		return Result{Valid: true}, nil
 	}
 	mu.RLock()
-	v, ok := validators[slug]
+	reg, ok := validators[slug]
 	mu.RUnlock()
 	if !ok {
 		return Result{Valid: true}, nil
 	}
-	return v.Validate(ctx, channelID, in)
+	return reg.validator.Validate(ctx, channelID, in)
 }
 
 func (s *Service) Strict(ctx context.Context, channelID uuid.UUID) bool { // whether invalid addresses block placement on this channel
@@ -136,4 +149,4 @@ func (Basic) Validate(_ context.Context, _ uuid.UUID, in Input) (Result, error) 
 	return res, nil
 }
 
-func init() { Register("basic", Basic{}) }
+func init() { Register("basic", "Basic format check", Basic{}) }

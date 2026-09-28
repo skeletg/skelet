@@ -2,6 +2,7 @@ package address
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/google/uuid"
@@ -9,14 +10,22 @@ import (
 )
 
 // Registry slug "remote" points at a merchant HTTP endpoint (remoteprovider kind=address_validator), the escape hatch for SmartyStreets/Loqate-style validation without a Go plugin - wire shapes are the request/response structs below
-// fail_open, and no active provider at all, report valid so a down validator never breaks checkout; fail_closed surfaces the error instead
+// fail_open, and no active provider at all, report valid so a down validator never breaks checkout; fail_closed returns ErrUnavailable instead
 func RegisterRemoteValidator(svc *remoteprovider.Service, invoker *remoteprovider.Invoker) {
-	Register("remote", &remoteValidator{svc: svc, invoker: invoker})
+	Register("remote", "Remote provider", &remoteValidator{providers: svc, invoker: invoker})
+}
+
+type providerLookup interface {
+	ActiveFor(ctx context.Context, kind remoteprovider.Kind, channelID *uuid.UUID) (remoteprovider.Provider, bool, error)
+}
+
+type providerInvoker interface {
+	Invoke(ctx context.Context, p remoteprovider.Provider, payload any, out any) error
 }
 
 type remoteValidator struct {
-	svc     *remoteprovider.Service
-	invoker *remoteprovider.Invoker
+	providers providerLookup
+	invoker   providerInvoker
 }
 
 type remoteAddressRequest struct {
@@ -41,11 +50,14 @@ type remoteAddressResponse struct {
 
 func (r *remoteValidator) Validate(ctx context.Context, channelID uuid.UUID, in Input) (Result, error) {
 	ch := channelID
-	providers, err := r.svc.ListActiveByKind(ctx, remoteprovider.KindAddressValidator, &ch)
-	if err != nil || len(providers) == 0 {
-		return Result{Valid: true}, nil // no provider - treat as valid
+	p, ok, err := r.providers.ActiveFor(ctx, remoteprovider.KindAddressValidator, &ch) // the channel's own provider beats a global one
+	if err != nil {
+		log.Printf("[address] remote validator lookup failed on channel %s (treating as valid): %v", channelID, err) // no provider row, so no policy to honour
+		return Result{Valid: true}, nil
 	}
-	p := providers[0]
+	if !ok {
+		return Result{Valid: true}, nil
+	}
 
 	payload := remoteAddressRequest{
 		ChannelID: channelID.String(),
@@ -54,18 +66,15 @@ func (r *remoteValidator) Validate(ctx context.Context, channelID uuid.UUID, in 
 	var resp remoteAddressResponse
 	if err := r.invoker.Invoke(ctx, p, payload, &resp); err != nil {
 		if p.FailurePolicy == remoteprovider.FailClosed {
-			return Result{}, err
+			return Result{}, fmt.Errorf("%w: provider %q: %w", ErrUnavailable, p.Slug, err)
 		}
-		log.Printf("[address] remote validator %q failed (treating as valid): %v", p.Slug, err) // fail_open - a down validator never blocks the shopper
+		log.Printf("[address] remote validator %q failed (treating as valid): %v", p.Slug, err)
 		return Result{Valid: true}, nil
 	}
 	res := Result{Valid: resp.Valid, Messages: resp.Messages}
 	if resp.Normalized != nil {
-		res.Normalized = &Input{
-			Street1: resp.Normalized.Street1, Street2: resp.Normalized.Street2,
-			City: resp.Normalized.City, State: resp.Normalized.State,
-			PostalCode: resp.Normalized.PostalCode, CountryCode: resp.Normalized.CountryCode,
-		}
+		norm := Input(*resp.Normalized)
+		res.Normalized = &norm
 	}
 	return res, nil
 }
