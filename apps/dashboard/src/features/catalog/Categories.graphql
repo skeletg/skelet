@@ -24,7 +24,11 @@ fragment CategoryDetailFields on Category {
   coverImage { url altText width height mimeType status }
   parent { id slug urlPath name }
   ancestors { id slug urlPath name }
-  products { id name sku }
+  products {
+    id name sku kind
+    thumbnail { id url altText status }
+    displayImage { id url altText status }
+  }
   listings {
     categoryId channelId
     channel { id slug name }
