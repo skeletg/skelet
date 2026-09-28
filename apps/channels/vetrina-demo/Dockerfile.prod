@@ -3,16 +3,18 @@
 # Runtime config: BACKEND_INTERNAL_URL (default http://app:8080), STOREFRONT_CHANNEL_HOSTS and/or STOREFRONT_CHANNEL_ID
 
 FROM node:24-alpine AS build
+RUN npm install -g pnpm@12.6.0
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+# The workspace file carries the build policy the lockfile was resolved under
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile --store-dir /pnpm/store
 COPY . .
 
 ARG NEXT_PUBLIC_DASHBOARD_ORIGIN
 ENV NEXT_PUBLIC_DASHBOARD_ORIGIN=$NEXT_PUBLIC_DASHBOARD_ORIGIN
 
 # No channel and no backend at build time: the host picks the channel per request, and pages render on first visit
-RUN npm run build
+RUN pnpm run build
 
 FROM node:24-alpine AS run
 WORKDIR /app

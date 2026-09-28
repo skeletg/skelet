@@ -83,6 +83,11 @@
       "groupName": "migrate"
     },
     {
+      // Every app's packageManager field and the `npm install -g` in each frontend Dockerfile
+      "matchPackageNames": ["pnpm"],
+      "groupName": "pnpm"
+    },
+    {
       // alpine's version is also the suffix of the golang build tag, which renovate cannot see
       // inside. pin-check gates the two, so this one moves by hand
       "matchPackageNames": ["alpine"],
@@ -90,7 +95,7 @@
     }
   ],
 
-  // Tool versions pinned inside shell lines, which no stock manager reads. Both are pin-check
+  // Tool versions pinned inside shell lines, which no stock manager reads. All are pin-check
   // gates, so leaving them unmanaged means the gate has nothing moving underneath it
   "customManagers": [
     {
@@ -109,6 +114,13 @@
       "matchStrings": ["golangci-lint/v2/cmd/golangci-lint@(?<currentValue>v[0-9][0-9.]*)"],
       "depNameTemplate": "github.com/golangci/golangci-lint/v2",
       "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)Dockerfile(\\.prod)?$/"],
+      "matchStrings": ["npm install -g pnpm@(?<currentValue>[0-9][0-9.]*)"],
+      "depNameTemplate": "pnpm",
+      "datasourceTemplate": "npm"
     }
   ]
 }

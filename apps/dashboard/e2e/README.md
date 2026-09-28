@@ -6,18 +6,18 @@ a real browser against a real stack.
 
 ```
 ./skelet up          # dashboard on :5173, admin API on :8080, dev admin seeded
-npm run test:e2e
-npm run test:e2e -- --headed --project=chromium tabs.spec.ts
+pnpm run test:e2e
+pnpm run test:e2e --headed --project=chromium tabs.spec.ts
 ```
 
-`npm test` (the unit suite) does NOT run these - CI has no backend, and these need one.
+`pnpm test` (the unit suite) does NOT run these - CI has no backend, and these need one.
 
 Overrides: `E2E_DASHBOARD_URL`, `E2E_API_URL`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`.
 
 ## First run
 
-`npx playwright install chromium` fetches the browser. On a bare Linux host also
-`npx playwright install-deps chromium` (needs root) - without it Chromium cannot find libnss3 and
+`pnpm exec playwright install chromium` fetches the browser. On a bare Linux host also
+`pnpm exec playwright install-deps chromium` (needs root) - without it Chromium cannot find libnss3 and
 exits before the first test. If you can't install system packages, extract them and point
 `LD_LIBRARY_PATH` at them before invoking the runner.
 

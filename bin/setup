@@ -195,6 +195,38 @@ for a in ${docker_apps//,/ }; do
 done
 docker_apps="$kept"
 
+# A host app needs pnpm at the version its packageManager pins, so refuse before anything is
+# written - finding out at the install step leaves a half-set-up clone and a frontend that won't start
+host_dirs=()
+for a in ${apps//,/ }; do
+    case ",$docker_apps," in *,"$a",*) continue ;; esac
+    if [ "$a" = dashboard ]; then host_dirs+=(apps/dashboard); else host_dirs+=("apps/channels/$a"); fi
+done
+pnpm_problem=""
+if [ ${#host_dirs[@]} -gt 0 ]; then
+    # A deselected app comes back from sparse-checkout only further down, so read the pin from HEAD when it isn't on disk
+    pin_dir="${host_dirs[0]}"
+    want_pnpm="$( { cat "$pin_dir/package.json" 2>/dev/null || git show "HEAD:$pin_dir/package.json" 2>/dev/null; } \
+        | grep -oE '"packageManager": *"pnpm@[0-9.]+' | sed 's/.*@//')"
+    if ! command -v pnpm >/dev/null 2>&1; then
+        pnpm_problem="no pnpm on PATH - corepack enable, or npm install -g pnpm@${want_pnpm:-<version>}"
+    elif [ -n "$want_pnpm" ] && [ -f "$pin_dir/package.json" ]; then
+        # Asked from inside the app, where pnpm switches itself to the pinned version - that switch is what breaks
+        have="$(cd "$pin_dir" && pnpm --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+$')" || true
+        [ "$have" = "$want_pnpm" ] \
+            || pnpm_problem="pnpm in $pin_dir answers ${have:-nothing}, the apps pin $want_pnpm - pnpm self-update $want_pnpm"
+    fi
+fi
+if [ -n "$pnpm_problem" ]; then
+    echo "==> The frontends on the host need pnpm: $pnpm_problem" >&2
+    if [ "$interactive" = 1 ] && ask_yn "    Run them in Docker instead, which needs no pnpm on the host?" y; then
+        docker_apps="$apps"
+    else
+        echo "    Install it and re-run, or re-run with --docker-apps ${apps}" >&2
+        exit 1
+    fi
+fi
+
 printf '%s\n' "$docker_apps" > .skelet-apps
 echo "==> Apps: ${apps:-backend only}"
 echo "    in Docker: ${docker_apps:-none - they run on the host with \`./skelet serve <app>\`}  (saved to .skelet-apps)"
@@ -485,26 +517,30 @@ fi
 
 # POPULATED, not merely present - the containers started above mount a named volume at node_modules, and because the parent is a bind mount that leaves an EMPTY directory on the host. Testing -d here would see the directory this script just caused and skip its own install
 needs_install() { [ -z "$(ls -A "$1/node_modules" 2>/dev/null)" ]; }
+# Populated without pnpm's .modules.yaml is an npm tree from before the switch - skipping it leaves
+# the old tree in place, and pnpm won't take it over without a TTY to confirm the wipe
+npm_tree() { ! needs_install "$1" && [ ! -f "$1/node_modules/.modules.yaml" ]; }
 
-# Into whichever tree the app will actually run from - a host app installed into the container's
-# volume, or the reverse, looks like the install did nothing at all
+# Host apps only. A Docker app's dev image runs pnpm install on every start, into the node_modules
+# volume the host can't see - judging it by the host tree skipped a stale volume whenever the host
+# happened to hold an install of its own
 install_app() { # install_app DIR NAME
     local dir="$1" name="$2"
+    case ",$docker_apps," in
+        *,"$name",*)
+            echo "==> $name runs in Docker and installs its own dependencies on start - follow it with ./skelet logs $name"
+            return ;;
+    esac
     echo "==> Installing $name dependencies..."
-    if ! needs_install "$dir"; then
+    if npm_tree "$dir"; then
+        echo "    $dir/node_modules is an npm install from before the switch to pnpm - replacing it"
+        rm -rf "$dir/node_modules"
+    elif ! needs_install "$dir"; then
         echo "    $dir/node_modules is populated, skipping"
         return
     fi
-    case ",$docker_apps," in
-        *,"$name",*)
-            if [ "$name" = dashboard ]; then bin/dash install; else bin/channel "$name" install; fi ;;
-        *)
-            if command -v npm >/dev/null 2>&1; then
-                (cd "$dir" && npm ci)
-            else
-                echo "    no npm on PATH - install Node, or re-run with --docker-apps $name" >&2
-            fi ;;
-    esac
+    # pnpm was checked before anything was written, so a host app always has one here
+    (cd "$dir" && pnpm install --frozen-lockfile)
 }
 
 case ",$apps," in *,dashboard,*) install_app apps/dashboard dashboard ;; esac
@@ -514,12 +550,28 @@ for sf in apps/channels/*/package.json; do
     case ",$apps," in *,"$name",*) install_app "apps/channels/$name" "$name" ;; esac
 done
 
+# The first login, while the person is still at the prompt - the CLI only needs the migrated database, not a
+# warm server. Defaults to no once a superuser exists, so a re-run doesn't push a second one
+if [ "$interactive" = 1 ]; then
+    supers="$(docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT count(*) FROM admin_users WHERE is_superuser"' 2>/dev/null | tr -d '[:space:]')"
+    if [ "${supers:-0}" = 0 ]; then
+        q="Create your first admin login now?"; d=y
+    else
+        q="A superuser already exists - create another?"; d=n
+    fi
+    if ask_yn "==> $q" "$d"; then
+        bin/cli admin create-superuser \
+            || echo "    create-superuser failed - run it again with ./skelet cli admin create-superuser" >&2
+    fi
+fi
+
 echo "==> Setup complete."
 echo
 echo "Next steps:"
 echo "  bin/dev                 # dev stack with hot reload + sidecars"
 echo "  bin/doctor              # check the shape you just picked"
 echo "  bin/install-hooks       # opt-in: pre-commit keeps generated code fresh"
+echo "  bin/cli admin create-superuser   # an admin login, if you skipped it above"
 echo
 echo "Once bin/dev is up:"
 if [ "$SKELET_ADMIN_SLUG" = 1 ]; then

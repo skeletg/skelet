@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A frontend dev server on the HOST: bin/serve [dashboard|<channel>] [-- npm args]
+# A frontend dev server on the HOST: bin/serve [dashboard|<channel>] [dev server args]
 #
 # Exists so the channel id lives in ONE place. Next reads .env files from its own directory and
 # will not look up at the repo root, so without this the storefront needs a second copy of
@@ -7,12 +7,13 @@
 # compose reads
 set -e
 cd "$(dirname "$(dirname "$0")")"
+. bin/_lib
 
 app="${1:-}"
 [ $# -gt 0 ] && shift
 
 usage() {
-    echo "usage: bin/serve <app> [npm args]" >&2
+    echo "usage: bin/serve <app> [dev server args]" >&2
     echo "  dashboard$(for d in apps/channels/*/package.json; do [ -f "$d" ] && printf ', %s' "$(basename "$(dirname "$d")")"; done)" >&2
     exit 2
 }
@@ -43,7 +44,13 @@ if docker compose ps --services --status running 2>/dev/null | grep -qx "$app"; 
     exit 1
 fi
 
-[ -d "$dir/node_modules" ] || { echo "==> installing $app deps"; (cd "$dir" && npm ci); }
+problem="$(pnpm_problem "$dir")"
+[ -z "$problem" ] || { echo "Can't serve $app: $problem" >&2; exit 1; }
+case "$(host_tree "$dir")" in
+    none) echo "==> installing $app deps"; (cd "$dir" && pnpm install --frozen-lockfile) ;;
+    npm)  npm_tree_hint "$dir"; exit 1 ;;
+esac
 
 echo "==> $app on the host (http://localhost:$port)"
-cd "$dir" && exec npm run dev -- "$@"
+# No `--` before the args - pnpm hands it to the script verbatim, and vite/next take what follows for positionals
+cd "$dir" && exec pnpm run dev "$@"
