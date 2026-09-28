@@ -30,9 +30,9 @@ type CustomerRegistering struct {
 	LastName  string
 	// A free-form list enrichers append to, e.g. a risk scorer stamping "high-risk" so the post-commit hook can escalate
 	Tags []string
-	// Override seam - non-nil picks that customer group instead of the default, used by auto-segmentation plugins routing corporate-domain emails into B2B
+	// Override seam - non-nil picks that customer group instead of the default, used by auto-segmentation plugins routing corporate-domain emails into B2B - a group that no longer exists falls back to the default
 	GroupID *uuid.UUID
-	// nil uses the legal default for the customer's locale, GDPR off-by-default in the EU and on-by-default in the US - non-nil means a plugin decided
+	// Override seam for marketing consent where the shopper was shown no checkbox - their own answer always wins, and a plugin's is recorded with source "plugin"
 	MarketingConsent *bool
 }
 

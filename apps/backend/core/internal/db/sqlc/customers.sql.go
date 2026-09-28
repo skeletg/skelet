@@ -102,20 +102,22 @@ func (q *Queries) CreateAddress(ctx context.Context, arg CreateAddressParams) (A
 
 const createCustomer = `-- name: CreateCustomer :one
 INSERT INTO customers (email, password_hash, first_name, last_name, channel_id, customer_group_id)
-VALUES ($1, $2, $3, $4, $5, (SELECT id FROM customer_groups WHERE is_default))
+VALUES ($1, $2, $3, $4, $5,
+        COALESCE($6::uuid, (SELECT id FROM customer_groups WHERE is_default)))
 RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
 `
 
 type CreateCustomerParams struct {
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"password_hash"`
-	FirstName    string    `json:"first_name"`
-	LastName     string    `json:"last_name"`
-	ChannelID    uuid.UUID `json:"channel_id"`
+	Email           string        `json:"email"`
+	PasswordHash    string        `json:"password_hash"`
+	FirstName       string        `json:"first_name"`
+	LastName        string        `json:"last_name"`
+	ChannelID       uuid.UUID     `json:"channel_id"`
+	CustomerGroupID uuid.NullUUID `json:"customer_group_id"`
 }
 
-// customer_group_id is auto-resolved to the current default group via subquery;
-// callers don't need to know which group to assign on registration
+// customer_group_id falls back to the current default group, so a caller names one only when it
+// means to - a customer.registering plugin routing the account, say
 func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error) {
 	row := q.db.QueryRowContext(ctx, createCustomer,
 		arg.Email,
@@ -123,6 +125,7 @@ func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) 
 		arg.FirstName,
 		arg.LastName,
 		arg.ChannelID,
+		arg.CustomerGroupID,
 	)
 	var i Customer
 	err := row.Scan(
