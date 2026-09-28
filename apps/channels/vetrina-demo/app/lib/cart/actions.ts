@@ -1,7 +1,6 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { revalidatePath } from "next/cache";
 
 import {
   AddBundleToCartDocument,
@@ -96,11 +95,6 @@ async function consumePendingPromo(cartId: string): Promise<Cart | null> {
     // the cookie
     return null;
   }
-}
-
-// Full-tree revalidate
-function refreshCart() {
-  revalidatePath("/", "layout");
 }
 
 // getCartFull re-reads the whole cart for the active cookie
@@ -519,10 +513,13 @@ export async function setCartEmailAction(email: string): Promise<void> {
   }
 }
 
+// cart is the cart after the adds - the header badge reads the client store, so the caller applies it rather than
+// the action revalidating every page
 export type QuickOrderResult = {
   ok: boolean;
   added: number;
   errors: Array<{ sku: string; message: string }>;
+  cart?: Cart | null;
 };
 
 export async function quickOrderAction(
@@ -561,8 +558,12 @@ export async function quickOrderAction(
       });
     }
   }
-  if (added > 0) refreshCart();
-  return { ok: errors.length === 0, added, errors };
+  return {
+    ok: errors.length === 0,
+    added,
+    errors,
+    cart: added > 0 ? await getCartFull(cartId) : undefined,
+  };
 }
 
 export async function saveForLaterAction(lineId: string): Promise<Cart | null> {
