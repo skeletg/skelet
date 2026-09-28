@@ -1,7 +1,7 @@
 // Shared formatting and constants for the Promotions hub and the per-promotion page - a plain
 // .ts module with no component exports, so fast-refresh stays happy and both format identically
 
-export const ACCENT = '#6366f1'
+export { CHART_ACCENT as ACCENT } from '@/lib/chart-colors'
 
 export function formatCents(c: number): string {
   return `$${(c / 100).toLocaleString(undefined, {

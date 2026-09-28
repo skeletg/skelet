@@ -25,6 +25,7 @@ import {
   UserRoundIcon,
 } from 'lucide-react'
 import { useAuth } from '@/shared/auth/auth'
+import { purgeAllDrafts } from '@/lib/form-drafts'
 import { ChangePasswordDialog } from '@/features/admins/ChangePasswordDialog'
 import { useWelcome } from '@/features/onboarding/welcome-context'
 
@@ -43,7 +44,10 @@ export function NavUser() {
   const { admin } = auth
   const displayName = `${admin.firstName} ${admin.lastName}`.trim() || admin.email
 
+  // Explicit logout only - an expired session also clears auth, and wiping drafts there would lose
+  // the very work the admin comes back to finish. Drafts are keyed per admin either way
   function onLogout() {
+    purgeAllDrafts()
     setAuth(null)
     navigate('/login', { replace: true })
   }

@@ -45,6 +45,7 @@ import {
   type FlowNodeData,
 } from './flowTypes'
 import { CreateFlowDocument, FlowDocument, FlowSegmentsDocument, FlowTriggerTypesDocument, SetFlowStatusDocument, UpdateFlowDocument } from './Flows.gql'
+import { usePermissions } from '@/shared/auth/usePermissions'
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -378,6 +379,8 @@ function ConfigPanel({
   transactional: boolean
   onTransactional: (v: boolean) => void
 }) {
+  // A new email needs emails.manage - editing a campaign or flow doesn't bring it
+  const canCreateEmail = usePermissions().has('emails.manage')
   if (!selected) {
     return (
       <div className="grid gap-4">
@@ -471,9 +474,11 @@ function ConfigPanel({
                 Edit this email
               </Link>
             )}
-            <Link to="/emails/new" className="text-primary hover:underline" target="_blank">
-              New email
-            </Link>
+            {canCreateEmail && (
+              <Link to="/emails/new" className="text-primary hover:underline" target="_blank">
+                New email
+              </Link>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">Build emails in Marketing → Emails, then pick one here.</p>
         </div>

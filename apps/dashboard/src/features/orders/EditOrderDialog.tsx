@@ -1,180 +1,147 @@
-import { useState } from 'react'
 import { useMutation } from '@apollo/client/react'
+import { useStore } from '@tanstack/react-form'
 import { PlusIcon, Trash2Icon, Undo2Icon } from 'lucide-react'
-
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { FormDialog } from '@/components/form/FormDialog'
+import { FormDialogBody } from '@/components/form/FormDialogBody'
+import { FieldError } from '@/components/form/fields'
+import { useDialogForm } from '@/components/form/useDialogForm'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { EditOrderDocument, OrderDocument, type OrderQuery } from './Orders.gql'
+import { EditOrderDocument, OrderDocument, OrdersPagedDocument, type OrderQuery } from './Orders.gql'
+import { editOrderSchema, hasOrderChanges, toEditOrderInput, toEditOrderValues } from './schemas/editOrder'
 
 type OrderData = OrderQuery['order']
-type AddRow = { sku: string; quantity: string }
 
-// EditOrderDialog edits a pre-fulfillment order: change line quantities, remove
-// lines, and add simple-product lines by SKU - Backed by editOrder, which
-// recomputes totals + re-reserves stock (a shortage aborts) server-side - Bundle
-// line quantities can't be changed - the backend rejects that and we surface it
-export function EditOrderDialog({
-  order,
-  open,
-  onOpenChange,
-}: {
-  order: OrderData
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  const refetch = [{ query: OrderDocument, variables: { id: order.id } }, 'OrdersPaged']
-  const [editOrder, state] = useMutation(EditOrderDocument, { refetchQueries: refetch })
+// Edits a pre-fulfillment order: change line quantities, remove lines, add simple-product lines by SKU
+export function EditOrderDialog({ order, open, onOpenChange }: { order: OrderData; open: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <FormDialog open={open} onOpenChange={onOpenChange}>
+      {(close) => <EditOrderForm order={order} onClose={close} />}
+    </FormDialog>
+  )
+}
 
-  const [qty, setQty] = useState<Record<string, string>>({})
-  const [removed, setRemoved] = useState<Record<string, boolean>>({})
-  const [adds, setAdds] = useState<AddRow[]>([])
-  const [error, setError] = useState<string | null>(null)
-
-  function seed() {
-    setError(null)
-    setQty(Object.fromEntries(order.lines.map((l) => [l.id, String(l.quantity)])))
-    setRemoved({})
-    setAdds([])
-  }
-
-  function buildInput() {
-    const updateLines = order.lines
-      .filter((l) => !removed[l.id])
-      .filter((l) => Number(qty[l.id]) !== l.quantity && Number(qty[l.id]) > 0)
-      .map((l) => ({ orderLineId: l.id, quantity: Number(qty[l.id]) }))
-    const removeLines = order.lines.filter((l) => removed[l.id]).map((l) => l.id)
-    const addLines = adds
-      .filter((a) => a.sku.trim() !== '' && Number(a.quantity) > 0)
-      .map((a) => ({ productSku: a.sku.trim(), quantity: Number(a.quantity) }))
-    return { updateLines, removeLines, addLines }
-  }
-
-  const { updateLines, removeLines, addLines } = buildInput()
-  const hasChanges = updateLines.length + removeLines.length + addLines.length > 0
-
-  async function onSubmit() {
-    if (!hasChanges) {
-      setError('No changes to apply.')
-      return
-    }
-    setError(null)
-    try {
-      await editOrder({ variables: { input: { orderId: order.id, updateLines, removeLines, addLines } } })
-      onOpenChange(false)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Edit failed.')
-    }
-  }
+function EditOrderForm({ order, onClose }: { order: OrderData; onClose: () => void }) {
+  const [editOrder] = useMutation(EditOrderDocument, {
+    refetchQueries: [{ query: OrderDocument, variables: { id: order.id } }, OrdersPagedDocument],
+  })
+  const dialog = useDialogForm({
+    baseline: toEditOrderValues(order.lines),
+    schema: editOrderSchema,
+    submit: async (v) => {
+      await editOrder({ variables: { input: { orderId: order.id, ...toEditOrderInput(v, order.lines) } } })
+    },
+    onSaved: onClose,
+  })
+  const { form } = dialog
+  const changed = useStore(form.store, (s) => hasOrderChanges(toEditOrderInput(s.values, order.lines)))
+  const byId = new Map(order.lines.map((l) => [l.id, l]))
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (v) seed()
-        onOpenChange(v)
-      }}
+    <FormDialogBody
+      dialog={dialog}
+      title="Edit order"
+      description="Adjust quantities, remove lines, or add simple products. Totals are recomputed and stock re-reserved on save (a shortage aborts the edit). Bundle line quantities can't be edited."
+      submitLabel="Apply changes"
+      canSubmit={changed}
+      onCancel={onClose}
     >
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Edit order</DialogTitle>
-          <DialogDescription>
-            Adjust quantities, remove lines, or add simple products. Totals are recomputed and stock
-            re-reserved on save (a shortage aborts the edit). Bundle line quantities can't be edited.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-3">
+      <form.Field name="lines" mode="array">
+        {(lines) => (
           <div className="grid gap-2">
-            {order.lines.map((l) => {
-              const isRemoved = !!removed[l.id]
+            {lines.state.value.map((row, i) => {
+              const line = byId.get(row.id)
               return (
-                <div
-                  key={l.id}
-                  className={`flex items-center gap-3 rounded border px-3 py-2 ${isRemoved ? 'opacity-50' : ''}`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className={`truncate text-sm font-medium ${isRemoved ? 'line-through' : ''}`}>
-                      {l.productName}
+                <div key={row.id} className={`grid gap-1 rounded border px-3 py-2 ${row.removed ? 'opacity-50' : ''}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className={`truncate text-sm font-medium ${row.removed ? 'line-through' : ''}`}>{line?.productName}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground">{line?.productSku}</div>
                     </div>
-                    <div className="font-mono text-[10px] text-muted-foreground">{l.productSku}</div>
+                    <form.Field name={`lines[${i}].quantity`}>
+                      {(f) => (
+                        <Input
+                          type="number"
+                          min={0}
+                          step="any"
+                          aria-label={`${line?.productName ?? 'Line'} quantity`}
+                          value={f.state.value}
+                          disabled={row.removed}
+                          onChange={(e) => f.handleChange(e.target.value)}
+                          onBlur={f.handleBlur}
+                          className="w-24 tabular-nums"
+                        />
+                      )}
+                    </form.Field>
+                    <form.Field name={`lines[${i}].removed`}>
+                      {(f) => (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0"
+                          onClick={() => f.handleChange(!f.state.value)}
+                          aria-label={f.state.value ? 'Keep line' : 'Remove line'}
+                        >
+                          {f.state.value ? <Undo2Icon className="size-4" /> : <Trash2Icon className="size-4 text-destructive" />}
+                        </Button>
+                      )}
+                    </form.Field>
                   </div>
-                  <Input
-                    type="number"
-                    min={0}
-                    step="any"
-                    value={qty[l.id] ?? String(l.quantity)}
-                    disabled={isRemoved}
-                    onChange={(e) => setQty((p) => ({ ...p, [l.id]: e.target.value }))}
-                    className="w-24 tabular-nums"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="shrink-0"
-                    onClick={() => setRemoved((p) => ({ ...p, [l.id]: !p[l.id] }))}
-                    aria-label={isRemoved ? 'Keep line' : 'Remove line'}
-                  >
-                    {isRemoved ? <Undo2Icon className="size-4" /> : <Trash2Icon className="size-4 text-destructive" />}
-                  </Button>
+                  <form.Field name={`lines[${i}].quantity`}>{(f) => <FieldError field={f} />}</form.Field>
                 </div>
               )
             })}
           </div>
+        )}
+      </form.Field>
 
+      <form.Field name="adds" mode="array">
+        {(adds) => (
           <div className="grid gap-2">
-            {adds.map((a, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <Input
-                  placeholder="SKU"
-                  value={a.sku}
-                  onChange={(e) => setAdds((p) => p.map((row, idx) => (idx === i ? { ...row, sku: e.target.value } : row)))}
-                  className="font-mono"
-                />
-                <Input
-                  type="number"
-                  min={0}
-                  step="any"
-                  placeholder="qty"
-                  value={a.quantity}
-                  onChange={(e) => setAdds((p) => p.map((row, idx) => (idx === i ? { ...row, quantity: e.target.value } : row)))}
-                  className="w-24 tabular-nums"
-                />
-                <Button type="button" variant="ghost" size="icon" className="shrink-0" onClick={() => setAdds((p) => p.filter((_, idx) => idx !== i))}>
+            {adds.state.value.map((_, i) => (
+              <div key={i} className="flex items-start gap-2">
+                <form.Field name={`adds[${i}].sku`}>
+                  {(f) => (
+                    <Input
+                      placeholder="SKU"
+                      aria-label={`New line ${i + 1} SKU`}
+                      value={f.state.value}
+                      onChange={(e) => f.handleChange(e.target.value)}
+                      className="font-mono"
+                    />
+                  )}
+                </form.Field>
+                <form.Field name={`adds[${i}].quantity`}>
+                  {(f) => (
+                    <div className="grid gap-1">
+                      <Input
+                        type="number"
+                        min={0}
+                        step="any"
+                        placeholder="qty"
+                        aria-label={`New line ${i + 1} quantity`}
+                        value={f.state.value}
+                        onChange={(e) => f.handleChange(e.target.value)}
+                        onBlur={f.handleBlur}
+                        className="w-24 tabular-nums"
+                      />
+                      <FieldError field={f} />
+                    </div>
+                  )}
+                </form.Field>
+                <Button type="button" variant="ghost" size="icon" className="shrink-0" aria-label="Remove new line" onClick={() => adds.removeValue(i)}>
                   <Trash2Icon className="size-4" />
                 </Button>
               </div>
             ))}
-            <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setAdds((p) => [...p, { sku: '', quantity: '1' }])}>
+            <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => adds.pushValue({ sku: '', quantity: '1' })}>
               <PlusIcon className="size-4" />
               Add product
             </Button>
           </div>
-
-          {error && (
-            <Alert variant="destructive">
-              <AlertTitle>Failed</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={state.loading}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={onSubmit} disabled={state.loading || !hasChanges}>
-            {state.loading ? 'Saving…' : 'Apply changes'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        )}
+      </form.Field>
+    </FormDialogBody>
   )
 }

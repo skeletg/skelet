@@ -7,7 +7,11 @@ import { TabPanelContext } from '@/lib/tab-panel-context'
 // Module scoped rather than React state on purpose: the beforeunload listener has to read the set
 // at fire time, and a page in a hidden tab is still mounted and still dirty
 
-type DirtyEntry = { id: number; label: string | null; tabId: string | null }
+// `persisted` - the work also lives in a stored draft (lib/form-drafts), so a refresh, a close or a
+// scope switch loses nothing and needn't ask - only closing its workspace tab still does
+type DirtyEntry = { id: number; label: string | null; tabId: string | null; persisted: boolean }
+
+type Scope = { includePersisted?: boolean }
 
 const dirtyEntries = new Set<DirtyEntry>()
 let dirtySeq = 0
@@ -42,21 +46,21 @@ function labelFor(entry: DirtyEntry): string {
 
 // No tabId means "anywhere" - an entry with a null tabId came from a bare render (tests) and only
 // ever counts app-wide, never against a specific tab
-function entriesFor(tabId?: string): DirtyEntry[] {
-  const all = [...dirtyEntries]
+function entriesFor(tabId?: string, scope: Scope = {}): DirtyEntry[] {
+  const all = [...dirtyEntries].filter((entry) => scope.includePersisted || !entry.persisted)
   return tabId === undefined ? all : all.filter((entry) => entry.tabId === tabId)
 }
 
-export function hasUnsavedChanges(tabId?: string): boolean {
-  return entriesFor(tabId).length > 0
+export function hasUnsavedChanges(tabId?: string, scope?: Scope): boolean {
+  return entriesFor(tabId, scope).length > 0
 }
 
 // One line per PAGE, not per registration - a page can register twice (its staged-save sections
 // plus an explicit guard of its own, which Settings does) and naming it twice reads like two pages
-export function unsavedLabels(tabId?: string): string[] {
+export function unsavedLabels(tabId?: string, scope?: Scope): string[] {
   const perTab = new Map<string, DirtyEntry[]>()
   const untabbed: DirtyEntry[] = []
-  for (const entry of entriesFor(tabId)) {
+  for (const entry of entriesFor(tabId, scope)) {
     if (!entry.tabId) {
       untabbed.push(entry)
       continue
@@ -87,8 +91,16 @@ function listed(labels: string[]): string {
  * `label` describes what is dirty (e.g. "Product 'Acme Widget'") and shows up in the confirm -
  * left off, the page's workspace-tab title stands in - the registration clears on unmount, so
  * navigating away is automatically forgiven
+ *
+ * `persisted` marks work a stored draft already keeps (shared/saving/usePersistedForm) - it only
+ * prompts when its workspace tab is closed
  */
-export function useUnsavedChangesGuard(isDirty: boolean, label?: string): void {
+export function useUnsavedChangesGuard(
+  isDirty: boolean,
+  label?: string,
+  opts: { persisted?: boolean } = {},
+): void {
+  const persisted = opts.persisted ?? false
   const { id: tabId } = useContext(TabPanelContext)
   const entryRef = useRef<DirtyEntry | null>(null)
   useEffect(() => {
@@ -100,11 +112,12 @@ export function useUnsavedChangesGuard(isDirty: boolean, label?: string): void {
       return
     }
     if (!entryRef.current) {
-      entryRef.current = { id: ++dirtySeq, label: label ?? null, tabId }
+      entryRef.current = { id: ++dirtySeq, label: label ?? null, tabId, persisted }
       dirtyEntries.add(entryRef.current)
     } else {
       entryRef.current.label = label ?? null
       entryRef.current.tabId = tabId
+      entryRef.current.persisted = persisted
     }
     return () => {
       if (entryRef.current) {
@@ -112,7 +125,7 @@ export function useUnsavedChangesGuard(isDirty: boolean, label?: string): void {
         entryRef.current = null
       }
     }
-  }, [isDirty, label, tabId])
+  }, [isDirty, label, tabId, persisted])
 }
 
 /**
@@ -136,11 +149,13 @@ export function confirmScopeSwitch(): boolean {
 }
 
 // Scoped to the one tab - sibling tabs stay mounted and keep their edits, so their dirty state is
-// none of this prompt's business
+// none of this prompt's business - persisted drafts count here: the tab id they're stored under dies
+// with the tab, so closing it is the one move that really loses them
 export function confirmCloseTab(tabId: string): boolean {
-  if (!hasUnsavedChanges(tabId)) return true
+  const scope = { includePersisted: true }
+  if (!hasUnsavedChanges(tabId, scope)) return true
   return window.confirm(
-    `You have unsaved changes${listed(unsavedLabels(tabId))}\n\nClosing this tab will discard them. Continue?`,
+    `You have unsaved changes${listed(unsavedLabels(tabId, scope))}\n\nClosing this tab will discard them. Continue?`,
   )
 }
 

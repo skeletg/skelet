@@ -334,7 +334,7 @@ export function ReviewsList({
 export function ReviewStatusBadge({ status }: { status: ReviewStatus }) {
   switch (status) {
     case 'APPROVED':
-      return <Badge className="bg-green-600 text-white hover:bg-green-600">Approved</Badge>
+      return <Badge className="bg-success text-success-foreground hover:bg-success/90">Approved</Badge>
     case 'REJECTED':
       return <Badge variant="destructive">Rejected</Badge>
     default:
@@ -347,15 +347,15 @@ export function ReviewStatusBadge({ status }: { status: ReviewStatus }) {
 export function ReviewModerationBadge({ label }: { label: string }) {
   switch (label) {
     case 'genuine':
-      return <Badge className="bg-green-600 text-white hover:bg-green-600">Genuine</Badge>
+      return <Badge className="bg-success text-success-foreground hover:bg-success/90">Genuine</Badge>
     case 'flagged':
-      return <Badge className="bg-amber-500 text-white hover:bg-amber-500">Flagged</Badge>
+      return <Badge className="bg-warning text-warning-foreground hover:bg-warning/90">Flagged</Badge>
     case 'spam':
       return <Badge variant="destructive">Spam</Badge>
     case 'abusive':
       return <Badge variant="destructive">Abusive</Badge>
     case 'off_topic':
-      return <Badge className="bg-amber-500 text-white hover:bg-amber-500">Off-topic</Badge>
+      return <Badge className="bg-warning text-warning-foreground hover:bg-warning/90">Off-topic</Badge>
     case '':
       return null
     default:

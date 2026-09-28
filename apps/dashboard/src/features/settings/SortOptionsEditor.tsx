@@ -172,15 +172,15 @@ export function SortOptionsEditor({
             const directionDisabled = disabled || fieldMeta?.hideDirection === true
             return (
               <tr key={i} className="border-t">
-                <td className="px-3 py-2">
-                  <div className="flex flex-col">
+                <td className="px-3 py-2 align-top">
+                  <div className="flex h-8 flex-col justify-center">
                     <Button
                       type="button"
                       size="icon-sm"
                       variant="ghost"
                       onClick={() => move(i, -1)}
                       disabled={disabled || i === 0}
-                      className="size-5"
+                      className="size-4"
                       title="Move up"
                     >
                       <ArrowUpIcon className="size-3" />
@@ -191,14 +191,14 @@ export function SortOptionsEditor({
                       variant="ghost"
                       onClick={() => move(i, 1)}
                       disabled={disabled || i === options.length - 1}
-                      className="size-5"
+                      className="size-4"
                       title="Move down"
                     >
                       <ArrowDownIcon className="size-3" />
                     </Button>
                   </div>
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 align-top">
                   <Input
                     value={opt.label}
                     onChange={(e) => onLabelChange(i, e.target.value)}
@@ -206,7 +206,7 @@ export function SortOptionsEditor({
                     className="h-8"
                   />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 align-top">
                   <Input
                     value={opt.slug}
                     onChange={(e) => update(i, { slug: e.target.value })}
@@ -214,7 +214,7 @@ export function SortOptionsEditor({
                     className="h-8 font-mono text-xs"
                   />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 align-top">
                   <Select
                     value={opt.field}
                     onValueChange={(v) => update(i, { field: v })}
@@ -223,7 +223,7 @@ export function SortOptionsEditor({
                     {/* Children, so the trigger shows the label alone - a bare SelectValue mirrors
                         the whole item, repeating the help text and widening the column until the
                         auto-layout table squeezes Label and Slug down to a character */}
-                    <SelectTrigger className="h-8">
+                    <SelectTrigger size="sm" className="w-full">
                       <SelectValue>{fieldMeta?.label ?? opt.field}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
@@ -256,13 +256,13 @@ export function SortOptionsEditor({
                     <p className="mt-1 text-[10px] text-muted-foreground">{fieldMeta.help}</p>
                   ) : null}
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 align-top">
                   <Select
                     value={opt.direction}
                     onValueChange={(v) => update(i, { direction: v as 'asc' | 'desc' })}
                     disabled={directionDisabled}
                   >
-                    <SelectTrigger className="h-8">
+                    <SelectTrigger size="sm" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -271,40 +271,44 @@ export function SortOptionsEditor({
                     </SelectContent>
                   </Select>
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 align-top">
                   {/* The first option's canonical URL drops the
                       /s/<slug> segment entirely (it IS the canonical
                       page), so its indexability is governed by the
                       filter chain alone - flag is moot - Disable the
                       switch + label as "n/a" for that row to avoid
                       operator confusion */}
-                  {i === 0 ? (
-                    <span
-                      className="text-[10px] text-muted-foreground"
-                      title="Default option. Its URL has no /s/ segment, so indexability is decided by the filter chain alone."
-                    >
-                      n/a
-                    </span>
-                  ) : (
-                    <Switch
-                      checked={opt.isIndexable}
-                      onCheckedChange={(v) => update(i, { isIndexable: v })}
-                      disabled={disabled}
-                    />
-                  )}
+                  <div className="flex h-8 items-center">
+                    {i === 0 ? (
+                      <span
+                        className="text-[10px] text-muted-foreground"
+                        title="Default option. Its URL has no /s/ segment, so indexability is decided by the filter chain alone."
+                      >
+                        n/a
+                      </span>
+                    ) : (
+                      <Switch
+                        checked={opt.isIndexable}
+                        onCheckedChange={(v) => update(i, { isIndexable: v })}
+                        disabled={disabled}
+                      />
+                    )}
+                  </div>
                 </td>
-                <td className="px-3 py-2">
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="ghost"
-                    onClick={() => remove(i)}
-                    disabled={disabled}
-                    className="size-7 text-muted-foreground hover:text-destructive"
-                    title="Remove"
-                  >
-                    <TrashIcon className="size-3.5" />
-                  </Button>
+                <td className="px-3 py-2 align-top">
+                  <div className="flex h-8 items-center">
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => remove(i)}
+                      disabled={disabled}
+                      className="size-7 text-muted-foreground hover:text-destructive"
+                      title="Remove"
+                    >
+                      <TrashIcon className="size-3.5" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             )

@@ -82,6 +82,12 @@ RETURNING *;
 SELECT * FROM catalog_collection_content
 WHERE collection_id = $1 AND locale = $2;
 
+-- name: ListCollectionContentForCollections :many
+-- Every locale's row for a set of collections - admin collection lists answer Collection.content in one query
+SELECT * FROM catalog_collection_content
+WHERE collection_id = ANY(sqlc.arg(collection_ids)::uuid[])
+ORDER BY collection_id, locale;
+
 -- name: ListCollectionContent :many
 SELECT * FROM catalog_collection_content
 WHERE collection_id = $1

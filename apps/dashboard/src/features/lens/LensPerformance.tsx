@@ -28,9 +28,9 @@ const THRESHOLDS: Record<Metric, [number, number]> = {
 
 function rate(metric: Metric, v: number): string {
   const [good, poor] = THRESHOLDS[metric]
-  if (v <= good) return 'text-emerald-600 dark:text-emerald-400'
-  if (v <= poor) return 'text-amber-600 dark:text-amber-400'
-  return 'text-red-600 dark:text-red-400'
+  if (v <= good) return 'text-success'
+  if (v <= poor) return 'text-warning'
+  return 'text-destructive'
 }
 function fmt(metric: Metric, v: number): string {
   if (metric === 'cls') return v.toFixed(3)

@@ -3,7 +3,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  LexicalRichTextEditor,
+  FormRichTextEditor,
   type RichTextValue,
 } from '@/features/catalog/LexicalRichTextEditor'
 import type { CmsInputType } from '@/graphql/schema.types'
@@ -105,7 +105,7 @@ function FieldInput({
       )
     case 'RICHTEXT':
       return (
-        <LexicalRichTextEditor
+        <FormRichTextEditor
           value={(value as RichTextValue) ?? undefined}
           fallbackText=""
           disabled={disabled}

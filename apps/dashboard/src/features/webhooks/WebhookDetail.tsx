@@ -49,6 +49,7 @@ import {
   DeleteWebhookDocument,
   RotateWebhookSecretDocument,
   SetWebhookActiveDocument,
+  WebhookDeliveriesDocument,
   WebhookDocument,
   WebhooksDocument,
 } from './Webhooks.gql'
@@ -75,7 +76,7 @@ export function WebhookDetail() {
     refetchQueries: [{ query: WebhooksDocument }],
   })
   const [clearDeliveries, { loading: clearing }] = useMutation(ClearWebhookDeliveriesDocument, {
-    refetchQueries: ['WebhookDeliveries'],
+    refetchQueries: [WebhookDeliveriesDocument],
   })
 
   const [confirmingDelete, setConfirmingDelete] = useState(false)

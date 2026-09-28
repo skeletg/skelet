@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatCents } from '@/lib/format'
+import { dollarsToCents } from '@/shared/schemas/fields'
 import {
   AddProductChildDocument,
   GenerateConfigurableChildrenDocument,
@@ -782,12 +783,6 @@ function GenerateVariantsTab({
 
   function effectiveRow(row: VariantRow): VariantRow {
     return { ...row, ...overrides[row.key] }
-  }
-
-  function dollarsToCents(input: string): number {
-    const n = Number(input)
-    if (!Number.isFinite(n)) return 0
-    return Math.round(n * 100)
   }
 
   async function onGenerate() {

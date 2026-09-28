@@ -197,6 +197,7 @@ export function WildcardEditor({
           className="h-8 font-mono text-xs"
         />
         <Button
+          className="h-10"
           type="button"
           variant="outline"
           size="sm"

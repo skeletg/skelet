@@ -11,7 +11,7 @@ import {
 import { Input } from '@/components/ui/input'
 import {
   SearchMediaAssetsDocument,
-  type MediaAsset,
+  type MediaAssetFieldsFragment as MediaAsset,
   type SearchMediaAssetsQuery,
   type SearchMediaAssetsQueryVariables,
 } from './MediaLibrary.gql'

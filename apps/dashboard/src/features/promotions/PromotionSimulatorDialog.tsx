@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { dollarsToCents } from '@/shared/schemas/fields'
 import { SimulatePromotionDocument } from './Promotions.gql'
 import { formatCents } from './promoFormat'
 
@@ -35,11 +36,6 @@ import { formatCents } from './promoFormat'
 type Line = { productSku: string; quantity: string; unitPriceCents: string }
 
 const EMPTY_LINE: Line = { productSku: '', quantity: '1', unitPriceCents: '' }
-
-function toCents(dollars: string): number {
-  const n = Number(dollars)
-  return Number.isFinite(n) ? Math.round(n * 100) : 0
-}
 
 export function PromotionSimulatorDialog({ trigger }: { trigger: ReactNode }) {
   const countryOptions = useQuery(CountriesPickerDocument).data?.countries ?? []
@@ -61,7 +57,7 @@ export function PromotionSimulatorDialog({ trigger }: { trigger: ReactNode }) {
     void run({
       variables: {
         input: {
-          subtotalCents: toCents(subtotal),
+          subtotalCents: dollarsToCents(subtotal),
           countryCode: countryCode.trim() || null,
           customerGroupSlug: groupSlug.trim() || null,
           appliedCodes: codes
@@ -73,7 +69,7 @@ export function PromotionSimulatorDialog({ trigger }: { trigger: ReactNode }) {
             .map((l) => ({
               productSku: l.productSku.trim(),
               quantity: Number(l.quantity) || 1,
-              unitPriceCents: toCents(l.unitPriceCents),
+              unitPriceCents: dollarsToCents(l.unitPriceCents),
             })),
         },
       },
@@ -108,7 +104,7 @@ export function PromotionSimulatorDialog({ trigger }: { trigger: ReactNode }) {
             <div className="grid gap-1.5">
               <Label htmlFor="sim-country">Country</Label>
               <Select value={countryCode || '__none__'} onValueChange={(v) => setCountryCode(v === '__none__' ? '' : v)}>
-                <SelectTrigger id="sim-country">
+                <SelectTrigger className="w-full" id="sim-country">
                   <SelectValue placeholder="Country" />
                 </SelectTrigger>
                 <SelectContent>
@@ -126,7 +122,7 @@ export function PromotionSimulatorDialog({ trigger }: { trigger: ReactNode }) {
             <div className="grid gap-1.5">
               <Label htmlFor="sim-group">Customer group</Label>
               <Select value={groupSlug || '__none__'} onValueChange={(v) => setGroupSlug(v === '__none__' ? '' : v)}>
-                <SelectTrigger id="sim-group">
+                <SelectTrigger className="w-full" id="sim-group">
                   <SelectValue placeholder="Customer group" />
                 </SelectTrigger>
                 <SelectContent>

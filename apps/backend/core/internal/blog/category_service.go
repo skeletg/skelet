@@ -17,6 +17,7 @@ type categoryStore interface {
 	ListAllCategories(ctx context.Context) ([]Category, error)
 	ListCategoryChildren(ctx context.Context, parentID uuid.UUID) ([]Category, error)
 	ListCategoryContentByScope(ctx context.Context, categoryIDs []uuid.UUID, locale string) (map[uuid.UUID]CategoryContent, error)
+	ListCategoryContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]CategoryContent, error)
 	UpdateCategory(ctx context.Context, in UpdateCategoryInput) (Category, error)
 	UpdateCategoryURLPath(ctx context.Context, id uuid.UUID, urlPath string) error
 	UpsertCategoryContent(ctx context.Context, categoryID uuid.UUID, in CategoryContentInput) (CategoryContent, error)
@@ -366,4 +367,9 @@ func buildCategoryTree(all []Category, parentID *uuid.UUID) []Category {
 		result = append(result, c)
 	}
 	return result
+}
+
+// ListCategoryTranslations returns every locale's content row for each category, in one query - list reads only carry the resolved locale, so the admin allContent field reads the full set here
+func (s *categoryService) ListCategoryTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]CategoryContent, error) {
+	return s.repo.ListCategoryContentFor(ctx, ids)
 }

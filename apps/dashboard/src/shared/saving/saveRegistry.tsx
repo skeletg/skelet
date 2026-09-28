@@ -19,6 +19,8 @@ export type SectionRegistration = {
   title: string
   diff: SectionDiffEntry[]
   save: () => Promise<void>
+  // Its edits also live in a stored draft (usePersistedForm), so a refresh loses nothing
+  persisted?: boolean
 }
 
 export type SaveRegistryValue = {
@@ -39,8 +41,12 @@ export function normalizeDiff(id: string, diff: SectionDiffEntry[]): SectionDiff
   return kept
 }
 
-export function useSaveSection(reg: SectionRegistration) {  // re-registers when the diff content changes, and removes its entry on unmount
-  const ctx = useContext(SaveRegistryContext)
+// `registry` - pass the page's own contextValue when the section lives in the SAME component that
+// calls useSaveRegistry: that component renders the Provider, so it can't read it from context -
+// without this the section silently registers nowhere and the header Save never lights up
+export function useSaveSection(reg: SectionRegistration, registry?: SaveRegistryValue) {  // re-registers when the diff content changes, and removes its entry on unmount
+  const fromContext = useContext(SaveRegistryContext)
+  const ctx = registry ?? fromContext
   const regRef = useRef(reg)
   // Declared before the register effect so registration reads a fresh ref
   useEffect(() => {
@@ -102,6 +108,9 @@ export function useSaveRegistry(label?: string) {  // page side - owns the secti
   // Every staged-save page is a page that can lose work, so the guard is wired HERE rather than
   // per page - closing, refreshing or switching scope with a dirty section now always prompts
   const isDirty = dirtySections.length > 0
-  useUnsavedChangesGuard(isDirty, label)
+  // Refresh and close skip the prompt only while EVERY dirty section keeps a stored draft - one
+  // staged section without one (a values table beside a record form) still has work to lose
+  const persisted = isDirty && dirtySections.every((s) => s.persisted)
+  useUnsavedChangesGuard(isDirty, label, { persisted })
   return { contextValue, dirtySections, isDirty, saveAll }
 }

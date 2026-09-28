@@ -103,7 +103,7 @@ export function ConfigField({
   const { text, hint } = splitLabel(field.label, field.description)
 
   const provenance = isDirty
-    ? { rail: RAIL.dirty, note: 'Unsaved', tone: 'text-amber-600 dark:text-amber-500', onHover: false }
+    ? { rail: RAIL.dirty, note: 'Unsaved', tone: 'text-warning', onHover: false }
     : inherited === undefined
       ? { rail: RAIL.quiet, note: '', tone: '', onHover: true }
       : inherited

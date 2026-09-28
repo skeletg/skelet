@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { gql } from '@apollo/client'
 import { useMutation, useQuery } from '@apollo/client/react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -18,51 +17,14 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
+import {
+  SetShippingCarrierCountriesDocument,
+  SetShippingCarrierEnabledDocument,
+  ShippingCarriersDocument,
+  type ShippingCarriersQuery,
+} from './Shipping.gql'
 
-const SHIPPING_CARRIERS_QUERY = gql`
-  query ShippingCarriers($channelId: ID!) {
-    shippingCarriers(channelId: $channelId) {
-      carrierSlug
-      displayName
-      isEnabled
-      sortOrder
-      countryMode
-      allowedCountries
-      supportsTracking
-      supportsLabels
-    }
-  }
-`
-
-const SET_ENABLED = gql`
-  mutation SetShippingCarrierEnabled($channelId: ID!, $carrierSlug: String!, $enabled: Boolean!) {
-    setShippingCarrierEnabled(channelId: $channelId, carrierSlug: $carrierSlug, enabled: $enabled) {
-      carrierSlug
-      isEnabled
-    }
-  }
-`
-
-const SET_COUNTRIES = gql`
-  mutation SetShippingCarrierCountries($channelId: ID!, $carrierSlug: String!, $mode: String!, $countries: [String!]!) {
-    setShippingCarrierCountries(channelId: $channelId, carrierSlug: $carrierSlug, mode: $mode, countries: $countries) {
-      carrierSlug
-      countryMode
-      allowedCountries
-    }
-  }
-`
-
-type ShippingCarrierAdmin = {
-  carrierSlug: string
-  displayName: string
-  isEnabled: boolean
-  sortOrder: number
-  countryMode: string
-  allowedCountries: string[]
-  supportsTracking: boolean
-  supportsLabels: boolean
-}
+type ShippingCarrierAdmin = ShippingCarriersQuery['shippingCarriers'][number]
 
 // ShippingCarrierAvailability is the per-channel enablement + country-restriction
 // block for shipping carriers, embedded in the Shipping settings section
@@ -73,10 +35,7 @@ type ShippingCarrierAdmin = {
 export function ShippingCarrierAvailability({ carrierSlug }: { carrierSlug?: string }) {
   const { effectiveChannelId, isChannel } = useConfigScope()
 
-  const { data, loading, error } = useQuery<
-    { shippingCarriers: ShippingCarrierAdmin[] },
-    { channelId: string }
-  >(SHIPPING_CARRIERS_QUERY, {
+  const { data, loading, error } = useQuery(ShippingCarriersDocument, {
     variables: { channelId: effectiveChannelId ?? '' },
     skip: !effectiveChannelId,
   })
@@ -138,17 +97,11 @@ function CarrierCard({
   const [countriesText, setCountriesText] = useState((carrier.allowedCountries ?? []).join(', '))
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const refetchQueries = [{ query: SHIPPING_CARRIERS_QUERY, variables: { channelId } }]
+  const refetchQueries = [{ query: ShippingCarriersDocument, variables: { channelId } }]
 
-  const [setEnabled, { loading: toggling }] = useMutation<
-    { setShippingCarrierEnabled: { isEnabled: boolean } },
-    { channelId: string; carrierSlug: string; enabled: boolean }
-  >(SET_ENABLED, { refetchQueries })
+  const [setEnabled, { loading: toggling }] = useMutation(SetShippingCarrierEnabledDocument, { refetchQueries })
 
-  const [setCountries, { loading: savingCountries }] = useMutation<
-    unknown,
-    { channelId: string; carrierSlug: string; mode: string; countries: string[] }
-  >(SET_COUNTRIES, { refetchQueries })
+  const [setCountries, { loading: savingCountries }] = useMutation(SetShippingCarrierCountriesDocument, { refetchQueries })
 
   async function onToggle(next: boolean) {
     setSaveError(null)
@@ -204,7 +157,7 @@ function CarrierCard({
         <div className="grid gap-1">
           <Label className="text-xs">Ships to</Label>
           <Select value={mode} onValueChange={(v) => setMode(v as 'all' | 'specific')}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

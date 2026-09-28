@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/action"
 	"github.com/skeletg/skelet/apps/backend/core/internal/admin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/adminaction"
 	"github.com/skeletg/skelet/apps/backend/core/internal/adminprefs"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
@@ -75,7 +75,7 @@ type Resolver struct {
 	OrderMailSvc      *ordermail.Service // the resend path - flows own the automatic sends, this is the operator's manual one
 	ConfigSvc         *config.Service
 	ConsentSvc        *consent.Service
-	ActionSvc         *action.Service
+	ActionSvc         *adminaction.Service
 	DataJobSvc        *datajob.Service // the one seam behind every bulk import and export
 	AuditSvc          *audit.Service
 	PrefsSvc          *adminprefs.Service

@@ -10,7 +10,7 @@ import (
 )
 
 func (r *queryResolver) PulseEngagement(ctx context.Context, channelID string, sinceDays *int32) (*model.PulseEngagement, error) {
-	if err := auth.RequirePermission(ctx, auth.GrantCheckerFrom(ctx), "emails.view"); err != nil {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "emails.view"); err != nil {
 		return nil, err
 	}
 	if _, err := uuid.Parse(channelID); err != nil {

@@ -140,6 +140,38 @@ describe('close and refresh', () => {
   })
 })
 
+// A stored draft already survives a refresh, a close and a scope switch - asking there is noise.
+// Closing its workspace tab is the exception: the tab id the draft lives under dies with it
+describe('persisted drafts', () => {
+  function Persisted() {
+    useUnsavedChangesGuard(true, 'Location', { persisted: true })
+    return null
+  }
+
+  it('lets the browser close and scope switches through', () => {
+    const remove = installUnloadGuard()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const view = render(inTab('tab-a', <Persisted />))
+    const event = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(confirmScopeSwitch()).toBe(true)
+    expect(hasUnsavedChanges()).toBe(false)
+    expect(confirm).not.toHaveBeenCalled()
+    view.unmount()
+    remove()
+  })
+
+  it('still prompts when its workspace tab is closed', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const view = render(inTab('tab-a', <Persisted />))
+    expect(confirmCloseTab('tab-a')).toBe(false)
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(hasUnsavedChanges('tab-a', { includePersisted: true })).toBe(true)
+    view.unmount()
+  })
+})
+
 // Create forms and mount-with-their-record editors have nothing loaded to diff against, so dirt is
 // "moved off the value it mounted with" - the baseline must never drift, or a form goes permanently dirty
 describe('useUnsavedFields', () => {

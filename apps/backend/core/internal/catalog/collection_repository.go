@@ -163,6 +163,22 @@ func (r *postgresRepository) ListCollectionContent(ctx context.Context, collecti
 	return out, nil
 }
 
+// Every locale's row per collection, keyed by collection - a collection with no rows is simply absent
+func (r *postgresRepository) ListCollectionContentForCollections(ctx context.Context, collectionIDs []uuid.UUID) (map[uuid.UUID][]CollectionContent, error) {
+	out := make(map[uuid.UUID][]CollectionContent, len(collectionIDs))
+	if len(collectionIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListCollectionContentForCollections(ctx, collectionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list collection content for collections: %w", err)
+	}
+	for _, row := range rows {
+		out[row.CollectionID] = append(out[row.CollectionID], toCollectionContent(row))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ListCollectionContentByScope(ctx context.Context, collectionIDs []uuid.UUID, locale string) (map[uuid.UUID]CollectionContent, error) {
 	if len(collectionIDs) == 0 {
 		return map[uuid.UUID]CollectionContent{}, nil
@@ -331,7 +347,6 @@ func toCollection(row db.Collection) Collection {
 		SEONoindex:      row.SeoNoindex,
 		Metadata:        metadataFromJSON(row.Metadata),
 		PrivateMetadata: metadataFromJSON(row.PrivateMetadata),
-		AllContent:      []CollectionContent{},
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,
 	}

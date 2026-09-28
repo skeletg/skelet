@@ -271,6 +271,12 @@ WHERE product_id = ANY(sqlc.arg(product_ids)::uuid[])
   AND locale     = sqlc.arg(locale)::text
 ORDER BY product_id;
 
+-- name: ListProductContentForProducts :many
+-- Every locale's row for a set of products - admin product lists answer Product.content in one query
+SELECT * FROM catalog_product_content
+WHERE product_id = ANY(sqlc.arg(product_ids)::uuid[])
+ORDER BY product_id, locale;
+
 -- name: DeleteProductContent :execrows
 DELETE FROM catalog_product_content
 WHERE product_id = $1 AND locale = $2;

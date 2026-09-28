@@ -9,11 +9,11 @@ import {
   YAxis,
 } from 'recharts'
 import { ChartTooltipContent } from '@/components/ui/chart'
+import { CHART_ACCENT } from '@/lib/chart-colors'
 import { useConfigScope } from '@/lib/config-scope'
 import { LensOverviewDocument } from '@/features/lens/Lens.gql'
 import { NeedsChannel, Tile, WidgetSection } from './primitives'
 
-const ACCENT = '#6366f1'
 const DAYS = 30
 const dayLabel = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
 
@@ -57,15 +57,15 @@ export function TrafficWidget() {
                 <AreaChart data={points} margin={{ top: 8, right: 12, bottom: 0, left: -16 }}>
                   <defs>
                     <linearGradient id="home-traffic" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={ACCENT} stopOpacity={0.35} />
-                      <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
+                      <stop offset="0%" stopColor={CHART_ACCENT} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={CHART_ACCENT} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={24} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={36} />
                   <Tooltip content={<ChartTooltipContent />} />
-                  <Area type="monotone" dataKey="views" name="Views" stroke={ACCENT} strokeWidth={2} fill="url(#home-traffic)" />
+                  <Area type="monotone" dataKey="views" name="Views" stroke={CHART_ACCENT} strokeWidth={2} fill="url(#home-traffic)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

@@ -50,6 +50,12 @@ SELECT * FROM blog_author_content WHERE author_id = $1 ORDER BY locale;
 SELECT * FROM blog_author_content
 WHERE author_id = ANY(sqlc.arg(author_ids)::uuid[]) AND locale = $1;
 
+-- name: ListBlogAuthorContentForAuthors :many
+-- Every locale's row for a set of authors - the admin list answers allContent in one query
+SELECT * FROM blog_author_content
+WHERE author_id = ANY(sqlc.arg(author_ids)::uuid[])
+ORDER BY author_id, locale;
+
 -- name: DeleteBlogAuthorContent :execrows
 DELETE FROM blog_author_content WHERE author_id = $1 AND locale = $2;
 
@@ -114,6 +120,12 @@ SELECT * FROM blog_category_content WHERE category_id = $1 ORDER BY locale;
 SELECT * FROM blog_category_content
 WHERE category_id = ANY(sqlc.arg(category_ids)::uuid[]) AND locale = $1;
 
+-- name: ListBlogCategoryContentForCategories :many
+-- Every locale's row for a set of categories - the admin list answers allContent in one query
+SELECT * FROM blog_category_content
+WHERE category_id = ANY(sqlc.arg(category_ids)::uuid[])
+ORDER BY category_id, locale;
+
 -- name: DeleteBlogCategoryContent :execrows
 DELETE FROM blog_category_content WHERE category_id = $1 AND locale = $2;
 
@@ -161,6 +173,12 @@ SELECT * FROM blog_tag_content WHERE tag_id = $1 ORDER BY locale;
 -- name: ListBlogTagContentByScope :many
 SELECT * FROM blog_tag_content
 WHERE tag_id = ANY(sqlc.arg(tag_ids)::uuid[]) AND locale = $1;
+
+-- name: ListBlogTagContentForTags :many
+-- Every locale's row for a set of tags - the admin list answers allContent in one query
+SELECT * FROM blog_tag_content
+WHERE tag_id = ANY(sqlc.arg(tag_ids)::uuid[])
+ORDER BY tag_id, locale;
 
 -- name: DeleteBlogTagContent :execrows
 DELETE FROM blog_tag_content WHERE tag_id = $1 AND locale = $2;
@@ -266,6 +284,12 @@ SELECT * FROM blog_post_content WHERE post_id = $1 ORDER BY locale;
 -- name: ListBlogPostContentByScope :many
 SELECT * FROM blog_post_content
 WHERE post_id = ANY(sqlc.arg(post_ids)::uuid[]) AND locale = $1;
+
+-- name: ListBlogPostContentForPosts :many
+-- Every locale's row for a set of posts - the admin list answers allContent in one query
+SELECT * FROM blog_post_content
+WHERE post_id = ANY(sqlc.arg(post_ids)::uuid[])
+ORDER BY post_id, locale;
 
 -- name: DeleteBlogPostContent :execrows
 DELETE FROM blog_post_content WHERE post_id = $1 AND locale = $2;

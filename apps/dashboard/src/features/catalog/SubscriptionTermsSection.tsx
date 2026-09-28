@@ -124,7 +124,7 @@ export function SubscriptionTermsSection({
               onValueChange={(v) => setIntervalUnit(v as SubscriptionInterval)}
               disabled={!canManage || saving}
             >
-              <SelectTrigger id="sub-unit">
+              <SelectTrigger className="w-full" id="sub-unit">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

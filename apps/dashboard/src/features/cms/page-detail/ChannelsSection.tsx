@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { useStore } from '@tanstack/react-form'
 import { HomeIcon, SearchIcon, Trash2Icon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -7,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
-import { useSaveSection, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
+import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
+import { useSectionForm } from '@/shared/saving/useSectionForm'
 import {
   CmsPageDocument,
   DeleteCmsPageChannelListingDocument,
@@ -15,6 +17,16 @@ import {
   type CmsPageRowFragment,
 } from '../Cms.gql'
 import { ChannelsDocument } from '@/features/channels/Channels.gql'
+import {
+  EMPTY_LISTING,
+  PAGE_CHANNELS_LABELS,
+  changedChannels,
+  listingOf,
+  pageChannelsDiff,
+  pageChannelsSchema,
+  toPageChannelsValues,
+  type ListingDraft,
+} from '../schemas/page'
 
 // CmsPageChannelsSection manages the page's per-channel listings - A page is
 // global; toggling Published exposes it on that channel, and the Homepage
@@ -30,26 +42,6 @@ import { ChannelsDocument } from '@/features/channels/Channels.gql'
 const CHANNEL_SEARCH_THRESHOLD = 7
 const CHANNELS_INITIAL = 10
 const CHANNELS_STEP = 15
-
-// The staged state of one channel's listing. `listed` = a listing row should
-// exist for this channel; without one the page falls back to global publish
-type ListingDraft = { listed: boolean; isPublished: boolean; isHomepage: boolean; seoNoindex: boolean }
-const EMPTY_LISTING: ListingDraft = { listed: false, isPublished: false, isHomepage: false, seoNoindex: false }
-
-function seedListingDraft(listings: CmsPageRowFragment['channelListings']): Record<string, ListingDraft> {
-  const m: Record<string, ListingDraft> = {}
-  for (const l of listings) {
-    m[l.channelId] = { listed: true, isPublished: l.isPublished, isHomepage: l.isHomepage, seoNoindex: l.seoNoindex }
-  }
-  return m
-}
-
-function listingStateLabel(s: ListingDraft): string {
-  if (!s.listed) return 'Not listed'
-  const parts = [s.isPublished ? 'Published' : 'Unpublished']
-  if (s.isHomepage) parts.push('homepage')
-  return parts.join(', ')
-}
 
 export function CmsPageChannelsSection({
   pageId,
@@ -76,61 +68,38 @@ export function CmsPageChannelsSection({
     setShown(CHANNELS_INITIAL)
   }, [query])
 
-  // Staged per-channel listing draft; toggles only touch this - The header Save
-  // flushes the changed channels (the dashboard convention - no instant writes)
-  const [draft, setDraft] = useState<Record<string, ListingDraft>>(() => seedListingDraft(listings))
-  useEffect(() => {
-    // Re-seed from the server after a save/refetch (or external change)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDraft(seedListingDraft(listings))
-  }, [listings])
-
-  const serverDraft = useMemo(() => seedListingDraft(listings), [listings])
-  const cur = (id: string): ListingDraft => draft[id] ?? EMPTY_LISTING
-  const set = (id: string, next: ListingDraft) => setDraft((prev) => ({ ...prev, [id]: next }))
-
+  // Staged per-channel listings - toggles only touch the form; the header Save writes the changed
+  // channels (the dashboard convention - no instant writes)
   const active = useMemo(() => (data?.channels ?? []).filter((c) => c.isActive), [data?.channels])
-  const isChanged = (id: string) => {
-    const a = draft[id] ?? EMPTY_LISTING
-    const b = serverDraft[id] ?? EMPTY_LISTING
-    return a.listed !== b.listed || a.isPublished !== b.isPublished || a.isHomepage !== b.isHomepage
-  }
-  const changedChannels = useMemo(
-    () => active.filter((c) => isChanged(c.id)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [active, draft, serverDraft],
-  )
-
-  const diff = useMemo<SectionDiffEntry[]>(
-    () =>
-      changedChannels.map((c) => ({
-        label: c.name,
-        before: listingStateLabel(serverDraft[c.id] ?? EMPTY_LISTING),
-        after: listingStateLabel(draft[c.id] ?? EMPTY_LISTING),
-      })),
-    [changedChannels, serverDraft, draft],
-  )
-
-  useSaveSection({
+  const baseline = useMemo(() => toPageChannelsValues(listings), [listings])
+  const { form, draft } = useSectionForm({
     id: 'channels',
     title: 'Channels',
-    diff,
-    save: async () => {
-      // One write per changed channel, sequential - Dropping a listing deletes
-      // the row; otherwise upsert the published/homepage/noindex flags
-      for (const c of changedChannels) {
-        const d = draft[c.id] ?? EMPTY_LISTING
-        const s = serverDraft[c.id] ?? EMPTY_LISTING
+    baseline,
+    schema: pageChannelsSchema,
+    diff: pageChannelsDiff((id) => active.find((c) => c.id === id)?.name ?? id),
+    routeKey: `cms-page-channels:${pageId}`,
+    submit: async (v) => {
+      // One write per changed channel, in turn - a dropped listing deletes the row; otherwise upsert
+      // its published / homepage / noindex flags
+      for (const id of changedChannels(baseline, v)) {
+        const d = listingOf(v, id)
         if (!d.listed) {
-          if (s.listed) await deleteListing({ variables: { pageId, channelId: c.id } })
+          if (listingOf(baseline, id).listed) await deleteListing({ variables: { pageId, channelId: id } })
         } else {
           await setListing({
-            variables: { input: { pageId, channelId: c.id, isPublished: d.isPublished, seoNoindex: d.seoNoindex, isHomepage: d.isHomepage } },
+            variables: { input: { pageId, channelId: id, isPublished: d.isPublished, seoNoindex: d.seoNoindex, isHomepage: d.isHomepage } },
           })
         }
       }
     },
   })
+  const values = useStore(form.store, (s) => s.values)
+  const changed = new Set(changedChannels(baseline, values))
+  const cur = (id: string): ListingDraft => listingOf(values, id)
+  const set = (id: string, next: ListingDraft) => form.setFieldValue('listings', (prev) => ({ ...prev, [id]: next }))
+  const isChanged = (id: string) => changed.has(id)
+  const changedCount = active.filter((c) => changed.has(c.id)).length
 
   const publishedCount = active.filter((c) => cur(c.id).isPublished).length
   const homepageCount = active.filter((c) => cur(c.id).isHomepage).length
@@ -155,6 +124,7 @@ export function CmsPageChannelsSection({
 
   return (
     <div className="grid gap-3">
+      {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PAGE_CHANNELS_LABELS} />}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <Badge variant="secondary">
           Published on {publishedCount} of {active.length}
@@ -164,8 +134,8 @@ export function CmsPageChannelsSection({
             <HomeIcon className="size-3" /> Homepage on {homepageCount}
           </Badge>
         )}
-        {changedChannels.length > 0 && (
-          <span className="text-amber-600">{changedChannels.length} unsaved · Save to apply</span>
+        {changedCount > 0 && (
+          <span className="text-warning">{changedCount} unsaved · Save to apply</span>
         )}
       </div>
 
@@ -194,14 +164,14 @@ export function CmsPageChannelsSection({
                 className={cn(
                   'flex items-center gap-3 rounded-md border px-3 py-2',
                   s.isPublished ? 'bg-card' : 'bg-muted/30',
-                  changed && 'border-amber-400/70 ring-1 ring-amber-400/40',
+                  changed && 'border-warning/70 ring-1 ring-warning/40',
                 )}
               >
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 truncate text-sm font-medium">
                     {c.name}
                     {s.isHomepage && (
-                      <span className="inline-flex items-center gap-0.5 rounded bg-primary/10 px-1 py-0.5 text-[10px] font-medium text-primary">
+                      <span className="inline-flex items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-[10px] font-medium text-foreground">
                         <HomeIcon className="size-3" /> Home
                       </span>
                     )}
@@ -219,7 +189,7 @@ export function CmsPageChannelsSection({
                     disabled={!canManage}
                     onClick={() => set(c.id, { ...s, isHomepage: !s.isHomepage })}
                   >
-                    <HomeIcon className={cn('size-4', s.isHomepage ? 'text-primary' : 'text-muted-foreground')} />
+                    <HomeIcon className={cn('size-4', s.isHomepage ? 'text-foreground' : 'text-muted-foreground')} />
                     <span className="text-xs">Homepage</span>
                   </Button>
                 )}

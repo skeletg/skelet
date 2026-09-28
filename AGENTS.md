@@ -164,7 +164,10 @@ touching a detail page.
 detail pages use `DetailPageLayout` + `DetailPageHeader` / `Body` / `Section`
 (`src/components/layout/detail-page.tsx`). No Card components
 - flat `rounded-md` bordered blocks and `divide-y` lists. Never use the `primary` /
-`accent` theme tokens for semantic state, because admins can recolour them.
+`accent` theme tokens for semantic state, because admins can recolour them. State goes
+through the `success` / `warning` / `info` / `destructive` tokens as plain utilities
+(`text-success`, `bg-warning-soft`, `border-info/40`), never a raw hue like
+`bg-emerald-500` - see [docs/conventions.md](docs/conventions.md).
 
 **Storefront:** Next.js 16, which differs from most training data - read
 `apps/channels/<name>/node_modules/next/dist/docs/` before writing App Router code.

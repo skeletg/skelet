@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ChartTooltipContent } from '@/components/ui/chart'
+import { CHART_ACCENT, SERIES } from '@/lib/chart-colors'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/data-table/DataTable'
@@ -25,7 +26,6 @@ import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNam
 import { SegmentTreeBuilder } from './SegmentTreeBuilder'
 import { definitionToTree, nodeComplete, nodeToInput, summarizeNode, type SegNode, type SummaryNode } from './segment-tree'
 
-const ACCENT = 'hsl(var(--primary))'
 // Money values on the segment detail are in the segment channel's currency
 const money = (cents: number, currency: string) => (cents / 100).toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
 const fmtDay = (v: string) => {
@@ -42,22 +42,22 @@ const fmtDate = (v?: string | null) => {
 type Member = NonNullable<SynapseSegmentQuery['synapseSegment']>['members'][number]
 
 const LIFECYCLE_STYLE: Record<string, string> = {
-  new: 'bg-sky-500/10 text-sky-600 border-sky-500/30',
-  active: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
-  at_risk: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
-  lapsed: 'bg-red-500/10 text-red-600 border-red-500/30',
+  new: 'bg-info-soft text-info border-info/30',
+  active: 'bg-success-soft text-success border-success/30',
+  at_risk: 'bg-warning-soft text-warning border-warning/30',
+  lapsed: 'bg-destructive-soft text-destructive border-destructive/30',
   prospect: 'bg-muted text-muted-foreground border-border',
 }
 // Solid fills for the lifecycle stacked bar (keyed by stage; '' = uncomputed)
 const LIFECYCLE_BAR: Record<string, string> = {
-  new: 'bg-sky-500',
-  active: 'bg-emerald-500',
-  at_risk: 'bg-amber-500',
-  lapsed: 'bg-red-500',
+  new: 'bg-info',
+  active: 'bg-success',
+  at_risk: 'bg-warning',
+  lapsed: 'bg-destructive',
   prospect: 'bg-muted-foreground/40',
   '': 'bg-muted-foreground/20',
 }
-const RFM_COLORS: Record<string, string> = { recency: '#0ea5e9', frequency: '#10b981', monetary: '#f59e0b' }
+const RFM_COLORS: Record<string, string> = { recency: SERIES[1], frequency: SERIES[2], monetary: SERIES[4] }
 const stageLabel = (s: string) => (s === '' ? 'uncomputed' : s.replace('_', ' '))
 
 export function SynapseSegment() {
@@ -312,15 +312,15 @@ export function SynapseSegment() {
                     <AreaChart data={growth} margin={{ top: 8, right: 12, bottom: 0, left: -12 }}>
                       <defs>
                         <linearGradient id="seg-growth" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={ACCENT} stopOpacity={0.3} />
-                          <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
+                          <stop offset="0%" stopColor={CHART_ACCENT} stopOpacity={0.3} />
+                          <stop offset="100%" stopColor={CHART_ACCENT} stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                       <XAxis dataKey="day" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={24} />
                       <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={40} />
                       <Tooltip content={<ChartTooltipContent />} />
-                      <Area type="monotone" dataKey="count" name="Members" stroke={ACCENT} strokeWidth={2} fill="url(#seg-growth)" />
+                      <Area type="monotone" dataKey="count" name="Members" stroke={CHART_ACCENT} strokeWidth={2} fill="url(#seg-growth)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>

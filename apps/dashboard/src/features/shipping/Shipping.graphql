@@ -98,3 +98,33 @@ mutation UpsertShippingBox($input: ShippingBoxInput!) {
 mutation DeleteShippingBox($id: ID!) {
   deleteShippingBox(id: $id)
 }
+
+# ==================== Carrier availability ====================
+
+query ShippingCarriers($channelId: ID!) {
+  shippingCarriers(channelId: $channelId) {
+    carrierSlug
+    displayName
+    isEnabled
+    sortOrder
+    countryMode
+    allowedCountries
+    supportsTracking
+    supportsLabels
+  }
+}
+
+mutation SetShippingCarrierEnabled($channelId: ID!, $carrierSlug: String!, $enabled: Boolean!) {
+  setShippingCarrierEnabled(channelId: $channelId, carrierSlug: $carrierSlug, enabled: $enabled) {
+    carrierSlug
+    isEnabled
+  }
+}
+
+mutation SetShippingCarrierCountries($channelId: ID!, $carrierSlug: String!, $mode: String!, $countries: [String!]!) {
+  setShippingCarrierCountries(channelId: $channelId, carrierSlug: $carrierSlug, mode: $mode, countries: $countries) {
+    carrierSlug
+    countryMode
+    allowedCountries
+  }
+}

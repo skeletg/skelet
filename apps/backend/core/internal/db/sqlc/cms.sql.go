@@ -1464,6 +1464,43 @@ func (q *Queries) ListCMSAttributeContent(ctx context.Context, attributeID uuid.
 	return items, nil
 }
 
+const listCMSAttributeContentForAttributes = `-- name: ListCMSAttributeContentForAttributes :many
+SELECT attribute_id, locale, name, helper_text, placeholder, updated_at FROM cms_attribute_content
+WHERE attribute_id = ANY($1::uuid[])
+ORDER BY attribute_id, locale
+`
+
+// Every locale's row for a set of attributes - the admin list answers allContent in one query
+func (q *Queries) ListCMSAttributeContentForAttributes(ctx context.Context, attributeIds []uuid.UUID) ([]CmsAttributeContent, error) {
+	rows, err := q.db.QueryContext(ctx, listCMSAttributeContentForAttributes, pq.Array(attributeIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CmsAttributeContent{}
+	for rows.Next() {
+		var i CmsAttributeContent
+		if err := rows.Scan(
+			&i.AttributeID,
+			&i.Locale,
+			&i.Name,
+			&i.HelperText,
+			&i.Placeholder,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCMSAttributeGroups = `-- name: ListCMSAttributeGroups :many
 SELECT id, slug, position, created_at, updated_at FROM cms_attribute_groups ORDER BY position, slug
 `
@@ -1914,6 +1951,47 @@ type ListCMSPageContentByScopeParams struct {
 
 func (q *Queries) ListCMSPageContentByScope(ctx context.Context, arg ListCMSPageContentByScopeParams) ([]CmsPageContent, error) {
 	rows, err := q.db.QueryContext(ctx, listCMSPageContentByScope, arg.Locale, pq.Array(arg.PageIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CmsPageContent{}
+	for rows.Next() {
+		var i CmsPageContent
+		if err := rows.Scan(
+			&i.PageID,
+			&i.Locale,
+			&i.Title,
+			&i.Body,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.MetaKeywords,
+			&i.Data,
+			&i.UpdatedAt,
+			&i.SearchVector,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCMSPageContentForPages = `-- name: ListCMSPageContentForPages :many
+SELECT page_id, locale, title, body, meta_title, meta_description, meta_keywords, data, updated_at, search_vector FROM cms_page_content
+WHERE page_id = ANY($1::uuid[])
+ORDER BY page_id, locale
+`
+
+// Every locale's row for a set of pages - the admin list answers allContent in one query
+func (q *Queries) ListCMSPageContentForPages(ctx context.Context, pageIds []uuid.UUID) ([]CmsPageContent, error) {
+	rows, err := q.db.QueryContext(ctx, listCMSPageContentForPages, pq.Array(pageIds))
 	if err != nil {
 		return nil, err
 	}

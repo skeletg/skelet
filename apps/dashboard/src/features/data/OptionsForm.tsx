@@ -62,7 +62,7 @@ export function OptionsForm({
             </Label>
             {opt.type === 'select' || choices.length > 0 ? (
               <Select value={value} onValueChange={(v) => onChange(opt.name, v)}>
-                <SelectTrigger id={id}>
+                <SelectTrigger className="w-full" id={id}>
                   <SelectValue placeholder={choices.length ? 'Choose one' : 'Nothing to choose from'} />
                 </SelectTrigger>
                 <SelectContent>
