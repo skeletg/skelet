@@ -22,6 +22,8 @@ const (
 	SourceCheckout        = "checkout"
 	SourceUnsubscribeLink = "unsubscribe_link"
 	SourceAdmin           = "admin"
+	// A customer.registering plugin decided, where the shopper was shown no choice - kept distinct so an audit can tell it from the shopper's own
+	SourcePlugin = "plugin"
 )
 
 type Consent struct {
