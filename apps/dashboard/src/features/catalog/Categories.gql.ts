@@ -1,353 +1,191 @@
-import { gql } from '@apollo/client'
-import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/core'
-import type { CollectionCover } from './Collections.gql'
+/** Internal type. DO NOT USE DIRECTLY. */
+type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
+/** Internal type. DO NOT USE DIRECTLY. */
+export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
+import type * as Types from '../../graphql/schema.types';
 
-export type CategoryContent = {
-  __typename?: 'CategoryContent'
-  locale: string
-  name: string
-  shortDescription?: unknown | null
-  description?: unknown | null
-  metaTitle?: string | null
-  metaDescription?: string | null
-  metaKeywords?: string | null
-  updatedAt: string
-}
+import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/core';
+export type CreateCategoryInput = {
+  description?: unknown;
+  isPublished?: boolean | null | undefined;
+  locale: string;
+  metaDescription?: string | null | undefined;
+  metaKeywords?: string | null | undefined;
+  metaTitle?: string | null | undefined;
+  metadata?: Array<MetadataInput> | null | undefined;
+  name: string;
+  parentId?: string | number | null | undefined;
+  position?: number | null | undefined;
+  privateMetadata?: Array<MetadataInput> | null | undefined;
+  seoNoindex?: boolean | null | undefined;
+  shortDescription?: unknown;
+  slug: string;
+};
 
-export type CategorySummary = {
-  __typename?: 'Category'
-  id: string
-  slug: string
-  urlPath: string
-  position: number
-  level: number
-  isPublished: boolean
-  seoNoindex: boolean
-  name?: string | null
-  productCount: number
-  content: Array<{ locale: string; name: string }>
-  children: CategorySummary[]
-  createdAt: string
-  updatedAt: string
-}
+export type FacetOverrideInput = {
+  attributeId: string | number;
+  hidden?: boolean;
+};
 
-export type CategoryStoreListing = {
-  __typename?: 'CategoryStoreListing'
-  categoryId: string
-  channelId: string
-  channel: { id: string; slug: string; name: string }
-  isPublished: boolean
-  sortOrderOverride?: number | null
-  updatedAt: string
-}
+export type MetadataInput = {
+  key: string;
+  value: string;
+};
 
-export type CategoryFacetOverride = {
-  __typename?: 'CategoryFacetOverride'
-  attributeId: string
-  attributeSlug: string
-  sortOrder: number
-  hidden: boolean
-}
+export type ProductMediaStatus =
+  | 'PENDING'
+  | 'READY';
 
-export type CategoryDetail = {
-  __typename?: 'Category'
-  id: string
-  slug: string
-  urlPath: string
-  position: number
-  level: number
-  isPublished: boolean
-  seoNoindex: boolean
-  name?: string | null
-  shortDescription?: unknown | null
-  description?: unknown | null
-  metaTitle?: string | null
-  metaDescription?: string | null
-  contentLocale?: string | null
-  content: CategoryContent[]
-  coverImage?: CollectionCover | null
-  parent?: { id: string; slug: string; urlPath: string; name?: string | null } | null
-  ancestors: Array<{ id: string; slug: string; urlPath: string; name?: string | null }>
-  products: Array<{ id: string; name?: string | null; sku?: string | null }>
-  listings: CategoryStoreListing[]
-  facetOverrides: CategoryFacetOverride[]
-  createdAt: string
-  updatedAt: string
-}
+export type RequestCategoryCoverUploadInput = {
+  altText?: string | null | undefined;
+  categoryId: string | number;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+};
 
-export type RootCategoriesQueryVariables = { channelId?: string | null }
-export type RootCategoriesQuery = { __typename?: 'Query'; rootCategories: CategorySummary[] }
+export type SetCategoryListingInput = {
+  categoryId: string | number;
+  channelId: string | number;
+  isPublished: boolean;
+  sortOrderOverride?: number | null | undefined;
+};
 
-export type CategoryQueryVariables = { id: string }
-export type CategoryQuery = { __typename?: 'Query'; category: CategoryDetail }
+export type UpdateCategoryInput = {
+  clearParent?: boolean | null | undefined;
+  id: string | number;
+  isPublished?: boolean | null | undefined;
+  metadata?: Array<MetadataInput> | null | undefined;
+  parentId?: string | number | null | undefined;
+  position?: number | null | undefined;
+  privateMetadata?: Array<MetadataInput> | null | undefined;
+  seoNoindex?: boolean | null | undefined;
+  slug?: string | null | undefined;
+};
 
-export type CreateCategoryMutationVariables = {
-  input: {
-    parentId?: string | null
-    slug: string
-    position?: number | null
-    isPublished?: boolean | null
-    seoNoindex?: boolean | null
-    locale: string
-    name: string
-    shortDescription?: unknown | null
-    description?: unknown | null
-    metaTitle?: string | null
-    metaDescription?: string | null
-    metaKeywords?: string | null
-  }
-}
-export type CreateCategoryMutation = { __typename?: 'Mutation'; createCategory: CategoryDetail }
+export type UpsertCategoryContentInput = {
+  description?: unknown;
+  locale: string;
+  metaDescription?: string | null | undefined;
+  metaKeywords?: string | null | undefined;
+  metaTitle?: string | null | undefined;
+  name: string;
+  shortDescription?: unknown;
+};
 
-export type UpdateCategoryMutationVariables = {
-  input: {
-    id: string
-    parentId?: string | null
-    clearParent?: boolean | null
-    slug?: string | null
-    position?: number | null
-    isPublished?: boolean | null
-    seoNoindex?: boolean | null
-  }
-}
-export type UpdateCategoryMutation = { __typename?: 'Mutation'; updateCategory: CategoryDetail }
+export type CategorySummaryFieldsFragment = { id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, productCount: number, createdAt: string, updatedAt: string, content: Array<{ locale: string, name: string }>, children: Array<{ id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, productCount: number, content: Array<{ locale: string, name: string }>, children: Array<{ id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, productCount: number, content: Array<{ locale: string, name: string }>, children: Array<{ id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, name: string | null, productCount: number, content: Array<{ locale: string, name: string }>, children: Array<{ id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, name: string | null, productCount: number, content: Array<{ locale: string, name: string }> }> }> }> }> };
 
-export type DeleteCategoryMutationVariables = { id: string }
-export type DeleteCategoryMutation = { __typename?: 'Mutation'; deleteCategory: boolean }
+export type CategoryDetailFieldsFragment = { id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, contentLocale: string | null, createdAt: string, updatedAt: string, content: Array<{ locale: string, name: string, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, metaKeywords: string | null, updatedAt: string }>, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null, parent: { id: string, slug: string, urlPath: string, name: string | null } | null, ancestors: Array<{ id: string, slug: string, urlPath: string, name: string | null }>, products: Array<{ id: string, name: string | null, sku: string }>, listings: Array<{ categoryId: string, channelId: string, isPublished: boolean, sortOrderOverride: number | null, updatedAt: string, channel: { id: string, slug: string, name: string } }>, facetOverrides: Array<{ attributeId: string, attributeSlug: string, sortOrder: number, hidden: boolean }> };
 
-export type DeleteCategoryContentMutationVariables = { categoryId: string; locale: string }
-export type DeleteCategoryContentMutation = { __typename?: 'Mutation'; deleteCategoryContent: boolean }
+export type RootCategoriesQueryVariables = Exact<{
+  channelId?: string | number | null | undefined;
+}>;
 
-export type UpsertCategoryContentMutationVariables = {
-  categoryId: string
-  input: {
-    locale: string
-    name: string
-    shortDescription?: unknown | null
-    description?: unknown | null
-    metaTitle?: string | null
-    metaDescription?: string | null
-    metaKeywords?: string | null
-  }
-}
-export type UpsertCategoryContentMutation = { __typename?: 'Mutation'; upsertCategoryContent: CategoryDetail }
 
-export type SetCategoryListingMutationVariables = {
-  input: {
-    categoryId: string
-    channelId: string
-    isPublished: boolean
-    sortOrderOverride?: number | null
-  }
-}
-export type SetCategoryListingMutation = { __typename?: 'Mutation'; setCategoryListing: CategoryDetail }
+export type RootCategoriesQuery = { rootCategories: Array<{ id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, productCount: number, createdAt: string, updatedAt: string, content: Array<{ locale: string, name: string }>, children: Array<{ id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, productCount: number, content: Array<{ locale: string, name: string }>, children: Array<{ id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, productCount: number, content: Array<{ locale: string, name: string }>, children: Array<{ id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, name: string | null, productCount: number, content: Array<{ locale: string, name: string }>, children: Array<{ id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, name: string | null, productCount: number, content: Array<{ locale: string, name: string }> }> }> }> }> }> };
 
-export type ClearCategoryListingMutationVariables = { categoryId: string; channelId: string }
-export type ClearCategoryListingMutation = { __typename?: 'Mutation'; clearCategoryListing: CategoryDetail }
+export type CategoryQueryVariables = Exact<{
+  id: string | number;
+}>;
 
-export type RequestCategoryCoverUploadMutationVariables = {
-  input: {
-    categoryId: string
-    filename: string
-    mimeType: string
-    sizeBytes: number
-    altText?: string | null
-  }
-}
-export type RequestCategoryCoverUploadMutation = {
-  __typename?: 'Mutation'
-  requestCategoryCoverUpload: {
-    __typename?: 'RequestCoverUploadPayload'
-    uploadUrl: string
-    expiresAt: string
-  }
-}
 
-export type ConfirmCategoryCoverUploadMutationVariables = {
-  categoryId: string
-  width: number
-  height: number
-}
-export type ConfirmCategoryCoverUploadMutation = {
-  __typename?: 'Mutation'
-  confirmCategoryCoverUpload: {
-    __typename?: 'Category'
-    id: string
-    updatedAt: string
-    coverImage?: CollectionCover | null
-  }
-}
+export type CategoryQuery = { category: { id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, contentLocale: string | null, createdAt: string, updatedAt: string, content: Array<{ locale: string, name: string, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, metaKeywords: string | null, updatedAt: string }>, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null, parent: { id: string, slug: string, urlPath: string, name: string | null } | null, ancestors: Array<{ id: string, slug: string, urlPath: string, name: string | null }>, products: Array<{ id: string, name: string | null, sku: string }>, listings: Array<{ categoryId: string, channelId: string, isPublished: boolean, sortOrderOverride: number | null, updatedAt: string, channel: { id: string, slug: string, name: string } }>, facetOverrides: Array<{ attributeId: string, attributeSlug: string, sortOrder: number, hidden: boolean }> } };
 
-export type ClearCategoryCoverMutationVariables = { categoryId: string }
-export type ClearCategoryCoverMutation = {
-  __typename?: 'Mutation'
-  clearCategoryCover: {
-    __typename?: 'Category'
-    id: string
-    updatedAt: string
-    coverImage?: CollectionCover | null
-  }
-}
+export type CreateCategoryMutationVariables = Exact<{
+  input: Types.CreateCategoryInput;
+}>;
 
-const CategorySummaryFragment = gql`
-  fragment CategorySummaryFields on Category {
-    id slug urlPath position level isPublished seoNoindex name productCount
-    content { locale name }
-    children {
-      id slug urlPath position level isPublished seoNoindex name productCount
-      content { locale name }
-      children {
-        id slug urlPath position level isPublished seoNoindex name productCount
-        content { locale name }
-        children { id slug urlPath position level isPublished name productCount content { locale name } children { id } }
-      }
-    }
-    createdAt updatedAt
-  }
-`
 
-const CategoryDetailFragment = gql`
-  fragment CategoryDetailFields on Category {
-    id slug urlPath position level isPublished seoNoindex
-    name shortDescription description metaTitle metaDescription contentLocale
-    content { locale name shortDescription description metaTitle metaDescription metaKeywords updatedAt }
-    coverImage { url altText width height mimeType status }
-    parent { id slug urlPath name }
-    ancestors { id slug urlPath name }
-    products { id name sku }
-    listings {
-      categoryId channelId
-      channel { id slug name }
-      isPublished sortOrderOverride updatedAt
-    }
-    facetOverrides { attributeId attributeSlug sortOrder hidden }
-    createdAt updatedAt
-  }
-`
+export type CreateCategoryMutation = { createCategory: { id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, contentLocale: string | null, createdAt: string, updatedAt: string, content: Array<{ locale: string, name: string, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, metaKeywords: string | null, updatedAt: string }>, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null, parent: { id: string, slug: string, urlPath: string, name: string | null } | null, ancestors: Array<{ id: string, slug: string, urlPath: string, name: string | null }>, products: Array<{ id: string, name: string | null, sku: string }>, listings: Array<{ categoryId: string, channelId: string, isPublished: boolean, sortOrderOverride: number | null, updatedAt: string, channel: { id: string, slug: string, name: string } }>, facetOverrides: Array<{ attributeId: string, attributeSlug: string, sortOrder: number, hidden: boolean }> } };
 
-export const RootCategoriesDocument: DocumentNode<RootCategoriesQuery, RootCategoriesQueryVariables> = gql`
-  ${CategorySummaryFragment}
-  query RootCategories($channelId: ID) {
-    rootCategories(channelId: $channelId) {
-      ...CategorySummaryFields
-    }
-  }
-`
+export type UpdateCategoryMutationVariables = Exact<{
+  input: Types.UpdateCategoryInput;
+}>;
 
-export const CategoryDocument: DocumentNode<CategoryQuery, CategoryQueryVariables> = gql`
-  ${CategoryDetailFragment}
-  query Category($id: ID!) {
-    category(id: $id) {
-      ...CategoryDetailFields
-    }
-  }
-`
 
-export const CreateCategoryDocument: DocumentNode<CreateCategoryMutation, CreateCategoryMutationVariables> = gql`
-  ${CategoryDetailFragment}
-  mutation CreateCategory($input: CreateCategoryInput!) {
-    createCategory(input: $input) {
-      ...CategoryDetailFields
-    }
-  }
-`
+export type UpdateCategoryMutation = { updateCategory: { id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, contentLocale: string | null, createdAt: string, updatedAt: string, content: Array<{ locale: string, name: string, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, metaKeywords: string | null, updatedAt: string }>, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null, parent: { id: string, slug: string, urlPath: string, name: string | null } | null, ancestors: Array<{ id: string, slug: string, urlPath: string, name: string | null }>, products: Array<{ id: string, name: string | null, sku: string }>, listings: Array<{ categoryId: string, channelId: string, isPublished: boolean, sortOrderOverride: number | null, updatedAt: string, channel: { id: string, slug: string, name: string } }>, facetOverrides: Array<{ attributeId: string, attributeSlug: string, sortOrder: number, hidden: boolean }> } };
 
-export const UpdateCategoryDocument: DocumentNode<UpdateCategoryMutation, UpdateCategoryMutationVariables> = gql`
-  ${CategoryDetailFragment}
-  mutation UpdateCategory($input: UpdateCategoryInput!) {
-    updateCategory(input: $input) {
-      ...CategoryDetailFields
-    }
-  }
-`
+export type DeleteCategoryMutationVariables = Exact<{
+  id: string | number;
+}>;
 
-export const DeleteCategoryDocument: DocumentNode<DeleteCategoryMutation, DeleteCategoryMutationVariables> = gql`
-  mutation DeleteCategory($id: ID!) {
-    deleteCategory(id: $id)
-  }
-`
 
-// Refuses the default locale while other translations exist - the caller
-// surfaces that error in its confirm dialog
-export const DeleteCategoryContentDocument: DocumentNode<DeleteCategoryContentMutation, DeleteCategoryContentMutationVariables> = gql`
-  mutation DeleteCategoryContent($categoryId: ID!, $locale: String!) {
-    deleteCategoryContent(categoryId: $categoryId, locale: $locale)
-  }
-`
+export type DeleteCategoryMutation = { deleteCategory: boolean };
 
-export const UpsertCategoryContentDocument: DocumentNode<UpsertCategoryContentMutation, UpsertCategoryContentMutationVariables> = gql`
-  ${CategoryDetailFragment}
-  mutation UpsertCategoryContent($categoryId: ID!, $input: UpsertCategoryContentInput!) {
-    upsertCategoryContent(categoryId: $categoryId, input: $input) {
-      ...CategoryDetailFields
-    }
-  }
-`
+export type DeleteCategoryContentMutationVariables = Exact<{
+  categoryId: string | number;
+  locale: string;
+}>;
 
-export const SetCategoryListingDocument: DocumentNode<SetCategoryListingMutation, SetCategoryListingMutationVariables> = gql`
-  ${CategoryDetailFragment}
-  mutation SetCategoryListing($input: SetCategoryListingInput!) {
-    setCategoryListing(input: $input) {
-      ...CategoryDetailFields
-    }
-  }
-`
 
-export const ClearCategoryListingDocument: DocumentNode<ClearCategoryListingMutation, ClearCategoryListingMutationVariables> = gql`
-  ${CategoryDetailFragment}
-  mutation ClearCategoryListing($categoryId: ID!, $channelId: ID!) {
-    clearCategoryListing(categoryId: $categoryId, channelId: $channelId) {
-      ...CategoryDetailFields
-    }
-  }
-`
+export type DeleteCategoryContentMutation = { deleteCategoryContent: boolean };
 
-export type SetCategoryFacetOverridesMutationVariables = {
-  categoryId: string
-  overrides: Array<{ attributeId: string; hidden?: boolean }>
-}
-export type SetCategoryFacetOverridesMutation = {
-  __typename?: 'Mutation'
-  setCategoryFacetOverrides: CategoryDetail
-}
+export type UpsertCategoryContentMutationVariables = Exact<{
+  categoryId: string | number;
+  input: Types.UpsertCategoryContentInput;
+}>;
 
-// List order IS the storefront order; an empty list resets the category to defaults
-export const SetCategoryFacetOverridesDocument: DocumentNode<SetCategoryFacetOverridesMutation, SetCategoryFacetOverridesMutationVariables> = gql`
-  ${CategoryDetailFragment}
-  mutation SetCategoryFacetOverrides($categoryId: ID!, $overrides: [FacetOverrideInput!]!) {
-    setCategoryFacetOverrides(categoryId: $categoryId, overrides: $overrides) {
-      ...CategoryDetailFields
-    }
-  }
-`
 
-// The payload's non-null collection field stays unselected on purpose - the
-// category resolver only fills uploadUrl/expiresAt
-export const RequestCategoryCoverUploadDocument: DocumentNode<RequestCategoryCoverUploadMutation, RequestCategoryCoverUploadMutationVariables> = gql`
-  mutation RequestCategoryCoverUpload($input: RequestCategoryCoverUploadInput!) {
-    requestCategoryCoverUpload(input: $input) {
-      uploadUrl
-      expiresAt
-    }
-  }
-`
+export type UpsertCategoryContentMutation = { upsertCategoryContent: { id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, contentLocale: string | null, createdAt: string, updatedAt: string, content: Array<{ locale: string, name: string, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, metaKeywords: string | null, updatedAt: string }>, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null, parent: { id: string, slug: string, urlPath: string, name: string | null } | null, ancestors: Array<{ id: string, slug: string, urlPath: string, name: string | null }>, products: Array<{ id: string, name: string | null, sku: string }>, listings: Array<{ categoryId: string, channelId: string, isPublished: boolean, sortOrderOverride: number | null, updatedAt: string, channel: { id: string, slug: string, name: string } }>, facetOverrides: Array<{ attributeId: string, attributeSlug: string, sortOrder: number, hidden: boolean }> } };
 
-export const ConfirmCategoryCoverUploadDocument: DocumentNode<ConfirmCategoryCoverUploadMutation, ConfirmCategoryCoverUploadMutationVariables> = gql`
-  mutation ConfirmCategoryCoverUpload($categoryId: ID!, $width: Int!, $height: Int!) {
-    confirmCategoryCoverUpload(categoryId: $categoryId, width: $width, height: $height) {
-      id
-      updatedAt
-      coverImage { url altText width height mimeType status }
-    }
-  }
-`
+export type SetCategoryListingMutationVariables = Exact<{
+  input: Types.SetCategoryListingInput;
+}>;
 
-export const ClearCategoryCoverDocument: DocumentNode<ClearCategoryCoverMutation, ClearCategoryCoverMutationVariables> = gql`
-  mutation ClearCategoryCover($categoryId: ID!) {
-    clearCategoryCover(categoryId: $categoryId) {
-      id
-      updatedAt
-      coverImage { url altText width height mimeType status }
-    }
-  }
-`
+
+export type SetCategoryListingMutation = { setCategoryListing: { id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, contentLocale: string | null, createdAt: string, updatedAt: string, content: Array<{ locale: string, name: string, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, metaKeywords: string | null, updatedAt: string }>, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null, parent: { id: string, slug: string, urlPath: string, name: string | null } | null, ancestors: Array<{ id: string, slug: string, urlPath: string, name: string | null }>, products: Array<{ id: string, name: string | null, sku: string }>, listings: Array<{ categoryId: string, channelId: string, isPublished: boolean, sortOrderOverride: number | null, updatedAt: string, channel: { id: string, slug: string, name: string } }>, facetOverrides: Array<{ attributeId: string, attributeSlug: string, sortOrder: number, hidden: boolean }> } };
+
+export type ClearCategoryListingMutationVariables = Exact<{
+  categoryId: string | number;
+  channelId: string | number;
+}>;
+
+
+export type ClearCategoryListingMutation = { clearCategoryListing: { id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, contentLocale: string | null, createdAt: string, updatedAt: string, content: Array<{ locale: string, name: string, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, metaKeywords: string | null, updatedAt: string }>, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null, parent: { id: string, slug: string, urlPath: string, name: string | null } | null, ancestors: Array<{ id: string, slug: string, urlPath: string, name: string | null }>, products: Array<{ id: string, name: string | null, sku: string }>, listings: Array<{ categoryId: string, channelId: string, isPublished: boolean, sortOrderOverride: number | null, updatedAt: string, channel: { id: string, slug: string, name: string } }>, facetOverrides: Array<{ attributeId: string, attributeSlug: string, sortOrder: number, hidden: boolean }> } };
+
+export type SetCategoryFacetOverridesMutationVariables = Exact<{
+  categoryId: string | number;
+  overrides: Array<Types.FacetOverrideInput> | Types.FacetOverrideInput;
+}>;
+
+
+export type SetCategoryFacetOverridesMutation = { setCategoryFacetOverrides: { id: string, slug: string, urlPath: string, position: number, level: number, isPublished: boolean, seoNoindex: boolean, name: string | null, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, contentLocale: string | null, createdAt: string, updatedAt: string, content: Array<{ locale: string, name: string, shortDescription: unknown, description: unknown, metaTitle: string | null, metaDescription: string | null, metaKeywords: string | null, updatedAt: string }>, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null, parent: { id: string, slug: string, urlPath: string, name: string | null } | null, ancestors: Array<{ id: string, slug: string, urlPath: string, name: string | null }>, products: Array<{ id: string, name: string | null, sku: string }>, listings: Array<{ categoryId: string, channelId: string, isPublished: boolean, sortOrderOverride: number | null, updatedAt: string, channel: { id: string, slug: string, name: string } }>, facetOverrides: Array<{ attributeId: string, attributeSlug: string, sortOrder: number, hidden: boolean }> } };
+
+export type RequestCategoryCoverUploadMutationVariables = Exact<{
+  input: Types.RequestCategoryCoverUploadInput;
+}>;
+
+
+export type RequestCategoryCoverUploadMutation = { requestCategoryCoverUpload: { uploadUrl: string, expiresAt: string } };
+
+export type ConfirmCategoryCoverUploadMutationVariables = Exact<{
+  categoryId: string | number;
+  width: number;
+  height: number;
+}>;
+
+
+export type ConfirmCategoryCoverUploadMutation = { confirmCategoryCoverUpload: { id: string, updatedAt: string, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null } };
+
+export type ClearCategoryCoverMutationVariables = Exact<{
+  categoryId: string | number;
+}>;
+
+
+export type ClearCategoryCoverMutation = { clearCategoryCover: { id: string, updatedAt: string, coverImage: { url: string, altText: string, width: number, height: number, mimeType: string, status: Types.ProductMediaStatus } | null } };
+
+export const CategorySummaryFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CategorySummaryFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Category"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"productCount"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"children"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"productCount"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"children"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"productCount"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"children"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"productCount"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"children"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"productCount"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}}]}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<CategorySummaryFieldsFragment, unknown>;
+export const CategoryDetailFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CategoryDetailFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Category"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"contentLocale"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"metaKeywords"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"parent"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ancestors"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}}]}},{"kind":"Field","name":{"kind":"Name","value":"listings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"categoryId"}},{"kind":"Field","name":{"kind":"Name","value":"channelId"}},{"kind":"Field","name":{"kind":"Name","value":"channel"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrderOverride"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"facetOverrides"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"attributeId"}},{"kind":"Field","name":{"kind":"Name","value":"attributeSlug"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrder"}},{"kind":"Field","name":{"kind":"Name","value":"hidden"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<CategoryDetailFieldsFragment, unknown>;
+export const RootCategoriesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"RootCategories"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"channelId"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"rootCategories"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"channelId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"channelId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CategorySummaryFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CategorySummaryFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Category"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"productCount"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"children"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"productCount"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"children"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"productCount"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"children"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"productCount"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"children"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"productCount"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}}]}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<RootCategoriesQuery, RootCategoriesQueryVariables>;
+export const CategoryDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Category"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"category"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CategoryDetailFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CategoryDetailFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Category"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"contentLocale"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"metaKeywords"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"parent"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ancestors"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}}]}},{"kind":"Field","name":{"kind":"Name","value":"listings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"categoryId"}},{"kind":"Field","name":{"kind":"Name","value":"channelId"}},{"kind":"Field","name":{"kind":"Name","value":"channel"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrderOverride"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"facetOverrides"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"attributeId"}},{"kind":"Field","name":{"kind":"Name","value":"attributeSlug"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrder"}},{"kind":"Field","name":{"kind":"Name","value":"hidden"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<CategoryQuery, CategoryQueryVariables>;
+export const CreateCategoryDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateCategory"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"CreateCategoryInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createCategory"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CategoryDetailFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CategoryDetailFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Category"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"contentLocale"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"metaKeywords"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"parent"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ancestors"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}}]}},{"kind":"Field","name":{"kind":"Name","value":"listings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"categoryId"}},{"kind":"Field","name":{"kind":"Name","value":"channelId"}},{"kind":"Field","name":{"kind":"Name","value":"channel"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrderOverride"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"facetOverrides"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"attributeId"}},{"kind":"Field","name":{"kind":"Name","value":"attributeSlug"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrder"}},{"kind":"Field","name":{"kind":"Name","value":"hidden"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<CreateCategoryMutation, CreateCategoryMutationVariables>;
+export const UpdateCategoryDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpdateCategory"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpdateCategoryInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"updateCategory"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CategoryDetailFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CategoryDetailFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Category"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"contentLocale"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"metaKeywords"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"parent"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ancestors"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}}]}},{"kind":"Field","name":{"kind":"Name","value":"listings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"categoryId"}},{"kind":"Field","name":{"kind":"Name","value":"channelId"}},{"kind":"Field","name":{"kind":"Name","value":"channel"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrderOverride"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"facetOverrides"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"attributeId"}},{"kind":"Field","name":{"kind":"Name","value":"attributeSlug"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrder"}},{"kind":"Field","name":{"kind":"Name","value":"hidden"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<UpdateCategoryMutation, UpdateCategoryMutationVariables>;
+export const DeleteCategoryDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteCategory"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteCategory"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}]}]}}]} as unknown as DocumentNode<DeleteCategoryMutation, DeleteCategoryMutationVariables>;
+export const DeleteCategoryContentDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteCategoryContent"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"categoryId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"locale"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteCategoryContent"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"categoryId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"categoryId"}}},{"kind":"Argument","name":{"kind":"Name","value":"locale"},"value":{"kind":"Variable","name":{"kind":"Name","value":"locale"}}}]}]}}]} as unknown as DocumentNode<DeleteCategoryContentMutation, DeleteCategoryContentMutationVariables>;
+export const UpsertCategoryContentDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"UpsertCategoryContent"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"categoryId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"UpsertCategoryContentInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"upsertCategoryContent"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"categoryId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"categoryId"}}},{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CategoryDetailFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CategoryDetailFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Category"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"contentLocale"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"metaKeywords"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"parent"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ancestors"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}}]}},{"kind":"Field","name":{"kind":"Name","value":"listings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"categoryId"}},{"kind":"Field","name":{"kind":"Name","value":"channelId"}},{"kind":"Field","name":{"kind":"Name","value":"channel"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrderOverride"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"facetOverrides"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"attributeId"}},{"kind":"Field","name":{"kind":"Name","value":"attributeSlug"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrder"}},{"kind":"Field","name":{"kind":"Name","value":"hidden"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<UpsertCategoryContentMutation, UpsertCategoryContentMutationVariables>;
+export const SetCategoryListingDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"SetCategoryListing"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"SetCategoryListingInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"setCategoryListing"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CategoryDetailFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CategoryDetailFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Category"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"contentLocale"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"metaKeywords"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"parent"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ancestors"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}}]}},{"kind":"Field","name":{"kind":"Name","value":"listings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"categoryId"}},{"kind":"Field","name":{"kind":"Name","value":"channelId"}},{"kind":"Field","name":{"kind":"Name","value":"channel"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrderOverride"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"facetOverrides"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"attributeId"}},{"kind":"Field","name":{"kind":"Name","value":"attributeSlug"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrder"}},{"kind":"Field","name":{"kind":"Name","value":"hidden"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<SetCategoryListingMutation, SetCategoryListingMutationVariables>;
+export const ClearCategoryListingDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"ClearCategoryListing"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"categoryId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"channelId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"clearCategoryListing"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"categoryId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"categoryId"}}},{"kind":"Argument","name":{"kind":"Name","value":"channelId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"channelId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CategoryDetailFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CategoryDetailFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Category"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"contentLocale"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"metaKeywords"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"parent"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ancestors"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}}]}},{"kind":"Field","name":{"kind":"Name","value":"listings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"categoryId"}},{"kind":"Field","name":{"kind":"Name","value":"channelId"}},{"kind":"Field","name":{"kind":"Name","value":"channel"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrderOverride"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"facetOverrides"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"attributeId"}},{"kind":"Field","name":{"kind":"Name","value":"attributeSlug"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrder"}},{"kind":"Field","name":{"kind":"Name","value":"hidden"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<ClearCategoryListingMutation, ClearCategoryListingMutationVariables>;
+export const SetCategoryFacetOverridesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"SetCategoryFacetOverrides"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"categoryId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"overrides"}},"type":{"kind":"NonNullType","type":{"kind":"ListType","type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"FacetOverrideInput"}}}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"setCategoryFacetOverrides"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"categoryId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"categoryId"}}},{"kind":"Argument","name":{"kind":"Name","value":"overrides"},"value":{"kind":"Variable","name":{"kind":"Name","value":"overrides"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"CategoryDetailFields"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CategoryDetailFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Category"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"level"}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"seoNoindex"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"contentLocale"}},{"kind":"Field","name":{"kind":"Name","value":"content"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"locale"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"shortDescription"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"metaTitle"}},{"kind":"Field","name":{"kind":"Name","value":"metaDescription"}},{"kind":"Field","name":{"kind":"Name","value":"metaKeywords"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"parent"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"ancestors"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"urlPath"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"products"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"sku"}}]}},{"kind":"Field","name":{"kind":"Name","value":"listings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"categoryId"}},{"kind":"Field","name":{"kind":"Name","value":"channelId"}},{"kind":"Field","name":{"kind":"Name","value":"channel"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}},{"kind":"Field","name":{"kind":"Name","value":"isPublished"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrderOverride"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"facetOverrides"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"attributeId"}},{"kind":"Field","name":{"kind":"Name","value":"attributeSlug"}},{"kind":"Field","name":{"kind":"Name","value":"sortOrder"}},{"kind":"Field","name":{"kind":"Name","value":"hidden"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}}]}}]} as unknown as DocumentNode<SetCategoryFacetOverridesMutation, SetCategoryFacetOverridesMutationVariables>;
+export const RequestCategoryCoverUploadDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RequestCategoryCoverUpload"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"RequestCategoryCoverUploadInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"requestCategoryCoverUpload"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"uploadUrl"}},{"kind":"Field","name":{"kind":"Name","value":"expiresAt"}}]}}]}}]} as unknown as DocumentNode<RequestCategoryCoverUploadMutation, RequestCategoryCoverUploadMutationVariables>;
+export const ConfirmCategoryCoverUploadDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"ConfirmCategoryCoverUpload"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"categoryId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"width"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"height"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"confirmCategoryCoverUpload"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"categoryId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"categoryId"}}},{"kind":"Argument","name":{"kind":"Name","value":"width"},"value":{"kind":"Variable","name":{"kind":"Name","value":"width"}}},{"kind":"Argument","name":{"kind":"Name","value":"height"},"value":{"kind":"Variable","name":{"kind":"Name","value":"height"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}}]}}]}}]} as unknown as DocumentNode<ConfirmCategoryCoverUploadMutation, ConfirmCategoryCoverUploadMutationVariables>;
+export const ClearCategoryCoverDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"ClearCategoryCover"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"categoryId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"clearCategoryCover"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"categoryId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"categoryId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"coverImage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"altText"}},{"kind":"Field","name":{"kind":"Name","value":"width"}},{"kind":"Field","name":{"kind":"Name","value":"height"}},{"kind":"Field","name":{"kind":"Name","value":"mimeType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}}]}}]}}]} as unknown as DocumentNode<ClearCategoryCoverMutation, ClearCategoryCoverMutationVariables>;

@@ -126,7 +126,7 @@ export function useConfigDrafts({
 
   const save = useCallback(async () => {
     for (const { field, after } of pending) {
-      if (field.type === 'JSON' && !isValidJson(after)) {
+      if ((field.type === 'JSON' || field.type === 'SEARCH_ATTRIBUTES') && !isValidJson(after)) {
         throw new Error(`${field.label} isn't valid JSON - fix it and save again.`)
       }
     }

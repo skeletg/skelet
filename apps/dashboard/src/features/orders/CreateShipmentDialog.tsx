@@ -1,189 +1,116 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useMutation } from '@apollo/client/react'
-
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+import { FormDialog } from '@/components/form/FormDialog'
+import { FormDialogBody } from '@/components/form/FormDialogBody'
+import { FieldError } from '@/components/form/fields'
+import { useDialogForm } from '@/components/form/useDialogForm'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { CreateFulfillmentDocument, OrderDocument, type OrderQuery } from './Orders.gql'
+import { CreateFulfillmentDocument, OrderDocument, OrdersPagedDocument, type OrderQuery } from './Orders.gql'
+import { remainingByLine, shipmentSchema, toShipmentInput, toShipmentValues } from './schemas/shipment'
 
 type OrderData = OrderQuery['order']
-type LineDraft = { checked: boolean; quantity: string }
 
-// CreateShipmentDialog records a partial shipment: a per-line quantity picker
-// (defaulting to each line's still-unshipped remainder) plus optional carrier +
-// tracking - Backed by createFulfillment; the order settles to partially_fulfilled
-// or fulfilled - The one-click "Fulfill remaining" header action stays for the
-// common ship-everything case
-export function CreateShipmentDialog({
-  order,
-  open,
-  onOpenChange,
-}: {
-  order: OrderData
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  const refetch = [{ query: OrderDocument, variables: { id: order.id } }, 'OrdersPaged']
-  const [createFulfillment, state] = useMutation(CreateFulfillmentDocument, { refetchQueries: refetch })
+// Records a partial shipment - the order settles to partially_fulfilled or fulfilled. The one-click
+// "Fulfill remaining" header action stays for the common ship-everything case
+export function CreateShipmentDialog({ order, open, onOpenChange }: { order: OrderData; open: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <FormDialog open={open} onOpenChange={onOpenChange}>
+      {(close) => <CreateShipmentForm order={order} onClose={close} />}
+    </FormDialog>
+  )
+}
 
-  // Remaining = ordered − already-shipped (non-cancelled fulfillments)
-  const remainingByLine = useMemo(() => {
-    const shipped = new Map<string, number>()
-    for (const f of order.fulfillments) {
-      if (f.status === 'cancelled') continue
-      for (const l of f.lines) shipped.set(l.orderLineId, (shipped.get(l.orderLineId) ?? 0) + l.quantity)
-    }
-    const out = new Map<string, number>()
-    for (const l of order.lines) out.set(l.id, l.quantity - (shipped.get(l.id) ?? 0))
-    return out
-  }, [order.fulfillments, order.lines])
+function CreateShipmentForm({ order, onClose }: { order: OrderData; onClose: () => void }) {
+  const [createFulfillment] = useMutation(CreateFulfillmentDocument, {
+    refetchQueries: [{ query: OrderDocument, variables: { id: order.id } }, OrdersPagedDocument],
+  })
+  const remaining = useMemo(() => remainingByLine(order.lines, order.fulfillments), [order.lines, order.fulfillments])
+  const byId = new Map(order.lines.map((l) => [l.id, l]))
 
-  const shippableLines = order.lines.filter((l) => (remainingByLine.get(l.id) ?? 0) > 0)
-
-  const [drafts, setDrafts] = useState<Record<string, LineDraft>>({})
-  const [carrier, setCarrier] = useState('')
-  const [tracking, setTracking] = useState('')
-  const [insured, setInsured] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  // Initialize drafts when the dialog opens (keyed remount via `open` prop from
-  // the parent isn't available, so seed on the open transition)
-  function seed() {
-    setError(null)
-    setCarrier('')
-    setTracking('')
-    setInsured('')
-    setDrafts(
-      Object.fromEntries(
-        shippableLines.map((l) => [l.id, { checked: true, quantity: String(remainingByLine.get(l.id) ?? 0) }]),
-      ),
-    )
-  }
-
-  const selected = order.lines
-    .filter((l) => drafts[l.id]?.checked)
-    .map((l) => ({ orderLineId: l.id, quantity: Number(drafts[l.id]?.quantity ?? '0') }))
-    .filter((l) => l.quantity > 0)
-
-  async function onSubmit() {
-    if (selected.length === 0) {
-      setError('Select at least one line with a positive quantity.')
-      return
-    }
-    setError(null)
-    try {
-      await createFulfillment({
-        variables: {
-          input: {
-            orderId: order.id,
-            lines: selected.map((l) => ({ orderLineId: l.orderLineId, quantity: l.quantity })),
-            carrier: carrier.trim() || null,
-            trackingNumber: tracking.trim() || null,
-            insuredValueCents: insured.trim() ? Math.round(Number(insured) * 100) : null,
-          },
-        },
-      })
-      onOpenChange(false)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create shipment.')
-    }
-  }
+  const dialog = useDialogForm({
+    baseline: toShipmentValues(order.lines, remaining),
+    schema: shipmentSchema,
+    submit: async (v) => {
+      await createFulfillment({ variables: { input: toShipmentInput(v, order.id) } })
+    },
+    onSaved: onClose,
+  })
+  const { form } = dialog
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (v) seed()
-        onOpenChange(v)
-      }}
+    <FormDialogBody
+      dialog={dialog}
+      title="Create shipment"
+      description="Ship a subset of the order. Quantities default to what's still unshipped per line."
+      submitLabel="Create shipment"
+      onCancel={onClose}
     >
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Create shipment</DialogTitle>
-          <DialogDescription>
-            Ship a subset of the order. Quantities default to what's still unshipped per line.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-3">
+      <form.Field name="lines" mode="array">
+        {(lines) => (
           <div className="grid gap-2">
-            {shippableLines.map((l) => {
-              const remaining = remainingByLine.get(l.id) ?? 0
-              const draft = drafts[l.id] ?? { checked: true, quantity: String(remaining) }
+            {lines.state.value.map((row, i) => {
+              const line = byId.get(row.id)
               return (
-                <div key={l.id} className="flex items-center gap-3 rounded border px-3 py-2">
-                  <Checkbox
-                    checked={draft.checked}
-                    onCheckedChange={(v) => setDrafts((p) => ({ ...p, [l.id]: { ...draft, checked: !!v } }))}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{l.productName}</div>
-                    <div className="font-mono text-[10px] text-muted-foreground">
-                      {l.productSku} · {remaining} unshipped
+                <div key={row.id} className="grid gap-1 rounded border px-3 py-2">
+                  <div className="flex items-center gap-3">
+                    <form.Field name={`lines[${i}].checked`}>
+                      {(f) => (
+                        <Checkbox aria-label={`Ship ${line?.productName ?? 'line'}`} checked={f.state.value} onCheckedChange={(v) => f.handleChange(!!v)} />
+                      )}
+                    </form.Field>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{line?.productName}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground">
+                        {line?.productSku} · {row.remaining} unshipped
+                      </div>
                     </div>
+                    <form.Field name={`lines[${i}].quantity`}>
+                      {(f) => (
+                        <Input
+                          type="number"
+                          min={0}
+                          max={row.remaining}
+                          step="any"
+                          aria-label={`${line?.productName ?? 'Line'} quantity`}
+                          value={f.state.value}
+                          disabled={!row.checked}
+                          onChange={(e) => f.handleChange(e.target.value)}
+                          onBlur={f.handleBlur}
+                          className="w-24 tabular-nums"
+                        />
+                      )}
+                    </form.Field>
                   </div>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={remaining}
-                    step="any"
-                    value={draft.quantity}
-                    disabled={!draft.checked}
-                    onChange={(e) => setDrafts((p) => ({ ...p, [l.id]: { ...draft, quantity: e.target.value } }))}
-                    className="w-24 tabular-nums"
-                  />
+                  <form.Field name={`lines[${i}].quantity`}>{(f) => <FieldError field={f} />}</form.Field>
                 </div>
               )
             })}
+            <FieldError field={lines} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="ship-carrier">Carrier (optional)</Label>
-              <Input id="ship-carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="USPS, FedEx…" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="ship-tracking">Tracking (optional)</Label>
-              <Input id="ship-tracking" value={tracking} onChange={(e) => setTracking(e.target.value)} placeholder="1Z999…" />
-            </div>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="ship-insured">Insured value (optional)</Label>
-            <Input
-              id="ship-insured"
-              type="number"
-              min={0}
-              step="0.01"
-              value={insured}
-              onChange={(e) => setInsured(e.target.value)}
-              placeholder="Declared value for shipment insurance"
-              className="tabular-nums"
-            />
-          </div>
-          {error && (
-            <Alert variant="destructive">
-              <AlertTitle>Failed</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={state.loading}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={onSubmit} disabled={state.loading || selected.length === 0}>
-            {state.loading ? 'Shipping…' : 'Create shipment'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        )}
+      </form.Field>
+      <div className="grid grid-cols-2 items-start gap-3">
+        <form.AppField name="carrier">
+          {(f) => <f.TextField id="ship-carrier" label="Carrier (optional)" placeholder="USPS, FedEx…" />}
+        </form.AppField>
+        <form.AppField name="tracking">
+          {(f) => <f.TextField id="ship-tracking" label="Tracking (optional)" placeholder="1Z999…" />}
+        </form.AppField>
+      </div>
+      <form.AppField name="insured">
+        {(f) => (
+          <f.TextField
+            id="ship-insured"
+            label="Insured value (optional)"
+            type="number"
+            min={0}
+            step="0.01"
+            placeholder="Declared value for shipment insurance"
+            className="tabular-nums"
+          />
+        )}
+      </form.AppField>
+    </FormDialogBody>
   )
 }

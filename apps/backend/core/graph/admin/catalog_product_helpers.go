@@ -135,7 +135,7 @@ func toProductBaseModel(p catalog.Product, productType *model.ProductType, attri
 		DisplayImage:            displayImage,
 		Metadata:                toMetadataItems(p.Metadata),
 		PrivateMetadata:         toMetadataItems(p.PrivateMetadata),
-		Content:                 toProductContentModels(p.AllContent),
+		Content:                 allProductContent(p),
 		CreatedAt:               p.CreatedAt,
 		UpdatedAt:               p.UpdatedAt,
 	}
@@ -462,6 +462,9 @@ func (r *queryResolver) renderProductRows(ctx context.Context, products []catalo
 	if err := r.primeListingsAndChannels(ctx, ids); err != nil {
 		return nil, err
 	}
+	if err := r.primeProductContent(ctx, ids); err != nil {
+		return nil, err
+	}
 	if channelID != nil && *channelID != "" {
 		if svID, err := uuid.Parse(*channelID); err == nil {
 			if err := r.primeSalable(ctx, ids, svID); err != nil {
@@ -502,4 +505,13 @@ func (r *queryResolver) renderProductRows(ctx context.Context, products []catalo
 		out[i] = m
 	}
 	return out, nil
+}
+
+// Nil unless this path loaded every locale's row - the content resolver then reads them itself, rather than
+// answering [] for a product that has translations
+func allProductContent(p catalog.Product) []*model.ProductContent {
+	if p.AllContent == nil {
+		return nil
+	}
+	return toProductContentModels(p.AllContent)
 }

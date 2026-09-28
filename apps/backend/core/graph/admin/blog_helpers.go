@@ -4,6 +4,7 @@ package admin
 // moves any non-resolver functions into a /* */ comment block at the bottom
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -297,4 +298,78 @@ func fromUpdateBlogPostInput(in model.UpdateBlogPostInput) (blog.UpdatePostInput
 		out.PrivateMetadata = &md
 	}
 	return out, nil
+}
+
+// List reads carry only the resolved locale, and a list answering allContent with fewer rows than the record
+// has replaced the ones the dashboard's cache held from the detail query - the next save wrote the blanks back.
+// These fill every locale's rows in one query per list
+
+func (r *Resolver) withBlogCategoryTranslations(ctx context.Context, cats []blog.Category) ([]blog.Category, error) {
+	var ids []uuid.UUID
+	var collect func([]blog.Category)
+	collect = func(level []blog.Category) {
+		for _, c := range level {
+			ids = append(ids, c.ID)
+			collect(c.Children)
+		}
+	}
+	collect(cats)
+	byID, err := r.BlogSvc.ListCategoryTranslations(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	var fill func([]blog.Category)
+	fill = func(level []blog.Category) {
+		for i := range level {
+			level[i].AllContent = byID[level[i].ID]
+			fill(level[i].Children)
+		}
+	}
+	fill(cats)
+	return cats, nil
+}
+
+func (r *Resolver) withBlogTagTranslations(ctx context.Context, tags []blog.Tag) ([]blog.Tag, error) {
+	ids := make([]uuid.UUID, len(tags))
+	for i, t := range tags {
+		ids[i] = t.ID
+	}
+	byID, err := r.BlogSvc.ListTagTranslations(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range tags {
+		tags[i].AllContent = byID[tags[i].ID]
+	}
+	return tags, nil
+}
+
+func (r *Resolver) withBlogAuthorTranslations(ctx context.Context, authors []blog.Author) ([]blog.Author, error) {
+	ids := make([]uuid.UUID, len(authors))
+	for i, a := range authors {
+		ids[i] = a.ID
+	}
+	byID, err := r.BlogSvc.ListAuthorTranslations(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range authors {
+		authors[i].AllContent = byID[authors[i].ID]
+	}
+	return authors, nil
+}
+
+func (r *Resolver) withBlogPostTranslations(ctx context.Context, posts []blog.Post) ([]blog.Post, error) {
+	ids := make([]uuid.UUID, len(posts))
+	for i, p := range posts {
+		ids[i] = p.ID
+	}
+	byID, err := r.BlogSvc.ListPostTranslations(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range posts {
+		posts[i].AllContent = byID[posts[i].ID]
+	}
+	return posts, nil
 }

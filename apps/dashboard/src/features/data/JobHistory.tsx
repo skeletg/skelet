@@ -90,7 +90,7 @@ export function JobHistory({
               </div>
               <JobProgress job={job} className="max-w-sm" />
               {job.warnings.map((w) => (
-                <p key={w} className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                <p key={w} className="flex items-start gap-1.5 text-xs text-warning">
                   <AlertTriangleIcon className="mt-0.5 size-3 shrink-0" />
                   {w}
                 </p>

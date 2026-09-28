@@ -29,9 +29,9 @@ type SerializedCalloutNode = {
 }
 
 const TONE_CLASS: Record<CalloutTone, string> = {
-  info: 'border-sky-200 bg-sky-50 text-sky-900',
-  warning: 'border-amber-200 bg-amber-50 text-amber-900',
-  success: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+  info: 'border-info/30 bg-info-soft text-info',
+  warning: 'border-warning/30 bg-warning-soft text-warning',
+  success: 'border-success/30 bg-success-soft text-success',
 }
 
 class CalloutNode extends DecoratorNode<ReactNode> {

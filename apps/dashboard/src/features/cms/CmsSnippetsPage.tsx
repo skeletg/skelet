@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
-import { useDraft } from '@/shared/saving/useDraft'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { useStore } from '@tanstack/react-form'
 import { PlusIcon, Trash2Icon } from 'lucide-react'
+import { useDialogForm } from '@/components/form/useDialogForm'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LoadingState } from '@/components/ui/loading-state'
 import {
@@ -13,6 +13,8 @@ import {
   DetailPageLayout,
   DetailPageSection,
 } from '@/components/layout/detail-page'
+import { sameValue } from '@/lib/form-drafts'
+import { useUnsavedChangesGuard } from '@/lib/unsaved-changes'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import {
   CmsSnippetsDocument,
@@ -22,7 +24,8 @@ import {
   type CmsSnippetsQuery,
 } from './Cms.gql'
 import { PageBlockCanvas } from './PageBlockCanvas'
-import { parseDocument, serializeDocument, type CmsBlock } from './page-blocks'
+import type { CmsBlock, CmsDocument } from './page-blocks'
+import { snippetSchema, toSnippetBlocks, toSnippetValues } from './schemas/snippet'
 
 type Snippet = CmsSnippetsQuery['cmsSnippets'][number]
 
@@ -93,11 +96,11 @@ export function CmsSnippetsPage() {
             canManage={canManage}
             onClose={() => setEditing(null)}
             onCreate={async (slug, name, blocks) => {
-              await createSnippet({ variables: { input: { slug, name, blocks: serializeDocument(blocks) } } })
+              await createSnippet({ variables: { input: { slug, name, blocks } } })
               setEditing(null)
             }}
             onUpdate={async (id, name, blocks) => {
-              await updateSnippet({ variables: { input: { id, name, blocks: serializeDocument(blocks) } } })
+              await updateSnippet({ variables: { input: { id, name, blocks } } })
               setEditing(null)
             }}
           />
@@ -117,48 +120,39 @@ function SnippetEditor({
   snippet: Snippet | null
   canManage: boolean
   onClose: () => void
-  onCreate: (slug: string, name: string, blocks: CmsBlock[]) => Promise<void>
-  onUpdate: (id: string, name: string, blocks: CmsBlock[]) => Promise<void>
+  onCreate: (slug: string, name: string, blocks: CmsDocument) => Promise<void>
+  onUpdate: (id: string, name: string, blocks: CmsDocument) => Promise<void>
 }) {
-  const draft = useDraft({
-    name: snippet?.name ?? '',
-    slug: snippet?.slug ?? '',
-    blocks: parseDocument(snippet?.blocks)?.blocks ?? [] as CmsBlock[],
+  // Keyed on the snippet by the page, so each open starts from the stored section
+  const [baseline] = useState(() => toSnippetValues(snippet))
+  const { form, error, onSubmit } = useDialogForm({
+    baseline,
+    schema: snippetSchema,
+    submit: async (v) => {
+      if (snippet) await onUpdate(snippet.id, v.name.trim(), toSnippetBlocks(v))
+      else await onCreate(v.slug.trim(), v.name.trim(), toSnippetBlocks(v))
+    },
   })
-  const { name, slug, blocks } = draft.values
-  const { setName, setSlug, setBlocks } = draft.setters
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function save() {
-    setError(null)
-    setSaving(true)
-    try {
-      if (snippet) await onUpdate(snippet.id, name.trim(), blocks)
-      else await onCreate(slug.trim(), name.trim(), blocks)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed.')
-    } finally {
-      setSaving(false)
-    }
-  }
+  const dirty = useStore(form.store, (s) => !sameValue(s.values, baseline))
+  const submitting = useStore(form.store, (s) => s.isSubmitting)
+  useUnsavedChangesGuard(dirty, snippet ? `Section · ${snippet.name}` : 'New section')
 
   return (
     <DetailPageSection title={snippet ? `Edit “${snippet.name}”` : 'New section'}>
-      <div className="grid gap-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-1.5">
-            <Label htmlFor="snip-name">Name</Label>
-            <Input id="snip-name" value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage || saving} />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="snip-slug">Slug</Label>
-            <Input id="snip-slug" value={slug} onChange={(e) => setSlug(e.target.value)} disabled={!canManage || saving || !!snippet} placeholder="promo-banner" />
-          </div>
-        </div>
+      <form className="grid gap-4" onSubmit={onSubmit}>
+        <fieldset disabled={!canManage || submitting} className="grid gap-4 sm:grid-cols-2">
+          <form.AppField name="name">{(f) => <f.TextField id="snip-name" label="Name" />}</form.AppField>
+          <form.AppField name="slug">
+            {(f) => <f.TextField id="snip-slug" label="Slug" placeholder="promo-banner" disabled={!!snippet} />}
+          </form.AppField>
+        </fieldset>
         <div className="grid gap-1.5">
           <Label>Blocks</Label>
-          <PageBlockCanvas blocks={blocks} onChange={setBlocks} disabled={!canManage} />
+          <form.Field name="blocks">
+            {(f) => (
+              <PageBlockCanvas blocks={f.state.value as CmsBlock[]} onChange={(blocks) => f.handleChange(blocks)} disabled={!canManage} />
+            )}
+          </form.Field>
         </div>
         {error && (
           <Alert variant="destructive">
@@ -167,14 +161,14 @@ function SnippetEditor({
           </Alert>
         )}
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
           {canManage && (
-            <Button onClick={save} disabled={saving || !name.trim() || (!snippet && !slug.trim())}>
-              {saving ? 'Saving…' : 'Save section'}
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Saving…' : 'Save section'}
             </Button>
           )}
         </div>
-      </div>
+      </form>
     </DetailPageSection>
   )
 }

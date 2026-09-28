@@ -573,3 +573,35 @@ func toCMSPageRevisionModel(r cms.PageRevision) *model.CMSPageRevision {
 	}
 	return m
 }
+
+// The CMS attribute counterpart of withBlogTagTranslations - the attribute pages read the list, so without it
+// every attribute's translations came back empty
+func (r *Resolver) withCMSAttributeTranslations(ctx context.Context, attrs []cms.Attribute) ([]cms.Attribute, error) {
+	ids := make([]uuid.UUID, len(attrs))
+	for i, a := range attrs {
+		ids[i] = a.ID
+	}
+	byID, err := r.CMSSvc.ListAttributeTranslations(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range attrs {
+		attrs[i].AllContent = byID[attrs[i].ID]
+	}
+	return attrs, nil
+}
+
+func (r *Resolver) withCMSPageTranslations(ctx context.Context, pages []cms.Page) ([]cms.Page, error) {
+	ids := make([]uuid.UUID, len(pages))
+	for i, p := range pages {
+		ids[i] = p.ID
+	}
+	byID, err := r.CMSSvc.ListPageTranslations(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range pages {
+		pages[i].AllContent = byID[pages[i].ID]
+	}
+	return pages, nil
+}

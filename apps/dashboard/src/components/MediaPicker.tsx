@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { gql } from '@apollo/client'
 import { useLazyQuery, useQuery } from '@apollo/client/react'
 import { ImageOffIcon, ImageIcon, SearchIcon, XIcon } from 'lucide-react'
 
@@ -14,6 +13,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import type { MediaMimeGroup } from '@/graphql/schema.types'
+import { MediaPickerAssetDocument, MediaPickerSearchDocument, type MediaPickerAssetQuery } from './MediaPicker.gql'
 
 // MediaPicker is the dashboard's single-asset picker - Used wherever a
 // domain row references one media asset by id (promotion label /
@@ -27,43 +28,7 @@ import { cn } from '@/lib/utils'
 // the parent's stored model when GraphQL hydrates the asset
 // separately
 
-const PICKER_SEARCH_QUERY = gql`
-  query MediaPickerSearch($query: String, $mimeGroup: MediaMimeGroup, $limit: Int) {
-    searchMediaAssets(query: $query, mimeGroup: $mimeGroup, limit: $limit) {
-      totalCount
-      items {
-        id
-        url
-        filename
-        title
-        altText
-        mimeType
-        width
-        height
-      }
-    }
-  }
-`
-
-const PICKER_ASSET_QUERY = gql`
-  query MediaPickerAsset($id: ID!) {
-    mediaAsset(id: $id) {
-      id
-      url
-      filename
-      title
-      altText
-    }
-  }
-`
-
-type PickerAsset = {
-  id: string
-  url: string
-  filename: string
-  title: string
-  altText: string
-}
+type PickerAsset = NonNullable<MediaPickerAssetQuery['mediaAsset']>
 
 export function MediaPicker({
   value,
@@ -82,12 +47,12 @@ export function MediaPicker({
   previewClassName?: string
   // Optional MIME-group filter for the search dialog - Pass "IMAGE"
   // for image-only pickers (the most common case)
-  mimeGroup?: 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'OTHER'
+  mimeGroup?: MediaMimeGroup
 }) {
   // Hydrate the currently-selected asset so the preview thumbnail
   // shows immediately - Skipped when value is null
-  const { data: currentData } = useQuery<{ mediaAsset: PickerAsset | null }>(
-    PICKER_ASSET_QUERY,
+  const { data: currentData } = useQuery(
+    MediaPickerAssetDocument,
     {
       variables: { id: value ?? '' },
       skip: !value,
@@ -177,7 +142,7 @@ export function MediaPickerButton({
 }: {
   onPick: (url: string) => void
   label?: string
-  mimeGroup?: 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'OTHER'
+  mimeGroup?: MediaMimeGroup
 }) {
   const [open, setOpen] = useState(false)
   return (
@@ -207,13 +172,11 @@ function PickerDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  mimeGroup?: 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'OTHER'
+  mimeGroup?: MediaMimeGroup
   onPick: (asset: PickerAsset) => void
 }) {
   const [query, setQuery] = useState('')
-  const [runSearch, { data, loading }] = useLazyQuery<{
-    searchMediaAssets: { totalCount: number; items: PickerAsset[] }
-  }>(PICKER_SEARCH_QUERY)
+  const [runSearch, { data, loading }] = useLazyQuery(MediaPickerSearchDocument)
 
   // Re-fetch when the dialog opens / search query changes - The search query is the asset filename / title; without it the backend returns
   // the most-recent assets, which is the right default for "I just uploaded the sticker, find it" flows

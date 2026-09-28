@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { configField, configValue, setConfigValue, restoreConfig, startClean } from './helpers'
+import { expect } from '@playwright/test'
+import { configField, configValue, restoreConfig, setConfigValue, startClean, test } from './helpers'
 
 // A store-information string nothing computes from, so a run that dies mid-edit disturbs nothing.
 // Whatever it was is captured and put back afterwards, including having had no row at all
@@ -51,7 +51,8 @@ test('the filter searches values, not just labels', async ({ page }) => {
   // the reason values are in the haystack at all: searching "remote" missed the fields where it
   // was the VALUE rather than anything written on the row
   await page.getByLabel('Filter settings').fill('remote')
-  await expect(page.locator('main input[id^="cfg-"]').first()).toBeVisible()
+  // Any field kind - the match can be a select as well as a text input
+  await expect(page.locator('main [id^="cfg-"]').first()).toBeVisible()
 })
 
 test('an edit arms the save button and the dialog spells the change out', async ({ page }) => {

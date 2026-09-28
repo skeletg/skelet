@@ -271,11 +271,11 @@ function DiffInline({ spans }: { spans: DiffSpan[] }) {
         s.kind === 'eq' ? (
           <span key={i}>{s.text}</span>
         ) : s.kind === 'add' ? (
-          <span key={i} className="rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+          <span key={i} className="rounded bg-success-soft text-success">
             {s.text}
           </span>
         ) : (
-          <span key={i} className="rounded bg-red-500/15 text-red-700 line-through dark:text-red-300">
+          <span key={i} className="rounded bg-destructive-soft text-destructive line-through">
             {s.text}
           </span>
         ),
@@ -287,13 +287,13 @@ function DiffInline({ spans }: { spans: DiffSpan[] }) {
 function blockChangeBadge(kind: BlockChange['kind']): { label: string; cls: string } {
   switch (kind) {
     case 'added':
-      return { label: 'Added', cls: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' }
+      return { label: 'Added', cls: 'bg-success-soft text-success' }
     case 'removed':
-      return { label: 'Removed', cls: 'bg-red-500/15 text-red-700 dark:text-red-300' }
+      return { label: 'Removed', cls: 'bg-destructive-soft text-destructive' }
     case 'reordered':
-      return { label: 'Moved', cls: 'bg-amber-500/15 text-amber-700 dark:text-amber-300' }
+      return { label: 'Moved', cls: 'bg-warning-soft text-warning' }
     default:
-      return { label: 'Changed', cls: 'bg-blue-500/15 text-blue-700 dark:text-blue-300' }
+      return { label: 'Changed', cls: 'bg-info-soft text-info' }
   }
 }
 

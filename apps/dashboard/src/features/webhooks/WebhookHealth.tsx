@@ -24,8 +24,8 @@ function timeAgo(iso: string): string {
 // Traffic-light class for the success-rate figure - Only meaningful once at
 // least one delivery has been recorded (callers gate on total > 0)
 function rateClass(rate: number): string {
-  if (rate >= 0.95) return 'text-emerald-600 dark:text-emerald-400'
-  if (rate >= 0.8) return 'text-amber-600 dark:text-amber-400'
+  if (rate >= 0.95) return 'text-success'
+  if (rate >= 0.8) return 'text-warning'
   return 'text-destructive'
 }
 

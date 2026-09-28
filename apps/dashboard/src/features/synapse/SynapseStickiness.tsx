@@ -132,7 +132,7 @@ export function SynapseStickiness() {
                     </div>
                     <div className="flex h-2.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${retShare}% returning, ${100 - retShare}% new or reactivated`}>
                       <span className="bg-primary" style={{ width: `${retShare}%` }} />
-                      <span className="bg-sky-400" style={{ width: `${100 - retShare}%` }} />
+                      <span className="bg-info" style={{ width: `${100 - retShare}%` }} />
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                       <div className="flex items-center gap-2">
@@ -141,7 +141,7 @@ export function SynapseStickiness() {
                         <span className="ml-auto tabular-nums font-medium">{nfmt(returning)}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="size-2.5 rounded-full bg-sky-400" />
+                        <span className="size-2.5 rounded-full bg-info" />
                         <span className="text-muted-foreground">New or reactivated</span>
                         <span className="ml-auto tabular-nums font-medium">{nfmt(fresh)}</span>
                       </div>

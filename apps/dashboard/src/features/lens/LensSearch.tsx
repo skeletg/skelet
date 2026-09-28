@@ -65,7 +65,7 @@ export function LensSearch() {
         accessorKey: 'term',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Search term" />,
         cell: ({ row }) => (
-          <span className="block max-w-[360px] truncate font-medium text-amber-700 dark:text-amber-400">
+          <span className="block max-w-[360px] truncate font-medium text-warning">
             {row.original.term}
           </span>
         ),
@@ -175,7 +175,7 @@ function TrendBars({ daily }: { daily: { date: string; searches: number; zeroRes
               title={`${d.date}: ${d.searches} searches, ${d.zeroResults} zero-result`}
             >
               <div className="relative w-full rounded-t bg-primary/70" style={{ height: `${Math.max(h, d.searches > 0 ? 4 : 0)}%` }}>
-                {zh > 0 && <div className="absolute inset-x-0 bottom-0 bg-amber-500" style={{ height: `${zh}%` }} />}
+                {zh > 0 && <div className="absolute inset-x-0 bottom-0 bg-warning" style={{ height: `${zh}%` }} />}
               </div>
             </div>
           )
@@ -188,7 +188,7 @@ function TrendBars({ daily }: { daily: { date: string; searches: number; zeroRes
             <span className="inline-block h-2 w-2 rounded-sm bg-primary/70" /> searches
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-sm bg-amber-500" /> zero-result
+            <span className="inline-block h-2 w-2 rounded-sm bg-warning" /> zero-result
           </span>
         </span>
         <span>{daily[daily.length - 1]?.date}</span>
@@ -201,7 +201,7 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
   return (
     <div className="rounded border p-4">
       <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone === 'warn' ? 'text-warning' : ''}`}>
         {value}
       </p>
       {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}

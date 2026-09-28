@@ -1,5 +1,7 @@
 // Shared Core Web Vitals helpers - metric keys are the canonical uppercase names the spine stores, and the gauge lives in VitalGauge.tsx
 
+import { CHART_DESTRUCTIVE, CHART_SUCCESS, CHART_WARNING } from '@/lib/chart-colors'
+
 export type VitalMetric = 'LCP' | 'INP' | 'CLS' | 'TTFB'
 
 // Good ≤ / poor > thresholds (Google's CWV) - LCP/INP/TTFB in ms, CLS unitless
@@ -20,9 +22,9 @@ export const VITAL_LABEL: Record<VitalMetric, string> = {
   TTFB: 'Time to First Byte',
 }
 
-export const VITAL_GREEN = '#0cce6b'
-export const VITAL_AMBER = '#ffa400'
-export const VITAL_RED = '#ff4e42'
+export const VITAL_GREEN = CHART_SUCCESS
+export const VITAL_AMBER = CHART_WARNING
+export const VITAL_RED = CHART_DESTRUCTIVE
 
 export function isVitalMetric(m: string): m is VitalMetric {
   return m === 'LCP' || m === 'INP' || m === 'CLS' || m === 'TTFB'
@@ -57,10 +59,10 @@ export function vitalColor(metric: VitalMetric, v: number): string {
 export function vitalTextClass(metric: VitalMetric, v: number): string {
   const r = vitalRating(metric, v)
   return r === 'good'
-    ? 'text-emerald-600 dark:text-emerald-400'
+    ? 'text-success'
     : r === 'ni'
-      ? 'text-amber-600 dark:text-amber-400'
-      : 'text-red-600 dark:text-red-400'
+      ? 'text-warning'
+      : 'text-destructive'
 }
 
 // Maps a value to a 0..1 arc fill, 1 at the "good" edge and 0 at "poor", linear within the band and clamped beyond - lower is better for every CWV

@@ -628,6 +628,9 @@ func (r *queryResolver) BlogPosts(ctx context.Context, filter *model.BlogPostFil
 	if err != nil {
 		return nil, err
 	}
+	if posts, err = r.withBlogPostTranslations(ctx, posts); err != nil {
+		return nil, err
+	}
 	out := make([]*model.BlogPost, len(posts))
 	for i, p := range posts {
 		out[i] = toBlogPostModel(p)
@@ -677,10 +680,16 @@ func (r *queryResolver) BlogCategories(ctx context.Context, parentID *string) ([
 		if err2 != nil {
 			return nil, err2
 		}
+		if cats, err2 = r.withBlogCategoryTranslations(ctx, cats); err2 != nil {
+			return nil, err2
+		}
 		return blogCategoryModels(cats), nil
 	}
 	cats, err = r.BlogSvc.ListRootCategories(ctx, loc)
 	if err != nil {
+		return nil, err
+	}
+	if cats, err = r.withBlogCategoryTranslations(ctx, cats); err != nil {
 		return nil, err
 	}
 	return blogCategoryModels(cats), nil
@@ -718,6 +727,9 @@ func (r *queryResolver) BlogTags(ctx context.Context) ([]*model.BlogTag, error) 
 	}
 	tags, err := r.BlogSvc.ListTags(ctx, r.activeLocale(ctx))
 	if err != nil {
+		return nil, err
+	}
+	if tags, err = r.withBlogTagTranslations(ctx, tags); err != nil {
 		return nil, err
 	}
 	out := make([]*model.BlogTag, len(tags))
@@ -760,6 +772,9 @@ func (r *queryResolver) BlogAuthors(ctx context.Context) ([]*model.BlogAuthor, e
 	}
 	authors, err := r.BlogSvc.ListAuthors(ctx, r.activeLocale(ctx))
 	if err != nil {
+		return nil, err
+	}
+	if authors, err = r.withBlogAuthorTranslations(ctx, authors); err != nil {
 		return nil, err
 	}
 	out := make([]*model.BlogAuthor, len(authors))

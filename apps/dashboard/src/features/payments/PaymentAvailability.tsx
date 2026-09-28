@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { gql } from '@apollo/client'
 import { useMutation, useQuery } from '@apollo/client/react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -17,47 +16,14 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
+import {
+  PaymentMethodsDocument,
+  SetPaymentMethodCountriesDocument,
+  SetPaymentMethodEnabledDocument,
+  type PaymentMethodsQuery,
+} from './Payments.gql'
 
-const PAYMENT_METHODS_QUERY = gql`
-  query PaymentMethods($channelId: ID!) {
-    paymentMethods(channelId: $channelId) {
-      providerSlug
-      displayName
-      isEnabled
-      sortOrder
-      countryMode
-      allowedCountries
-    }
-  }
-`
-
-const SET_ENABLED = gql`
-  mutation SetPaymentMethodEnabled($channelId: ID!, $providerSlug: String!, $enabled: Boolean!) {
-    setPaymentMethodEnabled(channelId: $channelId, providerSlug: $providerSlug, enabled: $enabled) {
-      providerSlug
-      isEnabled
-    }
-  }
-`
-
-const SET_COUNTRIES = gql`
-  mutation SetPaymentMethodCountries($channelId: ID!, $providerSlug: String!, $mode: String!, $countries: [String!]!) {
-    setPaymentMethodCountries(channelId: $channelId, providerSlug: $providerSlug, mode: $mode, countries: $countries) {
-      providerSlug
-      countryMode
-      allowedCountries
-    }
-  }
-`
-
-type PaymentMethodAdmin = {
-  providerSlug: string
-  displayName: string
-  isEnabled: boolean
-  sortOrder: number
-  countryMode: string
-  allowedCountries: string[]
-}
+type PaymentMethodAdmin = PaymentMethodsQuery['paymentMethods'][number]
 
 // PaymentAvailability is the per-channel enablement + country-restriction block
 // for payment providers, embedded in the Payment settings section (Settings →
@@ -68,10 +34,7 @@ type PaymentMethodAdmin = {
 export function PaymentAvailability({ providerSlug }: { providerSlug?: string }) {
   const { effectiveChannelId, isChannel } = useConfigScope()
 
-  const { data, loading, error } = useQuery<
-    { paymentMethods: PaymentMethodAdmin[] },
-    { channelId: string }
-  >(PAYMENT_METHODS_QUERY, {
+  const { data, loading, error } = useQuery(PaymentMethodsDocument, {
     variables: { channelId: effectiveChannelId ?? '' },
     skip: !effectiveChannelId,
   })
@@ -133,17 +96,11 @@ function ProviderCard({
   const [countriesText, setCountriesText] = useState((method.allowedCountries ?? []).join(', '))
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const refetchQueries = [{ query: PAYMENT_METHODS_QUERY, variables: { channelId } }]
+  const refetchQueries = [{ query: PaymentMethodsDocument, variables: { channelId } }]
 
-  const [setEnabled, { loading: toggling }] = useMutation<
-    { setPaymentMethodEnabled: { isEnabled: boolean } },
-    { channelId: string; providerSlug: string; enabled: boolean }
-  >(SET_ENABLED, { refetchQueries })
+  const [setEnabled, { loading: toggling }] = useMutation(SetPaymentMethodEnabledDocument, { refetchQueries })
 
-  const [setCountries, { loading: savingCountries }] = useMutation<
-    unknown,
-    { channelId: string; providerSlug: string; mode: string; countries: string[] }
-  >(SET_COUNTRIES, { refetchQueries })
+  const [setCountries, { loading: savingCountries }] = useMutation(SetPaymentMethodCountriesDocument, { refetchQueries })
 
   async function onToggle(next: boolean) {
     setSaveError(null)
@@ -191,7 +148,7 @@ function ProviderCard({
         <div className="grid gap-1">
           <Label className="text-xs">Accepted in</Label>
           <Select value={mode} onValueChange={(v) => setMode(v as 'all' | 'specific')}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

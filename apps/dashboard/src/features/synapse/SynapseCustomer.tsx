@@ -209,7 +209,7 @@ function SignalsSections({ customerId }: { customerId: string }) {
                 key={c.kind}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
                   c.optedIn
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                    ? 'border-success/30 bg-success-soft text-success'
                     : 'border-border bg-muted text-muted-foreground'
                 }`}
                 title={`${c.name} (${c.channel} · ${c.purpose})`}
@@ -267,11 +267,11 @@ function SignalsSections({ customerId }: { customerId: string }) {
 
 function FlowStatusBadge({ status }: { status: string }) {
   const tone: Record<string, string> = {
-    active: 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400',
-    waiting: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
-    completed: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+    active: 'border-info/30 bg-info-soft text-info',
+    waiting: 'border-warning/30 bg-warning-soft text-warning',
+    completed: 'border-success/30 bg-success-soft text-success',
     cancelled: 'border-border bg-muted text-muted-foreground',
-    failed: 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400',
+    failed: 'border-destructive/30 bg-destructive-soft text-destructive',
   }
   return (
     <span className={`rounded-full border px-2 py-0.5 font-medium capitalize ${tone[status] ?? 'border-border bg-muted text-muted-foreground'}`}>

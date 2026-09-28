@@ -423,3 +423,19 @@ func toAttributeGroup(row db.CmsAttributeGroup) AttributeGroup {
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
+
+// Every locale's row per attribute, keyed by id - one with no rows is simply absent
+func (r *postgresRepository) ListAttributeContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]AttributeContent, error) {
+	out := make(map[uuid.UUID][]AttributeContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListCMSAttributeContentForAttributes(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("attribute content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.AttributeID] = append(out[row.AttributeID], toAttributeContent(row))
+	}
+	return out, nil
+}

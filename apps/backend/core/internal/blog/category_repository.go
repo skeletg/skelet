@@ -258,3 +258,19 @@ func toCategoryContent(row db.BlogCategoryContent) CategoryContent {
 		UpdatedAt:       row.UpdatedAt,
 	}
 }
+
+// Every locale's row per category, keyed by id - one with no rows is simply absent
+func (r *postgresRepository) ListCategoryContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]CategoryContent, error) {
+	out := make(map[uuid.UUID][]CategoryContent, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListBlogCategoryContentForCategories(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("category content by ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.CategoryID] = append(out[row.CategoryID], toCategoryContent(row))
+	}
+	return out, nil
+}

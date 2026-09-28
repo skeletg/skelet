@@ -13,7 +13,7 @@ func toCollectionModel(c catalog.Collection) *model.Collection {
 		Slug:            c.Slug,
 		IsPublished:     c.IsPublished,
 		SeoNoindex:      c.SEONoindex,
-		Content:         toCollectionContentModels(c.AllContent),
+		Content:         allCollectionContent(c),
 		CoverImage:      toCollectionCoverModel(c.CoverImage),
 		Products:        []*model.Product{},
 		Metadata:        toMetadataItems(c.Metadata),
@@ -36,6 +36,15 @@ func toCollectionModel(c catalog.Collection) *model.Collection {
 	}
 	// Products in a collection are loaded and set by resolvers (not in this mapper).
 	return m
+}
+
+// Nil unless this path loaded every locale's row - the content resolver then reads them itself, rather than
+// answering [] for a collection that has translations
+func allCollectionContent(c catalog.Collection) []*model.CollectionContent {
+	if c.AllContent == nil {
+		return nil
+	}
+	return toCollectionContentModels(c.AllContent)
 }
 
 func toCollectionModels(collections []catalog.Collection) []*model.Collection {

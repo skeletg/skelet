@@ -789,6 +789,42 @@ func (q *Queries) ListBlogAuthorContentByScope(ctx context.Context, arg ListBlog
 	return items, nil
 }
 
+const listBlogAuthorContentForAuthors = `-- name: ListBlogAuthorContentForAuthors :many
+SELECT author_id, locale, name, bio, updated_at FROM blog_author_content
+WHERE author_id = ANY($1::uuid[])
+ORDER BY author_id, locale
+`
+
+// Every locale's row for a set of authors - the admin list answers allContent in one query
+func (q *Queries) ListBlogAuthorContentForAuthors(ctx context.Context, authorIds []uuid.UUID) ([]BlogAuthorContent, error) {
+	rows, err := q.db.QueryContext(ctx, listBlogAuthorContentForAuthors, pq.Array(authorIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BlogAuthorContent{}
+	for rows.Next() {
+		var i BlogAuthorContent
+		if err := rows.Scan(
+			&i.AuthorID,
+			&i.Locale,
+			&i.Name,
+			&i.Bio,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBlogAuthors = `-- name: ListBlogAuthors :many
 SELECT id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at FROM blog_authors ORDER BY display_name
 `
@@ -978,6 +1014,45 @@ func (q *Queries) ListBlogCategoryContentByScope(ctx context.Context, arg ListBl
 	return items, nil
 }
 
+const listBlogCategoryContentForCategories = `-- name: ListBlogCategoryContentForCategories :many
+SELECT category_id, locale, name, description, meta_title, meta_description, meta_keywords, updated_at FROM blog_category_content
+WHERE category_id = ANY($1::uuid[])
+ORDER BY category_id, locale
+`
+
+// Every locale's row for a set of categories - the admin list answers allContent in one query
+func (q *Queries) ListBlogCategoryContentForCategories(ctx context.Context, categoryIds []uuid.UUID) ([]BlogCategoryContent, error) {
+	rows, err := q.db.QueryContext(ctx, listBlogCategoryContentForCategories, pq.Array(categoryIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BlogCategoryContent{}
+	for rows.Next() {
+		var i BlogCategoryContent
+		if err := rows.Scan(
+			&i.CategoryID,
+			&i.Locale,
+			&i.Name,
+			&i.Description,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.MetaKeywords,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBlogPostCategories = `-- name: ListBlogPostCategories :many
 SELECT bc.id, bc.parent_id, bc.slug, bc.url_path, bc.position, bc.is_published, bc.seo_noindex, bc.created_at, bc.updated_at FROM blog_categories bc
 JOIN blog_post_categories bpc ON bpc.category_id = bc.id
@@ -1136,6 +1211,46 @@ type ListBlogPostContentByScopeParams struct {
 
 func (q *Queries) ListBlogPostContentByScope(ctx context.Context, arg ListBlogPostContentByScopeParams) ([]BlogPostContent, error) {
 	rows, err := q.db.QueryContext(ctx, listBlogPostContentByScope, arg.Locale, pq.Array(arg.PostIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BlogPostContent{}
+	for rows.Next() {
+		var i BlogPostContent
+		if err := rows.Scan(
+			&i.PostID,
+			&i.Locale,
+			&i.Title,
+			&i.Excerpt,
+			&i.Body,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.MetaKeywords,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBlogPostContentForPosts = `-- name: ListBlogPostContentForPosts :many
+SELECT post_id, locale, title, excerpt, body, meta_title, meta_description, meta_keywords, updated_at FROM blog_post_content
+WHERE post_id = ANY($1::uuid[])
+ORDER BY post_id, locale
+`
+
+// Every locale's row for a set of posts - the admin list answers allContent in one query
+func (q *Queries) ListBlogPostContentForPosts(ctx context.Context, postIds []uuid.UUID) ([]BlogPostContent, error) {
+	rows, err := q.db.QueryContext(ctx, listBlogPostContentForPosts, pq.Array(postIds))
 	if err != nil {
 		return nil, err
 	}
@@ -1649,6 +1764,45 @@ type ListBlogTagContentByScopeParams struct {
 
 func (q *Queries) ListBlogTagContentByScope(ctx context.Context, arg ListBlogTagContentByScopeParams) ([]BlogTagContent, error) {
 	rows, err := q.db.QueryContext(ctx, listBlogTagContentByScope, arg.Locale, pq.Array(arg.TagIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BlogTagContent{}
+	for rows.Next() {
+		var i BlogTagContent
+		if err := rows.Scan(
+			&i.TagID,
+			&i.Locale,
+			&i.Name,
+			&i.Description,
+			&i.MetaTitle,
+			&i.MetaDescription,
+			&i.MetaKeywords,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBlogTagContentForTags = `-- name: ListBlogTagContentForTags :many
+SELECT tag_id, locale, name, description, meta_title, meta_description, meta_keywords, updated_at FROM blog_tag_content
+WHERE tag_id = ANY($1::uuid[])
+ORDER BY tag_id, locale
+`
+
+// Every locale's row for a set of tags - the admin list answers allContent in one query
+func (q *Queries) ListBlogTagContentForTags(ctx context.Context, tagIds []uuid.UUID) ([]BlogTagContent, error) {
+	rows, err := q.db.QueryContext(ctx, listBlogTagContentForTags, pq.Array(tagIds))
 	if err != nil {
 		return nil, err
 	}

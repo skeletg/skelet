@@ -80,10 +80,10 @@ func TestSeedingStarterContentNeedsFlowsManageToo(t *testing.T) {
 	r := &mutationResolver{&Resolver{SignalsEnabled: true, SignalsAPI: client}}
 	on := func(slug string) auth.Grant { return auth.Grant{Slug: slug, ChannelID: &channel} }
 
-	if _, err := r.SeedPulseStarterContent(adminWithGrants(on("emails.manage")), channel.String()); err == nil || flows.seeded != 0 {
+	if _, err := r.SeedPulseStarterContent(adminWithCachedGrants(on("emails.manage")), channel.String()); err == nil || flows.seeded != 0 {
 		t.Errorf("seeded with emails.manage alone: err=%v, calls=%d", err, flows.seeded)
 	}
-	if _, err := r.SeedPulseStarterContent(adminWithGrants(on("emails.manage"), on("flows.manage")), channel.String()); err != nil || flows.seeded != 1 {
+	if _, err := r.SeedPulseStarterContent(adminWithCachedGrants(on("emails.manage"), on("flows.manage")), channel.String()); err != nil || flows.seeded != 1 {
 		t.Errorf("seeding with both grants: err=%v, calls=%d", err, flows.seeded)
 	}
 }

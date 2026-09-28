@@ -18,7 +18,7 @@ function fmtTime(s?: string | null): string {
 function RunStatusBadge({ status }: { status: string }) {
   if (status === 'success')
     return (
-      <Badge className="bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-100">
+      <Badge className="bg-success-soft text-success">
         success
       </Badge>
     )

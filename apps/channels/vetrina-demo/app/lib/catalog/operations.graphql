@@ -129,6 +129,14 @@ query Product($id: ID!) {
       width
       height
     }
+    ogImage {
+      id
+      url
+      altText
+      mimeType
+      width
+      height
+    }
     attributeValues {
       attribute {
         id

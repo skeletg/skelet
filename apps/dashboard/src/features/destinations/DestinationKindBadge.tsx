@@ -3,9 +3,9 @@ import { cn } from '@/lib/utils'
 import { DESTINATION_KINDS } from './kinds'
 
 const BADGE_STYLES: Record<string, string> = {
-  webhook: 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  ga4_mp: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  meta_capi: 'border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  webhook: 'border-info/40 bg-info-soft text-info',
+  ga4_mp: 'border-border bg-muted text-muted-foreground',
+  meta_capi: 'border-border bg-muted text-muted-foreground',
 }
 
 export function DestinationKindBadge({

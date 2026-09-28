@@ -13,7 +13,7 @@ import (
 
 // Members are customers, so reading them needs the customers grant on top of the promotions one
 func (r *customerSegmentResolver) Members(ctx context.Context, obj *model.CustomerSegment, limit *int32, offset *int32) ([]*model.CustomerSegmentMember, error) {
-	checker := auth.GrantCheckerFrom(ctx)
+	checker := r.AdminSvc
 	if err := auth.RequirePermission(ctx, checker, "promotions.view"); err != nil {
 		return nil, err
 	}

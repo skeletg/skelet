@@ -20,6 +20,7 @@ type attributeStore interface {
 	GetAttributeValueByID(ctx context.Context, id uuid.UUID) (AttributeValue, error)
 	GetPageTypeByID(ctx context.Context, id uuid.UUID) (PageType, error)
 	GetPageTypeWithAttributes(ctx context.Context, id uuid.UUID) (PageType, error)
+	ListAttributeContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]AttributeContent, error)
 	ListAttributeGroups(ctx context.Context) ([]AttributeGroup, error)
 	ListAttributes(ctx context.Context) ([]Attribute, error)
 	ListPageTypesUsingAttribute(ctx context.Context, attributeID uuid.UUID) ([]uuid.UUID, error)
@@ -180,4 +181,9 @@ func (s *attributeService) UnassignAttribute(ctx context.Context, pageTypeID, at
 		return PageType{}, err
 	}
 	return s.repo.GetPageTypeWithAttributes(ctx, pageTypeID)
+}
+
+// ListAttributeTranslations returns every locale's content row for each attribute, in one query - list reads only carry the resolved locale, so the admin allContent field reads the full set here
+func (s *attributeService) ListAttributeTranslations(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]AttributeContent, error) {
+	return s.repo.ListAttributeContentFor(ctx, ids)
 }

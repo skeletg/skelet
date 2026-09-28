@@ -79,7 +79,7 @@ export function CmsTagsPage() {
                 }}
                 placeholder="e.g. Summer Sale"
               />
-              <Button type="button" onClick={() => void onCreate()} disabled={!newName.trim()}>
+              <Button className="h-10" type="button" onClick={() => void onCreate()} disabled={!newName.trim()}>
                 <PlusIcon className="size-4" /> Add
               </Button>
             </div>
