@@ -653,6 +653,82 @@ func (q *Queries) ListCategoriesByProductIDs(ctx context.Context, productIds []u
 	return items, nil
 }
 
+const listCategoriesListedOnChannel = `-- name: ListCategoriesListedOnChannel :many
+SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, ccsl.sort_order_override
+FROM catalog_categories c
+JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
+WHERE ccsl.channel_id = $1
+ORDER BY c.position, c.slug
+`
+
+type ListCategoriesListedOnChannelRow struct {
+	ID                uuid.UUID       `json:"id"`
+	ParentID          uuid.NullUUID   `json:"parent_id"`
+	Slug              string          `json:"slug"`
+	UrlPath           string          `json:"url_path"`
+	Position          int32           `json:"position"`
+	IsPublished       bool            `json:"is_published"`
+	SeoNoindex        bool            `json:"seo_noindex"`
+	CoverID           uuid.NullUUID   `json:"cover_id"`
+	CoverS3Key        sql.NullString  `json:"cover_s3_key"`
+	CoverMimeType     sql.NullString  `json:"cover_mime_type"`
+	CoverSizeBytes    sql.NullInt64   `json:"cover_size_bytes"`
+	CoverWidth        sql.NullInt32   `json:"cover_width"`
+	CoverHeight       sql.NullInt32   `json:"cover_height"`
+	CoverStatus       sql.NullString  `json:"cover_status"`
+	CoverAlt          string          `json:"cover_alt"`
+	Metadata          json.RawMessage `json:"metadata"`
+	PrivateMetadata   json.RawMessage `json:"private_metadata"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
+	SortOrderOverride sql.NullInt32   `json:"sort_order_override"`
+}
+
+// Admin query: every category with a listing row on the given store, published or not - the dashboard's store-scoped tree must show drafts so they can be found and published
+func (q *Queries) ListCategoriesListedOnChannel(ctx context.Context, channelID uuid.UUID) ([]ListCategoriesListedOnChannelRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCategoriesListedOnChannel, channelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCategoriesListedOnChannelRow{}
+	for rows.Next() {
+		var i ListCategoriesListedOnChannelRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentID,
+			&i.Slug,
+			&i.UrlPath,
+			&i.Position,
+			&i.IsPublished,
+			&i.SeoNoindex,
+			&i.CoverID,
+			&i.CoverS3Key,
+			&i.CoverMimeType,
+			&i.CoverSizeBytes,
+			&i.CoverWidth,
+			&i.CoverHeight,
+			&i.CoverStatus,
+			&i.CoverAlt,
+			&i.Metadata,
+			&i.PrivateMetadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SortOrderOverride,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCategoryChain = `-- name: ListCategoryChain :many
 WITH RECURSIVE chain(id, parent_id, depth) AS (
     SELECT c.id, c.parent_id, 0 FROM catalog_categories c WHERE c.id = $1::uuid
@@ -745,6 +821,87 @@ func (q *Queries) ListCategoryChildren(ctx context.Context, parentID uuid.NullUU
 			&i.PrivateMetadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCategoryChildrenListedOnChannel = `-- name: ListCategoryChildrenListedOnChannel :many
+SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, ccsl.sort_order_override
+FROM catalog_categories c
+JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
+WHERE ccsl.channel_id = $1
+  AND c.parent_id = $2
+ORDER BY c.position, c.slug
+`
+
+type ListCategoryChildrenListedOnChannelParams struct {
+	ChannelID uuid.UUID     `json:"channel_id"`
+	ParentID  uuid.NullUUID `json:"parent_id"`
+}
+
+type ListCategoryChildrenListedOnChannelRow struct {
+	ID                uuid.UUID       `json:"id"`
+	ParentID          uuid.NullUUID   `json:"parent_id"`
+	Slug              string          `json:"slug"`
+	UrlPath           string          `json:"url_path"`
+	Position          int32           `json:"position"`
+	IsPublished       bool            `json:"is_published"`
+	SeoNoindex        bool            `json:"seo_noindex"`
+	CoverID           uuid.NullUUID   `json:"cover_id"`
+	CoverS3Key        sql.NullString  `json:"cover_s3_key"`
+	CoverMimeType     sql.NullString  `json:"cover_mime_type"`
+	CoverSizeBytes    sql.NullInt64   `json:"cover_size_bytes"`
+	CoverWidth        sql.NullInt32   `json:"cover_width"`
+	CoverHeight       sql.NullInt32   `json:"cover_height"`
+	CoverStatus       sql.NullString  `json:"cover_status"`
+	CoverAlt          string          `json:"cover_alt"`
+	Metadata          json.RawMessage `json:"metadata"`
+	PrivateMetadata   json.RawMessage `json:"private_metadata"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
+	SortOrderOverride sql.NullInt32   `json:"sort_order_override"`
+}
+
+func (q *Queries) ListCategoryChildrenListedOnChannel(ctx context.Context, arg ListCategoryChildrenListedOnChannelParams) ([]ListCategoryChildrenListedOnChannelRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCategoryChildrenListedOnChannel, arg.ChannelID, arg.ParentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCategoryChildrenListedOnChannelRow{}
+	for rows.Next() {
+		var i ListCategoryChildrenListedOnChannelRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentID,
+			&i.Slug,
+			&i.UrlPath,
+			&i.Position,
+			&i.IsPublished,
+			&i.SeoNoindex,
+			&i.CoverID,
+			&i.CoverS3Key,
+			&i.CoverMimeType,
+			&i.CoverSizeBytes,
+			&i.CoverWidth,
+			&i.CoverHeight,
+			&i.CoverStatus,
+			&i.CoverAlt,
+			&i.Metadata,
+			&i.PrivateMetadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SortOrderOverride,
 		); err != nil {
 			return nil, err
 		}

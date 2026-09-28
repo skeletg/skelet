@@ -620,6 +620,34 @@ func (r *postgresRepository) ListPublishedRootCategoriesForChannel(ctx context.C
 	return out, nil
 }
 
+// The listed-on-channel rows share the published rows' columns, so they convert straight into the same mappers
+func (r *postgresRepository) ListCategoriesListedOnChannel(ctx context.Context, channelID uuid.UUID) ([]Category, error) {
+	rows, err := r.queries.ListCategoriesListedOnChannel(ctx, channelID)
+	if err != nil {
+		return nil, fmt.Errorf("list categories listed on store: %w", err)
+	}
+	out := make([]Category, len(rows))
+	for i, row := range rows {
+		out[i] = toCategoryFromPublishedRoot(db.ListPublishedRootCategoriesForChannelRow(row))
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) ListCategoryChildrenListedOnChannel(ctx context.Context, channelID, parentID uuid.UUID) ([]Category, error) {
+	rows, err := r.queries.ListCategoryChildrenListedOnChannel(ctx, db.ListCategoryChildrenListedOnChannelParams{
+		ChannelID: channelID,
+		ParentID:  uuid.NullUUID{UUID: parentID, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list category children listed on store: %w", err)
+	}
+	out := make([]Category, len(rows))
+	for i, row := range rows {
+		out[i] = toCategoryFromPublishedChild(db.ListPublishedCategoryChildrenForChannelRow(row))
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ListPublishedCategoriesForChannel(ctx context.Context, channelID uuid.UUID) ([]Category, error) {
 	rows, err := r.queries.ListPublishedCategoriesForChannel(ctx, channelID)
 	if err != nil {

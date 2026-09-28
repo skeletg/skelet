@@ -29449,7 +29449,7 @@ input RequestCategoryCoverUploadInput {
 
 # --- Queries (require catalog.view) ---
 extend type Query {
-  # When channelId is set, only categories listed-and-published on that channel are returned - header-driven admin uses this in CHANNEL mode so the tree matches what the storefront actually renders. Omit for the global tree. Locale comes from the ` + "`" + `Locale` + "`" + ` header.
+  # When channelId is set, only categories listed on that channel are returned, published or not - header-driven admin uses this in CHANNEL mode, and drafts must stay visible there so they can be found and published. Omit for the global tree. Locale comes from the ` + "`" + `Locale` + "`" + ` header.
   rootCategories(channelId: ID): [Category!]!
   categoryChildren(parentId: ID!, channelId: ID): [Category!]!
   category(id: ID!): Category!
