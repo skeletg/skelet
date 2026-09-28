@@ -24,7 +24,7 @@ export function RegisterForm({
   const t = useTranslations("auth.register");
   const tf = useTranslations("forms.fields");
   const tc = useTranslations("common");
-  const { form, fields, formAction, pending } = useActionForm(
+  const { form, fields, formAction, onSubmit, pending } = useActionForm(
     registerAction,
     registerSchema,
   );
@@ -36,7 +36,7 @@ export function RegisterForm({
   return (
     <form
       id={form.id}
-      onSubmit={form.onSubmit}
+      onSubmit={onSubmit}
       action={formAction}
       noValidate
       className="flex flex-col gap-3"

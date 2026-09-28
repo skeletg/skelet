@@ -29,6 +29,7 @@ export function CouponForm({
     form,
     fields,
     formAction,
+    onSubmit,
     pending,
     lastResult,
   } = useActionForm(applyCoupon, couponSchema);
@@ -50,7 +51,7 @@ export function CouponForm({
 
       <form
         id={form.id}
-        onSubmit={form.onSubmit}
+        onSubmit={onSubmit}
         action={formAction}
         noValidate
         className="mt-3 flex gap-2"

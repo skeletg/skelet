@@ -2,7 +2,7 @@
 
 import { useForm, type DefaultValue } from "@conform-to/react";
 import { getZodConstraint } from "@conform-to/zod/v4";
-import { useActionState } from "react";
+import { startTransition, useActionState, useEffect, type FormEvent } from "react";
 import type { z } from "zod";
 
 import { parseForm, type FormResult } from "@/app/lib/forms/schema";
@@ -11,6 +11,11 @@ import { parseForm, type FormResult } from "@/app/lib/forms/schema";
 // SubmissionResult, the same schema validates on the client first (on blur, then on input once a field has been
 // touched), and the submitted values survive a failed round trip because the result carries them back. An action with
 // more to say on success (the updated cart, an RMA number) returns a FormResult widened with it
+//
+// Forms bind onSubmit from here, not form.onSubmit. React 19 resets any form it submits through <form action>, and
+// Conform answers that reset by rebuilding its state without the last result - so every field came back empty after
+// a failed submit. Dispatching the action ourselves inside a transition skips React's reset; the action prop stays on
+// the form so it still posts without JavaScript
 export function useActionForm<
   S extends z.ZodObject,
   R extends FormResult = FormResult,
@@ -28,5 +33,28 @@ export function useActionForm<
     shouldValidate: "onBlur",
     shouldRevalidate: "onInput",
   });
-  return { form, fields, formAction, pending, lastResult };
+  // The actions never echo a password back (hideFields), but with React's reset out of the way the typed one would
+  // stay in its box - a failed sign-in or password change clears them, the rest of the form stays as typed
+  //
+  // The DOM value only: Conform's own value already lacks the password (the reply hid it), and its reset/update
+  // intents would also clear the form-level error the shopper needs to read
+  const formId = form.id;
+  useEffect(() => {
+    if (lastResult?.status !== "error") return;
+    const el = document.getElementById(formId);
+    if (!(el instanceof HTMLFormElement)) return;
+    for (const input of el.querySelectorAll<HTMLInputElement>('input[type="password"]')) {
+      input.value = "";
+    }
+  }, [lastResult, formId]);
+
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    form.onSubmit(event); // client validation - an invalid form is prevented here
+    if (event.defaultPrevented) return;
+    event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const formData = new FormData(event.currentTarget, submitter);
+    startTransition(() => formAction(formData));
+  };
+  return { form, fields, formAction, onSubmit, pending, lastResult };
 }

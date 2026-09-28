@@ -40,7 +40,7 @@ import {
   registerSchema,
   resetSchema,
 } from "@/app/lib/auth/schemas";
-import { parseForm, type FormResult } from "@/app/lib/forms/schema";
+import { parseForm, replyReset, type FormResult } from "@/app/lib/forms/schema";
 import { replyError } from "@/app/lib/forms/reply";
 
 // Returns false when the merge failed. The guest cart cookie is the customer's only handle on those lines, so it stays
@@ -160,7 +160,7 @@ export async function requestPasswordResetAction(
     // Same anti-enumeration story - surface success even if the backend returned an
     // error so we don't leak account existence
   }
-  return submission.reply({ resetForm: true });
+  return replyReset(submission);
 }
 
 // token arrives as a bound argument, never as a form field - Next encrypts bound args,
@@ -224,7 +224,7 @@ export async function changePasswordAction(
     return replyError(submission, err, "passwordChangeFailed", PASSWORD_FIELDS);
   }
   revalidateAccount();
-  return submission.reply({ resetForm: true });
+  return replyReset(submission);
 }
 
 export async function updateProfileAction(

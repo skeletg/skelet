@@ -39,7 +39,7 @@ export function AddressForm({ id, initial, submitLabel }: Props) {
   const tf = useTranslations("forms.fields");
   const tc = useTranslations("common");
   const v = initial ?? {};
-  const { form, fields, formAction, pending } = useActionForm(
+  const { form, fields, formAction, onSubmit, pending } = useActionForm(
     action,
     addressSchema,
     {
@@ -61,7 +61,7 @@ export function AddressForm({ id, initial, submitLabel }: Props) {
   return (
     <form
       id={form.id}
-      onSubmit={form.onSubmit}
+      onSubmit={onSubmit}
       action={formAction}
       noValidate
       className="flex flex-col gap-3"

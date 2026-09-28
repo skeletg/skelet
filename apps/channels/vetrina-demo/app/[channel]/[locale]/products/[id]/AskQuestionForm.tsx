@@ -31,7 +31,7 @@ export function AskQuestionForm({ productId }: { productId: string }) {
     () => askQuestionSchema({ guest: !signedIn }),
     [signedIn],
   );
-  const { form, fields, formAction, pending, lastResult } = useActionForm(
+  const { form, fields, formAction, onSubmit, pending, lastResult } = useActionForm(
     boundAction,
     schema,
   );
@@ -60,7 +60,7 @@ export function AskQuestionForm({ productId }: { productId: string }) {
   return (
     <form
       id={form.id}
-      onSubmit={form.onSubmit}
+      onSubmit={onSubmit}
       action={formAction}
       noValidate
       className="glass flex max-w-xl flex-col gap-4 rounded-lg p-5"

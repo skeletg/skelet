@@ -21,7 +21,7 @@ export function LoginForm({
 }) {
   const t = useTranslations("auth.login");
   const tf = useTranslations("forms.fields");
-  const { form, fields, formAction, pending } = useActionForm(
+  const { form, fields, formAction, onSubmit, pending } = useActionForm(
     loginAction,
     loginSchema,
   );
@@ -33,7 +33,7 @@ export function LoginForm({
   return (
     <form
       id={form.id}
-      onSubmit={form.onSubmit}
+      onSubmit={onSubmit}
       action={formAction}
       noValidate
       className="flex flex-col gap-4"
