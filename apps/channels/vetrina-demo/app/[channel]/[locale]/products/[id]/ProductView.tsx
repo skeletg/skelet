@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { getSiteUrl } from "@/app/lib/channel/site";
 import { canonicalPathMapper, localizedAlternates } from "@/app/lib/locale/alternates";
@@ -20,6 +21,11 @@ import { WishlistButton } from "@/app/components/WishlistButton";
 import { CompareButton } from "@/app/components/CompareButton";
 import { RecordView, RecentlyViewedRail } from "@/app/components/RecentlyViewed";
 import { ProductCard } from "@/app/components/ProductCard";
+import {
+  ProductGridSkeleton,
+  Skeleton,
+  SkeletonRegion,
+} from "@/app/components/Skeleton";
 import { BackInStockForm } from "@/app/components/BackInStockForm";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { Breadcrumbs } from "@/app/components/Breadcrumbs";
@@ -114,7 +120,6 @@ export default async function ProductPage(
     variantOwnUrl && product.kind === "SIMPLE" && product.partOf?.configurable?.parent?.id
       ? (await getProduct(product.partOf.configurable.parent.id)).product
       : null;
-  const recs = await getRecommendations(id);
   const reviewsData = reviewsResult.product;
 
   const heading = displayName(product.name, product.sku);
@@ -472,21 +477,44 @@ export default async function ProductPage(
         />
       </ReviewStateProvider>
 
-      <QnaSection productId={id} />
+      {/* Both below the fold and both their own backend round trip - streamed in behind the rest of the page
+          rather than holding the buy box back until they answer */}
+      <Suspense fallback={null}>
+        <QnaSection productId={id} />
+      </Suspense>
 
-
-      {recs.length > 0 ? (
-        <section className="mt-16">
-          <h2 className="text-lg font-semibold tracking-tight">{tp("alsoLike")}</h2>
-          <div className="mt-4 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
-            {recs.map((p) => (
-              <ProductCard key={p.id} product={p} variant="compact" />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <Suspense
+        fallback={
+          <SkeletonRegion className="mt-16">
+            <Skeleton className="h-6 w-48" />
+            <div className="mt-4">
+              <ProductGridSkeleton count={4} />
+            </div>
+          </SkeletonRegion>
+        }
+      >
+        <Recommendations productId={id} />
+      </Suspense>
       <RecentlyViewedRail excludeId={product.id} />
       <RecordView productId={product.id} />
     </main>
+  );
+}
+
+async function Recommendations({ productId }: { productId: string }) {
+  const [recs, t] = await Promise.all([
+    getRecommendations(productId),
+    getTranslations("product"),
+  ]);
+  if (recs.length === 0) return null;
+  return (
+    <section className="mt-16">
+      <h2 className="text-lg font-semibold tracking-tight">{t("alsoLike")}</h2>
+      <div className="mt-4 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
+        {recs.map((p) => (
+          <ProductCard key={p.id} product={p} variant="compact" />
+        ))}
+      </div>
+    </section>
   );
 }
