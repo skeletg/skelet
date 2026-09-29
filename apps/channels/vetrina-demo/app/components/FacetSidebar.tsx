@@ -1,7 +1,6 @@
 "use client";
 
 import { Link, useRouter, usePathname } from "@/app/components/LocaleLink";
-import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -72,6 +71,7 @@ export function FacetSidebar({
   pathFilters,
   pathSort,
   facetRules = { combinations: [], minResults: 0 },
+  currentQuery = "",
 }: {
   facets: FacetGroupInput[];
   basePath?: string;
@@ -83,14 +83,13 @@ export function FacetSidebar({
   // chain is an allowed combination of indexable values with enough results; everything
   // else renders as a button so crawlers never enter the combination loop
   facetRules?: FacetIndexRules & { minResults: number };
+  // The page's query string, handed down by the server - useSearchParams here would bail the
+  // force-static catch-all out to client rendering, leaving no-JS visitors a blank listing
+  currentQuery?: string;
 }) {
   const pathname = usePathname();
   const t = useTranslations("listing.facets");
-  const rawParams = useSearchParams();
-  const current = useMemo(
-    () => new URLSearchParams(rawParams.toString()),
-    [rawParams],
-  );
+  const current = useMemo(() => new URLSearchParams(currentQuery), [currentQuery]);
 
   const usePath = basePath != null && pathFilters != null;
 
