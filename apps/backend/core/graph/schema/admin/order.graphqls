@@ -365,7 +365,7 @@ input CreateDraftOrderInput {
 }
 
 input DraftOrderLineInput {
-  productSku: String!
+  sku:        String!
   quantity:   Float!
   # Override the catalog price (cents) - manual admin pricing / quote
   # conversion at negotiated prices. Omit for the catalog price.
@@ -385,7 +385,7 @@ input EditLineQtyInput {
 }
 
 input EditAddLineInput {
-  productSku: String!
+  sku:        String!
   quantity:   Float!
 }
 

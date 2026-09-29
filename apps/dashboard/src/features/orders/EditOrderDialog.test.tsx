@@ -42,7 +42,7 @@ describe('EditOrderDialog', () => {
       orderId: 'o1',
       updateLines: [{ orderLineId: 'l1', quantity: 3 }],
       removeLines: ['l2'],
-      addLines: [{ productSku: 'CAP-9', quantity: 1 }],
+      addLines: [{ sku: 'CAP-9', quantity: 1 }],
     })
   })
 })
