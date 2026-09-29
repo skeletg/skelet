@@ -10,20 +10,8 @@ mutation CreateGuestCart {
   }
 }
 
-mutation AddToCart(
-  $cartId: ID!
-  $productName: String!
-  $productSku: String!
-  $unitPrice: Int!
-  $quantity: Float!
-) {
-  addToCart(
-    cartId: $cartId
-    productName: $productName
-    productSku: $productSku
-    unitPrice: $unitPrice
-    quantity: $quantity
-  ) {
+mutation AddToCart($cartId: ID!, $sku: String!, $quantity: Float!) {
+  addToCart(cartId: $cartId, sku: $sku, quantity: $quantity) {
     ...CartFull
   }
 }
@@ -41,14 +29,14 @@ mutation AddConfiguredToCart($input: AddConfiguredToCartInput!) {
 }
 
 mutation RequestProductOptionFileUpload(
-  $productSku: String!
+  $sku: String!
   $optionId: ID!
   $filename: String!
   $mimeType: String!
   $sizeBytes: Int!
 ) {
   requestProductOptionFileUpload(
-    productSku: $productSku
+    sku: $sku
     optionId: $optionId
     filename: $filename
     mimeType: $mimeType

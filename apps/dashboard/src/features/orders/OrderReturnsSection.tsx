@@ -66,7 +66,7 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
   const [restock, setRestock] = useState(true)
   const [refundTarget, setRefundTarget] = useState<'original' | 'gift_card'>('original')
 
-  const nameOf = (lineId: string) => order.lines.find((l) => l.id === lineId)?.productName ?? lineId
+  const nameOf = (lineId: string) => order.lines.find((l) => l.id === lineId)?.name ?? lineId
 
   // Only shipped orders can be returned (backend enforces too)
   const shippable = order.status === 'FULFILLED' || order.status === 'PARTIALLY_FULFILLED'
@@ -232,8 +232,8 @@ export function OrderReturnsSection({ order }: { order: OrderData }) {
                       }
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">{l.productName}</div>
-                      <div className="font-mono text-[10px] text-muted-foreground">{l.productSku}</div>
+                      <div className="truncate text-sm font-medium">{l.name}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground">{l.sku}</div>
                     </div>
                     <Input
                       type="number"

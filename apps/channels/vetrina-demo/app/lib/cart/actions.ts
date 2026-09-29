@@ -137,21 +137,13 @@ export async function addSimpleToCart(
   _prev: AddToCartResult | null,
   formData: FormData,
 ): Promise<AddToCartResult> {
-  const productSku = String(formData.get("productSku") ?? "").trim();
-  const productName = String(formData.get("productName") ?? "").trim();
-  const unitPrice = Number(formData.get("unitPrice") ?? 0);
+  const sku = String(formData.get("productSku") ?? "").trim();
   const rawQty = Number(formData.get("quantity") ?? 1);
   const quantity = rawQty > 0 ? rawQty : 1;
-  if (!productSku || !productName) return { ok: false, error: "Missing product details." };
+  if (!sku) return { ok: false, error: "Missing product details." };
   try {
     const cartId = await ensureCartID();
-    const res = await gqlFetch(AddToCartDocument, {
-      cartId,
-      productSku,
-      productName,
-      unitPrice,
-      quantity,
-    });
+    const res = await gqlFetch(AddToCartDocument, { cartId, sku, quantity });
     const promoCart = await consumePendingPromo(cartId);
     return { ok: true, cart: promoCart ?? res.data.addToCart };
   } catch (err) {
@@ -163,7 +155,7 @@ export async function addBundleToCart(
   _prev: AddToCartResult | null,
   formData: FormData,
 ): Promise<AddToCartResult> {
-  const productSku = String(formData.get("productSku") ?? "").trim();
+  const sku = String(formData.get("productSku") ?? "").trim();
   const quantity = Math.max(1, Number(formData.get("quantity") ?? 1));
   // The client encodes the picks as JSON to avoid wrestling with FormData's repeated-key handling for the option →
   // [selectionIds] shape. Shape: [{ optionId, selectionIds: [...] }]
@@ -174,11 +166,11 @@ export async function addBundleToCart(
   } catch {
     return { ok: false, error: "Invalid bundle selection." };
   }
-  if (!productSku) return { ok: false, error: "Missing product details." };
+  if (!sku) return { ok: false, error: "Missing product details." };
   try {
     const cartId = await ensureCartID();
     const res = await gqlFetch(AddBundleToCartDocument, {
-      input: { cartId, productSku, quantity, selections },
+      input: { cartId, sku, quantity, selections },
     });
     return { ok: true, cart: res.data.addBundleToCart };
   } catch (err) {
@@ -190,7 +182,7 @@ export async function addConfiguredToCart(
   _prev: AddToCartResult | null,
   formData: FormData,
 ): Promise<AddToCartResult> {
-  const productSku = String(formData.get("productSku") ?? "").trim();
+  const sku = String(formData.get("productSku") ?? "").trim();
   const rawQty = Number(formData.get("quantity") ?? 1);
   const quantity = rawQty > 0 ? rawQty : 1;
   // The client encodes the picks as JSON to avoid FormData's repeated-key handling for the option → [valueIds] shape.
@@ -207,11 +199,11 @@ export async function addConfiguredToCart(
   } catch {
     return { ok: false, error: "Invalid option selection." };
   }
-  if (!productSku) return { ok: false, error: "Missing product details." };
+  if (!sku) return { ok: false, error: "Missing product details." };
   try {
     const cartId = await ensureCartID();
     const res = await gqlFetch(AddConfiguredToCartDocument, {
-      input: { cartId, productSku, quantity, options },
+      input: { cartId, sku, quantity, options },
     });
     const promoCart = await consumePendingPromo(cartId);
     return { ok: true, cart: promoCart ?? res.data.addConfiguredToCart };
@@ -232,7 +224,7 @@ export async function requestProductOptionFileUploadAction(input: {
 > {
   try {
     const res = await gqlFetch(RequestProductOptionFileUploadDocument, {
-      productSku: input.productSku,
+      sku: input.productSku,
       optionId: input.optionId,
       filename: input.filename,
       mimeType: input.mimeType,
@@ -263,7 +255,6 @@ export async function addGroupedToCart(
   let lines: {
     productSku: string;
     productName: string;
-    unitPrice: number;
     quantity: number;
     hasOptions?: boolean;
     options?: {
@@ -308,20 +299,14 @@ export async function addGroupedToCart(
         const res = await gqlFetch(AddConfiguredToCartDocument, {
           input: {
             cartId,
-            productSku: l.productSku,
+            sku: l.productSku,
             quantity: l.quantity,
             options: l.options ?? [],
           },
         });
         last = res.data.addConfiguredToCart;
       } else {
-        const res = await gqlFetch(AddToCartDocument, {
-          cartId,
-          productSku: l.productSku,
-          productName: l.productName,
-          unitPrice: l.unitPrice,
-          quantity: l.quantity,
-        });
+        const res = await gqlFetch(AddToCartDocument, { cartId, sku: l.productSku, quantity: l.quantity });
         last = res.data.addToCart;
       }
     }
@@ -379,7 +364,7 @@ export async function clearCart(): Promise<Cart | null> {
   }
 }
 export type RestoreLinePayload =
-  | { kind: "simple"; productSku: string; productName: string; unitPrice: number; quantity: number }
+  | { kind: "simple"; productSku: string; quantity: number }
   | {
       kind: "bundle";
       productSku: string;
@@ -404,7 +389,7 @@ export async function restoreCartLineAction(
       const res = await gqlFetch(AddBundleToCartDocument, {
         input: {
           cartId,
-          productSku: payload.productSku,
+          sku: payload.productSku,
           quantity: payload.quantity,
           selections: payload.selections,
         },
@@ -415,20 +400,14 @@ export async function restoreCartLineAction(
       const res = await gqlFetch(AddConfiguredToCartDocument, {
         input: {
           cartId,
-          productSku: payload.productSku,
+          sku: payload.productSku,
           quantity: payload.quantity,
           options: payload.options,
         },
       });
       return { cart: res.data.addConfiguredToCart };
     }
-    const res = await gqlFetch(AddToCartDocument, {
-      cartId,
-      productSku: payload.productSku,
-      productName: payload.productName,
-      unitPrice: payload.unitPrice,
-      quantity: payload.quantity,
-    });
+    const res = await gqlFetch(AddToCartDocument, { cartId, sku: payload.productSku, quantity: payload.quantity });
     return { cart: res.data.addToCart };
   } catch (err) {
     return { cart: await getCartFull(cartId), error: formatAddError(err) };
@@ -538,13 +517,7 @@ export async function quickOrderAction(
   const errors: Array<{ sku: string; message: string }> = [];
   for (const row of rows) {
     try {
-      await gqlFetch(AddToCartDocument, {
-        cartId,
-        productSku: row.sku,
-        productName: row.sku,
-        unitPrice: 0,
-        quantity: row.qty,
-      });
+      await gqlFetch(AddToCartDocument, { cartId, sku: row.sku, quantity: row.qty });
       added++;
     } catch (err) {
       errors.push({

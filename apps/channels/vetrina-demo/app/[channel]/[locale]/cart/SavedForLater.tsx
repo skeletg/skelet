@@ -59,7 +59,7 @@ function SavedRow({ item }: { item: SavedItem }) {
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={mediaThumb(item.imageUrl, 96)}
-          alt={displayName(item.productName, item.productSku)}
+          alt={displayName(item.name, item.sku)}
           className="size-12 shrink-0 rounded-lg border border-border object-cover"
         loading="lazy" decoding="async" />
       ) : (
@@ -69,10 +69,10 @@ function SavedRow({ item }: { item: SavedItem }) {
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">
-          {displayName(item.productName, item.productSku)}
+          {displayName(item.name, item.sku)}
         </p>
         <p className="text-xs text-muted-foreground">
-          {item.productSku}
+          {item.sku}
           {item.quantity > 1 ? ` · qty ${item.quantity}` : ""}
         </p>
       </div>

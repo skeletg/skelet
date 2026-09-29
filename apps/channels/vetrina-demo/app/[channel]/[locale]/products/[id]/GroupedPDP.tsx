@@ -366,7 +366,6 @@ function GroupedRow({
           memberId: p.id,
           productSku: p.sku,
           productName: displayName(p.name, p.sku),
-          unitPrice: p.defaultPrice,
           quantity: effectiveQty,
           hasOptions,
           options: opts.payload,

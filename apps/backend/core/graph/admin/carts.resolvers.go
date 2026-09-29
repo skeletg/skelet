@@ -27,7 +27,7 @@ func (r *mutationResolver) AdminCreateCart(ctx context.Context, channelID string
 	return r.mapCart(ctx, c), nil
 }
 
-func (r *mutationResolver) AdminAddCartLine(ctx context.Context, cartID string, productSku string, quantity float64, options []*model.AdminCartLineOptionInput) (*model.AdminCart, error) {
+func (r *mutationResolver) AdminAddCartLine(ctx context.Context, cartID string, sku string, quantity float64, options []*model.AdminCartLineOptionInput) (*model.AdminCart, error) {
 	id, err := r.cartForAdmin(ctx, cartID)
 	if err != nil {
 		return nil, err
@@ -63,13 +63,13 @@ func (r *mutationResolver) AdminAddCartLine(ctx context.Context, cartID string, 
 			}
 			picks = append(picks, in)
 		}
-		c, err := r.CartSvc.AdminAddConfiguredToCart(ctx, id, cart.AddConfiguredToCartInput{ProductSku: productSku, Quantity: quantity, Options: picks})
+		c, err := r.CartSvc.AdminAddConfiguredToCart(ctx, id, cart.AddConfiguredToCartInput{ProductSku: sku, Quantity: quantity, Options: picks})
 		if err != nil {
 			return nil, err
 		}
 		return r.mapCart(ctx, c), nil
 	}
-	c, err := r.CartSvc.AdminAddToCart(ctx, id, cart.AddCartLineInput{ProductSku: productSku, Quantity: quantity})
+	c, err := r.CartSvc.AdminAddToCart(ctx, id, sku, quantity)
 	if err != nil {
 		return nil, err
 	}

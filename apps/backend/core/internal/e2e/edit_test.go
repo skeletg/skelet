@@ -424,7 +424,7 @@ func TestEditKeepsABundlesComponentReservation(t *testing.T) {
 		t.Fatalf("add bundle: %v", err)
 	}
 	// a plain line the edit can legally touch
-	if _, err := h.D.Cart.AddToCart(h.Ctx, c0.ID, nil, cart.AddCartLineInput{ProductSku: f.Product.SKU, Quantity: 1}); err != nil {
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c0.ID, nil, f.Product.SKU, 1); err != nil {
 		t.Fatalf("add simple line: %v", err)
 	}
 	o, err := h.TryPlace(t, f.Channel, c0.ID)

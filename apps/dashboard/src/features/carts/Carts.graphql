@@ -29,16 +29,16 @@ fragment CartFields on AdminCart {
   updatedAt
   lines {
     id
-    productName
-    productSku
+    name
+    sku
     unitPrice
     quantity
     totalPrice
     isSimple
     components {
       id
-      productSku
-      productName
+      sku
+      name
       unitPrice
       quantity
     }
@@ -65,8 +65,8 @@ mutation AdminCreateCart($channelId: ID!, $customerId: ID) {
   }
 }
 
-mutation AdminAddCartLine($cartId: ID!, $productSku: String!, $quantity: Float!, $options: [AdminCartLineOptionInput!]) {
-  adminAddCartLine(cartId: $cartId, productSku: $productSku, quantity: $quantity, options: $options) {
+mutation AdminAddCartLine($cartId: ID!, $sku: String!, $quantity: Float!, $options: [AdminCartLineOptionInput!]) {
+  adminAddCartLine(cartId: $cartId, sku: $sku, quantity: $quantity, options: $options) {
     ...CartFields
   }
 }
