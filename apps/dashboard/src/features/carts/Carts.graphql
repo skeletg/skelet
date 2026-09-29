@@ -29,16 +29,16 @@ fragment CartFields on AdminCart {
   updatedAt
   lines {
     id
-    productName
-    productSku
+    name
+    sku
     unitPrice
     quantity
     totalPrice
     isSimple
     components {
       id
-      productSku
-      productName
+      sku
+      name
       unitPrice
       quantity
     }

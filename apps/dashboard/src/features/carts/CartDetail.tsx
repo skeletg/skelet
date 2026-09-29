@@ -196,7 +196,7 @@ export function CartDetail() {
                 <div key={l.id} className="flex items-center gap-3 rounded border px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">
-                      {l.productName}
+                      {l.name}
                       {!l.isSimple && (
                         <Badge variant="secondary" className="ml-2 text-[9px] uppercase">
                           {l.components.length > 0 ? 'bundle' : 'configured'}
@@ -204,7 +204,7 @@ export function CartDetail() {
                       )}
                     </div>
                     <div className="font-mono text-[10px] text-muted-foreground">
-                      {l.productSku} · {formatCents(l.unitPrice, currency)} each
+                      {l.sku} · {formatCents(l.unitPrice, currency)} each
                     </div>
                     {l.options.length > 0 && (
                       <ul className="mt-1 space-y-0.5">

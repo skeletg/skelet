@@ -130,8 +130,8 @@ type CartEstimate struct {
 
 type CartLine struct {
 	ID                string               `json:"id"`
-	ProductName       string               `json:"productName"`
-	ProductSku        string               `json:"productSku"`
+	Name              string               `json:"name"`
+	Sku               string               `json:"sku"`
 	ImageURL          *string              `json:"imageUrl,omitempty"`
 	UnitPrice         int32                `json:"unitPrice"`
 	Quantity          float64              `json:"quantity"`
@@ -146,8 +146,8 @@ type CartLineComponent struct {
 	ID          string  `json:"id"`
 	OptionID    string  `json:"optionId"`
 	SelectionID string  `json:"selectionId"`
-	ProductSku  string  `json:"productSku"`
-	ProductName string  `json:"productName"`
+	Sku         string  `json:"sku"`
+	Name        string  `json:"name"`
 	UnitPrice   int32   `json:"unitPrice"`
 	Quantity    float64 `json:"quantity"`
 	SortOrder   int32   `json:"sortOrder"`
@@ -301,12 +301,12 @@ type ProductSortOption struct {
 }
 
 type PromotionFreeGift struct {
-	ProductID   *string `json:"productId,omitempty"`
-	ProductSku  string  `json:"productSku"`
-	ProductName string  `json:"productName"`
-	Quantity    float64 `json:"quantity"`
-	InCart      bool    `json:"inCart"`
-	Href        *string `json:"href,omitempty"`
+	ProductID *string `json:"productId,omitempty"`
+	Sku       string  `json:"sku"`
+	Name      string  `json:"name"`
+	Quantity  float64 `json:"quantity"`
+	InCart    bool    `json:"inCart"`
+	Href      *string `json:"href,omitempty"`
 }
 
 type PromotionalDisplay struct {
@@ -337,9 +337,9 @@ type ReorderResult struct {
 }
 
 type ReorderSkippedLine struct {
-	ProductName string `json:"productName"`
-	ProductSku  string `json:"productSku"`
-	Reason      string `json:"reason"`
+	Name   string `json:"name"`
+	Sku    string `json:"sku"`
+	Reason string `json:"reason"`
 }
 
 type ReturnableLine struct {
@@ -393,11 +393,11 @@ type RouteResolution struct {
 }
 
 type SavedItem struct {
-	ID          string  `json:"id"`
-	ProductSku  string  `json:"productSku"`
-	ProductName string  `json:"productName"`
-	ImageURL    *string `json:"imageUrl,omitempty"`
-	Quantity    float64 `json:"quantity"`
+	ID       string  `json:"id"`
+	Sku      string  `json:"sku"`
+	Name     string  `json:"name"`
+	ImageURL *string `json:"imageUrl,omitempty"`
+	Quantity float64 `json:"quantity"`
 }
 
 type SavedPaymentMethod struct {

@@ -425,10 +425,10 @@ export type CartLine = {
   currentUnitPrice?: Maybe<Scalars['Int']['output']>;
   id: Scalars['ID']['output'];
   imageUrl?: Maybe<Scalars['String']['output']>;
+  name: Scalars['String']['output'];
   options: Array<CartLineOption>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -436,11 +436,11 @@ export type CartLine = {
 export type CartLineComponent = {
   __typename?: 'CartLineComponent';
   id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
   optionId: Scalars['ID']['output'];
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
   selectionId: Scalars['ID']['output'];
+  sku: Scalars['String']['output'];
   sortOrder: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -1224,10 +1224,10 @@ export type OrderLine = {
   __typename?: 'OrderLine';
   id: Scalars['ID']['output'];
   isGift: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
   options: Array<OrderLineOption>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -1559,10 +1559,10 @@ export type PromotionFreeGift = {
   __typename?: 'PromotionFreeGift';
   href?: Maybe<Scalars['String']['output']>;
   inCart: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
   productId?: Maybe<Scalars['ID']['output']>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
 };
 
 export type PromotionalDisplay = {
@@ -1927,9 +1927,9 @@ export type ReorderResult = {
 
 export type ReorderSkippedLine = {
   __typename?: 'ReorderSkippedLine';
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
+  name: Scalars['String']['output'];
   reason: Scalars['String']['output'];
+  sku: Scalars['String']['output'];
 };
 
 export type RequestReturnInput = {
@@ -2080,9 +2080,9 @@ export type SavedItem = {
   __typename?: 'SavedItem';
   id: Scalars['ID']['output'];
   imageUrl?: Maybe<Scalars['String']['output']>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
+  name: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
 };
 
 export type SavedPaymentMethod = {
