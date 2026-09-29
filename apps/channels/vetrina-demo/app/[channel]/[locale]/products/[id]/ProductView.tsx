@@ -18,11 +18,6 @@ import { productJsonLd, breadcrumbJsonLd } from "@/app/lib/json-ld";
 import { getProductWithReviews } from "@/app/lib/reviews/read";
 import { RecordView, RecentlyViewedRail } from "@/app/components/RecentlyViewed";
 import { ProductCard } from "@/app/components/ProductCard";
-import {
-  ProductGridSkeleton,
-  Skeleton,
-  SkeletonRegion,
-} from "@/app/components/Skeleton";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { Breadcrumbs } from "@/app/components/Breadcrumbs";
 import { JsonLd } from "@/app/components/JsonLd";
@@ -217,24 +212,13 @@ export default async function ProductPage(
         />
       </ReviewStateProvider>
 
-      {/* Both below the fold and both their own backend round trip - streamed in behind the rest of the page
-          rather than holding the buy box back until they answer */}
+      {/* Q&A is below the fold and not SEO copy, so it streams in behind the buy box. A streamed
+          boundary arrives as a hidden chunk only JavaScript swaps in, which is why the
+          recommendations - internal product links crawlers should follow - are not behind one */}
       <Suspense fallback={null}>
         <QnaSection productId={id} />
       </Suspense>
-
-      <Suspense
-        fallback={
-          <SkeletonRegion className="mt-16">
-            <Skeleton className="h-6 w-48" />
-            <div className="mt-4">
-              <ProductGridSkeleton count={4} />
-            </div>
-          </SkeletonRegion>
-        }
-      >
-        <Recommendations productId={id} />
-      </Suspense>
+      <Recommendations productId={id} />
       <RecentlyViewedRail excludeId={product.id} />
       <RecordView productId={product.id} />
     </main>
