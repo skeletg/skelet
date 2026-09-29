@@ -1,11 +1,3 @@
-query CollectionProductPicker {
-  products {
-    id
-    sku
-    name
-  }
-}
-
 query Collections {
   collections {
     id

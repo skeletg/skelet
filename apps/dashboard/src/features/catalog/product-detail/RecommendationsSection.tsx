@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { useDebounced } from '@/shared/hooks/useDebounced'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
-import { Link2Icon, PlusIcon, SearchIcon, ShoppingCartIcon, TrendingUpIcon, XIcon, type LucideIcon } from 'lucide-react'
+import { Link2Icon, ListPlusIcon, PlusIcon, SearchIcon, ShoppingCartIcon, TrendingUpIcon, XIcon, type LucideIcon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
 import { useSectionForm } from '@/shared/saving/useSectionForm'
@@ -16,6 +17,7 @@ import {
   type ProductLinksValues,
 } from '../schemas/product'
 import { Section } from './shared'
+import { ProductPickerDialog } from '../ProductPickerDialog'
 
 // Curated product links: related (PDP "you may also like"), upsell (better alternatives), cross-sell (cart companions) - Order = curated
 // display order. "Also bought" recommendations are automatic and appear alongside these on the storefront
@@ -125,7 +127,10 @@ function KindEditor({
   disabled: boolean
 }) {
   const [search, setSearch] = useState('')
+  const [browsing, setBrowsing] = useState(false)
   const debounced = useDebounced(search.trim(), 250)
+  const linked = useMemo(() => new Set(value), [value])
+  const selfId = useMemo(() => new Set([productId]), [productId])
   const pickerQuery = useQuery(ProductPickerDocument, {
     variables: { search: debounced, limit: 10 },
     skip: debounced === '', // the dropdown only opens once the operator types
@@ -174,7 +179,8 @@ function KindEditor({
         <p className="text-xs text-muted-foreground/70">Nothing linked yet.</p>
       )}
 
-      <div className="relative mt-auto">
+      <div className="relative mt-auto flex gap-2">
+        <div className="relative min-w-0 flex-1">
         <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="search"
@@ -205,7 +211,35 @@ function KindEditor({
             ))}
           </div>
         )}
+        </div>
+        {/* Linking a whole range at once - the quick search above adds one product per search */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 shrink-0"
+          onClick={() => setBrowsing(true)}
+          disabled={disabled}
+          aria-label={`Browse products to add to ${label}`}
+        >
+          <ListPlusIcon className="size-3.5" />
+          Browse
+        </Button>
       </div>
+
+      <ProductPickerDialog
+        open={browsing}
+        onOpenChange={setBrowsing}
+        title={`Add to ${label}`}
+        description={`${hint} Picks join the end of the list, and nothing is saved until you save the page.`}
+        takenIds={linked}
+        takenLabel="Linked"
+        excludeIds={selfId}
+        onConfirm={(picks) => {
+          for (const { product } of picks) onPick(product)
+          onChange([...value, ...picks.map((p) => p.product.id)])
+        }}
+      />
     </div>
   )
 }

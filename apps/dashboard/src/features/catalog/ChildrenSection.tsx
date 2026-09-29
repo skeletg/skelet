@@ -1,11 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMutation, useQuery } from '@apollo/client/react'
+import { useMutation } from '@apollo/client/react'
 import {
-  AlertCircleIcon,
   CheckCircle2Icon,
   PlusIcon,
-  SearchIcon,
   SparklesIcon,
   Trash2Icon,
 } from 'lucide-react'
@@ -43,12 +41,13 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatCents } from '@/lib/format'
+import type { ColumnDef } from '@/components/data-table/tanstack'
+import { ProductPicker, type PickerProduct } from './ProductPickerDialog'
 import { dollarsToCents } from '@/shared/schemas/fields'
 import {
   AddProductChildDocument,
   GenerateConfigurableChildrenDocument,
   ProductDocument,
-  ProductsDocument,
   RemoveProductChildDocument,
 } from './Catalog.gql'
 
@@ -94,33 +93,17 @@ type ParentForChildren = {
   configurableOptions: ConfigurableOption[]
   productType: {
     id: string
+    slug: string
     attributes: ProductTypeAttributeShape[]
   }
 }
 
-type CandidateAttributeRow = {
-  attribute: { id: string; slug: string; name: string }
-  selectedValues: Array<{ id: string; slug: string; name: string; value: string }>
-}
-
-type CandidateProduct = {
-  id: string
-  name?: string | null
-  sku?: string | null
-  defaultPrice: number
-  defaultCurrencyCode: string
-  productType: { id: string }
-  attributeValues: CandidateAttributeRow[]
-}
-
 export function ChildrenSection({
   product,
-  productTypeId,
   canManage,
   embedded = false,
 }: {
   product: ParentForChildren
-  productTypeId: string
   canManage: boolean
   embedded?: boolean
 }) {
@@ -270,7 +253,6 @@ export function ChildrenSection({
         <AddChildSheet
           parent={product}
           optionsWithValues={optionsWithValues}
-          productTypeId={productTypeId}
           open={sheetOpen}
           onOpenChange={setSheetOpen}
           refetch={refetch}
@@ -318,14 +300,12 @@ type OptionWithValues = ConfigurableOption & { values: AttributeValue[] }
 function AddChildSheet({
   parent,
   optionsWithValues,
-  productTypeId,
   open,
   onOpenChange,
   refetch,
 }: {
   parent: ParentForChildren
   optionsWithValues: OptionWithValues[]
-  productTypeId: string
   open: boolean
   onOpenChange: (v: boolean) => void
   refetch: Array<{ query: typeof ProductDocument; variables: { id: string } }>
@@ -357,7 +337,6 @@ function AddChildSheet({
           <TabsContent value="link" className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
             <LinkExistingTab
               parent={parent}
-              productTypeId={productTypeId}
               optionsWithValues={optionsWithValues}
               refetch={refetch}
               onDone={() => onOpenChange(false)}
@@ -382,54 +361,25 @@ function AddChildSheet({
 
 function LinkExistingTab({
   parent,
-  productTypeId,
   optionsWithValues,
   refetch,
   onDone,
 }: {
   parent: ParentForChildren
-  productTypeId: string
   optionsWithValues: OptionWithValues[]
   refetch: Array<{ query: typeof ProductDocument; variables: { id: string } }>
   onDone: () => void
 }) {
-  const { data, loading } = useQuery(ProductsDocument)
-  const [addChild, { loading: linking }] = useMutation(AddProductChildDocument, { refetchQueries: refetch })
-
+  const [addChild] = useMutation(AddProductChildDocument, { refetchQueries: refetch })
   const [selectedValues, setSelectedValues] = useState<Record<string, Set<string>>>({})
-  const [picked, setPicked] = useState<Set<string>>(new Set())
-  const [globalError, setGlobalError] = useState<string | null>(null)
-  const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
-  const [search, setSearch] = useState('')
 
-  const excludeIds = useMemo(
-    () => new Set<string>([parent.id, ...parent.children.map((c) => c.id)]),
-    [parent.id, parent.children],
+  const childIds = useMemo(() => new Set(parent.children.map((c) => c.id)), [parent.children])
+  const selfId = useMemo(() => new Set([parent.id]), [parent.id])
+  // The server matches AND across options and OR within one - the same rule this sidebar promises
+  const attributeValueIds = useMemo(
+    () => Object.values(selectedValues).flatMap((set) => [...set]),
+    [selectedValues],
   )
-
-  const candidates: CandidateProduct[] = useMemo(() => {
-    const all = (data?.products ?? []) as CandidateProduct[]
-    const eligible = all.filter((p) => !excludeIds.has(p.id) && p.productType.id === productTypeId)
-    // Sort by display name so the long list is scannable
-    return eligible.slice().sort((a, b) => (a.name ?? a.sku ?? '').localeCompare(b.name ?? b.sku ?? ''))
-  }, [data, excludeIds, productTypeId])
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return candidates.filter((c) => {
-      if (q) {
-        const haystack = [c.name ?? '', c.sku ?? ''].join(' ').toLowerCase()
-        if (!haystack.includes(q)) return false
-      }
-      return optionsWithValues.every((opt) => {
-        const want = selectedValues[opt.id]
-        if (!want || want.size === 0) return true
-        const row = c.attributeValues.find((av) => av.attribute.id === opt.id)
-        if (!row) return false
-        return row.selectedValues.some((sv) => want.has(sv.id))
-      })
-    })
-  }, [candidates, optionsWithValues, selectedValues, search])
 
   function toggleValue(optId: string, valueId: string) {
     setSelectedValues((prev) => {
@@ -443,248 +393,114 @@ function LinkExistingTab({
     })
   }
 
-  function togglePicked(id: string) {
-    setPicked((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  function clearAllFilters() {
-    setSelectedValues({})
-  }
-
-  async function linkSelected() {
-    setGlobalError(null)
-    setRowErrors({})
-    const ids = Array.from(picked)
-    let succeeded = 0
-    const nextErrors: Record<string, string> = {}
-    for (const id of ids) {
-      try {
-        await addChild({ variables: { parentId: parent.id, childId: id, sortOrder: parent.children.length + succeeded } })
-        succeeded++
-      } catch (e) {
-        nextErrors[id] = e instanceof Error ? e.message : 'Link failed.'
-      }
-    }
-    setRowErrors(nextErrors)
-    if (succeeded > 0) {
-      const linked = new Set(Object.keys(nextErrors))
-      setPicked((prev) => new Set(Array.from(prev).filter((id) => linked.has(id))))
-    }
-    if (Object.keys(nextErrors).length === 0) {
-      onDone()
-    } else if (succeeded === 0) {
-      setGlobalError('Nothing was linked. Fix the errors below and try again.')
-    } else {
-      setGlobalError(`Linked ${succeeded} of ${ids.length}. The rows below failed - fix and retry.`)
-    }
-  }
-
-  // Header checkbox semantics: checked when every visible row is picked, indeterminate when some-but-not-all are picked - Clicking it
-  // toggles all visible (filtered) rows; selections in the picked-set that aren't in the current filter are preserved
-  const allFilteredPicked = filtered.length > 0 && filtered.every((c) => picked.has(c.id))
-  const someFilteredPicked = filtered.some((c) => picked.has(c.id))
-  function toggleAllVisible(check: boolean) {
-    setPicked((prev) => {
-      const next = new Set(prev)
-      for (const c of filtered) {
-        if (check) next.add(c.id)
-        else next.delete(c.id)
-      }
-      return next
-    })
-  }
-
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-[260px_1fr]">
-      <aside className="flex min-h-0 flex-col border-r bg-muted/20">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Filters</span>
-          {Object.keys(selectedValues).length > 0 && (
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:text-foreground hover:underline"
-              onClick={clearAllFilters}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 text-sm">
-          {optionsWithValues.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              No configurable options on this parent yet - set them up first to filter candidates by option values.
-            </p>
-          ) : (
-            <div className="grid gap-4">
-              {optionsWithValues.map((opt) => (
-                <div key={opt.id} className="grid gap-2">
-                  <div className="text-xs font-medium">{opt.name}</div>
-                  <div className="grid gap-1.5">
-                    {opt.values.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">No values defined.</p>
-                    ) : (
-                      opt.values.map((v) => {
-                        const checked = selectedValues[opt.id]?.has(v.id) ?? false
-                        return (
-                          <label
-                            key={v.id}
-                            className="flex cursor-pointer items-center gap-2 text-xs"
-                          >
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={() => toggleValue(opt.id, v.id)}
-                            />
-                            <span>{v.name || v.value}</span>
-                          </label>
-                        )
-                      })
-                    )}
-                  </div>
-                </div>
+  const optionColumns = useMemo<ColumnDef<PickerProduct>[]>(
+    () =>
+      optionsWithValues.map((opt) => ({
+        id: `option:${opt.id}`,
+        header: () => opt.name,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const values = row.original.attributeValues?.find((av) => av.attribute.id === opt.id)?.selectedValues ?? []
+          if (values.length === 0) return <span className="text-xs text-muted-foreground">-</span>
+          return (
+            <div className="flex flex-wrap gap-1">
+              {values.map((v) => (
+                <Badge key={v.id} variant="outline" className="font-normal">
+                  {v.name || v.value}
+                </Badge>
               ))}
             </div>
-          )}
-        </div>
-      </aside>
+          )
+        },
+      })),
+    [optionsWithValues],
+  )
 
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="grid gap-2 border-b px-4 py-3">
-          <div className="relative">
-            <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name, slug, or SKU…"
-              className="h-9 pl-8"
-            />
-          </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>
-              {loading ? 'Loading…' : `Showing ${filtered.length} of ${candidates.length}`}
-            </span>
-            <span>
-            {picked.size > 0 ? `${picked.size} selected` : ' '}
-            </span>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {filtered.length === 0 && !loading ? (
-            <p className="p-6 text-sm text-muted-foreground">
-              {candidates.length === 0
-                ? 'No eligible products of this type - create some simple products first, or use the Generate tab.'
-                : 'No candidates match the current filters.'}
-            </p>
-          ) : (
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-popover">
-                <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={allFilteredPicked}
-                      onCheckedChange={() => toggleAllVisible(!allFilteredPicked)}
-                      aria-label={allFilteredPicked ? 'Deselect all visible' : 'Select all visible'}
-                      title={
-                        someFilteredPicked && !allFilteredPicked
-                          ? `${filtered.filter((c) => picked.has(c.id)).length} of ${filtered.length} selected`
-                          : undefined
-                      }
-                    />
-                  </TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>SKU</TableHead>
-                  {optionsWithValues.map((opt) => (
-                    <TableHead key={opt.id}>{opt.name}</TableHead>
-                  ))}
-                  <TableHead className="w-28">Default price</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((c) => {
-                  const error = rowErrors[c.id]
-                  return (
-                    <TableRow
-                      key={c.id}
-                      className={error ? 'bg-destructive/5' : ''}
-                      onClick={() => togglePicked(c.id)}
-                    >
-                      <TableCell>
-                        <Checkbox
-                          checked={picked.has(c.id)}
-                          onCheckedChange={() => togglePicked(c.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          aria-label={`Pick ${c.name ?? c.sku ?? ''}`}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="grid">
-                          <span className="font-medium">{c.name ?? c.sku ?? ''}</span>
-                          {error && (
-                            <span className="flex items-center gap-1 text-xs text-destructive">
-                              <AlertCircleIcon className="size-3" />
-                              {error}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {c.sku ? (
-                          <code className="font-mono text-xs">{c.sku}</code>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      {optionsWithValues.map((opt) => {
-                        const row = c.attributeValues.find((av) => av.attribute.id === opt.id)
-                        const values = row?.selectedValues ?? []
-                        return (
-                          <TableCell key={opt.id}>
-                            {values.length === 0 ? (
-                              <span className="text-xs text-muted-foreground">-</span>
-                            ) : (
-                              <div className="flex flex-wrap gap-1">
-                                {values.map((v) => (
-                                  <Badge key={v.id} variant="outline" className="font-normal">
-                                    {v.name || v.value}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
-                          </TableCell>
-                        )
-                      })}
-                      <TableCell className="font-mono text-xs">
-                        {formatCents(c.defaultPrice, c.defaultCurrencyCode)}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-
-        {globalError && (
-          <Alert variant="destructive" className="m-4">
-            <AlertTitle>Some links failed</AlertTitle>
-            <AlertDescription>{globalError}</AlertDescription>
-          </Alert>
+  const sidebar = (
+    <div className="grid gap-4 rounded-md border bg-muted/20 p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Option values</span>
+        {Object.keys(selectedValues).length > 0 && (
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+            onClick={() => setSelectedValues({})}
+          >
+            Clear
+          </button>
         )}
-
-        <SheetFooter className="border-t px-4 py-3">
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" onClick={onDone}>Cancel</Button>
-            <Button onClick={linkSelected} disabled={picked.size === 0 || linking}>
-              {linking ? 'Linking…' : `Link ${picked.size || ''} product${picked.size === 1 ? '' : 's'}`.trim()}
-            </Button>
-          </div>
-        </SheetFooter>
       </div>
+      {optionsWithValues.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          No configurable options on this parent yet - set them up first to filter candidates by option values.
+        </p>
+      ) : (
+        optionsWithValues.map((opt) => (
+          <div key={opt.id} className="grid gap-2">
+            <div className="text-xs font-medium">{opt.name}</div>
+            <div className="grid gap-1.5">
+              {opt.values.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No values defined.</p>
+              ) : (
+                opt.values.map((v) => (
+                  <label key={v.id} className="flex cursor-pointer items-center gap-2 text-xs">
+                    <Checkbox
+                      checked={selectedValues[opt.id]?.has(v.id) ?? false}
+                      onCheckedChange={() => toggleValue(opt.id, v.id)}
+                    />
+                    <span>{v.name || v.value}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  )
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col px-6 py-4">
+      <ProductPicker
+        takenIds={childIds}
+        takenLabel="Already a child"
+        excludeIds={selfId}
+        productTypeSlugs={[parent.productType.slug]}
+        attributeValueIds={attributeValueIds}
+        withAttributes
+        sidebar={sidebar}
+        columns={optionColumns}
+        showPrice
+        emptyMessage="No products of this type match - create some simple products first, or use the Generate tab."
+        confirmLabel={(n) => (n === 0 ? 'Link products' : `Link ${n} product${n === 1 ? '' : 's'}`)}
+        onCancel={onDone}
+        onDone={onDone}
+        // Linking is this sheet's own explicit action, so it writes here - one at a time, so each
+        // child takes the next sort slot, with failures kept ticked and explained per row
+        onConfirm={async (picks) => {
+          const rowErrors: Record<string, string> = {}
+          let linked = 0
+          for (const { product } of picks) {
+            try {
+              await addChild({
+                variables: { parentId: parent.id, childId: product.id, sortOrder: parent.children.length + linked },
+              })
+              linked++
+            } catch (e) {
+              rowErrors[product.id] = e instanceof Error ? e.message : 'Link failed.'
+            }
+          }
+          const failed = Object.keys(rowErrors).length
+          if (failed === 0) return
+          return {
+            rowErrors,
+            error:
+              linked === 0
+                ? 'Nothing was linked. Fix the errors below and try again.'
+                : `Linked ${linked} of ${picks.length}. The rows below failed - fix and retry.`,
+          }
+        }}
+      />
     </div>
   )
 }
