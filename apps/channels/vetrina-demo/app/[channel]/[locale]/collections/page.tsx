@@ -7,13 +7,17 @@ import { listCollections } from "@/app/lib/catalog/read";
 import { displayName, MISSING_NAME } from "@/app/lib/display";
 import { collectionHref } from "@/app/lib/entity-href";
 import { renderJsonText } from "@/app/lib/json-text";
+import { localizedAlternates } from "@/app/lib/locale/alternates";
 
 export async function generateMetadata({
   params,
 }: PageProps<"/[channel]/[locale]/collections">): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "listing" });
-  return { title: t("collections") };
+  return {
+    title: t("collections"),
+    alternates: await localizedAlternates("/collections"),
+  };
 }
 
 export default async function CollectionsPage({

@@ -27,7 +27,7 @@ import { loadHeader } from "@/app/lib/header/read";
 import type { HeaderCategory } from "@/app/lib/header/read";
 import { getStoreName } from "@/app/lib/channel/read";
 import { cmsPageJsonLd, cmsSchemaFromSpec, parseCustomJsonLd } from "@/app/lib/json-ld";
-import { canonicalPathMapper } from "@/app/lib/locale/alternates";
+import { canonicalPathMapper, localizedAlternates } from "@/app/lib/locale/alternates";
 import { cmsPageMetadata } from "@/app/lib/seo-metadata";
 import { renderJsonText } from "@/app/lib/json-text";
 
@@ -35,8 +35,9 @@ import { renderJsonText } from "@/app/lib/json-text";
 // nofollow, canonical override, OG copy) - without this they were silently dropped
 export async function generateMetadata(): Promise<Metadata> {
   const cmsHome = await getHomePage();
-  // no CMS homepage → the layout's default metadata stands
-  if (!cmsHome) return {};
+  // no CMS homepage → the layout's title and description stand; the canonical and
+  // hreflang still have to be declared here, the layout can't know the path
+  if (!cmsHome) return { alternates: await localizedAlternates("/") };
   return cmsPageMetadata(cmsHome, "/", await getSiteUrl());
 }
 
