@@ -130,7 +130,24 @@ input RequestCategoryCoverUploadInput {
 }
 
 # --- Queries (require catalog.view) ---
+# One category in the pickers' flat list - the client builds the tree from parentId, so it reaches
+# any depth, unlike the fixed nesting of rootCategories. parentId can name a category missing from a
+# store-scoped list (its parent isn't listed there) - treat that row as a root
+type CategoryOption {
+  id:           ID!
+  parentId:     ID
+  slug:         String!
+  # Resolved from the Locale header, falling back to the default locale like the tree
+  name:         String
+  position:     Int!
+  isPublished:  Boolean!
+  # Products directly assigned, counted in one pass for the whole list
+  productCount: Int!
+}
+
 extend type Query {
+  # Every category flat, for pickers. channelId scopes it like rootCategories
+  categoryOptions(channelId: ID): [CategoryOption!]!
   # When channelId is set, only categories listed on that channel are returned, published or not - header-driven admin uses this in CHANNEL mode, and drafts must stay visible there so they can be found and published. Omit for the global tree. Locale comes from the `Locale` header.
   rootCategories(channelId: ID): [Category!]!
   categoryChildren(parentId: ID!, channelId: ID): [Category!]!

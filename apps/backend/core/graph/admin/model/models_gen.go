@@ -992,6 +992,16 @@ type CategoryContent struct {
 	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
+type CategoryOption struct {
+	ID           string  `json:"id"`
+	ParentID     *string `json:"parentId,omitempty"`
+	Slug         string  `json:"slug"`
+	Name         *string `json:"name,omitempty"`
+	Position     int32   `json:"position"`
+	IsPublished  bool    `json:"isPublished"`
+	ProductCount int32   `json:"productCount"`
+}
+
 type Channel struct {
 	ID                 string                      `json:"id"`
 	Slug               string                      `json:"slug"`

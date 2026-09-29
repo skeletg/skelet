@@ -461,6 +461,26 @@ func (r *mutationResolver) ClearCategoryListing(ctx context.Context, categoryID 
 	return toCategoryModel(c), nil
 }
 
+// CategoryOptions is the resolver for the categoryOptions field - the pickers' flat list, scoped like rootCategories
+func (r *queryResolver) CategoryOptions(ctx context.Context, channelID *string) ([]*model.CategoryOption, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
+		return nil, err
+	}
+	chID, err := r.scopedChannelID(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
+	opts, err := r.CatalogSvc.ListCategoryOptions(ctx, chID, r.activeLocale(ctx))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.CategoryOption, len(opts))
+	for i, o := range opts {
+		out[i] = toCategoryOptionModel(o)
+	}
+	return out, nil
+}
+
 // RootCategories is the resolver for the rootCategories field. When channelId is set the result is restricted to categories listed AND
 // published on that channel - header-driven admin uses this in CHANNEL mode so the tree matches what the storefront serves
 func (r *queryResolver) RootCategories(ctx context.Context, channelID *string) ([]*model.Category, error) {

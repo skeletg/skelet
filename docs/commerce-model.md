@@ -164,7 +164,10 @@ row, the category is hidden on that storefront. Storefront resolvers
 channel: with one in scope, only listed-and-published categories are
 returned. Admin's `rootCategories(channelId)` and
 `categoryChildren(parentId, channelId)` accept the same filter so the
-admin tree mirrors what the storefront serves. Creating a category in
+admin tree mirrors what the storefront serves. The dashboard's category
+pickers read `categoryOptions(channelId)` instead - every category flat,
+with `parentId` and a direct product count, which the client builds into a
+tree at any depth (the nested tree queries stop at a fixed depth). Creating a category in
 CHANNEL mode auto-fires `setCategoryListing` on the active channel so
 new categories show up where the user is working.
 
