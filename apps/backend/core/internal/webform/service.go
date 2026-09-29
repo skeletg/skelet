@@ -97,7 +97,7 @@ func (s *Service) PresignUpload(ctx context.Context, formID, channelID uuid.UUID
 	if sizeBytes > maxBytes {
 		return "", "", fmt.Errorf("%w: file exceeds the %d byte limit", ErrInvalidSubmission, maxBytes)
 	}
-	objectKey = fmt.Sprintf("webforms/%s/%s/%s-%s", form.ID, fieldKey, uuid.New(), sanitizeFilename(filename))
+	objectKey = uploadPrefix(form.ID, fieldKey) + uuid.New().String() + "-" + sanitizeFilename(filename)
 	url, err = s.files.PresignUpload(ctx, objectKey, contentType, sizeBytes, uploadTTL)
 	if err != nil {
 		return "", "", fmt.Errorf("presign upload: %w", err)
@@ -311,7 +311,7 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (SubmitResult, err
 
 	// 5) Validate
 	fieldErrs := validateAnswers(visible, answers)
-	files, fileErrs := s.validateFiles(ctx, visible, in.Files)
+	files, fileErrs := s.validateFiles(ctx, form.ID, visible, in.Files)
 	fieldErrs = append(fieldErrs, fileErrs...)
 	if len(fieldErrs) > 0 {
 		return SubmitResult{}, &SubmissionError{Fields: fieldErrs}
@@ -510,7 +510,12 @@ func validateRepeater(f Field, v any, add func(key, msg string)) {
 	}
 }
 
-func (s *Service) validateFiles(ctx context.Context, visible []Field, provided []SubmissionFile) ([]SubmissionFile, []FieldError) {
+// Where PresignUpload puts a field's uploads - submit accepts only keys under it, so a submission can't point at another form's file or anything else in the bucket
+func uploadPrefix(formID uuid.UUID, fieldKey string) string {
+	return fmt.Sprintf("webforms/%s/%s/", formID, fieldKey)
+}
+
+func (s *Service) validateFiles(ctx context.Context, formID uuid.UUID, visible []Field, provided []SubmissionFile) ([]SubmissionFile, []FieldError) {
 	var errs []FieldError
 	byField := map[string]SubmissionFile{}
 	for _, pf := range provided {
@@ -526,6 +531,10 @@ func (s *Service) validateFiles(ctx context.Context, visible []Field, provided [
 			if f.Required {
 				errs = append(errs, FieldError{Field: f.Key, Message: "A file is required."})
 			}
+			continue
+		}
+		if !strings.HasPrefix(pf.ObjectKey, uploadPrefix(formID, f.Key)) {
+			errs = append(errs, FieldError{Field: f.Key, Message: "Upload could not be verified."})
 			continue
 		}
 		// Authoritative size/type check against the actual stored object
