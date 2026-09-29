@@ -92,13 +92,14 @@ const KEY_SUFFIX = /^(.*?)(Sku|Slug|Code)s?$/
 function resolveKeyTarget(schema: GraphQLSchema, field: GraphQLField<unknown, unknown>, name: string): { type: string; key: string } | null {
   const m = KEY_SUFFIX.exec(name) ?? (name === 'sku' ? ['', 'product', 'Sku'] : name === 'slug' || name === 'code' ? ['', '', name] : null)
   if (!m) return null
+  if (!m[1] && name !== 'sku' && VERB.test(field.name)) return null // a bare slug on createCategory is the new record's own, not a lookup of an existing one
   const key = m[2].toLowerCase()
   const type = m[1] ? entityByStem(schema, m[1]) : fieldEntity(schema, field)
   const t = type ? schema.getType(type) : null
   return type && isObjectType(t) && key in t.getFields() ? { type, key } : null
 }
 
-function slotsForInput(
+export function slotsForInput(
   schema: GraphQLSchema,
   field: GraphQLField<unknown, unknown>,
   name: string,

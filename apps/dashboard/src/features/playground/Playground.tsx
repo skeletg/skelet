@@ -3,7 +3,18 @@ import { createGraphiQLFetcher } from '@graphiql/toolkit'
 import { GraphiQL } from 'graphiql'
 import 'graphiql/setup-workers/vite' // without it MonacoEnvironment.getWorker is unset, the monaco-graphql worker never loads, and the editor silently loses autocomplete and validation
 import 'graphiql/style.css'
+import { RotateCcwIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { getAccessToken } from '@/shared/auth/auth'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { exampleTabs, frontExampleTabs } from './examples'
@@ -12,7 +23,7 @@ import { ResponseDetailsBar } from './ResponseDetailsBar'
 import { PickerProvider, ValuesPluginContent, ValuesPluginIcon } from './ValuesPlugin'
 import { timedFetch, type ResponseDetails } from './responseDetails'
 import type { PickRunner } from './valueTargets'
-import { namespacedStorage, SURFACES, surfaceById, type SurfaceId } from './surfaces'
+import { namespacedStorage, resetSurfaceTabs, SURFACES, surfaceById, type SurfaceId } from './surfaces'
 import { ADMIN_GRAPHQL_ENDPOINT } from '@/lib/api-endpoint'
 
 // GraphiQL's own docs explorer browses types, which is a different question from "what can I call"
@@ -31,6 +42,15 @@ export function Playground() {
   const surface = surfaceById(surfaceId)
   // Tagged with its surface so a response still in flight when the admin switches can't land on the other tab
   const [last, setLast] = useState<{ surfaceId: SurfaceId; details: ResponseDetails } | null>(null)
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [generation, setGeneration] = useState(0) // bumped by a reset, so GraphiQL remounts and re-reads the now-empty tab storage
+
+  function resetTabs() {
+    resetSurfaceTabs(surfaceId)
+    setLast(null)
+    setGeneration((g) => g + 1)
+    setConfirmReset(false)
+  }
 
   const fetcher = useMemo(
     () =>
@@ -104,12 +124,34 @@ export function Playground() {
         <p className="text-xs text-muted-foreground">
           {surface.hint} - <code className="font-mono">{surface.endpoint}</code>
         </p>
+        <button
+          type="button"
+          onClick={() => setConfirmReset(true)}
+          className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <RotateCcwIcon className="size-3" aria-hidden /> Reset tabs
+        </button>
       </div>
+      <AlertDialog open={confirmReset} onOpenChange={setConfirmReset}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset the {surface.label} tabs?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Closes every {surface.label} tab and their variables and headers, and opens the example tabs again. Operations
+              saved from an older schema go with them. The other surface's tabs stay as they are.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={resetTabs}>Reset tabs</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="min-h-0 flex-1 overflow-hidden rounded-lg border">
         {/* Remount per surface: the schema, tabs and storage all change together */}
         <PickerProvider run={runPick} surface={surface.id}>
           <GraphiQL
-            key={surfaceId}
+            key={`${surfaceId}:${generation}`}
             fetcher={fetcher}
             storage={storage}
             plugins={[operationsPlugin, valuesPlugin]}
