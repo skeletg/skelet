@@ -7,6 +7,7 @@
 // crawlers see exactly one URL per product; other orders come from a post-hydration action
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 
 import { Link } from "@/app/components/LocaleLink";
 
@@ -33,6 +34,7 @@ export function ReviewsSection({
 }) {
   // Hooks before the soft-fail return - identity/eligibility resolve after hydration
   const signedIn = useCustomerIdentity().identity != null;
+  const t = useTranslations("product.reviews");
   const { eligibility } = useReviewState();
   const [sort, setSort] = useState<ReviewSort>("NEWEST");
   // null = the server-rendered NEWEST page; a fetched page replaces it wholesale
@@ -77,7 +79,7 @@ export function ReviewsSection({
     <section id="reviews" className="mt-14 scroll-mt-28 border-t border-border pt-10">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-2xl font-extrabold tracking-tight">
-          Customer reviews
+          {t("title")}
         </h2>
         <p className="text-sm text-muted-foreground">
           {reviewsData.reviewAggregates.count}{" "}
@@ -87,8 +89,7 @@ export function ReviewsSection({
 
       {showThanks ? (
         <div className="mt-4 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm">
-          Thanks - your review is pending moderation and will appear once
-          approved.
+          {t("thanks")}
         </div>
       ) : null}
 
@@ -102,12 +103,12 @@ export function ReviewsSection({
       {reviewsData.reviewSummary ? (
         <div className="mt-6 rounded-2xl border border-border bg-card p-5">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            What customers say
+            {t("whatCustomersSay")}
           </p>
           <p className="mt-2 text-sm leading-relaxed text-foreground">
             {reviewsData.reviewSummary}
           </p>
-          <p className="mt-2 text-[10px] text-muted-foreground">AI summary of customer reviews.</p>
+          <p className="mt-2 text-[10px] text-muted-foreground">{t("aiSummary")}</p>
         </div>
       ) : null}
 
@@ -124,8 +125,8 @@ export function ReviewsSection({
       {filtered.length === 0 ? (
         <p className="mt-8 rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           {withMediaOnly
-            ? "No reviews with photos or videos yet."
-            : "No reviews yet. Be the first to leave one."}
+            ? t("noneWithMedia")
+            : t("none")}
         </p>
       ) : (
         <ul
@@ -165,6 +166,7 @@ function SummaryStrip({
     count: number;
   }[];
 }) {
+  const t = useTranslations("product.reviews");
   const total = count || 0;
   return (
     <div className="mt-6 grid gap-6 rounded-2xl border border-border bg-muted p-6 lg:grid-cols-[auto_1fr_1fr] lg:items-center lg:gap-10">
@@ -177,7 +179,7 @@ function SummaryStrip({
             </span>
           </p>
           <p className="mt-2 text-xs uppercase tracking-wider text-muted-foreground">
-            {total} {total === 1 ? "review" : "reviews"}
+            {t("count", { count: total })}
           </p>
         </div>
         <Stars value={overall ?? 0} size={20} />
@@ -207,7 +209,7 @@ function SummaryStrip({
       {perQuestion.length > 0 ? (
         <div className="grid gap-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            By question
+            {t("byQuestion")}
           </p>
           <ul className="grid gap-2.5 text-sm">
             {perQuestion.map((p) => {
@@ -235,7 +237,7 @@ function SummaryStrip({
         </div>
       ) : (
         <div className="text-xs text-muted-foreground">
-          No per-question ratings configured for this product.
+          {t("noPerQuestion")}
         </div>
       )}
     </div>
@@ -285,13 +287,14 @@ function WriteReviewCTA({
     existingReviewId?: string | null;
   };
 }) {
+  const t = useTranslations("product.reviews");
   if (eligibility.canReview) {
     return (
       <Link
         href={`/products/${productId}/review`}
         className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
       >
-        Write a review
+        {t("write")}
       </Link>
     );
   }
@@ -303,14 +306,14 @@ function WriteReviewCTA({
           href={`/account/login?returnTo=${returnTo}`}
           className="text-sm underline underline-offset-2"
         >
-          Sign in to write a review
+          {t("signInToWrite")}
         </Link>
       );
     }
     case "NOT_PURCHASED":
       return (
         <p className="text-sm text-muted-foreground">
-          You can review this once your order is confirmed or fulfilled.
+          {t("notPurchased")}
         </p>
       );
     case "ALREADY_REVIEWED":
@@ -319,7 +322,7 @@ function WriteReviewCTA({
           href={`/products/${productId}/review`}
           className="text-sm underline underline-offset-2"
         >
-          Edit your review
+          {t("edit")}
         </Link>
       );
     default:
@@ -337,15 +340,16 @@ function SortControl({
   onChange: (next: ReviewSort) => void;
   pending: boolean;
 }) {
+  const t = useTranslations("product.reviews");
   const options: { value: ReviewSort; label: string }[] = [
-    { value: "NEWEST", label: "Newest" },
-    { value: "OLDEST", label: "Oldest" },
-    { value: "HIGHEST", label: "Highest" },
-    { value: "LOWEST", label: "Lowest" },
+    { value: "NEWEST", label: t("newest") },
+    { value: "OLDEST", label: t("oldest") },
+    { value: "HIGHEST", label: t("highest") },
+    { value: "LOWEST", label: t("lowest") },
   ];
   return (
     <span className="flex items-center gap-1">
-      <span className="text-muted-foreground">Sort:</span>
+      <span className="text-muted-foreground">{t("sort")}</span>
       {options.map((o) => (
         <button
           key={o.value}
@@ -373,6 +377,7 @@ function MediaOnlyToggle({
   on: boolean;
   onToggle: () => void;
 }) {
+  const t = useTranslations("product.reviews");
   return (
     <button
       type="button"
@@ -384,7 +389,7 @@ function MediaOnlyToggle({
           : "text-muted-foreground hover:bg-muted hover:text-foreground"
       }`}
     >
-      With photos &amp; videos
+      {t("withMedia")}
     </button>
   );
 }
@@ -400,6 +405,8 @@ function ReviewCard({
   basePath: string;
   canVote: boolean;
 }) {
+  const t = useTranslations("product.reviews");
+  const tc = useTranslations("common");
   const overall = review.overallRating ?? null;
   return (
     <article className="rounded-xl border border-border bg-card p-5">
@@ -409,11 +416,11 @@ function ReviewCard({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium">
-                {review.customerDisplayName || "Customer"}
+                {review.customerDisplayName || t("customer")}
               </span>
               {review.isVerifiedPurchase ? (
                 <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
-                  Verified purchase
+                  {t("verified")}
                 </span>
               ) : null}
             </div>
@@ -460,7 +467,7 @@ function ReviewCard({
                 {a.rating != null ? (
                   <span className="tabular-nums">{a.rating} / 5</span>
                 ) : a.boolValue != null ? (
-                  <span>{a.boolValue ? "Yes" : "No"}</span>
+                  <span>{a.boolValue ? tc("yes") : tc("no")}</span>
                 ) : null}
                 {a.text ? (
                   <span className="text-muted-foreground">
@@ -497,7 +504,7 @@ function ReviewCard({
 
       {review.merchantReply ? (
         <div className="mt-4 rounded-lg border-l-2 border-border bg-muted p-3">
-          <p className="text-xs font-semibold text-muted-foreground">Response from the seller</p>
+          <p className="text-xs font-semibold text-muted-foreground">{t("sellerResponse")}</p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
             {review.merchantReply}
           </p>
@@ -539,11 +546,12 @@ function VoteRow({
   // Server-rendered value is the anonymous one baked into the cached page - the resolved
   // map replaces it once the visitor's own votes come back
   const resolved = useReviewState().votes[reviewId] ?? myVote;
+  const t = useTranslations("product.reviews");
   const helpfulActive = resolved === 1;
   const notHelpfulActive = resolved === -1;
   return (
     <footer className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-xs">
-      <span className="text-muted-foreground">Was this review helpful?</span>
+      <span className="text-muted-foreground">{t("helpfulQuestion")}</span>
       {canVote ? (
         <div className="flex items-center gap-2">
           <form action={voteReviewAction}>
@@ -558,7 +566,7 @@ function VoteRow({
               direction="up"
               count={helpfulCount}
               active={helpfulActive}
-              label="Helpful"
+              label={t("helpful")}
             />
           </form>
           <form action={voteReviewAction}>
@@ -573,7 +581,7 @@ function VoteRow({
               direction="down"
               count={notHelpfulCount}
               active={notHelpfulActive}
-              label="Not helpful"
+              label={t("notHelpful")}
             />
           </form>
         </div>
@@ -589,7 +597,7 @@ function VoteRow({
             href={`/account/login?returnTo=${encodeURIComponent(basePath)}`}
             className="underline underline-offset-2"
           >
-            Sign in to vote
+            {t("signInToVote")}
           </Link>
         </div>
       )}

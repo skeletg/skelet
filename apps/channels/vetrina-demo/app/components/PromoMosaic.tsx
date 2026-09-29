@@ -1,5 +1,6 @@
 import { Link } from "@/app/components/LocaleLink";
 import { ArrowRightIcon, SparklesIcon, TagIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import type { ProductSummary } from "@/app/lib/catalog/read";
 import type { HeaderCategory, HeaderCollection } from "@/app/lib/header/read";
@@ -17,6 +18,8 @@ export function PromoMosaic({
   category: HeaderCategory | null;
   collection: HeaderCollection | null;
 }) {
+  const t = useTranslations("home.promo");
+  const tc = useTranslations("common");
   const lead = deals[0] ?? arrivals[0] ?? null;
   const maxPct = deals.reduce((max, d) => {
     const sell = d.price ?? d.defaultPrice;
@@ -30,7 +33,7 @@ export function PromoMosaic({
 
   return (
     <section
-      aria-label="Featured offers"
+      aria-label={t("label")}
       className="mx-auto w-full max-w-8xl px-6 md:px-10 pt-6"
     >
       <div className="grid auto-rows-[9.5rem] grid-cols-2 gap-3 lg:auto-rows-[10.5rem] lg:grid-cols-4">
@@ -54,18 +57,16 @@ export function PromoMosaic({
             />
             <div className="relative">
               <p className="font-mono text-xs font-medium uppercase tracking-[0.2em] text-signal">
-                {deals.length > 0 ? "Deal days" : "Featured"}
+                {deals.length > 0 ? t("dealDays") : t("featured")}
               </p>
               <p className="mt-2 text-4xl font-extrabold leading-none tracking-tight">
-                {deals.length > 0 ? `Up to ${maxPct}% off` : "Fresh picks"}
+                {deals.length > 0 ? t("upTo", { percent: maxPct }) : t("freshPicks")}
               </p>
               <p className="mt-2 text-sm text-white/70">
-                {deals.length > 0
-                  ? "Limited-time price drops across the catalog"
-                  : "The latest additions, ready to ship"}
+                {deals.length > 0 ? t("dealsBody") : t("freshBody")}
               </p>
               <span className="mt-4 inline-flex h-10 items-center rounded-md bg-white px-5 text-sm font-semibold text-midnight-deep">
-                Shop now
+                {tc("shopNow")}
               </span>
             </div>
           </Link>
@@ -83,7 +84,7 @@ export function PromoMosaic({
                   {displayName(category.name, category.slug)}
                 </span>
                 <span className="mt-1 flex items-center gap-1 font-mono text-xs font-medium uppercase tracking-[0.08em] text-signal">
-                  Shop now
+                  {tc("shopNow")}
                   <ArrowRightIcon className="h-3.5 w-3.5" aria-hidden="true" />
                 </span>
               </span>
@@ -110,10 +111,10 @@ export function PromoMosaic({
               className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent"
             />
             <span className="relative block text-base font-bold leading-tight text-white">
-              New arrivals
+              {t("newArrivals")}
             </span>
             <span className="relative mt-1 flex items-center gap-1 font-mono text-xs font-medium uppercase tracking-[0.08em] text-white/85">
-              Just landed
+              {t("justLanded")}
               <ArrowRightIcon className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
           </Link>
@@ -135,7 +136,7 @@ export function PromoMosaic({
                     {displayName(collection.name, collection.slug)}
                   </span>
                   <span className="block text-sm text-muted-foreground">
-                    A curated edit, updated often
+                    {t("curated")}
                   </span>
                 </span>
               </span>

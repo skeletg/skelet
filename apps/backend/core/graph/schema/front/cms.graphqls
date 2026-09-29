@@ -69,8 +69,6 @@ input CMSPageFilter {
   pageTypeId:    ID
   parentId:      ID
   onlyPublished: Boolean
-  # When set, return only pages with an active store listing on this store. When omitted, the active storefront's id (resolved from the X-Channel-Id header) is used; both null falls back to global is_published.
-  channelId:   ID
 }
 
 extend type Query {

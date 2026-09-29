@@ -2,6 +2,8 @@ import { Link } from "@/app/components/LocaleLink";
 
 import { withLocalePrefix } from "@/app/lib/locale/path";
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { ChevronRightIcon, PackageIcon } from "lucide-react";
 
 import {
@@ -16,12 +18,20 @@ import { getChannel } from "@/app/lib/channel/read";
 import { gqlFetch, loadErrorMessage } from "@/app/lib/graphql";
 import { MyOrdersDocument } from "@/app/lib/checkout/operations.gql";
 
-export const metadata = { title: "Your orders" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/account/orders">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.orders" });
+  return { title: t("title") };
+}
 
 export default async function OrdersPage({ params }: PageProps<"/[channel]/[locale]/account/orders">) {
   // Locale straight off the segment - a page taking no props has no request scope for
   // getLocale() to read, so it silently answered with the default language
   const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.orders" });
+  const to = await getTranslations({ locale, namespace: "account.overview" });
 
   const [customer, channel] = await Promise.all([
     getCurrentCustomer(),
@@ -49,18 +59,16 @@ export default async function OrdersPage({ params }: PageProps<"/[channel]/[loca
     loadError = loadErrorMessage(
       "account/orders load failed",
       err,
-      "We couldn't load your orders just now. Please try again in a moment.",
+      t("loadFailed"),
     );
   }
 
   return (
     <>
       <AccountPageHeader
-        title="Your orders"
+        title={t("title")}
         description={
-          orders.length > 0
-            ? `${orders.length} order${orders.length === 1 ? "" : "s"} placed with us.`
-            : undefined
+          orders.length > 0 ? t("count", { count: orders.length }) : undefined
         }
       />
 
@@ -74,10 +82,10 @@ export default async function OrdersPage({ params }: PageProps<"/[channel]/[loca
       ) : orders.length === 0 ? (
         <EmptyState
           icon={<PackageIcon className="size-5" aria-hidden="true" />}
-          title="No orders yet"
-          description="Once you place an order it shows up here with tracking, receipts and one-click reordering."
+          title={t("emptyTitle")}
+          description={t("emptyBody")}
           actionHref="/products"
-          actionLabel="Start shopping"
+          actionLabel={to("startShopping")}
         />
       ) : (
         <AccountCard padded={false}>

@@ -1,38 +1,37 @@
 "use client";
 
 import { Link } from "@/app/components/LocaleLink";
-import { useActionState } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   Field,
-  FormError,
+  FormErrors,
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
-import {
-  requestPasswordResetAction,
-  type AuthResult,
-} from "@/app/lib/auth/actions";
+import { requestPasswordResetAction } from "@/app/lib/auth/actions";
+import { forgotSchema } from "@/app/lib/auth/schemas";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
 
 export function ForgotForm({
   onSwitchView,
 }: {
   onSwitchView?: (view: "login") => void;
 } = {}) {
-  const [state, formAction, pending] = useActionState<
-    AuthResult | null,
-    FormData
-  >(requestPasswordResetAction, null);
+  const t = useTranslations("auth.forgot");
+  const tf = useTranslations("forms.fields");
+  const tc = useTranslations("common");
+  const { form, fields, formAction, onSubmit, pending, lastResult } = useActionForm(
+    requestPasswordResetAction,
+    forgotSchema,
+  );
 
   // After the mutation succeeds we render a static success message in place of the form
   // - even if the email doesn't exist, the backend returns ok and we stay quiet about
   // it (anti-enumeration)
-  if (state?.ok) {
+  if (lastResult?.status === "success") {
     return (
       <div className="rounded-lg border border-border bg-muted p-4 text-sm">
-        <p>
-          If an account exists for that email, you&rsquo;ll receive a
-          reset link shortly. The link expires after 30 minutes.
-        </p>
+        <p>{t("sent")}</p>
         <p className="mt-3 text-muted-foreground">
           {onSwitchView ? (
             <button
@@ -40,14 +39,14 @@ export function ForgotForm({
               onClick={() => onSwitchView("login")}
               className="text-foreground underline underline-offset-2"
             >
-              Back to sign in
+              {t("backToSignIn")}
             </button>
           ) : (
             <Link
               href="/account/login"
               className="text-foreground underline underline-offset-2"
             >
-              Back to sign in
+              {t("backToSignIn")}
             </Link>
           )}
         </p>
@@ -56,35 +55,47 @@ export function ForgotForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      <Field label="Email" name="email" type="email" required autoComplete="email" />
+    <form
+      id={form.id}
+      onSubmit={onSubmit}
+      action={formAction}
+      noValidate
+      className="flex flex-col gap-4"
+    >
+      <Field
+        label={tf("email")}
+        field={fields.email}
+        type="email"
+        required
+        autoComplete="email"
+      />
 
-      {state && !state.ok && <FormError>{state.error}</FormError>}
+      <FormErrors errors={form.errors} />
 
       <button
         type="submit"
         disabled={pending}
         className={`${buttonPrimary} w-full`}
       >
-        {pending ? "Sending…" : "Send reset link"}
+        {pending ? t("submitting") : t("submit")}
       </button>
 
       <p className="mt-2 text-center text-sm text-muted-foreground">
-        Remembered it?{" "}
+        {t("remembered")}{" "}
         {onSwitchView ? (
           <button
             type="button"
             onClick={() => onSwitchView("login")}
             className="text-foreground underline underline-offset-2"
           >
-            Sign in
+            {tc("signIn")}
           </button>
         ) : (
           <Link
             href="/account/login"
             className="text-foreground underline underline-offset-2"
           >
-            Sign in
+            {tc("signIn")}
           </Link>
         )}
       </p>

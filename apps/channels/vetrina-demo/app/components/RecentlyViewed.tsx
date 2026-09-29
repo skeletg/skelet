@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import type { ProductSummary } from "@/app/lib/catalog/read";
 import { ProductCard } from "./ProductCard";
@@ -32,6 +33,7 @@ export function RecordView({ productId }: { productId: string }) {
 }
 
 export function RecentlyViewedRail({ excludeId }: { excludeId?: string }) {
+  const t = useTranslations("product");
   const [products, setProducts] = useState<ProductSummary[]>([]);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export function RecentlyViewedRail({ excludeId }: { excludeId?: string }) {
   if (products.length === 0) return null;
   return (
     <section className="mt-16">
-      <h2 className="text-lg font-semibold tracking-tight">Recently viewed</h2>
+      <h2 className="text-lg font-semibold tracking-tight">{t("recentlyViewed")}</h2>
       <div className="mt-4 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
         {products.map((p) => (
           <ProductCard key={p.id} product={p} variant="compact" />

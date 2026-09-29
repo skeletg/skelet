@@ -1,5 +1,6 @@
 import { Link } from "@/app/components/LocaleLink";
-import { getLocale } from "next-intl/server";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
 import { withLocalePrefix } from "@/app/lib/locale/path";
 import { redirect } from "next/navigation";
@@ -19,15 +20,23 @@ import {
 } from "@/app/lib/auth/actions";
 import { getCurrentCustomer } from "@/app/lib/customer/read";
 
-export const metadata = { title: "Addresses" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/account/addresses">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.addresses" });
+  return { title: t("title") };
+}
 
 export default async function AddressesPage({
+  params,
   searchParams,
-}: {
-  searchParams: Promise<{ error?: string | string[] }>;
-}) {
+}: PageProps<"/[channel]/[locale]/account/addresses">) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.addresses" });
+  const tc = await getTranslations({ locale, namespace: "common" });
   const customer = await getCurrentCustomer();
-  if (!customer) redirect(await withLocalePrefix("/account/login?returnTo=/account/addresses", await getLocale()));
+  if (!customer) redirect(await withLocalePrefix("/account/login?returnTo=/account/addresses", locale));
 
   const sp = await searchParams;
   const actionError = Array.isArray(sp.error) ? sp.error[0] : sp.error;
@@ -35,12 +44,12 @@ export default async function AddressesPage({
   return (
     <>
       <AccountPageHeader
-        title="Addresses"
-        description="Saved addresses show up as one-tap choices at checkout."
+        title={t("title")}
+        description={t("description")}
         action={
           <Link href="/account/addresses/new" className={buttonPrimary}>
             <PlusIcon className="mr-1.5 size-4" aria-hidden="true" />
-            Add address
+            {t("add")}
           </Link>
         }
       />
@@ -48,9 +57,7 @@ export default async function AddressesPage({
       {actionError ? (
         <div className="mb-4">
           <FormError>
-            {actionError === "delete"
-              ? "We couldn't delete that address. Please try again."
-              : "We couldn't change your default address. Please try again."}
+            {actionError === "delete" ? t("deleteFailed") : t("defaultFailed")}
           </FormError>
         </div>
       ) : null}
@@ -58,10 +65,10 @@ export default async function AddressesPage({
       {customer.addresses.length === 0 ? (
         <EmptyState
           icon={<MapPinIcon className="size-5" aria-hidden="true" />}
-          title="No saved addresses"
-          description="Add one here, or save it while checking out - either way it lands on this page."
+          title={t("emptyTitle")}
+          description={t("emptyBody")}
           actionHref="/account/addresses/new"
-          actionLabel="Add address"
+          actionLabel={t("add")}
         />
       ) : (
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -74,8 +81,8 @@ export default async function AddressesPage({
               <li key={a.id} className="glass flex flex-col rounded-xl p-5">
                 {(isDefaultBilling || isDefaultShipping) && (
                   <p className="mb-3 flex flex-wrap gap-1.5">
-                    {isDefaultBilling && <DefaultTag>Billing</DefaultTag>}
-                    {isDefaultShipping && <DefaultTag>Shipping</DefaultTag>}
+                    {isDefaultBilling && <DefaultTag>{t("defaultBillingTag")}</DefaultTag>}
+                    {isDefaultShipping && <DefaultTag>{t("defaultShippingTag")}</DefaultTag>}
                   </p>
                 )}
                 <address className="text-sm not-italic leading-relaxed">
@@ -114,16 +121,16 @@ export default async function AddressesPage({
                     href={`/account/addresses/${a.id}/edit`}
                     className="font-semibold hover:underline"
                   >
-                    Edit
+                    {tc("edit")}
                   </Link>
                   {!isDefaultBilling && (
                     <form action={setDefaultBillingAction}>
                       <input type="hidden" name="id" value={a.id} />
                       <SubmitButton
                         className="text-muted-foreground hover:text-foreground hover:underline"
-                        pendingLabel="Saving…"
+                        pendingLabel={tc("saving")}
                       >
-                        Default billing
+                        {t("makeDefaultBilling")}
                       </SubmitButton>
                     </form>
                   )}
@@ -132,9 +139,9 @@ export default async function AddressesPage({
                       <input type="hidden" name="id" value={a.id} />
                       <SubmitButton
                         className="text-muted-foreground hover:text-foreground hover:underline"
-                        pendingLabel="Saving…"
+                        pendingLabel={tc("saving")}
                       >
-                        Default shipping
+                        {t("makeDefaultShipping")}
                       </SubmitButton>
                     </form>
                   )}
@@ -142,10 +149,10 @@ export default async function AddressesPage({
                     <input type="hidden" name="id" value={a.id} />
                     <SubmitButton
                       className="text-red-600 hover:underline"
-                      confirmLabel="Confirm delete"
-                      pendingLabel="Deleting…"
+                      confirmLabel={t("confirmDelete")}
+                      pendingLabel={tc("deleting")}
                     >
-                      Delete
+                      {tc("delete")}
                     </SubmitButton>
                   </form>
                 </div>
@@ -161,7 +168,7 @@ export default async function AddressesPage({
 function DefaultTag({ children }: { children: string }) {
   return (
     <span className="rounded-sm bg-foreground px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-background">
-      Default {children}
+      {children}
     </span>
   );
 }

@@ -43,3 +43,10 @@ export function namespacedStorage(id: SurfaceId): Storage {
     },
   }
 }
+
+// What a reset drops - the tabs and their editors - while the theme, the open panel and the header-persistence choice survive
+const TAB_KEYS = ['tabState', 'query', 'variables', 'headers'].map((k) => `graphiql:${k}`) // GraphiQL's storage layer prefixes its own keys
+
+export function resetSurfaceTabs(id: SurfaceId, store: Storage = namespacedStorage(id)) {
+  for (const key of TAB_KEYS) store.removeItem(key)
+}

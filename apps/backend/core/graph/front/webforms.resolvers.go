@@ -36,14 +36,7 @@ func (r *mutationResolver) SubmitWebForm(ctx context.Context, input model.Submit
 		if f == nil {
 			continue
 		}
-		sf := webform.SubmissionFile{FieldKey: f.FieldKey, ObjectKey: f.ObjectKey, Name: f.Name}
-		if f.Size != nil {
-			sf.Size = int64(*f.Size)
-		}
-		if f.MimeType != nil {
-			sf.MimeType = *f.MimeType
-		}
-		files = append(files, sf)
+		files = append(files, webform.SubmissionFile{FieldKey: f.FieldKey, ObjectKey: f.ObjectKey, Name: f.Name}) // size and type come from the stored object
 	}
 
 	in := webform.SubmitInput{

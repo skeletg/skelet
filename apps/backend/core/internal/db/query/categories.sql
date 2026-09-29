@@ -231,6 +231,22 @@ JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
 WHERE ccsl.channel_id = $1 AND ccsl.is_published = TRUE
   AND c.is_published = TRUE;
 
+-- name: ListCategoriesListedOnChannel :many
+-- Admin query: every category with a listing row on the given store, published or not - the dashboard's store-scoped tree must show drafts so they can be found and published
+SELECT c.*, ccsl.sort_order_override
+FROM catalog_categories c
+JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
+WHERE ccsl.channel_id = $1
+ORDER BY c.position, c.slug;
+
+-- name: ListCategoryChildrenListedOnChannel :many
+SELECT c.*, ccsl.sort_order_override
+FROM catalog_categories c
+JOIN catalog_category_channel_listings ccsl ON ccsl.category_id = c.id
+WHERE ccsl.channel_id = $1
+  AND c.parent_id = $2
+ORDER BY c.position, c.slug;
+
 -- name: ListPublishedRootCategoriesForChannel :many
 SELECT c.*, ccsl.sort_order_override
 FROM catalog_categories c

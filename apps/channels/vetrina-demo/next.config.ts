@@ -11,10 +11,17 @@ const imgSrc =
     ? "img-src 'self' data: blob: https:"
     : "img-src 'self' data: blob: https: http:";
 
+// React's dev build evals for fast refresh and error overlays - a prod bundle never does, so it
+// doesn't get the slot
+const scriptSrc =
+  process.env.NODE_ENV === "production"
+    ? "script-src 'self' 'unsafe-inline'"
+    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+
 // Same-origin only - a payment plugin's browser SDK is what earns a gateway host a slot here
 const CSP_BASE = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  scriptSrc,
   "style-src 'self' 'unsafe-inline'",
   imgSrc,
   "font-src 'self' data:",

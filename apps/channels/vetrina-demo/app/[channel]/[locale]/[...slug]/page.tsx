@@ -23,8 +23,8 @@ import { getCMSPage, getHomePage, type CMSPage } from "@/app/lib/cms/read";
 import { cmsPageMetadata } from "@/app/lib/seo-metadata";
 import { displayName } from "@/app/lib/display";
 import { PAGE_MARKER, splitSlug } from "@/app/lib/filter-path";
-import { renderJsonText } from "@/app/[channel]/[locale]/products/[id]/parts";
-import { setRequestLocale } from "next-intl/server";
+import { renderJsonText } from "@/app/lib/json-text";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import { withLocalePrefix } from "@/app/lib/locale/path";
 
@@ -96,7 +96,10 @@ export async function generateMetadata({
   setRequestLocale(locale);
   const { entityPath, filters, sortSlug, page } = splitSlug(slug);
   const r = await resolveRoute(entityPath);
-  if (!r) return { title: "Not found" };
+  if (!r) {
+    const t = await getTranslations({ locale, namespace: "errors" });
+    return { title: t("notFoundShort") };
+  }
   // CMS pages own no typed page of their own, so the catch-all is where their full SEO metadata is emitted: title/description from meta,
   // plus Open Graph + Twitter Card (absolute og:image - there's no metadataBase) and a noindex robots tag when flagged
   if (r.kind === "CMS_PAGE") {
@@ -249,7 +252,12 @@ async function CMSPageRender({ page, body: bodyOverride }: { page: CMSPage; body
   const title = displayName(page.content?.title, page.slug);
   const effectiveBody = bodyOverride ?? page.content?.body;
   // Canonical href = the page's pretty path, locale-prefixed like the canonical tag
-  const [canonical, base] = await Promise.all([canonicalPathMapper(), getSiteUrl()]);
+  const [canonical, base, t, tc] = await Promise.all([
+    canonicalPathMapper(),
+    getSiteUrl(),
+    getTranslations("cms"),
+    getTranslations("common"),
+  ]);
   const href = canonical("/" + page.urlPath);
   // Structured data: a WebPage node + a Home→page breadcrumb + the operator's own JSON-LD -
   // noindex pages still emit it (noindex governs the index listing, not on-page markup,
@@ -265,7 +273,7 @@ async function CMSPageRender({ page, body: bodyOverride }: { page: CMSPage; body
       <JsonLd data={cmsPageJsonLd(page, href, base)} />
       <JsonLd
         data={breadcrumbJsonLd([
-          { name: "Home", href: canonical("/") },
+          { name: tc("home"), href: canonical("/") },
           { name: title, href },
         ], base)}
       />
@@ -298,12 +306,12 @@ async function CMSPageRender({ page, body: bodyOverride }: { page: CMSPage; body
         </div>
       ) : (
         <p className="mt-8 text-sm text-muted-foreground">
-          This page has no content yet.
+          {t("noContent")}
         </p>
       )}
       <p className="mt-12 text-xs text-muted-foreground">
         <Link href="/" className="underline">
-          ← Back to home
+          {t("backHome")}
         </Link>
       </p>
     </main>

@@ -63,7 +63,7 @@ subs_for() {
         db)      echo 'migrate [--signals] | export | import | shell' ;;
         gen)     echo '(all) | sqlc | gqlgen | buf' ;;
         check)   echo '(all) | pins | structure | contracts | codegen' ;;
-        test)    echo '(all) | e2e | [pkgs] [--keep] [--no-frontend]' ;;
+        test)    echo '(all) | e2e | storefront [name] [playwright args] | [pkgs] [--keep] [--no-frontend]' ;;
         logs)    echo '[service]' ;;
         pnpm|npm) echo '<app> <pnpm args>' ;;
         new)     echo 'channel <name> [--from <storefront>] [--tracked]' ;;
@@ -107,7 +107,7 @@ Codegen
   gen        $(subs_for gen)
 
 Quality
-  test       go test + frontend typechecks + unit tests   [test e2e for the e2e suite]
+  test       go test + frontend typechecks + unit tests   [test e2e: money paths, test storefront: browser]
   lint       gofmt + golangci-lint + eslint
 
 Scaffold
@@ -201,6 +201,7 @@ case "$cmd" in
 
     test)
         [ "${1:-}" = e2e ] && { shift; run test-e2e "$@"; }
+        [ "${1:-}" = storefront ] && { shift; run test-storefront "$@"; }
         run test "$@" ;;
 
     *)

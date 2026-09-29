@@ -234,7 +234,7 @@ test('new cart for a new customer opens the cart it made', async ({ page }) => {
 
 type OrderRead = {
   status: string
-  lines: { id: string; productName: string; quantity: number }[]
+  lines: { id: string; name: string; quantity: number }[]
   shippingAddress: { street1: string; city: string } | null
   billingAddress: { street1: string; city: string } | null
   fulfillments: { carrier: string | null; trackingNumber: string | null }[]
@@ -243,7 +243,7 @@ type OrderRead = {
 const readOrder = async (id: string) =>
   (
     await adminApi<{ order: OrderRead }>(
-      'query($id:ID!){ order(id:$id){ status lines { id productName quantity } shippingAddress { street1 city } billingAddress { street1 city } fulfillments { carrier trackingNumber } } }',
+      'query($id:ID!){ order(id:$id){ status lines { id name quantity } shippingAddress { street1 city } billingAddress { street1 city } fulfillments { carrier trackingNumber } } }',
       { id },
     )
   ).order
@@ -261,7 +261,7 @@ test('order: edit a line, edit the shipping address, then ship it', async ({ pag
 
   const address = { firstName: 'Order', lastName: 'Tester', street1: 'Seeded street 1', city: 'Berlin', postalCode: '10115', countryCode: 'DE' }
   const { createDraftOrder } = await adminApi<{ createDraftOrder: { id: string } }>('mutation($i:CreateDraftOrderInput!){ createDraftOrder(input:$i){ id } }', {
-    i: { channelId: channel.id, email: `${RUN}-order@e2e.test`, billingAddress: address, shippingAddress: address, lines: [{ productSku: sku, quantity: 1 }] },
+    i: { channelId: channel.id, email: `${RUN}-order@e2e.test`, billingAddress: address, shippingAddress: address, lines: [{ sku, quantity: 1 }] },
   })
   const id = createDraftOrder.id
   // There is no order delete - a cancelled order tagged with the run is what's left behind

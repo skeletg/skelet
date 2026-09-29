@@ -1,5 +1,5 @@
 import { useApolloClient, useMutation } from '@apollo/client/react'
-import type { SetProductListingInput } from '@/graphql/schema.types'
+import type { ProductKind, SetProductListingInput } from '@/graphql/schema.types'
 import { ProductDocument, SetProductListingDocument } from '../Catalog.gql'
 
 type ListingPatch = Partial<Pick<SetProductListingInput, 'isPublished' | 'price' | 'url'>>
@@ -30,5 +30,33 @@ export function useProductListingWrite(productId: string) {
         },
       },
     })
+  }
+}
+
+export type WrapperContents = {
+  kind?: ProductKind
+  children?: readonly unknown[]
+  bundleOptions?: readonly { selections: readonly unknown[] }[]
+  groupedMembers?: readonly unknown[]
+  kitComponents?: readonly unknown[]
+}
+
+// A wrapper sells what sits behind it, so one with nothing there can still be published but the storefront shows it
+// out of stock - the listings editor warns instead of blocking. Reads the saved product, so items staged in the same
+// Save don't count until they land
+export function emptyWrapperWarning(p: WrapperContents): string | null {
+  switch (p.kind) {
+    case 'CONFIGURABLE':
+      return p.children?.length ? null : 'This configurable product has no variants, so it will show as out of stock on the storefront.'
+    case 'BUNDLE':
+      return p.bundleOptions?.some((o) => o.selections.length > 0)
+        ? null
+        : 'This bundle has no selections, so it will show as out of stock on the storefront.'
+    case 'GROUPED':
+      return p.groupedMembers?.length ? null : 'This grouped product has no members, so it will show as out of stock on the storefront.'
+    case 'KIT':
+      return p.kitComponents?.length ? null : 'This kit has no components, so it will show as out of stock on the storefront.'
+    default:
+      return null
   }
 }

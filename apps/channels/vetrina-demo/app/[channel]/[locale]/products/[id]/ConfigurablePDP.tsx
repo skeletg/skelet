@@ -8,6 +8,7 @@ import {
   useState,
   ViewTransition,
 } from "react";
+import { useTranslations } from "next-intl";
 
 import { addConfiguredToCart, addSimpleToCart } from "@/app/lib/cart/actions";
 import { displayName } from "@/app/lib/display";
@@ -15,28 +16,31 @@ import { productHref } from "@/app/lib/entity-href";
 import { formatPrice } from "@/app/lib/format";
 import type { ProductDetail } from "@/app/lib/catalog/read";
 import { deriveQtyBounds } from "@/app/components/qty";
-import { QtySelector } from "@/app/components/QtySelector";
-import { CompareButton } from "@/app/components/CompareButton";
-import { RatingStars } from "@/app/components/RatingStars";
-import { WishlistButton } from "@/app/components/WishlistButton";
 import { RequiredFlag } from "./RequiredFlag";
 import { MissingOptionLinks } from "./MissingOptionLinks";
 import { jumpToOption } from "./focus-intent";
 
 const LIST_VARIANT_ANCHOR = "list-variant";
-import { AddToCartButton } from "./AddToCartButton";
-import { StickyBuyRow } from "./StickyBuyRow";
-import { AddToCartFeedback } from "./AddToCartFeedback";
-import { OptionControl, useConfiguredOptions } from "./ProductOptions";
+import { AddToCartButton } from "@/app/components/product/AddToCartButton";
+import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
+import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";
+import { OptionControl } from "./ProductOptions";
+import { useConfiguredOptions } from "./useConfiguredOptions";
 import {
   AttributeList,
   Description,
-  ProductGallery,
-  ProductReassurance,
   optionAnchorId,
   SelectionHint,
   StockBadge,
 } from "./parts";
+import {
+  OptionsAddLabel,
+  PdpBuyBox,
+  PdpMetaRow,
+  PdpQty,
+  PdpShell,
+  PdpTaxonomy,
+} from "./pdp-shell";
 import {
   ListVariantPicker,
   matchVariant,
@@ -72,6 +76,9 @@ export function ConfigurablePDP({
   variantOwnUrl?: boolean;
 }) {
   const [addState, formAction] = useActionState(addSimpleToCart, null);
+  const t = useTranslations("product.pdp");
+  const tp = useTranslations("product");
+  const tc = useTranslations("common");
   const [cfgState, cfgFormAction] = useActionState(addConfiguredToCart, null);
   const isList = product.variantMode === "LIST";
 
@@ -207,52 +214,15 @@ export function ConfigurablePDP({
     matched?.mainImage ?? product.mainImage ?? displayMedia[0] ?? null;
 
   return (
-    <div className="mt-6 grid grid-cols-1 gap-10 md:grid-cols-2 md:items-start">
-      {/* Source order gives phones the name first; md+ placement restores the columns */}
-      <div className="md:col-start-2 md:row-start-1">
-        {product.primaryCategory && (
-          <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-signal">
-            {displayName(
-              product.primaryCategory.name,
-              product.primaryCategory.slug,
-            )}
-          </p>
-        )}
-        <h1 className="mt-1 text-3xl font-extrabold tracking-tight">
-          {heading}
-        </h1>
-      </div>
-      <div className="md:col-start-1 md:row-start-1 md:row-span-2 md:sticky md:top-28 md:self-start">
-        <ProductGallery
-          media={displayMedia}
-          fallback={displayHero}
-          alt={heading}
-          morphFromProductId={product.id}
-        />
-      </div>
+    <PdpShell
+      product={product}
+      heading={heading}
+      media={displayMedia}
+      fallback={displayHero}
+    >
+      <PdpMetaRow product={product} sku={displaySku} />
 
-      <div className="md:col-start-2 md:row-start-2">
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          {product.reviewAggregates &&
-            product.reviewAggregates.count > 0 &&
-            product.reviewAggregates.overallAverage != null && (
-              <a
-                href="#reviews"
-                className="inline-flex items-center gap-1.5 hover:underline"
-              >
-                <RatingStars value={product.reviewAggregates.overallAverage} />
-                <span className="text-sm text-muted-foreground">
-                  {product.reviewAggregates.overallAverage.toFixed(1)} (
-                  {product.reviewAggregates.count})
-                </span>
-              </a>
-            )}
-          <p className="text-sm text-muted-foreground">SKU {displaySku}</p>
-          <WishlistButton productId={product.id} size="sm" />
-          <CompareButton productId={product.id} />
-        </div>
-
-        <div className="glass mt-5 rounded-xl p-6">
+      <PdpBuyBox>
         {/* Price and availability are what a shopper is checking when they switch variants, and they
             used to change with no signal at all - a size going from $49 to $59 just silently redrew.
             Keying on the matched child makes the two states an exit/enter pair, so the numbers
@@ -308,13 +278,15 @@ export function ConfigurablePDP({
           {!matched && (
             <p className="mt-3 text-xs text-muted-foreground">
               {isList
-                ? "Choose a variant to add to cart."
+                ? t("chooseVariantToAdd")
                 : product.configurableOptions.some((o) => !selection[o.id])
-                  ? `Pick ${product.configurableOptions
-                      .filter((o) => !selection[o.id])
-                      .map((o) => o.name)
-                      .join(" + ")} to see the matching variant.`
-                  : "No variant matches this combination."}
+                  ? t("pickToSee", {
+                      options: product.configurableOptions
+                        .filter((o) => !selection[o.id])
+                        .map((o) => o.name)
+                        .join(" + "),
+                    })
+                  : t("noMatch")}
             </p>
           )}
 
@@ -342,14 +314,14 @@ export function ConfigurablePDP({
                     onFile={(e) => opts.onFileChange(opt, e)}
                     invalid={invalid}
                     fileDisabled={!matched}
-                    fileDisabledHint="Pick your options first"
+                    fileDisabledHint={t("pickOptionsFirst")}
                   />
                   )}
                 </RequiredFlag>
               ))}
               {opts.forcedQtyConflict && (
                 <p role="alert" className="text-xs font-medium text-red-600 dark:text-red-400">
-                  These choices set different fixed quantities - keep only one of them.
+                  {t("qtyConflict")}
                 </p>
               )}
               {opts.optionsDelta !== 0 && (
@@ -365,33 +337,24 @@ export function ConfigurablePDP({
           )}
 
           {/* Variants are SIMPLE in the cart - with options we submit the configured line
-              (variant SKU + parent and variant picks) so surcharges and required options hold */}
-          {hasOptions ? (
-            <StickyBuyRow className="mt-6">
-            <form action={cfgFormAction} className="flex items-center gap-3">
+              (variant SKU + parent and variant picks) so surcharges and required options hold.
+              With no options every opts flag is empty, so one form serves both actions */}
+          <StickyBuyRow className="mt-6">
+            <form
+              action={hasOptions ? cfgFormAction : formAction}
+              className="flex items-center gap-3"
+            >
               <input type="hidden" name="productSku" value={matched?.sku ?? ""} />
-              <input
-                type="hidden"
-                name="productName"
-                value={matched?.name ?? matched?.sku ?? ""}
+              {hasOptions ? (
+                <input type="hidden" name="options" value={JSON.stringify(opts.payload)} />
+              ) : null}
+              {/* key remounts on variant change so the stepper resets and picks up the new stock ceiling */}
+              <PdpQty
+                key={matched?.id ?? "none"}
+                bounds={qtyBounds}
+                forcedQty={opts.forcedQty}
+                disabled={configuredDisabled}
               />
-              <input type="hidden" name="options" value={JSON.stringify(opts.payload)} />
-              {opts.forcedQty != null ? (
-                // A picked option forces the line quantity - submit it and hide the
-                // stepper (mirrors CustomOptionsPDP)
-                <input type="hidden" name="quantity" value={opts.forcedQty} />
-              ) : (
-                <QtySelector
-                  key={matched?.id ?? "none"}
-                  name="quantity"
-                  defaultValue={qtyBounds.defaultValue}
-                  min={qtyBounds.min}
-                  max={qtyBounds.max}
-                  step={qtyBounds.step}
-                  decimals={qtyBounds.decimals}
-                  disabled={configuredDisabled}
-                />
-              )}
               <AddToCartButton
                 stickyPrice={formatPrice(displayPrice, displayCurrency)}
                 disabled={outOfStock || opts.uploading}
@@ -403,81 +366,36 @@ export function ConfigurablePDP({
                 onBlockedClick={onBlockedAdd}
                 className="flex-1"
               >
-                {opts.uploading
-                  ? "Uploading…"
-                  : !matched
-                    ? "Select options"
-                    : !matched.inStock
-                      ? "Out of stock"
-                      : opts.missingRequired.length > 0
-                        ? "Complete required options"
-                        : opts.forcedQtyConflict
-                          ? "Resolve quantity conflict"
-                          : "Add to cart"}
+                {!matched ? (
+                  t("selectOptions")
+                ) : !matched.inStock ? (
+                  tc("outOfStock")
+                ) : (
+                  <OptionsAddLabel
+                    uploading={opts.uploading}
+                    missingRequired={opts.missingRequired.length > 0}
+                    forcedQtyConflict={opts.forcedQtyConflict}
+                  />
+                )}
               </AddToCartButton>
             </form>
-            </StickyBuyRow>
-          ) : (
-            <StickyBuyRow className="mt-6">
-            <form action={formAction} className="flex items-center gap-3">
-              <input
-                type="hidden"
-                name="productSku"
-                value={matched?.sku ?? ""}
-              />
-              <input
-                type="hidden"
-                name="productName"
-                value={matched?.name ?? matched?.sku ?? ""}
-              />
-              <input
-                type="hidden"
-                name="unitPrice"
-                value={matched?.defaultPrice ?? 0}
-              />
-              {/* key remounts on variant change so the stepper resets and picks up the new stock ceiling */}
-              <QtySelector
-                key={matched?.id ?? "none"}
-                name="quantity"
-                defaultValue={qtyBounds.defaultValue}
-                min={qtyBounds.min}
-                max={qtyBounds.max}
-                step={qtyBounds.step}
-                decimals={qtyBounds.decimals}
-                disabled={buyDisabled}
-              />
-              <AddToCartButton
-                stickyPrice={formatPrice(displayPrice, displayCurrency)}
-                disabled={outOfStock}
-                blocked={!matched}
-                onBlockedClick={onBlockedAdd}
-                className="flex-1"
-              >
-                {!matched
-                  ? "Select options"
-                  : !matched.inStock
-                    ? "Out of stock"
-                    : "Add to cart"}
-              </AddToCartButton>
-            </form>
-            </StickyBuyRow>
-          )}
+          </StickyBuyRow>
           {attempted && !matched ? (
             <SelectionHint key={attemptSeq}>
               {isList ? (
-                <>
-                  Still to choose:{" "}
-                  <MissingOptionLinks
-                    items={[{ id: LIST_VARIANT_ANCHOR, label: "a variant" }]}
-                  />
-                </>
+                t.rich("stillToChoose", {
+                  links: () => (
+                    <MissingOptionLinks
+                      items={[{ id: LIST_VARIANT_ANCHOR, label: t("aVariant") }]}
+                    />
+                  ),
+                })
               ) : unansweredVariantOptions.length > 0 ? (
-                <>
-                  Still to choose:{" "}
-                  <MissingOptionLinks items={unansweredVariantOptions} />
-                </>
+                t.rich("stillToChoose", {
+                  links: () => <MissingOptionLinks items={unansweredVariantOptions} />,
+                })
               ) : (
-                "That combination isn't available. Try a different one."
+                t("unavailableCombo")
               )}
             </SelectionHint>
           ) : attempted &&
@@ -485,55 +403,31 @@ export function ConfigurablePDP({
             matched?.inStock &&
             opts.missingRequired.length > 0 ? (
             <SelectionHint key={attemptSeq}>
-              Required option{opts.missingRequired.length > 1 ? "s" : ""}:{" "}
-              <MissingOptionLinks items={opts.missingRequiredItems} />
+              {t.rich("requiredOptions", {
+                count: opts.missingRequired.length,
+                links: () => <MissingOptionLinks items={opts.missingRequiredItems} />,
+              })}
             </SelectionHint>
           ) : null}
           <AddToCartFeedback state={hasOptions ? cfgState : addState} />
         </section>
 
-        <ProductReassurance className="mt-5 border-t border-border pt-4" />
-        </div>
+      </PdpBuyBox>
 
-        <Description
-          label="Summary"
-          value={displayShortDesc}
-          className="mt-8"
-        />
-        <Description
-          label="Description"
-          value={displayDesc}
-          className="mt-6"
-        />
+      <Description
+        label={tp("summary")}
+        value={displayShortDesc}
+        className="mt-8"
+      />
+      <Description
+        label={tp("description")}
+        value={displayDesc}
+        className="mt-6"
+      />
 
-        <AttributeList values={displayAttrs} className="mt-8" />
+      <AttributeList values={displayAttrs} className="mt-8" />
 
-        {(product.categories.length > 0 || product.collections.length > 0) && (
-          <section className="mt-8 text-sm">
-            {product.primaryCategory && (
-              <p className="text-muted-foreground">
-                Primary category:{" "}
-                <span className="text-foreground">
-                  {displayName(
-                    product.primaryCategory.name,
-                    product.primaryCategory.slug,
-                  )}
-                </span>
-              </p>
-            )}
-            {product.collections.length > 0 && (
-              <p className="mt-1 text-muted-foreground">
-                Collections:{" "}
-                <span className="text-foreground">
-                  {product.collections
-                    .map((c) => displayName(c.name, c.slug))
-                    .join(", ")}
-                </span>
-              </p>
-            )}
-          </section>
-        )}
-      </div>
-    </div>
+      <PdpTaxonomy product={product} />
+    </PdpShell>
   );
 }

@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
 import { withLocalePrefix } from "@/app/lib/locale/path";
@@ -24,12 +26,21 @@ import { PickupLocationsDocument, ShippingQuotesDocument } from "@/app/lib/check
 
 import { CheckoutForm } from "./CheckoutForm";
 
-export const metadata = { title: "Checkout" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/checkout">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "checkout" });
+  return { title: t("title") };
+}
 
 export default async function CheckoutPage({ params }: PageProps<"/[channel]/[locale]/checkout">) {
   // Locale straight off the segment - a page taking no props has no request scope for
   // getLocale() to read, so it silently answered with the default language
   const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "checkout" });
+  const to = await getTranslations({ locale, namespace: "order" });
+  const tc = await getTranslations({ locale, namespace: "common" });
 
   const [customer, cart, channel, consent, countries, countrySettings, guestAllowed] =
     await Promise.all([
@@ -115,8 +126,8 @@ export default async function CheckoutPage({ params }: PageProps<"/[channel]/[lo
               typeof currency === "string" ? currency : currency.code,
             value: previewTotal / 100,
             items: cart.lines.map((line) => ({
-              item_id: line.productSku,
-              item_name: displayName(line.productName, line.productSku),
+              item_id: line.sku,
+              item_name: displayName(line.name, line.sku),
               quantity: line.quantity,
               price: line.unitPrice / 100,
             })),
@@ -124,44 +135,46 @@ export default async function CheckoutPage({ params }: PageProps<"/[channel]/[lo
         }}
       />
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Checkout</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight">{t("title")}</h1>
         {!customer && !guestAllowed ? (
           // The backend refuses guest placement outright when this is off (GUEST_CHECKOUT_DISABLED) -
           // saying so up front beats letting someone fill the whole form and get rejected at submit
           <div className="mt-6 border border-border p-6">
-            <p className="text-sm font-medium">This store requires an account to check out.</p>
+            <p className="text-sm font-medium">{t("accountRequired")}</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Sign in or create an account to place your order. Your cart is saved.
+              {t("accountRequiredBody")}
             </p>
             <div className="mt-4 flex gap-3">
               <a
                 href={`/account/login?returnTo=${encodeURIComponent("/checkout")}`}
                 className="inline-flex h-11 items-center justify-center bg-foreground px-6 font-mono text-[13px] uppercase tracking-[0.14em] text-background"
               >
-                Sign in
+                {tc("signIn")}
               </a>
               <a
                 href={`/account/register?returnTo=${encodeURIComponent("/checkout")}`}
                 className="inline-flex h-11 items-center justify-center border border-foreground px-6 font-mono text-[13px] uppercase tracking-[0.14em]"
               >
-                Create account
+                {t("createAccount")}
               </a>
             </div>
           </div>
         ) : customer ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            Signed in as {customer.email}.
+            {t("signedInAs", { email: customer.email })}
           </p>
         ) : (
           <p className="mt-2 text-sm text-muted-foreground">
-            Checking out as guest.{" "}
-            <a
-              href={`/account/login?returnTo=${encodeURIComponent("/checkout")}`}
-              className="underline underline-offset-2"
-            >
-              Sign in
-            </a>{" "}
-            instead to use a saved address.
+            {t.rich("asGuest", {
+              link: (chunks) => (
+                <a
+                  href={`/account/login?returnTo=${encodeURIComponent("/checkout")}`}
+                  className="underline underline-offset-2"
+                >
+                  {chunks}
+                </a>
+              ),
+            })}
           </p>
         )}
 
@@ -187,14 +200,14 @@ export default async function CheckoutPage({ params }: PageProps<"/[channel]/[lo
 
       <aside className="glass self-start rounded-xl p-6 text-sm md:sticky md:top-24">
         <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Order summary
+          {t("summary")}
         </h2>
         <ul className="mt-4 space-y-2">
           {cart.lines.map((line) => (
             <li key={line.id} className="flex justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate">
-                  {displayName(line.productName, line.productSku)}
+                  {displayName(line.name, line.sku)}
                   <span className="text-muted-foreground"> × {line.quantity}</span>
                 </p>
                 {/* Same pick summary the cart line shows - the last look before payment
@@ -226,12 +239,11 @@ export default async function CheckoutPage({ params }: PageProps<"/[channel]/[lo
                     <span className={c.code ? "font-mono" : ""}>{b.label}</span>
                     {b.invalidatedReason ? (
                       <span className="text-muted-foreground">
-                        {" "}
-                        - no longer valid: {b.invalidatedReason}
+                        {t("noLongerValid", { reason: b.invalidatedReason })}
                       </span>
                     ) : null}
                     {b.giftsInCart.length > 0 ? (
-                      <span> - free {giftSummary(b.giftsInCart)}</span>
+                      <span>{t("freeGifts", { gifts: giftSummary(b.giftsInCart) })}</span>
                     ) : null}
                   </span>
                   {/* Only a real subtotal discount gets a money line - a free-shipping
@@ -242,7 +254,7 @@ export default async function CheckoutPage({ params }: PageProps<"/[channel]/[lo
                     </span>
                   ) : b.freeShipping ? (
                     <span className="shrink-0 uppercase tracking-wider">
-                      Free ship
+                      {t("freeShip")}
                     </span>
                   ) : null}
                 </li>
@@ -252,35 +264,35 @@ export default async function CheckoutPage({ params }: PageProps<"/[channel]/[lo
         ) : null}
 
         <dl className="mt-4 space-y-1 border-t border-border pt-3 text-sm">
-          <Row label="Subtotal">
+          <Row label={to("subtotal")}>
             {formatPrice(subtotal, currency)}
             <ApproxPrice cents={subtotal} />
           </Row>
           {discount > 0 ? (
-            <Row label="Discount" className="text-emerald-700">
+            <Row label={to("discount")} className="text-emerald-700">
               −{formatPrice(discount, currency)}
             </Row>
           ) : null}
           {cheapestShip != null ? (
-            <Row label={freeShipping ? "Shipping (free)" : "Shipping (est.)"}>
+            <Row label={freeShipping ? t("shippingFree") : t("shippingEst")}>
               {formatPrice(cheapestShip, currency)}
             </Row>
           ) : (
-            <Row label="Shipping">
+            <Row label={to("shipping")}>
               <span className="text-muted-foreground">
-                Not available for this address
+                {t("shippingUnavailable")}
               </span>
             </Row>
           )}
-          <Row label="Tax">
+          <Row label={to("tax")}>
             <span className="text-muted-foreground">
-              Calculated at checkout
+              {t("taxAtCheckout")}
             </span>
           </Row>
         </dl>
         <ChargeCurrencyNote />
         <p className="mt-4 flex justify-between border-t border-border pt-3 text-base font-semibold">
-          <span>Total</span>
+          <span>{to("total")}</span>
           <span className="tabular-nums">
             {formatPrice(previewTotal, currency)}
           </span>
@@ -290,7 +302,7 @@ export default async function CheckoutPage({ params }: PageProps<"/[channel]/[lo
           href="/cart"
           className="mt-6 inline-block text-xs text-muted-foreground underline"
         >
-          ← Edit cart
+          {t("editCart")}
         </Link>
       </aside>
     </main>

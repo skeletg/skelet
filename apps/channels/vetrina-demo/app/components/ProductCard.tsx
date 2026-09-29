@@ -1,4 +1,5 @@
 import { ViewTransition } from "react";
+import { useTranslations } from "next-intl";
 
 import { Link } from "@/app/components/LocaleLink";
 
@@ -28,6 +29,8 @@ export function ProductCard({
   // only the surface that owns the page's product list should claim it
   morphToDetail?: boolean;
 }) {
+  const t = useTranslations("product.card");
+  const tc = useTranslations("common");
   const name = displayName(product.name, product.sku);
   const compact = variant === "compact";
   const isSimple = product.kind === "SIMPLE";
@@ -39,7 +42,7 @@ export function ProductCard({
   // that costs $40, and quoting a price the shopper can never pay is worse than not quoting one
   const pricedBySelection = sellPrice <= 0 && !isSimple;
   const priceText = pricedBySelection
-    ? "See options"
+    ? t("seeOptions")
     : formatPrice(sellPrice, product.defaultCurrencyCode);
   const compareAt =
     !pricedBySelection && product.compareAtPrice && product.compareAtPrice > sellPrice
@@ -69,15 +72,15 @@ export function ProductCard({
 
   const cornerBadge = !product.inStock ? (
     <span className="inline-flex items-center rounded-sm border border-border bg-background/80 px-2 py-0.5 font-mono text-[0.65rem] font-medium uppercase tracking-wider backdrop-blur">
-      Sold out
+      {t("soldOut")}
     </span>
   ) : savePct >= 5 ? (
     <span className="inline-flex items-center rounded-sm bg-signal px-2 py-0.5 font-mono text-[0.65rem] font-bold uppercase tracking-wider text-white">
-      Save {savePct}%
+      {t("save", { percent: savePct })}
     </span>
   ) : product.onSale ? (
     <span className="inline-flex items-center rounded-sm bg-signal px-2 py-0.5 font-mono text-[0.65rem] font-bold uppercase tracking-wider text-white">
-      Sale
+      {t("sale")}
     </span>
   ) : null;
 
@@ -103,7 +106,7 @@ export function ProductCard({
         />
       ) : (
         <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-          No image
+          {tc("noImage")}
         </div>
       )}
       <span className="absolute left-2 top-2">
@@ -184,7 +187,7 @@ export function ProductCard({
       href={productHref(product)}
       className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-primary px-5 text-xs font-semibold text-primary-foreground transition-colors duration-200 hover:bg-primary/85"
     >
-      Choose options
+      {t("chooseOptions")}
     </Link>
   );
 
@@ -236,7 +239,7 @@ export function ProductCard({
                     aria-hidden="true"
                     className="h-1.5 w-1.5 rounded-full bg-emerald-500"
                   />
-                  <span className="text-emerald-700">In stock</span>
+                  <span className="text-emerald-700">{tc("inStock")}</span>
                 </>
               ) : (
                 <>
@@ -244,7 +247,7 @@ export function ProductCard({
                     aria-hidden="true"
                     className="h-1.5 w-1.5 rounded-full bg-border"
                   />
-                  <span className="text-muted-foreground">Out of stock</span>
+                  <span className="text-muted-foreground">{tc("outOfStock")}</span>
                 </>
               )}
             </p>

@@ -1,3 +1,5 @@
+import { useTranslations } from "next-intl";
+
 import type { Block } from "./blocks";
 import { readString } from "./blocks";
 
@@ -24,6 +26,7 @@ function embedUrl(url: string): string | null {
 }
 
 export function VideoBlock({ block }: { block: Block }) {
+  const t = useTranslations("cms");
   const url = readString(block.props, "url");
   const heading = readString(block.props, "heading");
   if (!url) return null;
@@ -40,7 +43,7 @@ export function VideoBlock({ block }: { block: Block }) {
           {embed ? (
             <iframe
               src={embed}
-              title={heading || "Video"}
+              title={heading || t("video")}
               className="absolute inset-0 h-full w-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
@@ -49,7 +52,7 @@ export function VideoBlock({ block }: { block: Block }) {
             <video src={url} controls className="absolute inset-0 h-full w-full" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-sm text-white/70">
-              Unsupported video URL
+              {t("unsupportedVideo")}
             </div>
           )}
         </div>

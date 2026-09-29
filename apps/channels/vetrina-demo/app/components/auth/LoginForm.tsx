@@ -1,14 +1,17 @@
 "use client";
 
 import { Link } from "@/app/components/LocaleLink";
-import { useActionState } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   Field,
-  FormError,
+  FormErrors,
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
-import { loginAction, type AuthResult } from "@/app/lib/auth/actions";
+import { loginAction } from "@/app/lib/auth/actions";
+import { loginSchema } from "@/app/lib/auth/schemas";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
+
 export function LoginForm({
   returnTo,
   onSwitchView,
@@ -16,38 +19,51 @@ export function LoginForm({
   returnTo?: string | null;
   onSwitchView?: (view: "register" | "forgot") => void;
 }) {
-  // useActionState is the React 19 / Next 16 form-state hook
-  const [state, formAction, pending] = useActionState<
-    AuthResult | null,
-    FormData
-  >(loginAction, null);
+  const t = useTranslations("auth.login");
+  const tf = useTranslations("forms.fields");
+  const { form, fields, formAction, onSubmit, pending } = useActionForm(
+    loginAction,
+    loginSchema,
+  );
 
   const registerHref = returnTo
     ? `/account/register?returnTo=${encodeURIComponent(returnTo)}`
     : "/account/register";
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form
+      id={form.id}
+      onSubmit={onSubmit}
+      action={formAction}
+      noValidate
+      className="flex flex-col gap-4"
+    >
       {returnTo ? (
         <input type="hidden" name="returnTo" value={returnTo} />
       ) : null}
-      <Field label="Email" name="email" type="email" required autoComplete="email" />
       <Field
-        label="Password"
-        name="password"
+        label={tf("email")}
+        field={fields.email}
+        type="email"
+        required
+        autoComplete="email"
+      />
+      <Field
+        label={tf("password")}
+        field={fields.password}
         type="password"
         required
         autoComplete="current-password"
       />
 
-      {state && !state.ok && <FormError>{state.error}</FormError>}
+      <FormErrors errors={form.errors} />
 
       <button
         type="submit"
         disabled={pending}
         className={`${buttonPrimary} w-full`}
       >
-        {pending ? "Signing in…" : "Sign in"}
+        {pending ? t("submitting") : t("submit")}
       </button>
 
       <p className="mt-1 text-center text-sm">
@@ -57,34 +73,34 @@ export function LoginForm({
             onClick={() => onSwitchView("forgot")}
             className="text-muted-foreground hover:text-foreground hover:underline"
           >
-            Forgot your password?
+            {t("forgot")}
           </button>
         ) : (
           <Link
             href="/account/forgot"
             className="text-muted-foreground hover:text-foreground hover:underline"
           >
-            Forgot your password?
+            {t("forgot")}
           </Link>
         )}
       </p>
 
       <p className="mt-2 text-center text-sm text-muted-foreground">
-        New here?{" "}
+        {t("newHere")}{" "}
         {onSwitchView ? (
           <button
             type="button"
             onClick={() => onSwitchView("register")}
             className="text-foreground underline underline-offset-2"
           >
-            Create an account
+            {t("createAccount")}
           </button>
         ) : (
           <Link
             href={registerHref}
             className="text-foreground underline underline-offset-2"
           >
-            Create an account
+            {t("createAccount")}
           </Link>
         )}
       </p>

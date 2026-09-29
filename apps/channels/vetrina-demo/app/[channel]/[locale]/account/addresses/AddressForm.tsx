@@ -1,18 +1,16 @@
 "use client";
 
 import { Link } from "@/app/components/LocaleLink";
-import { useActionState } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   Field,
-  FormError,
+  FormErrors,
   buttonPrimary,
 } from "@/app/components/account/AccountUI";
-import {
-  addAddressAction,
-  updateAddressAction,
-  type AuthResult,
-} from "@/app/lib/auth/actions";
+import { addAddressAction, updateAddressAction } from "@/app/lib/auth/actions";
+import { addressSchema } from "@/app/lib/auth/schemas";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
 
 export type AddressInitial = {
   firstName?: string;
@@ -37,103 +35,115 @@ type Props = {
 
 export function AddressForm({ id, initial, submitLabel }: Props) {
   const action = id ? updateAddressAction : addAddressAction;
-  const [state, formAction, pending] = useActionState<
-    AuthResult | null,
-    FormData
-  >(action, null);
-
+  const t = useTranslations("account.addressForm");
+  const tf = useTranslations("forms.fields");
+  const tc = useTranslations("common");
   const v = initial ?? {};
+  const { form, fields, formAction, onSubmit, pending } = useActionForm(
+    action,
+    addressSchema,
+    {
+      defaultValue: {
+        firstName: v.firstName,
+        lastName: v.lastName,
+        company: v.company ?? undefined,
+        street1: v.street1,
+        street2: v.street2 ?? undefined,
+        city: v.city,
+        state: v.state ?? undefined,
+        postalCode: v.postalCode,
+        countryCode: v.countryCode,
+        phone: v.phone ?? undefined,
+      },
+    },
+  );
 
   return (
-    <form action={formAction} className="flex flex-col gap-3">
+    <form
+      id={form.id}
+      onSubmit={onSubmit}
+      action={formAction}
+      noValidate
+      className="flex flex-col gap-3"
+    >
       {id && <input type="hidden" name="id" value={id} />}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
-          name="firstName"
-          label="First name"
+          field={fields.firstName}
+          label={tf("firstName")}
           required
-          defaultValue={v.firstName}
           autoComplete="given-name"
         />
         <Field
-          name="lastName"
-          label="Last name"
+          field={fields.lastName}
+          label={tf("lastName")}
           required
-          defaultValue={v.lastName}
           autoComplete="family-name"
         />
       </div>
       <Field
-        name="company"
-        label="Company (optional)"
-        defaultValue={v.company ?? undefined}
+        field={fields.company}
+        label={t("company")}
         autoComplete="organization"
       />
       <Field
-        name="street1"
-        label="Street address"
+        field={fields.street1}
+        label={t("street1")}
         required
-        defaultValue={v.street1}
         autoComplete="address-line1"
       />
       <Field
-        name="street2"
-        label="Apartment, suite, etc. (optional)"
-        defaultValue={v.street2 ?? undefined}
+        field={fields.street2}
+        label={t("street2")}
         autoComplete="address-line2"
       />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
-          name="city"
-          label="City"
+          field={fields.city}
+          label={t("city")}
           required
-          defaultValue={v.city}
           autoComplete="address-level2"
         />
         <Field
-          name="state"
-          label="State / Region"
-          defaultValue={v.state ?? undefined}
+          field={fields.state}
+          label={t("state")}
           autoComplete="address-level1"
         />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
-          name="postalCode"
-          label="Postal code"
+          field={fields.postalCode}
+          label={t("postalCode")}
           required
-          defaultValue={v.postalCode}
           autoComplete="postal-code"
         />
         <Field
-          name="countryCode"
-          label="Country code (2-letter)"
+          field={fields.countryCode}
+          label={t("countryCode")}
           required
-          defaultValue={v.countryCode}
           autoComplete="country"
           maxLength={2}
         />
       </div>
       <Field
-        name="phone"
-        label="Phone (optional)"
+        field={fields.phone}
+        label={t("phone")}
         type="tel"
-        defaultValue={v.phone ?? undefined}
         autoComplete="tel"
       />
 
-      {state && !state.ok && <FormError>{state.error}</FormError>}
+      <FormErrors errors={form.errors} />
 
       <div className="mt-2 flex items-center gap-4">
         <button type="submit" disabled={pending} className={buttonPrimary}>
-          {pending ? "Saving…" : submitLabel}
+          {pending ? tc("saving") : submitLabel}
         </button>
         <Link
           href="/account/addresses"
           className="text-sm text-muted-foreground hover:underline"
         >
-          Cancel
+          {tc("cancel")}
         </Link>
       </div>
     </form>

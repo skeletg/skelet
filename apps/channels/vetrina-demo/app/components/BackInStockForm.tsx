@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { useCustomerIdentity } from "@/app/lib/customer/client";
 
@@ -23,6 +24,8 @@ export function BackInStockForm({
   image: string;
   defaultEmail?: string;
 }) {
+  const t = useTranslations("product.backInStock");
+  const tc = useTranslations("common");
   const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
   // The page is cached HTML so the server render has no session - identity lands after
   // hydration and prefills the field, until the visitor types something of their own
@@ -65,21 +68,21 @@ export function BackInStockForm({
   if (state === "done") {
     return (
       <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-        You&apos;re on the list - we&apos;ll email you the moment it&apos;s back.
+        {t("done")}
       </div>
     );
   }
 
   return (
     <form onSubmit={submit} className="mt-6 rounded-xl border border-border p-4">
-      <p className="text-sm font-medium">Out of stock - get notified when it returns</p>
+      <p className="text-sm font-medium">{t("title")}</p>
       <div className="mt-3 flex gap-2">
         <input
           type="email"
           required
           value={email}
           onChange={(e) => setTyped(e.target.value)}
-          placeholder="you@example.com"
+          placeholder={t("placeholder")}
           className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-ring"
         />
         <button
@@ -87,11 +90,11 @@ export function BackInStockForm({
           disabled={state === "sending"}
           className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
         >
-          {state === "sending" ? "…" : "Notify me"}
+          {state === "sending" ? "…" : t("submit")}
         </button>
       </div>
       {state === "error" && (
-        <p className="mt-2 text-xs text-rose-600">Something went wrong - please try again.</p>
+        <p className="mt-2 text-xs text-rose-600">{tc("somethingWrong")}</p>
       )}
     </form>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { useTranslations } from "next-intl";
 
 const SIZE_STYLES = {
   lg: "h-14 gap-2.5 rounded-md px-8 text-base",
@@ -35,6 +36,7 @@ export function AddToCartButton({
   children: React.ReactNode;
 }) {
   const { pending } = useFormStatus();
+  const t = useTranslations("product");
   // The drawer opens (on success only) and errors surface via AddToCartFeedback, driven by
   // the form's useActionState result - opening it on the pending falling edge instead would
   // fire even when the add was rejected
@@ -78,7 +80,7 @@ export function AddToCartButton({
           <path d="M12 3a9 9 0 1 0 9 9" />
         </svg>
       )}
-      {pending ? "Adding…" : children}
+      {pending ? t("adding") : children}
       {!pending && stickyPrice && (
         <span className="hidden font-mono text-sm font-medium tabular-nums opacity-90 [[data-stuck-buy]_&]:inline">
           {stickyPrice}

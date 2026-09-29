@@ -291,23 +291,23 @@ func OrderLineModel(l order.OrderLine) *model.OrderLine {
 	components := make([]*model.OrderLineComponent, len(l.Components))
 	for i, c := range l.Components {
 		components[i] = &model.OrderLineComponent{
-			ID:          c.ID.String(),
-			ProductSku:  c.ProductSku,
-			ProductName: c.ProductName,
-			UnitPrice:   int32(c.UnitPrice),
-			Quantity:    c.Quantity,
+			ID:        c.ID.String(),
+			Sku:       c.ProductSku,
+			Name:      c.ProductName,
+			UnitPrice: int32(c.UnitPrice),
+			Quantity:  c.Quantity,
 		}
 	}
 	return &model.OrderLine{
-		ID:          l.ID.String(),
-		ProductName: l.ProductName,
-		ProductSku:  l.ProductSku,
-		UnitPrice:   int32(l.UnitPrice),
-		Quantity:    l.Quantity,
-		TotalPrice:  int32(l.TotalPrice),
-		IsGift:      l.IsGift,
-		Options:     options,
-		Components:  components,
+		ID:         l.ID.String(),
+		Name:       l.ProductName,
+		Sku:        l.ProductSku,
+		UnitPrice:  int32(l.UnitPrice),
+		Quantity:   l.Quantity,
+		TotalPrice: int32(l.TotalPrice),
+		IsGift:     l.IsGift,
+		Options:    options,
+		Components: components,
 	}
 }
 

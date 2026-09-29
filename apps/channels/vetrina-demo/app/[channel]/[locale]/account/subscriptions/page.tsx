@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getLocale } from "next-intl/server";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
 import { withLocalePrefix } from "@/app/lib/locale/path";
 import { RefreshCwIcon } from "lucide-react";
@@ -23,11 +24,12 @@ import {
 import { getMySubscriptions, type Subscription } from "@/app/lib/subscriptions/read";
 import { getMyPaymentMethods } from "@/app/lib/payment-methods/actions";
 
-export const metadata = { title: "Subscriptions" };
-
-function intervalLabel(count: number, unit: string): string {
-  const u = unit.toLowerCase();
-  return count === 1 ? `every ${u}` : `every ${count} ${u}s`;
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/account/subscriptions">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.subscriptions" });
+  return { title: t("title") };
 }
 
 function one(v: string | string[] | undefined): string | undefined {
@@ -35,16 +37,15 @@ function one(v: string | string[] | undefined): string | undefined {
 }
 
 export default async function SubscriptionsPage({
+  params,
   searchParams,
-}: {
-  searchParams: Promise<{
-    error?: string | string[];
-    done?: string | string[];
-  }>;
-}) {
+}: PageProps<"/[channel]/[locale]/account/subscriptions">) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.subscriptions" });
+  const tc = await getTranslations({ locale, namespace: "common" });
   const customer = await getCurrentCustomer();
   if (!customer) {
-    redirect(await withLocalePrefix("/account/login?returnTo=/account/subscriptions", await getLocale()));
+    redirect(await withLocalePrefix("/account/login?returnTo=/account/subscriptions", locale));
   }
 
   const sp = await searchParams;
@@ -60,31 +61,27 @@ export default async function SubscriptionsPage({
     loadError = loadErrorMessage(
       "account/subscriptions load failed",
       err,
-      "We couldn't load your subscriptions just now. Please try again in a moment.",
+      t("loadFailed"),
     );
   }
 
   return (
     <>
       <AccountPageHeader
-        title="Subscriptions"
-        description="Recurring deliveries bill automatically. Cancel any time - it stops the next charge."
+        title={t("title")}
+        description={t("description")}
       />
 
       {actionError ? (
         <div className="mb-4">
           <FormError>
-            {actionError === "cancel"
-              ? "We couldn't cancel that subscription - it's still active. Please try again."
-              : "We couldn't change the billing card. Please try again."}
+            {actionError === "cancel" ? t("cancelFailed") : t("cardFailed")}
           </FormError>
         </div>
       ) : actionDone ? (
         <div className="mb-4">
           <FormSuccess>
-            {actionDone === "canceled"
-              ? "Subscription canceled - you won't be charged again."
-              : "Billing card updated."}
+            {actionDone === "canceled" ? t("canceled") : t("cardUpdated")}
           </FormSuccess>
         </div>
       ) : null}
@@ -99,10 +96,10 @@ export default async function SubscriptionsPage({
       ) : subscriptions.length === 0 ? (
         <EmptyState
           icon={<RefreshCwIcon className="size-5" aria-hidden="true" />}
-          title="No subscriptions"
-          description="Products you buy on a repeating schedule show up here, with their next billing date."
+          title={t("emptyTitle")}
+          description={t("emptyBody")}
           actionHref="/products"
-          actionLabel="Browse products"
+          actionLabel={tc("browseProducts")}
         />
       ) : (
         <ul className="space-y-4">
@@ -115,13 +112,15 @@ export default async function SubscriptionsPage({
                     <p className="font-semibold">{s.title}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {formatPrice(s.price, s.currencyCode)}{" "}
-                      {intervalLabel(s.intervalCount, s.intervalUnit)}
-                      {active ? (
-                        <>
-                          {" · next billing "}
-                          {new Date(s.nextBillingAt).toLocaleDateString()}
-                        </>
-                      ) : null}
+                      {t("every", {
+                        count: s.intervalCount,
+                        unit: s.intervalUnit.toLowerCase(),
+                      })}
+                      {active
+                        ? ` · ${t("nextBilling", {
+                            date: new Date(s.nextBillingAt).toLocaleDateString(),
+                          })}`
+                        : null}
                     </p>
                   </div>
                   <StatusChip tone={active ? "positive" : "muted"}>
@@ -143,7 +142,7 @@ export default async function SubscriptionsPage({
                         />
                         <label className="flex flex-col gap-1.5 text-xs">
                           <span className="font-medium text-muted-foreground">
-                            Billing card
+                            {t("billingCard")}
                           </span>
                           <select
                             name="paymentMethodId"
@@ -151,36 +150,36 @@ export default async function SubscriptionsPage({
                             className={`${inputClass} w-56`}
                           >
                             <option value="">
-                              No card - renewals will fail
+                              {t("noCard")}
                             </option>
                             {savedMethods.map((m) => (
                               <option key={m.id} value={m.id}>
-                                {m.brand || "Card"} •••• {m.last4}
+                                {m.brand || tc("card")} •••• {m.last4}
                               </option>
                             ))}
                           </select>
                         </label>
                         <SubmitButton
                           className="inline-flex h-10 items-center rounded-md border border-border bg-background px-4 text-sm font-semibold transition-colors hover:bg-accent"
-                          pendingLabel="Saving…"
+                          pendingLabel={tc("saving")}
                         >
-                          Save
+                          {tc("save")}
                         </SubmitButton>
                       </form>
                     ) : (
                       <p className="max-w-sm text-xs text-muted-foreground">
-                        Save a card at checkout to enable automatic renewals.
+                        {t("saveCardHint")}
                       </p>
                     )}
                     <form action={cancelSubscriptionAction}>
                       <input type="hidden" name="id" value={s.id} />
                       <SubmitButton
                         className="inline-flex h-10 items-center rounded-md px-4 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
-                        confirmLabel="Yes, cancel it"
-                        cancelLabel="Keep it"
-                        pendingLabel="Canceling…"
+                        confirmLabel={t("confirmCancel")}
+                        cancelLabel={t("keepIt")}
+                        pendingLabel={t("canceling")}
                       >
-                        Cancel subscription
+                        {t("cancel")}
                       </SubmitButton>
                     </form>
                   </div>

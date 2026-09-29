@@ -79,7 +79,7 @@ export function toDraftOrderInput(v: DraftOrderValues, channelId: string, source
     email: v.email.trim(),
     billingAddress: toAddressInput(v.billing),
     shippingAddress: toAddressInput(v.shipSame ? v.billing : v.shipping),
-    lines: v.lines.map((l) => ({ productSku: l.sku, quantity: l.quantity })),
+    lines: v.lines.map((l) => ({ sku: l.sku, quantity: l.quantity })),
     manualDiscountCents: cents > 0 ? cents : null,
     customerNote: v.note.trim() || null,
     sourceCartId,
