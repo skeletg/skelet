@@ -53,6 +53,16 @@ function describeFilters(
     .join(" · ");
 }
 
+// The searchParams object back as a query string, repeated keys kept - what the facet links carry
+function toQueryString(sp: RawSearchParams): string {
+  const qs = new URLSearchParams();
+  for (const [k, raw] of Object.entries(sp)) {
+    if (raw === undefined) continue;
+    for (const v of Array.isArray(raw) ? raw : [raw]) qs.append(k, v);
+  }
+  return qs.toString();
+}
+
 // Query params that are NOT attribute filters
 const RESERVED_QUERY_KEYS = new Set(["q", "page"]);
 
@@ -255,6 +265,7 @@ export async function ProductListShell({
           basePath={basePath}
           pathFilters={pathFilters}
           pathSort={sortSlug}
+          currentQuery={toQueryString(searchParams)}
           facetRules={await (async () => {
             const seo = await getSeoConfig();
             return { combinations: seo.facetCombinations, minResults: seo.minFacetResults };
