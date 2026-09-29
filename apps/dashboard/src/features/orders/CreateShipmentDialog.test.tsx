@@ -8,8 +8,8 @@ import { CreateFulfillmentDocument, OrderDocument } from './Orders.gql'
 const order = {
   id: 'o1',
   lines: [
-    { id: 'l1', productName: 'Tee', productSku: 'TEE-1', quantity: 3 },
-    { id: 'l2', productName: 'Mug', productSku: 'MUG-1', quantity: 1 },
+    { id: 'l1', name: 'Tee', sku: 'TEE-1', quantity: 3 },
+    { id: 'l2', name: 'Mug', sku: 'MUG-1', quantity: 1 },
   ],
   fulfillments: [
     { status: 'shipped', lines: [{ orderLineId: 'l1', quantity: 2 }] },

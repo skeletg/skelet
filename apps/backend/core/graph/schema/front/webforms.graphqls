@@ -4,8 +4,6 @@ input WebFormFileInput {
   fieldKey:  String!
   objectKey: String!
   name:      String!
-  size:      Int
-  mimeType:  String
 }
 
 input SubmitWebFormInput {

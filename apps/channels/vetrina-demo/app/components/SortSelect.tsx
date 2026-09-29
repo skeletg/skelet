@@ -3,6 +3,7 @@
 import { Link, useRouter } from "@/app/components/LocaleLink";
 
 import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 
 import type { ProductSortOption } from "@/app/lib/catalog/read";
 import { joinBasePathWithFilters } from "@/app/lib/filter-path";
@@ -20,6 +21,7 @@ export function SortSelect({
   pathFilters?: { slug: string; values: string[] }[];
 }) {
   const router = useRouter();
+  const t = useTranslations("listing");
   const detailsRef = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
@@ -62,7 +64,7 @@ export function SortSelect({
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold uppercase tracking-wider text-foreground">
         <span className="text-muted-foreground normal-case tracking-normal font-normal">
-          Sort:
+          {t("sort")}
         </span>
         <span>{effective.label}</span>
         <svg

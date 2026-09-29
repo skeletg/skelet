@@ -14,9 +14,9 @@ export type Scalars = {
 
 export type AddBundleToCartInput = {
   cartId: Scalars['ID']['input'];
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
   selections: Array<AddBundleToCartSelectionInput>;
+  sku: Scalars['String']['input'];
 };
 
 export type AddBundleToCartSelectionInput = {
@@ -27,8 +27,8 @@ export type AddBundleToCartSelectionInput = {
 export type AddConfiguredToCartInput = {
   cartId: Scalars['ID']['input'];
   options: Array<ProductOptionSelectionInput>;
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
+  sku: Scalars['String']['input'];
 };
 
 export type Address = {
@@ -203,7 +203,6 @@ export type BlogPostContent = {
 export type BlogPostFilter = {
   authorSlug?: InputMaybe<Scalars['String']['input']>;
   categorySlug?: InputMaybe<Scalars['String']['input']>;
-  channelId?: InputMaybe<Scalars['ID']['input']>;
   tagSlug?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -365,7 +364,6 @@ export type CmsPageContent = {
 };
 
 export type CmsPageFilter = {
-  channelId?: InputMaybe<Scalars['ID']['input']>;
   onlyPublished?: InputMaybe<Scalars['Boolean']['input']>;
   pageTypeId?: InputMaybe<Scalars['ID']['input']>;
   parentId?: InputMaybe<Scalars['ID']['input']>;
@@ -425,10 +423,10 @@ export type CartLine = {
   currentUnitPrice?: Maybe<Scalars['Int']['output']>;
   id: Scalars['ID']['output'];
   imageUrl?: Maybe<Scalars['String']['output']>;
+  name: Scalars['String']['output'];
   options: Array<CartLineOption>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -436,11 +434,11 @@ export type CartLine = {
 export type CartLineComponent = {
   __typename?: 'CartLineComponent';
   id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
   optionId: Scalars['ID']['output'];
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
   selectionId: Scalars['ID']['output'];
+  sku: Scalars['String']['output'];
   sortOrder: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -896,10 +894,8 @@ export type MutationAddConfiguredToCartArgs = {
 
 export type MutationAddToCartArgs = {
   cartId: Scalars['ID']['input'];
-  productName: Scalars['String']['input'];
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
-  unitPrice: Scalars['Int']['input'];
+  sku: Scalars['String']['input'];
 };
 
 
@@ -1051,8 +1047,8 @@ export type MutationRequestProductOptionFileUploadArgs = {
   filename: Scalars['String']['input'];
   mimeType: Scalars['String']['input'];
   optionId: Scalars['ID']['input'];
-  productSku: Scalars['String']['input'];
   sizeBytes: Scalars['Int']['input'];
+  sku: Scalars['String']['input'];
 };
 
 
@@ -1226,10 +1222,10 @@ export type OrderLine = {
   __typename?: 'OrderLine';
   id: Scalars['ID']['output'];
   isGift: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
   options: Array<OrderLineOption>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -1561,10 +1557,10 @@ export type PromotionFreeGift = {
   __typename?: 'PromotionFreeGift';
   href?: Maybe<Scalars['String']['output']>;
   inCart: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
   productId?: Maybe<Scalars['ID']['output']>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
 };
 
 export type PromotionalDisplay = {
@@ -1929,9 +1925,9 @@ export type ReorderResult = {
 
 export type ReorderSkippedLine = {
   __typename?: 'ReorderSkippedLine';
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
+  name: Scalars['String']['output'];
   reason: Scalars['String']['output'];
+  sku: Scalars['String']['output'];
 };
 
 export type RequestReturnInput = {
@@ -2082,9 +2078,9 @@ export type SavedItem = {
   __typename?: 'SavedItem';
   id: Scalars['ID']['output'];
   imageUrl?: Maybe<Scalars['String']['output']>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
+  name: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
 };
 
 export type SavedPaymentMethod = {
@@ -2192,10 +2188,8 @@ export type WebFormFieldError = {
 
 export type WebFormFileInput = {
   fieldKey: Scalars['String']['input'];
-  mimeType?: InputMaybe<Scalars['String']['input']>;
   name: Scalars['String']['input'];
   objectKey: Scalars['String']['input'];
-  size?: InputMaybe<Scalars['Int']['input']>;
 };
 
 export type WebFormUploadTicket = {

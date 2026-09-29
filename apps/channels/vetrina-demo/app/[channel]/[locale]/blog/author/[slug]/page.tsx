@@ -1,6 +1,7 @@
 // Author archive - every published post by one writer
 
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { localizedAlternates } from "@/app/lib/locale/alternates";
 import { notFound, permanentRedirect } from "next/navigation";
 import { BlogArchive } from "@/app/components/BlogArchive";
@@ -12,21 +13,22 @@ import {
   listBlogPostsBy,
   parseBlogPage,
 } from "@/app/lib/blog/read";
-import { renderJsonText } from "@/app/[channel]/[locale]/products/[id]/parts";
+import { renderJsonText } from "@/app/lib/json-text";
 
 export async function generateMetadata(
   props: PageProps<"/[channel]/[locale]/blog/author/[slug]">,
 ): Promise<Metadata> {
-  const { slug } = await props.params;
+  const { slug, locale } = await props.params;
+  const t = await getTranslations({ locale, namespace: "blog" });
   const author = await getBlogAuthor(slug);
-  if (!author) return { title: "Author not found" };
+  if (!author) return { title: t("authorNotFound") };
   const name = author.content?.name ?? author.displayName;
   const page = parseBlogPage(await props.searchParams);
   const href = blogAuthorHref(author);
   const bio = renderJsonText(author.content?.bio);
   return {
-    title: page > 1 ? `${name} - page ${page}` : name,
-    description: bio ?? `Posts by ${name}.`,
+    title: page > 1 ? t("paged", { name, page }) : name,
+    description: bio ?? t("authorDescription", { name }),
     alternates: await localizedAlternates(page > 1 ? `${href}?page=${page}` : href),
   };
 }
@@ -56,7 +58,7 @@ export default async function BlogAuthorPage(
 
   return (
     <BlogArchive
-      eyebrow="Author"
+      eyebrow={(await getTranslations("blog"))("author")}
       title={author.content?.name ?? author.displayName}
       description={renderJsonText(author.content?.bio)}
       href={blogAuthorHref(author)}

@@ -5,6 +5,7 @@ import {
   TruckIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export const VALUE_ICONS: Record<string, LucideIcon> = {
   shipping: TruckIcon,
@@ -15,23 +16,27 @@ export const VALUE_ICONS: Record<string, LucideIcon> = {
 
 export type ValueItem = { icon: string; title: string; text: string };
 
-export const DEFAULT_VALUE_ITEMS: ValueItem[] = [
-  { icon: "shipping", title: "Fast, free shipping", text: "On qualifying orders" },
-  { icon: "returns", title: "30-day returns", text: "No-hassle refunds" },
-  { icon: "secure", title: "Secure checkout", text: "Cards, wallets & more" },
-  { icon: "support", title: "Real support", text: "Answers from humans" },
-];
+// The fallback promises when the CMS block carries none - each names a home.values message
+const DEFAULT_VALUE_KEYS = ["shipping", "returns", "secure", "support"] as const;
 
 // Static promises band - hairline-divided columns, no motion
 export function ValueStrip({
-  items = DEFAULT_VALUE_ITEMS,
+  items = [],
 }: {
   items?: ValueItem[];
 }) {
-  const shown = items.length > 0 ? items : DEFAULT_VALUE_ITEMS;
+  const t = useTranslations("home.values");
+  const shown: ValueItem[] =
+    items.length > 0
+      ? items
+      : DEFAULT_VALUE_KEYS.map((k) => ({
+          icon: k,
+          title: t(`${k}.title`),
+          text: t(`${k}.text`),
+        }));
   return (
     <section
-      aria-label="Store promises"
+      aria-label={t("label")}
       className="border-b border-border bg-background"
     >
       <div className="mx-auto grid w-full max-w-8xl grid-cols-2 gap-y-4 px-6 py-5 md:px-10 lg:grid-cols-4">

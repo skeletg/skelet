@@ -92,6 +92,7 @@ for. The individual scripts exist so you can rerun one while fixing it.
 | `./skelet lint` | gofmt + golangci-lint are hard gates, run over both Go modules; dashboard + storefront ESLint run after but don't fail the script (matches CI, which keeps frontend lint non-blocking until it's clean). |
 | `./skelet test` | `go test` in both Go modules + dashboard/storefront typechecks + dashboard and storefront unit tests (vitest) - the same hard gates CI runs. Args are forwarded to core's `go test`; `--no-frontend` skips the frontend steps. The default sweep excludes each module's `internal/e2e` (they write real rows and never clean up) - run those with `test-e2e`. |
 | `./skelet test e2e` | Run both e2e suites against dedicated disposable databases (`skelet_e2e` / `skelet_e2e_signals`) so the dev DB never accumulates test orders/customers. Starts a Signals process against the disposable signals database first, since core's scenarios reach the suite over the contract, then runs core's scenarios and the suite's own. Drops and recreates the databases every run - kept, they grow until the store fixture costs seconds instead of milliseconds. `--keep` reuses them while iterating on one scenario. Extra args forward to `go test` (e.g. `-run TestFoo`). |
+| `./skelet test storefront [name]` | Browser tests for a storefront (Playwright, `apps/channels/<name>/e2e/`) against its running dev container. Runs in Microsoft's Playwright image inside the storefront container's network namespace, so the host needs no Node or browser and the page is served as `localhost` (the only origin `next dev` hydrates for). Each spec signs up throwaway `e2e-*@skelet.test` customers in the dev database. Extra args forward to Playwright (`-g addresses`, a spec path). Headless - there is no display in the container. |
 | `./skelet provider` | **Not a gate** - a conformance tester you point at a remote provider endpoint: signed envelope, forged/unsigned/wrong-key rejection, replay window, timeout budget, 256 KiB response ceiling, cache stability. `./skelet provider --url URL --secret rpsec_... --kind tax_provider`. Posts the generated example for the kind unless you pass `--payload`. Contract: [remote-providers.md](remote-providers.md). |
 
 ## Database
@@ -136,7 +137,7 @@ they take a plain `docker compose -f <file> up -d` on the server.
 | `db migrate [--signals]`, `db export`, `db import`, `db shell` | `migrate`, `migrate-signals`, `db-export`, `db-import`, `psql` |
 | `gen`, `gen sqlc`, `gen gqlgen`, `gen buf` | `codegen`, `sqlc`, `gqlgen`, `buf` |
 | `check`, `check pins\|structure\|contracts`, `check codegen` | `check`, the three gates, `codegen --check` |
-| `test`, `test e2e`, `lint` | `test`, `test-e2e`, `lint` |
+| `test`, `test e2e`, `test storefront`, `lint` | `test`, `test-e2e`, `test-storefront`, `lint` |
 | `setup`, `doctor`, `hooks`, `fixperms` | `setup`, `doctor`, `install-hooks`, `fixperms` |
 | `search`, `release`, `provider` | `opensearch`, `push-images`, `provider-check` |
 | `new channel <name>`, `rm channel <name>` | `new`, `remove` |

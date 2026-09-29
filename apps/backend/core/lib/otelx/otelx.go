@@ -37,10 +37,7 @@ func Init(ctx context.Context, env string) (func(context.Context) error, error) 
 		return noopShutdown, nil
 	}
 
-	res, err := buildResource(ctx, env)
-	if err != nil {
-		return noopShutdown, fmt.Errorf("otelx: build resource: %w", err)
-	}
+	res := buildResource(ctx, env)
 
 	traceShutdown, err := initTracer(ctx, res)
 	if err != nil {
@@ -84,12 +81,12 @@ func firstSet(keys ...string) string {
 	return ""
 }
 
-func buildResource(ctx context.Context, env string) (*resource.Resource, error) {
+func buildResource(ctx context.Context, env string) *resource.Resource {
 	version := os.Getenv("APP_VERSION")
 	if version == "" {
 		version = "dev"
 	}
-	return resource.New(ctx,
+	res, err := resource.New(ctx,
 		resource.WithFromEnv(),
 		resource.WithHost(),
 		resource.WithProcess(),
@@ -99,6 +96,11 @@ func buildResource(ctx context.Context, env string) (*resource.Resource, error) 
 			semconv.DeploymentEnvironmentName(env),
 		),
 	)
+	// A failing detector only costs its own attributes - a container running as a uid with no passwd entry can't name its process owner, and refusing to trace over that switched tracing off in every dev stack
+	if err != nil {
+		slog.Warn("otelx: some resource attributes could not be detected", "err", err)
+	}
+	return res
 }
 
 func initTracer(ctx context.Context, res *resource.Resource) (func(context.Context) error, error) {

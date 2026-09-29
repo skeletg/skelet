@@ -11,6 +11,24 @@ const eslintConfig = defineConfig([
   {
     settings: { react: { version: "19.2.8" } },
   },
+  // Shared code must not reach into a route folder - anything two routes need lives in
+  // app/components or app/lib, so moving or deleting a route can't break an unrelated page
+  {
+    files: ["app/components/**", "app/lib/**", "app/plugins/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app/\\[channel\\]/**"],
+              message: "Shared code can't import from a route folder - move the module to app/components or app/lib.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

@@ -29,7 +29,7 @@ func (r *mutationResolver) CreateGuestCart(ctx context.Context) (*model1.Cart, e
 	return r.fullCartModel(ctx, c), nil
 }
 
-func (r *mutationResolver) AddToCart(ctx context.Context, cartID string, productName string, productSku string, unitPrice int32, quantity float64) (*model1.Cart, error) {
+func (r *mutationResolver) AddToCart(ctx context.Context, cartID string, sku string, quantity float64) (*model1.Cart, error) {
 	cid, err := uuid.Parse(cartID)
 	if err != nil {
 		return nil, invalidID("cart")
@@ -37,12 +37,7 @@ func (r *mutationResolver) AddToCart(ctx context.Context, cartID string, product
 	if err := r.assertCartOnCurrentStore(ctx, cid); err != nil {
 		return nil, err
 	}
-	c, err := r.CartSvc.AddToCart(ctx, cid, channel.OptionalCustomerID(ctx), cart.AddCartLineInput{
-		ProductName: productName,
-		ProductSku:  productSku,
-		UnitPrice:   int64(unitPrice),
-		Quantity:    quantity,
-	})
+	c, err := r.CartSvc.AddToCart(ctx, cid, channel.OptionalCustomerID(ctx), sku, quantity)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +70,7 @@ func (r *mutationResolver) AddBundleToCart(ctx context.Context, input model1.Add
 		selections = append(selections, cart.AddBundleSelectionInput{OptionID: optID, SelectionIDs: ids})
 	}
 	c, err := r.CartSvc.AddBundleToCart(ctx, cid, channel.OptionalCustomerID(ctx), cart.AddBundleToCartInput{
-		ProductSku: input.ProductSku,
+		ProductSku: input.Sku,
 		Quantity:   input.Quantity,
 		Selections: selections,
 	})
@@ -123,7 +118,7 @@ func (r *mutationResolver) AddConfiguredToCart(ctx context.Context, input model1
 		options = append(options, cart.CartLineOptionInput{OptionID: optID, ValueIDs: valueIDs, TextValue: text, FileAssetID: fileAssetID})
 	}
 	c, err := r.CartSvc.AddConfiguredToCart(ctx, cid, channel.OptionalCustomerID(ctx), cart.AddConfiguredToCartInput{
-		ProductSku: input.ProductSku,
+		ProductSku: input.Sku,
 		Quantity:   input.Quantity,
 		Options:    options,
 	})
@@ -135,7 +130,7 @@ func (r *mutationResolver) AddConfiguredToCart(ctx context.Context, input model1
 
 // The client PUTs the bytes, then references the returned assetId via ProductOptionSelectionInput.fileAssetId - extension/size constraints are enforced again at addConfiguredToCart
 // Scoped to product-options/<productId> so admins can inspect or clean per-product uploads
-func (r *mutationResolver) RequestProductOptionFileUpload(ctx context.Context, productSku string, optionID string, filename string, mimeType string, sizeBytes int32) (*model1.ProductOptionFileUpload, error) {
+func (r *mutationResolver) RequestProductOptionFileUpload(ctx context.Context, sku string, optionID string, filename string, mimeType string, sizeBytes int32) (*model1.ProductOptionFileUpload, error) {
 	if err := r.checkRate(ctx, "option_file_upload"); err != nil {
 		return nil, err
 	}
@@ -146,7 +141,7 @@ func (r *mutationResolver) RequestProductOptionFileUpload(ctx context.Context, p
 	if err != nil {
 		return nil, invalidID("option")
 	}
-	p, err := r.CatalogSvc.GetProductBySKU(ctx, productSku)
+	p, err := r.CatalogSvc.GetProductBySKU(ctx, sku)
 	if err != nil {
 		return nil, err
 	}

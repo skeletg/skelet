@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateAccount } from "@/app/lib/revalidate";
 import { redirect } from "next/navigation";
 
 import { gqlFetch } from "@/app/lib/graphql";
@@ -42,7 +42,7 @@ export async function redeemLoyaltyPointsAction(
     console.error("loyalty redeem failed:", err);
     ok = false;
   }
-  revalidatePath("/account");
+  revalidateAccount();
   redirect(ok ? "/account?done=redeem" : "/account?error=redeem");
 }
 

@@ -1,13 +1,13 @@
 "use client";
 
 import { Link } from "@/app/components/LocaleLink";
-import { useActionState, useEffect, useTransition } from "react";
+import { useEffect, useTransition } from "react";
+import { useTranslations } from "next-intl";
 
-import {
-  applyCoupon,
-  removeCouponAction,
-  type CouponActionResult,
-} from "@/app/lib/cart/actions";
+import { FieldErrors } from "@/app/components/account/AccountUI";
+import { applyCoupon, removeCouponAction } from "@/app/lib/cart/actions";
+import { couponSchema } from "@/app/lib/cart/schemas";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
 import { useCartStore } from "@/app/lib/cart/store";
 import type { AppliedPromotionCode } from "@/app/lib/cart/types";
 import { formatPrice } from "@/app/lib/format";
@@ -24,30 +24,47 @@ export function CouponForm({
   currency: string | { code: string; symbol?: string; symbolPosition?: string };
 }) {
   const { applyServerCart } = useCartStore();
-  const [state, action, pending] = useActionState<
-    CouponActionResult | null,
-    FormData
-  >(applyCoupon, null);
+  const t = useTranslations("cart.coupon");
+  const {
+    form,
+    fields,
+    formAction,
+    onSubmit,
+    pending,
+    lastResult,
+  } = useActionForm(applyCoupon, couponSchema);
+  const code = fields.code;
 
   // Push a successful apply's returned cart into the store so the summary + line list
   // reflect the new discount instantly (no revalidate)
   useEffect(() => {
-    if (state?.ok) applyServerCart(state.cart);
-  }, [state, applyServerCart]);
+    if (lastResult?.cart !== undefined) applyServerCart(lastResult.cart);
+  }, [lastResult, applyServerCart]);
 
   const buckets = bucketize(appliedCodes);
 
   return (
     <section className="glass mt-8 rounded-xl p-5">
       <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        Coupons
+        {t("title")}
       </h2>
 
-      <form action={action} className="mt-3 flex gap-2">
+      <form
+        id={form.id}
+        onSubmit={onSubmit}
+        action={formAction}
+        noValidate
+        className="mt-3 flex gap-2"
+      >
         <input
           type="text"
-          name="code"
-          placeholder="Promo code"
+          key={code.key}
+          name={code.name}
+          defaultValue={code.initialValue ?? ""}
+          placeholder={t("placeholder")}
+          aria-label={t("placeholder")}
+          aria-invalid={code.errors ? true : undefined}
+          aria-describedby={code.errors ? code.errorId : undefined}
           autoComplete="off"
           className="flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm tracking-widest uppercase outline-none placeholder:normal-case placeholder:tracking-normal focus:border-ring"
         />
@@ -56,13 +73,13 @@ export function CouponForm({
           disabled={pending}
           className="rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
         >
-          {pending ? "Applying…" : "Apply"}
+          {pending ? t("applying") : t("apply")}
         </button>
       </form>
 
-      {state && !state.ok ? (
-        <p className="mt-2 text-xs text-destructive">
-          {state.error}
+      {code.errors ? (
+        <p className="mt-2">
+          <FieldErrors id={code.errorId} errors={code.errors} />
         </p>
       ) : null}
 
@@ -71,7 +88,7 @@ export function CouponForm({
         <ul className="mt-4 space-y-2">
           {buckets.nudges.map(({ code, gift }) => (
             <NudgeTile
-              key={`${code.ruleName}-${gift.productSku}`}
+              key={`${code.ruleName}-${gift.sku}`}
               code={code}
               gift={gift}
             />
@@ -89,7 +106,7 @@ export function CouponForm({
 
       {totalDiscount > 0 ? (
         <div className="mt-4 flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Total discount</span>
+          <span className="text-muted-foreground">{t("totalDiscount")}</span>
           <span className="font-medium tabular-nums text-emerald-700">
             −{formatPrice(totalDiscount, currency)}
           </span>
@@ -135,6 +152,7 @@ function NudgeTile({
   code: AppliedPromotionCode;
   gift: AppliedPromotionCode["freeGifts"][number];
 }) {
+  const t = useTranslations("cart.coupon");
   return (
     <li className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm">
       <p className="font-medium text-sky-900">
@@ -142,18 +160,20 @@ function NudgeTile({
       </p>
       <p className="mt-0.5 text-xs text-sky-800">
         {gift.quantity > 1 ? `${gift.quantity}× ` : ""}
-        <span className="font-mono">{gift.productSku}</span> is yours for free -{" "}
-        {gift.href ? (
-          <Link
-            href={gift.href}
-            className="font-medium underline underline-offset-2 hover:text-sky-700"
-          >
-            add it to your cart
-          </Link>
-        ) : (
-          "add it to your cart"
-        )}
-        .
+        {t.rich("giftNudge", {
+          sku: () => <span className="font-mono">{gift.sku}</span>,
+          add: (chunks) =>
+            gift.href ? (
+              <Link
+                href={gift.href}
+                className="font-medium underline underline-offset-2 hover:text-sky-700"
+              >
+                {chunks}
+              </Link>
+            ) : (
+              chunks
+            ),
+        })}
       </p>
     </li>
   );
@@ -167,6 +187,8 @@ function AppliedTile({
   currency: string | { code: string; symbol?: string; symbolPosition?: string };
 }) {
   const { applyServerCart } = useCartStore();
+  const t = useTranslations("cart.coupon");
+  const tc = useTranslations("common");
   const [removing, startRemove] = useTransition();
   const invalidated = c.invalidatedReason !== "";
   const giftsInCart = c.freeGifts.filter((g) => g.inCart);
@@ -196,15 +218,17 @@ function AppliedTile({
         ) : null}
         {invalidated ? (
           <p className="mt-0.5 text-xs text-amber-700">
-            No longer valid: {c.invalidatedReason}
+            {t("noLongerValid", { reason: c.invalidatedReason })}
           </p>
         ) : null}
         {giftsInCart.length > 0 && !invalidated ? (
           <p className="mt-0.5 text-xs text-emerald-700">
-            Free gift{giftsInCart.length === 1 ? "" : "s"} applied:{" "}
-            {giftsInCart
-              .map((g) => `${g.quantity > 1 ? `${g.quantity}× ` : ""}${g.productSku}`)
-              .join(", ")}
+            {t("giftsApplied", {
+              count: giftsInCart.length,
+              items: giftsInCart
+                .map((g) => `${g.quantity > 1 ? `${g.quantity}× ` : ""}${g.sku}`)
+                .join(", "),
+            })}
           </p>
         ) : null}
       </div>
@@ -216,7 +240,7 @@ function AppliedTile({
         ) : null}
         {!invalidated && c.freeShipping ? (
           <span className="rounded-sm bg-emerald-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-900">
-            Free ship
+            {t("freeShip")}
           </span>
         ) : null}
         {/* Auto rules can't be removed - hide the button rather than offer a no-op */}
@@ -231,9 +255,9 @@ function AppliedTile({
               })
             }
             className="text-xs text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
-            aria-label={`Remove ${c.code}`}
+            aria-label={t("remove", { code: c.code })}
           >
-            {removing ? "Removing…" : "Remove"}
+            {removing ? tc("removing") : tc("remove")}
           </button>
         ) : null}
       </div>

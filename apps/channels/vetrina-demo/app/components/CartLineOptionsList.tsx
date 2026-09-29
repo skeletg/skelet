@@ -1,3 +1,5 @@
+import { useTranslations } from "next-intl";
+
 import { formatPrice, type CurrencyInfo } from "@/app/lib/format";
 import type { CartLineOption } from "@/app/lib/cart/types";
 
@@ -13,6 +15,7 @@ export function CartLineOptionsList({
   currency?: string | CurrencyInfo;
   className?: string;
 }) {
+  const t = useTranslations("common");
   if (options.length === 0) return null;
   return (
     <ul className={className}>
@@ -26,7 +29,7 @@ export function CartLineOptionsList({
               rel="noopener noreferrer"
               className="text-foreground underline underline-offset-2"
             >
-              {o.textValue || "Download"}
+              {o.textValue || t("download")}
             </a>
           ) : (
             <span className="text-foreground">

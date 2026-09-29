@@ -1,11 +1,13 @@
-// Presentational pieces shared between the server-rendered SIMPLE PDP and the client-side ConfigurablePDP. All pure (no
-// hooks, no state), so importing from either a Server or Client Component works
+// Presentational pieces shared between the server-rendered SIMPLE PDP and the client-side ConfigurablePDP. No state, and
+// the only hook is useTranslations, which works on both sides - so importing from either a Server or Client Component works
 
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 import { ArrowUp, Check, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 
 import type { ProductAttributeValue } from "@/app/lib/catalog/read";
+import { renderJsonText } from "@/app/lib/json-text";
 
 // Interactive gallery lives in a "use client" file so the SSR'd server components can
 // still import + render it as a child
@@ -64,11 +66,12 @@ export function AttributeList({
   values: ProductAttributeValue[];
   className?: string;
 }) {
+  const t = useTranslations("product");
   if (values.length === 0) return null;
   return (
     <section className={className}>
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Specifications
+        {t("specifications")}
       </h2>
       <dl className="mt-3 overflow-hidden rounded-xl border border-border/60 text-sm">
         {values.map((av, i) => (
@@ -121,6 +124,8 @@ export function StockBadge({
   inStock: boolean;
   salableQuantity: number | null;
 }) {
+  const t = useTranslations("product");
+  const tc = useTranslations("common");
   return (
     <div className="mt-4 flex items-center gap-2.5 text-sm">
       <span
@@ -136,11 +141,11 @@ export function StockBadge({
           }`}
           aria-hidden="true"
         />
-        {inStock ? "In stock" : "Out of stock"}
+        {inStock ? tc("inStock") : tc("outOfStock")}
       </span>
       {salableQuantity != null && (
         <span className="text-xs text-muted-foreground">
-          {salableQuantity} available
+          {t("available", { count: salableQuantity })}
         </span>
       )}
     </div>
@@ -148,10 +153,11 @@ export function StockBadge({
 }
 
 export function ProductReassurance({ className }: { className?: string }) {
+  const t = useTranslations("product.reassurance");
   const items = [
-    { Icon: Truck, label: "Free shipping", sub: "On qualifying orders" },
-    { Icon: RotateCcw, label: "30-day returns", sub: "Shop with confidence" },
-    { Icon: ShieldCheck, label: "Secure checkout", sub: "Encrypted payment" },
+    { Icon: Truck, label: t("shipping"), sub: t("shippingSub") },
+    { Icon: RotateCcw, label: t("returns"), sub: t("returnsSub") },
+    { Icon: ShieldCheck, label: t("secure"), sub: t("secureSub") },
   ];
   return (
     <ul
@@ -236,48 +242,6 @@ export const optionInputClass =
 // this is the one place on the page that means "you have to fix this"
 export const optionInputInvalidClass =
   "w-full rounded-lg border border-destructive bg-destructive/5 px-3 py-2 text-sm outline-none transition focus:border-destructive focus:ring-2 focus:ring-destructive/15";
-
-// The backend's content fields are typed as the GraphQL `JSON` scalar because they can
-// hold either plain strings or a structured rich-text document
-export function renderJsonText(value: unknown): string | null {
-  if (value == null) return null;
-  if (typeof value === "string") return value.trim() || null;
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  // Seed/admin code wraps plain copy as `{ text, plain }` (both strings, same value) -
-  // return one and don't visit the rest, so we don't render the same sentence twice
-  if (typeof value === "object" && !Array.isArray(value)) {
-    const obj = value as Record<string, unknown>;
-    if (typeof obj.plain === "string") {
-      const s = obj.plain.trim();
-      if (s) return s;
-    }
-    if (typeof obj.text === "string") {
-      const s = obj.text.trim();
-      if (s) return s;
-    }
-  }
-  // Fallback: walk the tree and concatenate every string leaf
-  const parts: string[] = [];
-  const visit = (n: unknown) => {
-    if (n == null) return;
-    if (typeof n === "string") {
-      const s = n.trim();
-      if (s && parts[parts.length - 1] !== s) parts.push(s);
-      return;
-    }
-    if (Array.isArray(n)) {
-      n.forEach(visit);
-      return;
-    }
-    if (typeof n === "object") {
-      Object.values(n as Record<string, unknown>).forEach(visit);
-    }
-  };
-  visit(value);
-  return parts.length ? parts.join(" ") : null;
-}
 
 export function formatAttribute(av: ProductAttributeValue): string {
   if (av.selectedValues.length > 0) {

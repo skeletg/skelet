@@ -79,7 +79,7 @@ describe('DraftOrderCreate', () => {
       expect.objectContaining({
         channelId: 'c1',
         email: 'jane@example.com',
-        lines: [{ productSku: 'TEE-1', quantity: 2 }],
+        lines: [{ sku: 'TEE-1', quantity: 2 }],
         billingAddress: expect.objectContaining({ street1: '1 Main St', countryCode: 'DE' }),
         shippingAddress: expect.objectContaining({ street1: '1 Main St' }),
       }),

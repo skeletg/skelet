@@ -1,4 +1,5 @@
 import { Link } from "@/app/components/LocaleLink";
+import { useTranslations } from "next-intl";
 import { SearchIcon } from "lucide-react";
 
 import type { Block } from "./blocks";
@@ -17,6 +18,9 @@ export function HeroBlock({
   block: Block;
   popularCategories?: HeroChip[];
 }) {
+  const t = useTranslations("cms");
+  const ts = useTranslations("search");
+  const th = useTranslations("home.hero");
   const eyebrow = readString(block.props, "eyebrow");
   const heading = readString(block.props, "heading");
   const subheading = readString(block.props, "subheading");
@@ -101,13 +105,13 @@ export function HeroBlock({
               ].join(" ")}
             >
               <label htmlFor="hero-block-search" className="sr-only">
-                Search products
+                {ts("label")}
               </label>
               <input
                 id="hero-block-search"
                 type="search"
                 name="q"
-                placeholder="Search products, brands, categories…"
+                placeholder={t("searchPlaceholder")}
                 autoComplete="off"
                 className="h-10 min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
               />
@@ -116,7 +120,7 @@ export function HeroBlock({
                 className="flex h-10 shrink-0 items-center gap-2 rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/85"
               >
                 <SearchIcon className="h-4 w-4" aria-hidden="true" />
-                Search
+                {ts("submit")}
               </button>
             </form>
           </div>
@@ -125,7 +129,7 @@ export function HeroBlock({
           <div>
             <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
               <span className={dark ? "text-white/50" : "text-muted-foreground"}>
-                Popular:
+                {th("popular")}
               </span>
               {popularCategories.slice(0, 4).map((c) => (
                 <Link

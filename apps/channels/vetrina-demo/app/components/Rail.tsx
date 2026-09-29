@@ -11,6 +11,7 @@ import {
 } from "react";
 import type { ReactNode, RefObject } from "react";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 // How far the pointer travels before a press counts as a drag rather than a click
 const DRAG_SLOP = 5;
@@ -267,11 +268,12 @@ function Arrow({
   disabled: boolean;
   onClick: () => void;
 }) {
+  const t = useTranslations("rail");
   const Icon = dir === 1 ? ChevronRightIcon : ChevronLeftIcon;
   return (
     <button
       type="button"
-      aria-label={dir === 1 ? "Scroll forward" : "Scroll back"}
+      aria-label={dir === 1 ? t("forward") : t("back")}
       onClick={onClick}
       disabled={disabled}
       className="flex size-10 items-center justify-center rounded-md border border-border bg-background text-foreground transition hover:border-foreground/50 disabled:pointer-events-none disabled:opacity-30"
@@ -284,6 +286,7 @@ function Arrow({
 // Position readout under the cards, in place of the scrollbar
 export function RailDots({ className = "" }: { className?: string }) {
   const { overflows, pages, page, goto } = useRail();
+  const t = useTranslations("rail");
   if (!overflows || pages < 2) return null;
   return (
     <div className={`mt-4 flex items-center justify-center gap-1.5 ${className}`}>
@@ -291,7 +294,7 @@ export function RailDots({ className = "" }: { className?: string }) {
         <button
           key={i}
           type="button"
-          aria-label={`Go to page ${i + 1} of ${pages}`}
+          aria-label={t("goToPage", { page: i + 1, pages })}
           aria-current={i === page ? "true" : undefined}
           onClick={() => goto(i)}
           // Hit area stays finger-sized while the mark itself stays a hairline dot

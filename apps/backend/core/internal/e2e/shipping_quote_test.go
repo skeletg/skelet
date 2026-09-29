@@ -21,7 +21,7 @@ func (h *harness) gqlGuestCart(t *testing.T, ts *httptest.Server, f *store, qty 
 	}
 	cartID := gqlField(t, data, "createGuestCart", "id")
 	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(
-		`mutation { addToCart(cartId: %q, productName: "x", productSku: %q, unitPrice: 1, quantity: %d) { id } }`,
+		`mutation { addToCart(cartId: %q, sku: %q, quantity: %d) { id } }`,
 		cartID, f.Product.SKU, qty)); len(errs) > 0 {
 		t.Fatalf("addToCart: %v", errs)
 	}

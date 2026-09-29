@@ -1,82 +1,69 @@
 "use client";
 
-import { useActionState } from "react";
+import { useTranslations } from "next-intl";
 
 import {
-  FormError,
+  Field,
+  FormErrors,
   FormSuccess,
   buttonPrimary,
-  inputClass,
 } from "@/app/components/account/AccountUI";
-import { changePasswordAction, type AuthResult } from "@/app/lib/auth/actions";
+import { changePasswordAction } from "@/app/lib/auth/actions";
+import { changePasswordSchema } from "@/app/lib/auth/schemas";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
 
 export function PasswordForm() {
-  const [state, formAction, pending] = useActionState<
-    AuthResult | null,
-    FormData
-  >(changePasswordAction, null);
+  const t = useTranslations("account.password");
+  const tf = useTranslations("forms.fields");
+  const tc = useTranslations("common");
+  const { form, fields, formAction, onSubmit, pending, lastResult } = useActionForm(
+    changePasswordAction,
+    changePasswordSchema,
+  );
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      {/* Field can't carry minLength, and password inputs want it. */}
-      <PasswordField
-        label="Current password"
-        name="currentPassword"
+    <form
+      id={form.id}
+      onSubmit={onSubmit}
+      action={formAction}
+      noValidate
+      className="flex flex-col gap-4"
+    >
+      <Field
+        label={t("current")}
+        field={fields.currentPassword}
+        type="password"
+        required
         autoComplete="current-password"
       />
-      <PasswordField
-        label="New password"
-        name="newPassword"
+      <Field
+        label={t("new")}
+        field={fields.newPassword}
+        type="password"
+        required
         autoComplete="new-password"
         minLength={8}
-        hint="At least 8 characters."
+        hint={tf("passwordHint")}
       />
-      <PasswordField
-        label="Confirm new password"
-        name="confirmPassword"
+      <Field
+        label={t("confirm")}
+        field={fields.confirmPassword}
+        type="password"
+        required
         autoComplete="new-password"
         minLength={8}
       />
 
-      {state && !state.ok && <FormError>{state.error}</FormError>}
-      {state?.ok && <FormSuccess>Password updated.</FormSuccess>}
+      <FormErrors errors={form.errors} />
+      {lastResult?.status === "success" && (
+        <FormSuccess>{t("updated")}</FormSuccess>
+      )}
 
       <div className="mt-1">
         <button type="submit" disabled={pending} className={buttonPrimary}>
-          {pending ? "Saving…" : "Update password"}
+          {pending ? tc("saving") : t("submit")}
         </button>
       </div>
     </form>
-  );
-}
-
-function PasswordField({
-  label,
-  name,
-  autoComplete,
-  minLength,
-  hint,
-}: {
-  label: string;
-  name: string;
-  autoComplete: string;
-  minLength?: number;
-  hint?: string;
-}) {
-  return (
-    <label className="flex flex-col gap-1.5 text-sm">
-      <span className="font-medium">{label}</span>
-      <input
-        name={name}
-        type="password"
-        required
-        minLength={minLength}
-        autoComplete={autoComplete}
-        className={`${inputClass} w-full`}
-      />
-      {hint ? (
-        <span className="text-xs text-muted-foreground">{hint}</span>
-      ) : null}
-    </label>
   );
 }

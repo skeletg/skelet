@@ -428,7 +428,7 @@ export function OrderDetail() {
                 {order.lines.map((l) => (
                   <TableRow key={l.id}>
                     <TableCell className="font-medium">
-                      {l.productName}
+                      {l.name}
                       {l.isGift && (
                         <Badge variant="outline" className="ml-2 text-[10px] uppercase tracking-wider">
                           Gift
@@ -438,8 +438,8 @@ export function OrderDetail() {
                         <ul className="mt-1 space-y-0.5 text-xs font-normal text-muted-foreground">
                           {l.components.map((c) => (
                             <li key={c.id}>
-                              {c.quantity} x <span className="text-foreground">{c.productName}</span>{' '}
-                              <code className="font-mono">{c.productSku}</code>
+                              {c.quantity} x <span className="text-foreground">{c.name}</span>{' '}
+                              <code className="font-mono">{c.sku}</code>
                             </li>
                           ))}
                         </ul>
@@ -469,7 +469,7 @@ export function OrderDetail() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <code className="font-mono text-xs text-muted-foreground">{l.productSku}</code>
+                      <code className="font-mono text-xs text-muted-foreground">{l.sku}</code>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{l.quantity}</TableCell>
                     {showMovement && (
@@ -588,7 +588,7 @@ export function OrderDetail() {
                 .sort((a, b) => a.sequence - b.sequence)
                 .map((f) => {
                   const nameOf = (lineId: string) =>
-                    order.lines.find((l) => l.id === lineId)?.productName ?? lineId
+                    order.lines.find((l) => l.id === lineId)?.name ?? lineId
                   return (
                     <div key={f.id} className="rounded-md border p-4 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">

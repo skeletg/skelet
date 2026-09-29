@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { Link } from "@/app/components/LocaleLink";
 
@@ -30,6 +31,8 @@ export function CartSidebar({
   freeShipThreshold?: number;
 }) {
   const { isOpen, open: openCart, close: closeCart } = useCartUI();
+  const t = useTranslations("cart.drawer");
+  const tc = useTranslations("common");
   const { cart, count, pendingRemovals, removeLine, lineNotices, cartNotice } =
     useCartStore();
   const channel = useChannel();
@@ -44,19 +47,19 @@ export function CartSidebar({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={mediaThumb(line.imageUrl, 96)}
-            alt={displayName(line.productName, line.productSku)}
+            alt={displayName(line.name, line.sku)}
             className="size-12 shrink-0 rounded-lg border border-border object-cover"
           loading="lazy" decoding="async" />
         ) : (
           <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-[9px] text-muted-foreground">
-            No image
+            {tc("noImage")}
           </div>
         )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium leading-tight text-foreground">
-            {displayName(line.productName, line.productSku)}
+            {displayName(line.name, line.sku)}
           </p>
-          <p className="text-xs text-muted-foreground">{line.productSku}</p>
+          <p className="text-xs text-muted-foreground">{line.sku}</p>
           <CartLineNotice line={line} currency={currency} />
           {lineNotices[line.id] ? (
             <p role="alert" className="mt-1 text-xs font-medium text-amber-700">
@@ -73,7 +76,7 @@ export function CartSidebar({
                 .sort((a, b) => a.sortOrder - b.sortOrder)
                 .map((c) => (
                   <li key={c.id}>
-                    ↳ {displayName(c.productName, c.productSku)} ×{c.quantity}
+                    ↳ {displayName(c.name, c.sku)} ×{c.quantity}
                   </li>
                 ))}
             </ul>
@@ -92,7 +95,7 @@ export function CartSidebar({
           onClick={() => removeLine(line.id)}
           className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-destructive"
         >
-          Remove
+          {tc("remove")}
         </button>
       </div>
     </li>
@@ -112,7 +115,7 @@ export function CartSidebar({
       <button
         type="button"
         onClick={openCart}
-        aria-label={`Open cart (${count} item${count === 1 ? "" : "s"})`}
+        aria-label={t("open", { count })}
         className="relative flex h-9 w-9 items-center justify-center rounded-md text-foreground transition hover:bg-muted"
       >
         <ShoppingBagIcon />
@@ -127,12 +130,12 @@ export function CartSidebar({
         open={isOpen}
         onOpenChange={(o) => (o ? openCart() : closeCart())}
         side="right"
-        title="Cart"
+        title={t("title")}
         hideTitle
       >
         <header className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="text-base font-semibold tracking-tight">
-            Your cart{" "}
+            {t("yourCart")}{" "}
             <span className="ml-1 text-sm font-normal text-muted-foreground">
               ({count})
             </span>
@@ -147,13 +150,13 @@ export function CartSidebar({
           ) : null}
           {items.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-              <p className="text-sm text-muted-foreground">Your cart is empty.</p>
+              <p className="text-sm text-muted-foreground">{t("empty")}</p>
               <Link
                 href="/products"
                 onClick={closeCart}
                 className="text-sm text-foreground underline underline-offset-2 transition-colors hover:text-signal"
               >
-                Browse products →
+                {t("browse")}
               </Link>
             </div>
           ) : (
@@ -173,7 +176,7 @@ export function CartSidebar({
           {recos.length > 0 && (
             <div className="border-t border-border p-4">
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                You might also need
+                {t("alsoNeed")}
               </p>
               <ul className="space-y-2">
                 {recos.slice(0, 3).map((r) => (
@@ -217,7 +220,7 @@ export function CartSidebar({
             />
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Subtotal
+                {t("subtotal")}
               </span>
               <span className="text-lg font-semibold tabular-nums">
                 {formatPrice(cart.subtotal, currency)}
@@ -230,14 +233,14 @@ export function CartSidebar({
                 onClick={closeCart}
                 className="flex h-10 items-center justify-center rounded-md border border-foreground/25 text-sm font-semibold transition-colors hover:border-foreground"
               >
-                View full cart
+                {t("viewFull")}
               </Link>
               <Link
                 href="/checkout"
                 onClick={closeCart}
                 className="flex h-10 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/85"
               >
-                Checkout
+                {tc("checkout")}
               </Link>
             </div>
           </footer>
