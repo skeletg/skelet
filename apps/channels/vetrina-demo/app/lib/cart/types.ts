@@ -4,8 +4,8 @@ export type CartLineComponent = {
   id: string;
   optionId: string;
   selectionId: string;
-  productSku: string;
-  productName: string;
+  sku: string;
+  name: string;
   unitPrice: number;
   quantity: number;
   sortOrder: number;
@@ -28,8 +28,8 @@ export type CartLineOption = {
 
 export type CartLine = {
   id: string;
-  productName: string;
-  productSku: string;
+  name: string;
+  sku: string;
   imageUrl?: string | null;
   unitPrice: number;
   quantity: number;
@@ -56,7 +56,7 @@ export type AppliedPromotionCode = {
 export type PromotionFreeGift = {
   // Null when the SKU doesn't resolve to a product on the current store
   productId: string | null;
-  productSku: string;
+  sku: string;
   quantity: number;
   inCart: boolean;
   href: string | null;
@@ -64,8 +64,8 @@ export type PromotionFreeGift = {
 
 export type SavedItem = {
   id: string;
-  productSku: string;
-  productName: string;
+  sku: string;
+  name: string;
   imageUrl?: string | null;
   quantity: number;
 };

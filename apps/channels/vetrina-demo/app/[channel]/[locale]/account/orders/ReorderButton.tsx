@@ -40,7 +40,7 @@ export function ReorderButton({ orderId }: { orderId: string }) {
             <ul className="mt-1 list-disc pl-5 text-xs text-muted-foreground">
               {state.skipped.map((s, i) => (
                 <li key={i}>
-                  {s.productName || s.productSku}: {s.reason}
+                  {s.name || s.sku}: {s.reason}
                 </li>
               ))}
             </ul>

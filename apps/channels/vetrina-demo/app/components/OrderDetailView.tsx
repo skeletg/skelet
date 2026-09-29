@@ -103,16 +103,16 @@ export function OrderDetailView({
         </h2>
         <ul className="mt-3 divide-y divide-border">
           {order.lines.map((line) => {
-            const name = displayName(line.productName, line.productSku);
+            const name = displayName(line.name, line.sku);
             // Lines placed against a product with no name fall back to the SKU, so
             // don't print the same string twice
-            const showSku = name !== line.productSku;
+            const showSku = name !== line.sku;
             return (
             <li key={line.id} className="flex items-start gap-3 py-3">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">{name}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {showSku ? `${line.productSku} · ` : ""}
+                  {showSku ? `${line.sku} · ` : ""}
                   {formatPrice(line.unitPrice, order.currencyCode)} ×{" "}
                   {line.quantity}
                 </p>

@@ -58,8 +58,8 @@ export default async function OrderDetailPage({
     .filter((l) => (returnableByLine.get(l.id) ?? 0) > 0)
     .map((l) => ({
       orderLineId: l.id,
-      productName: displayName(l.productName, l.productSku),
-      productSku: l.productSku,
+      name: displayName(l.name, l.sku),
+      sku: l.sku,
       returnableQty: returnableByLine.get(l.id) ?? 0,
     }));
 
@@ -78,8 +78,8 @@ export default async function OrderDetailPage({
               tax: order.taxAmount / 100,
               shipping: order.shippingAmount / 100,
               items: order.lines.map((line) => ({
-                item_id: line.productSku,
-                item_name: displayName(line.productName, line.productSku),
+                item_id: line.sku,
+                item_name: displayName(line.name, line.sku),
                 quantity: line.quantity,
                 price: line.unitPrice / 100,
               })),

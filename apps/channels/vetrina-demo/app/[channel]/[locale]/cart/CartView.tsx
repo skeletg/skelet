@@ -70,7 +70,7 @@ export function CartView({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={mediaThumb(line.imageUrl, 128)}
-            alt={displayName(line.productName, line.productSku)}
+            alt={displayName(line.name, line.sku)}
             className="size-16 shrink-0 rounded-lg border border-border object-cover"
           loading="lazy" decoding="async" />
         ) : (
@@ -80,9 +80,9 @@ export function CartView({
         )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground">
-            {displayName(line.productName, line.productSku)}
+            {displayName(line.name, line.sku)}
           </p>
-          <p className="text-xs text-muted-foreground">{line.productSku}</p>
+          <p className="text-xs text-muted-foreground">{line.sku}</p>
           <CartLineNotice line={line} currency={currency} />
           {lineNotices[line.id] ? (
             <p role="alert" className="mt-1 text-xs font-medium text-amber-700">
@@ -100,7 +100,7 @@ export function CartView({
                 .sort((a, b) => a.sortOrder - b.sortOrder)
                 .map((c) => (
                   <li key={c.id}>
-                    ↳ {displayName(c.productName, c.productSku)} ({c.productSku}) ×{c.quantity}
+                    ↳ {displayName(c.name, c.sku)} ({c.sku}) ×{c.quantity}
                   </li>
                 ))}
             </ul>

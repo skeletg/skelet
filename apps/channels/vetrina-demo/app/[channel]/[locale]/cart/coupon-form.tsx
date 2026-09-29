@@ -88,7 +88,7 @@ export function CouponForm({
         <ul className="mt-4 space-y-2">
           {buckets.nudges.map(({ code, gift }) => (
             <NudgeTile
-              key={`${code.ruleName}-${gift.productSku}`}
+              key={`${code.ruleName}-${gift.sku}`}
               code={code}
               gift={gift}
             />
@@ -161,7 +161,7 @@ function NudgeTile({
       <p className="mt-0.5 text-xs text-sky-800">
         {gift.quantity > 1 ? `${gift.quantity}× ` : ""}
         {t.rich("giftNudge", {
-          sku: () => <span className="font-mono">{gift.productSku}</span>,
+          sku: () => <span className="font-mono">{gift.sku}</span>,
           add: (chunks) =>
             gift.href ? (
               <Link
@@ -226,7 +226,7 @@ function AppliedTile({
             {t("giftsApplied", {
               count: giftsInCart.length,
               items: giftsInCart
-                .map((g) => `${g.quantity > 1 ? `${g.quantity}× ` : ""}${g.productSku}`)
+                .map((g) => `${g.quantity > 1 ? `${g.quantity}× ` : ""}${g.sku}`)
                 .join(", "),
             })}
           </p>

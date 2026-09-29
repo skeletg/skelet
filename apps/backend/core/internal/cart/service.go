@@ -150,11 +150,7 @@ func (s *Service) MoveSavedToCart(ctx context.Context, cartID, savedID uuid.UUID
 	if err != nil || saved.CartID != cart.ID {
 		return Cart{}, apperr.New("SAVED_ITEM_NOT_FOUND", apperr.ClassNotFound, "saved item not found")
 	}
-	if _, err := s.AddToCart(ctx, cart.ID, callerID, AddCartLineInput{
-		ProductSku:  saved.ProductSku,
-		ProductName: saved.ProductName,
-		Quantity:    saved.Quantity,
-	}); err != nil {
+	if _, err := s.AddToCart(ctx, cart.ID, callerID, saved.ProductSku, saved.Quantity); err != nil {
 		return Cart{}, err
 	}
 	if err := s.repo.DeleteSavedItem(ctx, savedID, cart.ID); err != nil {
@@ -209,48 +205,50 @@ func (s *Service) GetCartByIDReadOnly(ctx context.Context, cartID uuid.UUID) (Ca
 }
 
 // Sums quantity on a same-SKU conflict where the incoming unit_price wins - the direct-line-kinds admission check lives in the catalog adapter's ResolveSimplePricing, so the cart stays decoupled and placement inherits the invariant
-func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, input AddCartLineInput) (Cart, error) {
+func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, sku string, quantity float64) (Cart, error) {
+	input := AddCartLineInput{ProductSku: sku, Quantity: quantity} // name and price are filled from the catalog below, never by the caller
 	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
 	if err != nil {
 		return Cart{}, err
 	}
-	if s.products != nil {
-		// Catalog price wins - the mutation still accepts productName and unitPrice for wire compatibility but overwrites both, so a hostile caller can't buy a $25 shirt for a cent; a LineAdding hook may still move it, which is intentional for dynamic-pricing plugins running with operator trust
-		p, err := s.resolvePricing(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID)
-		if err != nil {
-			return Cart{}, fmt.Errorf("resolve pricing for %q: %w", input.ProductSku, err)
-		}
-		input.ProductName = p.ProductName
-		input.UnitPrice = p.UnitPrice
-		// Required-options gate - a plain add validates no options and folds no surcharges, so a REQUIRED-options product must go through AddConfiguredToCart or un-fulfillable under-priced lines reach checkout; fail closed on a resolve error, and count only options visible with NO picks since one hidden behind an unsatisfied visible_if is how a customer legitimately buys without it
-		res, oerr := s.products.ResolveProductOptions(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID)
-		if oerr != nil && !errors.Is(oerr, ErrOptionsUnsupportedKind) {
-			return Cart{}, fmt.Errorf("resolve product options for %q: %w", input.ProductSku, oerr)
-		}
-		if oerr == nil && HasVisiblyRequiredOptions(res) {
-			return Cart{}, ErrProductOptionsRequired
-		}
-		total := input.Quantity // bounds-check the PROSPECTIVE total - the upsert sums into an existing same-SKU line, so adding one more of an at-max product must fail too
-		if lines, lerr := s.repo.ListCartLinesByCart(ctx, cart.ID); lerr == nil {
-			for _, l := range lines {
-				if l.ProductSku == input.ProductSku {
-					if len(l.Options) > 0 { // the plain upsert would sum quantity but reset the price to base while leaving option rows attached - reject rather than corrupt the line
-						return Cart{}, ErrLineConfigured
-					}
-					total += l.Quantity
-					break
+	if s.products == nil { // nothing to price from, and storing the caller's own price is exactly what the catalog lookup exists to prevent
+		return Cart{}, fmt.Errorf("cart: product resolver is not configured")
+	}
+	// Catalog price wins - whatever name and price the caller sent are overwritten, so a hostile caller can't buy a $25 shirt for a cent; a LineAdding hook may still move it, which is intentional for dynamic-pricing plugins running with operator trust
+	p, err := s.resolvePricing(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID)
+	if err != nil {
+		return Cart{}, fmt.Errorf("resolve pricing for %q: %w", input.ProductSku, err)
+	}
+	input.ProductName = p.ProductName
+	input.UnitPrice = p.UnitPrice
+	// Required-options gate - a plain add validates no options and folds no surcharges, so a REQUIRED-options product must go through AddConfiguredToCart or un-fulfillable under-priced lines reach checkout; fail closed on a resolve error, and count only options visible with NO picks since one hidden behind an unsatisfied visible_if is how a customer legitimately buys without it
+	res, oerr := s.products.ResolveProductOptions(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID)
+	if oerr != nil && !errors.Is(oerr, ErrOptionsUnsupportedKind) {
+		return Cart{}, fmt.Errorf("resolve product options for %q: %w", input.ProductSku, oerr)
+	}
+	if oerr == nil && HasVisiblyRequiredOptions(res) {
+		return Cart{}, ErrProductOptionsRequired
+	}
+	total := input.Quantity // bounds-check the PROSPECTIVE total - the upsert sums into an existing same-SKU line, so adding one more of an at-max product must fail too
+	if lines, lerr := s.repo.ListCartLinesByCart(ctx, cart.ID); lerr == nil {
+		for _, l := range lines {
+			if l.ProductSku == input.ProductSku {
+				if len(l.Options) > 0 { // the plain upsert would sum quantity but reset the price to base while leaving option rows attached - reject rather than corrupt the line
+					return Cart{}, ErrLineConfigured
 				}
+				total += l.Quantity
+				break
 			}
 		}
-		if err := validateQtyBounds(p, total); err != nil {
-			return Cart{}, err
-		}
-		if best := pricing.BestTier(p.Tiers, total, nil, ""); best != nil && *best < input.UnitPrice { // quantity break on the SUMMED line quantity, tiers pre-filtered to the caller's group and channel by the adapter - the upsert's incoming-price-wins rule then re-prices the whole line
-			input.UnitPrice = *best
-		}
+	}
+	if err := validateQtyBounds(p, total); err != nil {
+		return Cart{}, err
+	}
+	if best := pricing.BestTier(p.Tiers, total, nil, ""); best != nil && *best < input.UnitPrice { // quantity break on the SUMMED line quantity, tiers pre-filtered to the caller's group and channel by the adapter - the upsert's incoming-price-wins rule then re-prices the whole line
+		input.UnitPrice = *best
 	}
 	unitPrice := input.UnitPrice // the pre-commit hook below may reject the add or mutate these through the pointer fields, and the mutated values flow into the repo upsert
-	quantity := input.Quantity
+	qty := input.Quantity
 	if s.bus != nil {
 		adding := &LineAdding{
 			CartID:      cart.ID,
@@ -259,13 +257,13 @@ func (s *Service) AddToCart(ctx context.Context, cartID uuid.UUID, callerID *uui
 			ProductSku:  input.ProductSku,
 			ProductName: input.ProductName,
 			UnitPrice:   &unitPrice,
-			Quantity:    &quantity,
+			Quantity:    &qty,
 		}
 		if err := s.bus.PublishSync(ctx, adding); err != nil {
 			return Cart{}, fmt.Errorf("add to cart rejected: %w", err)
 		}
 		input.UnitPrice = unitPrice
-		input.Quantity = quantity
+		input.Quantity = qty
 	}
 	line, err := s.repo.UpsertCartLineBySku(ctx, cart.ID, input)
 	if err != nil {
@@ -744,33 +742,35 @@ func (s *Service) findHydratedLine(ctx context.Context, cartID, lineID uuid.UUID
 	return CartLine{}, fmt.Errorf("cart line not found")
 }
 
-func (s *Service) AdminAddToCart(ctx context.Context, cartID uuid.UUID, input AddCartLineInput) (Cart, error) { // price and name still come from the catalog
+func (s *Service) AdminAddToCart(ctx context.Context, cartID uuid.UUID, sku string, quantity float64) (Cart, error) { // price and name come from the catalog, same as the customer path
 	cart, err := s.adminActiveCart(ctx, cartID)
 	if err != nil {
 		return Cart{}, err
 	}
-	if s.products != nil {
-		p, perr := s.resolvePricing(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID)
-		if perr != nil {
-			return Cart{}, fmt.Errorf("resolve pricing for %q: %w", input.ProductSku, perr)
-		}
-		input.ProductName = p.ProductName
-		input.UnitPrice = p.UnitPrice
-		if best := pricing.BestTier(p.Tiers, input.Quantity, nil, ""); best != nil && *best < input.UnitPrice {
-			input.UnitPrice = *best
-		}
-		res, oerr := s.products.ResolveProductOptions(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID) // same gates as the customer path - no plain add for required-options SKUs, no upsert onto a configured line, fail closed on a resolve error, and skip requireds hidden behind an unsatisfied visible_if
-		if oerr != nil && !errors.Is(oerr, ErrOptionsUnsupportedKind) {
-			return Cart{}, fmt.Errorf("resolve product options for %q: %w", input.ProductSku, oerr)
-		}
-		if oerr == nil && HasVisiblyRequiredOptions(res) {
-			return Cart{}, ErrProductOptionsRequired
-		}
-		if lines, lerr := s.repo.ListCartLinesByCart(ctx, cart.ID); lerr == nil {
-			for _, l := range lines {
-				if l.ProductSku == input.ProductSku && len(l.Options) > 0 {
-					return Cart{}, ErrLineConfigured
-				}
+	if s.products == nil {
+		return Cart{}, fmt.Errorf("cart: product resolver is not configured")
+	}
+	input := AddCartLineInput{ProductSku: sku, Quantity: quantity}
+	p, perr := s.resolvePricing(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID)
+	if perr != nil {
+		return Cart{}, fmt.Errorf("resolve pricing for %q: %w", input.ProductSku, perr)
+	}
+	input.ProductName = p.ProductName
+	input.UnitPrice = p.UnitPrice
+	if best := pricing.BestTier(p.Tiers, input.Quantity, nil, ""); best != nil && *best < input.UnitPrice {
+		input.UnitPrice = *best
+	}
+	res, oerr := s.products.ResolveProductOptions(ctx, cart.ChannelID, input.ProductSku, cart.CustomerID) // same gates as the customer path - no plain add for required-options SKUs, no upsert onto a configured line, fail closed on a resolve error, and skip requireds hidden behind an unsatisfied visible_if
+	if oerr != nil && !errors.Is(oerr, ErrOptionsUnsupportedKind) {
+		return Cart{}, fmt.Errorf("resolve product options for %q: %w", input.ProductSku, oerr)
+	}
+	if oerr == nil && HasVisiblyRequiredOptions(res) {
+		return Cart{}, ErrProductOptionsRequired
+	}
+	if lines, lerr := s.repo.ListCartLinesByCart(ctx, cart.ID); lerr == nil {
+		for _, l := range lines {
+			if l.ProductSku == input.ProductSku && len(l.Options) > 0 {
+				return Cart{}, ErrLineConfigured
 			}
 		}
 	}

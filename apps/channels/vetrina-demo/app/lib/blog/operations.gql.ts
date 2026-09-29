@@ -8,7 +8,6 @@ import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-
 export type BlogPostFilter = {
   authorSlug?: string | null | undefined;
   categorySlug?: string | null | undefined;
-  channelId?: string | number | null | undefined;
   tagSlug?: string | null | undefined;
 };
 

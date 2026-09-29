@@ -13,8 +13,8 @@ import { useActionForm } from "@/app/lib/forms/use-action-form";
 
 export type ReturnableItem = {
   orderLineId: string;
-  productName: string;
-  productSku: string;
+  name: string;
+  sku: string;
   returnableQty: number;
 };
 
@@ -68,10 +68,10 @@ export function ReturnRequestForm({
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">
-                    {it.productName}
+                    {it.name}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {t("upTo", { sku: it.productSku, max: it.returnableQty })}
+                    {t("upTo", { sku: it.sku, max: it.returnableQty })}
                   </p>
                 </div>
                 <input
@@ -87,7 +87,7 @@ export function ReturnRequestForm({
                   max={it.returnableQty}
                   step={1}
                   defaultValue={typeof initial === "string" ? initial : 0}
-                  aria-label={t("qtyLabel", { name: it.productName })}
+                  aria-label={t("qtyLabel", { name: it.name })}
                   aria-invalid={qty?.errors ? true : undefined}
                   aria-describedby={qty?.errors ? qty.errorId : undefined}
                   className={`${inputClass} w-20 text-right`}

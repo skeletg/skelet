@@ -67,7 +67,7 @@ export function CartRemovedRow({
     return () => clearTimeout(t);
   }, [pending.token, dismissRemoval, finish, remainingMs]);
 
-  const name = displayName(pending.line.productName, pending.line.productSku);
+  const name = displayName(pending.line.name, pending.line.sku);
   const imgSize = size === "sm" ? "size-12" : "size-14";
   const dur = reduce ? 0 : EXIT_MS;
   // Padding lives inside the collapsing wrapper (not on the parent <li>) so the row's

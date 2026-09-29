@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
@@ -105,9 +104,7 @@ func TestListingPriceAndPublicationArePerChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cart on C: %v", err)
 	}
-	if _, err := h.D.Cart.AddToCart(h.Ctx, cc.ID, nil, cart.AddCartLineInput{
-		ProductSku: a.Product.SKU, Quantity: 1,
-	}); err == nil || !strings.Contains(err.Error(), "not published") {
+	if _, err := h.D.Cart.AddToCart(h.Ctx, cc.ID, nil, a.Product.SKU, 1); err == nil || !strings.Contains(err.Error(), "not published") {
 		t.Errorf("unlisted-channel add = %v, want the not-published refusal", err)
 	}
 	h.Settle(t)
@@ -232,9 +229,7 @@ func TestSalableIsPerChannelLocations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cart on B: %v", err)
 	}
-	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, cart.AddCartLineInput{
-		ProductSku: a.Product.SKU, Quantity: 1,
-	}); err != nil {
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, a.Product.SKU, 1); err != nil {
 		t.Logf("rejected at add-to-cart: %v", err) // the fail-closed add gate saw salable 0 - fine
 	} else if _, err := h.TryPlace(t, b.Channel, c.ID); err == nil {
 		t.Fatal("B sold stock its channel cannot see")

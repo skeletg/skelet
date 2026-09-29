@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
@@ -219,7 +218,7 @@ func TestLineMemosAcrossTwoLines(t *testing.T) {
 		t.Fatalf("cart: %v", err)
 	}
 	for _, sku := range []string{f.Product.SKU, second.SKU} {
-		if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, cart.AddCartLineInput{ProductSku: sku, Quantity: 1}); err != nil {
+		if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, sku, 1); err != nil {
 			t.Fatalf("add %s: %v", sku, err)
 		}
 	}

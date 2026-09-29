@@ -85,13 +85,13 @@ func (r *mutationResolver) Reorder(ctx context.Context, orderID string) (*model1
 		case len(line.Options) > 0:
 			_, addErr = r.CartSvc.AddConfiguredToCart(ctx, cid, &claims.CustomerID, reorderConfiguredInput(line))
 		default:
-			_, addErr = r.CartSvc.AddToCart(ctx, cid, &claims.CustomerID, reorderSimpleInput(line))
+			_, addErr = r.CartSvc.AddToCart(ctx, cid, &claims.CustomerID, line.ProductSku, line.Quantity)
 		}
 		if addErr != nil {
 			skipped = append(skipped, &model1.ReorderSkippedLine{
-				ProductName: line.ProductName,
-				ProductSku:  line.ProductSku,
-				Reason:      "This item could not be re-added (it may be unavailable or have changed).",
+				Name:   line.ProductName,
+				Sku:    line.ProductSku,
+				Reason: "This item could not be re-added (it may be unavailable or have changed).",
 			})
 			continue
 		}
