@@ -79,9 +79,14 @@ func TestFrontGraphQLCheckout(t *testing.T) {
 	}
 	cartID := gqlField(t, data, "createGuestCart", "id")
 
-	// Client-sent name and price are decoration - the server resolves both from the listing
+	// The price comes from the listing alone - the mutation has no way to send one
 	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(
-		`mutation { addToCart(cartId: %q, productName: "spoofed", productSku: %q, unitPrice: 1, quantity: 1) { id } }`,
+		`mutation { addToCart(cartId: %q, sku: %q, quantity: 1, unitPrice: 1) { id } }`,
+		cartID, f.Product.SKU)); len(errs) == 0 {
+		t.Fatal("addToCart accepted a client price")
+	}
+	if _, errs := h.gqlPost(t, ts, chID, fmt.Sprintf(
+		`mutation { addToCart(cartId: %q, sku: %q, quantity: 1) { id } }`,
 		cartID, f.Product.SKU)); len(errs) > 0 {
 		t.Fatalf("addToCart: %v", errs)
 	}

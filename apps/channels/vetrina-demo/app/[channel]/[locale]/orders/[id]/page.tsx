@@ -65,8 +65,8 @@ export default async function GuestOrderPage({
               tax: order.taxAmount / 100,
               shipping: order.shippingAmount / 100,
               items: order.lines.map((line) => ({
-                item_id: line.productSku,
-                item_name: displayName(line.productName, line.productSku),
+                item_id: line.sku,
+                item_name: displayName(line.name, line.sku),
                 quantity: line.quantity,
                 price: line.unitPrice / 100,
               })),

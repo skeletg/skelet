@@ -10,8 +10,8 @@ import {
 
 export type ReturnableItem = {
   orderLineId: string;
-  productName: string;
-  productSku: string;
+  name: string;
+  sku: string;
   returnableQty: number;
 };
 
@@ -46,9 +46,9 @@ export function ReturnRequestForm({
             className="flex items-center justify-between gap-3 py-3"
           >
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{it.productName}</p>
+              <p className="truncate text-sm font-medium">{it.name}</p>
               <p className="text-xs text-muted-foreground">
-                {it.productSku} · up to {it.returnableQty}
+                {it.sku} · up to {it.returnableQty}
               </p>
             </div>
             <input
@@ -58,7 +58,7 @@ export function ReturnRequestForm({
               max={it.returnableQty}
               step={1}
               defaultValue={0}
-              aria-label={`Return quantity for ${it.productName}`}
+              aria-label={`Return quantity for ${it.name}`}
               className={`${inputClass} w-20 text-right`}
             />
           </li>

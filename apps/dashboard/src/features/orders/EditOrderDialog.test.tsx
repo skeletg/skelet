@@ -7,8 +7,8 @@ import { EditOrderDocument, OrderDocument } from './Orders.gql'
 const order = {
   id: 'o1',
   lines: [
-    { id: 'l1', productName: 'Tee', productSku: 'TEE-1', quantity: 2 },
-    { id: 'l2', productName: 'Mug', productSku: 'MUG-1', quantity: 1 },
+    { id: 'l1', name: 'Tee', sku: 'TEE-1', quantity: 2 },
+    { id: 'l2', name: 'Mug', sku: 'MUG-1', quantity: 1 },
   ],
 } as never
 
@@ -42,7 +42,7 @@ describe('EditOrderDialog', () => {
       orderId: 'o1',
       updateLines: [{ orderLineId: 'l1', quantity: 3 }],
       removeLines: ['l2'],
-      addLines: [{ productSku: 'CAP-9', quantity: 1 }],
+      addLines: [{ sku: 'CAP-9', quantity: 1 }],
     })
   })
 })
