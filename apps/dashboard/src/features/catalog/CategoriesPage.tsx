@@ -188,7 +188,6 @@ export function CategoriesPage() {
   // Header drives the tree filter: CHANNEL shows only categories listed on the active store, GLOBAL the full
   // tree - structural edits (slug, parent, position) stay global-only, the tree just hides what the store lacks
   const { isGlobal } = useConfigScope()
-  const canEditScope = canManage && isGlobal
   // Keep the tree query locale-agnostic: Apollo normalises Category by id, so passing different locales for one
   // id would overwrite the cached `name` across views - the server falls back through locales anyway, so the
   // tree always shows a real name when one exists in any translation
@@ -343,8 +342,8 @@ export function CategoriesPage() {
                 variant="outline"
                 className="h-7 gap-1 px-2 text-xs"
                 onClick={() => navigate('/categories/new')}
-                disabled={!canEditScope}
-                title={canEditScope ? undefined : 'Switch the header to GLOBAL to add a category.'}
+                // Allowed in CHANNEL scope too - the new category starts as a global draft, listed on the active channel
+                title={isGlobal ? undefined : 'Created here, it is also listed on this channel.'}
               >
                 <PlusIcon className="size-3.5" />
                 New
