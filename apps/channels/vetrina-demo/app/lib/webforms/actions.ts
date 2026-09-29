@@ -10,8 +10,6 @@ export type WebFormFile = {
   fieldKey: string;
   objectKey: string;
   name: string;
-  size?: number;
-  mimeType?: string;
 };
 
 export type WebFormSubmitResult = {

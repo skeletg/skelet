@@ -5201,6 +5201,13 @@ type UpdateURLRewriteInput struct {
 	Description  *string `json:"description,omitempty"`
 }
 
+type UpdateWebFormInput struct {
+	Name     string `json:"name"`
+	Status   string `json:"status"`
+	Fields   any    `json:"fields"`
+	Settings any    `json:"settings"`
+}
+
 type UpdateWebhookInput struct {
 	ID            string                `json:"id"`
 	Name          *string               `json:"name,omitempty"`
