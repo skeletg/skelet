@@ -25,6 +25,7 @@ import {
   LexicalRichText,
   lexicalHasContent,
   lexicalPlainText,
+  lexicalSummary,
 } from "@/app/lib/lexical-render";
 
 export async function generateMetadata(
@@ -37,7 +38,11 @@ export async function generateMetadata(
     return { title: t("postNotFound") };
   }
   const title = displayName(post.content?.metaTitle ?? post.content?.title, post.slug);
-  const description = post.content?.metaDescription ?? undefined;
+  const description =
+    post.content?.metaDescription ||
+    lexicalSummary(post.content?.excerpt) ||
+    lexicalSummary(post.content?.body) ||
+    undefined;
   const href = blogPostHref(post);
   return {
     title,
