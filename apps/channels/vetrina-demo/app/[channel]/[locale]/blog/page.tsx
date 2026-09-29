@@ -2,6 +2,7 @@ import { Link } from "@/app/components/LocaleLink";
 import { useTranslations } from "next-intl";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
+import { localizedAlternates } from "@/app/lib/locale/alternates";
 
 import { BlogPostList } from "@/app/components/BlogPostList";
 import { BlogTaxonomyChip } from "@/app/components/BlogTaxonomyChip";
@@ -33,6 +34,7 @@ export async function generateMetadata({
   return {
     title: q ? t("searchTitle", { query: q }) : t("title"),
     robots: q ? { index: false, follow: false } : undefined,
+    alternates: q ? undefined : await localizedAlternates("/blog"),
   };
 }
 
