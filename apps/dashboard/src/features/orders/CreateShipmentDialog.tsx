@@ -56,13 +56,13 @@ function CreateShipmentForm({ order, onClose }: { order: OrderData; onClose: () 
                   <div className="flex items-center gap-3">
                     <form.Field name={`lines[${i}].checked`}>
                       {(f) => (
-                        <Checkbox aria-label={`Ship ${line?.productName ?? 'line'}`} checked={f.state.value} onCheckedChange={(v) => f.handleChange(!!v)} />
+                        <Checkbox aria-label={`Ship ${line?.name ?? 'line'}`} checked={f.state.value} onCheckedChange={(v) => f.handleChange(!!v)} />
                       )}
                     </form.Field>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">{line?.productName}</div>
+                      <div className="truncate text-sm font-medium">{line?.name}</div>
                       <div className="font-mono text-[10px] text-muted-foreground">
-                        {line?.productSku} · {row.remaining} unshipped
+                        {line?.sku} · {row.remaining} unshipped
                       </div>
                     </div>
                     <form.Field name={`lines[${i}].quantity`}>
@@ -72,7 +72,7 @@ function CreateShipmentForm({ order, onClose }: { order: OrderData; onClose: () 
                           min={0}
                           max={row.remaining}
                           step="any"
-                          aria-label={`${line?.productName ?? 'Line'} quantity`}
+                          aria-label={`${line?.name ?? 'Line'} quantity`}
                           value={f.state.value}
                           disabled={!row.checked}
                           onChange={(e) => f.handleChange(e.target.value)}

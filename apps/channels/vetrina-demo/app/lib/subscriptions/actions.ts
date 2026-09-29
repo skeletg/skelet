@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateAccount } from "@/app/lib/revalidate";
 import { redirect } from "next/navigation";
 
 import { gqlFetch } from "@/app/lib/graphql";
@@ -23,7 +23,7 @@ export async function cancelSubscriptionAction(formData: FormData): Promise<void
     console.error("subscription cancel failed:", err);
     ok = false;
   }
-  revalidatePath(PAGE);
+  revalidateAccount();
   redirect(ok ? `${PAGE}?done=canceled` : `${PAGE}?error=cancel`);
 }
 
@@ -44,6 +44,6 @@ export async function setSubscriptionPaymentMethodAction(
     console.error("subscription card change failed:", err);
     ok = false;
   }
-  revalidatePath(PAGE);
+  revalidateAccount();
   redirect(ok ? `${PAGE}?done=card` : `${PAGE}?error=card`);
 }

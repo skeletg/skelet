@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 
 export function AccountPageHeader({
@@ -129,46 +130,108 @@ export function AuthCard({
   );
 }
 
+// The slice of a Conform FieldMetadata that Field reads - structural so this file, which server components import too,
+// never pulls @conform-to/react (and its React context) into a server bundle
+export type FieldMeta = {
+  id: string;
+  name: string;
+  key?: string;
+  initialValue?: unknown;
+  errors?: string[];
+  errorId: string;
+  descriptionId: string;
+};
+
 export function Field({
   label,
   name,
+  field,
   type = "text",
   required,
   defaultValue,
   autoComplete,
   maxLength,
+  minLength,
   placeholder,
   hint,
   className = "",
 }: {
   label: string;
-  name: string;
+  // Either a plain name, or a Conform field that brings its own name, value and errors
+  name?: string;
+  field?: FieldMeta;
   type?: string;
   required?: boolean;
   defaultValue?: string;
   autoComplete?: string;
   maxLength?: number;
+  minLength?: number;
   placeholder?: string;
   hint?: string;
   className?: string;
 }) {
+  // The label names the input and nothing else - hint and errors sit outside it and are linked by aria-describedby,
+  // or a screen reader would read "Password At least 8 characters." as the field's name
+  const autoId = useId();
+  const id = field?.id ?? autoId;
+  const hintId = field?.descriptionId ?? `${id}-hint`;
+  const errors = field?.errors?.length ? field.errors : null;
+  const describedBy =
+    [hint ? hintId : null, errors ? field!.errorId : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
+  // A Conform field takes its value from the form - the initial one, then whatever came back from a failed submit
+  const value = field
+    ? typeof field.initialValue === "string"
+      ? field.initialValue
+      : undefined
+    : defaultValue;
   return (
-    <label className={`flex flex-col gap-1.5 text-sm ${className}`}>
-      <span className="font-medium">{label}</span>
+    <div className={`flex flex-col gap-1.5 text-sm ${className}`}>
+      <label htmlFor={id} className="font-medium">
+        {label}
+      </label>
       <input
-        name={name}
+        key={field?.key}
+        id={id}
+        name={field?.name ?? name}
         type={type}
         required={required}
-        defaultValue={defaultValue}
+        defaultValue={value}
         autoComplete={autoComplete}
         maxLength={maxLength}
+        minLength={minLength}
         placeholder={placeholder}
-        className={`${inputClass} w-full`}
+        aria-invalid={errors ? true : undefined}
+        aria-describedby={describedBy}
+        className={`${inputClass} w-full ${errors ? "border-red-400" : ""}`}
       />
       {hint ? (
-        <span className="text-xs text-muted-foreground">{hint}</span>
+        <span id={hintId} className="text-xs text-muted-foreground">
+          {hint}
+        </span>
       ) : null}
-    </label>
+      {errors ? <FieldErrors id={field!.errorId} errors={errors} /> : null}
+    </div>
+  );
+}
+
+// Zod messages are forms.errors keys; backend text isn't, and shows as sent
+export function useErrorText() {
+  const t = useTranslations("forms.errors");
+  // The one untyped lookup: an action's message is only known at runtime, and t.has is what vets it
+  return (msg: string) => {
+    const key = msg as Parameters<typeof t>[0];
+    return t.has(key) ? t(key) : msg;
+  };
+}
+
+export function FieldErrors({ id, errors }: { id?: string; errors: string[] }) {
+  const text = useErrorText();
+  return (
+    <span id={id} className="text-xs text-red-700">
+      {text(errors[0])}
+    </span>
   );
 }
 
@@ -181,6 +244,13 @@ export function FormError({ children }: { children: ReactNode }) {
       {children}
     </p>
   );
+}
+
+// A Conform form's form-level errors (backend failures), translated when they are keys
+export function FormErrors({ errors }: { errors?: string[] }) {
+  const text = useErrorText();
+  if (!errors?.length) return null;
+  return <FormError>{text(errors[0])}</FormError>;
 }
 
 export function FormSuccess({ children }: { children: ReactNode }) {

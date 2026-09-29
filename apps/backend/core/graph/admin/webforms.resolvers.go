@@ -27,7 +27,7 @@ func (r *mutationResolver) CreateWebForm(ctx context.Context, channelID string, 
 	return webFormToModel(f, 0), nil
 }
 
-func (r *mutationResolver) UpdateWebForm(ctx context.Context, id string, input model.SaveWebFormInput) (*model.WebForm, error) {
+func (r *mutationResolver) UpdateWebForm(ctx context.Context, id string, input model.UpdateWebFormInput) (*model.WebForm, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "webforms.manage"); err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (r *mutationResolver) UpdateWebForm(ctx context.Context, id string, input m
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "webforms.manage", existing.ChannelID, nil); err != nil {
 		return nil, err
 	}
-	in, err := saveWebFormInput(input)
+	in, err := saveWebFormInput(model.SaveWebFormInput{Name: input.Name, Status: input.Status, Fields: input.Fields, Settings: input.Settings})
 	if err != nil {
 		return nil, err
 	}

@@ -46,7 +46,7 @@ mutation CreateWebForm($channelId: ID!, $input: SaveWebFormInput!) {
   }
 }
 
-mutation UpdateWebForm($id: ID!, $input: SaveWebFormInput!) {
+mutation UpdateWebForm($id: ID!, $input: UpdateWebFormInput!) {
   updateWebForm(id: $id, input: $input) {
     ...WebFormFields
   }

@@ -129,11 +129,10 @@ query Product($id: ID!) {
       width
       height
     }
+    # Only what the Open Graph tags read - the Product query sits near the front surface's complexity cap
     ogImage {
-      id
       url
       altText
-      mimeType
       width
       height
     }
@@ -249,12 +248,8 @@ query Product($id: ID!) {
           price
           defaultCurrencyCode
           mainImage {
-            id
             url
             altText
-            mimeType
-            width
-            height
           }
         }
       }
@@ -279,12 +274,8 @@ query Product($id: ID!) {
         quantityStep
         quantityDecimals
         mainImage {
-          id
           url
           altText
-          mimeType
-          width
-          height
         }
         # Member custom options - the grouped PDP renders them inline so a
         # member with (required) options is still configurable and addable

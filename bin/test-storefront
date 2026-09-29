@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Browser tests for a storefront: bin/test-storefront [name] [playwright args] - name optional if there's only one
+# Runs Playwright in Microsoft's image inside the storefront dev container's network namespace, so the host
+# needs no Node and no browser. The image tag comes from the storefront's @playwright/test pin - the runner and the
+# browsers it drives are released together and refuse to talk across versions
+# Writes real customers, addresses and questions to the dev database - every run signs up fresh throwaway accounts
+set -euo pipefail
+cd "$(dirname "$(dirname "$0")")"
+. bin/_lib
+
+name=""
+if [ -n "${1:-}" ] && [ -d "apps/channels/$1" ]; then
+    name="$1"; shift
+else
+    for sf in apps/channels/*/playwright.config.ts; do
+        [ -f "$sf" ] || continue
+        if [ -n "$name" ]; then
+            echo "Multiple storefronts have browser tests - name one: bin/test-storefront <name>" >&2
+            exit 2
+        fi
+        name="$(basename "$(dirname "$sf")")"
+    done
+fi
+dir="apps/channels/$name"
+if [ -z "$name" ] || [ ! -f "$dir/playwright.config.ts" ]; then
+    echo "No storefront ${name:+\"$name\" }with a playwright.config.ts under apps/channels/." >&2
+    exit 1
+fi
+
+version=$(grep -oE '"@playwright/test":[[:space:]]*"[0-9][0-9.]*"' "$dir/package.json" | grep -oE '[0-9]+(\.[0-9]+)+' || true)
+[ -n "$version" ] || { echo "$dir/package.json has no exact @playwright/test pin" >&2; exit 1; }
+
+container=$(docker compose ps -q "$name" 2>/dev/null || true)
+if [ -z "$container" ] || [ "$(docker inspect -f '{{.State.Running}}' "$container")" != true ]; then
+    echo "$name isn't running - start the stack with ./skelet up" >&2
+    exit 1
+fi
+
+tty_flag=()
+[ -t 0 ] && tty_flag=(-it)
+
+# --volumes-from brings the source bind mount AND the container's node_modules volume, so the specs resolve
+# @playwright/test from the tree the dev server uses. HOME is somewhere the mapped uid can write
+# --network container: shares the storefront's own network namespace, so the browser reaches it as localhost - next dev
+# serves /_next chunks only to localhost (and allowedDevOrigins), and under any other host the page never hydrated
+exec docker run --rm "${tty_flag[@]}" "${USER_FLAG[@]}" \
+    -u "${SKELET_UID}:${SKELET_GID}" -e HOME=/tmp -e CI="${CI:-}" \
+    -e E2E_BASE_URL="${E2E_BASE_URL:-http://localhost:3000}" \
+    --network "container:$container" --volumes-from "$container" --ipc=host \
+    -w /var/www/storefront \
+    "mcr.microsoft.com/playwright:v${version}-noble" \
+    node node_modules/@playwright/test/cli.js test "$@"

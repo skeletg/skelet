@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useActionState } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 
 import { addGroupedToCart } from "@/app/lib/cart/actions";
@@ -8,11 +9,13 @@ import { displayName } from "@/app/lib/display";
 import { productHref } from "@/app/lib/entity-href";
 import { formatPrice } from "@/app/lib/format";
 import type { GroupedMember, ProductDetail } from "@/app/lib/catalog/read";
-import { CompareButton } from "@/app/components/CompareButton";
-import { RatingStars } from "@/app/components/RatingStars";
-import { WishlistButton } from "@/app/components/WishlistButton";
 import { QtySelector } from "@/app/components/QtySelector";
-import { deriveQtyBounds, type QtyBounds } from "@/app/components/qty";
+import {
+  deriveQtyBounds,
+  floorQty,
+  snapQty,
+  type QtyBounds,
+} from "@/app/components/qty";
 import { RequiredFlag } from "./RequiredFlag";
 import { MissingOptionLinks } from "./MissingOptionLinks";
 import { jumpToOption } from "./focus-intent";
@@ -20,24 +23,26 @@ import { jumpToOption } from "./focus-intent";
 const GROUPED_ITEMS_ANCHOR = "grouped-items";
 
 const memberAnchorId = (memberId: string) => `grouped-member-${memberId}`;
-import { AddToCartButton } from "./AddToCartButton";
-import { StickyBuyRow } from "./StickyBuyRow";
-import { AddToCartFeedback } from "./AddToCartFeedback";
-import { OptionControl, useConfiguredOptions } from "./ProductOptions";
+import { AddToCartButton } from "@/app/components/product/AddToCartButton";
+import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
+import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";
+import { OptionControl } from "./ProductOptions";
+import { useConfiguredOptions } from "./useConfiguredOptions";
 import {
   AttributeList,
   Description,
-  ProductGallery,
-  ProductReassurance,
   optionAnchorId,
   SelectionHint,
   StockBadge,
 } from "./parts";
+import { PdpBuyBox, PdpMetaRow, PdpShell } from "./pdp-shell";
 
 const FORM_ID = "grouped-add-form";
 
 export function GroupedPDP({ product }: { product: ProductDetail }) {
   const [addState, formAction] = useActionState(addGroupedToCart, null);
+  const t = useTranslations("product.pdp");
+  const tp = useTranslations("product");
   const members = useMemo(
     () =>
       [...product.groupedMembers].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -123,52 +128,10 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
   };
 
   return (
-    <div className="mt-6 grid grid-cols-1 gap-10 md:grid-cols-2 md:items-start">
-      {/* Source order gives phones the name first; md+ placement restores the columns */}
-      <div className="md:col-start-2 md:row-start-1">
-        {product.primaryCategory && (
-          <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-signal">
-            {displayName(
-              product.primaryCategory.name,
-              product.primaryCategory.slug,
-            )}
-          </p>
-        )}
-        <h1 className="mt-1 text-3xl font-extrabold tracking-tight">
-          {heading}
-        </h1>
-      </div>
-      <div className="md:col-start-1 md:row-start-1 md:row-span-2 md:sticky md:top-28 md:self-start">
-        <ProductGallery
-          media={product.media}
-          fallback={product.mainImage}
-          alt={heading}
-          morphFromProductId={product.id}
-        />
-      </div>
+    <PdpShell product={product} heading={heading}>
+      <PdpMetaRow product={product} />
 
-      <div className="md:col-start-2 md:row-start-2">
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          {product.reviewAggregates &&
-            product.reviewAggregates.count > 0 &&
-            product.reviewAggregates.overallAverage != null && (
-              <a
-                href="#reviews"
-                className="inline-flex items-center gap-1.5 hover:underline"
-              >
-                <RatingStars value={product.reviewAggregates.overallAverage} />
-                <span className="text-sm text-muted-foreground">
-                  {product.reviewAggregates.overallAverage.toFixed(1)} (
-                  {product.reviewAggregates.count})
-                </span>
-              </a>
-            )}
-          <p className="text-sm text-muted-foreground">SKU {product.sku}</p>
-          <WishlistButton productId={product.id} size="sm" />
-          <CompareButton productId={product.id} />
-        </div>
-
-        <div className="glass mt-5 rounded-xl p-6">
+      <PdpBuyBox>
         {memberPrices.length > 0 ? (
           <>
             <p className="text-2xl font-bold tracking-tight">
@@ -181,7 +144,7 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
               )}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Each item is priced and added separately
+              {t("pricedSeparately")}
             </p>
           </>
         ) : (
@@ -197,7 +160,7 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
 
         <section className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            What&rsquo;s included
+            {t("included")}
           </h2>
           <RequiredFlag
             active={attempted && totalQty === 0}
@@ -225,13 +188,14 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
 
         <section className="mt-6 rounded-xl border border-border/60 bg-muted/30 p-4 text-sm">
           {totalQty === 0 ? (
-            <p className="text-muted-foreground">No items selected.</p>
+            <p className="text-muted-foreground">{t("noneSelected")}</p>
           ) : (
             <p className="text-foreground">
-              <span className="font-medium">{totalQty}</span> item
-              {totalQty === 1 ? "" : "s"} across{" "}
-              <span className="font-medium">{totalMembers}</span> product
-              {totalMembers === 1 ? "" : "s"}
+              {t.rich("selectedSummary", {
+                items: totalQty,
+                products: totalMembers,
+                b: (chunks) => <span className="font-medium">{chunks}</span>,
+              })}
             </p>
           )}
         </section>
@@ -250,7 +214,7 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
               }}
               className="w-full"
             >
-              {totalQty === 0 ? "Pick at least one" : "Add selected to cart"}
+              {totalQty === 0 ? t("pickAtLeastOne") : t("addSelected")}
             </AddToCartButton>
           }
         >
@@ -268,57 +232,40 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
             }}
             className="flex-1"
           >
-            {totalQty === 0 ? "Pick at least one" : "Add selected to cart"}
+            {totalQty === 0 ? t("pickAtLeastOne") : t("addSelected")}
           </AddToCartButton>
         </form>
         </StickyBuyRow>
         <AddToCartFeedback state={addState} />
         {attempted && totalQty === 0 ? (
           <SelectionHint key={attemptSeq}>
-            Choose at least one item from{" "}
-            <MissingOptionLinks
-              items={[{ id: GROUPED_ITEMS_ANCHOR, label: "what's included" }]}
-            />
+            {t.rich("chooseAtLeastOne", {
+              links: () => (
+                <MissingOptionLinks
+                  items={[{ id: GROUPED_ITEMS_ANCHOR, label: t("whatsIncluded") }]}
+                />
+              ),
+            })}
           </SelectionHint>
         ) : null}
 
-        <ProductReassurance className="mt-5 border-t border-border pt-4" />
-        </div>
+      </PdpBuyBox>
 
-        <Description
-          label="Summary"
-          value={product.shortDescription}
-          className="mt-6"
-        />
+      <Description
+        label={tp("summary")}
+        value={product.shortDescription}
+        className="mt-6"
+      />
 
-        <Description
-          label="Description"
-          value={product.description}
-          className="mt-8"
-        />
+      <Description
+        label={tp("description")}
+        value={product.description}
+        className="mt-8"
+      />
 
-        <AttributeList values={product.attributeValues} className="mt-8" />
-      </div>
-    </div>
+      <AttributeList values={product.attributeValues} className="mt-8" />
+    </PdpShell>
   );
-}
-
-function roundTo(n: number, decimals: number): number {
-  if (decimals <= 0) return Math.round(n);
-  const f = Math.pow(10, decimals);
-  return Math.round(n * f) / f;
-}
-
-function floorQty(b: QtyBounds): number {
-  const step = b.step > 0 ? b.step : 1;
-  return roundTo(Math.ceil((b.min ?? step) / step) * step, b.decimals);
-}
-
-function snapQty(n: number, b: QtyBounds): number {
-  if (n <= 0) return 0;
-  const step = b.step > 0 ? b.step : 1;
-  const snapped = roundTo(Math.round(n / step) * step, b.decimals);
-  return Math.min(Math.max(snapped, floorQty(b)), b.max ?? Infinity);
 }
 
 function GroupedRow({
@@ -338,6 +285,8 @@ function GroupedRow({
 }) {
   const p = member.member;
   const hasOptions = p.options.length > 0;
+  const t = useTranslations("product.pdp");
+  const tc = useTranslations("common");
   const opts = useConfiguredOptions(p.options, {
     defaultPrice: p.defaultPrice,
     effectivePrice: p.price ?? p.defaultPrice,
@@ -366,7 +315,6 @@ function GroupedRow({
           memberId: p.id,
           productSku: p.sku,
           productName: displayName(p.name, p.sku),
-          unitPrice: p.defaultPrice,
           quantity: effectiveQty,
           hasOptions,
           options: opts.payload,
@@ -395,8 +343,8 @@ function GroupedRow({
           </Link>
           <p className="text-xs text-muted-foreground">
             {formatPrice(opts.configuredTotal, p.defaultCurrencyCode)}
-            {opts.optionsDelta !== 0 ? " configured" : ""} ·{" "}
-            {p.inStock ? "In stock" : "Out of stock"}
+            {opts.optionsDelta !== 0 ? t("configured") : ""} ·{" "}
+            {p.inStock ? tc("inStock") : tc("outOfStock")}
           </p>
         </div>
         {/* min=0 so a row can be dialed out - the real floor lives in
@@ -452,12 +400,12 @@ function GroupedRow({
           ))}
           {qtyLocked ? (
             <p className="text-xs text-muted-foreground">
-              Quantity {opts.forcedQty} - set by your selection
+              {t("qtyLocked", { qty: opts.forcedQty ?? 0 })}
             </p>
           ) : null}
           {opts.forcedQtyConflict ? (
             <p role="alert" className="text-xs font-medium text-red-600 dark:text-red-400">
-              These choices set different fixed quantities - keep only one of them.
+              {t("qtyConflict")}
             </p>
           ) : null}
           {/* Quiet note until an add is blocked on it, then the same
@@ -465,15 +413,20 @@ function GroupedRow({
               option state so they clear the instant the shopper picks */}
           {opts.missingRequired.length === 0 ? null : attempted ? (
             <SelectionHint key={attemptSeq}>
-              Pick <MissingOptionLinks items={opts.missingRequiredItems} /> for
-              this item
+              {t.rich("pickForItem", {
+                links: () => <MissingOptionLinks items={opts.missingRequiredItems} />,
+              })}
             </SelectionHint>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Required option{opts.missingRequired.length > 1 ? "s" : ""}:{" "}
-              <span className="text-foreground">
-                {opts.missingRequired.join(", ")}
-              </span>
+              {t.rich("requiredList", {
+                count: opts.missingRequired.length,
+                names: () => (
+                  <span className="text-foreground">
+                    {opts.missingRequired.join(", ")}
+                  </span>
+                ),
+              })}
             </p>
           )}
         </div>

@@ -136,23 +136,23 @@ type ComplexityRoot struct {
 	}
 
 	AdminCartLine struct {
-		Components  func(childComplexity int) int
-		ID          func(childComplexity int) int
-		IsSimple    func(childComplexity int) int
-		Options     func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
-		Quantity    func(childComplexity int) int
-		TotalPrice  func(childComplexity int) int
-		UnitPrice   func(childComplexity int) int
+		Components func(childComplexity int) int
+		ID         func(childComplexity int) int
+		IsSimple   func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Options    func(childComplexity int) int
+		Quantity   func(childComplexity int) int
+		Sku        func(childComplexity int) int
+		TotalPrice func(childComplexity int) int
+		UnitPrice  func(childComplexity int) int
 	}
 
 	AdminCartLineComponent struct {
-		ID          func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
-		Quantity    func(childComplexity int) int
-		UnitPrice   func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Quantity  func(childComplexity int) int
+		Sku       func(childComplexity int) int
+		UnitPrice func(childComplexity int) int
 	}
 
 	AdminCartLineOption struct {
@@ -1097,10 +1097,10 @@ type ComplexityRoot struct {
 	}
 
 	CreditMemoLine struct {
+		Name        func(childComplexity int) int
 		OrderLineID func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
 		Quantity    func(childComplexity int) int
+		Sku         func(childComplexity int) int
 		TotalAmount func(childComplexity int) int
 		UnitAmount  func(childComplexity int) int
 	}
@@ -2151,7 +2151,7 @@ type ComplexityRoot struct {
 		AdjustLoyaltyPoints               func(childComplexity int, customerID string, points int32, reason string) int
 		AdjustStoreCredit                 func(childComplexity int, customerID string, amountCents int32, reason string) int
 		AdminAddAddress                   func(childComplexity int, customerID string, input model.AddressInput) int
-		AdminAddCartLine                  func(childComplexity int, cartID string, productSku string, quantity float64, options []*model.AdminCartLineOptionInput) int
+		AdminAddCartLine                  func(childComplexity int, cartID string, sku string, quantity float64, options []*model.AdminCartLineOptionInput) int
 		AdminClearCart                    func(childComplexity int, cartID string) int
 		AdminCreateCart                   func(childComplexity int, channelID string, customerID *string) int
 		AdminCreateCustomer               func(childComplexity int, input model.AdminCreateCustomerInput) int
@@ -2569,7 +2569,7 @@ type ComplexityRoot struct {
 		UpdateSignupForm                  func(childComplexity int, id string, input model.SaveSignupFormInput) int
 		UpdateTaxRule                     func(childComplexity int, input model.UpdateTaxRuleInput) int
 		UpdateURLRewrite                  func(childComplexity int, input model.UpdateURLRewriteInput) int
-		UpdateWebForm                     func(childComplexity int, id string, input model.SaveWebFormInput) int
+		UpdateWebForm                     func(childComplexity int, id string, input model.UpdateWebFormInput) int
 		UpdateWebhook                     func(childComplexity int, input model.UpdateWebhookInput) int
 		UpdateWebhookJob                  func(childComplexity int, input model.UpdateWebhookJobInput) int
 		UpsertBlogAuthorContent           func(childComplexity int, input model.UpsertBlogAuthorContentInput) int
@@ -2657,23 +2657,23 @@ type ComplexityRoot struct {
 	}
 
 	OrderLine struct {
-		Components  func(childComplexity int) int
-		ID          func(childComplexity int) int
-		IsGift      func(childComplexity int) int
-		Options     func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
-		Quantity    func(childComplexity int) int
-		TotalPrice  func(childComplexity int) int
-		UnitPrice   func(childComplexity int) int
+		Components func(childComplexity int) int
+		ID         func(childComplexity int) int
+		IsGift     func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Options    func(childComplexity int) int
+		Quantity   func(childComplexity int) int
+		Sku        func(childComplexity int) int
+		TotalPrice func(childComplexity int) int
+		UnitPrice  func(childComplexity int) int
 	}
 
 	OrderLineComponent struct {
-		ID          func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
-		Quantity    func(childComplexity int) int
-		UnitPrice   func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Quantity  func(childComplexity int) int
+		Sku       func(childComplexity int) int
+		UnitPrice func(childComplexity int) int
 	}
 
 	OrderLineOption struct {
@@ -4473,7 +4473,7 @@ type MutationResolver interface {
 	CancelEmailCampaign(ctx context.Context, id string) (*model.EmailCampaign, error)
 	SendCampaignTest(ctx context.Context, id string, to string) (bool, error)
 	AdminCreateCart(ctx context.Context, channelID string, customerID *string) (*model.AdminCart, error)
-	AdminAddCartLine(ctx context.Context, cartID string, productSku string, quantity float64, options []*model.AdminCartLineOptionInput) (*model.AdminCart, error)
+	AdminAddCartLine(ctx context.Context, cartID string, sku string, quantity float64, options []*model.AdminCartLineOptionInput) (*model.AdminCart, error)
 	AdminUpdateCartLine(ctx context.Context, cartID string, lineID string, quantity float64) (*model.AdminCart, error)
 	AdminRemoveCartLine(ctx context.Context, cartID string, lineID string) (*model.AdminCart, error)
 	AdminClearCart(ctx context.Context, cartID string) (*model.AdminCart, error)
@@ -4861,7 +4861,7 @@ type MutationResolver interface {
 	CreateURLRewriteRedirect(ctx context.Context, input model.CreateURLRewriteRedirectInput) (*model.URLRewrite, error)
 	DeleteURLRewritesForEntity(ctx context.Context, entityType string, entityID string) (int32, error)
 	CreateWebForm(ctx context.Context, channelID string, input model.SaveWebFormInput) (*model.WebForm, error)
-	UpdateWebForm(ctx context.Context, id string, input model.SaveWebFormInput) (*model.WebForm, error)
+	UpdateWebForm(ctx context.Context, id string, input model.UpdateWebFormInput) (*model.WebForm, error)
 	DeleteWebForm(ctx context.Context, id string) (bool, error)
 	RestoreWebForm(ctx context.Context, id string) (bool, error)
 	CreateWebhook(ctx context.Context, input model.CreateWebhookInput) (*model.CreateWebhookPayload, error)
@@ -5499,30 +5499,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCartLine.IsSimple(childComplexity), true
+	case "AdminCartLine.name":
+		if e.ComplexityRoot.AdminCartLine.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.Name(childComplexity), true
 	case "AdminCartLine.options":
 		if e.ComplexityRoot.AdminCartLine.Options == nil {
 			break
 		}
 
 		return e.ComplexityRoot.AdminCartLine.Options(childComplexity), true
-	case "AdminCartLine.productName":
-		if e.ComplexityRoot.AdminCartLine.ProductName == nil {
-			break
-		}
-
-		return e.ComplexityRoot.AdminCartLine.ProductName(childComplexity), true
-	case "AdminCartLine.productSku":
-		if e.ComplexityRoot.AdminCartLine.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.AdminCartLine.ProductSku(childComplexity), true
 	case "AdminCartLine.quantity":
 		if e.ComplexityRoot.AdminCartLine.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.AdminCartLine.Quantity(childComplexity), true
+	case "AdminCartLine.sku":
+		if e.ComplexityRoot.AdminCartLine.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.Sku(childComplexity), true
 	case "AdminCartLine.totalPrice":
 		if e.ComplexityRoot.AdminCartLine.TotalPrice == nil {
 			break
@@ -5542,24 +5542,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCartLineComponent.ID(childComplexity), true
-	case "AdminCartLineComponent.productName":
-		if e.ComplexityRoot.AdminCartLineComponent.ProductName == nil {
+	case "AdminCartLineComponent.name":
+		if e.ComplexityRoot.AdminCartLineComponent.Name == nil {
 			break
 		}
 
-		return e.ComplexityRoot.AdminCartLineComponent.ProductName(childComplexity), true
-	case "AdminCartLineComponent.productSku":
-		if e.ComplexityRoot.AdminCartLineComponent.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.AdminCartLineComponent.ProductSku(childComplexity), true
+		return e.ComplexityRoot.AdminCartLineComponent.Name(childComplexity), true
 	case "AdminCartLineComponent.quantity":
 		if e.ComplexityRoot.AdminCartLineComponent.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.AdminCartLineComponent.Quantity(childComplexity), true
+	case "AdminCartLineComponent.sku":
+		if e.ComplexityRoot.AdminCartLineComponent.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLineComponent.Sku(childComplexity), true
 	case "AdminCartLineComponent.unitPrice":
 		if e.ComplexityRoot.AdminCartLineComponent.UnitPrice == nil {
 			break
@@ -9564,30 +9564,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CreditMemo.Total(childComplexity), true
 
+	case "CreditMemoLine.name":
+		if e.ComplexityRoot.CreditMemoLine.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreditMemoLine.Name(childComplexity), true
 	case "CreditMemoLine.orderLineId":
 		if e.ComplexityRoot.CreditMemoLine.OrderLineID == nil {
 			break
 		}
 
 		return e.ComplexityRoot.CreditMemoLine.OrderLineID(childComplexity), true
-	case "CreditMemoLine.productName":
-		if e.ComplexityRoot.CreditMemoLine.ProductName == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CreditMemoLine.ProductName(childComplexity), true
-	case "CreditMemoLine.productSku":
-		if e.ComplexityRoot.CreditMemoLine.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CreditMemoLine.ProductSku(childComplexity), true
 	case "CreditMemoLine.quantity":
 		if e.ComplexityRoot.CreditMemoLine.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.CreditMemoLine.Quantity(childComplexity), true
+	case "CreditMemoLine.sku":
+		if e.ComplexityRoot.CreditMemoLine.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreditMemoLine.Sku(childComplexity), true
 	case "CreditMemoLine.totalAmount":
 		if e.ComplexityRoot.CreditMemoLine.TotalAmount == nil {
 			break
@@ -14247,7 +14247,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.AdminAddCartLine(childComplexity, args["cartId"].(string), args["productSku"].(string), args["quantity"].(float64), args["options"].([]*model.AdminCartLineOptionInput)), true
+		return e.ComplexityRoot.Mutation.AdminAddCartLine(childComplexity, args["cartId"].(string), args["sku"].(string), args["quantity"].(float64), args["options"].([]*model.AdminCartLineOptionInput)), true
 	case "Mutation.adminClearCart":
 		if e.ComplexityRoot.Mutation.AdminClearCart == nil {
 			break
@@ -18835,7 +18835,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.UpdateWebForm(childComplexity, args["id"].(string), args["input"].(model.SaveWebFormInput)), true
+		return e.ComplexityRoot.Mutation.UpdateWebForm(childComplexity, args["id"].(string), args["input"].(model.UpdateWebFormInput)), true
 	case "Mutation.updateWebhook":
 		if e.ComplexityRoot.Mutation.UpdateWebhook == nil {
 			break
@@ -19433,30 +19433,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.IsGift(childComplexity), true
+	case "OrderLine.name":
+		if e.ComplexityRoot.OrderLine.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.Name(childComplexity), true
 	case "OrderLine.options":
 		if e.ComplexityRoot.OrderLine.Options == nil {
 			break
 		}
 
 		return e.ComplexityRoot.OrderLine.Options(childComplexity), true
-	case "OrderLine.productName":
-		if e.ComplexityRoot.OrderLine.ProductName == nil {
-			break
-		}
-
-		return e.ComplexityRoot.OrderLine.ProductName(childComplexity), true
-	case "OrderLine.productSku":
-		if e.ComplexityRoot.OrderLine.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.OrderLine.ProductSku(childComplexity), true
 	case "OrderLine.quantity":
 		if e.ComplexityRoot.OrderLine.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.OrderLine.Quantity(childComplexity), true
+	case "OrderLine.sku":
+		if e.ComplexityRoot.OrderLine.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.Sku(childComplexity), true
 	case "OrderLine.totalPrice":
 		if e.ComplexityRoot.OrderLine.TotalPrice == nil {
 			break
@@ -19476,24 +19476,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLineComponent.ID(childComplexity), true
-	case "OrderLineComponent.productName":
-		if e.ComplexityRoot.OrderLineComponent.ProductName == nil {
+	case "OrderLineComponent.name":
+		if e.ComplexityRoot.OrderLineComponent.Name == nil {
 			break
 		}
 
-		return e.ComplexityRoot.OrderLineComponent.ProductName(childComplexity), true
-	case "OrderLineComponent.productSku":
-		if e.ComplexityRoot.OrderLineComponent.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.OrderLineComponent.ProductSku(childComplexity), true
+		return e.ComplexityRoot.OrderLineComponent.Name(childComplexity), true
 	case "OrderLineComponent.quantity":
 		if e.ComplexityRoot.OrderLineComponent.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.OrderLineComponent.Quantity(childComplexity), true
+	case "OrderLineComponent.sku":
+		if e.ComplexityRoot.OrderLineComponent.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLineComponent.Sku(childComplexity), true
 	case "OrderLineComponent.unitPrice":
 		if e.ComplexityRoot.OrderLineComponent.UnitPrice == nil {
 			break
@@ -28034,6 +28034,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateShippingZoneInput,
 		ec.unmarshalInputUpdateTaxRuleInput,
 		ec.unmarshalInputUpdateUrlRewriteInput,
+		ec.unmarshalInputUpdateWebFormInput,
 		ec.unmarshalInputUpdateWebhookInput,
 		ec.unmarshalInputUpdateWebhookJobInput,
 		ec.unmarshalInputUpsertBlogAuthorContentInput,
@@ -28971,8 +28972,8 @@ type AdminCart {
 
 type AdminCartLine {
   id:          ID!
-  productName: String!
-  productSku:  String!
+  name:        String!
+  sku:         String!
   unitPrice:   Int!
   quantity:    Float!
   totalPrice:  Int!
@@ -28985,8 +28986,8 @@ type AdminCartLine {
 
 type AdminCartLineComponent {
   id:          ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   unitPrice:   Int!
   quantity:    Float!
 }
@@ -29046,7 +29047,7 @@ extend type Mutation {
   # customer → their one active cart on the channel.
   adminCreateCart(channelId: ID!, customerId: ID): AdminCart!
   # Live cart line editing (simple products; bundle lines view+remove only). Price resolves server-side from the catalog. Passing options adds a CONFIGURED line - same validation/pricing/snapshot contract as the storefront's addConfiguredToCart, so phone orders can carry required options.
-  adminAddCartLine(cartId: ID!, productSku: String!, quantity: Float!, options: [AdminCartLineOptionInput!]): AdminCart!
+  adminAddCartLine(cartId: ID!, sku: String!, quantity: Float!, options: [AdminCartLineOptionInput!]): AdminCart!
   adminUpdateCartLine(cartId: ID!, lineId: ID!, quantity: Float!): AdminCart!
   adminRemoveCartLine(cartId: ID!, lineId: ID!): AdminCart!
   adminClearCart(cartId: ID!): AdminCart!
@@ -29449,7 +29450,7 @@ input RequestCategoryCoverUploadInput {
 
 # --- Queries (require catalog.view) ---
 extend type Query {
-  # When channelId is set, only categories listed-and-published on that channel are returned - header-driven admin uses this in CHANNEL mode so the tree matches what the storefront actually renders. Omit for the global tree. Locale comes from the ` + "`" + `Locale` + "`" + ` header.
+  # When channelId is set, only categories listed on that channel are returned, published or not - header-driven admin uses this in CHANNEL mode, and drafts must stay visible there so they can be found and published. Omit for the global tree. Locale comes from the ` + "`" + `Locale` + "`" + ` header.
   rootCategories(channelId: ID): [Category!]!
   categoryChildren(parentId: ID!, channelId: ID): [Category!]!
   category(id: ID!): Category!
@@ -33546,8 +33547,8 @@ input RecordOfflinePaymentInput {
 
 type OrderLine {
   id:          ID!
-  productName: String!
-  productSku:  String!
+  name:        String!
+  sku:         String!
   unitPrice:   Int!
   quantity:    Float!
   totalPrice:  Int!
@@ -33564,8 +33565,8 @@ type OrderLine {
 # One chosen component under a bundle line, snapshotted at placement
 type OrderLineComponent {
   id:          ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   unitPrice:   Int!
   # Already multiplied by the parent line quantity, so it is what actually ships
   quantity:    Float!
@@ -33708,7 +33709,7 @@ input CreateDraftOrderInput {
 }
 
 input DraftOrderLineInput {
-  productSku: String!
+  sku:        String!
   quantity:   Float!
   # Override the catalog price (cents) - manual admin pricing / quote
   # conversion at negotiated prices. Omit for the catalog price.
@@ -33728,7 +33729,7 @@ input EditLineQtyInput {
 }
 
 input EditAddLineInput {
-  productSku: String!
+  sku:        String!
   quantity:   Float!
 }
 
@@ -33781,8 +33782,8 @@ type CreditMemo {
 
 type CreditMemoLine {
   orderLineId: ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   quantity:    Float!
   unitAmount:  Int!
   totalAmount: Int!
@@ -36336,7 +36337,15 @@ type WebForm {
 }
 
 input SaveWebFormInput {
-  slug:     String        # ignored on update (slug is immutable)
+  slug:     String
+  name:     String!
+  status:   String!
+  fields:   JSON!
+  settings: JSON!
+}
+
+# The slug is fixed at create - CMS blocks reference forms by it
+input UpdateWebFormInput {
   name:     String!
   status:   String!
   fields:   JSON!
@@ -36362,7 +36371,7 @@ extend type Query {
 
 extend type Mutation {
   createWebForm(channelId: ID!, input: SaveWebFormInput!): WebForm!
-  updateWebForm(id: ID!, input: SaveWebFormInput!): WebForm!
+  updateWebForm(id: ID!, input: UpdateWebFormInput!): WebForm!
   # Soft delete - submissions stay readable and the storefront stops
   # serving the form. Restorable.
   deleteWebForm(id: ID!): Boolean!
@@ -36707,10 +36716,10 @@ func (ec *executionContext) childFields_AdminCartLine(ctx context.Context, field
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_AdminCartLine_id(ctx, field)
-	case "productName":
-		return ec.fieldContext_AdminCartLine_productName(ctx, field)
-	case "productSku":
-		return ec.fieldContext_AdminCartLine_productSku(ctx, field)
+	case "name":
+		return ec.fieldContext_AdminCartLine_name(ctx, field)
+	case "sku":
+		return ec.fieldContext_AdminCartLine_sku(ctx, field)
 	case "unitPrice":
 		return ec.fieldContext_AdminCartLine_unitPrice(ctx, field)
 	case "quantity":
@@ -36731,10 +36740,10 @@ func (ec *executionContext) childFields_AdminCartLineComponent(ctx context.Conte
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_AdminCartLineComponent_id(ctx, field)
-	case "productSku":
-		return ec.fieldContext_AdminCartLineComponent_productSku(ctx, field)
-	case "productName":
-		return ec.fieldContext_AdminCartLineComponent_productName(ctx, field)
+	case "sku":
+		return ec.fieldContext_AdminCartLineComponent_sku(ctx, field)
+	case "name":
+		return ec.fieldContext_AdminCartLineComponent_name(ctx, field)
 	case "unitPrice":
 		return ec.fieldContext_AdminCartLineComponent_unitPrice(ctx, field)
 	case "quantity":
@@ -38629,10 +38638,10 @@ func (ec *executionContext) childFields_CreditMemoLine(ctx context.Context, fiel
 	switch field.Name {
 	case "orderLineId":
 		return ec.fieldContext_CreditMemoLine_orderLineId(ctx, field)
-	case "productSku":
-		return ec.fieldContext_CreditMemoLine_productSku(ctx, field)
-	case "productName":
-		return ec.fieldContext_CreditMemoLine_productName(ctx, field)
+	case "sku":
+		return ec.fieldContext_CreditMemoLine_sku(ctx, field)
+	case "name":
+		return ec.fieldContext_CreditMemoLine_name(ctx, field)
 	case "quantity":
 		return ec.fieldContext_CreditMemoLine_quantity(ctx, field)
 	case "unitAmount":
@@ -40777,10 +40786,10 @@ func (ec *executionContext) childFields_OrderLine(ctx context.Context, field gra
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_OrderLine_id(ctx, field)
-	case "productName":
-		return ec.fieldContext_OrderLine_productName(ctx, field)
-	case "productSku":
-		return ec.fieldContext_OrderLine_productSku(ctx, field)
+	case "name":
+		return ec.fieldContext_OrderLine_name(ctx, field)
+	case "sku":
+		return ec.fieldContext_OrderLine_sku(ctx, field)
 	case "unitPrice":
 		return ec.fieldContext_OrderLine_unitPrice(ctx, field)
 	case "quantity":
@@ -40801,10 +40810,10 @@ func (ec *executionContext) childFields_OrderLineComponent(ctx context.Context, 
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_OrderLineComponent_id(ctx, field)
-	case "productSku":
-		return ec.fieldContext_OrderLineComponent_productSku(ctx, field)
-	case "productName":
-		return ec.fieldContext_OrderLineComponent_productName(ctx, field)
+	case "sku":
+		return ec.fieldContext_OrderLineComponent_sku(ctx, field)
+	case "name":
+		return ec.fieldContext_OrderLineComponent_name(ctx, field)
 	case "unitPrice":
 		return ec.fieldContext_OrderLineComponent_unitPrice(ctx, field)
 	case "quantity":
@@ -44264,14 +44273,14 @@ func (ec *executionContext) field_Mutation_adminAddCartLine_args(ctx context.Con
 		return nil, err
 	}
 	args["cartId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "productSku",
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sku",
 		func(ctx context.Context, v any) (string, error) {
 			return ec.unmarshalNString2string(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["productSku"] = arg1
+	args["sku"] = arg1
 	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "quantity",
 		func(ctx context.Context, v any) (float64, error) {
 			return ec.unmarshalNFloat2float64(ctx, v)
@@ -51889,8 +51898,8 @@ func (ec *executionContext) field_Mutation_updateWebForm_args(ctx context.Contex
 	}
 	args["id"] = arg0
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (model.SaveWebFormInput, error) {
-			return ec.unmarshalNSaveWebFormInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSaveWebFormInput(ctx, v)
+		func(ctx context.Context, v any) (model.UpdateWebFormInput, error) {
+			return ec.unmarshalNUpdateWebFormInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐUpdateWebFormInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -57835,16 +57844,16 @@ func (ec *executionContext) fieldContext_AdminCartLine_id(_ context.Context, fie
 	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _AdminCartLine_productName(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _AdminCartLine_name(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_AdminCartLine_productName(ctx, field)
+			return ec.fieldContext_AdminCartLine_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -57854,20 +57863,20 @@ func (ec *executionContext) _AdminCartLine_productName(ctx context.Context, fiel
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_AdminCartLine_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_AdminCartLine_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _AdminCartLine_productSku(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _AdminCartLine_sku(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_AdminCartLine_productSku(ctx, field)
+			return ec.fieldContext_AdminCartLine_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -57877,7 +57886,7 @@ func (ec *executionContext) _AdminCartLine_productSku(ctx context.Context, field
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_AdminCartLine_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_AdminCartLine_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -58060,16 +58069,16 @@ func (ec *executionContext) fieldContext_AdminCartLineComponent_id(_ context.Con
 	return graphql.NewScalarFieldContext("AdminCartLineComponent", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _AdminCartLineComponent_productSku(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLineComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _AdminCartLineComponent_sku(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLineComponent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_AdminCartLineComponent_productSku(ctx, field)
+			return ec.fieldContext_AdminCartLineComponent_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -58079,20 +58088,20 @@ func (ec *executionContext) _AdminCartLineComponent_productSku(ctx context.Conte
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_AdminCartLineComponent_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_AdminCartLineComponent_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCartLineComponent", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _AdminCartLineComponent_productName(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLineComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _AdminCartLineComponent_name(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLineComponent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_AdminCartLineComponent_productName(ctx, field)
+			return ec.fieldContext_AdminCartLineComponent_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -58102,7 +58111,7 @@ func (ec *executionContext) _AdminCartLineComponent_productName(ctx context.Cont
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_AdminCartLineComponent_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_AdminCartLineComponent_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCartLineComponent", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -74070,16 +74079,16 @@ func (ec *executionContext) fieldContext_CreditMemoLine_orderLineId(_ context.Co
 	return graphql.NewScalarFieldContext("CreditMemoLine", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _CreditMemoLine_productSku(ctx context.Context, field graphql.CollectedField, obj *model.CreditMemoLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _CreditMemoLine_sku(ctx context.Context, field graphql.CollectedField, obj *model.CreditMemoLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CreditMemoLine_productSku(ctx, field)
+			return ec.fieldContext_CreditMemoLine_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -74089,20 +74098,20 @@ func (ec *executionContext) _CreditMemoLine_productSku(ctx context.Context, fiel
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_CreditMemoLine_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_CreditMemoLine_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CreditMemoLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _CreditMemoLine_productName(ctx context.Context, field graphql.CollectedField, obj *model.CreditMemoLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _CreditMemoLine_name(ctx context.Context, field graphql.CollectedField, obj *model.CreditMemoLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CreditMemoLine_productName(ctx, field)
+			return ec.fieldContext_CreditMemoLine_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -74112,7 +74121,7 @@ func (ec *executionContext) _CreditMemoLine_productName(ctx context.Context, fie
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_CreditMemoLine_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_CreditMemoLine_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CreditMemoLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -94370,7 +94379,7 @@ func (ec *executionContext) _Mutation_adminAddCartLine(ctx context.Context, fiel
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().AdminAddCartLine(ctx, fc.Args["cartId"].(string), fc.Args["productSku"].(string), fc.Args["quantity"].(float64), fc.Args["options"].([]*model.AdminCartLineOptionInput))
+			return ec.Resolvers.Mutation().AdminAddCartLine(ctx, fc.Args["cartId"].(string), fc.Args["sku"].(string), fc.Args["quantity"].(float64), fc.Args["options"].([]*model.AdminCartLineOptionInput))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCart) graphql.Marshaler {
@@ -111445,7 +111454,7 @@ func (ec *executionContext) _Mutation_updateWebForm(ctx context.Context, field g
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateWebForm(ctx, fc.Args["id"].(string), fc.Args["input"].(model.SaveWebFormInput))
+			return ec.Resolvers.Mutation().UpdateWebForm(ctx, fc.Args["id"].(string), fc.Args["input"].(model.UpdateWebFormInput))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.WebForm) graphql.Marshaler {
@@ -113217,16 +113226,16 @@ func (ec *executionContext) fieldContext_OrderLine_id(_ context.Context, field g
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _OrderLine_productName(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _OrderLine_name(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_OrderLine_productName(ctx, field)
+			return ec.fieldContext_OrderLine_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -113236,20 +113245,20 @@ func (ec *executionContext) _OrderLine_productName(ctx context.Context, field gr
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_OrderLine_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_OrderLine_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _OrderLine_productSku(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _OrderLine_sku(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_OrderLine_productSku(ctx, field)
+			return ec.fieldContext_OrderLine_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -113259,7 +113268,7 @@ func (ec *executionContext) _OrderLine_productSku(ctx context.Context, field gra
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_OrderLine_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_OrderLine_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -113442,16 +113451,16 @@ func (ec *executionContext) fieldContext_OrderLineComponent_id(_ context.Context
 	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _OrderLineComponent_productSku(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _OrderLineComponent_sku(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_OrderLineComponent_productSku(ctx, field)
+			return ec.fieldContext_OrderLineComponent_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -113461,20 +113470,20 @@ func (ec *executionContext) _OrderLineComponent_productSku(ctx context.Context, 
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_OrderLineComponent_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_OrderLineComponent_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _OrderLineComponent_productName(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _OrderLineComponent_name(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_OrderLineComponent_productName(ctx, field)
+			return ec.fieldContext_OrderLineComponent_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -113484,7 +113493,7 @@ func (ec *executionContext) _OrderLineComponent_productName(ctx context.Context,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_OrderLineComponent_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_OrderLineComponent_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -153236,20 +153245,20 @@ func (ec *executionContext) unmarshalInputDraftOrderLineInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"productSku", "quantity", "unitPriceCents"}
+	fieldsInOrder := [...]string{"sku", "quantity", "unitPriceCents"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "productSku":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("productSku"))
+		case "sku":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sku"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.ProductSku = data
+			it.Sku = data
 		case "quantity":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quantity"))
 			data, err := ec.unmarshalNFloat2float64(ctx, v)
@@ -153280,20 +153289,20 @@ func (ec *executionContext) unmarshalInputEditAddLineInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"productSku", "quantity"}
+	fieldsInOrder := [...]string{"sku", "quantity"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "productSku":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("productSku"))
+		case "sku":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sku"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.ProductSku = data
+			it.Sku = data
 		case "quantity":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quantity"))
 			data, err := ec.unmarshalNFloat2float64(ctx, v)
@@ -160370,6 +160379,57 @@ func (ec *executionContext) unmarshalInputUpdateUrlRewriteInput(ctx context.Cont
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateWebFormInput(ctx context.Context, obj any) (model.UpdateWebFormInput, error) {
+	var it model.UpdateWebFormInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "status", "fields", "settings"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		case "fields":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fields"))
+			data, err := ec.unmarshalNJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Fields = data
+		case "settings":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("settings"))
+			data, err := ec.unmarshalNJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Settings = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateWebhookInput(ctx context.Context, obj any) (model.UpdateWebhookInput, error) {
 	var it model.UpdateWebhookInput
 	if obj == nil {
@@ -161883,13 +161943,13 @@ func (ec *executionContext) _AdminCartLine(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._AdminCartLine_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._AdminCartLine_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._AdminCartLine_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._AdminCartLine_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -161961,13 +162021,13 @@ func (ec *executionContext) _AdminCartLineComponent(ctx context.Context, sel ast
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._AdminCartLineComponent_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._AdminCartLineComponent_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._AdminCartLineComponent_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._AdminCartLineComponent_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -168932,13 +168992,13 @@ func (ec *executionContext) _CreditMemoLine(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._CreditMemoLine_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._CreditMemoLine_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._CreditMemoLine_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._CreditMemoLine_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -179889,13 +179949,13 @@ func (ec *executionContext) _OrderLine(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._OrderLine_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._OrderLine_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._OrderLine_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._OrderLine_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -179967,13 +180027,13 @@ func (ec *executionContext) _OrderLineComponent(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._OrderLineComponent_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._OrderLineComponent_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._OrderLineComponent_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._OrderLineComponent_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -206229,6 +206289,11 @@ func (ec *executionContext) unmarshalNUpdateTaxRuleInput2githubᚗcomᚋskeletg�
 
 func (ec *executionContext) unmarshalNUpdateUrlRewriteInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐUpdateURLRewriteInput(ctx context.Context, v any) (model.UpdateURLRewriteInput, error) {
 	res, err := ec.unmarshalInputUpdateUrlRewriteInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateWebFormInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐUpdateWebFormInput(ctx context.Context, v any) (model.UpdateWebFormInput, error) {
+	res, err := ec.unmarshalInputUpdateWebFormInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

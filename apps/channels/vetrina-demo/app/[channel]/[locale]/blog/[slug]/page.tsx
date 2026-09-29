@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { getSiteUrl } from "@/app/lib/channel/site";
 import { localizedAlternates } from "@/app/lib/locale/alternates";
 import { Link } from "@/app/components/LocaleLink";
@@ -24,16 +25,24 @@ import {
   LexicalRichText,
   lexicalHasContent,
   lexicalPlainText,
+  lexicalSummary,
 } from "@/app/lib/lexical-render";
 
 export async function generateMetadata(
   props: PageProps<"/[channel]/[locale]/blog/[slug]">,
 ): Promise<Metadata> {
-  const { slug } = await props.params;
+  const { slug, locale } = await props.params;
   const { post } = await getBlogPost(slug);
-  if (!post) return { title: "Post not found" };
+  if (!post) {
+    const t = await getTranslations({ locale, namespace: "blog" });
+    return { title: t("postNotFound") };
+  }
   const title = displayName(post.content?.metaTitle ?? post.content?.title, post.slug);
-  const description = post.content?.metaDescription ?? undefined;
+  const description =
+    post.content?.metaDescription ||
+    lexicalSummary(post.content?.excerpt) ||
+    lexicalSummary(post.content?.body) ||
+    undefined;
   const href = blogPostHref(post);
   return {
     title,
@@ -69,9 +78,10 @@ export default async function BlogPostPage(
   const hasBody = lexicalHasContent(post.content?.body);
 
   const href = `/blog/${post.slug}`;
+  const [tb, tc] = await Promise.all([getTranslations("blog"), getTranslations("common")]);
   const breadcrumbItems = [
-    { name: "Home", href: "/" },
-    { name: "Blog", href: "/blog" },
+    { name: tc("home"), href: "/" },
+    { name: tb("title"), href: "/blog" },
     { name: title, href },
   ];
   const [canonical, base] = await Promise.all([canonicalPathMapper(), getSiteUrl()]);
@@ -134,7 +144,7 @@ export default async function BlogPostPage(
           </div>
         ) : (
           <p className="mt-8 text-sm text-muted-foreground">
-            No body yet.
+            {tb("noBody")}
           </p>
         )}
 
@@ -142,7 +152,7 @@ export default async function BlogPostPage(
           <footer className="mt-12 border-t border-border pt-6">
             {post.categories.length > 0 && (
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
-                <span className="text-xs text-muted-foreground">Categories</span>
+                <span className="text-xs text-muted-foreground">{tb("categories")}</span>
                 <ul className="flex flex-wrap gap-1.5 text-xs">
                   {post.categories.map((c) => (
                     <li key={c.id}>
@@ -159,7 +169,7 @@ export default async function BlogPostPage(
             )}
             {post.tags.length > 0 && (
               <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-2">
-                <span className="text-xs text-muted-foreground">Tags</span>
+                <span className="text-xs text-muted-foreground">{tb("tags")}</span>
                 <ul className="flex flex-wrap gap-1.5 text-xs">
                   {post.tags.map((t) => (
                     <li key={t.id}>

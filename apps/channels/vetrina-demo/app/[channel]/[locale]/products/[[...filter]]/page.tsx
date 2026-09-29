@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { ProductListShell } from "@/app/components/ProductListShell";
@@ -49,7 +50,8 @@ async function indexabilityFor(
 export async function generateMetadata(
   props: PageProps<"/[channel]/[locale]/products/[[...filter]]">,
 ): Promise<Metadata> {
-  const { filter } = await props.params;
+  const { filter, locale } = await props.params;
+  const t = await getTranslations({ locale, namespace: "listing" });
   const pathFilters = filter ? parseFilterSegments(filter) : [];
   const sortSlug = filter ? parseSortFromSegments(filter) : "";
   const [{ indexable: filtersIndexable }, sortOpts] = await Promise.all([
@@ -66,7 +68,7 @@ export async function generateMetadata(
     isPagedUrlIndexable(page, pathFilters.length > 0, pageIndexCaps);
   const href = withPageSegment(joinBasePathWithFilters("/products", pathFilters, sortSlug), page);
   return {
-    title: page > 1 ? `Products - page ${page}` : "Products",
+    title: page > 1 ? t("paged", { name: t("productsTitle"), page }) : t("productsTitle"),
     robots: indexable ? robotsIndexable : robotsNoindex,
     alternates: await localizedAlternates(href),
   };
@@ -75,7 +77,8 @@ export async function generateMetadata(
 export default async function ProductsPage(
   props: PageProps<"/[channel]/[locale]/products/[[...filter]]">,
 ) {
-  const { filter } = await props.params;
+  const { filter, locale } = await props.params;
+  const t = await getTranslations({ locale, namespace: "listing" });
   const searchParams = (await props.searchParams) as RawSearchParams;
 
 // Owns all of /products/* - valid paths are empty or an /f/../v/../s/ chain A bare segment like /products/<UUID> is a
@@ -91,7 +94,7 @@ export default async function ProductsPage(
   ]);
   const sortIndexable = isSortUrlIndexable(sortSlug, sortOpts);
   const effective = sortIndexable ? idx : { ...idx, indexable: false };
-  const displayName = assembleH1("Products", effective);
+  const displayName = assembleH1(t("productsTitle"), effective);
   const valueDescriptions = effective.indexable
     ? effective.values.map((v) => v.description).filter(Boolean)
     : [];
@@ -103,7 +106,7 @@ export default async function ProductsPage(
       pathSort={sortSlug}
       pathPage={parsePageFromSegments(filter ?? [])}
       basePath="/products"
-      emptyText="No products yet."
+      emptyText={t("noProductsYet")}
       header={
         <>
           <h1 className="text-3xl font-medium tracking-tight">{displayName}</h1>

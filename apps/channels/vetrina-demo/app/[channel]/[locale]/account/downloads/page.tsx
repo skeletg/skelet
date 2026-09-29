@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
 import { withLocalePrefix } from "@/app/lib/locale/path";
@@ -12,7 +14,13 @@ import { getCurrentCustomer } from "@/app/lib/customer/read";
 import { gqlFetch, loadErrorMessage } from "@/app/lib/graphql";
 import { MyDownloadsDocument } from "@/app/lib/customer/operations.gql";
 
-export const metadata = { title: "Downloads" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/account/downloads">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.downloads" });
+  return { title: t("title") };
+}
 
 type DownloadGrant = {
   id: string;
@@ -29,6 +37,8 @@ export default async function DownloadsPage({ params }: PageProps<"/[channel]/[l
   // Locale straight off the segment - a page taking no props has no request scope for
   // getLocale() to read, so it silently answered with the default language
   const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.downloads" });
+  const tc = await getTranslations({ locale, namespace: "common" });
 
   const customer = await getCurrentCustomer();
   if (!customer) {
@@ -44,15 +54,15 @@ export default async function DownloadsPage({ params }: PageProps<"/[channel]/[l
     loadError = loadErrorMessage(
       "account/downloads load failed",
       err,
-      "We couldn't load your downloads just now. Please try again in a moment.",
+      t("loadFailed"),
     );
   }
 
   return (
     <>
       <AccountPageHeader
-        title="Downloads"
-        description="Files from your digital purchases. Links stay valid for as long as the seller allows."
+        title={t("title")}
+        description={t("description")}
       />
 
       {loadError ? (
@@ -65,10 +75,10 @@ export default async function DownloadsPage({ params }: PageProps<"/[channel]/[l
       ) : downloads.length === 0 ? (
         <EmptyState
           icon={<DownloadIcon className="size-5" aria-hidden="true" />}
-          title="No downloads yet"
-          description="Buy anything digital and the file shows up here the moment the order goes through."
+          title={t("emptyTitle")}
+          description={t("emptyBody")}
           actionHref="/products"
-          actionLabel="Browse products"
+          actionLabel={tc("browseProducts")}
         />
       ) : (
         <AccountCard padded={false}>
@@ -88,12 +98,12 @@ export default async function DownloadsPage({ params }: PageProps<"/[channel]/[l
                     <p className="text-sm font-semibold">{d.title}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {d.maxDownloads == null
-                        ? `${d.downloadsUsed} downloaded · unlimited`
-                        : `${d.downloadsUsed} of ${d.maxDownloads} used`}
+                        ? t("usedUnlimited", { used: d.downloadsUsed })
+                        : t("usedOf", { used: d.downloadsUsed, max: d.maxDownloads })}
                       {d.expiresAt
-                        ? ` · ${
-                            expired ? "expired" : "expires"
-                          } ${new Date(d.expiresAt).toLocaleDateString()}`
+                        ? ` · ${t(expired ? "expiredOn" : "expiresOn", {
+                            date: new Date(d.expiresAt).toLocaleDateString(),
+                          })}`
                         : ""}
                     </p>
                   </div>
@@ -103,11 +113,11 @@ export default async function DownloadsPage({ params }: PageProps<"/[channel]/[l
                       className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
                     >
                       <DownloadIcon className="size-4" aria-hidden="true" />
-                      Download
+                      {tc("download")}
                     </a>
                   ) : (
                     <span className="shrink-0 rounded-sm bg-muted px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {expired ? "Expired" : "Limit reached"}
+                      {expired ? t("expired") : t("limitReached")}
                     </span>
                   )}
                 </li>

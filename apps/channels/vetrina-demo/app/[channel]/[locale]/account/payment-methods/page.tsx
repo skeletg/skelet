@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getLocale } from "next-intl/server";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
 import { withLocalePrefix } from "@/app/lib/locale/path";
 import { CreditCardIcon } from "lucide-react";
@@ -18,15 +19,23 @@ import {
 } from "@/app/lib/payment-methods/actions";
 import { getActiveSubscriptionsByCard } from "@/app/lib/subscriptions/read";
 
-export const metadata = { title: "Payment methods" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/account/payment-methods">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.paymentMethods" });
+  return { title: t("title") };
+}
 
 export default async function PaymentMethodsPage({
+  params,
   searchParams,
-}: {
-  searchParams: Promise<{ error?: string | string[] }>;
-}) {
+}: PageProps<"/[channel]/[locale]/account/payment-methods">) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.paymentMethods" });
+  const tc = await getTranslations({ locale, namespace: "common" });
   const customer = await getCurrentCustomer();
-  if (!customer) redirect(await withLocalePrefix("/account/login?returnTo=/account/payment-methods", await getLocale()));
+  if (!customer) redirect(await withLocalePrefix("/account/login?returnTo=/account/payment-methods", locale));
   const [methods, subsByCard] = await Promise.all([
     getMyPaymentMethods(),
     getActiveSubscriptionsByCard(),
@@ -38,23 +47,21 @@ export default async function PaymentMethodsPage({
   return (
     <div className="max-w-2xl">
       <AccountPageHeader
-        title="Payment methods"
-        description="Card numbers live with our payment provider, never on our servers. We only keep the last four digits."
+        title={t("title")}
+        description={t("description")}
       />
 
       {actionError ? (
         <div className="mb-4">
-          <FormError>
-            We couldn&rsquo;t remove that card. Please try again.
-          </FormError>
+          <FormError>{t("removeFailed")}</FormError>
         </div>
       ) : null}
 
       {methods.length === 0 ? (
         <EmptyState
           icon={<CreditCardIcon className="size-5" aria-hidden="true" />}
-          title="No saved cards"
-          description="Tick “save this card” next time you check out and it lands here."
+          title={t("emptyTitle")}
+          description={t("emptyBody")}
         />
       ) : (
         <AccountCard padded={false}>
@@ -73,17 +80,19 @@ export default async function PaymentMethodsPage({
                     </span>
                     <div>
                       <p className="text-sm font-semibold">
-                        {m.brand || "Card"} •••• {m.last4 || "????"}
+                        {m.brand || tc("card")} •••• {m.last4 || "????"}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {m.expMonth > 0
-                          ? `Expires ${String(m.expMonth).padStart(2, "0")}/${m.expYear}`
+                          ? t("expires", {
+                              month: String(m.expMonth).padStart(2, "0"),
+                              year: m.expYear,
+                            })
                           : m.providerSlug}
                       </p>
                       {boundSubs.length > 0 && (
                         <p className="mt-1 text-xs font-medium text-amber-700">
-                          Billing {boundSubs.join(", ")} - removing it stops
-                          those renewals until you pick another card.
+                          {t("boundSubs", { subs: boundSubs.join(", ") })}
                         </p>
                       )}
                     </div>
@@ -93,13 +102,11 @@ export default async function PaymentMethodsPage({
                     <SubmitButton
                       className="rounded-md px-3 py-1.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
                       confirmLabel={
-                        boundSubs.length > 0
-                          ? "Remove anyway"
-                          : "Confirm remove"
+                        boundSubs.length > 0 ? t("removeAnyway") : t("confirmRemove")
                       }
-                      pendingLabel="Removing…"
+                      pendingLabel={t("removing")}
                     >
-                      Remove
+                      {t("remove")}
                     </SubmitButton>
                   </form>
                 </li>

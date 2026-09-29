@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { getLocale } from "next-intl/server";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { withLocalePrefix } from "@/app/lib/locale/path";
 import {
   AccountCard,
@@ -8,32 +9,39 @@ import {
 import { getCurrentCustomer } from "@/app/lib/customer/read";
 import { AddressForm } from "@/app/[channel]/[locale]/account/addresses/AddressForm";
 
-export const metadata = { title: "Edit address" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/account/addresses/[id]/edit">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.addresses" });
+  return { title: t("editTitle") };
+}
 
 export default async function EditAddressPage(
   props: PageProps<"/[channel]/[locale]/account/addresses/[id]/edit">,
 ) {
+  const { id, locale } = await props.params;
+  const t = await getTranslations({ locale, namespace: "account.addresses" });
+  const tc = await getTranslations({ locale, namespace: "common" });
   const customer = await getCurrentCustomer();
   if (!customer) {
-    const { id } = await props.params;
     redirect(
       await withLocalePrefix(
         `/account/login?returnTo=${encodeURIComponent(`/account/addresses/${id}/edit`)}`,
-        await getLocale(),
+        locale,
       ),
     );
   }
-  const { id } = await props.params;
   const address = customer.addresses.find((a) => a.id === id);
   if (!address) notFound();
 
   return (
     <div className="max-w-2xl">
-      <AccountPageHeader title="Edit address" />
+      <AccountPageHeader title={t("editTitle")} />
       <AccountCard>
         <AddressForm
           id={address.id}
-          submitLabel="Save changes"
+          submitLabel={tc("saveChanges")}
           initial={{
             firstName: address.firstName,
             lastName: address.lastName,

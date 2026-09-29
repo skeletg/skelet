@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
+import { useTranslations } from "next-intl";
 import { HeartIcon } from "lucide-react";
 
 import { toggleWishlistAction } from "@/app/lib/wishlist/actions";
@@ -53,6 +54,7 @@ export function WishlistButton({
 }) {
   // localStorage is client-only, so the server pass renders unsaved and the store takes over
   // on hydration - a boolean snapshot is value-compared, so no cached-getter dance needed
+  const t = useTranslations("product");
   const saved = useSyncExternalStore(
     subscribe,
     useCallback(() => readLocalWishlist().includes(productId), [productId]),
@@ -71,7 +73,7 @@ export function WishlistButton({
   return (
     <button
       type="button"
-      aria-label={saved ? "Remove from wishlist" : "Save to wishlist"}
+      aria-label={saved ? t("wishlistRemove") : t("wishlistSave")}
       aria-pressed={saved}
       onClick={toggle}
       className={

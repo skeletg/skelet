@@ -2,6 +2,7 @@
 
 import { Link, usePathname } from "@/app/components/LocaleLink";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   ArrowLeftIcon,
@@ -68,6 +69,8 @@ export function HeaderMenu({
 }: Props) {
   // Resolved after hydration - a server-side auth read would force every route dynamic
   const { identity: customer } = useCustomerIdentity();
+  const tm = useTranslations("header");
+  const tc = useTranslations("common");
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
   const activeFilters = useActiveFilters();
@@ -105,7 +108,7 @@ export function HeaderMenu({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Open menu"
+        aria-label={tm("openMenu")}
         className="flex h-9 w-9 items-center justify-center rounded-md text-foreground transition hover:bg-muted"
       >
         <MenuIcon className="h-5 w-5" aria-hidden="true" />
@@ -122,8 +125,8 @@ export function HeaderMenu({
           <h2 className="text-xl font-semibold tracking-tight">{brand}</h2>
           <p className="text-sm text-muted-foreground">
             {customer
-              ? `Signed in as ${customer.email}`
-              : "Browse and shop"}
+              ? tm("signedInAs", { email: customer.email })
+              : tm("browseAndShop")}
           </p>
         </header>
 
@@ -140,10 +143,10 @@ export function HeaderMenu({
               </span>
               <span className="flex-1 min-w-0">
                 <span className="block font-medium">
-                  Hi, {customer.firstName}
+                  {tm("hi", { name: customer.firstName })}
                 </span>
                 <span className="block text-xs text-muted-foreground">
-                  View account
+                  {tm("viewAccount")}
                 </span>
               </span>
             </Link>
@@ -155,14 +158,14 @@ export function HeaderMenu({
                 className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background transition hover:opacity-90"
               >
                 <LogInIcon className="h-4 w-4" />
-                Sign in
+                {tc("signIn")}
               </Link>
               <Link
                 href="/account/register"
                 onClick={close}
                 className="flex-1 flex items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium transition hover:bg-accent"
               >
-                Register
+                {tc("register")}
               </Link>
             </div>
           )}
@@ -203,7 +206,7 @@ export function HeaderMenu({
         <footer className="border-t border-border px-3 py-3 space-y-3">
           {locales.length > 1 && (
             <SwitcherRow
-              label="Language"
+              label={tc("language")}
               icon={GlobeIcon}
               items={locales.map((l) => ({
                 key: l.code,
@@ -213,7 +216,7 @@ export function HeaderMenu({
                 formAction: setLocale,
                 fieldName: "code",
                 fieldValue: l.code,
-                ariaLabel: `Switch to ${l.name}`,
+                ariaLabel: tm("switchTo", { language: l.name }),
                 onClick: close,
               }))}
             />
@@ -258,23 +261,25 @@ function PanelView({
   onBack,
   onNavigate,
 }: PanelProps) {
+  const t = useTranslations("header");
+  const tc = useTranslations("common");
   switch (node.kind) {
     case "root":
       return (
         <PanelBody>
           <Section>
             <MenuLink href="/" icon={HomeIcon} onClick={onNavigate}>
-              Home
+              {tc("home")}
             </MenuLink>
             <MenuLink href="/products" icon={PackageIcon} onClick={onNavigate}>
-              All products
+              {t("allProducts")}
             </MenuLink>
             {categories.length > 0 && (
               <DrillRow
                 icon={TagIcon}
                 onClick={() => onDrill({ kind: "categories" })}
               >
-                Categories
+                {t("categories")}
               </DrillRow>
             )}
             {collections.length > 0 && (
@@ -282,11 +287,11 @@ function PanelView({
                 icon={SparklesIcon}
                 onClick={() => onDrill({ kind: "collections" })}
               >
-                Collections
+                {t("collections")}
               </DrillRow>
             )}
             <MenuLink href="/blog" icon={NewspaperIcon} onClick={onNavigate}>
-              Blog
+              {t("blog")}
             </MenuLink>
           </Section>
         </PanelBody>
@@ -294,7 +299,7 @@ function PanelView({
 
     case "categories":
       return (
-        <PanelBody header={<PanelHeader title="Categories" onBack={onBack} />}>
+        <PanelBody header={<PanelHeader title={t("categories")} onBack={onBack} />}>
           <Section>
             {categories.map((c) => (
               <CategoryRow
@@ -311,7 +316,7 @@ function PanelView({
 
     case "collections":
       return (
-        <PanelBody header={<PanelHeader title="Collections" onBack={onBack} />}>
+        <PanelBody header={<PanelHeader title={t("collections")} onBack={onBack} />}>
           <Section>
             {collections.map((c) => (
               <MenuLink
@@ -344,7 +349,7 @@ function PanelView({
               icon={TagIcon}
               onClick={onNavigate}
             >
-              Shop all in {displayName(category.name, category.slug)}
+              {t("shopAllIn", { name: displayName(category.name, category.slug) })}
             </MenuLink>
             {category.children.map((child) => (
               <CategoryRow
@@ -384,12 +389,13 @@ function PanelHeader({
   title: string;
   onBack: () => void;
 }) {
+  const tc = useTranslations("common");
   return (
     <div className="flex items-center gap-1 border-b border-border px-2 py-2">
       <button
         type="button"
         onClick={onBack}
-        aria-label="Back"
+        aria-label={tc("back")}
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground transition hover:bg-accent"
       >
         <ArrowLeftIcon className="h-4 w-4" aria-hidden="true" />

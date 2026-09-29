@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { getSiteUrl } from "@/app/lib/channel/site";
 import { canonicalPathMapper, localizedAlternates } from "@/app/lib/locale/alternates";
 import { notFound } from "next/navigation";
@@ -63,7 +64,8 @@ export async function generateMetadata(
   };
   const { id, filter } = rawParams;
   const { collection } = await getCollection(id);
-  if (!collection) return { title: "Collection not found" };
+  const t = await getTranslations("listing");
+  if (!collection) return { title: t("collectionNotFound") };
   const title = displayName(collection.metaTitle ?? collection.name, collection.slug);
   const pathFilters = filter ? parseFilterSegments(filter) : [];
   const sortSlug = filter ? parseSortFromSegments(filter) : "";
@@ -80,7 +82,7 @@ export async function generateMetadata(
     isPagedUrlIndexable(page, pathFilters.length > 0, pageIndexCaps);
   const href = withPageSegment(collectionHref(collection, pathFilters), page);
   return {
-    title: page > 1 ? `${title} - page ${page}` : title,
+    title: page > 1 ? t("paged", { name: title, page }) : title,
     description: collection.metaDescription ?? undefined,
     robots: indexable ? robotsIndexable : robotsNoindex,
     alternates: await localizedAlternates(href),
@@ -103,7 +105,11 @@ export default async function CollectionPage(
     string,
     string | string[] | undefined
   >;
-  const { collection } = await getCollection(id);
+  const [{ collection }, t, tc] = await Promise.all([
+    getCollection(id),
+    getTranslations("listing"),
+    getTranslations("common"),
+  ]);
   if (!collection) notFound();
 
   const baseName = displayName(collection.name, collection.slug);
@@ -124,7 +130,7 @@ export default async function CollectionPage(
   // Drop the synthetic "Collections" root so the trail matches the
   // product/category breadcrumbs: Home / <this collection>.
   const breadcrumbItems = [
-    { name: "Home", href: "/" },
+    { name: tc("home"), href: "/" },
     { name: baseName, href: collectionHref(collection) },
   ];
   const [canonical, base] = await Promise.all([canonicalPathMapper(), getSiteUrl()]);
@@ -137,7 +143,7 @@ export default async function CollectionPage(
       pathSort={sortSlug}
       pathPage={parsePageFromSegments(filter ?? [])}
       basePath={basePath}
-      emptyText="No products match the current filters in this collection."
+      emptyText={t("collectionEmpty")}
       header={
         <>
           <JsonLd
@@ -158,7 +164,7 @@ export default async function CollectionPage(
             )}
             <div>
               <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                Collection
+                {t("collection")}
               </p>
               <h1 className="mt-1 text-3xl font-medium tracking-tight">
                 {heading}
@@ -178,7 +184,7 @@ export default async function CollectionPage(
         lexicalHasContent(collection.description) ? (
           <section className="mt-12 max-w-3xl border-t border-border pt-8">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              About {heading}
+              {t("aboutName", { name: heading })}
             </h2>
             <div className="mt-3 space-y-4 text-sm leading-relaxed text-foreground">
               <LexicalRichText value={collection.description} />

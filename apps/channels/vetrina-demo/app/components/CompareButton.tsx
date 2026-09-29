@@ -1,11 +1,13 @@
 "use client";
 
 import { CheckIcon, PlusIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { COMPARE_MAX, toggleCompare, useCompareIds } from "@/app/lib/compare/store";
 
 export function CompareButton({ productId }: { productId: string }) {
   const ids = useCompareIds();
+  const t = useTranslations("compare");
   const inList = ids.includes(productId);
   // A full list can still be toggled off, just not added to
   const full = !inList && ids.length >= COMPARE_MAX;
@@ -15,7 +17,7 @@ export function CompareButton({ productId }: { productId: string }) {
       type="button"
       onClick={() => toggleCompare(productId)}
       disabled={full}
-      title={full ? `Already comparing ${COMPARE_MAX} products` : undefined}
+      title={full ? t("full", { max: COMPARE_MAX }) : undefined}
       aria-pressed={inList}
       className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
         inList
@@ -28,7 +30,7 @@ export function CompareButton({ productId }: { productId: string }) {
       ) : (
         <PlusIcon className="size-4" aria-hidden="true" />
       )}
-      {inList ? "Comparing" : "Compare"}
+      {inList ? t("comparing") : t("title")}
     </button>
   );
 }

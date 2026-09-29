@@ -55,8 +55,8 @@ type Order {
 
 type OrderLine {
   id:          ID!
-  productName: String!
-  productSku:  String!
+  name:        String!
+  sku:         String!
   unitPrice:   Int!
   quantity:    Float!
   totalPrice:  Int!
@@ -133,8 +133,8 @@ type ReturnableLine {
 # A line a reorder couldn't re-add (discontinued SKU, changed option/bundle).
 # The remaining lines still land in the cart.
 type ReorderSkippedLine {
-  productName: String!
-  productSku:  String!
+  name:        String!
+  sku:         String!
   reason:      String!
 }
 

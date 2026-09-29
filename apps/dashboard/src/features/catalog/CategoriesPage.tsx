@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { toast } from 'sonner'
 import {
   DndContext,
   DragOverlay,
@@ -20,7 +21,6 @@ import {
   type DragMoveEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { toast } from 'sonner'
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -48,12 +48,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { usePermissions } from '@/shared/auth/usePermissions'
-import { useConfigScope } from '@/lib/config-scope'
+import { useConfigScope, type ChannelScopeOption } from '@/lib/config-scope'
 import { cn } from '@/lib/utils'
 import { useScrollHideHeader } from '@/lib/use-scroll-hide-header'
 import { FormRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
@@ -188,15 +189,15 @@ export function CategoriesPage() {
   const { has } = usePermissions()
   const canManage = has('catalog.manage')
   // Header drives the tree filter: CHANNEL shows only categories listed on the active store, GLOBAL the full
-  // tree - structural edits (slug, parent, position) stay global-only, the tree just hides what the store lacks
-  const { isGlobal } = useConfigScope()
-  const canEditScope = canManage && isGlobal
+  // tree - creating from CHANNEL also lists the new category on that store, so both scopes can create
+  const { isGlobal, selectedChannel } = useConfigScope()
+  const storeName = selectedChannel?.name ?? 'this store'
   // Keep the tree query locale-agnostic: Apollo normalises Category by id, so passing different locales for one
   // id would overwrite the cached `name` across views - the server falls back through locales anyway, so the
   // tree always shows a real name when one exists in any translation
   // Channel scope rides the `X-Channel-Id` header (see lib/apollo.ts), not a
-  // query var: CHANNEL scope returns that store's published tree, GLOBAL the
-  // full tree
+  // query var: CHANNEL scope returns every category listed on that store,
+  // published or not, GLOBAL the full tree
   const { data, loading, refetch } = useQuery(RootCategoriesDocument)
   const roots = useMemo(() => data?.rootCategories ?? [], [data])
   const totalCount = useMemo(() => countCategories(roots), [roots])
@@ -280,7 +281,7 @@ export function CategoriesPage() {
 
   // ── drag state ──
   // Structure is global-only, and a filtered tree hides the siblings a drop would reorder against
-  const canDrag = canEditScope && !search.trim()
+  const canDrag = canManage && isGlobal && !search.trim()
   const [dropTarget, setDropTarget] = useState<{ id: string; zone: DropZone } | null>(null)
 
   function onDragStart({ active }: DragStartEvent) {
@@ -363,8 +364,6 @@ export function CategoriesPage() {
                 variant="outline"
                 className="h-7 gap-1 px-2 text-xs"
                 onClick={() => navigate('/categories/new')}
-                disabled={!canEditScope}
-                title={canEditScope ? undefined : 'Switch the header to GLOBAL to add a category.'}
               >
                 <PlusIcon className="size-3.5" />
                 New
@@ -380,6 +379,12 @@ export function CategoriesPage() {
               className="h-8 pl-8 text-xs"
             />
           </div>
+          {!isGlobal ? (
+            <p className="text-xs text-muted-foreground">
+              Showing categories added to {storeName}. Switch the header to Global default to see every
+              category.
+            </p>
+          ) : null}
         </div>
 
         {loading ? (
@@ -387,10 +392,17 @@ export function CategoriesPage() {
         ) : roots.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-12 text-center">
             <FolderIcon className="size-6 text-muted-foreground/60" />
-            <p className="text-sm font-medium">No categories yet</p>
+            <p className="text-sm font-medium">
+              {isGlobal ? 'No categories yet' : `No categories on ${storeName}`}
+            </p>
+            {!isGlobal ? (
+              <p className="text-xs text-muted-foreground">
+                Categories that exist but aren&rsquo;t added to this store only show under Global default.
+              </p>
+            ) : null}
             {canManage ? (
               <Button size="sm" variant="outline" onClick={() => navigate('/categories/new')}>
-                <PlusIcon className="size-3.5" /> Create your first
+                <PlusIcon className="size-3.5" /> {isGlobal ? 'Create your first' : 'New category'}
               </Button>
             ) : null}
           </div>
@@ -573,7 +585,7 @@ function TreeNode({
           className={`size-1.5 shrink-0 rounded-full ${
             node.isPublished ? 'bg-success' : 'bg-muted-foreground/40'
           }`}
-          title={node.isPublished ? 'Published' : 'Draft'}
+          title={node.isPublished ? 'Published' : 'Draft - hidden on every store'}
         />
       </div>
       {isDropAfter ? (
@@ -646,9 +658,16 @@ function CategoryRecordForm({
 }) {
   const isNew = !category
   const categoryId = category?.id
-  // Header drives the per-store auto-list on create - working in CHANNEL=US, a new category is listed
-  // on US straight away so the admin sees it where they expect. In GLOBAL no listing is added
-  const { isGlobal, effectiveChannelId, selectedChannel } = useConfigScope()
+  const { isGlobal, effectiveChannelId, selectedChannel, channels } = useConfigScope()
+  // Stores a new category is listed on at create - null until the admin ticks a box, so the default follows the header
+  // (the active store in CHANNEL, every active store in GLOBAL) and still fills in when the channels query lands late
+  const [pickedStores, setPickedStores] = useState<Set<string> | null>(null)
+  const storeIds = useMemo(
+    () =>
+      pickedStores ??
+      new Set(isGlobal ? channels.filter((c) => c.isActive).map((c) => c.id) : effectiveChannelId ? [effectiveChannelId] : []),
+    [pickedStores, isGlobal, channels, effectiveChannelId],
+  )
   const { ref: headerRef, hidden: headerHidden } = useScrollHideHeader<HTMLDivElement>()
 
   // The tree query takes no channel var - scope rides the request header - so refetching it re-reads
@@ -707,14 +726,19 @@ function CategoryRecordForm({
         const created = result.data?.createCategory
         if (!created) throw new Error('Create succeeded but no category id was returned.')
         createdId.current = created.id
-        if (effectiveChannelId) {
+        // Non-fatal per store - the category exists, so a failed listing is reported and added by hand afterwards
+        const failed: string[] = []
+        for (const channelId of storeIds) {
           try {
             await setCategoryListing({
-              variables: { input: { categoryId: created.id, channelId: effectiveChannelId, isPublished: true, sortOrderOverride: null } },
+              variables: { input: { categoryId: created.id, channelId, isPublished: true, sortOrderOverride: null } },
             })
           } catch {
-            // Non-fatal - the category exists; the admin can list it by hand
+            failed.push(channels.find((c) => c.id === channelId)?.name ?? channelId)
           }
+        }
+        if (failed.length > 0) {
+          toast.error(`Category created, but it couldn't be added to ${failed.join(', ')}. Add it under Per-channel availability.`)
         }
         return
       }
@@ -831,6 +855,17 @@ function CategoryRecordForm({
                 <AlertDescription>{submitError}</AlertDescription>
               </Alert>
             </div>
+          ) : null}
+
+          {isNew ? (
+            <NewCategoryStores
+              channels={channels}
+              selected={storeIds}
+              currentChannelId={effectiveChannelId}
+              isPublished={values.isPublished}
+              disabled={!canManage}
+              onChange={setPickedStores}
+            />
           ) : null}
 
           <fieldset disabled={!canManage} className="contents">
@@ -1289,6 +1324,121 @@ function CategoryFacetOverridesSection({
   )
 }
 
+// Past this many stores the picker grows a search box, bulk select and a scroll cap
+const STORE_PICKER_COMPACT_MAX = 8
+
+// Create-only store picker - categories are global rows, so this is where the admin sees (and changes) which stores
+// the new one is listed on, instead of the header scope deciding silently
+function NewCategoryStores({
+  channels,
+  selected,
+  currentChannelId,
+  isPublished,
+  disabled,
+  onChange,
+}: {
+  channels: ChannelScopeOption[]
+  selected: Set<string>
+  currentChannelId: string | undefined
+  isPublished: boolean
+  disabled: boolean
+  onChange: (next: Set<string>) => void
+}) {
+  const [query, setQuery] = useState('')
+  const large = channels.length > STORE_PICKER_COMPACT_MAX
+  // The store the admin is working in leads, so it stays in view however long the list gets
+  const ordered = useMemo(
+    () => [...channels].sort((a, b) => Number(b.id === currentChannelId) - Number(a.id === currentChannelId)),
+    [channels, currentChannelId],
+  )
+  const q = query.trim().toLowerCase()
+  const shown = q ? ordered.filter((c) => c.name.toLowerCase().includes(q)) : ordered
+
+  function toggle(id: string, on: boolean) {
+    const next = new Set(selected)
+    if (on) next.add(id)
+    else next.delete(id)
+    onChange(next)
+  }
+  // Bulk actions act on what the search shows, so "select all" under a filter means "all of these"
+  function setShown(on: boolean) {
+    const next = new Set(selected)
+    for (const c of shown) {
+      if (on) next.add(c.id)
+      else next.delete(c.id)
+    }
+    onChange(next)
+  }
+
+  const picked = channels.filter((c) => selected.has(c.id))
+  const where = picked.length <= 3 ? picked.map((c) => c.name).join(', ') : `${picked.length} stores`
+  const summary =
+    picked.length === 0
+      ? 'Not added to any store - it will only show under Global default.'
+      : isPublished
+        ? `Will be live on ${where}.`
+        : `Will be added to ${where}, but hidden until you switch it to Published.`
+
+  return (
+    <Section title="Stores" description="Categories are shared by every store. Pick the stores this one appears on.">
+      {channels.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No stores are configured yet.</p>
+      ) : (
+        <div className="grid gap-2">
+          {large ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-48 flex-1">
+                <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search stores…"
+                  aria-label="Search stores"
+                  className="h-8 pl-8 text-sm"
+                />
+              </div>
+              <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => setShown(true)} disabled={disabled || shown.length === 0}>
+                {q ? 'Select shown' : 'Select all'}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => setShown(false)} disabled={disabled || shown.length === 0}>
+                {q ? 'Clear shown' : 'Select none'}
+              </Button>
+              <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                {picked.length} of {channels.length} selected
+              </span>
+            </div>
+          ) : null}
+          <div className={cn('divide-y rounded-md border', large && 'scrollbar-accent max-h-64 overflow-y-auto')}>
+            {shown.length === 0 ? (
+              <p className="px-3 py-4 text-center text-sm text-muted-foreground">No stores match &ldquo;{query}&rdquo;</p>
+            ) : (
+              shown.map((c) => (
+                <label key={c.id} htmlFor={`cat-store-${c.id}`} className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm">
+                  <Checkbox
+                    id={`cat-store-${c.id}`}
+                    checked={selected.has(c.id)}
+                    onCheckedChange={(v) => toggle(c.id, v === true)}
+                    disabled={disabled}
+                  />
+                  <span className="flex-1 truncate font-medium">{c.name}</span>
+                  {c.id === currentChannelId ? <Badge variant="secondary">You&rsquo;re working here</Badge> : null}
+                  {!c.isActive ? <Badge variant="outline">Inactive</Badge> : null}
+                </label>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+      {currentChannelId && !selected.has(currentChannelId) ? (
+        <p className="text-xs text-amber-600">
+          It won&rsquo;t appear in this store&rsquo;s category list - you&rsquo;ll find it under Global default.
+        </p>
+      ) : null}
+      <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm">{summary}</p>
+    </Section>
+  )
+}
+
 /**
  * CategoryAvailabilitySection lets the operator attach/detach a category
  * from channels
@@ -1307,6 +1457,8 @@ function CategoryAvailabilitySection({
 }: {
   category: {
     id: string
+    // The global flag - a store listing only puts the category on that storefront while this is on too
+    isPublished: boolean
     listings: {
       channelId: string
       channel: { id: string; name: string }
@@ -1315,10 +1467,20 @@ function CategoryAvailabilitySection({
     }[]
   }
   canManage: boolean
-  // The header's staged global flag - a store only shows the category when both are on
+  // The header's staged Published/Draft switch - a Draft hides the category on every store whatever its listings say
   globalPublished: boolean
 }) {
   const { isChannel, effectiveChannelId, selectedChannel, channels } = useConfigScope()
+  // Follows the staged header switch, so the warning appears the moment the save would take the category off every store
+  const draftNotice = globalPublished ? null : (
+    <Alert variant="warning">
+      <AlertTitle>Draft</AlertTitle>
+      <AlertDescription>
+        This category is a Draft, so it is hidden on every storefront even where it is published below. Switch it to
+        Published in the header to make it live.
+      </AlertDescription>
+    </Alert>
+  )
   const refetch = [{ query: CategoryDocument, variables: { id: category.id } }]
   const [setListing] = useMutation(SetCategoryListingDocument, { refetchQueries: refetch })
   const [clearListing] = useMutation(ClearCategoryListingDocument, { refetchQueries: refetch })
@@ -1486,6 +1648,7 @@ function CategoryAvailabilitySection({
         title={`Availability on ${selectedChannel?.name ?? 'this store'}`}
         description="Switch the header store to manage another. Use the global tree (header → Global default) for cross-store assignment."
       >
+        {draftNotice}
         <div className="grid gap-3 rounded-md border p-4">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -1549,6 +1712,7 @@ function CategoryAvailabilitySection({
       title="Per-channel availability"
       description="Toggle which channels carry this category. A category is hidden on a store with no listing row."
     >
+      {draftNotice}
       <div className="overflow-hidden rounded-md border">
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground">

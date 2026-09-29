@@ -1,14 +1,24 @@
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+
 import { AuthCard } from "@/app/components/account/AccountUI";
-import { ForgotForm } from "./ForgotForm";
+import { ForgotForm } from "@/app/components/auth/ForgotForm";
 
-export const metadata = { title: "Reset your password" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/account/forgot">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "auth.forgot" });
+  return { title: t("title") };
+}
 
-export default function ForgotPasswordPage() {
+export default async function ForgotPasswordPage({
+  params,
+}: PageProps<"/[channel]/[locale]/account/forgot">) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "auth.forgot" });
   return (
-    <AuthCard
-      title="Reset your password"
-      description="Enter the email tied to your account and we'll send a link to choose a new one."
-    >
+    <AuthCard title={t("title")} description={t("description")}>
       <ForgotForm />
     </AuthCard>
   );
