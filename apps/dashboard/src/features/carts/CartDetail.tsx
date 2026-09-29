@@ -173,7 +173,7 @@ export function CartDetail() {
                       const res = await addLine({
                         variables: {
                           cartId: cart.id,
-                          productSku: pending.sku,
+                          sku: pending.sku,
                           quantity,
                           options: options.length > 0 ? options : undefined,
                         },

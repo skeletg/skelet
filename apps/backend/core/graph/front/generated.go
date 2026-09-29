@@ -655,7 +655,7 @@ type ComplexityRoot struct {
 		AddAddress                     func(childComplexity int, input model.AddressInput) int
 		AddBundleToCart                func(childComplexity int, input model1.AddBundleToCartInput) int
 		AddConfiguredToCart            func(childComplexity int, input model1.AddConfiguredToCartInput) int
-		AddToCart                      func(childComplexity int, cartID string, productName string, productSku string, unitPrice int32, quantity float64) int
+		AddToCart                      func(childComplexity int, cartID string, sku string, quantity float64) int
 		AddToWishlist                  func(childComplexity int, productID string) int
 		ApplyCoupon                    func(childComplexity int, cartID string, code string) int
 		CancelSubscription             func(childComplexity int, id string) int
@@ -681,7 +681,7 @@ type ComplexityRoot struct {
 		RemoveSavedItem                func(childComplexity int, cartID string, savedItemID string) int
 		Reorder                        func(childComplexity int, orderID string) int
 		RequestPasswordReset           func(childComplexity int, email string) int
-		RequestProductOptionFileUpload func(childComplexity int, productSku string, optionID string, filename string, mimeType string, sizeBytes int32) int
+		RequestProductOptionFileUpload func(childComplexity int, sku string, optionID string, filename string, mimeType string, sizeBytes int32) int
 		RequestReturn                  func(childComplexity int, input model.RequestReturnInput) int
 		RequestReviewMediaUpload       func(childComplexity int, productID string, filename string, mimeType string, sizeBytes int32) int
 		ResendVerificationEmail        func(childComplexity int) int
@@ -1295,10 +1295,10 @@ type CustomerResolver interface {
 }
 type MutationResolver interface {
 	CreateGuestCart(ctx context.Context) (*model1.Cart, error)
-	AddToCart(ctx context.Context, cartID string, productName string, productSku string, unitPrice int32, quantity float64) (*model1.Cart, error)
+	AddToCart(ctx context.Context, cartID string, sku string, quantity float64) (*model1.Cart, error)
 	AddBundleToCart(ctx context.Context, input model1.AddBundleToCartInput) (*model1.Cart, error)
 	AddConfiguredToCart(ctx context.Context, input model1.AddConfiguredToCartInput) (*model1.Cart, error)
-	RequestProductOptionFileUpload(ctx context.Context, productSku string, optionID string, filename string, mimeType string, sizeBytes int32) (*model1.ProductOptionFileUpload, error)
+	RequestProductOptionFileUpload(ctx context.Context, sku string, optionID string, filename string, mimeType string, sizeBytes int32) (*model1.ProductOptionFileUpload, error)
 	UpdateCartLine(ctx context.Context, cartID string, lineID string, quantity float64) (*model1.Cart, error)
 	RemoveFromCart(ctx context.Context, cartID string, lineID string) (*model1.Cart, error)
 	SetCartEmail(ctx context.Context, cartID string, email string) (*model1.Cart, error)
@@ -4099,7 +4099,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.AddToCart(childComplexity, args["cartId"].(string), args["productName"].(string), args["productSku"].(string), args["unitPrice"].(int32), args["quantity"].(float64)), true
+		return e.ComplexityRoot.Mutation.AddToCart(childComplexity, args["cartId"].(string), args["sku"].(string), args["quantity"].(float64)), true
 	case "Mutation.addToWishlist":
 		if e.ComplexityRoot.Mutation.AddToWishlist == nil {
 			break
@@ -4380,7 +4380,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.RequestProductOptionFileUpload(childComplexity, args["productSku"].(string), args["optionId"].(string), args["filename"].(string), args["mimeType"].(string), args["sizeBytes"].(int32)), true
+		return e.ComplexityRoot.Mutation.RequestProductOptionFileUpload(childComplexity, args["sku"].(string), args["optionId"].(string), args["filename"].(string), args["mimeType"].(string), args["sizeBytes"].(int32)), true
 	case "Mutation.requestReturn":
 		if e.ComplexityRoot.Mutation.RequestReturn == nil {
 			break
@@ -7668,7 +7668,7 @@ input ProductOptionSelectionInput {
 
 input AddConfiguredToCartInput {
   cartId:     ID!
-  productSku: String!
+  sku:        String!
   quantity:   Float!
   options:    [ProductOptionSelectionInput!]!
 }
@@ -7695,7 +7695,7 @@ input AddBundleToCartSelectionInput {
 
 input AddBundleToCartInput {
   cartId:     ID!
-  productSku: String!
+  sku:        String!
   quantity:   Float!
   selections: [AddBundleToCartSelectionInput!]!
 }
@@ -7724,14 +7724,15 @@ type ProductOptionFileUpload {
 
 extend type Mutation {
   createGuestCart:                                                                                    Cart!
-  addToCart(cartId: ID!, productName: String!, productSku: String!, unitPrice: Int!, quantity: Float!): Cart!
+  # Names and prices the line from the catalog by SKU
+  addToCart(cartId: ID!, sku: String!, quantity: Float!): Cart!
   # Bundle equivalent - the server resolves the bundle by SKU, validates the selections against the bundle's option structure, computes the line price from picked components, and stores the cart line + per-component snapshots. Re-adding the same bundle REPLACES the prior selection set.
   addBundleToCart(input: AddBundleToCartInput!):                                                      Cart!
   # Add a simple product carrying product custom-option picks. The server resolves the product's options by SKU, validates the picks, prices them server-side (folding deltas into the line unit price), and snapshots them onto the line. Re-adding the same SKU REPLACES the prior config.
   addConfiguredToCart(input: AddConfiguredToCartInput!):                                               Cart!
-  # Presign an upload for a FILE-type product option. The client PUTs the bytes to uploadUrl (with the exact Content-Type), then passes the returned assetId as fileAssetId in a ProductOptionSelectionInput. The server validates extension/size against the option's constraints at addConfiguredToCart time. productSku + optionId scope the upload directory (product-options/<productId>/...).
+  # Presign an upload for a FILE-type product option. The client PUTs the bytes to uploadUrl (with the exact Content-Type), then passes the returned assetId as fileAssetId in a ProductOptionSelectionInput. The server validates extension/size against the option's constraints at addConfiguredToCart time. sku + optionId scope the upload directory (product-options/<productId>/...).
   requestProductOptionFileUpload(
-    productSku: String!
+    sku:        String!
     optionId:   ID!
     filename:   String!
     mimeType:   String!
@@ -11733,38 +11734,22 @@ func (ec *executionContext) field_Mutation_addToCart_args(ctx context.Context, r
 		return nil, err
 	}
 	args["cartId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "productName",
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sku",
 		func(ctx context.Context, v any) (string, error) {
 			return ec.unmarshalNString2string(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["productName"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "productSku",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNString2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["productSku"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "unitPrice",
-		func(ctx context.Context, v any) (int32, error) {
-			return ec.unmarshalNInt2int32(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["unitPrice"] = arg3
-	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "quantity",
+	args["sku"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "quantity",
 		func(ctx context.Context, v any) (float64, error) {
 			return ec.unmarshalNFloat2float64(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["quantity"] = arg4
+	args["quantity"] = arg2
 	return args, nil
 }
 
@@ -12299,14 +12284,14 @@ func (ec *executionContext) field_Mutation_requestPasswordReset_args(ctx context
 func (ec *executionContext) field_Mutation_requestProductOptionFileUpload_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "productSku",
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sku",
 		func(ctx context.Context, v any) (string, error) {
 			return ec.unmarshalNString2string(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["productSku"] = arg0
+	args["sku"] = arg0
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "optionId",
 		func(ctx context.Context, v any) (string, error) {
 			return ec.unmarshalNID2string(ctx, v)
@@ -23935,7 +23920,7 @@ func (ec *executionContext) _Mutation_addToCart(ctx context.Context, field graph
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().AddToCart(ctx, fc.Args["cartId"].(string), fc.Args["productName"].(string), fc.Args["productSku"].(string), fc.Args["unitPrice"].(int32), fc.Args["quantity"].(float64))
+			return ec.Resolvers.Mutation().AddToCart(ctx, fc.Args["cartId"].(string), fc.Args["sku"].(string), fc.Args["quantity"].(float64))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.Cart) graphql.Marshaler {
@@ -24067,7 +24052,7 @@ func (ec *executionContext) _Mutation_requestProductOptionFileUpload(ctx context
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().RequestProductOptionFileUpload(ctx, fc.Args["productSku"].(string), fc.Args["optionId"].(string), fc.Args["filename"].(string), fc.Args["mimeType"].(string), fc.Args["sizeBytes"].(int32))
+			return ec.Resolvers.Mutation().RequestProductOptionFileUpload(ctx, fc.Args["sku"].(string), fc.Args["optionId"].(string), fc.Args["filename"].(string), fc.Args["mimeType"].(string), fc.Args["sizeBytes"].(int32))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model1.ProductOptionFileUpload) graphql.Marshaler {
@@ -38147,7 +38132,7 @@ func (ec *executionContext) unmarshalInputAddBundleToCartInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"cartId", "productSku", "quantity", "selections"}
+	fieldsInOrder := [...]string{"cartId", "sku", "quantity", "selections"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -38161,13 +38146,13 @@ func (ec *executionContext) unmarshalInputAddBundleToCartInput(ctx context.Conte
 				return it, err
 			}
 			it.CartID = data
-		case "productSku":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("productSku"))
+		case "sku":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sku"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.ProductSku = data
+			it.Sku = data
 		case "quantity":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quantity"))
 			data, err := ec.unmarshalNFloat2float64(ctx, v)
@@ -38235,7 +38220,7 @@ func (ec *executionContext) unmarshalInputAddConfiguredToCartInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"cartId", "productSku", "quantity", "options"}
+	fieldsInOrder := [...]string{"cartId", "sku", "quantity", "options"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -38249,13 +38234,13 @@ func (ec *executionContext) unmarshalInputAddConfiguredToCartInput(ctx context.C
 				return it, err
 			}
 			it.CartID = data
-		case "productSku":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("productSku"))
+		case "sku":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sku"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.ProductSku = data
+			it.Sku = data
 		case "quantity":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quantity"))
 			data, err := ec.unmarshalNFloat2float64(ctx, v)

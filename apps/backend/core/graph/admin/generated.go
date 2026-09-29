@@ -2151,7 +2151,7 @@ type ComplexityRoot struct {
 		AdjustLoyaltyPoints               func(childComplexity int, customerID string, points int32, reason string) int
 		AdjustStoreCredit                 func(childComplexity int, customerID string, amountCents int32, reason string) int
 		AdminAddAddress                   func(childComplexity int, customerID string, input model.AddressInput) int
-		AdminAddCartLine                  func(childComplexity int, cartID string, productSku string, quantity float64, options []*model.AdminCartLineOptionInput) int
+		AdminAddCartLine                  func(childComplexity int, cartID string, sku string, quantity float64, options []*model.AdminCartLineOptionInput) int
 		AdminClearCart                    func(childComplexity int, cartID string) int
 		AdminCreateCart                   func(childComplexity int, channelID string, customerID *string) int
 		AdminCreateCustomer               func(childComplexity int, input model.AdminCreateCustomerInput) int
@@ -4473,7 +4473,7 @@ type MutationResolver interface {
 	CancelEmailCampaign(ctx context.Context, id string) (*model.EmailCampaign, error)
 	SendCampaignTest(ctx context.Context, id string, to string) (bool, error)
 	AdminCreateCart(ctx context.Context, channelID string, customerID *string) (*model.AdminCart, error)
-	AdminAddCartLine(ctx context.Context, cartID string, productSku string, quantity float64, options []*model.AdminCartLineOptionInput) (*model.AdminCart, error)
+	AdminAddCartLine(ctx context.Context, cartID string, sku string, quantity float64, options []*model.AdminCartLineOptionInput) (*model.AdminCart, error)
 	AdminUpdateCartLine(ctx context.Context, cartID string, lineID string, quantity float64) (*model.AdminCart, error)
 	AdminRemoveCartLine(ctx context.Context, cartID string, lineID string) (*model.AdminCart, error)
 	AdminClearCart(ctx context.Context, cartID string) (*model.AdminCart, error)
@@ -14247,7 +14247,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.AdminAddCartLine(childComplexity, args["cartId"].(string), args["productSku"].(string), args["quantity"].(float64), args["options"].([]*model.AdminCartLineOptionInput)), true
+		return e.ComplexityRoot.Mutation.AdminAddCartLine(childComplexity, args["cartId"].(string), args["sku"].(string), args["quantity"].(float64), args["options"].([]*model.AdminCartLineOptionInput)), true
 	case "Mutation.adminClearCart":
 		if e.ComplexityRoot.Mutation.AdminClearCart == nil {
 			break
@@ -29046,7 +29046,7 @@ extend type Mutation {
   # customer → their one active cart on the channel.
   adminCreateCart(channelId: ID!, customerId: ID): AdminCart!
   # Live cart line editing (simple products; bundle lines view+remove only). Price resolves server-side from the catalog. Passing options adds a CONFIGURED line - same validation/pricing/snapshot contract as the storefront's addConfiguredToCart, so phone orders can carry required options.
-  adminAddCartLine(cartId: ID!, productSku: String!, quantity: Float!, options: [AdminCartLineOptionInput!]): AdminCart!
+  adminAddCartLine(cartId: ID!, sku: String!, quantity: Float!, options: [AdminCartLineOptionInput!]): AdminCart!
   adminUpdateCartLine(cartId: ID!, lineId: ID!, quantity: Float!): AdminCart!
   adminRemoveCartLine(cartId: ID!, lineId: ID!): AdminCart!
   adminClearCart(cartId: ID!): AdminCart!
@@ -44264,14 +44264,14 @@ func (ec *executionContext) field_Mutation_adminAddCartLine_args(ctx context.Con
 		return nil, err
 	}
 	args["cartId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "productSku",
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "sku",
 		func(ctx context.Context, v any) (string, error) {
 			return ec.unmarshalNString2string(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["productSku"] = arg1
+	args["sku"] = arg1
 	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "quantity",
 		func(ctx context.Context, v any) (float64, error) {
 			return ec.unmarshalNFloat2float64(ctx, v)
@@ -94370,7 +94370,7 @@ func (ec *executionContext) _Mutation_adminAddCartLine(ctx context.Context, fiel
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().AdminAddCartLine(ctx, fc.Args["cartId"].(string), fc.Args["productSku"].(string), fc.Args["quantity"].(float64), fc.Args["options"].([]*model.AdminCartLineOptionInput))
+			return ec.Resolvers.Mutation().AdminAddCartLine(ctx, fc.Args["cartId"].(string), fc.Args["sku"].(string), fc.Args["quantity"].(float64), fc.Args["options"].([]*model.AdminCartLineOptionInput))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.AdminCart) graphql.Marshaler {
