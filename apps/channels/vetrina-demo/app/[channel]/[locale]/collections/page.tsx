@@ -1,28 +1,44 @@
 import { Link } from "@/app/components/LocaleLink";
 import { SparklesIcon } from "lucide-react";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
 import { listCollections } from "@/app/lib/catalog/read";
 import { displayName, MISSING_NAME } from "@/app/lib/display";
 import { collectionHref } from "@/app/lib/entity-href";
-import { renderJsonText } from "@/app/[channel]/[locale]/products/[id]/parts";
+import { renderJsonText } from "@/app/lib/json-text";
+import { localizedAlternates } from "@/app/lib/locale/alternates";
 
-export const metadata = { title: "Collections" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/collections">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "listing" });
+  return {
+    title: t("collections"),
+    alternates: await localizedAlternates("/collections"),
+  };
+}
 
-export default async function CollectionsPage() {
+export default async function CollectionsPage({
+  params,
+}: PageProps<"/[channel]/[locale]/collections">) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "listing" });
   const { collections } = await listCollections();
 
   return (
     <main className="mx-auto w-full max-w-8xl px-6 md:px-10 pt-6 pb-14">
       <p className="text-xs uppercase tracking-wider text-muted-foreground">
-        Curated
+        {t("curated")}
       </p>
       <h1 className="mt-1 text-3xl font-medium tracking-tight">
-        Collections
+        {t("collections")}
       </h1>
 
       {collections.length === 0 ? (
         <p className="mt-8 text-sm text-muted-foreground">
-          No collections published yet.
+          {t("noCollections")}
         </p>
       ) : (
         <ul className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -1,6 +1,7 @@
 "use client";
 
 import { Link, usePathname } from "@/app/components/LocaleLink";
+import { useTranslations } from "next-intl";
 import type { ComponentType } from "react";
 import { getAccountNavItems, type AccountNavItem } from "@/app/plugins/registry";
 
@@ -21,33 +22,38 @@ import {
 // contributing a nav item should not be forced to depend on the same icon library
 type NavIcon = ComponentType<{ className?: string }>;
 type Item = { href: string; label: string; Icon: NavIcon };
+// Built-in entries name an account.nav message; plugin entries bring their own label
+type NavKey =
+  | "overview"
+  | "orders"
+  | "wishlist"
+  | "downloads"
+  | "subscriptions"
+  | "profile"
+  | "addresses"
+  | "paymentMethods"
+  | "password"
+  | "privacy";
+type BuiltIn = { href: string; key: NavKey; Icon: NavIcon };
 
-const SHOPPING: Item[] = [
-  { href: "/account/orders", label: "Orders", Icon: PackageIcon },
-  { href: "/account/wishlist", label: "Wishlist", Icon: HeartIcon },
-  { href: "/account/downloads", label: "Downloads", Icon: DownloadIcon },
-  {
-    href: "/account/subscriptions",
-    label: "Subscriptions",
-    Icon: RefreshCwIcon,
-  },
+const SHOPPING: BuiltIn[] = [
+  { href: "/account/orders", key: "orders", Icon: PackageIcon },
+  { href: "/account/wishlist", key: "wishlist", Icon: HeartIcon },
+  { href: "/account/downloads", key: "downloads", Icon: DownloadIcon },
+  { href: "/account/subscriptions", key: "subscriptions", Icon: RefreshCwIcon },
 ];
 
-const DETAILS: Item[] = [
-  { href: "/account/profile", label: "Profile", Icon: UserIcon },
-  { href: "/account/addresses", label: "Addresses", Icon: MapPinIcon },
-  {
-    href: "/account/payment-methods",
-    label: "Payment methods",
-    Icon: CreditCardIcon,
-  },
-  { href: "/account/password", label: "Password", Icon: LockIcon },
-  { href: "/account/privacy", label: "Data & privacy", Icon: ShieldIcon },
+const DETAILS: BuiltIn[] = [
+  { href: "/account/profile", key: "profile", Icon: UserIcon },
+  { href: "/account/addresses", key: "addresses", Icon: MapPinIcon },
+  { href: "/account/payment-methods", key: "paymentMethods", Icon: CreditCardIcon },
+  { href: "/account/password", key: "password", Icon: LockIcon },
+  { href: "/account/privacy", key: "privacy", Icon: ShieldIcon },
 ];
 
-const OVERVIEW: Item = {
+const OVERVIEW_ITEM: BuiltIn = {
   href: "/account",
-  label: "Overview",
+  key: "overview",
   Icon: LayoutGridIcon,
 };
 
@@ -57,14 +63,18 @@ export function AccountNav({
   variant?: "sidebar" | "strip";
 }) {
   const pathname = usePathname();
-  const shopping = SHOPPING;
+  const t = useTranslations("account.nav");
+  const label = ({ href, key, Icon }: BuiltIn): Item => ({ href, label: t(key), Icon });
+  const OVERVIEW = label(OVERVIEW_ITEM);
+  const shopping = SHOPPING.map(label);
+  const details = DETAILS.map(label);
   // Plugin-contributed links sit after the built-in shopping ones - see app/plugins/registry.ts
   const pluginItems = getAccountNavItems();
 
   if (variant === "strip") {
     return (
       <nav
-        aria-label="Account"
+        aria-label={t("label")}
         className="-mx-6 overflow-x-auto px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <ul className="flex w-max gap-2 text-sm">
@@ -86,7 +96,7 @@ export function AccountNav({
               className="whitespace-nowrap border border-border"
             />
           ))}
-          {DETAILS.map((it) => (
+          {details.map((it) => (
             <li key={it.href}>
               <NavLink
                 {...it}
@@ -101,10 +111,10 @@ export function AccountNav({
   }
 
   return (
-    <nav aria-label="Account" className="text-sm">
+    <nav aria-label={t("label")} className="text-sm">
       <NavLink {...OVERVIEW} pathname={pathname} exact />
-      <Group title="Shopping" items={shopping} pathname={pathname} extra={pluginItems} />
-      <Group title="Your details" items={DETAILS} pathname={pathname} />
+      <Group title={t("shopping")} items={shopping} pathname={pathname} extra={pluginItems} />
+      <Group title={t("yourDetails")} items={details} pathname={pathname} />
     </nav>
   );
 }

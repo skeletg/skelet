@@ -5,6 +5,7 @@
 // apps/dashboard/src/features/catalog/lexical-blocks/*.tsx
 
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 
 type LexicalRoot = {
   type: "root";
@@ -199,6 +200,17 @@ export function lexicalPlainText(value: unknown): string {
   }
   for (const b of blocks) walk(b);
   return parts.join(" ");
+}
+
+// Plain text cut to meta-description length, on a word boundary - the fallback when an
+// operator wrote no meta description, so the tag carries the page's own copy instead of
+// the channel-wide default. Search engines truncate around 155-160 characters anyway
+export function lexicalSummary(value: unknown, max = 160): string {
+  const text = lexicalPlainText(value).replace(/\s+/g, " ");
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max / 2 ? cut.slice(0, space) : cut).replace(/[\s.,;:!?-]+$/, "")}…`;
 }
 
 function parseEnvelope(value: unknown): BlockNode[] {
@@ -534,11 +546,12 @@ function StructuredBlockRenderer({ node }: { node: StructuredBlock }) {
 }
 
 function ProsConsBlock({ data }: { data: ProsConsData }) {
+  const t = useTranslations("cms");
   return (
     <div className="my-6 grid gap-4 sm:grid-cols-2">
       <div className="rounded-md border border-green-300 bg-green-50/50 p-4">
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-green-700">
-          Pros
+          {t("pros")}
         </div>
         <ul className="ml-5 list-disc space-y-1 text-sm leading-relaxed">
           {data.pros.map((p, i) => (
@@ -548,7 +561,7 @@ function ProsConsBlock({ data }: { data: ProsConsData }) {
       </div>
       <div className="rounded-md border border-red-300 bg-red-50/50 p-4">
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-700">
-          Cons
+          {t("cons")}
         </div>
         <ul className="ml-5 list-disc space-y-1 text-sm leading-relaxed">
           {data.cons.map((p, i) => (
@@ -630,6 +643,7 @@ function TestimonialsBlock({ data }: { data: TestimonialsData }) {
 }
 
 function VideoEmbedBlock({ data }: { data: VideoEmbedData }) {
+  const t = useTranslations("cms");
   const embed = videoEmbedUrl(data.url);
   if (!embed) return null;
   return (
@@ -637,7 +651,7 @@ function VideoEmbedBlock({ data }: { data: VideoEmbedData }) {
       <div className="relative w-full overflow-hidden rounded-md border pt-[56.25%]">
         <iframe
           src={embed}
-          title={data.title || "Embedded video"}
+          title={data.title || t("embeddedVideo")}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
           className="absolute inset-0 h-full w-full"

@@ -4,6 +4,7 @@
 // Modal underneath; the slide and backdrop fade are .drawer CSS in globals.css
 
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 
 import { Modal } from "@/app/components/Modal";
 
@@ -35,6 +36,7 @@ export function Drawer({
   className,
   children,
 }: Props) {
+  const t = useTranslations("common");
   return (
     <Modal
       open={open}
@@ -76,7 +78,7 @@ export function Drawer({
         >
           <path d="M18 6 6 18M6 6l12 12" />
         </svg>
-        <span className="sr-only">Close</span>
+        <span className="sr-only">{t("close")}</span>
       </button>
       {children}
     </Modal>

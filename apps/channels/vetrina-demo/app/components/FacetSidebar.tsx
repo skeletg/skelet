@@ -1,8 +1,8 @@
 "use client";
 
 import { Link, useRouter, usePathname } from "@/app/components/LocaleLink";
-import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   filterChainAllowed,
@@ -71,6 +71,7 @@ export function FacetSidebar({
   pathFilters,
   pathSort,
   facetRules = { combinations: [], minResults: 0 },
+  currentQuery = "",
 }: {
   facets: FacetGroupInput[];
   basePath?: string;
@@ -82,13 +83,13 @@ export function FacetSidebar({
   // chain is an allowed combination of indexable values with enough results; everything
   // else renders as a button so crawlers never enter the combination loop
   facetRules?: FacetIndexRules & { minResults: number };
+  // The page's query string, handed down by the server - useSearchParams here would bail the
+  // force-static catch-all out to client rendering, leaving no-JS visitors a blank listing
+  currentQuery?: string;
 }) {
   const pathname = usePathname();
-  const rawParams = useSearchParams();
-  const current = useMemo(
-    () => new URLSearchParams(rawParams.toString()),
-    [rawParams],
-  );
+  const t = useTranslations("listing.facets");
+  const current = useMemo(() => new URLSearchParams(currentQuery), [currentQuery]);
 
   const usePath = basePath != null && pathFilters != null;
 
@@ -184,7 +185,7 @@ export function FacetSidebar({
         id="facet-drawer-toggle"
         type="checkbox"
         className="peer/drawer sr-only"
-        aria-label="Toggle filter drawer"
+        aria-label={t("toggle")}
       />
 
       {/* Mobile only - bottom-right keeps it in thumb reach and clear of the breadcrumb row */}
@@ -193,7 +194,7 @@ export function FacetSidebar({
         className="fixed bottom-5 right-5 z-40 inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-black/20 md:hidden"
       >
         <FilterIcon />
-        Filters
+        {t("filters")}
         {hasSelection ? (
           <span className="rounded-sm bg-white/25 px-1.5 py-0.5 text-[10px] tabular-nums text-white">
             {activeChips.length}
@@ -204,7 +205,7 @@ export function FacetSidebar({
       {/* Below the aside in the z-stack so the aside still catches its own taps */}
       <label
         htmlFor="facet-drawer-toggle"
-        aria-label="Close filters"
+        aria-label={t("close")}
         // Same scrim as dialog.drawer::backdrop and the search modal - this one is a peer-checked
         // label rather than a <dialog>, so it can't inherit it
         className="pointer-events-none fixed inset-0 z-40 bg-black/10 opacity-0 backdrop-blur-[2px] transition-opacity peer-checked/drawer:pointer-events-auto peer-checked/drawer:opacity-100 md:hidden"
@@ -227,7 +228,7 @@ export function FacetSidebar({
         <div className="flex items-center justify-between border-b border-border pb-3">
           <h2 className="flex items-center gap-2 text-sm font-medium">
             <FilterIcon />
-            Filters
+            {t("filters")}
             {hasSelection ? (
               <span className="rounded-sm bg-foreground px-2 py-0.5 text-[10px] font-semibold text-background">
                 {activeChips.length}
@@ -242,7 +243,7 @@ export function FacetSidebar({
                 prefetch={false}
                 className="text-xs text-muted-foreground underline-offset-2 hover:underline"
               >
-                Clear all
+                {t("clearAll")}
               </Link>
             ) : null}
             {/* Drawer close - mobile only. The label flips the
@@ -250,7 +251,7 @@ export function FacetSidebar({
             <label
               htmlFor="facet-drawer-toggle"
               className="grid size-7 cursor-pointer place-items-center rounded-md text-muted-foreground hover:bg-muted md:hidden"
-              aria-label="Close filters"
+              aria-label={t("close")}
             >
               <CloseIcon />
             </label>
@@ -342,6 +343,7 @@ function FacetValueList({
   minResults: number;
 }) {
   const router = useRouter();
+  const t = useTranslations("listing.facets");
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState(false);
 
@@ -375,8 +377,8 @@ function FacetValueList({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search ${group.label.toLowerCase()}…`}
-            aria-label={`Search ${group.label} values`}
+            placeholder={t("searchPlaceholder", { group: group.label.toLowerCase() })}
+            aria-label={t("searchLabel", { group: group.label })}
             className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-2.5 text-sm outline-none transition placeholder:text-muted-foreground focus:border-foreground/50"
           />
         </div>
@@ -476,7 +478,7 @@ function FacetValueList({
 
       {q && matchCount === 0 && (
         <p className="px-2 py-1.5 text-xs text-muted-foreground">
-          Nothing matches &ldquo;{query.trim()}&rdquo;
+          {t("noMatch", { query: query.trim() })}
         </p>
       )}
 
@@ -506,7 +508,7 @@ function FacetValueList({
               )}
             </svg>
           </span>
-          {expanded ? "Show fewer" : `Show all ${group.buckets.length}`}
+          {expanded ? t("showFewer") : t("showAll", { count: group.buckets.length })}
         </button>
       )}
     </div>
@@ -526,10 +528,11 @@ function ActiveChipsRow({
   chips: ChipDescriptor[];
   clearHref: string;
 }) {
+  const t = useTranslations("listing.facets");
   return (
     <div className="grid gap-2">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Active filters
+        {t("active")}
       </p>
       <ul className="flex flex-wrap gap-1.5">
         {chips.map((c, i) => (
@@ -539,7 +542,7 @@ function ActiveChipsRow({
                 href={c.href}
                 scroll={false}
                 prefetch={false}
-                title={`Remove ${c.groupLabel}: ${c.value}`}
+                title={t("removeChip", { group: c.groupLabel, value: c.value })}
                 className="inline-flex items-center gap-1 rounded-md bg-foreground px-2.5 py-1 text-xs text-background transition-colors hover:bg-foreground/90"
               >
                 <span className="text-muted-foreground">
@@ -560,7 +563,7 @@ function ActiveChipsRow({
             prefetch={false}
             className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent"
           >
-            Clear all
+            {t("clearAll")}
           </Link>
         </li>
       </ul>
@@ -570,11 +573,12 @@ function ActiveChipsRow({
 
 function ChipButton({ chip }: { chip: ChipDescriptor }) {
   const router = useRouter();
+  const t = useTranslations("listing.facets");
   return (
     <button
       type="button"
       onClick={() => router.push(chip.href, { scroll: false })}
-      title={`Remove ${chip.groupLabel}: ${chip.value}`}
+      title={t("removeChip", { group: chip.groupLabel, value: chip.value })}
       className="inline-flex items-center gap-1 rounded-md bg-foreground px-2.5 py-1 text-xs text-background transition-colors hover:bg-foreground/90"
     >
       <span className="text-muted-foreground">

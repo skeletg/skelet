@@ -30,7 +30,6 @@ import {
   ProductTypesDocument,
 } from './Catalog.gql'
 import { ProductTypeFormDialog, type ExistingProductType } from './ProductTypeFormDialog'
-import { useConfigScope } from '@/lib/config-scope'
 import { ProductTypeDetail } from './ProductTypeDetail'
 
 type ProductTypeRow = ExistingProductType & {
@@ -46,9 +45,11 @@ export function ProductTypesList() {
   const params = useParams<{ id?: string }>()
   const activeID = params.id ?? null
 
-  const { has } = usePermissions()
+  const { has, allowedChannelScopes } = usePermissions()
   const canManage = has('catalog.manage')
-  const { isGlobal } = useConfigScope()
+  // Types are shared by every channel, so creating one needs the grant everywhere (the resolver's requireGlobal) -
+  // which channel the header is viewing doesn't matter
+  const canCreate = allowedChannelScopes('catalog.manage').allChannels
 
   const { data, loading, error } = useQuery(ProductTypesDocument)
   const rows = useMemo(() => ((data?.productTypes ?? []) as ProductTypeRow[]), [data])
@@ -183,22 +184,15 @@ export function ProductTypesList() {
         emptyState="No product types yet."
         searchPlaceholder="Search name or slug…"
         toolbarRightSlot={
-          canManage && (
-            isGlobal ? (
-              <ProductTypeFormDialog
-                trigger={
-                  <Button size="sm">
-                    <PlusIcon className="size-4" />
-                    New product type
-                  </Button>
-                }
-              />
-            ) : (
-              <Button size="sm" disabled title="Switch the header to GLOBAL to add a product type.">
-                <PlusIcon className="size-4" />
-                New product type
-              </Button>
-            )
+          canCreate && (
+            <ProductTypeFormDialog
+              trigger={
+                <Button size="sm">
+                  <PlusIcon className="size-4" />
+                  New product type
+                </Button>
+              }
+            />
           )
         }
       />

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 export function ShareLinkButton({ token }: { token: string }) {
+  const t = useTranslations("account.wishlist");
   const [copied, setCopied] = useState(false);
 
   return (
@@ -17,7 +19,7 @@ export function ShareLinkButton({ token }: { token: string }) {
       }}
       className="inline-flex h-10 items-center rounded-md border border-border bg-background px-5 text-sm font-semibold transition-colors hover:bg-accent"
     >
-      {copied ? "Link copied!" : "Copy share link"}
+      {copied ? t("copied") : t("copyLink")}
     </button>
   );
 }

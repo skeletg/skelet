@@ -1,36 +1,41 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { addConfiguredToCart } from "@/app/lib/cart/actions";
 import { displayName } from "@/app/lib/display";
 import { formatPrice } from "@/app/lib/format";
 import type { ProductDetail } from "@/app/lib/catalog/read";
 import { ApproxPrice } from "@/app/components/ApproxPrice";
-import { CompareButton } from "@/app/components/CompareButton";
-import { RatingStars } from "@/app/components/RatingStars";
-import { WishlistButton } from "@/app/components/WishlistButton";
 import { deriveQtyBounds } from "@/app/components/qty";
-import { QtySelector } from "@/app/components/QtySelector";
 import { RequiredFlag } from "./RequiredFlag";
 import { MissingOptionLinks } from "./MissingOptionLinks";
 import { jumpToOption } from "./focus-intent";
-import { AddToCartButton } from "./AddToCartButton";
-import { StickyBuyRow } from "./StickyBuyRow";
-import { AddToCartFeedback } from "./AddToCartFeedback";
-import { OptionControl, useConfiguredOptions } from "./ProductOptions";
+import { AddToCartButton } from "@/app/components/product/AddToCartButton";
+import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
+import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";
+import { OptionControl } from "./ProductOptions";
+import { useConfiguredOptions } from "./useConfiguredOptions";
 import {
   AttributeList,
   Description,
-  ProductGallery,
-  ProductReassurance,
   optionAnchorId,
   SelectionHint,
   StockBadge,
 } from "./parts";
+import {
+  OptionsAddLabel,
+  PdpBuyBox,
+  PdpMetaRow,
+  PdpQty,
+  PdpShell,
+} from "./pdp-shell";
 
 export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
   const [addState, formAction] = useActionState(addConfiguredToCart, null);
+  const t = useTranslations("product.pdp");
+  const tp = useTranslations("product");
   const opts = useConfiguredOptions(product.options, {
     defaultPrice: product.defaultPrice,
     effectivePrice: product.price ?? product.defaultPrice,
@@ -45,50 +50,10 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
   const attempted = attemptSeq > 0;
 
   return (
-    <div className="mt-6 grid grid-cols-1 gap-10 md:grid-cols-2 md:items-start">
-      {/* Source order gives phones the name first; md+ placement restores the columns */}
-      <div className="md:col-start-2 md:row-start-1">
-        {product.primaryCategory && (
-          <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-signal">
-            {displayName(
-              product.primaryCategory.name,
-              product.primaryCategory.slug,
-            )}
-          </p>
-        )}
-        <h1 className="mt-1 text-3xl font-extrabold tracking-tight">{heading}</h1>
-      </div>
-      <div className="md:col-start-1 md:row-start-1 md:row-span-2 md:sticky md:top-28 md:self-start">
-        <ProductGallery
-          media={product.media}
-          fallback={product.mainImage}
-          alt={heading}
-          morphFromProductId={product.id}
-        />
-      </div>
+    <PdpShell product={product} heading={heading}>
+      <PdpMetaRow product={product} />
 
-      <div className="md:col-start-2 md:row-start-2">
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          {product.reviewAggregates &&
-            product.reviewAggregates.count > 0 &&
-            product.reviewAggregates.overallAverage != null && (
-              <a
-                href="#reviews"
-                className="inline-flex items-center gap-1.5 hover:underline"
-              >
-                <RatingStars value={product.reviewAggregates.overallAverage} />
-                <span className="text-sm text-muted-foreground">
-                  {product.reviewAggregates.overallAverage.toFixed(1)} (
-                  {product.reviewAggregates.count})
-                </span>
-              </a>
-            )}
-          <p className="text-sm text-muted-foreground">SKU {product.sku}</p>
-          <WishlistButton productId={product.id} size="sm" />
-          <CompareButton productId={product.id} />
-        </div>
-
-        <div className="glass mt-5 rounded-xl p-6">
+      <PdpBuyBox>
         <p className="text-2xl font-bold tracking-tight">
           {formatPrice(opts.configuredTotal, product.defaultCurrencyCode)}
           <ApproxPrice cents={opts.configuredTotal} className="text-base font-normal text-muted-foreground" />
@@ -103,23 +68,30 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
         </p>
         {opts.optionsDelta !== 0 ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            {formatPrice(effectiveBase, product.defaultCurrencyCode)} base
-            {" + "}
-            {formatPrice(opts.optionsDelta, product.defaultCurrencyCode)} options
+            {t("basePlusOptions", {
+              base: formatPrice(effectiveBase, product.defaultCurrencyCode),
+              options: formatPrice(opts.optionsDelta, product.defaultCurrencyCode),
+            })}
           </p>
         ) : null}
         {opts.forcedQty != null ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            Quantity {opts.forcedQty} - set by your selection ·{" "}
-            <span className="font-medium text-foreground">
-              {formatPrice(opts.configuredTotal * opts.forcedQty, product.defaultCurrencyCode)}
-            </span>{" "}
-            total
+            {t.rich("qtyLockedTotal", {
+              qty: opts.forcedQty,
+              total: () => (
+                <span className="font-medium text-foreground">
+                  {formatPrice(
+                    opts.configuredTotal * (opts.forcedQty ?? 0),
+                    product.defaultCurrencyCode,
+                  )}
+                </span>
+              ),
+            })}
           </p>
         ) : null}
         {opts.forcedQtyConflict ? (
           <p role="alert" className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
-            These choices set different fixed quantities - keep only one of them.
+            {t("qtyConflict")}
           </p>
         ) : null}
 
@@ -163,19 +135,11 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
             name="options"
             value={JSON.stringify(opts.payload)}
           />
-          {opts.forcedQty != null ? (
-            <input type="hidden" name="quantity" value={opts.forcedQty} />
-          ) : (
-            <QtySelector
-              name="quantity"
-              defaultValue={qtyBounds.defaultValue}
-              min={qtyBounds.min}
-              max={qtyBounds.max}
-              step={qtyBounds.step}
-              decimals={qtyBounds.decimals}
-              disabled={!product.inStock}
-            />
-          )}
+          <PdpQty
+            bounds={qtyBounds}
+            forcedQty={opts.forcedQty}
+            disabled={!product.inStock}
+          />
           <AddToCartButton
             stickyPrice={formatPrice(opts.configuredTotal, product.defaultCurrencyCode)}
             disabled={!product.inStock || opts.uploading}
@@ -187,13 +151,11 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
             }}
             className="flex-1"
           >
-            {opts.uploading
-              ? "Uploading…"
-              : opts.missingRequired.length > 0
-                ? "Complete required options"
-                : opts.forcedQtyConflict
-                  ? "Resolve quantity conflict"
-                  : "Add to cart"}
+            <OptionsAddLabel
+              uploading={opts.uploading}
+              missingRequired={opts.missingRequired.length > 0}
+              forcedQtyConflict={opts.forcedQtyConflict}
+            />
           </AddToCartButton>
         </form>
         </StickyBuyRow>
@@ -201,28 +163,28 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
 
         {attempted && opts.missingRequired.length > 0 ? (
           <SelectionHint key={attemptSeq}>
-            Required option{opts.missingRequired.length > 1 ? "s" : ""}:{" "}
-            <MissingOptionLinks items={opts.missingRequiredItems} />
+            {t.rich("requiredOptions", {
+              count: opts.missingRequired.length,
+              links: () => <MissingOptionLinks items={opts.missingRequiredItems} />,
+            })}
           </SelectionHint>
         ) : null}
 
-        <ProductReassurance className="mt-5 border-t border-border pt-4" />
-        </div>
+      </PdpBuyBox>
 
-        <Description
-          label="Summary"
-          value={product.shortDescription}
-          className="mt-6"
-        />
+      <Description
+        label={tp("summary")}
+        value={product.shortDescription}
+        className="mt-6"
+      />
 
-        <Description
-          label="Description"
-          value={product.description}
-          className="mt-8"
-        />
+      <Description
+        label={tp("description")}
+        value={product.description}
+        className="mt-8"
+      />
 
-        <AttributeList values={product.attributeValues} className="mt-8" />
-      </div>
-    </div>
+      <AttributeList values={product.attributeValues} className="mt-8" />
+    </PdpShell>
   );
 }
