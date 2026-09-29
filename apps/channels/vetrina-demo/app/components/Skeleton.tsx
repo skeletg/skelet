@@ -55,42 +55,6 @@ export function ProductGridSkeleton({ count = 8 }: { count?: number }) {
   );
 }
 
-// A listing page: header, the facet column on wide screens, and the grid
-export function ListingSkeleton() {
-  return (
-    <SkeletonRegion className="mx-auto w-full max-w-8xl px-6 pt-6 pb-14 md:px-10">
-      <PageHeaderSkeleton />
-      <div className="mt-8 grid gap-10 md:grid-cols-[14rem_1fr]">
-        <div className="hidden space-y-3 md:block">
-          {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className="h-5 w-full" />
-          ))}
-        </div>
-        <ProductGridSkeleton />
-      </div>
-    </SkeletonRegion>
-  );
-}
-
-// A product page: gallery beside the buy box
-export function ProductDetailSkeleton() {
-  return (
-    <SkeletonRegion className="mx-auto w-full max-w-8xl px-6 pt-6 pb-14 md:px-10">
-      <Skeleton className="h-4 w-48" />
-      <div className="mt-6 grid gap-10 lg:grid-cols-2">
-        <Skeleton className="aspect-square w-full rounded-2xl" />
-        <div className="space-y-4">
-          <Skeleton className="h-9 w-3/4" />
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-8 w-28" />
-          <Skeleton className="h-11 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </div>
-      </div>
-    </SkeletonRegion>
-  );
-}
-
 // A text-first page: header and a stack of rows (account pages, cart, blog index). contained=false drops the page
 // padding for pages that render inside a layout which already provides it (the account area)
 export function ContentSkeleton({ rows = 5, contained = true }: { rows?: number; contained?: boolean }) {
