@@ -18,7 +18,7 @@ func (m *memberRepo) RoleMemberIDs(context.Context, uuid.UUID) ([]uuid.UUID, err
 	return m.members, nil
 }
 
-func (m *memberRepo) GetByIDWithRoles(_ context.Context, id uuid.UUID) (AdminUser, error) {
+func (m *memberRepo) GetByID(_ context.Context, id uuid.UUID) (AdminUser, error) {
 	return AdminUser{ID: id}, nil
 }
 
