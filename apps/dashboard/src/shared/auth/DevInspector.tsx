@@ -17,7 +17,7 @@ import { useDevRequests } from '@/lib/dev-monitor'
 import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { MeDocument } from './Me.gql'
 import { useAuth } from './auth'
-import { STOREFRONT_ORIGIN } from '@/lib/app-origins'
+import { JAEGER_URL, STOREFRONT_ORIGIN } from '@/lib/app-origins'
 
 // Dev-only inspector sheet: the resolved truth behind permission /
 // channel / locale debugging - Everything here is read-only and comes
@@ -26,7 +26,6 @@ import { STOREFRONT_ORIGIN } from '@/lib/app-origins'
 // extensions) - Opened from the dev identity switcher in the sidebar
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8080'
-const JAEGER_URL = import.meta.env.VITE_JAEGER_URL ?? 'http://localhost:16686'
 
 const TOOL_LINKS: { label: string; href: string; hint: string }[] = [
   { label: 'Mailpit', href: 'http://localhost:8025', hint: 'caught emails' },
