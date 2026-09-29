@@ -1152,6 +1152,17 @@ export type CategoryContent = {
   updatedAt: Scalars['Time']['output'];
 };
 
+export type CategoryOption = {
+  __typename?: 'CategoryOption';
+  id: Scalars['ID']['output'];
+  isPublished: Scalars['Boolean']['output'];
+  name?: Maybe<Scalars['String']['output']>;
+  parentId?: Maybe<Scalars['ID']['output']>;
+  position: Scalars['Int']['output'];
+  productCount: Scalars['Int']['output'];
+  slug: Scalars['String']['output'];
+};
+
 export type Channel = {
   __typename?: 'Channel';
   createdAt: Scalars['Time']['output'];
@@ -7165,6 +7176,7 @@ export type Query = {
   carts: CartList;
   category: Category;
   categoryChildren: Array<Category>;
+  categoryOptions: Array<CategoryOption>;
   channel: Channel;
   channels: Array<Channel>;
   chatConversation?: Maybe<ChatConversation>;
@@ -7483,6 +7495,11 @@ export type QueryCategoryArgs = {
 export type QueryCategoryChildrenArgs = {
   channelId?: InputMaybe<Scalars['ID']['input']>;
   parentId: Scalars['ID']['input'];
+};
+
+
+export type QueryCategoryOptionsArgs = {
+  channelId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 

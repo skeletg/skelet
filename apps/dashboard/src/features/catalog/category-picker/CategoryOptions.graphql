@@ -1,0 +1,7 @@
+# Every category flat, for the pickers - the client builds the tree from parentId, so it reaches
+# any depth, unlike the fixed nesting of RootCategories
+query CategoryOptions {
+  categoryOptions {
+    id parentId slug name position isPublished productCount
+  }
+}
