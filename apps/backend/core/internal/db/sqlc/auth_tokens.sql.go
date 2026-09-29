@@ -12,6 +12,18 @@ import (
 	"github.com/google/uuid"
 )
 
+const consumeAuthToken = `-- name: ConsumeAuthToken :one
+DELETE FROM auth_tokens WHERE token_key = $1 AND expires_at > now()
+RETURNING subject_id
+`
+
+func (q *Queries) ConsumeAuthToken(ctx context.Context, tokenKey string) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, consumeAuthToken, tokenKey)
+	var subject_id uuid.UUID
+	err := row.Scan(&subject_id)
+	return subject_id, err
+}
+
 const deleteAuthToken = `-- name: DeleteAuthToken :exec
 DELETE FROM auth_tokens WHERE token_key = $1
 `

@@ -206,7 +206,8 @@ func wirePlatform(d platformDeps) {
 		d.Admin.SetSecretsCipher(d.Cipher) // Admin TOTP secrets ride the same at-rest cipher
 	}
 
-	d.Admin.SetPasswordReset(d.AdminReset.PasswordResetStore, d.AdminRefresh.RefreshStore, d.TransactionalSender, d.Config, d.Cfg.DashboardURL) // sessions are revoked on reset, and the link points at the dashboard since admins have no storefront
+	d.Admin.SetRefreshStore(d.AdminRefresh.RefreshStore)
+	d.Admin.SetPasswordReset(d.AdminReset.PasswordResetStore, d.TransactionalSender, d.Config, d.Cfg.DashboardURL) // the link points at the dashboard since admins have no storefront
 
 	d.Channel.SetCache(cache.New(d.Cache.Client, "channel"))
 

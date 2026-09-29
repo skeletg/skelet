@@ -16,6 +16,10 @@ var ErrRoleSlugTaken = errors.New("role slug already exists")
 
 var ErrEmailTaken = errors.New("an admin with this email already exists")
 
+var ErrAdminNotFound = errors.New("admin not found")
+
+var ErrRoleNotFound = errors.New("role not found")
+
 type AdminUser struct {
 	ID                uuid.UUID
 	Email             string
@@ -32,6 +36,7 @@ type AdminUser struct {
 	TotpSecret        string       // encrypted-at-rest blob (internal)
 	TotpPendingSecret string       // encrypted-at-rest blob (internal)
 	TotpRecoveryCodes []string     // bcrypt hashes (internal)
+	TotpLockedUntil   *time.Time   // second-factor lockout after repeated misses (internal)
 }
 
 type Permission struct {
@@ -117,9 +122,12 @@ type Repository interface { // implementations must be safe for concurrent use
 	RecordLogin(ctx context.Context, id uuid.UUID) (previous *time.Time, stamped time.Time, err error)
 
 	SetTotpPending(ctx context.Context, id uuid.UUID, encryptedSecret string) error
-	EnableTotp(ctx context.Context, id uuid.UUID, recoveryHashes []byte) error
+	EnableTotp(ctx context.Context, id uuid.UUID, recoveryHashes []byte, step int64) (bool, error) // false when nothing was pending or 2FA was already on
 	DisableTotp(ctx context.Context, id uuid.UUID) error
-	SetTotpRecoveryCodes(ctx context.Context, id uuid.UUID, recoveryHashes []byte) error
+	ClaimTotpAttempt(ctx context.Context, id uuid.UUID, maxAttempts int, lock time.Duration) (bool, error) // false while locked out
+	AcceptTotpStep(ctx context.Context, id uuid.UUID, step int64) (bool, error)                            // false when the step was already used
+	RedeemTotpRecoveryCode(ctx context.Context, id uuid.UUID, expected, remaining []byte) (bool, error)    // false when the stored list is no longer expected
+	ClearTotpFailures(ctx context.Context, id uuid.UUID) error
 
 	GetPermissions(ctx context.Context, adminID uuid.UUID) ([]Permission, error)
 	ListAllGrants(ctx context.Context, adminID uuid.UUID) ([]PermissionGrant, error)

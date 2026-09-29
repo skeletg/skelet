@@ -264,20 +264,23 @@ type AdminSession struct {
 }
 
 type AdminUser struct {
-	ID                uuid.UUID             `json:"id"`
-	Email             string                `json:"email"`
-	PasswordHash      string                `json:"password_hash"`
-	FirstName         string                `json:"first_name"`
-	LastName          string                `json:"last_name"`
-	IsActive          bool                  `json:"is_active"`
-	CreatedAt         time.Time             `json:"created_at"`
-	UpdatedAt         time.Time             `json:"updated_at"`
-	IsSuperuser       bool                  `json:"is_superuser"`
-	TotpSecret        sql.NullString        `json:"totp_secret"`
-	TotpPendingSecret sql.NullString        `json:"totp_pending_secret"`
-	TotpEnabled       bool                  `json:"totp_enabled"`
-	TotpRecoveryCodes pqtype.NullRawMessage `json:"totp_recovery_codes"`
-	LastLoginAt       sql.NullTime          `json:"last_login_at"`
+	ID                 uuid.UUID             `json:"id"`
+	Email              string                `json:"email"`
+	PasswordHash       string                `json:"password_hash"`
+	FirstName          string                `json:"first_name"`
+	LastName           string                `json:"last_name"`
+	IsActive           bool                  `json:"is_active"`
+	CreatedAt          time.Time             `json:"created_at"`
+	UpdatedAt          time.Time             `json:"updated_at"`
+	IsSuperuser        bool                  `json:"is_superuser"`
+	TotpSecret         sql.NullString        `json:"totp_secret"`
+	TotpPendingSecret  sql.NullString        `json:"totp_pending_secret"`
+	TotpEnabled        bool                  `json:"totp_enabled"`
+	TotpRecoveryCodes  pqtype.NullRawMessage `json:"totp_recovery_codes"`
+	LastLoginAt        sql.NullTime          `json:"last_login_at"`
+	TotpLastStep       sql.NullInt64         `json:"totp_last_step"`
+	TotpFailedAttempts int32                 `json:"totp_failed_attempts"`
+	TotpLockedUntil    sql.NullTime          `json:"totp_locked_until"`
 }
 
 type AdminUserRole struct {

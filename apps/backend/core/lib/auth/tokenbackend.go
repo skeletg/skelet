@@ -14,7 +14,8 @@ import (
 // Valkey is the default, since TTLs are free and the tokens are throwaway state - Postgres exists so a deployment can run without Valkey at all, these being the only auth state with nowhere else to live and losing them means nobody can verify an email or reset a password
 type TokenBackend interface {
 	Put(ctx context.Context, key string, subjectID uuid.UUID, ttl time.Duration) error
-	Get(ctx context.Context, key string) (uuid.UUID, error) // the subject id, else ErrTokenNotFound - both backends treat expiry as not-found
+	Get(ctx context.Context, key string) (uuid.UUID, error)     // the subject id, else ErrTokenNotFound - both backends treat expiry as not-found
+	Consume(ctx context.Context, key string) (uuid.UUID, error) // Get and Delete in one step, so two redemptions of one token can't both succeed
 	Delete(ctx context.Context, key string) error
 }
 
@@ -31,7 +32,14 @@ func (b redisTokenBackend) Put(ctx context.Context, key string, id uuid.UUID, tt
 }
 
 func (b redisTokenBackend) Get(ctx context.Context, key string) (uuid.UUID, error) {
-	val, err := b.client.Get(ctx, key).Result()
+	return parseTokenSubject(b.client.Get(ctx, key).Result())
+}
+
+func (b redisTokenBackend) Consume(ctx context.Context, key string) (uuid.UUID, error) {
+	return parseTokenSubject(b.client.GetDel(ctx, key).Result())
+}
+
+func parseTokenSubject(val string, err error) (uuid.UUID, error) {
 	if errors.Is(err, redis.Nil) {
 		return uuid.Nil, ErrTokenNotFound
 	}

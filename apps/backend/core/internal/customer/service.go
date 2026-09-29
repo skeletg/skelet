@@ -748,7 +748,7 @@ func (s *Service) ResetPassword(ctx context.Context, channelID uuid.UUID, token,
 	if err := auth.ValidatePasswordStrength(newPassword); err != nil {
 		return err
 	}
-	customerID, err := s.resetStore.Validate(ctx, token)
+	customerID, err := s.resetStore.Consume(ctx, token) // spent up front, so two concurrent redemptions can't both set a password
 	if err != nil {
 		return err
 	}
@@ -769,9 +769,6 @@ func (s *Service) ResetPassword(ctx context.Context, channelID uuid.UUID, token,
 	if err := s.customerRefresh.RevokeAll(ctx, customerID); err != nil {
 		// Log but don't fail - the password is already changed
 		log.Printf("[auth:warn] revoke customer %s sessions after password reset: %v", customerID, err)
-	}
-	if err := s.resetStore.Revoke(ctx, token); err != nil {
-		log.Printf("[email:warn] revoke reset token after use: %v", err)
 	}
 	// Distinct from customer.password_changed, which is the logged-in self-service change - subscribers here send "your password was changed" notices and revoke downstream sessions
 	if s.bus != nil {
