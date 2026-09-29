@@ -1417,6 +1417,8 @@ function CategoryAvailabilitySection({
 }: {
   category: {
     id: string
+    // The global flag - a store listing only puts the category on that storefront while this is on too
+    isPublished: boolean
     listings: {
       channelId: string
       channel: { id: string; name: string }
@@ -1427,6 +1429,15 @@ function CategoryAvailabilitySection({
   canManage: boolean
 }) {
   const { isChannel, effectiveChannelId, selectedChannel, channels } = useConfigScope()
+  // Reads the saved flag - flipping Published above only counts once saved
+  const offGloballyNote = category.isPublished ? null : (
+    <Alert variant="warning">
+      <AlertTitle>Unpublished globally</AlertTitle>
+      <AlertDescription>
+        Store listings below don&apos;t put this category on any storefront until it&apos;s published in Global scope.
+      </AlertDescription>
+    </Alert>
+  )
   const refetch = [{ query: CategoryDocument, variables: { id: category.id } }]
   const [setListing] = useMutation(SetCategoryListingDocument, { refetchQueries: refetch })
   const [clearListing] = useMutation(ClearCategoryListingDocument, { refetchQueries: refetch })
@@ -1584,6 +1595,7 @@ function CategoryAvailabilitySection({
         title={`Availability on ${selectedChannel?.name ?? 'this store'}`}
         description="Switch the header store to manage another. Use the global tree (header → Global default) for cross-store assignment."
       >
+        {offGloballyNote}
         <div className="grid gap-3 rounded-md border p-4">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -1643,6 +1655,7 @@ function CategoryAvailabilitySection({
       title="Per-channel availability"
       description="Toggle which channels carry this category. A category is hidden on a store with no listing row."
     >
+      {offGloballyNote}
       <div className="overflow-hidden rounded-md border">
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
