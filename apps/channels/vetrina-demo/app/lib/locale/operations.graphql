@@ -1,0 +1,11 @@
+# The channel's own list, NOT the top-level `locales` query - that one returns every globally
+# active locale, which would have this storefront routing languages its channel doesn't serve
+query ChannelLocales {
+  currentChannel {
+    defaultLocale
+    locales {
+      code
+      hreflangValue
+    }
+  }
+}
