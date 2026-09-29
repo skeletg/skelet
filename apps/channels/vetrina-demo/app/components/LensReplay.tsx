@@ -5,7 +5,6 @@
 // server's sample %. Inputs masked at source; .lens-mask hides text, .lens-block blanks
 // Session id + chunk seq live in sessionStorage so recording survives same-tab nav
 
-import { record } from "rrweb";
 import { useEffect } from "react";
 
 import { redactPath } from "@/app/lib/analytics/redact";
@@ -177,6 +176,15 @@ export function LensReplay({
       // Logged-in customers are always recorded; anonymous visitors are sampled
       const active = replayEnabled && (!!customerId || sampleBucket(anonId) < rate);
       if (!active) return;
+
+      // The bulk of this component's weight - fetched only for a session that will actually record
+      let record: typeof import("rrweb").record;
+      try {
+        ({ record } = await import("rrweb"));
+      } catch {
+        return;
+      }
+      if (cancelled) return;
 
       const maxMs = maxMinutes > 0 ? maxMinutes * 60_000 : 0;
       if (maxMs > 0) {

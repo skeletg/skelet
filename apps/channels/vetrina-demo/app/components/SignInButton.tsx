@@ -4,6 +4,7 @@ import { UserPlusIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useAuthUI } from "./AuthUIProvider";
+import { preloadAuthForms } from "./AuthSidebar";
 
 export function SignInButton() {
   const { open } = useAuthUI();
@@ -12,6 +13,9 @@ export function SignInButton() {
     <button
       type="button"
       onClick={() => open("login")}
+      // Intent, not the click - the form chunk is in flight before the drawer starts sliding in
+      onPointerEnter={preloadAuthForms}
+      onFocus={preloadAuthForms}
       aria-label={t("signIn")}
       title={t("signIn")}
       className="relative flex h-9 w-9 items-center justify-center rounded-md text-foreground transition hover:bg-muted"
