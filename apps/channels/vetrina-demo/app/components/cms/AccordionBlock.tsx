@@ -1,9 +1,11 @@
 import { PlusIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import type { Block } from "./blocks";
 import { readString, readItems } from "./blocks";
 
 export function AccordionBlock({ block }: { block: Block }) {
+  const t = useTranslations("cms");
   const heading = readString(block.props, "heading");
   const items = readItems(block.props, "items").filter((it) =>
     readString(it, "heading"),
@@ -26,7 +28,7 @@ export function AccordionBlock({ block }: { block: Block }) {
               {heading}
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Tap a question to see the answer.
+              {t("tapQuestion")}
             </p>
           </div>
         )}

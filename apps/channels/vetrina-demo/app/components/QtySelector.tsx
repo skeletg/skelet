@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type ChangeEvent } from "react";
+import { useTranslations } from "next-intl";
 
 const SIZE_STYLES = {
   sm: {
@@ -50,6 +51,7 @@ export function QtySelector({
   invalid?: boolean;
 }) {
   const id = useId();
+  const t = useTranslations("common");
   const styles = SIZE_STYLES[size];
   const effectiveMin = min ?? step;
   const initial = defaultValue ?? step;
@@ -99,7 +101,7 @@ export function QtySelector({
           type="button"
           onClick={dec}
           disabled={disabled || value <= effectiveMin}
-          aria-label="Decrease quantity"
+          aria-label={t("decreaseQty")}
           className={`${styles.button} flex items-center justify-center text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:text-muted-foreground`}
         >
           −
@@ -121,7 +123,7 @@ export function QtySelector({
           type="button"
           onClick={inc}
           disabled={disabled || value >= max}
-          aria-label="Increase quantity"
+          aria-label={t("increaseQty")}
           className={`${styles.button} flex items-center justify-center text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:text-muted-foreground`}
         >
           +

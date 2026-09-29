@@ -1,6 +1,7 @@
 // Category archive - every published post filed under one category
 
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { localizedAlternates } from "@/app/lib/locale/alternates";
 import { notFound, permanentRedirect } from "next/navigation";
 import { BlogArchive } from "@/app/components/BlogArchive";
@@ -13,7 +14,7 @@ import {
   parseBlogPage,
 } from "@/app/lib/blog/read";
 import { displayName } from "@/app/lib/display";
-import { renderJsonText } from "@/app/[channel]/[locale]/products/[id]/parts";
+import { renderJsonText } from "@/app/lib/json-text";
 
 // The requested path as the backend stores it (no leading slash) plus the slug to look
 // the category up by
@@ -27,21 +28,22 @@ function readParams(slug: string[]): { path: string; slug: string } {
 export async function generateMetadata(
   props: PageProps<"/[channel]/[locale]/blog/category/[...slug]">,
 ): Promise<Metadata> {
-  const { slug: segments } = await props.params;
+  const { slug: segments, locale } = await props.params;
+  const t = await getTranslations({ locale, namespace: "blog" });
   const { slug } = readParams(segments);
   const category = await getBlogCategory(slug);
-  if (!category) return { title: "Category not found" };
+  if (!category) return { title: t("categoryNotFound") };
   const name = displayName(category.content?.name, category.slug);
   const page = parseBlogPage(await props.searchParams);
   const href = blogCategoryHref(category);
   return {
     title:
       category.content?.metaTitle ??
-      (page > 1 ? `${name} - page ${page}` : name),
+      (page > 1 ? t("paged", { name, page }) : name),
     description:
       category.content?.metaDescription ??
       renderJsonText(category.content?.description) ??
-      `Posts filed under ${name}.`,
+      t("categoryDescription", { name }),
     // Editorial noindex flag, same treatment the post page gives it
     robots: category.seoNoindex ? { index: false } : undefined,
     alternates: await localizedAlternates(page > 1 ? `${href}?page=${page}` : href),
@@ -77,7 +79,7 @@ export default async function BlogCategoryPage(
 
   return (
     <BlogArchive
-      eyebrow="Category"
+      eyebrow={(await getTranslations("blog"))("category")}
       title={displayName(category.content?.name, category.slug)}
       description={renderJsonText(category.content?.description)}
       href={href}

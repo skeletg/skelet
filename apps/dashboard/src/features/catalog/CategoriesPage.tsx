@@ -188,7 +188,6 @@ export function CategoriesPage() {
   // Header drives the tree filter: CHANNEL shows only categories listed on the active store, GLOBAL the full
   // tree - structural edits (slug, parent, position) stay global-only, the tree just hides what the store lacks
   const { isGlobal } = useConfigScope()
-  const canEditScope = canManage && isGlobal
   // Keep the tree query locale-agnostic: Apollo normalises Category by id, so passing different locales for one
   // id would overwrite the cached `name` across views - the server falls back through locales anyway, so the
   // tree always shows a real name when one exists in any translation
@@ -343,8 +342,8 @@ export function CategoriesPage() {
                 variant="outline"
                 className="h-7 gap-1 px-2 text-xs"
                 onClick={() => navigate('/categories/new')}
-                disabled={!canEditScope}
-                title={canEditScope ? undefined : 'Switch the header to GLOBAL to add a category.'}
+                // Allowed in CHANNEL scope too - the new category starts as a global draft, listed on the active channel
+                title={isGlobal ? undefined : 'Created here, it is also listed on this channel.'}
               >
                 <PlusIcon className="size-3.5" />
                 New
@@ -1417,6 +1416,8 @@ function CategoryAvailabilitySection({
 }: {
   category: {
     id: string
+    // The global flag - a store listing only puts the category on that storefront while this is on too
+    isPublished: boolean
     listings: {
       channelId: string
       channel: { id: string; name: string }
@@ -1427,6 +1428,15 @@ function CategoryAvailabilitySection({
   canManage: boolean
 }) {
   const { isChannel, effectiveChannelId, selectedChannel, channels } = useConfigScope()
+  // Reads the saved flag - flipping Published above only counts once saved
+  const offGloballyNote = category.isPublished ? null : (
+    <Alert variant="warning">
+      <AlertTitle>Unpublished globally</AlertTitle>
+      <AlertDescription>
+        Store listings below don&apos;t put this category on any storefront until it&apos;s published in Global scope.
+      </AlertDescription>
+    </Alert>
+  )
   const refetch = [{ query: CategoryDocument, variables: { id: category.id } }]
   const [setListing] = useMutation(SetCategoryListingDocument, { refetchQueries: refetch })
   const [clearListing] = useMutation(ClearCategoryListingDocument, { refetchQueries: refetch })
@@ -1584,6 +1594,7 @@ function CategoryAvailabilitySection({
         title={`Availability on ${selectedChannel?.name ?? 'this store'}`}
         description="Switch the header store to manage another. Use the global tree (header → Global default) for cross-store assignment."
       >
+        {offGloballyNote}
         <div className="grid gap-3 rounded-md border p-4">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -1643,6 +1654,7 @@ function CategoryAvailabilitySection({
       title="Per-channel availability"
       description="Toggle which channels carry this category. A category is hidden on a store with no listing row."
     >
+      {offGloballyNote}
       <div className="overflow-hidden rounded-md border">
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground">

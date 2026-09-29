@@ -1,5 +1,8 @@
 import { Link } from "@/app/components/LocaleLink";
+import { useTranslations } from "next-intl";
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+import { localizedAlternates } from "@/app/lib/locale/alternates";
 
 import { BlogPostList } from "@/app/components/BlogPostList";
 import { BlogTaxonomyChip } from "@/app/components/BlogTaxonomyChip";
@@ -18,32 +21,41 @@ type SearchParams = {
 };
 
 export async function generateMetadata({
+  params: routeParams,
   searchParams,
 }: {
+  params: Promise<{ locale: string }>;
   searchParams: Promise<SearchParams>;
 }): Promise<Metadata> {
+  const { locale } = await routeParams;
+  const t = await getTranslations({ locale, namespace: "blog" });
   const params = await searchParams;
   const q = (params.q ?? "").trim();
   return {
-    title: q ? `Blog - "${q}"` : "Blog",
+    title: q ? t("searchTitle", { query: q }) : t("title"),
     robots: q ? { index: false, follow: false } : undefined,
+    alternates: q ? undefined : await localizedAlternates("/blog"),
   };
 }
 
 export default async function BlogIndexPage({
+  params: routeParams,
   searchParams,
 }: {
+  params: Promise<{ locale: string }>;
   searchParams: Promise<SearchParams>;
 }) {
+  const { locale } = await routeParams;
+  const t = await getTranslations({ locale, namespace: "blog" });
   const params = await searchParams;
   const q = (params.q ?? "").trim();
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 pt-6 pb-12">
       <p className="text-xs uppercase tracking-wider text-muted-foreground">
-        Journal
+        {t("journal")}
       </p>
-      <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Blog</h1>
+      <h1 className="mt-1 text-3xl font-extrabold tracking-tight">{t("title")}</h1>
 
       <SearchForm initialQuery={q} />
 
@@ -60,14 +72,17 @@ export default async function BlogIndexPage({
 }
 
 async function TaxonomyBar() {
-  const { categories, tags } = await getBlogTaxonomy();
+  const [{ categories, tags }, t] = await Promise.all([
+    getBlogTaxonomy(),
+    getTranslations("blog"),
+  ]);
   if (categories.length === 0 && tags.length === 0) return null;
   return (
-    <nav aria-label="Blog taxonomy" className="glass mt-6 rounded-xl p-5">
+    <nav aria-label={t("taxonomy")} className="glass mt-6 rounded-xl p-5">
       {categories.length > 0 && (
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
           <span className="text-xs uppercase tracking-wider text-muted-foreground">
-            Categories
+            {t("categories")}
           </span>
           <ul className="flex flex-wrap gap-1.5 text-xs">
             {categories.map((c) => (
@@ -85,7 +100,7 @@ async function TaxonomyBar() {
           className={`flex flex-wrap items-baseline gap-x-3 gap-y-2 ${categories.length > 0 ? "mt-3" : ""}`}
         >
           <span className="text-xs uppercase tracking-wider text-muted-foreground">
-            Tags
+            {t("tags")}
           </span>
           <ul className="flex flex-wrap gap-1.5 text-xs">
             {tags.map((t) => (
@@ -103,11 +118,14 @@ async function TaxonomyBar() {
 }
 
 async function RecentPosts() {
-  const { posts } = await listBlogPosts({ limit: 20 });
+  const [{ posts }, t] = await Promise.all([
+    listBlogPosts({ limit: 20 }),
+    getTranslations("blog"),
+  ]);
   if (posts.length === 0) {
     return (
       <p className="mt-8 text-sm text-muted-foreground">
-        No posts published yet.
+        {t("noPosts")}
       </p>
     );
   }
@@ -119,11 +137,14 @@ async function RecentPosts() {
 }
 
 async function SearchResults({ query }: { query: string }) {
-  const { items, totalCount } = await searchBlogPosts(query, { limit: 30 });
+  const [{ items, totalCount }, t] = await Promise.all([
+    searchBlogPosts(query, { limit: 30 }),
+    getTranslations("blog"),
+  ]);
   if (totalCount === 0) {
     return (
       <p className="mt-8 text-sm text-muted-foreground">
-        No blog posts matched “{query}”.
+        {t("noMatch", { query })}
       </p>
     );
   }
@@ -166,14 +187,16 @@ async function SearchResults({ query }: { query: string }) {
 }
 
 function SearchForm({ initialQuery }: { initialQuery: string }) {
+  const t = useTranslations("blog");
+  const tc = useTranslations("common");
   return (
     <form action="/blog" method="GET" className="mt-6 flex gap-2">
       <input
         type="search"
         name="q"
         defaultValue={initialQuery}
-        placeholder="Search blog posts…"
-        aria-label="Search blog posts"
+        placeholder={t("searchPlaceholder")}
+        aria-label={t("searchLabel")}
         className="flex-1 rounded-md border border-border bg-transparent px-4 py-2 text-sm outline-none focus:border-foreground/40"
         autoComplete="off"
       />
@@ -181,14 +204,14 @@ function SearchForm({ initialQuery }: { initialQuery: string }) {
         type="submit"
         className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
       >
-        Search
+        {t("search")}
       </button>
       {initialQuery && (
         <Link
           href="/blog"
           className="flex items-center px-3 text-xs text-muted-foreground hover:text-foreground"
         >
-          Clear
+          {tc("clear")}
         </Link>
       )}
     </form>

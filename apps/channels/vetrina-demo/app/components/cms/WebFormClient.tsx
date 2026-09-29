@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   presignWebFormUploadAction,
@@ -35,6 +36,7 @@ const CAPTCHA_WIDGET_CLASS: Record<string, string> = {
 };
 
 export function WebFormClient({ form }: { form: InlineForm }) {
+  const t = useTranslations("webform");
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>(() => {
     const seed: Record<string, AnswerValue> = {};
     for (const f of form.fields) {
@@ -108,7 +110,7 @@ export function WebFormClient({ form }: { form: InlineForm }) {
         body: file,
       });
       if (!put.ok) {
-        setErrors((e) => ({ ...e, [field.key]: "Upload failed." }));
+        setErrors((e) => ({ ...e, [field.key]: t("uploadFailed") }));
         return;
       }
       setFiles((f) => ({
@@ -164,7 +166,7 @@ export function WebFormClient({ form }: { form: InlineForm }) {
           window.location.href = res.redirectUrl;
           return;
         }
-        setDone(res.successMessage || "Thanks - your response has been received.");
+        setDone(res.successMessage || t("thanks"));
         return;
       }
       const fieldErrs: Record<string, string> = {};
@@ -173,7 +175,7 @@ export function WebFormClient({ form }: { form: InlineForm }) {
       }
       setErrors(fieldErrs);
       const general = res.errors.find((x) => !x.field);
-      setFormError(general ? general.message : res.errors.length ? "Please fix the errors below." : "Submission failed.");
+      setFormError(general ? general.message : res.errors.length ? t("fixErrors") : t("failed"));
     } finally {
       setSubmitting(false);
     }
@@ -220,7 +222,7 @@ export function WebFormClient({ form }: { form: InlineForm }) {
       {/* Honeypot: hidden from users, must stay empty. */}
       <div aria-hidden className="absolute left-[-9999px] h-0 w-0 overflow-hidden">
         <label>
-          Company website
+          {t("honeypot")}
           <input ref={honeypotRef} type="text" name="company_website" tabIndex={-1} autoComplete="off" />
         </label>
       </div>
@@ -258,7 +260,7 @@ export function WebFormClient({ form }: { form: InlineForm }) {
         disabled={submitting || Object.values(uploading).some(Boolean)}
         className="w-fit rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-60"
       >
-        {submitting ? "Submitting…" : form.settings.submitLabel || "Submit"}
+        {submitting ? t("submitting") : form.settings.submitLabel || t("submit")}
       </button>
     </form>
   );
@@ -285,6 +287,8 @@ function FieldInput({
   onChange: (v: AnswerValue) => void;
   onFile: (file: File | null) => void;
 }) {
+  const t = useTranslations("webform");
+  const tc = useTranslations("common");
   const id = `wf-${field.key}`;
   const str = typeof value === "string" ? value : "";
   switch (field.type) {
@@ -347,8 +351,8 @@ function FieldInput({
             accept={(field.acceptMimes ?? []).join(",") || undefined}
             onChange={(e) => onFile(e.target.files?.[0] ?? null)}
           />
-          {uploading && <p className="text-xs text-muted-foreground">Uploading…</p>}
-          {uploadedName && !uploading && <p className="text-xs text-green-700">Attached: {uploadedName}</p>}
+          {uploading && <p className="text-xs text-muted-foreground">{t("uploading")}</p>}
+          {uploadedName && !uploading && <p className="text-xs text-green-700">{t("attached", { name: uploadedName })}</p>}
         </div>
       );
     case "number":
@@ -426,7 +430,7 @@ function FieldInput({
                 </div>
               ))}
               <button type="button" className="w-fit text-xs text-red-600" onClick={() => onChange(items.filter((_, j) => j !== i))}>
-                Remove
+                {tc("remove")}
               </button>
             </div>
           ))}
@@ -436,7 +440,7 @@ function FieldInput({
             className="w-fit rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50"
             onClick={() => onChange([...items, {}])}
           >
-            + Add {field.label || "item"}
+            {t("add", { label: field.label || t("item") })}
           </button>
         </div>
       );

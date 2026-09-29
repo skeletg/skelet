@@ -35,3 +35,23 @@ export function deriveQtyBounds(p: QtyBoundsInput): QtyBounds {
   const defaultValue = min && min > step ? min : step;
   return { min, max, step, decimals, defaultValue };
 }
+
+function roundTo(n: number, decimals: number): number {
+  if (decimals <= 0) return Math.round(n);
+  const f = Math.pow(10, decimals);
+  return Math.round(n * f) / f;
+}
+
+// Smallest sellable quantity: the minimum rounded up onto the step grid
+export function floorQty(b: QtyBounds): number {
+  const step = b.step > 0 ? b.step : 1;
+  return roundTo(Math.ceil((b.min ?? step) / step) * step, b.decimals);
+}
+
+// Snaps n onto the step grid within [floor, max]; 0 stays 0 (not selected)
+export function snapQty(n: number, b: QtyBounds): number {
+  if (n <= 0) return 0;
+  const step = b.step > 0 ? b.step : 1;
+  const snapped = roundTo(Math.round(n / step) * step, b.decimals);
+  return Math.min(Math.max(snapped, floorQty(b)), b.max ?? Infinity);
+}

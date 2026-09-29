@@ -1,15 +1,17 @@
 "use client";
 
-import { useActionState } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   Field,
-  FormError,
+  FormErrors,
   FormSuccess,
   buttonPrimary,
   inputClass,
 } from "@/app/components/account/AccountUI";
-import { updateProfileAction, type AuthResult } from "@/app/lib/auth/actions";
+import { updateProfileAction } from "@/app/lib/auth/actions";
+import { profileSchema } from "@/app/lib/auth/schemas";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
 
 type Props = {
   firstName: string;
@@ -19,15 +21,25 @@ type Props = {
 };
 
 export function ProfileForm({ firstName, lastName, phone, email }: Props) {
-  const [state, formAction, pending] = useActionState<
-    AuthResult | null,
-    FormData
-  >(updateProfileAction, null);
+  const t = useTranslations("account.profile");
+  const tf = useTranslations("forms.fields");
+  const tc = useTranslations("common");
+  const { form, fields, formAction, onSubmit, pending, lastResult } = useActionForm(
+    updateProfileAction,
+    profileSchema,
+    { defaultValue: { firstName, lastName, phone } },
+  );
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form
+      id={form.id}
+      onSubmit={onSubmit}
+      action={formAction}
+      noValidate
+      className="flex flex-col gap-4"
+    >
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium">Email</span>
+        <span className="font-medium">{tf("email")}</span>
         <input
           value={email}
           readOnly
@@ -35,40 +47,39 @@ export function ProfileForm({ firstName, lastName, phone, email }: Props) {
           className={`${inputClass} w-full bg-muted text-muted-foreground`}
         />
         <span className="text-xs text-muted-foreground">
-          Email is permanent on this account. Contact support to change it.
+          {t("emailHint")}
         </span>
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
-          label="First name"
-          name="firstName"
+          label={tf("firstName")}
+          field={fields.firstName}
           required
-          defaultValue={firstName}
           autoComplete="given-name"
         />
         <Field
-          label="Last name"
-          name="lastName"
+          label={tf("lastName")}
+          field={fields.lastName}
           required
-          defaultValue={lastName}
           autoComplete="family-name"
         />
       </div>
       <Field
-        label="Phone"
-        name="phone"
+        label={tf("phone")}
+        field={fields.phone}
         type="tel"
-        defaultValue={phone}
         autoComplete="tel"
       />
 
-      {state && !state.ok && <FormError>{state.error}</FormError>}
-      {state?.ok && <FormSuccess>Profile saved.</FormSuccess>}
+      <FormErrors errors={form.errors} />
+      {lastResult?.status === "success" && (
+        <FormSuccess>{t("saved")}</FormSuccess>
+      )}
 
       <div className="mt-1">
         <button type="submit" disabled={pending} className={buttonPrimary}>
-          {pending ? "Saving…" : "Save changes"}
+          {pending ? tc("saving") : tc("saveChanges")}
         </button>
       </div>
     </form>

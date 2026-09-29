@@ -13,7 +13,7 @@ import {
 import { displayName } from "@/app/lib/display";
 import { blogPostHref } from "@/app/lib/entity-href";
 import { formatDate } from "@/app/lib/format";
-import { renderJsonText } from "@/app/[channel]/[locale]/products/[id]/parts";
+import { renderJsonText } from "@/app/lib/json-text";
 
 export async function BlogPostList({
   posts,

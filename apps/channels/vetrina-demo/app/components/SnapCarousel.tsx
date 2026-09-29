@@ -4,6 +4,7 @@
 // only tracks the centred slide. No infinite loop: prev/next wrap to the far end
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 
 export function useSnapCarousel(count: number, startAt = 0) {
   const ref = useRef<HTMLDivElement>(null);
@@ -85,11 +86,12 @@ export function SnapButton({
   onClick: () => void;
   className?: string;
 }) {
+  const t = useTranslations("carousel");
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={dir === "prev" ? "Previous image" : "Next image"}
+      aria-label={dir === "prev" ? t("prev") : t("next")}
       className={`absolute top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-md border border-border bg-background/90 text-foreground shadow transition hover:bg-background ${className}`}
     >
       <svg

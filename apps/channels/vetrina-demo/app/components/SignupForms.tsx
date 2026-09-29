@@ -6,6 +6,7 @@
 // a per-form frequency cap enforced by a first-party cookie
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 type Display = {
   trigger: string;
@@ -107,6 +108,10 @@ function FormCard({
   channelId: string;
   onDismiss: () => void;
 }) {
+  const t = useTranslations("signup");
+  const tc = useTranslations("common");
+  const tf = useTranslations("forms.fields");
+  const tb = useTranslations("product.backInStock");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
@@ -138,9 +143,9 @@ function FormCard({
   const inner = (
     <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
       <div className="flex items-start justify-between gap-4">
-        <h2 className="text-lg font-semibold">{form.heading || "Join our list"}</h2>
+        <h2 className="text-lg font-semibold">{form.heading || t("heading")}</h2>
         {form.type !== "inline" && (
-          <button onClick={onDismiss} aria-label="Close" className="text-muted-foreground hover:text-foreground">
+          <button onClick={onDismiss} aria-label={tc("close")} className="text-muted-foreground hover:text-foreground">
             ✕
           </button>
         )}
@@ -157,7 +162,7 @@ function FormCard({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="First name"
+              placeholder={tf("firstName")}
               className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring"
             />
           )}
@@ -166,7 +171,7 @@ function FormCard({
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
+            placeholder={tb("placeholder")}
             className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring"
           />
           <button
@@ -174,9 +179,9 @@ function FormCard({
             disabled={state === "sending"}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
           >
-            {state === "sending" ? "…" : form.buttonLabel || "Subscribe"}
+            {state === "sending" ? "…" : form.buttonLabel || t("subscribe")}
           </button>
-          {state === "error" && <p className="text-xs text-rose-600">Something went wrong - please try again.</p>}
+          {state === "error" && <p className="text-xs text-rose-600">{tc("somethingWrong")}</p>}
         </form>
       )}
     </div>

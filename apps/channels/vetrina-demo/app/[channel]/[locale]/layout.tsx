@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getSiteUrl } from "@/app/lib/channel/site";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider } from "next-intl";
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { DefaultLocaleProvider } from "@/app/components/LocaleLink";
 import { Geist_Mono, Inter } from "next/font/google";
 import "@/app/globals.css";
@@ -53,11 +53,17 @@ const geistMono = Geist_Mono({
 // The bundled default lives in public/, NOT app/. Next auto-emits a <link rel="icon"> for an
 // app/favicon.ico on top of whatever metadata declares, which left two competing icon links and the
 // browser choosing between them - serving the default from public/ means exactly one link either way
-export async function generateMetadata(): Promise<Metadata> {
-  const { faviconUrl } = await getBranding();
+export async function generateMetadata({
+  params,
+}: LayoutProps<"/[channel]/[locale]">): Promise<Metadata> {
+  const { locale } = await params;
+  const [{ faviconUrl }, t] = await Promise.all([
+    getBranding(),
+    getTranslations({ locale, namespace: "meta" }),
+  ]);
   return {
     title: "Vetrina",
-    description: "Demo storefront powered by the Skelet commerce backend",
+    description: t("description"),
     icons: { icon: faviconUrl ?? "/favicon.ico" },
   };
 }
