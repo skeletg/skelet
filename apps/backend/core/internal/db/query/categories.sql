@@ -157,6 +157,12 @@ LIMIT NULLIF(sqlc.arg(row_limit)::int, 0);
 -- Direct membership count (products explicitly assigned to this category, not its descendants) - backs admin Category.productCount; served by the idx_product_categories_category(category_id, position) index
 SELECT COUNT(*) FROM catalog_product_categories WHERE category_id = $1;
 
+-- name: CountProductsByCategory :many
+-- Direct membership count for every category with at least one product, in one pass - backs the admin picker list, which would otherwise count row by row
+SELECT category_id, COUNT(*)::bigint AS product_count
+FROM catalog_product_categories
+GROUP BY category_id;
+
 -- name: ListCategoriesByProduct :many
 SELECT c.*, pc.is_primary AS pc_is_primary
 FROM catalog_product_categories pc

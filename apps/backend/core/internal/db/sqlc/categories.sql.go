@@ -125,6 +125,41 @@ func (q *Queries) ConfirmCategoryCover(ctx context.Context, arg ConfirmCategoryC
 	return i, err
 }
 
+const countProductsByCategory = `-- name: CountProductsByCategory :many
+SELECT category_id, COUNT(*)::bigint AS product_count
+FROM catalog_product_categories
+GROUP BY category_id
+`
+
+type CountProductsByCategoryRow struct {
+	CategoryID   uuid.UUID `json:"category_id"`
+	ProductCount int64     `json:"product_count"`
+}
+
+// Direct membership count for every category with at least one product, in one pass - backs the admin picker list, which would otherwise count row by row
+func (q *Queries) CountProductsByCategory(ctx context.Context) ([]CountProductsByCategoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, countProductsByCategory)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountProductsByCategoryRow{}
+	for rows.Next() {
+		var i CountProductsByCategoryRow
+		if err := rows.Scan(&i.CategoryID, &i.ProductCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countProductsInCategory = `-- name: CountProductsInCategory :one
 SELECT COUNT(*) FROM catalog_product_categories WHERE category_id = $1
 `

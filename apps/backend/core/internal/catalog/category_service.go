@@ -911,6 +911,40 @@ func (s *categoryService) ListRootCategoriesListedOnChannel(ctx context.Context,
 	return buildCategoryTree(all, nil), nil
 }
 
+// CategoryOption is one row of the admin pickers' flat category list - a category with its resolved name and direct product count, the tree left for the client to build at any depth
+type CategoryOption struct {
+	Category
+	ProductCount int64
+}
+
+// ListCategoryOptions returns every category flat, or only those listed on the store when channelID is set - unlike the nested tree queries it has no depth limit, and it counts products in one pass rather than per row. A store-scoped category whose parent isn't listed there keeps its ParentID, and the client roots it
+func (s *categoryService) ListCategoryOptions(ctx context.Context, channelID *uuid.UUID, locale string) ([]CategoryOption, error) {
+	var (
+		cats []Category
+		err  error
+	)
+	if channelID != nil {
+		cats, err = s.repo.ListCategoriesListedOnChannel(ctx, *channelID)
+	} else {
+		cats, err = s.repo.ListAllCategories(ctx)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.populateCategoryLocale(ctx, cats, locale); err != nil {
+		return nil, err
+	}
+	counts, err := s.repo.CountProductsByCategory(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]CategoryOption, len(cats))
+	for i, c := range cats {
+		out[i] = CategoryOption{Category: c, ProductCount: counts[c.ID]}
+	}
+	return out, nil
+}
+
 // ListCategoryChildrenListedOnChannel returns the immediate children of a parent category listed on a store, published or not - admin only
 func (s *categoryService) ListCategoryChildrenListedOnChannel(ctx context.Context, channelID, parentID uuid.UUID, locale string) ([]Category, error) {
 	cats, err := s.repo.ListCategoryChildrenListedOnChannel(ctx, channelID, parentID)

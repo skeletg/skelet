@@ -357,6 +357,18 @@ func (r *postgresRepository) CountProductsInCategory(ctx context.Context, catego
 	return n, nil
 }
 
+func (r *postgresRepository) CountProductsByCategory(ctx context.Context) (map[uuid.UUID]int64, error) {
+	rows, err := r.queries.CountProductsByCategory(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("count products by category: %w", err)
+	}
+	out := make(map[uuid.UUID]int64, len(rows))
+	for _, row := range rows {
+		out[row.CategoryID] = row.ProductCount
+	}
+	return out, nil
+}
+
 func (r *postgresRepository) ListCategoriesByProduct(ctx context.Context, productID uuid.UUID) ([]Category, error) {
 	rows, err := r.queries.ListCategoriesByProduct(ctx, productID)
 	if err != nil {

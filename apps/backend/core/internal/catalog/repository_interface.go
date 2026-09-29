@@ -85,6 +85,7 @@ type Repository interface {
 	ListProducts(ctx context.Context, rowLimit int32) ([]Product, error) // rowLimit 0 means every row - see the query comment
 	ListProductIDsPaged(ctx context.Context, f ProductPageFilter) ([]uuid.UUID, int64, error)
 	CountProductsInCategory(ctx context.Context, categoryID uuid.UUID) (int64, error)
+	CountProductsByCategory(ctx context.Context) (map[uuid.UUID]int64, error)
 	ListProductsByCollection(ctx context.Context, collectionID uuid.UUID, limit int32) ([]Product, error)
 	ListProductsByCategory(ctx context.Context, categoryID uuid.UUID, limit int32) ([]Product, error)
 	ListProductsByType(ctx context.Context, productTypeID uuid.UUID) ([]Product, error)

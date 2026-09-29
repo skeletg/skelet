@@ -840,6 +840,16 @@ type ComplexityRoot struct {
 		UpdatedAt        func(childComplexity int) int
 	}
 
+	CategoryOption struct {
+		ID           func(childComplexity int) int
+		IsPublished  func(childComplexity int) int
+		Name         func(childComplexity int) int
+		ParentID     func(childComplexity int) int
+		Position     func(childComplexity int) int
+		ProductCount func(childComplexity int) int
+		Slug         func(childComplexity int) int
+	}
+
 	Channel struct {
 		CreatedAt          func(childComplexity int) int
 		CurrencyCode       func(childComplexity int) int
@@ -3202,6 +3212,7 @@ type ComplexityRoot struct {
 		Carts                        func(childComplexity int, channelID string, customerID *string, status *string, abandoned *bool, search *string, limit *int32, offset *int32) int
 		Category                     func(childComplexity int, id string) int
 		CategoryChildren             func(childComplexity int, parentID string, channelID *string) int
+		CategoryOptions              func(childComplexity int, channelID *string) int
 		Channel                      func(childComplexity int, id string) int
 		Channels                     func(childComplexity int) int
 		ChatConversation             func(childComplexity int, id string) int
@@ -4945,6 +4956,7 @@ type QueryResolver interface {
 	ProductAttributeSlugs(ctx context.Context, productID string) ([]*model.ProductAttributeSlug, error)
 	ProductAttributeLocaleValues(ctx context.Context, productID string) ([]*model.ProductAttributeLocaleValue, error)
 	AttributeValueChannelSlugs(ctx context.Context, valueID string) ([]*model.AttributeValueChannelSlug, error)
+	CategoryOptions(ctx context.Context, channelID *string) ([]*model.CategoryOption, error)
 	RootCategories(ctx context.Context, channelID *string) ([]*model.Category, error)
 	CategoryChildren(ctx context.Context, parentID string, channelID *string) ([]*model.Category, error)
 	Category(ctx context.Context, id string) (*model.Category, error)
@@ -8486,6 +8498,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CategoryContent.UpdatedAt(childComplexity), true
+
+	case "CategoryOption.id":
+		if e.ComplexityRoot.CategoryOption.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CategoryOption.ID(childComplexity), true
+	case "CategoryOption.isPublished":
+		if e.ComplexityRoot.CategoryOption.IsPublished == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CategoryOption.IsPublished(childComplexity), true
+	case "CategoryOption.name":
+		if e.ComplexityRoot.CategoryOption.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CategoryOption.Name(childComplexity), true
+	case "CategoryOption.parentId":
+		if e.ComplexityRoot.CategoryOption.ParentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CategoryOption.ParentID(childComplexity), true
+	case "CategoryOption.position":
+		if e.ComplexityRoot.CategoryOption.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CategoryOption.Position(childComplexity), true
+	case "CategoryOption.productCount":
+		if e.ComplexityRoot.CategoryOption.ProductCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CategoryOption.ProductCount(childComplexity), true
+	case "CategoryOption.slug":
+		if e.ComplexityRoot.CategoryOption.Slug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CategoryOption.Slug(childComplexity), true
 
 	case "Channel.createdAt":
 		if e.ComplexityRoot.Channel.CreatedAt == nil {
@@ -21957,6 +22012,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.CategoryChildren(childComplexity, args["parentId"].(string), args["channelId"].(*string)), true
+	case "Query.categoryOptions":
+		if e.ComplexityRoot.Query.CategoryOptions == nil {
+			break
+		}
+
+		args, err := ec.field_Query_categoryOptions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.CategoryOptions(childComplexity, args["channelId"].(*string)), true
 	case "Query.channel":
 		if e.ComplexityRoot.Query.Channel == nil {
 			break
@@ -29449,7 +29515,24 @@ input RequestCategoryCoverUploadInput {
 }
 
 # --- Queries (require catalog.view) ---
+# One category in the pickers' flat list - the client builds the tree from parentId, so it reaches
+# any depth, unlike the fixed nesting of rootCategories. parentId can name a category missing from a
+# store-scoped list (its parent isn't listed there) - treat that row as a root
+type CategoryOption {
+  id:           ID!
+  parentId:     ID
+  slug:         String!
+  # Resolved from the Locale header, falling back to the default locale like the tree
+  name:         String
+  position:     Int!
+  isPublished:  Boolean!
+  # Products directly assigned, counted in one pass for the whole list
+  productCount: Int!
+}
+
 extend type Query {
+  # Every category flat, for pickers. channelId scopes it like rootCategories
+  categoryOptions(channelId: ID): [CategoryOption!]!
   # When channelId is set, only categories listed on that channel are returned, published or not - header-driven admin uses this in CHANNEL mode, and drafts must stay visible there so they can be found and published. Omit for the global tree. Locale comes from the ` + "`" + `Locale` + "`" + ` header.
   rootCategories(channelId: ID): [Category!]!
   categoryChildren(parentId: ID!, channelId: ID): [Category!]!
@@ -38120,6 +38203,26 @@ func (ec *executionContext) childFields_CategoryContent(ctx context.Context, fie
 		return ec.fieldContext_CategoryContent_updatedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CategoryContent", field.Name)
+}
+
+func (ec *executionContext) childFields_CategoryOption(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_CategoryOption_id(ctx, field)
+	case "parentId":
+		return ec.fieldContext_CategoryOption_parentId(ctx, field)
+	case "slug":
+		return ec.fieldContext_CategoryOption_slug(ctx, field)
+	case "name":
+		return ec.fieldContext_CategoryOption_name(ctx, field)
+	case "position":
+		return ec.fieldContext_CategoryOption_position(ctx, field)
+	case "isPublished":
+		return ec.fieldContext_CategoryOption_isPublished(ctx, field)
+	case "productCount":
+		return ec.fieldContext_CategoryOption_productCount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CategoryOption", field.Name)
 }
 
 func (ec *executionContext) childFields_Channel(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -52941,6 +53044,20 @@ func (ec *executionContext) field_Query_categoryChildren_args(ctx context.Contex
 		return nil, err
 	}
 	args["channelId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_categoryOptions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg0
 	return args, nil
 }
 
@@ -69732,6 +69849,167 @@ func (ec *executionContext) _CategoryContent_updatedAt(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_CategoryContent_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CategoryContent", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _CategoryOption_id(ctx context.Context, field graphql.CollectedField, obj *model.CategoryOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CategoryOption_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CategoryOption_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CategoryOption", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _CategoryOption_parentId(ctx context.Context, field graphql.CollectedField, obj *model.CategoryOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CategoryOption_parentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ParentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CategoryOption_parentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CategoryOption", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _CategoryOption_slug(ctx context.Context, field graphql.CollectedField, obj *model.CategoryOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CategoryOption_slug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CategoryOption_slug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CategoryOption", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CategoryOption_name(ctx context.Context, field graphql.CollectedField, obj *model.CategoryOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CategoryOption_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CategoryOption_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CategoryOption", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CategoryOption_position(ctx context.Context, field graphql.CollectedField, obj *model.CategoryOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CategoryOption_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CategoryOption_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CategoryOption", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CategoryOption_isPublished(ctx context.Context, field graphql.CollectedField, obj *model.CategoryOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CategoryOption_isPublished(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsPublished, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CategoryOption_isPublished(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CategoryOption", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CategoryOption_productCount(ctx context.Context, field graphql.CollectedField, obj *model.CategoryOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CategoryOption_productCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProductCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CategoryOption_productCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CategoryOption", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _Channel_id(ctx context.Context, field graphql.CollectedField, obj *model.Channel) (ret graphql.Marshaler) {
@@ -123711,6 +123989,50 @@ func (ec *executionContext) fieldContext_Query_attributeValueChannelSlugs(ctx co
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_categoryOptions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_categoryOptions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().CategoryOptions(ctx, fc.Args["channelId"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.CategoryOption) graphql.Marshaler {
+			return ec.marshalNCategoryOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCategoryOptionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_categoryOptions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CategoryOption(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_categoryOptions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_rootCategories(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -167044,6 +167366,74 @@ func (ec *executionContext) _CategoryContent(ctx context.Context, sel ast.Select
 	return out
 }
 
+var categoryOptionImplementors = []string{"CategoryOption"}
+
+func (ec *executionContext) _CategoryOption(ctx context.Context, sel ast.SelectionSet, obj *model.CategoryOption) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, categoryOptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CategoryOption")
+		case "id":
+			out.Values[i] = ec._CategoryOption_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "parentId":
+			out.Values[i] = ec._CategoryOption_parentId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "slug":
+			out.Values[i] = ec._CategoryOption_slug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._CategoryOption_name(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._CategoryOption_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isPublished":
+			out.Values[i] = ec._CategoryOption_isPublished(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "productCount":
+			out.Values[i] = ec._CategoryOption_productCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var channelImplementors = []string{"Channel"}
 
 func (ec *executionContext) _Channel(ctx context.Context, sel ast.SelectionSet, obj *model.Channel) graphql.Marshaler {
@@ -184656,6 +185046,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "categoryOptions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_categoryOptions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "rootCategories":
 			field := field
 
@@ -198441,6 +198853,32 @@ func (ec *executionContext) marshalNCategoryContent2ᚖgithubᚗcomᚋskeletgᚋ
 		return graphql.Null
 	}
 	return ec._CategoryContent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCategoryOption2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCategoryOptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CategoryOption) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCategoryOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCategoryOption(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCategoryOption2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCategoryOption(ctx context.Context, sel ast.SelectionSet, v *model.CategoryOption) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CategoryOption(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNChannel2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐChannel(ctx context.Context, sel ast.SelectionSet, v model.Channel) graphql.Marshaler {

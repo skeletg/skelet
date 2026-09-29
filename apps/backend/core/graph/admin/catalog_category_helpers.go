@@ -128,3 +128,22 @@ func (r *Resolver) renderCategoryList(ctx context.Context, cats []catalog.Catego
 	}
 	return out, nil
 }
+
+func toCategoryOptionModel(o catalog.CategoryOption) *model.CategoryOption {
+	m := &model.CategoryOption{
+		ID:           o.ID.String(),
+		Slug:         o.Slug,
+		Position:     o.Position,
+		IsPublished:  o.IsPublished,
+		ProductCount: int32(o.ProductCount),
+	}
+	if o.ParentID != nil {
+		pid := o.ParentID.String()
+		m.ParentID = &pid
+	}
+	if o.Content != nil {
+		name := o.Content.Name
+		m.Name = &name
+	}
+	return m
+}
