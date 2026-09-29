@@ -182,23 +182,23 @@ type AdminCart struct {
 }
 
 type AdminCartLine struct {
-	ID          string                    `json:"id"`
-	ProductName string                    `json:"productName"`
-	ProductSku  string                    `json:"productSku"`
-	UnitPrice   int32                     `json:"unitPrice"`
-	Quantity    float64                   `json:"quantity"`
-	TotalPrice  int32                     `json:"totalPrice"`
-	IsSimple    bool                      `json:"isSimple"`
-	Components  []*AdminCartLineComponent `json:"components"`
-	Options     []*AdminCartLineOption    `json:"options"`
+	ID         string                    `json:"id"`
+	Name       string                    `json:"name"`
+	Sku        string                    `json:"sku"`
+	UnitPrice  int32                     `json:"unitPrice"`
+	Quantity   float64                   `json:"quantity"`
+	TotalPrice int32                     `json:"totalPrice"`
+	IsSimple   bool                      `json:"isSimple"`
+	Components []*AdminCartLineComponent `json:"components"`
+	Options    []*AdminCartLineOption    `json:"options"`
 }
 
 type AdminCartLineComponent struct {
-	ID          string  `json:"id"`
-	ProductSku  string  `json:"productSku"`
-	ProductName string  `json:"productName"`
-	UnitPrice   int32   `json:"unitPrice"`
-	Quantity    float64 `json:"quantity"`
+	ID        string  `json:"id"`
+	Sku       string  `json:"sku"`
+	Name      string  `json:"name"`
+	UnitPrice int32   `json:"unitPrice"`
+	Quantity  float64 `json:"quantity"`
 }
 
 type AdminCartLineOption struct {
@@ -1746,8 +1746,8 @@ type CreditMemo struct {
 
 type CreditMemoLine struct {
 	OrderLineID string  `json:"orderLineId"`
-	ProductSku  string  `json:"productSku"`
-	ProductName string  `json:"productName"`
+	Sku         string  `json:"sku"`
+	Name        string  `json:"name"`
 	Quantity    float64 `json:"quantity"`
 	UnitAmount  int32   `json:"unitAmount"`
 	TotalAmount int32   `json:"totalAmount"`
@@ -2976,23 +2976,23 @@ type OrderEvent struct {
 }
 
 type OrderLine struct {
-	ID          string                `json:"id"`
-	ProductName string                `json:"productName"`
-	ProductSku  string                `json:"productSku"`
-	UnitPrice   int32                 `json:"unitPrice"`
-	Quantity    float64               `json:"quantity"`
-	TotalPrice  int32                 `json:"totalPrice"`
-	IsGift      bool                  `json:"isGift"`
-	Options     []*OrderLineOption    `json:"options"`
-	Components  []*OrderLineComponent `json:"components"`
+	ID         string                `json:"id"`
+	Name       string                `json:"name"`
+	Sku        string                `json:"sku"`
+	UnitPrice  int32                 `json:"unitPrice"`
+	Quantity   float64               `json:"quantity"`
+	TotalPrice int32                 `json:"totalPrice"`
+	IsGift     bool                  `json:"isGift"`
+	Options    []*OrderLineOption    `json:"options"`
+	Components []*OrderLineComponent `json:"components"`
 }
 
 type OrderLineComponent struct {
-	ID          string  `json:"id"`
-	ProductSku  string  `json:"productSku"`
-	ProductName string  `json:"productName"`
-	UnitPrice   int32   `json:"unitPrice"`
-	Quantity    float64 `json:"quantity"`
+	ID        string  `json:"id"`
+	Sku       string  `json:"sku"`
+	Name      string  `json:"name"`
+	UnitPrice int32   `json:"unitPrice"`
+	Quantity  float64 `json:"quantity"`
 }
 
 type OrderLineOption struct {

@@ -204,10 +204,10 @@ export type AdminCartLine = {
   components: Array<AdminCartLineComponent>;
   id: Scalars['ID']['output'];
   isSimple: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
   options: Array<AdminCartLineOption>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -215,9 +215,9 @@ export type AdminCartLine = {
 export type AdminCartLineComponent = {
   __typename?: 'AdminCartLineComponent';
   id: Scalars['ID']['output'];
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
+  name: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   unitPrice: Scalars['Int']['output'];
 };
 
@@ -1995,10 +1995,10 @@ export type CreditMemo = {
 
 export type CreditMemoLine = {
   __typename?: 'CreditMemoLine';
+  name: Scalars['String']['output'];
   orderLineId: Scalars['ID']['output'];
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   totalAmount: Scalars['Int']['output'];
   unitAmount: Scalars['Int']['output'];
 };
@@ -6445,10 +6445,10 @@ export type OrderLine = {
   components: Array<OrderLineComponent>;
   id: Scalars['ID']['output'];
   isGift: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
   options: Array<OrderLineOption>;
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   totalPrice: Scalars['Int']['output'];
   unitPrice: Scalars['Int']['output'];
 };
@@ -6456,9 +6456,9 @@ export type OrderLine = {
 export type OrderLineComponent = {
   __typename?: 'OrderLineComponent';
   id: Scalars['ID']['output'];
-  productName: Scalars['String']['output'];
-  productSku: Scalars['String']['output'];
+  name: Scalars['String']['output'];
   quantity: Scalars['Float']['output'];
+  sku: Scalars['String']['output'];
   unitPrice: Scalars['Int']['output'];
 };
 

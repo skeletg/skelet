@@ -192,8 +192,8 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
                   <ul className="text-sm text-muted-foreground">
                     {m.lines.map((l) => (
                       <li key={l.orderLineId} className="tabular-nums">
-                        {l.quantity} x {l.productName}
-                        <span className="text-xs"> ({l.productSku})</span>
+                        {l.quantity} x {l.name}
+                        <span className="text-xs"> ({l.sku})</span>
                         {' - '}
                         {formatCents(l.totalAmount, order.currencyCode)}
                       </li>
@@ -258,9 +258,9 @@ export function OrderCreditMemosSection({ order }: { order: OrderData }) {
                         }
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm">{l.productName}</div>
+                        <div className="truncate text-sm">{l.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {l.productSku} - {left} creditable
+                          {l.sku} - {left} creditable
                         </div>
                       </div>
                       <Input

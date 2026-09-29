@@ -203,8 +203,8 @@ input RecordOfflinePaymentInput {
 
 type OrderLine {
   id:          ID!
-  productName: String!
-  productSku:  String!
+  name:        String!
+  sku:         String!
   unitPrice:   Int!
   quantity:    Float!
   totalPrice:  Int!
@@ -221,8 +221,8 @@ type OrderLine {
 # One chosen component under a bundle line, snapshotted at placement
 type OrderLineComponent {
   id:          ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   unitPrice:   Int!
   # Already multiplied by the parent line quantity, so it is what actually ships
   quantity:    Float!
@@ -438,8 +438,8 @@ type CreditMemo {
 
 type CreditMemoLine {
   orderLineId: ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   quantity:    Float!
   unitAmount:  Int!
   totalAmount: Int!

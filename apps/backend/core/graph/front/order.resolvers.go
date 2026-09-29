@@ -89,9 +89,9 @@ func (r *mutationResolver) Reorder(ctx context.Context, orderID string) (*model1
 		}
 		if addErr != nil {
 			skipped = append(skipped, &model1.ReorderSkippedLine{
-				ProductName: line.ProductName,
-				ProductSku:  line.ProductSku,
-				Reason:      "This item could not be re-added (it may be unavailable or have changed).",
+				Name:   line.ProductName,
+				Sku:    line.ProductSku,
+				Reason: "This item could not be re-added (it may be unavailable or have changed).",
 			})
 			continue
 		}

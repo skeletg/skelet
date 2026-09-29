@@ -42,7 +42,7 @@ describe("describeAppliedCode", () => {
       code({
         subtotalDiscount: 0,
         freeGifts: [
-          { productId: "p1", productSku: "MUG", quantity: 1, inCart: true, href: "/p/mug" },
+          { productId: "p1", sku: "MUG", quantity: 1, inCart: true, href: "/p/mug" },
         ],
       }),
     );
@@ -56,7 +56,7 @@ describe("describeAppliedCode", () => {
       code({
         subtotalDiscount: 0,
         freeGifts: [
-          { productId: "p1", productSku: "MUG", quantity: 1, inCart: false, href: "/p/mug" },
+          { productId: "p1", sku: "MUG", quantity: 1, inCart: false, href: "/p/mug" },
         ],
       }),
     );
@@ -72,7 +72,7 @@ describe("describeAppliedCode", () => {
         subtotalDiscount: 1000,
         freeShipping: true,
         freeGifts: [
-          { productId: "p1", productSku: "MUG", quantity: 1, inCart: true, href: "/p/mug" },
+          { productId: "p1", sku: "MUG", quantity: 1, inCart: true, href: "/p/mug" },
         ],
       }),
     );
@@ -99,8 +99,8 @@ describe("giftSummary", () => {
   it("prefixes a quantity only above one", () => {
     expect(
       giftSummary([
-        { productId: null, productSku: "MUG", quantity: 1, inCart: true, href: "" },
-        { productId: null, productSku: "TOTE", quantity: 2, inCart: true, href: "" },
+        { productId: null, sku: "MUG", quantity: 1, inCart: true, href: "" },
+        { productId: null, sku: "TOTE", quantity: 2, inCart: true, href: "" },
       ]),
     ).toBe("MUG, 2× TOTE");
   });

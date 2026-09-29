@@ -18,8 +18,8 @@ type AdminCart {
 
 type AdminCartLine {
   id:          ID!
-  productName: String!
-  productSku:  String!
+  name:        String!
+  sku:         String!
   unitPrice:   Int!
   quantity:    Float!
   totalPrice:  Int!
@@ -32,8 +32,8 @@ type AdminCartLine {
 
 type AdminCartLineComponent {
   id:          ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   unitPrice:   Int!
   quantity:    Float!
 }
