@@ -43,7 +43,7 @@ vi.mock('@/lib/unsaved-changes', () => ({
   useUnsavedChangesGuard: () => {},
 }))
 
-const channel = (id: string, over: Partial<{ locales: { code: string }[]; defaultLocale: string }> = {}) => ({
+const channel = (id: string, over: Partial<{ locales: { code: string }[]; defaultLocale: string; isDefault: boolean }> = {}) => ({
   id,
   name: id.toUpperCase(),
   defaultLocale: 'en',
@@ -170,6 +170,19 @@ describe('effectiveLocale', () => {
   it('is empty in global, so the backend picks', () => {
     mount()
     expect(api.effectiveLocale).toBe('')
+  })
+})
+
+describe('globalDefaultLocale', () => {
+  it("is the default channel's locale", () => {
+    state.channels = [channel('c1'), channel('c2', { defaultLocale: 'sr', isDefault: true })]
+    mount()
+    expect(api.globalDefaultLocale).toBe('sr')
+  })
+
+  it('falls back to en like the backend when no channel is flagged default, so a global create still has a locale', () => {
+    mount()
+    expect(api.globalDefaultLocale).toBe('en')
   })
 })
 

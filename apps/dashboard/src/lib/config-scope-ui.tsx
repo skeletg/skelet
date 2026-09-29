@@ -56,8 +56,12 @@ export function ConfigScopeProvider({
   const [scope, setScopeState] = useState<ConfigScopeState>(() => readStoredScope())
   const channelsQuery = useQuery(ChannelsDocument)
   const globalDefaultLocale = useMemo(() => {
-    const rows = channelsQuery.data?.channels ?? []
-    return rows.find((sv) => sv.isDefault)?.defaultLocale ?? ''
+    const rows = channelsQuery.data?.channels
+    // Still loading - empty, so a Create screen waits instead of writing under a guess
+    if (!rows) return ''
+    // With no channel flagged default the backend falls back to "en" (CatalogDefaultLocaleProvider), and create
+    // insists on the default locale - mirror it, or every global Create fails with "locale is required"
+    return rows.find((sv) => sv.isDefault)?.defaultLocale || 'en'
   }, [channelsQuery.data])
   const permissions = usePermissions()
   // Memoized so the fresh object literal doesn't invalidate every downstream
