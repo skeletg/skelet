@@ -1,3 +1,4 @@
+import { print } from "graphql";
 import { NextResponse, type NextRequest, type NextFetchEvent } from "next/server";
 
 import {
@@ -8,6 +9,10 @@ import {
   isAccessTokenExpiringSoon,
   sessionCookieOptions,
 } from "@/app/lib/auth/cookies";
+import {
+  CustomerRefreshTokenDocument,
+  type CustomerRefreshTokenMutation,
+} from "@/app/lib/auth/operations.gql";
 import { buildForwardedCookie } from "@/app/lib/forwarded-cookie";
 
 
@@ -74,8 +79,7 @@ function reportCrawl(req: NextRequest, event: NextFetchEvent, channelId: string)
 // Refresh MUST be here, not in gqlFetch - that runs during RSC render where Next forbids
 // writing cookies, so it would rotate backend-side and fail to persist, burning the
 // session. Proactive, so a lost race is harmless and one refresh covers every fetch
-const REFRESH_MUTATION =
-  "mutation MiddlewareRefresh($token: String!) { customerRefreshToken(token: $token) { accessToken refreshToken } }";
+const REFRESH_MUTATION = print(CustomerRefreshTokenDocument);
 
 type RefreshOutcome =
   | { kind: "noop" }
@@ -98,9 +102,7 @@ async function maybeRefreshSession(req: NextRequest, channelId: string): Promise
     });
     // 5xx / network errors are transient - keep the session and try next request.
     if (!r.ok) return { kind: "noop" };
-    const body = (await r.json()) as {
-      data?: { customerRefreshToken?: { accessToken?: string; refreshToken?: string } };
-    };
+    const body = (await r.json()) as { data?: CustomerRefreshTokenMutation };
     const p = body?.data?.customerRefreshToken;
     if (p?.accessToken && p?.refreshToken) {
       return { kind: "refreshed", accessToken: p.accessToken, refreshToken: p.refreshToken };
