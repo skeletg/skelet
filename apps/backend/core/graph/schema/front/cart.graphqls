@@ -31,8 +31,8 @@ type AppliedPromotionCode {
 type PromotionFreeGift {
   # Resolved product id. Null when the SKU doesn't map to any product on the current store - the storefront then shows the offer text but no link.
   productId:   ID
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   quantity:    Float!
   # True when the customer's cart already contains the gift SKU.
   inCart:      Boolean!
@@ -76,16 +76,16 @@ type ShippingQuote {
 # A save-for-later item parked off the cart. imageUrl is hydrated like a line.
 type SavedItem {
   id:          ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   imageUrl:    String
   quantity:    Float!
 }
 
 type CartLine {
   id:          ID!
-  productName: String!
-  productSku:  String!
+  name:        String!
+  sku:         String!
   # Small (w160) thumbnail URL for the line, resolved from the product's thumbnail role (falling back to main role, then first ready image) and served through the /media/t transform ladder. Null when the product has no image. Hydrated alongside the localized name.
   imageUrl:    String
   unitPrice:   Int!
@@ -139,8 +139,8 @@ type CartLineComponent {
   id:          ID!
   optionId:    ID!
   selectionId: ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   unitPrice:   Int!
   # Pre-multiplied by the parent line's quantity - this is the final
   # number of units that will be reserved against inventory.

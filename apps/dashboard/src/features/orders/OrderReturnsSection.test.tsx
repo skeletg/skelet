@@ -13,7 +13,7 @@ const order = {
   channelId: 'c1',
   status: 'FULFILLED',
   currencyCode: 'EUR',
-  lines: [{ id: 'l1', productName: 'Tee', productSku: 'TEE-1', quantity: 1 }],
+  lines: [{ id: 'l1', name: 'Tee', sku: 'TEE-1', quantity: 1 }],
   returns: [
     {
       id: 'r1',

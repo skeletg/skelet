@@ -11,7 +11,7 @@ import { ReorderDocument, RequestReturnDocument } from "@/app/lib/checkout/opera
 export type ReorderResult = {
   ok: boolean;
   added?: number;
-  skipped?: Array<{ productName: string; productSku: string; reason: string }>;
+  skipped?: Array<{ name: string; sku: string; reason: string }>;
   error?: string;
 };
 

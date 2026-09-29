@@ -136,23 +136,23 @@ type ComplexityRoot struct {
 	}
 
 	AdminCartLine struct {
-		Components  func(childComplexity int) int
-		ID          func(childComplexity int) int
-		IsSimple    func(childComplexity int) int
-		Options     func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
-		Quantity    func(childComplexity int) int
-		TotalPrice  func(childComplexity int) int
-		UnitPrice   func(childComplexity int) int
+		Components func(childComplexity int) int
+		ID         func(childComplexity int) int
+		IsSimple   func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Options    func(childComplexity int) int
+		Quantity   func(childComplexity int) int
+		Sku        func(childComplexity int) int
+		TotalPrice func(childComplexity int) int
+		UnitPrice  func(childComplexity int) int
 	}
 
 	AdminCartLineComponent struct {
-		ID          func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
-		Quantity    func(childComplexity int) int
-		UnitPrice   func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Quantity  func(childComplexity int) int
+		Sku       func(childComplexity int) int
+		UnitPrice func(childComplexity int) int
 	}
 
 	AdminCartLineOption struct {
@@ -1097,10 +1097,10 @@ type ComplexityRoot struct {
 	}
 
 	CreditMemoLine struct {
+		Name        func(childComplexity int) int
 		OrderLineID func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
 		Quantity    func(childComplexity int) int
+		Sku         func(childComplexity int) int
 		TotalAmount func(childComplexity int) int
 		UnitAmount  func(childComplexity int) int
 	}
@@ -2657,23 +2657,23 @@ type ComplexityRoot struct {
 	}
 
 	OrderLine struct {
-		Components  func(childComplexity int) int
-		ID          func(childComplexity int) int
-		IsGift      func(childComplexity int) int
-		Options     func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
-		Quantity    func(childComplexity int) int
-		TotalPrice  func(childComplexity int) int
-		UnitPrice   func(childComplexity int) int
+		Components func(childComplexity int) int
+		ID         func(childComplexity int) int
+		IsGift     func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Options    func(childComplexity int) int
+		Quantity   func(childComplexity int) int
+		Sku        func(childComplexity int) int
+		TotalPrice func(childComplexity int) int
+		UnitPrice  func(childComplexity int) int
 	}
 
 	OrderLineComponent struct {
-		ID          func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
-		Quantity    func(childComplexity int) int
-		UnitPrice   func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Quantity  func(childComplexity int) int
+		Sku       func(childComplexity int) int
+		UnitPrice func(childComplexity int) int
 	}
 
 	OrderLineOption struct {
@@ -5499,30 +5499,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCartLine.IsSimple(childComplexity), true
+	case "AdminCartLine.name":
+		if e.ComplexityRoot.AdminCartLine.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.Name(childComplexity), true
 	case "AdminCartLine.options":
 		if e.ComplexityRoot.AdminCartLine.Options == nil {
 			break
 		}
 
 		return e.ComplexityRoot.AdminCartLine.Options(childComplexity), true
-	case "AdminCartLine.productName":
-		if e.ComplexityRoot.AdminCartLine.ProductName == nil {
-			break
-		}
-
-		return e.ComplexityRoot.AdminCartLine.ProductName(childComplexity), true
-	case "AdminCartLine.productSku":
-		if e.ComplexityRoot.AdminCartLine.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.AdminCartLine.ProductSku(childComplexity), true
 	case "AdminCartLine.quantity":
 		if e.ComplexityRoot.AdminCartLine.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.AdminCartLine.Quantity(childComplexity), true
+	case "AdminCartLine.sku":
+		if e.ComplexityRoot.AdminCartLine.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLine.Sku(childComplexity), true
 	case "AdminCartLine.totalPrice":
 		if e.ComplexityRoot.AdminCartLine.TotalPrice == nil {
 			break
@@ -5542,24 +5542,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AdminCartLineComponent.ID(childComplexity), true
-	case "AdminCartLineComponent.productName":
-		if e.ComplexityRoot.AdminCartLineComponent.ProductName == nil {
+	case "AdminCartLineComponent.name":
+		if e.ComplexityRoot.AdminCartLineComponent.Name == nil {
 			break
 		}
 
-		return e.ComplexityRoot.AdminCartLineComponent.ProductName(childComplexity), true
-	case "AdminCartLineComponent.productSku":
-		if e.ComplexityRoot.AdminCartLineComponent.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.AdminCartLineComponent.ProductSku(childComplexity), true
+		return e.ComplexityRoot.AdminCartLineComponent.Name(childComplexity), true
 	case "AdminCartLineComponent.quantity":
 		if e.ComplexityRoot.AdminCartLineComponent.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.AdminCartLineComponent.Quantity(childComplexity), true
+	case "AdminCartLineComponent.sku":
+		if e.ComplexityRoot.AdminCartLineComponent.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AdminCartLineComponent.Sku(childComplexity), true
 	case "AdminCartLineComponent.unitPrice":
 		if e.ComplexityRoot.AdminCartLineComponent.UnitPrice == nil {
 			break
@@ -9564,30 +9564,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CreditMemo.Total(childComplexity), true
 
+	case "CreditMemoLine.name":
+		if e.ComplexityRoot.CreditMemoLine.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreditMemoLine.Name(childComplexity), true
 	case "CreditMemoLine.orderLineId":
 		if e.ComplexityRoot.CreditMemoLine.OrderLineID == nil {
 			break
 		}
 
 		return e.ComplexityRoot.CreditMemoLine.OrderLineID(childComplexity), true
-	case "CreditMemoLine.productName":
-		if e.ComplexityRoot.CreditMemoLine.ProductName == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CreditMemoLine.ProductName(childComplexity), true
-	case "CreditMemoLine.productSku":
-		if e.ComplexityRoot.CreditMemoLine.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CreditMemoLine.ProductSku(childComplexity), true
 	case "CreditMemoLine.quantity":
 		if e.ComplexityRoot.CreditMemoLine.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.CreditMemoLine.Quantity(childComplexity), true
+	case "CreditMemoLine.sku":
+		if e.ComplexityRoot.CreditMemoLine.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreditMemoLine.Sku(childComplexity), true
 	case "CreditMemoLine.totalAmount":
 		if e.ComplexityRoot.CreditMemoLine.TotalAmount == nil {
 			break
@@ -19433,30 +19433,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.IsGift(childComplexity), true
+	case "OrderLine.name":
+		if e.ComplexityRoot.OrderLine.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.Name(childComplexity), true
 	case "OrderLine.options":
 		if e.ComplexityRoot.OrderLine.Options == nil {
 			break
 		}
 
 		return e.ComplexityRoot.OrderLine.Options(childComplexity), true
-	case "OrderLine.productName":
-		if e.ComplexityRoot.OrderLine.ProductName == nil {
-			break
-		}
-
-		return e.ComplexityRoot.OrderLine.ProductName(childComplexity), true
-	case "OrderLine.productSku":
-		if e.ComplexityRoot.OrderLine.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.OrderLine.ProductSku(childComplexity), true
 	case "OrderLine.quantity":
 		if e.ComplexityRoot.OrderLine.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.OrderLine.Quantity(childComplexity), true
+	case "OrderLine.sku":
+		if e.ComplexityRoot.OrderLine.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.Sku(childComplexity), true
 	case "OrderLine.totalPrice":
 		if e.ComplexityRoot.OrderLine.TotalPrice == nil {
 			break
@@ -19476,24 +19476,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLineComponent.ID(childComplexity), true
-	case "OrderLineComponent.productName":
-		if e.ComplexityRoot.OrderLineComponent.ProductName == nil {
+	case "OrderLineComponent.name":
+		if e.ComplexityRoot.OrderLineComponent.Name == nil {
 			break
 		}
 
-		return e.ComplexityRoot.OrderLineComponent.ProductName(childComplexity), true
-	case "OrderLineComponent.productSku":
-		if e.ComplexityRoot.OrderLineComponent.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.OrderLineComponent.ProductSku(childComplexity), true
+		return e.ComplexityRoot.OrderLineComponent.Name(childComplexity), true
 	case "OrderLineComponent.quantity":
 		if e.ComplexityRoot.OrderLineComponent.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.OrderLineComponent.Quantity(childComplexity), true
+	case "OrderLineComponent.sku":
+		if e.ComplexityRoot.OrderLineComponent.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLineComponent.Sku(childComplexity), true
 	case "OrderLineComponent.unitPrice":
 		if e.ComplexityRoot.OrderLineComponent.UnitPrice == nil {
 			break
@@ -28971,8 +28971,8 @@ type AdminCart {
 
 type AdminCartLine {
   id:          ID!
-  productName: String!
-  productSku:  String!
+  name:        String!
+  sku:         String!
   unitPrice:   Int!
   quantity:    Float!
   totalPrice:  Int!
@@ -28985,8 +28985,8 @@ type AdminCartLine {
 
 type AdminCartLineComponent {
   id:          ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   unitPrice:   Int!
   quantity:    Float!
 }
@@ -33546,8 +33546,8 @@ input RecordOfflinePaymentInput {
 
 type OrderLine {
   id:          ID!
-  productName: String!
-  productSku:  String!
+  name:        String!
+  sku:         String!
   unitPrice:   Int!
   quantity:    Float!
   totalPrice:  Int!
@@ -33564,8 +33564,8 @@ type OrderLine {
 # One chosen component under a bundle line, snapshotted at placement
 type OrderLineComponent {
   id:          ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   unitPrice:   Int!
   # Already multiplied by the parent line quantity, so it is what actually ships
   quantity:    Float!
@@ -33781,8 +33781,8 @@ type CreditMemo {
 
 type CreditMemoLine {
   orderLineId: ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   quantity:    Float!
   unitAmount:  Int!
   totalAmount: Int!
@@ -36707,10 +36707,10 @@ func (ec *executionContext) childFields_AdminCartLine(ctx context.Context, field
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_AdminCartLine_id(ctx, field)
-	case "productName":
-		return ec.fieldContext_AdminCartLine_productName(ctx, field)
-	case "productSku":
-		return ec.fieldContext_AdminCartLine_productSku(ctx, field)
+	case "name":
+		return ec.fieldContext_AdminCartLine_name(ctx, field)
+	case "sku":
+		return ec.fieldContext_AdminCartLine_sku(ctx, field)
 	case "unitPrice":
 		return ec.fieldContext_AdminCartLine_unitPrice(ctx, field)
 	case "quantity":
@@ -36731,10 +36731,10 @@ func (ec *executionContext) childFields_AdminCartLineComponent(ctx context.Conte
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_AdminCartLineComponent_id(ctx, field)
-	case "productSku":
-		return ec.fieldContext_AdminCartLineComponent_productSku(ctx, field)
-	case "productName":
-		return ec.fieldContext_AdminCartLineComponent_productName(ctx, field)
+	case "sku":
+		return ec.fieldContext_AdminCartLineComponent_sku(ctx, field)
+	case "name":
+		return ec.fieldContext_AdminCartLineComponent_name(ctx, field)
 	case "unitPrice":
 		return ec.fieldContext_AdminCartLineComponent_unitPrice(ctx, field)
 	case "quantity":
@@ -38629,10 +38629,10 @@ func (ec *executionContext) childFields_CreditMemoLine(ctx context.Context, fiel
 	switch field.Name {
 	case "orderLineId":
 		return ec.fieldContext_CreditMemoLine_orderLineId(ctx, field)
-	case "productSku":
-		return ec.fieldContext_CreditMemoLine_productSku(ctx, field)
-	case "productName":
-		return ec.fieldContext_CreditMemoLine_productName(ctx, field)
+	case "sku":
+		return ec.fieldContext_CreditMemoLine_sku(ctx, field)
+	case "name":
+		return ec.fieldContext_CreditMemoLine_name(ctx, field)
 	case "quantity":
 		return ec.fieldContext_CreditMemoLine_quantity(ctx, field)
 	case "unitAmount":
@@ -40777,10 +40777,10 @@ func (ec *executionContext) childFields_OrderLine(ctx context.Context, field gra
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_OrderLine_id(ctx, field)
-	case "productName":
-		return ec.fieldContext_OrderLine_productName(ctx, field)
-	case "productSku":
-		return ec.fieldContext_OrderLine_productSku(ctx, field)
+	case "name":
+		return ec.fieldContext_OrderLine_name(ctx, field)
+	case "sku":
+		return ec.fieldContext_OrderLine_sku(ctx, field)
 	case "unitPrice":
 		return ec.fieldContext_OrderLine_unitPrice(ctx, field)
 	case "quantity":
@@ -40801,10 +40801,10 @@ func (ec *executionContext) childFields_OrderLineComponent(ctx context.Context, 
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_OrderLineComponent_id(ctx, field)
-	case "productSku":
-		return ec.fieldContext_OrderLineComponent_productSku(ctx, field)
-	case "productName":
-		return ec.fieldContext_OrderLineComponent_productName(ctx, field)
+	case "sku":
+		return ec.fieldContext_OrderLineComponent_sku(ctx, field)
+	case "name":
+		return ec.fieldContext_OrderLineComponent_name(ctx, field)
 	case "unitPrice":
 		return ec.fieldContext_OrderLineComponent_unitPrice(ctx, field)
 	case "quantity":
@@ -57835,16 +57835,16 @@ func (ec *executionContext) fieldContext_AdminCartLine_id(_ context.Context, fie
 	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _AdminCartLine_productName(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _AdminCartLine_name(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_AdminCartLine_productName(ctx, field)
+			return ec.fieldContext_AdminCartLine_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -57854,20 +57854,20 @@ func (ec *executionContext) _AdminCartLine_productName(ctx context.Context, fiel
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_AdminCartLine_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_AdminCartLine_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _AdminCartLine_productSku(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _AdminCartLine_sku(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_AdminCartLine_productSku(ctx, field)
+			return ec.fieldContext_AdminCartLine_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -57877,7 +57877,7 @@ func (ec *executionContext) _AdminCartLine_productSku(ctx context.Context, field
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_AdminCartLine_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_AdminCartLine_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCartLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -58060,16 +58060,16 @@ func (ec *executionContext) fieldContext_AdminCartLineComponent_id(_ context.Con
 	return graphql.NewScalarFieldContext("AdminCartLineComponent", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _AdminCartLineComponent_productSku(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLineComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _AdminCartLineComponent_sku(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLineComponent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_AdminCartLineComponent_productSku(ctx, field)
+			return ec.fieldContext_AdminCartLineComponent_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -58079,20 +58079,20 @@ func (ec *executionContext) _AdminCartLineComponent_productSku(ctx context.Conte
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_AdminCartLineComponent_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_AdminCartLineComponent_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCartLineComponent", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _AdminCartLineComponent_productName(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLineComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _AdminCartLineComponent_name(ctx context.Context, field graphql.CollectedField, obj *model.AdminCartLineComponent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_AdminCartLineComponent_productName(ctx, field)
+			return ec.fieldContext_AdminCartLineComponent_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -58102,7 +58102,7 @@ func (ec *executionContext) _AdminCartLineComponent_productName(ctx context.Cont
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_AdminCartLineComponent_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_AdminCartLineComponent_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AdminCartLineComponent", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -74070,16 +74070,16 @@ func (ec *executionContext) fieldContext_CreditMemoLine_orderLineId(_ context.Co
 	return graphql.NewScalarFieldContext("CreditMemoLine", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _CreditMemoLine_productSku(ctx context.Context, field graphql.CollectedField, obj *model.CreditMemoLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _CreditMemoLine_sku(ctx context.Context, field graphql.CollectedField, obj *model.CreditMemoLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CreditMemoLine_productSku(ctx, field)
+			return ec.fieldContext_CreditMemoLine_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -74089,20 +74089,20 @@ func (ec *executionContext) _CreditMemoLine_productSku(ctx context.Context, fiel
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_CreditMemoLine_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_CreditMemoLine_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CreditMemoLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _CreditMemoLine_productName(ctx context.Context, field graphql.CollectedField, obj *model.CreditMemoLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _CreditMemoLine_name(ctx context.Context, field graphql.CollectedField, obj *model.CreditMemoLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CreditMemoLine_productName(ctx, field)
+			return ec.fieldContext_CreditMemoLine_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -74112,7 +74112,7 @@ func (ec *executionContext) _CreditMemoLine_productName(ctx context.Context, fie
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_CreditMemoLine_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_CreditMemoLine_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CreditMemoLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -113217,16 +113217,16 @@ func (ec *executionContext) fieldContext_OrderLine_id(_ context.Context, field g
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _OrderLine_productName(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _OrderLine_name(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_OrderLine_productName(ctx, field)
+			return ec.fieldContext_OrderLine_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -113236,20 +113236,20 @@ func (ec *executionContext) _OrderLine_productName(ctx context.Context, field gr
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_OrderLine_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_OrderLine_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _OrderLine_productSku(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _OrderLine_sku(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_OrderLine_productSku(ctx, field)
+			return ec.fieldContext_OrderLine_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -113259,7 +113259,7 @@ func (ec *executionContext) _OrderLine_productSku(ctx context.Context, field gra
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_OrderLine_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_OrderLine_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -113442,16 +113442,16 @@ func (ec *executionContext) fieldContext_OrderLineComponent_id(_ context.Context
 	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _OrderLineComponent_productSku(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _OrderLineComponent_sku(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_OrderLineComponent_productSku(ctx, field)
+			return ec.fieldContext_OrderLineComponent_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -113461,20 +113461,20 @@ func (ec *executionContext) _OrderLineComponent_productSku(ctx context.Context, 
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_OrderLineComponent_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_OrderLineComponent_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _OrderLineComponent_productName(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _OrderLineComponent_name(ctx context.Context, field graphql.CollectedField, obj *model.OrderLineComponent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_OrderLineComponent_productName(ctx, field)
+			return ec.fieldContext_OrderLineComponent_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -113484,7 +113484,7 @@ func (ec *executionContext) _OrderLineComponent_productName(ctx context.Context,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_OrderLineComponent_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_OrderLineComponent_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderLineComponent", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -161883,13 +161883,13 @@ func (ec *executionContext) _AdminCartLine(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._AdminCartLine_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._AdminCartLine_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._AdminCartLine_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._AdminCartLine_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -161961,13 +161961,13 @@ func (ec *executionContext) _AdminCartLineComponent(ctx context.Context, sel ast
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._AdminCartLineComponent_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._AdminCartLineComponent_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._AdminCartLineComponent_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._AdminCartLineComponent_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -168932,13 +168932,13 @@ func (ec *executionContext) _CreditMemoLine(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._CreditMemoLine_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._CreditMemoLine_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._CreditMemoLine_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._CreditMemoLine_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -179889,13 +179889,13 @@ func (ec *executionContext) _OrderLine(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._OrderLine_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._OrderLine_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._OrderLine_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._OrderLine_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -179967,13 +179967,13 @@ func (ec *executionContext) _OrderLineComponent(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._OrderLineComponent_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._OrderLineComponent_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._OrderLineComponent_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._OrderLineComponent_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

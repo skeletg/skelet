@@ -4,7 +4,7 @@ import { isNumberText } from '@/shared/schemas/fields'
 // Edit-order dialog - pre-fulfillment line changes. The service recomputes totals and re-reserves
 // stock (a shortage aborts the edit); bundle line quantities are refused server-side
 
-type OrderLine = { id: string; quantity: number; productName: string; productSku: string }
+type OrderLine = { id: string; quantity: number; name: string; sku: string }
 
 const positive = (v: string) => isNumberText(v, { above: 0 })
 

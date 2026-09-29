@@ -333,21 +333,21 @@ type ComplexityRoot struct {
 		CurrentUnitPrice  func(childComplexity int) int
 		ID                func(childComplexity int) int
 		ImageURL          func(childComplexity int) int
+		Name              func(childComplexity int) int
 		Options           func(childComplexity int) int
-		ProductName       func(childComplexity int) int
-		ProductSku        func(childComplexity int) int
 		Quantity          func(childComplexity int) int
+		Sku               func(childComplexity int) int
 		TotalPrice        func(childComplexity int) int
 		UnitPrice         func(childComplexity int) int
 	}
 
 	CartLineComponent struct {
 		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
 		OptionID    func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
 		Quantity    func(childComplexity int) int
 		SelectionID func(childComplexity int) int
+		Sku         func(childComplexity int) int
 		SortOrder   func(childComplexity int) int
 		UnitPrice   func(childComplexity int) int
 	}
@@ -755,14 +755,14 @@ type ComplexityRoot struct {
 	}
 
 	OrderLine struct {
-		ID          func(childComplexity int) int
-		IsGift      func(childComplexity int) int
-		Options     func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
-		Quantity    func(childComplexity int) int
-		TotalPrice  func(childComplexity int) int
-		UnitPrice   func(childComplexity int) int
+		ID         func(childComplexity int) int
+		IsGift     func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Options    func(childComplexity int) int
+		Quantity   func(childComplexity int) int
+		Sku        func(childComplexity int) int
+		TotalPrice func(childComplexity int) int
+		UnitPrice  func(childComplexity int) int
 	}
 
 	OrderLineOption struct {
@@ -989,12 +989,12 @@ type ComplexityRoot struct {
 	}
 
 	PromotionFreeGift struct {
-		Href        func(childComplexity int) int
-		InCart      func(childComplexity int) int
-		ProductID   func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
-		Quantity    func(childComplexity int) int
+		Href      func(childComplexity int) int
+		InCart    func(childComplexity int) int
+		Name      func(childComplexity int) int
+		ProductID func(childComplexity int) int
+		Quantity  func(childComplexity int) int
+		Sku       func(childComplexity int) int
 	}
 
 	PromotionalDisplay struct {
@@ -1106,9 +1106,9 @@ type ComplexityRoot struct {
 	}
 
 	ReorderSkippedLine struct {
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
-		Reason      func(childComplexity int) int
+		Name   func(childComplexity int) int
+		Reason func(childComplexity int) int
+		Sku    func(childComplexity int) int
 	}
 
 	ReturnableLine struct {
@@ -1198,11 +1198,11 @@ type ComplexityRoot struct {
 	}
 
 	SavedItem struct {
-		ID          func(childComplexity int) int
-		ImageURL    func(childComplexity int) int
-		ProductName func(childComplexity int) int
-		ProductSku  func(childComplexity int) int
-		Quantity    func(childComplexity int) int
+		ID       func(childComplexity int) int
+		ImageURL func(childComplexity int) int
+		Name     func(childComplexity int) int
+		Quantity func(childComplexity int) int
+		Sku      func(childComplexity int) int
 	}
 
 	SavedPaymentMethod struct {
@@ -2686,30 +2686,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartLine.ImageURL(childComplexity), true
+	case "CartLine.name":
+		if e.ComplexityRoot.CartLine.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartLine.Name(childComplexity), true
 	case "CartLine.options":
 		if e.ComplexityRoot.CartLine.Options == nil {
 			break
 		}
 
 		return e.ComplexityRoot.CartLine.Options(childComplexity), true
-	case "CartLine.productName":
-		if e.ComplexityRoot.CartLine.ProductName == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CartLine.ProductName(childComplexity), true
-	case "CartLine.productSku":
-		if e.ComplexityRoot.CartLine.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CartLine.ProductSku(childComplexity), true
 	case "CartLine.quantity":
 		if e.ComplexityRoot.CartLine.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.CartLine.Quantity(childComplexity), true
+	case "CartLine.sku":
+		if e.ComplexityRoot.CartLine.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartLine.Sku(childComplexity), true
 	case "CartLine.totalPrice":
 		if e.ComplexityRoot.CartLine.TotalPrice == nil {
 			break
@@ -2729,24 +2729,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartLineComponent.ID(childComplexity), true
+	case "CartLineComponent.name":
+		if e.ComplexityRoot.CartLineComponent.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartLineComponent.Name(childComplexity), true
 	case "CartLineComponent.optionId":
 		if e.ComplexityRoot.CartLineComponent.OptionID == nil {
 			break
 		}
 
 		return e.ComplexityRoot.CartLineComponent.OptionID(childComplexity), true
-	case "CartLineComponent.productName":
-		if e.ComplexityRoot.CartLineComponent.ProductName == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CartLineComponent.ProductName(childComplexity), true
-	case "CartLineComponent.productSku":
-		if e.ComplexityRoot.CartLineComponent.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.CartLineComponent.ProductSku(childComplexity), true
 	case "CartLineComponent.quantity":
 		if e.ComplexityRoot.CartLineComponent.Quantity == nil {
 			break
@@ -2759,6 +2753,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CartLineComponent.SelectionID(childComplexity), true
+	case "CartLineComponent.sku":
+		if e.ComplexityRoot.CartLineComponent.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CartLineComponent.Sku(childComplexity), true
 	case "CartLineComponent.sortOrder":
 		if e.ComplexityRoot.CartLineComponent.SortOrder == nil {
 			break
@@ -4858,30 +4858,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrderLine.IsGift(childComplexity), true
+	case "OrderLine.name":
+		if e.ComplexityRoot.OrderLine.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.Name(childComplexity), true
 	case "OrderLine.options":
 		if e.ComplexityRoot.OrderLine.Options == nil {
 			break
 		}
 
 		return e.ComplexityRoot.OrderLine.Options(childComplexity), true
-	case "OrderLine.productName":
-		if e.ComplexityRoot.OrderLine.ProductName == nil {
-			break
-		}
-
-		return e.ComplexityRoot.OrderLine.ProductName(childComplexity), true
-	case "OrderLine.productSku":
-		if e.ComplexityRoot.OrderLine.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.OrderLine.ProductSku(childComplexity), true
 	case "OrderLine.quantity":
 		if e.ComplexityRoot.OrderLine.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.OrderLine.Quantity(childComplexity), true
+	case "OrderLine.sku":
+		if e.ComplexityRoot.OrderLine.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrderLine.Sku(childComplexity), true
 	case "OrderLine.totalPrice":
 		if e.ComplexityRoot.OrderLine.TotalPrice == nil {
 			break
@@ -5935,30 +5935,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.PromotionFreeGift.InCart(childComplexity), true
+	case "PromotionFreeGift.name":
+		if e.ComplexityRoot.PromotionFreeGift.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PromotionFreeGift.Name(childComplexity), true
 	case "PromotionFreeGift.productId":
 		if e.ComplexityRoot.PromotionFreeGift.ProductID == nil {
 			break
 		}
 
 		return e.ComplexityRoot.PromotionFreeGift.ProductID(childComplexity), true
-	case "PromotionFreeGift.productName":
-		if e.ComplexityRoot.PromotionFreeGift.ProductName == nil {
-			break
-		}
-
-		return e.ComplexityRoot.PromotionFreeGift.ProductName(childComplexity), true
-	case "PromotionFreeGift.productSku":
-		if e.ComplexityRoot.PromotionFreeGift.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.PromotionFreeGift.ProductSku(childComplexity), true
 	case "PromotionFreeGift.quantity":
 		if e.ComplexityRoot.PromotionFreeGift.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.PromotionFreeGift.Quantity(childComplexity), true
+	case "PromotionFreeGift.sku":
+		if e.ComplexityRoot.PromotionFreeGift.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PromotionFreeGift.Sku(childComplexity), true
 
 	case "PromotionalDisplay.bannerMedia":
 		if e.ComplexityRoot.PromotionalDisplay.BannerMedia == nil {
@@ -6739,24 +6739,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ReorderResult.Skipped(childComplexity), true
 
-	case "ReorderSkippedLine.productName":
-		if e.ComplexityRoot.ReorderSkippedLine.ProductName == nil {
+	case "ReorderSkippedLine.name":
+		if e.ComplexityRoot.ReorderSkippedLine.Name == nil {
 			break
 		}
 
-		return e.ComplexityRoot.ReorderSkippedLine.ProductName(childComplexity), true
-	case "ReorderSkippedLine.productSku":
-		if e.ComplexityRoot.ReorderSkippedLine.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ReorderSkippedLine.ProductSku(childComplexity), true
+		return e.ComplexityRoot.ReorderSkippedLine.Name(childComplexity), true
 	case "ReorderSkippedLine.reason":
 		if e.ComplexityRoot.ReorderSkippedLine.Reason == nil {
 			break
 		}
 
 		return e.ComplexityRoot.ReorderSkippedLine.Reason(childComplexity), true
+	case "ReorderSkippedLine.sku":
+		if e.ComplexityRoot.ReorderSkippedLine.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReorderSkippedLine.Sku(childComplexity), true
 
 	case "ReturnableLine.orderLineId":
 		if e.ComplexityRoot.ReturnableLine.OrderLineID == nil {
@@ -7099,24 +7099,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SavedItem.ImageURL(childComplexity), true
-	case "SavedItem.productName":
-		if e.ComplexityRoot.SavedItem.ProductName == nil {
+	case "SavedItem.name":
+		if e.ComplexityRoot.SavedItem.Name == nil {
 			break
 		}
 
-		return e.ComplexityRoot.SavedItem.ProductName(childComplexity), true
-	case "SavedItem.productSku":
-		if e.ComplexityRoot.SavedItem.ProductSku == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SavedItem.ProductSku(childComplexity), true
+		return e.ComplexityRoot.SavedItem.Name(childComplexity), true
 	case "SavedItem.quantity":
 		if e.ComplexityRoot.SavedItem.Quantity == nil {
 			break
 		}
 
 		return e.ComplexityRoot.SavedItem.Quantity(childComplexity), true
+	case "SavedItem.sku":
+		if e.ComplexityRoot.SavedItem.Sku == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SavedItem.Sku(childComplexity), true
 
 	case "SavedPaymentMethod.brand":
 		if e.ComplexityRoot.SavedPaymentMethod.Brand == nil {
@@ -7570,8 +7570,8 @@ type AppliedPromotionCode {
 type PromotionFreeGift {
   # Resolved product id. Null when the SKU doesn't map to any product on the current store - the storefront then shows the offer text but no link.
   productId:   ID
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   quantity:    Float!
   # True when the customer's cart already contains the gift SKU.
   inCart:      Boolean!
@@ -7615,16 +7615,16 @@ type ShippingQuote {
 # A save-for-later item parked off the cart. imageUrl is hydrated like a line.
 type SavedItem {
   id:          ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   imageUrl:    String
   quantity:    Float!
 }
 
 type CartLine {
   id:          ID!
-  productName: String!
-  productSku:  String!
+  name:        String!
+  sku:         String!
   # Small (w160) thumbnail URL for the line, resolved from the product's thumbnail role (falling back to main role, then first ready image) and served through the /media/t transform ladder. Null when the product has no image. Hydrated alongside the localized name.
   imageUrl:    String
   unitPrice:   Int!
@@ -7678,8 +7678,8 @@ type CartLineComponent {
   id:          ID!
   optionId:    ID!
   selectionId: ID!
-  productSku:  String!
-  productName: String!
+  sku:         String!
+  name:        String!
   unitPrice:   Int!
   # Pre-multiplied by the parent line's quantity - this is the final
   # number of units that will be reserved against inventory.
@@ -8771,8 +8771,8 @@ type Order {
 
 type OrderLine {
   id:          ID!
-  productName: String!
-  productSku:  String!
+  name:        String!
+  sku:         String!
   unitPrice:   Int!
   quantity:    Float!
   totalPrice:  Int!
@@ -8849,8 +8849,8 @@ type ReturnableLine {
 # A line a reorder couldn't re-add (discontinued SKU, changed option/bundle).
 # The remaining lines still land in the cart.
 type ReorderSkippedLine {
-  productName: String!
-  productSku:  String!
+  name:        String!
+  sku:         String!
   reason:      String!
 }
 
@@ -10007,10 +10007,10 @@ func (ec *executionContext) childFields_CartLine(ctx context.Context, field grap
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_CartLine_id(ctx, field)
-	case "productName":
-		return ec.fieldContext_CartLine_productName(ctx, field)
-	case "productSku":
-		return ec.fieldContext_CartLine_productSku(ctx, field)
+	case "name":
+		return ec.fieldContext_CartLine_name(ctx, field)
+	case "sku":
+		return ec.fieldContext_CartLine_sku(ctx, field)
 	case "imageUrl":
 		return ec.fieldContext_CartLine_imageUrl(ctx, field)
 	case "unitPrice":
@@ -10039,10 +10039,10 @@ func (ec *executionContext) childFields_CartLineComponent(ctx context.Context, f
 		return ec.fieldContext_CartLineComponent_optionId(ctx, field)
 	case "selectionId":
 		return ec.fieldContext_CartLineComponent_selectionId(ctx, field)
-	case "productSku":
-		return ec.fieldContext_CartLineComponent_productSku(ctx, field)
-	case "productName":
-		return ec.fieldContext_CartLineComponent_productName(ctx, field)
+	case "sku":
+		return ec.fieldContext_CartLineComponent_sku(ctx, field)
+	case "name":
+		return ec.fieldContext_CartLineComponent_name(ctx, field)
 	case "unitPrice":
 		return ec.fieldContext_CartLineComponent_unitPrice(ctx, field)
 	case "quantity":
@@ -10717,10 +10717,10 @@ func (ec *executionContext) childFields_OrderLine(ctx context.Context, field gra
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_OrderLine_id(ctx, field)
-	case "productName":
-		return ec.fieldContext_OrderLine_productName(ctx, field)
-	case "productSku":
-		return ec.fieldContext_OrderLine_productSku(ctx, field)
+	case "name":
+		return ec.fieldContext_OrderLine_name(ctx, field)
+	case "sku":
+		return ec.fieldContext_OrderLine_sku(ctx, field)
 	case "unitPrice":
 		return ec.fieldContext_OrderLine_unitPrice(ctx, field)
 	case "quantity":
@@ -11163,10 +11163,10 @@ func (ec *executionContext) childFields_PromotionFreeGift(ctx context.Context, f
 	switch field.Name {
 	case "productId":
 		return ec.fieldContext_PromotionFreeGift_productId(ctx, field)
-	case "productSku":
-		return ec.fieldContext_PromotionFreeGift_productSku(ctx, field)
-	case "productName":
-		return ec.fieldContext_PromotionFreeGift_productName(ctx, field)
+	case "sku":
+		return ec.fieldContext_PromotionFreeGift_sku(ctx, field)
+	case "name":
+		return ec.fieldContext_PromotionFreeGift_name(ctx, field)
 	case "quantity":
 		return ec.fieldContext_PromotionFreeGift_quantity(ctx, field)
 	case "inCart":
@@ -11247,10 +11247,10 @@ func (ec *executionContext) childFields_ReorderResult(ctx context.Context, field
 
 func (ec *executionContext) childFields_ReorderSkippedLine(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
-	case "productName":
-		return ec.fieldContext_ReorderSkippedLine_productName(ctx, field)
-	case "productSku":
-		return ec.fieldContext_ReorderSkippedLine_productSku(ctx, field)
+	case "name":
+		return ec.fieldContext_ReorderSkippedLine_name(ctx, field)
+	case "sku":
+		return ec.fieldContext_ReorderSkippedLine_sku(ctx, field)
 	case "reason":
 		return ec.fieldContext_ReorderSkippedLine_reason(ctx, field)
 	}
@@ -11433,10 +11433,10 @@ func (ec *executionContext) childFields_SavedItem(ctx context.Context, field gra
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_SavedItem_id(ctx, field)
-	case "productSku":
-		return ec.fieldContext_SavedItem_productSku(ctx, field)
-	case "productName":
-		return ec.fieldContext_SavedItem_productName(ctx, field)
+	case "sku":
+		return ec.fieldContext_SavedItem_sku(ctx, field)
+	case "name":
+		return ec.fieldContext_SavedItem_name(ctx, field)
 	case "imageUrl":
 		return ec.fieldContext_SavedItem_imageUrl(ctx, field)
 	case "quantity":
@@ -18387,16 +18387,16 @@ func (ec *executionContext) fieldContext_CartLine_id(_ context.Context, field gr
 	return graphql.NewScalarFieldContext("CartLine", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _CartLine_productName(ctx context.Context, field graphql.CollectedField, obj *model1.CartLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _CartLine_name(ctx context.Context, field graphql.CollectedField, obj *model1.CartLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CartLine_productName(ctx, field)
+			return ec.fieldContext_CartLine_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -18406,20 +18406,20 @@ func (ec *executionContext) _CartLine_productName(ctx context.Context, field gra
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_CartLine_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_CartLine_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CartLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _CartLine_productSku(ctx context.Context, field graphql.CollectedField, obj *model1.CartLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _CartLine_sku(ctx context.Context, field graphql.CollectedField, obj *model1.CartLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CartLine_productSku(ctx, field)
+			return ec.fieldContext_CartLine_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -18429,7 +18429,7 @@ func (ec *executionContext) _CartLine_productSku(ctx context.Context, field grap
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_CartLine_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_CartLine_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CartLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -18704,16 +18704,16 @@ func (ec *executionContext) fieldContext_CartLineComponent_selectionId(_ context
 	return graphql.NewScalarFieldContext("CartLineComponent", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _CartLineComponent_productSku(ctx context.Context, field graphql.CollectedField, obj *model1.CartLineComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _CartLineComponent_sku(ctx context.Context, field graphql.CollectedField, obj *model1.CartLineComponent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CartLineComponent_productSku(ctx, field)
+			return ec.fieldContext_CartLineComponent_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -18723,20 +18723,20 @@ func (ec *executionContext) _CartLineComponent_productSku(ctx context.Context, f
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_CartLineComponent_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_CartLineComponent_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CartLineComponent", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _CartLineComponent_productName(ctx context.Context, field graphql.CollectedField, obj *model1.CartLineComponent) (ret graphql.Marshaler) {
+func (ec *executionContext) _CartLineComponent_name(ctx context.Context, field graphql.CollectedField, obj *model1.CartLineComponent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_CartLineComponent_productName(ctx, field)
+			return ec.fieldContext_CartLineComponent_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -18746,7 +18746,7 @@ func (ec *executionContext) _CartLineComponent_productName(ctx context.Context, 
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_CartLineComponent_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_CartLineComponent_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CartLineComponent", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -27065,16 +27065,16 @@ func (ec *executionContext) fieldContext_OrderLine_id(_ context.Context, field g
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _OrderLine_productName(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _OrderLine_name(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_OrderLine_productName(ctx, field)
+			return ec.fieldContext_OrderLine_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -27084,20 +27084,20 @@ func (ec *executionContext) _OrderLine_productName(ctx context.Context, field gr
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_OrderLine_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_OrderLine_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _OrderLine_productSku(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _OrderLine_sku(ctx context.Context, field graphql.CollectedField, obj *model.OrderLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_OrderLine_productSku(ctx, field)
+			return ec.fieldContext_OrderLine_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -27107,7 +27107,7 @@ func (ec *executionContext) _OrderLine_productSku(ctx context.Context, field gra
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_OrderLine_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_OrderLine_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrderLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -31412,16 +31412,16 @@ func (ec *executionContext) fieldContext_PromotionFreeGift_productId(_ context.C
 	return graphql.NewScalarFieldContext("PromotionFreeGift", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _PromotionFreeGift_productSku(ctx context.Context, field graphql.CollectedField, obj *model1.PromotionFreeGift) (ret graphql.Marshaler) {
+func (ec *executionContext) _PromotionFreeGift_sku(ctx context.Context, field graphql.CollectedField, obj *model1.PromotionFreeGift) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_PromotionFreeGift_productSku(ctx, field)
+			return ec.fieldContext_PromotionFreeGift_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -31431,20 +31431,20 @@ func (ec *executionContext) _PromotionFreeGift_productSku(ctx context.Context, f
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_PromotionFreeGift_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_PromotionFreeGift_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("PromotionFreeGift", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _PromotionFreeGift_productName(ctx context.Context, field graphql.CollectedField, obj *model1.PromotionFreeGift) (ret graphql.Marshaler) {
+func (ec *executionContext) _PromotionFreeGift_name(ctx context.Context, field graphql.CollectedField, obj *model1.PromotionFreeGift) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_PromotionFreeGift_productName(ctx, field)
+			return ec.fieldContext_PromotionFreeGift_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -31454,7 +31454,7 @@ func (ec *executionContext) _PromotionFreeGift_productName(ctx context.Context, 
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_PromotionFreeGift_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_PromotionFreeGift_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("PromotionFreeGift", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -34906,16 +34906,16 @@ func (ec *executionContext) fieldContext_ReorderResult_skipped(_ context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _ReorderSkippedLine_productName(ctx context.Context, field graphql.CollectedField, obj *model1.ReorderSkippedLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _ReorderSkippedLine_name(ctx context.Context, field graphql.CollectedField, obj *model1.ReorderSkippedLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ReorderSkippedLine_productName(ctx, field)
+			return ec.fieldContext_ReorderSkippedLine_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -34925,20 +34925,20 @@ func (ec *executionContext) _ReorderSkippedLine_productName(ctx context.Context,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_ReorderSkippedLine_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_ReorderSkippedLine_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ReorderSkippedLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _ReorderSkippedLine_productSku(ctx context.Context, field graphql.CollectedField, obj *model1.ReorderSkippedLine) (ret graphql.Marshaler) {
+func (ec *executionContext) _ReorderSkippedLine_sku(ctx context.Context, field graphql.CollectedField, obj *model1.ReorderSkippedLine) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ReorderSkippedLine_productSku(ctx, field)
+			return ec.fieldContext_ReorderSkippedLine_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -34948,7 +34948,7 @@ func (ec *executionContext) _ReorderSkippedLine_productSku(ctx context.Context, 
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_ReorderSkippedLine_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_ReorderSkippedLine_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ReorderSkippedLine", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -36271,16 +36271,16 @@ func (ec *executionContext) fieldContext_SavedItem_id(_ context.Context, field g
 	return graphql.NewScalarFieldContext("SavedItem", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
-func (ec *executionContext) _SavedItem_productSku(ctx context.Context, field graphql.CollectedField, obj *model1.SavedItem) (ret graphql.Marshaler) {
+func (ec *executionContext) _SavedItem_sku(ctx context.Context, field graphql.CollectedField, obj *model1.SavedItem) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SavedItem_productSku(ctx, field)
+			return ec.fieldContext_SavedItem_sku(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductSku, nil
+			return obj.Sku, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -36290,20 +36290,20 @@ func (ec *executionContext) _SavedItem_productSku(ctx context.Context, field gra
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_SavedItem_productSku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_SavedItem_sku(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SavedItem", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _SavedItem_productName(ctx context.Context, field graphql.CollectedField, obj *model1.SavedItem) (ret graphql.Marshaler) {
+func (ec *executionContext) _SavedItem_name(ctx context.Context, field graphql.CollectedField, obj *model1.SavedItem) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_SavedItem_productName(ctx, field)
+			return ec.fieldContext_SavedItem_name(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.ProductName, nil
+			return obj.Name, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -36313,7 +36313,7 @@ func (ec *executionContext) _SavedItem_productName(ctx context.Context, field gr
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_SavedItem_productName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_SavedItem_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SavedItem", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -41159,13 +41159,13 @@ func (ec *executionContext) _CartLine(ctx context.Context, sel ast.SelectionSet,
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._CartLine_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._CartLine_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._CartLine_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._CartLine_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -41257,13 +41257,13 @@ func (ec *executionContext) _CartLineComponent(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._CartLineComponent_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._CartLineComponent_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._CartLineComponent_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._CartLineComponent_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -44413,13 +44413,13 @@ func (ec *executionContext) _OrderLine(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._OrderLine_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._OrderLine_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._OrderLine_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._OrderLine_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -47149,13 +47149,13 @@ func (ec *executionContext) _PromotionFreeGift(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._PromotionFreeGift_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._PromotionFreeGift_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._PromotionFreeGift_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._PromotionFreeGift_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -49066,13 +49066,13 @@ func (ec *executionContext) _ReorderSkippedLine(ctx context.Context, sel ast.Sel
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("ReorderSkippedLine")
-		case "productName":
-			out.Values[i] = ec._ReorderSkippedLine_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._ReorderSkippedLine_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._ReorderSkippedLine_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._ReorderSkippedLine_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -49978,13 +49978,13 @@ func (ec *executionContext) _SavedItem(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productSku":
-			out.Values[i] = ec._SavedItem_productSku(ctx, field, obj)
+		case "sku":
+			out.Values[i] = ec._SavedItem_sku(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "productName":
-			out.Values[i] = ec._SavedItem_productName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._SavedItem_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

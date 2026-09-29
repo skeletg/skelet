@@ -35,7 +35,7 @@ function lineToRestorePayload(line: CartLine): RestoreLinePayload {
     }
     return {
       kind: "bundle",
-      productSku: line.productSku,
+      productSku: line.sku,
       quantity: line.quantity,
       selections: [...byOption].map(([optionId, selectionIds]) => ({
         optionId,
@@ -57,7 +57,7 @@ function lineToRestorePayload(line: CartLine): RestoreLinePayload {
     }
     return {
       kind: "configured",
-      productSku: line.productSku,
+      productSku: line.sku,
       quantity: line.quantity,
       options: [...byOption].map(([optionId, v]) => ({
         optionId,
@@ -68,7 +68,7 @@ function lineToRestorePayload(line: CartLine): RestoreLinePayload {
   }
   return {
     kind: "simple",
-    productSku: line.productSku,
+    productSku: line.sku,
     quantity: line.quantity,
   };
 }

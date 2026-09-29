@@ -60,11 +60,11 @@ func toAdminCartModel(c cart.Cart, email, name *string, currency string) *model.
 		comps := make([]*model.AdminCartLineComponent, len(l.Components))
 		for j, cc := range l.Components {
 			comps[j] = &model.AdminCartLineComponent{
-				ID:          cc.ID.String(),
-				ProductSku:  cc.ProductSku,
-				ProductName: cc.ProductName,
-				UnitPrice:   int32(cc.UnitPrice),
-				Quantity:    cc.Quantity,
+				ID:        cc.ID.String(),
+				Sku:       cc.ProductSku,
+				Name:      cc.ProductName,
+				UnitPrice: int32(cc.UnitPrice),
+				Quantity:  cc.Quantity,
 			}
 		}
 		opts := make([]*model.AdminCartLineOption, len(l.Options))
@@ -79,15 +79,15 @@ func toAdminCartModel(c cart.Cart, email, name *string, currency string) *model.
 			}
 		}
 		lines[i] = &model.AdminCartLine{
-			ID:          l.ID.String(),
-			ProductName: l.ProductName,
-			ProductSku:  l.ProductSku,
-			UnitPrice:   int32(l.UnitPrice),
-			Quantity:    l.Quantity,
-			TotalPrice:  int32(lt),
-			IsSimple:    len(l.Components) == 0 && len(l.Options) == 0,
-			Components:  comps,
-			Options:     opts,
+			ID:         l.ID.String(),
+			Name:       l.ProductName,
+			Sku:        l.ProductSku,
+			UnitPrice:  int32(l.UnitPrice),
+			Quantity:   l.Quantity,
+			TotalPrice: int32(lt),
+			IsSimple:   len(l.Components) == 0 && len(l.Options) == 0,
+			Components: comps,
+			Options:    opts,
 		}
 	}
 	m := &model.AdminCart{
