@@ -47,7 +47,7 @@ export function DraftOrderCreate() {
     : null
   const lines: DraftLine[] = (cart?.lines ?? [])
     .filter((l) => l.isSimple)
-    .map((l) => ({ sku: l.productSku, name: l.productName, unitPrice: l.unitPrice, currency: cart?.currencyCode ?? 'USD', quantity: l.quantity }))
+    .map((l) => ({ sku: l.sku, name: l.name, unitPrice: l.unitPrice, currency: cart?.currencyCode ?? 'USD', quantity: l.quantity }))
 
   return (
     <DraftOrderForm

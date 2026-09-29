@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/99designs/gqlgen/graphql/errcode"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -35,6 +36,14 @@ func Presenter(s Surface, opts ...Option) graphql.ErrorPresenterFunc {
 			class = apperr.ClassNotFound
 			if code == "" {
 				code = "NOT_FOUND"
+			}
+		}
+		if class == apperr.ClassUnknown {
+			if pc := protocolCode(err); pc != "" {
+				class = apperr.ClassValidation
+				if code == "" {
+					code = pc
+				}
 			}
 		}
 		if class == apperr.ClassUnknown {
@@ -128,4 +137,16 @@ func Presenter(s Surface, opts ...Option) graphql.ErrorPresenterFunc {
 
 		return gqlErr
 	}
+}
+
+// gqlgen's own parse and validation errors - a missing variable, a misspelt field - are the caller's mistake and describe the caller's own operation, so they must not read as "internal error" on the storefront
+func protocolCode(err error) string {
+	var ge *gqlerror.Error
+	if !errors.As(err, &ge) {
+		return ""
+	}
+	if c, _ := ge.Extensions["code"].(string); c == errcode.ValidationFailed || c == errcode.ParseFailed {
+		return c
+	}
+	return ""
 }

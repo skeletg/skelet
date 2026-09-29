@@ -6,8 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/99designs/gqlgen/graphql/errcode"
 	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
 // Test-local sentinels with classifications so the presenter has
@@ -145,5 +147,28 @@ func TestRecoverFuncReturnsClassInternalApperr(t *testing.T) {
 	}
 	if ae.Op != "graphqlx.RecoverFunc" {
 		t.Fatalf("op = %q, want graphqlx.RecoverFunc", ae.Op)
+	}
+}
+
+func TestPresenterFrontKeepsGraphQLValidationMessages(t *testing.T) {
+	for _, code := range []string{errcode.ValidationFailed, errcode.ParseFailed} {
+		err := gqlerror.Errorf("variable \"quantity\" is required")
+		errcode.Set(err, code)
+		gqlErr := graphqlx.Presenter(graphqlx.SurfaceFront)(context.Background(), err)
+		if gqlErr.Message != `variable "quantity" is required` {
+			t.Errorf("%s: message = %q, want the caller's own validation text", code, gqlErr.Message)
+		}
+		if got := gqlErr.Extensions["class"]; got != "VALIDATION" {
+			t.Errorf("%s: class = %v, want VALIDATION", code, got)
+		}
+		if got := gqlErr.Extensions["code"]; got != code {
+			t.Errorf("code = %v, want %s", got, code)
+		}
+	}
+
+	// A gqlerror with no protocol code is anything a resolver built - it stays internal and scrubbed
+	gqlErr := graphqlx.Presenter(graphqlx.SurfaceFront)(context.Background(), gqlerror.Errorf("pq: connection refused"))
+	if gqlErr.Message != "internal error" || gqlErr.Extensions["class"] != "INTERNAL" {
+		t.Errorf("uncoded gqlerror = %q / %v, want scrubbed INTERNAL", gqlErr.Message, gqlErr.Extensions["class"])
 	}
 }

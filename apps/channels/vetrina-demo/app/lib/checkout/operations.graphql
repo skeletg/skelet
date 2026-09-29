@@ -43,8 +43,8 @@ fragment OrderSummaryFields on Order {
   }
   lines {
     id
-    productName
-    productSku
+    name
+    sku
     unitPrice
     quantity
     totalPrice
@@ -131,8 +131,8 @@ mutation Reorder($orderId: ID!) {
   reorder(orderId: $orderId) {
     added
     skipped {
-      productName
-      productSku
+      name
+      sku
       reason
     }
     cart {
