@@ -468,11 +468,9 @@ type WebFormFieldError struct {
 }
 
 type WebFormFileInput struct {
-	FieldKey  string  `json:"fieldKey"`
-	ObjectKey string  `json:"objectKey"`
-	Name      string  `json:"name"`
-	Size      *int32  `json:"size,omitempty"`
-	MimeType  *string `json:"mimeType,omitempty"`
+	FieldKey  string `json:"fieldKey"`
+	ObjectKey string `json:"objectKey"`
+	Name      string `json:"name"`
 }
 
 type WebFormUploadTicket struct {

@@ -6212,7 +6212,7 @@ export type MutationUpdateUrlRewriteArgs = {
 
 export type MutationUpdateWebFormArgs = {
   id: Scalars['ID']['input'];
-  input: SaveWebFormInput;
+  input: UpdateWebFormInput;
 };
 
 
@@ -10339,6 +10339,13 @@ export type UpdateUrlRewriteInput = {
   redirectType?: InputMaybe<Scalars['Int']['input']>;
   requestPath?: InputMaybe<Scalars['String']['input']>;
   targetPath?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type UpdateWebFormInput = {
+  fields: Scalars['JSON']['input'];
+  name: Scalars['String']['input'];
+  settings: Scalars['JSON']['input'];
+  status: Scalars['String']['input'];
 };
 
 export type UpdateWebhookInput = {

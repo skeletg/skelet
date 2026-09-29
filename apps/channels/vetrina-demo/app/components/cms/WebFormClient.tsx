@@ -117,8 +117,6 @@ export function WebFormClient({ form }: { form: InlineForm }) {
           fieldKey: field.key,
           objectKey: ticket.objectKey,
           name: file.name,
-          size: file.size,
-          mimeType: file.type || "application/octet-stream",
         },
       }));
     } finally {

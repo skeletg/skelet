@@ -2569,7 +2569,7 @@ type ComplexityRoot struct {
 		UpdateSignupForm                  func(childComplexity int, id string, input model.SaveSignupFormInput) int
 		UpdateTaxRule                     func(childComplexity int, input model.UpdateTaxRuleInput) int
 		UpdateURLRewrite                  func(childComplexity int, input model.UpdateURLRewriteInput) int
-		UpdateWebForm                     func(childComplexity int, id string, input model.SaveWebFormInput) int
+		UpdateWebForm                     func(childComplexity int, id string, input model.UpdateWebFormInput) int
 		UpdateWebhook                     func(childComplexity int, input model.UpdateWebhookInput) int
 		UpdateWebhookJob                  func(childComplexity int, input model.UpdateWebhookJobInput) int
 		UpsertBlogAuthorContent           func(childComplexity int, input model.UpsertBlogAuthorContentInput) int
@@ -4861,7 +4861,7 @@ type MutationResolver interface {
 	CreateURLRewriteRedirect(ctx context.Context, input model.CreateURLRewriteRedirectInput) (*model.URLRewrite, error)
 	DeleteURLRewritesForEntity(ctx context.Context, entityType string, entityID string) (int32, error)
 	CreateWebForm(ctx context.Context, channelID string, input model.SaveWebFormInput) (*model.WebForm, error)
-	UpdateWebForm(ctx context.Context, id string, input model.SaveWebFormInput) (*model.WebForm, error)
+	UpdateWebForm(ctx context.Context, id string, input model.UpdateWebFormInput) (*model.WebForm, error)
 	DeleteWebForm(ctx context.Context, id string) (bool, error)
 	RestoreWebForm(ctx context.Context, id string) (bool, error)
 	CreateWebhook(ctx context.Context, input model.CreateWebhookInput) (*model.CreateWebhookPayload, error)
@@ -18835,7 +18835,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.UpdateWebForm(childComplexity, args["id"].(string), args["input"].(model.SaveWebFormInput)), true
+		return e.ComplexityRoot.Mutation.UpdateWebForm(childComplexity, args["id"].(string), args["input"].(model.UpdateWebFormInput)), true
 	case "Mutation.updateWebhook":
 		if e.ComplexityRoot.Mutation.UpdateWebhook == nil {
 			break
@@ -28034,6 +28034,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateShippingZoneInput,
 		ec.unmarshalInputUpdateTaxRuleInput,
 		ec.unmarshalInputUpdateUrlRewriteInput,
+		ec.unmarshalInputUpdateWebFormInput,
 		ec.unmarshalInputUpdateWebhookInput,
 		ec.unmarshalInputUpdateWebhookJobInput,
 		ec.unmarshalInputUpsertBlogAuthorContentInput,
@@ -36336,7 +36337,15 @@ type WebForm {
 }
 
 input SaveWebFormInput {
-  slug:     String        # ignored on update (slug is immutable)
+  slug:     String
+  name:     String!
+  status:   String!
+  fields:   JSON!
+  settings: JSON!
+}
+
+# The slug is fixed at create - CMS blocks reference forms by it
+input UpdateWebFormInput {
   name:     String!
   status:   String!
   fields:   JSON!
@@ -36362,7 +36371,7 @@ extend type Query {
 
 extend type Mutation {
   createWebForm(channelId: ID!, input: SaveWebFormInput!): WebForm!
-  updateWebForm(id: ID!, input: SaveWebFormInput!): WebForm!
+  updateWebForm(id: ID!, input: UpdateWebFormInput!): WebForm!
   # Soft delete - submissions stay readable and the storefront stops
   # serving the form. Restorable.
   deleteWebForm(id: ID!): Boolean!
@@ -51889,8 +51898,8 @@ func (ec *executionContext) field_Mutation_updateWebForm_args(ctx context.Contex
 	}
 	args["id"] = arg0
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (model.SaveWebFormInput, error) {
-			return ec.unmarshalNSaveWebFormInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSaveWebFormInput(ctx, v)
+		func(ctx context.Context, v any) (model.UpdateWebFormInput, error) {
+			return ec.unmarshalNUpdateWebFormInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐUpdateWebFormInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -111445,7 +111454,7 @@ func (ec *executionContext) _Mutation_updateWebForm(ctx context.Context, field g
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateWebForm(ctx, fc.Args["id"].(string), fc.Args["input"].(model.SaveWebFormInput))
+			return ec.Resolvers.Mutation().UpdateWebForm(ctx, fc.Args["id"].(string), fc.Args["input"].(model.UpdateWebFormInput))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.WebForm) graphql.Marshaler {
@@ -160370,6 +160379,57 @@ func (ec *executionContext) unmarshalInputUpdateUrlRewriteInput(ctx context.Cont
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateWebFormInput(ctx context.Context, obj any) (model.UpdateWebFormInput, error) {
+	var it model.UpdateWebFormInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "status", "fields", "settings"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		case "fields":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fields"))
+			data, err := ec.unmarshalNJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Fields = data
+		case "settings":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("settings"))
+			data, err := ec.unmarshalNJSON2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Settings = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateWebhookInput(ctx context.Context, obj any) (model.UpdateWebhookInput, error) {
 	var it model.UpdateWebhookInput
 	if obj == nil {
@@ -206229,6 +206289,11 @@ func (ec *executionContext) unmarshalNUpdateTaxRuleInput2githubᚗcomᚋskeletg�
 
 func (ec *executionContext) unmarshalNUpdateUrlRewriteInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐUpdateURLRewriteInput(ctx context.Context, v any) (model.UpdateURLRewriteInput, error) {
 	res, err := ec.unmarshalInputUpdateUrlRewriteInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateWebFormInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐUpdateWebFormInput(ctx context.Context, v any) (model.UpdateWebFormInput, error) {
+	res, err := ec.unmarshalInputUpdateWebFormInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

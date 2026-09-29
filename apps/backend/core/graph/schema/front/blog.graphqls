@@ -89,7 +89,6 @@ input BlogPostFilter {
   categorySlug: String
   tagSlug:      String
   authorSlug:   String
-  channelId:  ID
 }
 
 extend type Query {
