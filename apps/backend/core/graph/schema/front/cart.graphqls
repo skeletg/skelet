@@ -129,7 +129,7 @@ input ProductOptionSelectionInput {
 
 input AddConfiguredToCartInput {
   cartId:     ID!
-  productSku: String!
+  sku:        String!
   quantity:   Float!
   options:    [ProductOptionSelectionInput!]!
 }
@@ -156,7 +156,7 @@ input AddBundleToCartSelectionInput {
 
 input AddBundleToCartInput {
   cartId:     ID!
-  productSku: String!
+  sku:        String!
   quantity:   Float!
   selections: [AddBundleToCartSelectionInput!]!
 }
@@ -185,14 +185,15 @@ type ProductOptionFileUpload {
 
 extend type Mutation {
   createGuestCart:                                                                                    Cart!
-  addToCart(cartId: ID!, productName: String!, productSku: String!, unitPrice: Int!, quantity: Float!): Cart!
+  # Names and prices the line from the catalog by SKU
+  addToCart(cartId: ID!, sku: String!, quantity: Float!): Cart!
   # Bundle equivalent - the server resolves the bundle by SKU, validates the selections against the bundle's option structure, computes the line price from picked components, and stores the cart line + per-component snapshots. Re-adding the same bundle REPLACES the prior selection set.
   addBundleToCart(input: AddBundleToCartInput!):                                                      Cart!
   # Add a simple product carrying product custom-option picks. The server resolves the product's options by SKU, validates the picks, prices them server-side (folding deltas into the line unit price), and snapshots them onto the line. Re-adding the same SKU REPLACES the prior config.
   addConfiguredToCart(input: AddConfiguredToCartInput!):                                               Cart!
-  # Presign an upload for a FILE-type product option. The client PUTs the bytes to uploadUrl (with the exact Content-Type), then passes the returned assetId as fileAssetId in a ProductOptionSelectionInput. The server validates extension/size against the option's constraints at addConfiguredToCart time. productSku + optionId scope the upload directory (product-options/<productId>/...).
+  # Presign an upload for a FILE-type product option. The client PUTs the bytes to uploadUrl (with the exact Content-Type), then passes the returned assetId as fileAssetId in a ProductOptionSelectionInput. The server validates extension/size against the option's constraints at addConfiguredToCart time. sku + optionId scope the upload directory (product-options/<productId>/...).
   requestProductOptionFileUpload(
-    productSku: String!
+    sku:        String!
     optionId:   ID!
     filename:   String!
     mimeType:   String!

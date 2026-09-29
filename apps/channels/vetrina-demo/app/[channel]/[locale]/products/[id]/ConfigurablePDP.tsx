@@ -370,11 +370,6 @@ export function ConfigurablePDP({
             <StickyBuyRow className="mt-6">
             <form action={cfgFormAction} className="flex items-center gap-3">
               <input type="hidden" name="productSku" value={matched?.sku ?? ""} />
-              <input
-                type="hidden"
-                name="productName"
-                value={matched?.name ?? matched?.sku ?? ""}
-              />
               <input type="hidden" name="options" value={JSON.stringify(opts.payload)} />
               {opts.forcedQty != null ? (
                 // A picked option forces the line quantity - submit it and hide the
@@ -424,16 +419,6 @@ export function ConfigurablePDP({
                 type="hidden"
                 name="productSku"
                 value={matched?.sku ?? ""}
-              />
-              <input
-                type="hidden"
-                name="productName"
-                value={matched?.name ?? matched?.sku ?? ""}
-              />
-              <input
-                type="hidden"
-                name="unitPrice"
-                value={matched?.defaultPrice ?? 0}
               />
               {/* key remounts on variant change so the stepper resets and picks up the new stock ceiling */}
               <QtySelector

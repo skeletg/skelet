@@ -185,9 +185,7 @@ func TestRequiredOptionBlocksAPlainAdd(t *testing.T) {
 		t.Fatalf("cart: %v", err)
 	}
 	// the plain door skips option validation entirely, so it has to refuse a product that needs picks
-	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, cart.AddCartLineInput{
-		ProductSku: f.Product.SKU, Quantity: 1,
-	}); err == nil {
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, f.Product.SKU, 1); err == nil {
 		t.Error("a product with a required option was added without one")
 	}
 	// and the configured door refuses an empty pick set too
@@ -221,7 +219,7 @@ func TestRequiredOptionSKUIsRefusedForAdminEntry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cart: %v", err)
 	}
-	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, cart.AddCartLineInput{ProductSku: other.SKU, Quantity: 1}); err != nil {
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, other.SKU, 1); err != nil {
 		t.Fatalf("add plain line: %v", err)
 	}
 	clean, err := h.TryPlace(t, f.Channel, c.ID)

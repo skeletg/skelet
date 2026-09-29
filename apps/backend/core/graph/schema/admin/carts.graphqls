@@ -93,7 +93,7 @@ extend type Mutation {
   # customer → their one active cart on the channel.
   adminCreateCart(channelId: ID!, customerId: ID): AdminCart!
   # Live cart line editing (simple products; bundle lines view+remove only). Price resolves server-side from the catalog. Passing options adds a CONFIGURED line - same validation/pricing/snapshot contract as the storefront's addConfiguredToCart, so phone orders can carry required options.
-  adminAddCartLine(cartId: ID!, productSku: String!, quantity: Float!, options: [AdminCartLineOptionInput!]): AdminCart!
+  adminAddCartLine(cartId: ID!, sku: String!, quantity: Float!, options: [AdminCartLineOptionInput!]): AdminCart!
   adminUpdateCartLine(cartId: ID!, lineId: ID!, quantity: Float!): AdminCart!
   adminRemoveCartLine(cartId: ID!, lineId: ID!): AdminCart!
   adminClearCart(cartId: ID!): AdminCart!

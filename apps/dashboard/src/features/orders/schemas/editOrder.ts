@@ -50,7 +50,7 @@ export function toEditOrderInput(v: EditOrderValues, lines: OrderLine[]) {
     removeLines: v.lines.filter((l) => l.removed).map((l) => l.id),
     addLines: v.adds
       .filter((a) => a.sku.trim() !== '')
-      .map((a) => ({ productSku: a.sku.trim(), quantity: Number(a.quantity) })),
+      .map((a) => ({ sku: a.sku.trim(), quantity: Number(a.quantity) })),
   }
 }
 

@@ -2367,14 +2367,14 @@ export type DefaultValueUpdate = {
 };
 
 export type DraftOrderLineInput = {
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
+  sku: Scalars['String']['input'];
   unitPriceCents?: InputMaybe<Scalars['Int']['input']>;
 };
 
 export type EditAddLineInput = {
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
+  sku: Scalars['String']['input'];
 };
 
 export type EditLineQtyInput = {
@@ -3908,8 +3908,8 @@ export type MutationAdminAddAddressArgs = {
 export type MutationAdminAddCartLineArgs = {
   cartId: Scalars['ID']['input'];
   options?: InputMaybe<Array<AdminCartLineOptionInput>>;
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
+  sku: Scalars['String']['input'];
 };
 
 
