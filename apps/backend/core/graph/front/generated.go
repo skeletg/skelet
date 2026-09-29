@@ -7499,7 +7499,6 @@ input BlogPostFilter {
   categorySlug: String
   tagSlug:      String
   authorSlug:   String
-  channelId:  ID
 }
 
 extend type Query {
@@ -8305,8 +8304,6 @@ input CMSPageFilter {
   pageTypeId:    ID
   parentId:      ID
   onlyPublished: Boolean
-  # When set, return only pages with an active store listing on this store. When omitted, the active storefront's id (resolved from the X-Channel-Id header) is used; both null falls back to global is_published.
-  channelId:   ID
 }
 
 extend type Query {
@@ -9383,8 +9380,6 @@ input WebFormFileInput {
   fieldKey:  String!
   objectKey: String!
   name:      String!
-  size:      Int
-  mimeType:  String
 }
 
 input SubmitWebFormInput {
@@ -38401,7 +38396,7 @@ func (ec *executionContext) unmarshalInputBlogPostFilter(ctx context.Context, ob
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"categorySlug", "tagSlug", "authorSlug", "channelId"}
+	fieldsInOrder := [...]string{"categorySlug", "tagSlug", "authorSlug"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -38429,13 +38424,6 @@ func (ec *executionContext) unmarshalInputBlogPostFilter(ctx context.Context, ob
 				return it, err
 			}
 			it.AuthorSlug = data
-		case "channelId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelId"))
-			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ChannelID = data
 		}
 	}
 	return it, nil
@@ -38517,7 +38505,7 @@ func (ec *executionContext) unmarshalInputCMSPageFilter(ctx context.Context, obj
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"pageTypeId", "parentId", "onlyPublished", "channelId"}
+	fieldsInOrder := [...]string{"pageTypeId", "parentId", "onlyPublished"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -38545,13 +38533,6 @@ func (ec *executionContext) unmarshalInputCMSPageFilter(ctx context.Context, obj
 				return it, err
 			}
 			it.OnlyPublished = data
-		case "channelId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelId"))
-			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ChannelID = data
 		}
 	}
 	return it, nil
@@ -38997,7 +38978,7 @@ func (ec *executionContext) unmarshalInputWebFormFileInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"fieldKey", "objectKey", "name", "size", "mimeType"}
+	fieldsInOrder := [...]string{"fieldKey", "objectKey", "name"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -39025,20 +39006,6 @@ func (ec *executionContext) unmarshalInputWebFormFileInput(ctx context.Context, 
 				return it, err
 			}
 			it.Name = data
-		case "size":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("size"))
-			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Size = data
-		case "mimeType":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mimeType"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.MimeType = data
 		}
 	}
 	return it, nil
