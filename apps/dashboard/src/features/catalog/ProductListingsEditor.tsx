@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useMutation, useQuery } from '@apollo/client/react'
 import { useStore } from '@tanstack/react-form'
 import { EraserIcon } from 'lucide-react'
+import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,7 +14,7 @@ import { ChannelsDocument } from '@/features/channels/Channels.gql'
 import { RestoredDraftBanner } from '@/shared/saving/RestoredDraftBanner'
 import { useSectionForm } from '@/shared/saving/useSectionForm'
 import { ClearProductListingDocument, ProductDocument } from './Catalog.gql'
-import { useProductListingWrite } from './product-detail/productListing'
+import { emptyWrapperWarning, useProductListingWrite, type WrapperContents } from './product-detail/productListing'
 import {
   PRODUCT_LISTING_LABELS,
   productListingChanges,
@@ -35,7 +36,7 @@ type Listing = {
   channel: { id: string }
 }
 
-type ProductForListings = {
+type ProductForListings = WrapperContents & {
   id: string
   listings: Listing[]
 }
@@ -94,6 +95,7 @@ export function ProductListingsEditor({
     },
   })
   const values = useStore(form.store, (s) => s.values.stores)
+  const emptyWarning = emptyWrapperWarning(product)
 
   if (channelsQuery.loading) {
     return <p className="text-sm text-muted-foreground">Loading stores…</p>
@@ -120,6 +122,12 @@ export function ProductListingsEditor({
           {channelId ? ' Header scope is limiting this table to the selected channel.' : ''}
         </AlertDescription>
       </Alert>
+      {emptyWarning && (
+        <Alert variant="warning">
+          <AlertTitle>Nothing to sell yet</AlertTitle>
+          <AlertDescription>{emptyWarning} It can still be published.</AlertDescription>
+        </Alert>
+      )}
       {draft.offer !== null && <RestoredDraftBanner draft={draft} labels={PRODUCT_LISTING_LABELS} />}
 
       <div className="rounded-md border">
@@ -204,6 +212,7 @@ export function ProductListingsEditor({
                           onCheckedChange={(v) => {
                             f.handleChange(v)
                             edit(i)
+                            if (v && emptyWarning) toast.warning(`Publishing on ${store.name}: ${emptyWarning}`)
                           }}
                           disabled={!canManage}
                         />
