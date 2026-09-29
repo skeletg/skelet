@@ -49,6 +49,17 @@ func (s *PasswordResetStore) Validate(ctx context.Context, token string) (uuid.U
 	return id, nil
 }
 
+func (s *PasswordResetStore) Consume(ctx context.Context, token string) (uuid.UUID, error) { // Validate and Revoke as one step - the token is spent even if what follows fails
+	id, err := s.backend.Consume(ctx, s.key(token))
+	if errors.Is(err, ErrTokenNotFound) {
+		return uuid.Nil, fmt.Errorf("invalid or expired reset link")
+	}
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("consume reset token: %w", err)
+	}
+	return id, nil
+}
+
 func (s *PasswordResetStore) Revoke(ctx context.Context, token string) error {
 	if err := s.backend.Delete(ctx, s.key(token)); err != nil {
 		return fmt.Errorf("revoke reset token: %w", err)

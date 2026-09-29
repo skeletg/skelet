@@ -13,10 +13,63 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+const acceptAdminTotpStep = `-- name: AcceptAdminTotpStep :execrows
+UPDATE admin_users SET totp_last_step = $1, totp_failed_attempts = 0, totp_locked_until = NULL
+WHERE id = $2 AND (totp_last_step IS NULL OR totp_last_step < $1)
+`
+
+type AcceptAdminTotpStepParams struct {
+	Step sql.NullInt64 `json:"step"`
+	ID   uuid.UUID     `json:"id"`
+}
+
+// Zero rows means the step was already used, which is a replay
+func (q *Queries) AcceptAdminTotpStep(ctx context.Context, arg AcceptAdminTotpStepParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, acceptAdminTotpStep, arg.Step, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const claimAdminTotpAttempt = `-- name: ClaimAdminTotpAttempt :execrows
+UPDATE admin_users
+SET totp_failed_attempts = CASE WHEN totp_locked_until IS NOT NULL THEN 1 ELSE totp_failed_attempts + 1 END,
+    totp_locked_until = CASE
+        WHEN (CASE WHEN totp_locked_until IS NOT NULL THEN 1 ELSE totp_failed_attempts + 1 END) >= $1::int
+        THEN NOW() + make_interval(secs => $2::int)
+    END
+WHERE id = $3 AND (totp_locked_until IS NULL OR totp_locked_until <= NOW())
+`
+
+type ClaimAdminTotpAttemptParams struct {
+	MaxAttempts int32     `json:"max_attempts"`
+	LockSeconds int32     `json:"lock_seconds"`
+	ID          uuid.UUID `json:"id"`
+}
+
+// Taken before a code is checked, so parallel guesses serialise on the row instead of all passing one stale read - zero rows means locked out, and the claim that reaches the limit starts the lockout; a lapsed lockout starts a fresh count
+func (q *Queries) ClaimAdminTotpAttempt(ctx context.Context, arg ClaimAdminTotpAttemptParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, claimAdminTotpAttempt, arg.MaxAttempts, arg.LockSeconds, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const clearAdminTotpFailures = `-- name: ClearAdminTotpFailures :exec
+UPDATE admin_users SET totp_failed_attempts = 0, totp_locked_until = NULL WHERE id = $1
+`
+
+func (q *Queries) ClearAdminTotpFailures(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, clearAdminTotpFailures, id)
+	return err
+}
+
 const createAdminUser = `-- name: CreateAdminUser :one
 INSERT INTO admin_users (email, password_hash, first_name, last_name, is_superuser)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, is_superuser, totp_secret, totp_pending_secret, totp_enabled, totp_recovery_codes, last_login_at
+RETURNING id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, is_superuser, totp_secret, totp_pending_secret, totp_enabled, totp_recovery_codes, last_login_at, totp_last_step, totp_failed_attempts, totp_locked_until
 `
 
 type CreateAdminUserParams struct {
@@ -51,6 +104,9 @@ func (q *Queries) CreateAdminUser(ctx context.Context, arg CreateAdminUserParams
 		&i.TotpEnabled,
 		&i.TotpRecoveryCodes,
 		&i.LastLoginAt,
+		&i.TotpLastStep,
+		&i.TotpFailedAttempts,
+		&i.TotpLockedUntil,
 	)
 	return i, err
 }
@@ -70,6 +126,9 @@ SET totp_secret = NULL,
     totp_pending_secret = NULL,
     totp_enabled = FALSE,
     totp_recovery_codes = NULL,
+    totp_last_step = NULL,
+    totp_failed_attempts = 0,
+    totp_locked_until = NULL,
     updated_at = NOW()
 WHERE id = $1
 `
@@ -79,33 +138,40 @@ func (q *Queries) DisableAdminTotp(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const enableAdminTotp = `-- name: EnableAdminTotp :exec
+const enableAdminTotp = `-- name: EnableAdminTotp :execrows
 UPDATE admin_users
 SET totp_secret = totp_pending_secret,
     totp_pending_secret = NULL,
     totp_enabled = TRUE,
     totp_recovery_codes = $2,
+    totp_last_step = $3,
+    totp_failed_attempts = 0,
+    totp_locked_until = NULL,
     updated_at = NOW()
-WHERE id = $1 AND totp_pending_secret IS NOT NULL
+WHERE id = $1 AND totp_pending_secret IS NOT NULL AND NOT totp_enabled
 `
 
 type EnableAdminTotpParams struct {
 	ID                uuid.UUID             `json:"id"`
 	TotpRecoveryCodes pqtype.NullRawMessage `json:"totp_recovery_codes"`
+	TotpLastStep      sql.NullInt64         `json:"totp_last_step"`
 }
 
 // Promotes the pending secret + stores hashed recovery codes
-func (q *Queries) EnableAdminTotp(ctx context.Context, arg EnableAdminTotpParams) error {
-	_, err := q.db.ExecContext(ctx, enableAdminTotp, arg.ID, arg.TotpRecoveryCodes)
-	return err
+func (q *Queries) EnableAdminTotp(ctx context.Context, arg EnableAdminTotpParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, enableAdminTotp, arg.ID, arg.TotpRecoveryCodes, arg.TotpLastStep)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getAdminUserByEmail = `-- name: GetAdminUserByEmail :one
-SELECT id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, is_superuser, totp_secret, totp_pending_secret, totp_enabled, totp_recovery_codes, last_login_at FROM admin_users WHERE email = $1 LIMIT 1
+SELECT id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, is_superuser, totp_secret, totp_pending_secret, totp_enabled, totp_recovery_codes, last_login_at, totp_last_step, totp_failed_attempts, totp_locked_until FROM admin_users WHERE lower(email) = lower($1) LIMIT 1
 `
 
-func (q *Queries) GetAdminUserByEmail(ctx context.Context, email string) (AdminUser, error) {
-	row := q.db.QueryRowContext(ctx, getAdminUserByEmail, email)
+func (q *Queries) GetAdminUserByEmail(ctx context.Context, lower string) (AdminUser, error) {
+	row := q.db.QueryRowContext(ctx, getAdminUserByEmail, lower)
 	var i AdminUser
 	err := row.Scan(
 		&i.ID,
@@ -122,12 +188,15 @@ func (q *Queries) GetAdminUserByEmail(ctx context.Context, email string) (AdminU
 		&i.TotpEnabled,
 		&i.TotpRecoveryCodes,
 		&i.LastLoginAt,
+		&i.TotpLastStep,
+		&i.TotpFailedAttempts,
+		&i.TotpLockedUntil,
 	)
 	return i, err
 }
 
 const getAdminUserByID = `-- name: GetAdminUserByID :one
-SELECT id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, is_superuser, totp_secret, totp_pending_secret, totp_enabled, totp_recovery_codes, last_login_at FROM admin_users WHERE id = $1 LIMIT 1
+SELECT id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, is_superuser, totp_secret, totp_pending_secret, totp_enabled, totp_recovery_codes, last_login_at, totp_last_step, totp_failed_attempts, totp_locked_until FROM admin_users WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetAdminUserByID(ctx context.Context, id uuid.UUID) (AdminUser, error) {
@@ -148,12 +217,15 @@ func (q *Queries) GetAdminUserByID(ctx context.Context, id uuid.UUID) (AdminUser
 		&i.TotpEnabled,
 		&i.TotpRecoveryCodes,
 		&i.LastLoginAt,
+		&i.TotpLastStep,
+		&i.TotpFailedAttempts,
+		&i.TotpLockedUntil,
 	)
 	return i, err
 }
 
 const listAdminUsers = `-- name: ListAdminUsers :many
-SELECT id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, is_superuser, totp_secret, totp_pending_secret, totp_enabled, totp_recovery_codes, last_login_at FROM admin_users ORDER BY created_at DESC
+SELECT id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, is_superuser, totp_secret, totp_pending_secret, totp_enabled, totp_recovery_codes, last_login_at, totp_last_step, totp_failed_attempts, totp_locked_until FROM admin_users ORDER BY created_at DESC
 `
 
 func (q *Queries) ListAdminUsers(ctx context.Context) ([]AdminUser, error) {
@@ -180,6 +252,9 @@ func (q *Queries) ListAdminUsers(ctx context.Context) ([]AdminUser, error) {
 			&i.TotpEnabled,
 			&i.TotpRecoveryCodes,
 			&i.LastLoginAt,
+			&i.TotpLastStep,
+			&i.TotpFailedAttempts,
+			&i.TotpLockedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -217,6 +292,26 @@ func (q *Queries) RecordAdminLogin(ctx context.Context, id uuid.UUID) (RecordAdm
 	return i, err
 }
 
+const redeemAdminTotpRecoveryCode = `-- name: RedeemAdminTotpRecoveryCode :execrows
+UPDATE admin_users SET totp_recovery_codes = $1, updated_at = NOW()
+WHERE id = $2 AND totp_recovery_codes = $3
+`
+
+type RedeemAdminTotpRecoveryCodeParams struct {
+	Remaining pqtype.NullRawMessage `json:"remaining"`
+	ID        uuid.UUID             `json:"id"`
+	Expected  pqtype.NullRawMessage `json:"expected"`
+}
+
+// Compare-and-swap on the code list, so two logins redeeming off the same read can't both succeed or write a spent code back
+func (q *Queries) RedeemAdminTotpRecoveryCode(ctx context.Context, arg RedeemAdminTotpRecoveryCodeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, redeemAdminTotpRecoveryCode, arg.Remaining, arg.ID, arg.Expected)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setAdminTotpPending = `-- name: SetAdminTotpPending :exec
 UPDATE admin_users SET totp_pending_secret = $2, updated_at = NOW() WHERE id = $1
 `
@@ -231,25 +326,11 @@ func (q *Queries) SetAdminTotpPending(ctx context.Context, arg SetAdminTotpPendi
 	return err
 }
 
-const setAdminTotpRecoveryCodes = `-- name: SetAdminTotpRecoveryCodes :exec
-UPDATE admin_users SET totp_recovery_codes = $2, updated_at = NOW() WHERE id = $1
-`
-
-type SetAdminTotpRecoveryCodesParams struct {
-	ID                uuid.UUID             `json:"id"`
-	TotpRecoveryCodes pqtype.NullRawMessage `json:"totp_recovery_codes"`
-}
-
-func (q *Queries) SetAdminTotpRecoveryCodes(ctx context.Context, arg SetAdminTotpRecoveryCodesParams) error {
-	_, err := q.db.ExecContext(ctx, setAdminTotpRecoveryCodes, arg.ID, arg.TotpRecoveryCodes)
-	return err
-}
-
 const updateAdminUser = `-- name: UpdateAdminUser :one
 UPDATE admin_users
 SET first_name = $2, last_name = $3, is_active = $4, updated_at = NOW()
 WHERE id = $1
-RETURNING id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, is_superuser, totp_secret, totp_pending_secret, totp_enabled, totp_recovery_codes, last_login_at
+RETURNING id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, is_superuser, totp_secret, totp_pending_secret, totp_enabled, totp_recovery_codes, last_login_at, totp_last_step, totp_failed_attempts, totp_locked_until
 `
 
 type UpdateAdminUserParams struct {
@@ -282,6 +363,9 @@ func (q *Queries) UpdateAdminUser(ctx context.Context, arg UpdateAdminUserParams
 		&i.TotpEnabled,
 		&i.TotpRecoveryCodes,
 		&i.LastLoginAt,
+		&i.TotpLastStep,
+		&i.TotpFailedAttempts,
+		&i.TotpLockedUntil,
 	)
 	return i, err
 }

@@ -2,7 +2,10 @@ package customer
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -167,6 +170,32 @@ func TestResetPasswordRevokesEverySessionAndBurnsTheToken(t *testing.T) {
 	}
 	if err := f.svc.ResetPassword(f.ctx, ch, token, "another-password-1"); err == nil {
 		t.Error("the emailed reset link was redeemable twice")
+	}
+}
+
+// Checking the token and spending it are one statement, so a link redeemed from two tabs at once sets one password, not two
+func TestResetTokenRedeemedConcurrentlySucceedsOnce(t *testing.T) {
+	f := newFixture(t)
+	ch := f.newChannel(t)
+	c := f.register(t, ch, randomEmail(), "password123")
+	token, err := f.svc.resetStore.Create(f.ctx, c.ID)
+	if err != nil {
+		t.Fatalf("mint reset token: %v", err)
+	}
+
+	const racers = 8
+	var wg sync.WaitGroup
+	var won atomic.Int32
+	for i := range racers {
+		wg.Go(func() {
+			if f.svc.ResetPassword(f.ctx, ch, token, fmt.Sprintf("racing-password-%d", i)) == nil {
+				won.Add(1)
+			}
+		})
+	}
+	wg.Wait()
+	if n := won.Load(); n != 1 {
+		t.Errorf("%d of %d concurrent redemptions succeeded, want exactly 1", n, racers)
 	}
 }
 

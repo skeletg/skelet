@@ -7,6 +7,10 @@ UPDATE admin_roles SET name = $2, description = $3 WHERE id = $1 RETURNING *;
 -- name: DeleteAdminRole :exec
 DELETE FROM admin_roles WHERE id = $1;
 
+-- name: LockAdminRole :one
+-- FOR UPDATE conflicts with the key-share lock an assignment insert takes, so a member count read after it can't go stale before the delete
+SELECT id FROM admin_roles WHERE id = $1 FOR UPDATE;
+
 -- name: GetAdminRoleByID :one
 SELECT * FROM admin_roles WHERE id = $1;
 

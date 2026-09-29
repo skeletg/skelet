@@ -29,7 +29,14 @@ func (b pgTokenBackend) Put(ctx context.Context, key string, id uuid.UUID, ttl t
 }
 
 func (b pgTokenBackend) Get(ctx context.Context, key string) (uuid.UUID, error) {
-	id, err := b.q.GetAuthToken(ctx, key) // the query filters expires_at > now(), so an expired row reads as no rows
+	return tokenSubject(b.q.GetAuthToken(ctx, key)) // the query filters expires_at > now(), so an expired row reads as no rows
+}
+
+func (b pgTokenBackend) Consume(ctx context.Context, key string) (uuid.UUID, error) {
+	return tokenSubject(b.q.ConsumeAuthToken(ctx, key))
+}
+
+func tokenSubject(id uuid.UUID, err error) (uuid.UUID, error) {
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return uuid.Nil, auth.ErrTokenNotFound

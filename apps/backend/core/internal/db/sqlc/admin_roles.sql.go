@@ -425,6 +425,18 @@ func (q *Queries) ListRoleMemberIDs(ctx context.Context, roleID uuid.UUID) ([]uu
 	return items, nil
 }
 
+const lockAdminRole = `-- name: LockAdminRole :one
+SELECT id FROM admin_roles WHERE id = $1 FOR UPDATE
+`
+
+// FOR UPDATE conflicts with the key-share lock an assignment insert takes, so a member count read after it can't go stale before the delete
+func (q *Queries) LockAdminRole(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, lockAdminRole, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const updateAdminRole = `-- name: UpdateAdminRole :one
 UPDATE admin_roles SET name = $2, description = $3 WHERE id = $1 RETURNING id, name, slug, description, created_at
 `

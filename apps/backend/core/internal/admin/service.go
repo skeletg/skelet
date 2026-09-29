@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"slices"
@@ -23,23 +24,29 @@ type Service struct {
 	repo         Repository
 	bus          *events.Bus
 	cipher       *secrets.Cipher          // encrypts TOTP secrets at rest - nil disables 2FA setup
+	refresh      sessionRevoker           // revokes sessions on password change, reset, deactivation and delete - nil where there are none to revoke (the CLI)
 	resetStore   *auth.PasswordResetStore // reset plumbing below is nil until SetPasswordReset, and RequestPasswordReset stays a safe no-op while it is
-	refresh      *auth.RefreshStore       // admin refresh store, for RevokeAll on reset
 	mail         *mailsend.Sender
 	config       *config.Service
 	dashboardURL string
+	now          func() time.Time
 }
 
 func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+	return &Service{repo: repo, now: time.Now}
 }
+
+type sessionRevoker interface {
+	RevokeAll(ctx context.Context, id uuid.UUID) error
+}
+
+func (s *Service) SetRefreshStore(r *auth.RefreshStore) { s.refresh = r }
 
 func (s *Service) SetEventBus(b *events.Bus) { s.bus = b } // optional - omitting it keeps Authenticate silent on the bus
 
-// Wires the self-service reset flow: admin-namespaced token store, admin refresh store (a successful reset revokes sessions), sender, config for the display name, and the dashboard base URL the link points at - RequestPasswordReset is a no-op while unset
-func (s *Service) SetPasswordReset(store *auth.PasswordResetStore, refresh *auth.RefreshStore, mail *mailsend.Sender, cfg *config.Service, dashboardURL string) {
+// Wires the self-service reset flow: admin-namespaced token store, sender, config for the display name, and the dashboard base URL the link points at - RequestPasswordReset is a no-op while unset
+func (s *Service) SetPasswordReset(store *auth.PasswordResetStore, mail *mailsend.Sender, cfg *config.Service, dashboardURL string) {
 	s.resetStore = store
-	s.refresh = refresh
 	s.mail = mail
 	s.config = cfg
 	s.dashboardURL = strings.TrimRight(dashboardURL, "/")
@@ -56,7 +63,7 @@ func (s *Service) CreateSuperuser(ctx context.Context, email, password, firstNam
 		return fmt.Errorf("hash password: %w", err)
 	}
 	_, err = s.repo.Create(ctx, CreateAdminUserInput{
-		Email:        email,
+		Email:        normalizeEmail(email),
 		PasswordHash: string(hash),
 		FirstName:    firstName,
 		LastName:     lastName,
@@ -74,7 +81,7 @@ func (s *Service) CreateAdmin(ctx context.Context, email, password, firstName, l
 		return AdminUser{}, fmt.Errorf("hash password: %w", err)
 	}
 	return s.repo.Create(ctx, CreateAdminUserInput{
-		Email:        email,
+		Email:        normalizeEmail(email),
 		PasswordHash: string(hash),
 		FirstName:    firstName,
 		LastName:     lastName,
@@ -83,12 +90,17 @@ func (s *Service) CreateAdmin(ctx context.Context, email, password, firstName, l
 	})
 }
 
-// Auth events bracket the check: sync auth.login.attempting runs before any DB read so rate-limit and IP-block plugins short-circuit cheaply, then async auth.login.succeeded / .failed fire after the verdict RecordLogin stamps the login and reports the PREVIOUS value - nil means this account had never logged in, which is what the first-run introduction keys off. Callers on the login path must treat an error as "not first" rather than failing the login
+// Emails compare case-insensitively everywhere, and the unique index is on lower(email)
+func normalizeEmail(email string) string { return strings.ToLower(strings.TrimSpace(email)) }
+
+// Stamps the login and reports the PREVIOUS value - nil means this account had never logged in, which is what the first-run introduction keys off. Callers on the login path must treat an error as "not first" rather than failing the login
 func (s *Service) RecordLogin(ctx context.Context, adminID uuid.UUID) (*time.Time, time.Time, error) {
 	return s.repo.RecordLogin(ctx, adminID)
 }
 
+// Auth events bracket the check: sync auth.login.attempting runs before any DB read so rate-limit and IP-block plugins short-circuit cheaply, then async auth.login.succeeded / .failed fire after the verdict
 func (s *Service) Authenticate(ctx context.Context, email, password, totpCode string) (AdminUser, error) {
+	email = normalizeEmail(email)
 	ip, ua := clientAttribution(ctx)
 	if s.bus != nil {
 		attempting := &auth.LoginAttempting{
@@ -111,6 +123,9 @@ func (s *Service) Authenticate(ctx context.Context, email, password, totpCode st
 	user, err := s.repo.GetByEmail(ctx, email)
 	if err != nil {
 		auth.CompareDummyPassword(password) // equalize timing with the found-but-wrong-password path, anti-enumeration
+		if !errors.Is(err, ErrAdminNotFound) {
+			return AdminUser{}, err
+		}
 		s.publishLoginFailed(ctx, email, ip, ua, "invalid_credentials")
 		return AdminUser{}, fmt.Errorf("invalid credentials")
 	}
@@ -127,6 +142,9 @@ func (s *Service) Authenticate(ctx context.Context, email, password, totpCode st
 			return AdminUser{}, ErrTotpRequired
 		}
 		ok, verr := s.verifySecondFactor(ctx, &user, totpCode)
+		if errors.Is(verr, ErrTotpLocked) {
+			s.publishLoginFailed(ctx, email, ip, ua, "totp_locked")
+		}
 		if verr != nil {
 			return AdminUser{}, verr
 		}
@@ -181,18 +199,15 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (AdminUser, error) 
 	return s.repo.GetByIDWithRoles(ctx, id)
 }
 
-func (s *Service) GetByIDWithRoles(ctx context.Context, id uuid.UUID) (AdminUser, error) { // alias of GetByID, for call sites that want the loaded state spelled out
-	return s.repo.GetByIDWithRoles(ctx, id)
-}
-
 func (s *Service) List(ctx context.Context) ([]AdminUser, error) {
 	return s.repo.List(ctx)
 }
 
-func (s *Service) Update(ctx context.Context, id uuid.UUID, input UpdateAdminUserInput) (AdminUser, error) { // RoleSlugs nil means no change, an empty slice clears all roles
+// RoleSlugs nil means no change, an empty slice clears all roles - deactivating ends every session, since the guard only asks whether a session still exists
+func (s *Service) Update(ctx context.Context, id uuid.UUID, input UpdateAdminUserInput) (AdminUser, error) {
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return AdminUser{}, fmt.Errorf("admin not found")
+		return AdminUser{}, err
 	}
 	mergedIsActive := existing.IsActive
 	if input.IsActive != nil {
@@ -210,17 +225,36 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, input UpdateAdminUse
 	if input.LastName != "" {
 		merged.LastName = input.LastName
 	}
-	return s.repo.Update(ctx, id, merged)
+	updated, err := s.repo.Update(ctx, id, merged)
+	if err != nil {
+		return AdminUser{}, err
+	}
+	if existing.IsActive && !mergedIsActive {
+		if err := s.revokeSessions(ctx, id); err != nil {
+			return AdminUser{}, fmt.Errorf("admin deactivated but session revoke failed: %w", err)
+		}
+	}
+	return updated, nil
 }
 
-func (s *Service) Delete(ctx context.Context, id uuid.UUID) error { // role assignments cascade
+func (s *Service) Delete(ctx context.Context, id uuid.UUID) error { // sessions go first so a failed revoke leaves the account to retry on, and role assignments cascade
+	if err := s.revokeSessions(ctx, id); err != nil {
+		return fmt.Errorf("revoke sessions: %w", err)
+	}
 	return s.repo.Delete(ctx, id)
+}
+
+func (s *Service) revokeSessions(ctx context.Context, id uuid.UUID) error {
+	if s.refresh == nil {
+		return nil
+	}
+	return s.refresh.RevokeAll(ctx, id)
 }
 
 func (s *Service) ChangePassword(ctx context.Context, id uuid.UUID, currentPassword, newPassword string) error {
 	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("admin not found")
+		return err
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
 		return fmt.Errorf("incorrect current password")
@@ -235,10 +269,8 @@ func (s *Service) ChangePassword(ctx context.Context, id uuid.UUID, currentPassw
 	if err := s.repo.UpdatePassword(ctx, id, string(hash)); err != nil {
 		return err
 	}
-	if s.refresh != nil { // matches the reset path - a password change has to evict every other session or it doesn't actually lock anyone out
-		if err := s.refresh.RevokeAll(ctx, id); err != nil {
-			log.Printf("[auth:warn] revoke admin %s sessions after password change: %v", id, err)
-		}
+	if err := s.revokeSessions(ctx, id); err != nil { // matches the reset path - every session ends, the one that made the change included, or it doesn't actually lock anyone out
+		log.Printf("[auth:warn] revoke admin %s sessions after password change: %v", id, err)
 	}
 	return nil
 }
@@ -248,7 +280,7 @@ const MessageKeyAdminPasswordReset = "admin_password_reset"
 
 // Enumeration-safe by design: nil comes back whether or not the email maps to an active admin, so a nil error does NOT mean an email was sent and callers must not reveal the outcome
 func (s *Service) RequestPasswordReset(ctx context.Context, emailAddr string) error {
-	emailAddr = strings.TrimSpace(emailAddr)
+	emailAddr = normalizeEmail(emailAddr)
 	if s.resetStore == nil || s.mail == nil || emailAddr == "" {
 		return nil // flow isn't wired
 	}
@@ -289,7 +321,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, emailAddr string) er
 	return nil
 }
 
-// Redeems a single-use reset token, sets the new password, then revokes every existing admin session so a leaked-then-reset account can't stay logged in elsewhere
+// Spends the reset token up front, so it's single-use even under concurrent redemption or a failure further down, then sets the new password and revokes every existing admin session so a leaked-then-reset account can't stay logged in elsewhere
 func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) error {
 	if s.resetStore == nil {
 		return fmt.Errorf("password reset is not enabled")
@@ -297,7 +329,7 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	if err := auth.ValidatePasswordStrength(newPassword); err != nil {
 		return err
 	}
-	adminID, err := s.resetStore.Validate(ctx, token)
+	adminID, err := s.resetStore.Consume(ctx, token)
 	if err != nil {
 		return err // "invalid or expired reset link"
 	}
@@ -308,12 +340,9 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	if err := s.repo.UpdatePassword(ctx, adminID, string(hash)); err != nil {
 		return err
 	}
-	if s.refresh != nil {
-		if err := s.refresh.RevokeAll(ctx, adminID); err != nil {
-			return fmt.Errorf("password reset but session revoke failed: %w", err) // the reset stands, but say so - the admin believes old sessions are dead when they may not be
-		}
+	if err := s.revokeSessions(ctx, adminID); err != nil {
+		return fmt.Errorf("password reset but session revoke failed: %w", err) // the reset stands, but say so - the admin believes old sessions are dead when they may not be
 	}
-	_ = s.resetStore.Revoke(ctx, token)
 	if s.bus != nil {
 		user, _ := s.repo.GetByID(ctx, adminID)
 		s.bus.Publish(ctx, &auth.PasswordResetCompleted{
@@ -325,8 +354,7 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	return nil
 }
 
-// Reads default-scope contact config, falling back to a safe default - displayName doubles as the store name in the email body
-// What the reset email calls the sender - the From header itself is mailsend's to build
+// What the reset email calls the sender, from default-scope contact config - the From header itself is mailsend's to build
 func (s *Service) senderName(ctx context.Context) string {
 	name := ""
 	if s.config != nil {
@@ -421,6 +449,9 @@ func (s *Service) CreateRole(ctx context.Context, input CreateRoleInput) (Role, 
 	}
 	if strings.TrimSpace(input.Name) == "" {
 		return Role{}, fmt.Errorf("role name is required")
+	}
+	if len(input.Scopes) == 0 {
+		return Role{}, fmt.Errorf("a role needs at least one permission grant")
 	}
 	return s.repo.CreateRole(ctx, input)
 }
