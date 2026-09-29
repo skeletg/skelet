@@ -875,7 +875,7 @@ func (s *categoryService) GetCategoryChannelListing(ctx context.Context, categor
 	return s.repo.GetCategoryChannelListing(ctx, categoryID, channelID)
 }
 
-// Roots come back nested (Children populated recursively) so the admin tree in CHANNEL renders the same hierarchy as GLOBAL, limited to categories listed+published on the store - cached in Valkey per (store, locale), admin mutations invalidate the namespace so reads stay fresh within a request, and the 20m TTL is only an upper bound for catastrophic cases (cache misconfig, namespace lock contention)
+// Storefront tree: roots come back nested (Children populated recursively), limited to categories listed+published on the store - cached in Valkey per (store, locale), admin mutations invalidate the namespace so reads stay fresh within a request, and the 20m TTL is only an upper bound for catastrophic cases (cache misconfig, namespace lock contention)
 func (s *categoryService) ListPublishedRootCategoriesForChannel(ctx context.Context, channelID uuid.UUID, locale string) ([]Category, error) {
 	cacheKey := "tree:" + channelID.String() + ":" + locale
 	if hit, ok := cache.GetJSON[[]Category](ctx, s.categoryTreeCache, cacheKey); ok {
@@ -894,6 +894,33 @@ func (s *categoryService) ListPublishedRootCategoriesForChannel(ctx context.Cont
 	tree := buildCategoryTree(all, nil)
 	s.categoryTreeCache.SetJSON(ctx, cacheKey, tree, 20*time.Minute)
 	return tree, nil
+}
+
+// ListRootCategoriesListedOnChannel is the admin's store-scoped tree: every category listed on the store, published or not, nested like ListRootCategories - uncached, the storefront's published tree is the hot path
+func (s *categoryService) ListRootCategoriesListedOnChannel(ctx context.Context, channelID uuid.UUID, locale string) ([]Category, error) {
+	all, err := s.repo.ListCategoriesListedOnChannel(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range all {
+		s.resolveCategoryCoverURL(&all[i])
+	}
+	if err := s.populateCategoryLocale(ctx, all, locale); err != nil {
+		return nil, err
+	}
+	return buildCategoryTree(all, nil), nil
+}
+
+// ListCategoryChildrenListedOnChannel returns the immediate children of a parent category listed on a store, published or not - admin only
+func (s *categoryService) ListCategoryChildrenListedOnChannel(ctx context.Context, channelID, parentID uuid.UUID, locale string) ([]Category, error) {
+	cats, err := s.repo.ListCategoryChildrenListedOnChannel(ctx, channelID, parentID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.populateCategoryLocale(ctx, cats, locale); err != nil {
+		return nil, err
+	}
+	return cats, nil
 }
 
 // ListPublishedCategoryChildrenForChannel returns the immediate children of a parent category that are visible on a particular store

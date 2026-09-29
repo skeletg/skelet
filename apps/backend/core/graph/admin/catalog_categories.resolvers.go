@@ -472,7 +472,7 @@ func (r *queryResolver) RootCategories(ctx context.Context, channelID *string) (
 		return nil, err
 	}
 	if chID != nil {
-		cats, err := r.CatalogSvc.ListPublishedRootCategoriesForChannel(ctx, *chID, r.activeLocale(ctx))
+		cats, err := r.CatalogSvc.ListRootCategoriesListedOnChannel(ctx, *chID, r.activeLocale(ctx))
 		if err != nil {
 			return nil, err
 		}
@@ -499,7 +499,7 @@ func (r *queryResolver) CategoryChildren(ctx context.Context, parentID string, c
 		return nil, err
 	}
 	if chID != nil {
-		cats, err := r.CatalogSvc.ListPublishedCategoryChildrenForChannel(ctx, *chID, pid, r.activeLocale(ctx))
+		cats, err := r.CatalogSvc.ListCategoryChildrenListedOnChannel(ctx, *chID, pid, r.activeLocale(ctx))
 		if err != nil {
 			return nil, err
 		}
