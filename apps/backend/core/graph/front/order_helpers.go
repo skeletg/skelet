@@ -137,15 +137,6 @@ func reorderConfiguredInput(line order.OrderLine) cart.AddConfiguredToCartInput 
 }
 
 // Name/price ride along but AddToCart overwrites both from the current catalog row, so the stale order-snapshot price never sticks
-func reorderSimpleInput(line order.OrderLine) cart.AddCartLineInput {
-	return cart.AddCartLineInput{
-		ProductName: line.ProductName,
-		ProductSku:  line.ProductSku,
-		UnitPrice:   line.UnitPrice,
-		Quantity:    line.Quantity,
-	}
-}
-
 func reorderBundleInput(line order.OrderLine) cart.AddBundleToCartInput {
 	byOption := map[uuid.UUID][]uuid.UUID{}
 	var optionOrder []uuid.UUID

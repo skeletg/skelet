@@ -46,14 +46,14 @@ export type CreditMemoLineInput = {
 };
 
 export type DraftOrderLineInput = {
-  productSku: string;
   quantity: number;
+  sku: string;
   unitPriceCents?: number | null | undefined;
 };
 
 export type EditAddLineInput = {
-  productSku: string;
   quantity: number;
+  sku: string;
 };
 
 export type EditLineQtyInput = {

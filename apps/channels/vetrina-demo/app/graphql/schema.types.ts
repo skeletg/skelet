@@ -14,9 +14,9 @@ export type Scalars = {
 
 export type AddBundleToCartInput = {
   cartId: Scalars['ID']['input'];
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
   selections: Array<AddBundleToCartSelectionInput>;
+  sku: Scalars['String']['input'];
 };
 
 export type AddBundleToCartSelectionInput = {
@@ -27,8 +27,8 @@ export type AddBundleToCartSelectionInput = {
 export type AddConfiguredToCartInput = {
   cartId: Scalars['ID']['input'];
   options: Array<ProductOptionSelectionInput>;
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
+  sku: Scalars['String']['input'];
 };
 
 export type Address = {
@@ -896,10 +896,8 @@ export type MutationAddConfiguredToCartArgs = {
 
 export type MutationAddToCartArgs = {
   cartId: Scalars['ID']['input'];
-  productName: Scalars['String']['input'];
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
-  unitPrice: Scalars['Int']['input'];
+  sku: Scalars['String']['input'];
 };
 
 
@@ -1051,8 +1049,8 @@ export type MutationRequestProductOptionFileUploadArgs = {
   filename: Scalars['String']['input'];
   mimeType: Scalars['String']['input'];
   optionId: Scalars['ID']['input'];
-  productSku: Scalars['String']['input'];
   sizeBytes: Scalars['Int']['input'];
+  sku: Scalars['String']['input'];
 };
 
 

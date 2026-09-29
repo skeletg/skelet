@@ -14,7 +14,7 @@ import (
 
 type AddBundleToCartInput struct {
 	CartID     string                           `json:"cartId"`
-	ProductSku string                           `json:"productSku"`
+	Sku        string                           `json:"sku"`
 	Quantity   float64                          `json:"quantity"`
 	Selections []*AddBundleToCartSelectionInput `json:"selections"`
 }
@@ -25,10 +25,10 @@ type AddBundleToCartSelectionInput struct {
 }
 
 type AddConfiguredToCartInput struct {
-	CartID     string                         `json:"cartId"`
-	ProductSku string                         `json:"productSku"`
-	Quantity   float64                        `json:"quantity"`
-	Options    []*ProductOptionSelectionInput `json:"options"`
+	CartID   string                         `json:"cartId"`
+	Sku      string                         `json:"sku"`
+	Quantity float64                        `json:"quantity"`
+	Options  []*ProductOptionSelectionInput `json:"options"`
 }
 
 type AddressInput2 struct {

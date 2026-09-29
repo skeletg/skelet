@@ -53,7 +53,7 @@ func TestBundlePricesFromComponentsAndReservesThem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cart: %v", err)
 	}
-	if _, err := h.D.Cart.AddToCart(h.Ctx, c0.ID, nil, cart.AddCartLineInput{ProductSku: b.SKU, Quantity: 1}); !errors.Is(err, cart.ErrProductNotPurchasable) {
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c0.ID, nil, b.SKU, 1); !errors.Is(err, cart.ErrProductNotPurchasable) {
 		t.Errorf("direct bundle add = %v, want ErrProductNotPurchasable", err)
 	}
 
