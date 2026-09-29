@@ -27,7 +27,6 @@ import { DataTable, DataTableColumnHeader, useListUrlState } from '@/components/
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { AttributeFormDialog, type ExistingAttribute } from './AttributeFormDialog'
 import { AttributeInputTypeBadge } from './AttributeInputTypeBadge'
-import { useConfigScope } from '@/lib/config-scope'
 import {
   AttributesDocument,
   DeleteAttributeDocument,
@@ -40,10 +39,11 @@ type AttributeRow = ExistingAttribute & {
 export function AttributesList() {
   // URL-backed, so a filtered view survives navigation and can be pasted to someone else
   const urlState = useListUrlState()
-  const { has } = usePermissions()
+  const { has, allowedChannelScopes } = usePermissions()
   const canManage = has('catalog.manage')
-  // Attributes are global; editing is gated behind GLOBAL scope
-  const { isGlobal } = useConfigScope()
+  // Attributes are shared by every channel, so creating one needs the grant everywhere (the resolver's
+  // requireGlobal) - which channel the header is viewing doesn't matter
+  const canCreate = allowedChannelScopes('catalog.manage').allChannels
 
   const { data, loading, error } = useQuery(AttributesDocument)
   const rows = (data?.attributes ?? []) as AttributeRow[]
@@ -188,22 +188,15 @@ export function AttributesList() {
         emptyState="No attributes yet."
         searchPlaceholder="Search name or slug…"
         toolbarRightSlot={
-          canManage && (
-            isGlobal ? (
-              <AttributeFormDialog
-                trigger={
-                  <Button size="sm">
-                    <PlusIcon className="size-4" />
-                    New attribute
-                  </Button>
-                }
-              />
-            ) : (
-              <Button size="sm" disabled title="Switch the header to GLOBAL to add an attribute.">
-                <PlusIcon className="size-4" />
-                New attribute
-              </Button>
-            )
+          canCreate && (
+            <AttributeFormDialog
+              trigger={
+                <Button size="sm">
+                  <PlusIcon className="size-4" />
+                  New attribute
+                </Button>
+              }
+            />
           )
         }
       />

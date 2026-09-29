@@ -83,10 +83,11 @@ const KIND_OPTIONS: { value: ProductKind; label: string; description: string; Ic
 export function ProductCreate() {
   const navigate = useNavigate()
   const permissions = usePermissions()
-  const { globalDefaultLocale, isGlobal } = useConfigScope()
+  const { globalDefaultLocale } = useConfigScope()
   const allowedScopes = useMemo(() => permissions.allowedChannelScopes('catalog.manage'), [permissions])
-  // Product types are global - same gate as the product types list
-  const canCreateProductType = permissions.has('catalog.manage')
+  // Product types are shared by every channel, so creating one needs catalog.manage everywhere - same gate as the
+  // product types list
+  const canCreateProductType = allowedScopes.allChannels
   const [typeDialogOpen, setTypeDialogOpen] = useState(false)
 
   const productTypesQuery = useQuery(ProductTypesDocument)
@@ -161,8 +162,6 @@ export function ProductCreate() {
         type="button"
         variant="outline"
         className={className}
-        disabled={!isGlobal}
-        title={isGlobal ? undefined : 'Switch the header to GLOBAL to add a product type.'}
         onClick={() => setTypeDialogOpen(true)}
       >
         <PlusIcon className="size-4" />
@@ -280,7 +279,11 @@ export function ProductCreate() {
             <Alert>
               <AlertTitle>No product types yet</AlertTitle>
               <AlertDescription>
-                <p>Create a product type before adding products so attributes can be assigned.</p>
+                <p>
+                  {canCreateProductType
+                    ? 'Create a product type before adding products so attributes can be assigned.'
+                    : 'Products need a product type first. Ask an admin with catalog access on every channel to create one.'}
+                </p>
                 {newTypeButton('Create product type', 'w-fit')}
               </AlertDescription>
             </Alert>
