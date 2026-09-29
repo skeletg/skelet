@@ -51,6 +51,8 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { FieldError } from '@/components/form/fields'
+import { fieldErrorText } from '@/components/form/field-errors'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { usePermissions } from '@/shared/auth/usePermissions'
@@ -76,6 +78,9 @@ import {
 } from './Categories.gql'
 import { SetCategoryFacetOverridesDocument } from './Categories.gql'
 import { dropZone, isDescendant, type CategorySummary, type DropZone } from './category-tree'
+import { CategoryOptionsDocument } from './category-picker/CategoryOptions.gql'
+import { formatPath, subtreeOf, useCategoryIndex } from './category-picker/category-options'
+import { CategorySelect } from './category-picker/CategorySelect'
 import { CategoryProductsSection } from './CategoryProductsSection'
 import { Section } from './CategorySection'
 import { AttributesDocument } from './Catalog.gql'
@@ -274,7 +279,7 @@ export function CategoriesPage() {
   }, [flat, search])
 
   const [updateCategory] = useMutation(UpdateCategoryDocument, {
-    refetchQueries: [{ query: RootCategoriesDocument }],
+    refetchQueries: [{ query: RootCategoriesDocument }, { query: CategoryOptionsDocument }],
   })
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -450,7 +455,6 @@ export function CategoriesPage() {
         <CategoryForm
           key="new"
           isNew
-          roots={roots}
           canManage={canManage}
           onCreated={(id) => navigate(`/categories/${id}`)}
         />
@@ -458,7 +462,6 @@ export function CategoriesPage() {
         <CategoryForm
           key={selectedId}
           categoryId={selectedId}
-          roots={roots}
           canManage={canManage}
           onDeleted={() => navigate('/categories')}
         />
@@ -600,14 +603,12 @@ function TreeNode({
 function CategoryForm({
   categoryId,
   isNew = false,
-  roots,
   canManage,
   onCreated,
   onDeleted,
 }: {
   categoryId?: string
   isNew?: boolean
-  roots: CategorySummary[]
   canManage: boolean
   onCreated?: (id: string) => void
   onDeleted?: () => void
@@ -631,7 +632,6 @@ function CategoryForm({
       key={locale}
       category={category}
       locale={locale}
-      roots={roots}
       canManage={canManage}
       onCreated={onCreated}
       onDeleted={onDeleted}
@@ -644,14 +644,12 @@ function CategoryForm({
 function CategoryRecordForm({
   category,
   locale,
-  roots,
   canManage,
   onCreated,
   onDeleted,
 }: {
   category?: CategoryDetail
   locale: string
-  roots: CategorySummary[]
   canManage: boolean
   onCreated?: (id: string) => void
   onDeleted?: () => void
@@ -672,7 +670,8 @@ function CategoryRecordForm({
 
   // The tree query takes no channel var - scope rides the request header - so refetching it re-reads
   // under the current scope automatically
-  const refetchQueries = [{ query: RootCategoriesDocument }]
+  // The pickers' flat list is cached separately, so it's refreshed alongside the tree
+  const refetchQueries = [{ query: RootCategoriesDocument }, { query: CategoryOptionsDocument }]
   const detailRefetch = categoryId ? [{ query: CategoryDocument, variables: { id: categoryId } }] : []
   const [createCategory] = useMutation(CreateCategoryDocument, { refetchQueries })
   const [setCategoryListing] = useMutation(SetCategoryListingDocument, { refetchQueries })
@@ -690,26 +689,19 @@ function CategoryRecordForm({
   const [slugTouched, setSlugTouched] = useState(!isNew)
   const createdId = useRef('')
 
-  // Every category but this one, indented by depth, for the parent picker
-  const parents = useMemo(() => {
-    const out: { id: string; label: string; depth: number }[] = []
-    const walk = (cats: CategorySummary[], depth: number) => {
-      for (const c of cats) {
-        if (c.id === categoryId) continue
-        out.push({ id: c.id, label: resolveCategoryDisplayName(c), depth })
-        walk(c.children ?? [], depth + 1)
-      }
-    }
-    walk(roots, 0)
-    // The actual parent may sit deeper than the tree fragment fetches, or the tree is still loading
-    if (category?.parent && !out.some((c) => c.id === category.parent!.id)) {
-      out.unshift({ id: category.parent.id, label: category.parent.name ?? category.parent.slug, depth: 0 })
-    }
-    return out
-  }, [roots, categoryId, category?.parent])
+  // The parent picker never offers this category or anything beneath it - either would make the
+  // category its own ancestor
+  const { index: categoryIndex } = useCategoryIndex()
+  const notParents = useMemo(() => (categoryId ? subtreeOf(categoryIndex, categoryId) : undefined), [categoryIndex, categoryId])
+  // The saved parent's name, for while the list loads or when it sits outside the admin's scope
+  const savedParentName = category?.parent ? (category.parent.name ?? category.parent.slug) : undefined
+  const parentLabel = useCallback(
+    (id: string) => formatPath(categoryIndex, id, id === category?.parent?.id ? savedParentName : undefined),
+    [categoryIndex, category?.parent?.id, savedParentName],
+  )
 
   const baseline = useMemo(() => (category ? toCategoryValues(category, locale) : emptyCategory), [category, locale])
-  const diff = useMemo(() => categoryDiff((id) => parents.find((p) => p.id === id)?.label ?? id), [parents])
+  const diff = useMemo(() => categoryDiff(parentLabel), [parentLabel])
 
   const record = useRecordForm({
     id: 'general',
@@ -892,13 +884,22 @@ function CategoryRecordForm({
               <div className="grid items-start gap-4 md:grid-cols-[1fr_8rem]">
                 <form.AppField name="parentId">
                   {(f) => (
-                    <f.SelectField
-                      id="cat-parent"
-                      label="Parent category"
-                      noneLabel="None (root)"
-                      placeholder="None (root)"
-                      options={parents.map((p) => ({ value: p.id, label: `${'  '.repeat(p.depth)}${p.label}` }))}
-                    />
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="cat-parent">Parent category</Label>
+                      <CategorySelect
+                        id="cat-parent"
+                        value={f.state.value}
+                        onChange={(id) => {
+                          f.handleChange(id)
+                          f.handleBlur()
+                        }}
+                        noneLabel="None (root)"
+                        fallbackLabel={f.state.value === category?.parent?.id ? savedParentName : undefined}
+                        excludeIds={notParents}
+                        invalid={!!fieldErrorText(f)}
+                      />
+                      <FieldError field={f} />
+                    </div>
                   )}
                 </form.AppField>
                 <form.AppField name="position">{(f) => <f.NumberField id="cat-position" label="Position" />}</form.AppField>

@@ -18,6 +18,7 @@ import {
   UpdateCategoryDocument,
   UpsertCategoryContentDocument,
 } from './Categories.gql'
+import { CategoryOptionsDocument } from './category-picker/CategoryOptions.gql'
 
 const toastError = vi.hoisted(() => vi.fn())
 vi.mock('sonner', () => ({ toast: { error: toastError } }))
@@ -102,6 +103,20 @@ const workingIn = (channels: ChannelScopeOption[], current: ChannelScopeOption):
   effectiveChannelId: current.id,
 })
 
+const option = (id: string, name: string, parentId: string | null = null) => ({
+  __typename: 'CategoryOption' as const,
+  id,
+  parentId,
+  slug: name.toLowerCase(),
+  name,
+  position: 0,
+  isPublished: true,
+  productCount: 0,
+})
+
+// Shoes (cat1) has a child of its own - neither may become its parent
+const options = [option('cat1', 'Shoes'), option('cat1-kid', 'Running', 'cat1'), option('cat3', 'Apparel')]
+
 function renderCategories(path: string, opts: { scope?: ConfigScopeContextValue; failListingOn?: string } = {}) {
   const writes = { create: vi.fn(), update: vi.fn(), content: vi.fn(), listing: vi.fn(), add: vi.fn(), remove: vi.fn() }
   const membership = (productId: string) => ({
@@ -118,6 +133,7 @@ function renderCategories(path: string, opts: { scope?: ConfigScopeContextValue;
     mocks: [
       meMock(),
       { request: { query: RootCategoriesDocument }, result: { data: { rootCategories: [] } }, maxUsageCount: 50 },
+      { request: { query: CategoryOptionsDocument }, result: { data: { categoryOptions: options } }, maxUsageCount: 50 },
       {
         request: {
           query: SetCategoryListingDocument,
@@ -226,6 +242,28 @@ describe('CategoriesPage', () => {
     await vi.waitFor(() => expect(writes.content).toHaveBeenCalled(), SLOW)
     expect(writes.update).toHaveBeenCalledWith({ input: expect.objectContaining({ id: 'cat1', position: 3, clearParent: true }) })
     expect(writes.content).toHaveBeenCalledWith({ categoryId: 'cat1', input: expect.objectContaining({ locale: 'en', name: 'Shoes', metaTitle: 'All shoes' }) })
+  })
+
+  it('offers neither the category nor its subtree as its parent, and moves it under the one picked', async () => {
+    const writes = renderCategories('/categories/cat1')
+    await screen.findByLabelText('Position', {}, SLOW)
+    const trigger = document.getElementById('cat-parent')!
+    expect(trigger.textContent).toContain('None (root)')
+    fireEvent.click(trigger)
+    const tree = await screen.findByRole('tree', { name: 'Categories' }, SLOW)
+    await within(tree).findByText('Apparel', {}, SLOW)
+    expect(within(tree).queryByText('Shoes')).toBeNull()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Search categories' }), { target: { value: 'run' } })
+    expect(await screen.findByText(/No categories match/)).toBeTruthy()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Search categories' }), { target: { value: '' } })
+
+    fireEvent.click(await screen.findByText('Apparel'))
+    await vi.waitFor(() => expect(document.getElementById('cat-parent')!.textContent).toContain('Apparel'), SLOW)
+    fireEvent.click(screen.getByRole('button', { name: /Save changes/ }))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /Apply 1 change/ }))
+    await vi.waitFor(() => expect(writes.update).toHaveBeenCalled(), SLOW)
+    expect(writes.update).toHaveBeenCalledWith({ input: expect.objectContaining({ id: 'cat1', parentId: 'cat3' }) })
   })
 
   it('stages products picked in the dialog and adds them only on save', async () => {
