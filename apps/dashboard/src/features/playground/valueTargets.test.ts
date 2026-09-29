@@ -13,14 +13,14 @@ import {
 const schema = buildSchema(`
   type Channel { id: ID! name: String! slug: String! }
   type Product { id: ID! name: String! sku: String! }
-  type Category { id: ID! name: String! }
+  type Category { id: ID! name: String! slug: String! }
   type CMSPage { id: ID! title: String! }
   type Cart { id: ID! }
   type CartList { items: [Cart!]! total: Int! }
   type Report { revenue: [Int!]! }
   input AddToCartInput { cartId: ID! productId: ID! quantity: Int! options: OptionInput }
   input OptionInput { categoryIds: [ID!] }
-  input CategoryInput { name: String! parentId: ID }
+  input CategoryInput { name: String! slug: String! parentId: ID }
   type Query {
     channels: [Channel!]!
     channel(id: ID!): Channel
@@ -68,10 +68,9 @@ describe('findValueSlots', () => {
   it('names the entity from the mutation when it returns no object, and resolves suffix and parent ids', () => {
     expect(slots('mutation M($id: ID!) { deleteProduct(id: $id) }')[0].targetType).toBe('Product')
     expect(slots('mutation M($p: ID!) { linkPage(pageId: $p) }')[0].targetType).toBe('CMSPage')
-    expect(slots('mutation M($c: CategoryInput!) { createCategory(input: $c) { id } }')[0]).toMatchObject({
-      path: ['c', 'parentId'],
-      targetType: 'Category',
-    })
+    expect(slots('mutation M($c: CategoryInput!) { createCategory(input: $c) { id } }')).toEqual([
+      { path: ['c', 'parentId'], targetType: 'Category', valueField: 'id', isList: false, required: false },
+    ])
   })
 
   it('picks a product by sku for a string sku argument, and leaves other strings alone', () => {

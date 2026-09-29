@@ -1,6 +1,8 @@
 import { createContext, useContext, useDeferredValue, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useGraphiQL, useGraphiQLActions } from '@graphiql/react'
-import { DatabaseIcon } from 'lucide-react'
+import { parse, type GraphQLSchema } from 'graphql'
+import { DatabaseIcon, PlusIcon } from 'lucide-react'
+import { buildCreateOperation, creatorIndex, readCreated, skeletonVariables, type Creator } from './createTargets'
 import { GQ } from './graphiqlTheme'
 import {
   buildListQuery,
@@ -142,6 +144,9 @@ function ValuesPanel({ run, surface }: { run: PickRunner; surface: 'admin' | 'fr
                   <p className={`truncate text-xs ${GQ.muted}`}>{describeValue(current, labels)}</p>
                   {open === key && (
                     <SlotPicker
+                      schema={schema}
+                      surface={surface}
+                      allowCreate
                       slot={slot}
                       lister={slot.targetType ? listers.get(slot.targetType) : undefined}
                       channels={slot.targetType === 'Channel' ? channels.options : null}
@@ -192,6 +197,48 @@ function ChannelSelect({ options, loading, error, value, onChange }: { options: 
 }
 
 function SlotPicker({
+  schema,
+  surface,
+  allowCreate,
+  slot,
+  lister,
+  channels,
+  channelId,
+  run,
+  selected,
+  onPick,
+}: {
+  schema: GraphQLSchema
+  surface: 'admin' | 'front'
+  allowCreate: boolean // one level only - a record made to satisfy another record's create doesn't get a create of its own
+  slot: ValueSlot
+  lister: Lister | undefined
+  channels: PickOption[] | null
+  channelId: string | null
+  run: PickRunner
+  selected: unknown
+  onPick: (option: PickOption) => void
+}) {
+  if (!slot.targetType) return <p className={`mt-1 text-xs ${GQ.faint}`}>Couldn't tell which type this id belongs to.</p>
+  const creators = allowCreate && slot.valueField === 'id' ? (creatorIndex(schema).get(slot.targetType) ?? []) : []
+  const pickable = !!channels || !!lister
+  return (
+    <div className="mt-1.5 space-y-2">
+      {pickable ? (
+        <RecordList slot={slot} lister={lister} channels={channels} channelId={channelId} run={run} selected={selected} onPick={onPick} />
+      ) : (
+        <p className={`text-xs ${GQ.faint}`}>
+          No query lists {slot.targetType} records here{creators.length > 0 ? ' - create one instead.' : ", so it can't be picked."}
+        </p>
+      )}
+      {creators.length > 0 && (
+        <CreateRecord schema={schema} surface={surface} creators={creators} typeName={slot.targetType} channelId={channelId} run={run} onCreated={onPick} />
+      )}
+    </div>
+  )
+}
+
+function RecordList({
   slot,
   lister,
   channels,
@@ -226,15 +273,13 @@ function SlotPicker({
     }
   }, [channels, lister, blocked, serverSearch, channelId, run, slot.valueField])
 
-  if (!slot.targetType) return <p className={`mt-1 text-xs ${GQ.faint}`}>Couldn't tell which type this id belongs to.</p>
-  if (!channels && !lister) return <p className={`mt-1 text-xs ${GQ.faint}`}>No query lists {slot.targetType} records here, so it can't be picked.</p>
-  if (blocked) return <p className={`mt-1 text-xs ${GQ.faint}`}>Listing {slot.targetType} needs a channel - pick one above.</p>
+  if (blocked) return <p className={`text-xs ${GQ.faint}`}>Listing {slot.targetType} needs a channel - pick one above.</p>
 
   const options = (channels ?? state.options).filter((o) => matchesPick(o, lister?.searchArg && !channels ? '' : search))
   const chosen = new Set(Array.isArray(selected) ? selected.map(String) : typeof selected === 'string' ? [selected] : [])
   const isChosen = (o: PickOption) => chosen.has(o.value)
   return (
-    <div className="mt-1.5 space-y-1">
+    <div className="space-y-1">
       <input
         value={term}
         onChange={(e) => setTerm(e.target.value)}
@@ -263,6 +308,161 @@ function SlotPicker({
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+function CreateRecord({
+  schema,
+  surface,
+  creators,
+  typeName,
+  channelId,
+  run,
+  onCreated,
+}: {
+  schema: GraphQLSchema
+  surface: 'admin' | 'front'
+  creators: Creator[]
+  typeName: string
+  channelId: string | null
+  run: PickRunner
+  onCreated: (option: PickOption) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [index, setIndex] = useState(0)
+  const creator = creators[Math.min(index, creators.length - 1)]
+  const [varsText, setVarsText] = useState(() => JSON.stringify(skeletonVariables(schema, creator), null, 2))
+  const [slotOpen, setSlotOpen] = useState<string | null>(null)
+  const [status, setStatus] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null })
+  const operation = useMemo(() => buildCreateOperation(creator), [creator])
+  const slots = useMemo(() => findValueSlots(schema, pickOperation(parse(operation))), [schema, operation])
+  const listers = useMemo(() => listerIndex(schema), [schema])
+  const needsChannel = surface === 'front' && !channelId // storefront records belong to the channel in the header
+
+  function choose(i: number) {
+    setIndex(i)
+    setVarsText(JSON.stringify(skeletonVariables(schema, creators[i]), null, 2))
+    setStatus({ busy: false, error: null })
+  }
+
+  function fill(slot: ValueSlot, option: PickOption) {
+    try {
+      setVarsText(writeVariable(varsText, slot, option.value))
+      if (!slot.isList) setSlotOpen(null)
+    } catch {
+      setStatus({ busy: false, error: 'The arguments are not valid JSON - fix them before picking a value.' })
+    }
+  }
+
+  async function create() {
+    let variables: Record<string, unknown>
+    try {
+      variables = varsText.trim() ? (JSON.parse(varsText) as Record<string, unknown>) : {}
+    } catch {
+      setStatus({ busy: false, error: 'The arguments are not valid JSON.' })
+      return
+    }
+    setStatus({ busy: true, error: null })
+    try {
+      const res = await run({ query: operation, variables, channelId })
+      const made = readCreated(creator, res.data)
+      if (!made) {
+        setStatus({ busy: false, error: res.errors?.[0]?.message ?? `${creator.field} returned no id.` })
+        return
+      }
+      setStatus({ busy: false, error: null })
+      setOpen(false)
+      onCreated({ id: made.id, value: made.id, label: made.label ?? `New ${typeName}`, detail: null })
+    } catch (e: unknown) {
+      setStatus({ busy: false, error: e instanceof Error ? e.message : 'Request failed' })
+    }
+  }
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className={`inline-flex items-center gap-1 text-xs ${GQ.strong} hover:underline`}>
+        <PlusIcon className="size-3" aria-hidden /> Create new {typeName}
+      </button>
+    )
+  }
+
+  return (
+    <div className={`space-y-1.5 rounded-md border p-2 ${GQ.border}`} role="group" aria-label={`Create ${typeName}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className={`text-xs font-medium ${GQ.strong}`}>Create {typeName}</span>
+        {creators.length > 1 ? (
+          <select
+            aria-label="Create with"
+            value={index}
+            onChange={(e) => choose(Number(e.target.value))}
+            className={`rounded-md border bg-transparent px-1 py-0.5 font-mono text-xs ${GQ.border} ${GQ.strong}`}
+          >
+            {creators.map((c, i) => (
+              <option key={c.field} value={i}>
+                {c.field}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className={`font-mono text-xs ${GQ.faint}`}>{creator.field}</span>
+        )}
+      </div>
+      <p className={`text-xs ${GQ.warningText}`}>This writes a real {typeName} to the database behind this API.</p>
+      {needsChannel && <p className={`text-xs ${GQ.faint}`}>Pick a channel above first - the storefront creates it on that channel.</p>}
+      {slots.length > 0 && (
+        <ul className={`divide-y rounded-md border ${GQ.border} [&>li]:border-[inherit]`}>
+          {slots.map((slot) => {
+            const key = slot.path.join('.')
+            return (
+              <li key={key} className="px-2 py-1">
+                <button type="button" onClick={() => setSlotOpen(slotOpen === key ? null : key)} className="flex w-full items-baseline justify-between gap-2 text-left">
+                  <span className={`font-mono text-xs ${GQ.strong}`}>{key}</span>
+                  <span className={`text-xs ${GQ.faint}`}>{slot.targetType ?? 'unknown type'}</span>
+                </button>
+                {slotOpen === key && (
+                  <SlotPicker
+                    schema={schema}
+                    surface={surface}
+                    allowCreate={false}
+                    slot={slot}
+                    lister={slot.targetType ? listers.get(slot.targetType) : undefined}
+                    channels={null}
+                    channelId={channelId}
+                    run={run}
+                    selected={readVariable(varsText, slot.path)}
+                    onPick={(o) => fill(slot, o)}
+                  />
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {creator.requiredArgs.length > 0 && (
+        <textarea
+          aria-label="Arguments"
+          value={varsText}
+          onChange={(e) => setVarsText(e.target.value)}
+          rows={Math.min(12, varsText.split('\n').length + 1)}
+          spellCheck={false}
+          className={`w-full rounded-md border bg-transparent px-2 py-1 font-mono text-xs outline-none ${GQ.border} ${GQ.strong}`}
+        />
+      )}
+      {status.error && <p className={`text-xs ${GQ.error}`}>{status.error}</p>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => void create()}
+          disabled={status.busy || needsChannel}
+          className={`rounded-md border px-2 py-0.5 text-xs font-medium ${GQ.border} ${GQ.strong} ${GQ.hover} disabled:opacity-50`}
+        >
+          {status.busy ? 'Creating…' : `Create ${typeName}`}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className={`px-2 py-0.5 text-xs ${GQ.muted} hover:underline`}>
+          Cancel
+        </button>
+      </div>
     </div>
   )
 }

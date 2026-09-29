@@ -9,5 +9,6 @@ export const GQ = {
   success: 'bg-[hsla(var(--color-success),var(--alpha-background-medium))] text-[hsl(var(--color-success))]',
   warning: 'bg-[hsla(var(--color-warning),var(--alpha-background-medium))] text-[hsl(var(--color-warning))]',
   error: 'text-[hsl(var(--color-error))]',
+  warningText: 'text-[hsl(var(--color-warning))]',
   errorBadge: 'bg-[hsla(var(--color-error),var(--alpha-background-medium))] text-[hsl(var(--color-error))]',
 }
