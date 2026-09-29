@@ -1,8 +1,7 @@
 "use client";
 
-import { snapshot } from "rrweb-snapshot";
+import type { snapshot } from "rrweb-snapshot";
 import { usePathname } from "next/navigation";
-import { onCLS, onINP, onLCP, onTTFB } from "web-vitals";
 
 import { useEffect, useRef } from "react";
 
@@ -81,6 +80,8 @@ type State = {
   flushTimer: ReturnType<typeof setTimeout> | null;
   flush?: (keepalive: boolean) => void;
   schedule?: () => void;
+  // Loaded only once this visitor is sampled in - rrweb-snapshot is too heavy to put on every page
+  snapshot?: typeof snapshot;
 };
 
 const OVERLAY_SEL =
@@ -164,11 +165,11 @@ function selectorFor(el: Element | null): string {
 
 function recordSnapshot(st: State, state: string) {
   const layoutKey = `${st.curPageKey}|${st.curViewport}|${state}`;
-  if (st.seenLayouts.has(layoutKey)) return;
+  if (st.seenLayouts.has(layoutKey) || !st.snapshot) return;
   try {
     // Same masking contract as LensReplay - without it the snapshot captures what the
     // recorder is told to skip (hidden token fields, .lens-block regions)
-    const node = snapshot(document, {
+    const node = st.snapshot(document, {
       maskAllInputs: true,
       maskTextClass: "lens-mask",
       blockClass: "lens-block",
@@ -555,9 +556,17 @@ export function LensTracker({
         /* keep permissive defaults on a config miss */
       }
       if (cancelled) return;
+      const sampled = on && sampleBucket(st.anonId) < rate;
+      // Consented and sampled in, so now worth the download - a failed chunk load still leaves page
+      // views and heat flowing, just without layout snapshots and vitals
+      const [snap, vitals] = sampled
+        ? await Promise.all([import("rrweb-snapshot").catch(() => null), import("web-vitals").catch(() => null)])
+        : [null, null];
+      if (cancelled) return;
+      st.snapshot = snap?.snapshot;
       st.captureMoves = moves;
       st.ready = true;
-      st.active = on && sampleBucket(st.anonId) < rate;
+      st.active = sampled;
       if (st.active) {
         recordPage(st, pathname);
         if (customerId) enqueueIdentify(st, customerId);
@@ -568,10 +577,12 @@ export function LensTracker({
           if (m.navigationType === "back-forward-cache" || m.navigationType === "prerender" || m.navigationType === "restore") return;
           enqueueCustom("$web_vitals", { metric, value: Math.round(m.value * 1000) / 1000, sessionId: sigSessionId() });
         };
-        onLCP(reportVital("LCP"));
-        onCLS(reportVital("CLS"));
-        onINP(reportVital("INP"));
-        onTTFB(reportVital("TTFB"));
+        if (vitals) {
+          vitals.onLCP(reportVital("LCP"));
+          vitals.onCLS(reportVital("CLS"));
+          vitals.onINP(reportVital("INP"));
+          vitals.onTTFB(reportVital("TTFB"));
+        }
       }
     })();
 
