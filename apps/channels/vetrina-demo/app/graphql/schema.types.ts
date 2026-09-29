@@ -203,7 +203,6 @@ export type BlogPostContent = {
 export type BlogPostFilter = {
   authorSlug?: InputMaybe<Scalars['String']['input']>;
   categorySlug?: InputMaybe<Scalars['String']['input']>;
-  channelId?: InputMaybe<Scalars['ID']['input']>;
   tagSlug?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -365,7 +364,6 @@ export type CmsPageContent = {
 };
 
 export type CmsPageFilter = {
-  channelId?: InputMaybe<Scalars['ID']['input']>;
   onlyPublished?: InputMaybe<Scalars['Boolean']['input']>;
   pageTypeId?: InputMaybe<Scalars['ID']['input']>;
   parentId?: InputMaybe<Scalars['ID']['input']>;
@@ -2190,10 +2188,8 @@ export type WebFormFieldError = {
 
 export type WebFormFileInput = {
   fieldKey: Scalars['String']['input'];
-  mimeType?: InputMaybe<Scalars['String']['input']>;
   name: Scalars['String']['input'];
   objectKey: Scalars['String']['input'];
-  size?: InputMaybe<Scalars['Int']['input']>;
 };
 
 export type WebFormUploadTicket = {

@@ -17,7 +17,15 @@ type WebForm {
 }
 
 input SaveWebFormInput {
-  slug:     String        # ignored on update (slug is immutable)
+  slug:     String
+  name:     String!
+  status:   String!
+  fields:   JSON!
+  settings: JSON!
+}
+
+# The slug is fixed at create - CMS blocks reference forms by it
+input UpdateWebFormInput {
   name:     String!
   status:   String!
   fields:   JSON!
@@ -43,7 +51,7 @@ extend type Query {
 
 extend type Mutation {
   createWebForm(channelId: ID!, input: SaveWebFormInput!): WebForm!
-  updateWebForm(id: ID!, input: SaveWebFormInput!): WebForm!
+  updateWebForm(id: ID!, input: UpdateWebFormInput!): WebForm!
   # Soft delete - submissions stay readable and the storefront stops
   # serving the form. Restorable.
   deleteWebForm(id: ID!): Boolean!
