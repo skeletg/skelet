@@ -126,8 +126,8 @@ export default async function CheckoutPage({ params }: PageProps<"/[channel]/[lo
               typeof currency === "string" ? currency : currency.code,
             value: previewTotal / 100,
             items: cart.lines.map((line) => ({
-              item_id: line.productSku,
-              item_name: displayName(line.productName, line.productSku),
+              item_id: line.sku,
+              item_name: displayName(line.name, line.sku),
               quantity: line.quantity,
               price: line.unitPrice / 100,
             })),
@@ -207,7 +207,7 @@ export default async function CheckoutPage({ params }: PageProps<"/[channel]/[lo
             <li key={line.id} className="flex justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate">
-                  {displayName(line.productName, line.productSku)}
+                  {displayName(line.name, line.sku)}
                   <span className="text-muted-foreground"> × {line.quantity}</span>
                 </p>
                 {/* Same pick summary the cart line shows - the last look before payment

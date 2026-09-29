@@ -183,7 +183,7 @@ func (r *mutationResolver) EditOrder(ctx context.Context, input model.EditOrderI
 		in.RemoveLine = append(in.RemoveLine, lineID)
 	}
 	for _, a := range input.AddLines {
-		in.AddLine = append(in.AddLine, order.EditAddLine{ProductSku: a.ProductSku, Quantity: a.Quantity})
+		in.AddLine = append(in.AddLine, order.EditAddLine{ProductSku: a.Sku, Quantity: a.Quantity})
 	}
 	updated, err := r.OrderSvc.EditOrder(ctx, in)
 	if err != nil {

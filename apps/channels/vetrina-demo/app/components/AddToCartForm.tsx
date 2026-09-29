@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/app/components/LocaleLink";
 
 import { addSimpleToCart } from "@/app/lib/cart/actions";
-import { displayName } from "@/app/lib/display";
 import { productHref } from "@/app/lib/entity-href";
 import { AddToCartButton } from "@/app/components/product/AddToCartButton";
 import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
@@ -75,12 +74,6 @@ export function AddToCartForm({
       className="flex w-full items-center gap-2"
     >
       <input type="hidden" name="productSku" value={product.sku} />
-      <input
-        type="hidden"
-        name="productName"
-        value={displayName(product.name, product.sku)}
-      />
-      <input type="hidden" name="unitPrice" value={product.defaultPrice} />
       {hideQty ? (
         <input type="hidden" name="quantity" value={defaultValue} />
       ) : (

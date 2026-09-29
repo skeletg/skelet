@@ -39,8 +39,8 @@ const { CartStoreProvider, useCartStore } = await import("@/app/lib/cart/store")
 
 const line = (id: string, unitPrice: number, quantity: number): CartLine => ({
   id,
-  productName: id,
-  productSku: id,
+  name: id,
+  sku: id,
   unitPrice,
   quantity,
   totalPrice: unitPrice * quantity,

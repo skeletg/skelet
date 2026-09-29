@@ -345,16 +345,9 @@ export function ConfigurablePDP({
               className="flex items-center gap-3"
             >
               <input type="hidden" name="productSku" value={matched?.sku ?? ""} />
-              <input
-                type="hidden"
-                name="productName"
-                value={matched?.name ?? matched?.sku ?? ""}
-              />
               {hasOptions ? (
                 <input type="hidden" name="options" value={JSON.stringify(opts.payload)} />
-              ) : (
-                <input type="hidden" name="unitPrice" value={matched?.defaultPrice ?? 0} />
-              )}
+              ) : null}
               {/* key remounts on variant change so the stepper resets and picks up the new stock ceiling */}
               <PdpQty
                 key={matched?.id ?? "none"}

@@ -40,7 +40,7 @@ func toCreateDraftOrderInput(in model.CreateDraftOrderInput, channelID uuid.UUID
 		if l == nil {
 			continue
 		}
-		dl := order.CreateDraftLine{ProductSku: l.ProductSku, Quantity: l.Quantity}
+		dl := order.CreateDraftLine{ProductSku: l.Sku, Quantity: l.Quantity}
 		if l.UnitPriceCents != nil {
 			v := int64(*l.UnitPriceCents)
 			dl.UnitPriceCents = &v
@@ -276,8 +276,8 @@ func toCreditMemoModel(m order.CreditMemo, o order.Order) *model.CreditMemo {
 		src := byLineID[l.OrderLineID]
 		lines[i] = &model.CreditMemoLine{
 			OrderLineID: l.OrderLineID.String(),
-			ProductSku:  src.ProductSku,
-			ProductName: src.ProductName,
+			Sku:         src.ProductSku,
+			Name:        src.ProductName,
 			Quantity:    l.Quantity,
 			UnitAmount:  int32(l.UnitCents),
 			TotalAmount: int32(l.TotalCents),

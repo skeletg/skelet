@@ -15,10 +15,8 @@ export type SubmitWebFormInput = {
 
 export type WebFormFileInput = {
   fieldKey: string;
-  mimeType?: string | null | undefined;
   name: string;
   objectKey: string;
-  size?: number | null | undefined;
 };
 
 export type SubmitWebFormMutationVariables = Exact<{
