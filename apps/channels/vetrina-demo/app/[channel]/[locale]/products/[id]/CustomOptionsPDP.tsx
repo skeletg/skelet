@@ -19,7 +19,8 @@ import { jumpToOption } from "./focus-intent";
 import { AddToCartButton } from "@/app/components/product/AddToCartButton";
 import { StickyBuyRow } from "@/app/components/product/StickyBuyRow";
 import { AddToCartFeedback } from "@/app/components/product/AddToCartFeedback";
-import { OptionControl, useConfiguredOptions } from "./ProductOptions";
+import { OptionControl } from "./ProductOptions";
+import { useConfiguredOptions } from "./useConfiguredOptions";
 import {
   AttributeList,
   Description,
