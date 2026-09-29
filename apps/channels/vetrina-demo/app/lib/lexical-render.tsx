@@ -202,6 +202,17 @@ export function lexicalPlainText(value: unknown): string {
   return parts.join(" ");
 }
 
+// Plain text cut to meta-description length, on a word boundary - the fallback when an
+// operator wrote no meta description, so the tag carries the page's own copy instead of
+// the channel-wide default. Search engines truncate around 155-160 characters anyway
+export function lexicalSummary(value: unknown, max = 160): string {
+  const text = lexicalPlainText(value).replace(/\s+/g, " ");
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max / 2 ? cut.slice(0, space) : cut).replace(/[\s.,;:!?-]+$/, "")}…`;
+}
+
 function parseEnvelope(value: unknown): BlockNode[] {
   if (value == null) return [];
   if (typeof value === "string") {

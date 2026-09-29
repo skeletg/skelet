@@ -26,6 +26,7 @@ import {
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
 import { Breadcrumbs } from "@/app/components/Breadcrumbs";
 import { JsonLd } from "@/app/components/JsonLd";
+import { lexicalSummary } from "@/app/lib/lexical-render";
 import { ReviewsSection } from "./ReviewsSection";
 import { ReviewStateProvider } from "./ReviewStateProvider";
 import { QnaSection } from "./QnaSection";
@@ -48,7 +49,13 @@ export async function generateMetadata(
     return { title: t("notFound") };
   }
   const title = displayName(product.metaTitle ?? product.name, product.sku);
-  const description = product.metaDescription ?? undefined;
+  // Same precedence as the Product JSON-LD - an unset meta description falls back to the
+  // product's own copy rather than leaving the tag empty
+  const description =
+    product.metaDescription ||
+    lexicalSummary(product.shortDescription) ||
+    lexicalSummary(product.description) ||
+    undefined;
   const href = productHref(product);
   const image = product.ogImage ?? product.media?.[0];
   const base = await getSiteUrl();
