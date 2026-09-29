@@ -9,11 +9,13 @@ import { displayName } from "@/app/lib/display";
 import { productHref } from "@/app/lib/entity-href";
 import { formatPrice } from "@/app/lib/format";
 import type { GroupedMember, ProductDetail } from "@/app/lib/catalog/read";
-import { CompareButton } from "@/app/components/CompareButton";
-import { RatingStars } from "@/app/components/RatingStars";
-import { WishlistButton } from "@/app/components/WishlistButton";
 import { QtySelector } from "@/app/components/QtySelector";
-import { deriveQtyBounds, type QtyBounds } from "@/app/components/qty";
+import {
+  deriveQtyBounds,
+  floorQty,
+  snapQty,
+  type QtyBounds,
+} from "@/app/components/qty";
 import { RequiredFlag } from "./RequiredFlag";
 import { MissingOptionLinks } from "./MissingOptionLinks";
 import { jumpToOption } from "./focus-intent";
@@ -29,12 +31,11 @@ import { useConfiguredOptions } from "./useConfiguredOptions";
 import {
   AttributeList,
   Description,
-  ProductGallery,
-  ProductReassurance,
   optionAnchorId,
   SelectionHint,
   StockBadge,
 } from "./parts";
+import { PdpBuyBox, PdpMetaRow, PdpShell } from "./pdp-shell";
 
 const FORM_ID = "grouped-add-form";
 
@@ -127,52 +128,10 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
   };
 
   return (
-    <div className="mt-6 grid grid-cols-1 gap-10 md:grid-cols-2 md:items-start">
-      {/* Source order gives phones the name first; md+ placement restores the columns */}
-      <div className="md:col-start-2 md:row-start-1">
-        {product.primaryCategory && (
-          <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-signal">
-            {displayName(
-              product.primaryCategory.name,
-              product.primaryCategory.slug,
-            )}
-          </p>
-        )}
-        <h1 className="mt-1 text-3xl font-extrabold tracking-tight">
-          {heading}
-        </h1>
-      </div>
-      <div className="md:col-start-1 md:row-start-1 md:row-span-2 md:sticky md:top-28 md:self-start">
-        <ProductGallery
-          media={product.media}
-          fallback={product.mainImage}
-          alt={heading}
-          morphFromProductId={product.id}
-        />
-      </div>
+    <PdpShell product={product} heading={heading}>
+      <PdpMetaRow product={product} />
 
-      <div className="md:col-start-2 md:row-start-2">
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          {product.reviewAggregates &&
-            product.reviewAggregates.count > 0 &&
-            product.reviewAggregates.overallAverage != null && (
-              <a
-                href="#reviews"
-                className="inline-flex items-center gap-1.5 hover:underline"
-              >
-                <RatingStars value={product.reviewAggregates.overallAverage} />
-                <span className="text-sm text-muted-foreground">
-                  {product.reviewAggregates.overallAverage.toFixed(1)} (
-                  {product.reviewAggregates.count})
-                </span>
-              </a>
-            )}
-          <p className="text-sm text-muted-foreground">SKU {product.sku}</p>
-          <WishlistButton productId={product.id} size="sm" />
-          <CompareButton productId={product.id} />
-        </div>
-
-        <div className="glass mt-5 rounded-xl p-6">
+      <PdpBuyBox>
         {memberPrices.length > 0 ? (
           <>
             <p className="text-2xl font-bold tracking-tight">
@@ -290,43 +249,23 @@ export function GroupedPDP({ product }: { product: ProductDetail }) {
           </SelectionHint>
         ) : null}
 
-        <ProductReassurance className="mt-5 border-t border-border pt-4" />
-        </div>
+      </PdpBuyBox>
 
-        <Description
-          label={tp("summary")}
-          value={product.shortDescription}
-          className="mt-6"
-        />
+      <Description
+        label={tp("summary")}
+        value={product.shortDescription}
+        className="mt-6"
+      />
 
-        <Description
-          label={tp("description")}
-          value={product.description}
-          className="mt-8"
-        />
+      <Description
+        label={tp("description")}
+        value={product.description}
+        className="mt-8"
+      />
 
-        <AttributeList values={product.attributeValues} className="mt-8" />
-      </div>
-    </div>
+      <AttributeList values={product.attributeValues} className="mt-8" />
+    </PdpShell>
   );
-}
-
-function roundTo(n: number, decimals: number): number {
-  if (decimals <= 0) return Math.round(n);
-  const f = Math.pow(10, decimals);
-  return Math.round(n * f) / f;
-}
-
-function floorQty(b: QtyBounds): number {
-  const step = b.step > 0 ? b.step : 1;
-  return roundTo(Math.ceil((b.min ?? step) / step) * step, b.decimals);
-}
-
-function snapQty(n: number, b: QtyBounds): number {
-  if (n <= 0) return 0;
-  const step = b.step > 0 ? b.step : 1;
-  const snapped = roundTo(Math.round(n / step) * step, b.decimals);
-  return Math.min(Math.max(snapped, floorQty(b)), b.max ?? Infinity);
 }
 
 function GroupedRow({

@@ -8,11 +8,7 @@ import { displayName } from "@/app/lib/display";
 import { formatPrice } from "@/app/lib/format";
 import type { ProductDetail } from "@/app/lib/catalog/read";
 import { ApproxPrice } from "@/app/components/ApproxPrice";
-import { CompareButton } from "@/app/components/CompareButton";
-import { RatingStars } from "@/app/components/RatingStars";
-import { WishlistButton } from "@/app/components/WishlistButton";
 import { deriveQtyBounds } from "@/app/components/qty";
-import { QtySelector } from "@/app/components/QtySelector";
 import { RequiredFlag } from "./RequiredFlag";
 import { MissingOptionLinks } from "./MissingOptionLinks";
 import { jumpToOption } from "./focus-intent";
@@ -24,12 +20,17 @@ import { useConfiguredOptions } from "./useConfiguredOptions";
 import {
   AttributeList,
   Description,
-  ProductGallery,
-  ProductReassurance,
   optionAnchorId,
   SelectionHint,
   StockBadge,
 } from "./parts";
+import {
+  OptionsAddLabel,
+  PdpBuyBox,
+  PdpMetaRow,
+  PdpQty,
+  PdpShell,
+} from "./pdp-shell";
 
 export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
   const [addState, formAction] = useActionState(addConfiguredToCart, null);
@@ -49,50 +50,10 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
   const attempted = attemptSeq > 0;
 
   return (
-    <div className="mt-6 grid grid-cols-1 gap-10 md:grid-cols-2 md:items-start">
-      {/* Source order gives phones the name first; md+ placement restores the columns */}
-      <div className="md:col-start-2 md:row-start-1">
-        {product.primaryCategory && (
-          <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-signal">
-            {displayName(
-              product.primaryCategory.name,
-              product.primaryCategory.slug,
-            )}
-          </p>
-        )}
-        <h1 className="mt-1 text-3xl font-extrabold tracking-tight">{heading}</h1>
-      </div>
-      <div className="md:col-start-1 md:row-start-1 md:row-span-2 md:sticky md:top-28 md:self-start">
-        <ProductGallery
-          media={product.media}
-          fallback={product.mainImage}
-          alt={heading}
-          morphFromProductId={product.id}
-        />
-      </div>
+    <PdpShell product={product} heading={heading}>
+      <PdpMetaRow product={product} />
 
-      <div className="md:col-start-2 md:row-start-2">
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          {product.reviewAggregates &&
-            product.reviewAggregates.count > 0 &&
-            product.reviewAggregates.overallAverage != null && (
-              <a
-                href="#reviews"
-                className="inline-flex items-center gap-1.5 hover:underline"
-              >
-                <RatingStars value={product.reviewAggregates.overallAverage} />
-                <span className="text-sm text-muted-foreground">
-                  {product.reviewAggregates.overallAverage.toFixed(1)} (
-                  {product.reviewAggregates.count})
-                </span>
-              </a>
-            )}
-          <p className="text-sm text-muted-foreground">SKU {product.sku}</p>
-          <WishlistButton productId={product.id} size="sm" />
-          <CompareButton productId={product.id} />
-        </div>
-
-        <div className="glass mt-5 rounded-xl p-6">
+      <PdpBuyBox>
         <p className="text-2xl font-bold tracking-tight">
           {formatPrice(opts.configuredTotal, product.defaultCurrencyCode)}
           <ApproxPrice cents={opts.configuredTotal} className="text-base font-normal text-muted-foreground" />
@@ -174,19 +135,11 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
             name="options"
             value={JSON.stringify(opts.payload)}
           />
-          {opts.forcedQty != null ? (
-            <input type="hidden" name="quantity" value={opts.forcedQty} />
-          ) : (
-            <QtySelector
-              name="quantity"
-              defaultValue={qtyBounds.defaultValue}
-              min={qtyBounds.min}
-              max={qtyBounds.max}
-              step={qtyBounds.step}
-              decimals={qtyBounds.decimals}
-              disabled={!product.inStock}
-            />
-          )}
+          <PdpQty
+            bounds={qtyBounds}
+            forcedQty={opts.forcedQty}
+            disabled={!product.inStock}
+          />
           <AddToCartButton
             stickyPrice={formatPrice(opts.configuredTotal, product.defaultCurrencyCode)}
             disabled={!product.inStock || opts.uploading}
@@ -198,13 +151,11 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
             }}
             className="flex-1"
           >
-            {opts.uploading
-              ? t("uploading")
-              : opts.missingRequired.length > 0
-                ? t("completeRequired")
-                : opts.forcedQtyConflict
-                  ? t("resolveConflict")
-                  : tp("addToCart")}
+            <OptionsAddLabel
+              uploading={opts.uploading}
+              missingRequired={opts.missingRequired.length > 0}
+              forcedQtyConflict={opts.forcedQtyConflict}
+            />
           </AddToCartButton>
         </form>
         </StickyBuyRow>
@@ -219,23 +170,21 @@ export function CustomOptionsPDP({ product }: { product: ProductDetail }) {
           </SelectionHint>
         ) : null}
 
-        <ProductReassurance className="mt-5 border-t border-border pt-4" />
-        </div>
+      </PdpBuyBox>
 
-        <Description
-          label={tp("summary")}
-          value={product.shortDescription}
-          className="mt-6"
-        />
+      <Description
+        label={tp("summary")}
+        value={product.shortDescription}
+        className="mt-6"
+      />
 
-        <Description
-          label={tp("description")}
-          value={product.description}
-          className="mt-8"
-        />
+      <Description
+        label={tp("description")}
+        value={product.description}
+        className="mt-8"
+      />
 
-        <AttributeList values={product.attributeValues} className="mt-8" />
-      </div>
-    </div>
+      <AttributeList values={product.attributeValues} className="mt-8" />
+    </PdpShell>
   );
 }
