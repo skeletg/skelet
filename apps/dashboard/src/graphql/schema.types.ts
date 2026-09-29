@@ -3908,8 +3908,8 @@ export type MutationAdminAddAddressArgs = {
 export type MutationAdminAddCartLineArgs = {
   cartId: Scalars['ID']['input'];
   options?: InputMaybe<Array<AdminCartLineOptionInput>>;
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
+  sku: Scalars['String']['input'];
 };
 
 

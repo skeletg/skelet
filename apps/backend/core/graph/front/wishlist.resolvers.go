@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	model1 "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
-	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
@@ -60,20 +59,11 @@ func (r *mutationResolver) MoveToCart(ctx context.Context, productID string) (*m
 	if err != nil {
 		return nil, apperr.New("PRODUCT_NOT_FOUND", apperr.ClassNotFound, "product not found")
 	}
-	name := prod.SKU
-	if prod.Content != nil && prod.Content.Name != "" {
-		name = prod.Content.Name
-	}
 	c, err := r.CartSvc.GetOrCreateCart(ctx, claims.CustomerID, store.ID)
 	if err != nil {
 		return nil, err
 	}
-	updated, err := r.CartSvc.AddToCart(ctx, c.ID, &claims.CustomerID, cart.AddCartLineInput{
-		ProductSku:  prod.SKU,
-		ProductName: name,
-		UnitPrice:   0, // re-resolved server-side
-		Quantity:    1,
-	})
+	updated, err := r.CartSvc.AddToCart(ctx, c.ID, &claims.CustomerID, prod.SKU, 1)
 	if err != nil {
 		return nil, err
 	}

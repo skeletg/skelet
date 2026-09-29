@@ -69,8 +69,6 @@ function lineToRestorePayload(line: CartLine): RestoreLinePayload {
   return {
     kind: "simple",
     productSku: line.productSku,
-    productName: line.productName,
-    unitPrice: line.unitPrice,
     quantity: line.quantity,
   };
 }
