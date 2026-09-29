@@ -70,7 +70,7 @@ func scopeGrants(scopes []RolePermissionScope) []auth.Grant {
 
 // RequireOutranks refuses acting on an admin who holds anything the caller doesn't - a superuser only by another
 func (s *Service) RequireOutranks(ctx context.Context, callerID, targetID uuid.UUID) error {
-	target, err := s.repo.GetByIDWithRoles(ctx, targetID)
+	target, err := s.repo.GetByID(ctx, targetID)
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func (s *Service) HoldsRole(ctx context.Context, adminID, roleID uuid.UUID) (boo
 }
 
 func (s *Service) Standing(ctx context.Context, adminID uuid.UUID) (superuser, active bool, err error) {
-	u, err := s.repo.GetByIDWithRoles(ctx, adminID)
+	u, err := s.repo.GetByID(ctx, adminID)
 	if err != nil {
 		return false, false, err
 	}

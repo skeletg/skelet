@@ -1,16 +1,15 @@
 package admin
 
 import (
-	"encoding/json"
-
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/sqlc-dev/pqtype"
-
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 
 	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
@@ -72,7 +71,7 @@ func (r *postgresRepository) Create(ctx context.Context, input CreateAdminUserIn
 func (r *postgresRepository) GetByEmail(ctx context.Context, email string) (AdminUser, error) {
 	row, err := r.queries.GetAdminUserByEmail(ctx, email)
 	if err != nil {
-		return AdminUser{}, fmt.Errorf("get admin user by email: %w", err)
+		return AdminUser{}, notFound(err, ErrAdminNotFound, "get admin user by email")
 	}
 	return toAdminUser(row), nil
 }
@@ -80,17 +79,16 @@ func (r *postgresRepository) GetByEmail(ctx context.Context, email string) (Admi
 func (r *postgresRepository) GetByID(ctx context.Context, id uuid.UUID) (AdminUser, error) {
 	row, err := r.queries.GetAdminUserByID(ctx, id)
 	if err != nil {
-		return AdminUser{}, fmt.Errorf("get admin user by id: %w", err)
+		return AdminUser{}, notFound(err, ErrAdminNotFound, "get admin user by id")
 	}
 	return toAdminUser(row), nil
 }
 
 func (r *postgresRepository) GetByIDWithRoles(ctx context.Context, id uuid.UUID) (AdminUser, error) {
-	row, err := r.queries.GetAdminUserByID(ctx, id)
+	user, err := r.GetByID(ctx, id)
 	if err != nil {
-		return AdminUser{}, fmt.Errorf("get admin user by id: %w", err)
+		return AdminUser{}, err
 	}
-	user := toAdminUser(row)
 	user.Roles, err = r.GetRoles(ctx, id)
 	if err != nil {
 		return AdminUser{}, err
@@ -133,7 +131,7 @@ func (r *postgresRepository) Update(ctx context.Context, id uuid.UUID, input Upd
 			IsActive:  *input.IsActive,
 		})
 		if err != nil {
-			return fmt.Errorf("update admin user: %w", err)
+			return notFound(err, ErrAdminNotFound, "update admin user")
 		}
 		updated = toAdminUser(row)
 		if input.RoleSlugs != nil {
@@ -174,14 +172,16 @@ func (r *postgresRepository) SetTotpPending(ctx context.Context, id uuid.UUID, e
 	return nil
 }
 
-func (r *postgresRepository) EnableTotp(ctx context.Context, id uuid.UUID, recoveryHashes []byte) error {
-	if err := r.queries.EnableAdminTotp(ctx, db.EnableAdminTotpParams{
+func (r *postgresRepository) EnableTotp(ctx context.Context, id uuid.UUID, recoveryHashes []byte, step int64) (bool, error) {
+	n, err := r.queries.EnableAdminTotp(ctx, db.EnableAdminTotpParams{
 		ID:                id,
 		TotpRecoveryCodes: pqtype.NullRawMessage{RawMessage: recoveryHashes, Valid: true},
-	}); err != nil {
-		return fmt.Errorf("enable totp: %w", err)
+		TotpLastStep:      sql.NullInt64{Int64: step, Valid: true},
+	})
+	if err != nil {
+		return false, fmt.Errorf("enable totp: %w", err)
 	}
-	return nil
+	return n > 0, nil
 }
 
 func (r *postgresRepository) DisableTotp(ctx context.Context, id uuid.UUID) error {
@@ -191,12 +191,41 @@ func (r *postgresRepository) DisableTotp(ctx context.Context, id uuid.UUID) erro
 	return nil
 }
 
-func (r *postgresRepository) SetTotpRecoveryCodes(ctx context.Context, id uuid.UUID, recoveryHashes []byte) error {
-	if err := r.queries.SetAdminTotpRecoveryCodes(ctx, db.SetAdminTotpRecoveryCodesParams{
-		ID:                id,
-		TotpRecoveryCodes: pqtype.NullRawMessage{RawMessage: recoveryHashes, Valid: true},
-	}); err != nil {
-		return fmt.Errorf("set totp recovery codes: %w", err)
+func (r *postgresRepository) ClaimTotpAttempt(ctx context.Context, id uuid.UUID, maxAttempts int, lock time.Duration) (bool, error) {
+	n, err := r.queries.ClaimAdminTotpAttempt(ctx, db.ClaimAdminTotpAttemptParams{
+		ID:          id,
+		MaxAttempts: int32(maxAttempts),
+		LockSeconds: int32(lock / time.Second),
+	})
+	if err != nil {
+		return false, fmt.Errorf("claim totp attempt: %w", err)
+	}
+	return n > 0, nil
+}
+
+func (r *postgresRepository) AcceptTotpStep(ctx context.Context, id uuid.UUID, step int64) (bool, error) {
+	n, err := r.queries.AcceptAdminTotpStep(ctx, db.AcceptAdminTotpStepParams{ID: id, Step: sql.NullInt64{Int64: step, Valid: true}})
+	if err != nil {
+		return false, fmt.Errorf("accept totp step: %w", err)
+	}
+	return n > 0, nil
+}
+
+func (r *postgresRepository) RedeemTotpRecoveryCode(ctx context.Context, id uuid.UUID, expected, remaining []byte) (bool, error) {
+	n, err := r.queries.RedeemAdminTotpRecoveryCode(ctx, db.RedeemAdminTotpRecoveryCodeParams{
+		ID:        id,
+		Expected:  pqtype.NullRawMessage{RawMessage: expected, Valid: true},
+		Remaining: pqtype.NullRawMessage{RawMessage: remaining, Valid: true},
+	})
+	if err != nil {
+		return false, fmt.Errorf("redeem totp recovery code: %w", err)
+	}
+	return n > 0, nil
+}
+
+func (r *postgresRepository) ClearTotpFailures(ctx context.Context, id uuid.UUID) error {
+	if err := r.queries.ClearAdminTotpFailures(ctx, id); err != nil {
+		return fmt.Errorf("clear totp failures: %w", err)
 	}
 	return nil
 }
@@ -209,6 +238,23 @@ func (r *postgresRepository) UpdatePassword(ctx context.Context, id uuid.UUID, p
 		return fmt.Errorf("update admin user password: %w", err)
 	}
 	return nil
+}
+
+func (r *postgresRepository) RecordLogin(ctx context.Context, id uuid.UUID) (*time.Time, time.Time, error) {
+	row, err := r.queries.RecordAdminLogin(ctx, id)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("record admin login: %w", err)
+	}
+	var prev *time.Time
+	if row.PreviousLoginAt.Valid {
+		t := row.PreviousLoginAt.Time
+		prev = &t
+	}
+	stamped := time.Now()
+	if row.LastLoginAt.Valid {
+		stamped = row.LastLoginAt.Time
+	}
+	return prev, stamped, nil
 }
 
 // --- permissions (effective via roles) ---
@@ -307,7 +353,7 @@ func setRolesTx(ctx context.Context, q *db.Queries, adminID uuid.UUID, slugs []s
 	for _, slug := range slugs {
 		role, err := q.GetAdminRoleBySlug(ctx, slug)
 		if err != nil {
-			return fmt.Errorf("role not found: %s", slug)
+			return fmt.Errorf("%w: %s", notFound(err, ErrRoleNotFound, "get role"), slug)
 		}
 		if err := q.AddAdminUserRole(ctx, db.AddAdminUserRoleParams{
 			AdminUserID: adminID,
@@ -355,7 +401,7 @@ func (r *postgresRepository) UpdateRole(ctx context.Context, id uuid.UUID, input
 		q := r.queries.WithTx(t)
 		current, err := q.GetAdminRoleByID(ctx, id)
 		if err != nil {
-			return fmt.Errorf("role not found: %w", err)
+			return notFound(err, ErrRoleNotFound, "get role")
 		}
 		name := current.Name
 		if input.Name != nil {
@@ -399,24 +445,30 @@ func (r *postgresRepository) RoleMemberIDs(ctx context.Context, roleID uuid.UUID
 	return ids, nil
 }
 
-func (r *postgresRepository) DeleteRole(ctx context.Context, id uuid.UUID) error {
-	n, err := r.queries.CountRoleMembers(ctx, id)
-	if err != nil {
-		return fmt.Errorf("count role members: %w", err)
-	}
-	if n > 0 {
-		return ErrRoleInUse
-	}
-	if err := r.queries.DeleteAdminRole(ctx, id); err != nil {
-		return fmt.Errorf("delete role: %w", err)
-	}
-	return nil
+func (r *postgresRepository) DeleteRole(ctx context.Context, id uuid.UUID) error { // the row lock holds off a concurrent assignment, which the cascading FK would otherwise strip silently
+	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		q := r.queries.WithTx(t)
+		if _, err := q.LockAdminRole(ctx, id); err != nil {
+			return notFound(err, ErrRoleNotFound, "lock role")
+		}
+		n, err := q.CountRoleMembers(ctx, id)
+		if err != nil {
+			return fmt.Errorf("count role members: %w", err)
+		}
+		if n > 0 {
+			return ErrRoleInUse
+		}
+		if err := q.DeleteAdminRole(ctx, id); err != nil {
+			return fmt.Errorf("delete role: %w", err)
+		}
+		return nil
+	})
 }
 
 func (r *postgresRepository) GetRoleByID(ctx context.Context, id uuid.UUID) (Role, error) {
 	row, err := r.queries.GetAdminRoleByID(ctx, id)
 	if err != nil {
-		return Role{}, fmt.Errorf("role not found")
+		return Role{}, notFound(err, ErrRoleNotFound, "get role")
 	}
 	role := toRole(row)
 	role.PermissionScopes, err = r.getRolePermissionScopes(ctx, id)
@@ -429,7 +481,7 @@ func (r *postgresRepository) GetRoleByID(ctx context.Context, id uuid.UUID) (Rol
 func (r *postgresRepository) GetRoleBySlug(ctx context.Context, slug string) (Role, error) {
 	row, err := r.queries.GetAdminRoleBySlug(ctx, slug)
 	if err != nil {
-		return Role{}, fmt.Errorf("role not found")
+		return Role{}, notFound(err, ErrRoleNotFound, "get role")
 	}
 	role := toRole(row)
 	role.PermissionScopes, err = r.getRolePermissionScopes(ctx, role.ID)
@@ -536,8 +588,11 @@ func setRolePermissionScopesTx(ctx context.Context, q *db.Queries, roleID uuid.U
 		permID, ok := permCache[scope.PermissionSlug]
 		if !ok {
 			perm, err := q.GetPermissionBySlug(ctx, scope.PermissionSlug)
-			if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("permission not found: %s", scope.PermissionSlug)
+			}
+			if err != nil {
+				return fmt.Errorf("get permission %s: %w", scope.PermissionSlug, err)
 			}
 			permID = perm.ID
 			permCache[scope.PermissionSlug] = permID
@@ -559,23 +614,6 @@ func setRolePermissionScopesTx(ctx context.Context, q *db.Queries, roleID uuid.U
 }
 
 // --- mappers ---
-
-func (r *postgresRepository) RecordLogin(ctx context.Context, id uuid.UUID) (*time.Time, time.Time, error) {
-	row, err := r.queries.RecordAdminLogin(ctx, id)
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("record admin login: %w", err)
-	}
-	var prev *time.Time
-	if row.PreviousLoginAt.Valid {
-		t := row.PreviousLoginAt.Time
-		prev = &t
-	}
-	stamped := time.Now()
-	if row.LastLoginAt.Valid {
-		stamped = row.LastLoginAt.Time
-	}
-	return prev, stamped, nil
-}
 
 func toAdminUser(row db.AdminUser) AdminUser {
 	u := AdminUser{
@@ -599,6 +637,10 @@ func toAdminUser(row db.AdminUser) AdminUser {
 	if row.TotpPendingSecret.Valid {
 		u.TotpPendingSecret = row.TotpPendingSecret.String
 	}
+	if row.TotpLockedUntil.Valid {
+		t := row.TotpLockedUntil.Time
+		u.TotpLockedUntil = &t
+	}
 	if len(row.TotpRecoveryCodes.RawMessage) > 0 && row.TotpRecoveryCodes.Valid {
 		_ = json.Unmarshal(row.TotpRecoveryCodes.RawMessage, &u.TotpRecoveryCodes)
 	}
@@ -621,6 +663,13 @@ func toRole(row db.AdminRole) Role {
 		Description: row.Description,
 		CreatedAt:   row.CreatedAt,
 	}
+}
+
+func notFound(err, sentinel error, op string) error { // no rows becomes the sentinel, anything else stays a storage failure rather than posing as bad input
+	if errors.Is(err, sql.ErrNoRows) {
+		return sentinel
+	}
+	return fmt.Errorf("%s: %w", op, err)
 }
 
 func isUniqueViolation(err error) bool { return pgdb.IsUniqueViolation(err) } // shared SQLSTATE-based check - the per-package copies drifted into fragile message matching

@@ -16,6 +16,10 @@ SET subject_id = EXCLUDED.subject_id,
 SELECT subject_id FROM auth_tokens
 WHERE token_key = $1 AND expires_at > now();
 
+-- name: ConsumeAuthToken :one
+DELETE FROM auth_tokens WHERE token_key = $1 AND expires_at > now()
+RETURNING subject_id;
+
 -- name: DeleteAuthToken :exec
 DELETE FROM auth_tokens WHERE token_key = $1;
 

@@ -393,7 +393,7 @@ func (r *queryResolver) Me(ctx context.Context) (*model.AdminUser, error) {
 	if err != nil {
 		return nil, err
 	}
-	user, err := r.AdminSvc.GetByIDWithRoles(ctx, claims.AdminID)
+	user, err := r.AdminSvc.GetByID(ctx, claims.AdminID)
 	if err != nil {
 		return nil, errNotFound("admin")
 	}
@@ -446,7 +446,7 @@ func (r *queryResolver) Admin(ctx context.Context, id string) (*model.AdminUser,
 	if err != nil {
 		return nil, err
 	}
-	user, err := r.AdminSvc.GetByIDWithRoles(ctx, adminID)
+	user, err := r.AdminSvc.GetByID(ctx, adminID)
 	if err != nil {
 		return nil, errNotFound("admin")
 	}

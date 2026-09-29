@@ -151,7 +151,7 @@ func (r *queryResolver) Channels(ctx context.Context) ([]*model.Channel, error) 
 		// channels.view gates ADMINISTERING channels, but this list also feeds the header scope picker - a store manager scoped to one channel usually holds no channels.view and would face an empty picker
 		// So fall back to the union of channels any of their grants reference, where a nil-channel grant on any permission means all channels
 		if len(allowed) == 0 {
-			user, err := r.AdminSvc.GetByIDWithRoles(ctx, claims.AdminID)
+			user, err := r.AdminSvc.GetByID(ctx, claims.AdminID)
 			if err != nil {
 				return nil, errNotFound("admin")
 			}
