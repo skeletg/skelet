@@ -6,6 +6,7 @@
 // A seq guard stops a slow response overwriting a newer op, and hydrate() never adopts
 // a server cart while an optimistic op is still in flight
 
+import { useTranslations } from "next-intl";
 import {
   createContext,
   useCallback,
@@ -35,7 +36,7 @@ function lineToRestorePayload(line: CartLine): RestoreLinePayload {
     }
     return {
       kind: "bundle",
-      productSku: line.productSku,
+      productSku: line.sku,
       quantity: line.quantity,
       selections: [...byOption].map(([optionId, selectionIds]) => ({
         optionId,
@@ -57,7 +58,7 @@ function lineToRestorePayload(line: CartLine): RestoreLinePayload {
     }
     return {
       kind: "configured",
-      productSku: line.productSku,
+      productSku: line.sku,
       quantity: line.quantity,
       options: [...byOption].map(([optionId, v]) => ({
         optionId,
@@ -68,9 +69,7 @@ function lineToRestorePayload(line: CartLine): RestoreLinePayload {
   }
   return {
     kind: "simple",
-    productSku: line.productSku,
-    productName: line.productName,
-    unitPrice: line.unitPrice,
+    productSku: line.sku,
     quantity: line.quantity,
   };
 }
@@ -137,6 +136,7 @@ export function CartStoreProvider({
   initial: Cart | null;
   children: React.ReactNode;
 }) {
+  const t = useTranslations("cart");
   const [cart, setCart] = useState<Cart | null>(initial);
   const [pendingRemovals, setPendingRemovals] = useState<PendingRemoval[]>([]);
   const [lineNotices, setLineNotices] = useState<Record<string, string>>({});
@@ -301,14 +301,14 @@ export function CartStoreProvider({
             );
             flagCart(
               needsFile
-                ? "Couldn't restore - this item needs a file upload. Add it again from the product page."
-                : `Couldn't restore this item - ${res.error}`,
+                ? t("restoreNeedsFile")
+                : t("restoreFailed", { error: res.error }),
             );
           }
           return res.cart;
         }));
     },
-    [pendingRemovals, run, flagCart],
+    [pendingRemovals, run, flagCart, t],
   );
 
   const dismissRemoval = useCallback(

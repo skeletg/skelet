@@ -5,11 +5,12 @@
 
 
 import { ChevronLeftIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "@/app/components/LocaleLink";
 
 export function BackButton({
   fallbackHref = "/products",
-  label = "Back",
+  label,
   className = "",
 }: {
   fallbackHref?: string;
@@ -17,6 +18,7 @@ export function BackButton({
   className?: string;
 }) {
   const router = useRouter();
+  const t = useTranslations("common");
 
   // Going back is only safe when the previous entry is ours - otherwise the shopper
   // gets bounced off the site (or to about:blank in a fresh tab)
@@ -39,7 +41,7 @@ export function BackButton({
       className={`inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground ${className}`}
     >
       <ChevronLeftIcon className="size-4" aria-hidden="true" />
-      {label}
+      {label ?? t("back")}
     </button>
   );
 }

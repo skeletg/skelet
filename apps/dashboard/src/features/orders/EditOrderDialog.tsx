@@ -55,8 +55,8 @@ function EditOrderForm({ order, onClose }: { order: OrderData; onClose: () => vo
                 <div key={row.id} className={`grid gap-1 rounded border px-3 py-2 ${row.removed ? 'opacity-50' : ''}`}>
                   <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className={`truncate text-sm font-medium ${row.removed ? 'line-through' : ''}`}>{line?.productName}</div>
-                      <div className="font-mono text-[10px] text-muted-foreground">{line?.productSku}</div>
+                      <div className={`truncate text-sm font-medium ${row.removed ? 'line-through' : ''}`}>{line?.name}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground">{line?.sku}</div>
                     </div>
                     <form.Field name={`lines[${i}].quantity`}>
                       {(f) => (
@@ -64,7 +64,7 @@ function EditOrderForm({ order, onClose }: { order: OrderData; onClose: () => vo
                           type="number"
                           min={0}
                           step="any"
-                          aria-label={`${line?.productName ?? 'Line'} quantity`}
+                          aria-label={`${line?.name ?? 'Line'} quantity`}
                           value={f.state.value}
                           disabled={row.removed}
                           onChange={(e) => f.handleChange(e.target.value)}

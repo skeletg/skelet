@@ -2,6 +2,7 @@
 // /blog/tag)
 
 import { Link } from "@/app/components/LocaleLink";
+import { useTranslations } from "next-intl";
 
 import { BlogPostList } from "./BlogPostList";
 import { Breadcrumbs } from "./Breadcrumbs";
@@ -24,12 +25,14 @@ export function BlogArchive({
   page: number;
   hasMore: boolean;
 }) {
+  const t = useTranslations("blog");
+  const tc = useTranslations("common");
   return (
     <main className="mx-auto w-full max-w-3xl px-6 pt-6 pb-14">
       <Breadcrumbs
         items={[
-          { name: "Home", href: "/" },
-          { name: "Blog", href: "/blog" },
+          { name: tc("home"), href: "/" },
+          { name: t("title"), href: "/blog" },
           { name: title, href },
         ]}
       />
@@ -48,9 +51,9 @@ export function BlogArchive({
 
       {posts.length === 0 ? (
         <p className="mt-8 text-sm text-muted-foreground">
-          No posts here yet.{" "}
+          {t("emptyArchive")}{" "}
           <Link href="/blog" className="underline">
-            Back to the blog →
+            {t("backToBlog")}
           </Link>
         </p>
       ) : (
@@ -72,25 +75,27 @@ function BlogArchivePager({
   page: number;
   hasMore: boolean;
 }) {
+  const t = useTranslations("blog");
+  const tl = useTranslations("listing");
   if (page === 1 && !hasMore) return null;
   const pageHref = (n: number) => (n === 1 ? href : `${href}?page=${n}`);
   const link =
     "rounded-md bg-muted px-4 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground";
   return (
     <nav
-      aria-label="Pagination"
+      aria-label={tl("pagination")}
       className="mt-10 flex items-center justify-between gap-3"
     >
       {page > 1 ? (
         <Link href={pageHref(page - 1)} rel="prev" className={link}>
-          ← Newer posts
+          {t("newer")}
         </Link>
       ) : (
         <span />
       )}
       {hasMore ? (
         <Link href={pageHref(page + 1)} rel="next" className={link}>
-          Older posts →
+          {t("older")}
         </Link>
       ) : (
         <span />

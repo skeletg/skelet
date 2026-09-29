@@ -1,6 +1,7 @@
 // Tag archive - every published post carrying one tag
 
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { localizedAlternates } from "@/app/lib/locale/alternates";
 import { notFound, permanentRedirect } from "next/navigation";
 import { BlogArchive } from "@/app/components/BlogArchive";
@@ -13,25 +14,26 @@ import {
   parseBlogPage,
 } from "@/app/lib/blog/read";
 import { displayName } from "@/app/lib/display";
-import { renderJsonText } from "@/app/[channel]/[locale]/products/[id]/parts";
+import { renderJsonText } from "@/app/lib/json-text";
 
 export async function generateMetadata(
   props: PageProps<"/[channel]/[locale]/blog/tag/[slug]">,
 ): Promise<Metadata> {
-  const { slug } = await props.params;
+  const { slug, locale } = await props.params;
+  const t = await getTranslations({ locale, namespace: "blog" });
   const tag = await getBlogTag(slug);
-  if (!tag) return { title: "Tag not found" };
+  if (!tag) return { title: t("tagNotFound") };
   const name = displayName(tag.content?.name, tag.slug);
   const page = parseBlogPage(await props.searchParams);
   const href = blogTagHref(tag);
   return {
     title:
       tag.content?.metaTitle ??
-      (page > 1 ? `#${name} - page ${page}` : `#${name}`),
+      (page > 1 ? t("paged", { name: `#${name}`, page }) : `#${name}`),
     description:
       tag.content?.metaDescription ??
       renderJsonText(tag.content?.description) ??
-      `Posts tagged ${name}.`,
+      t("taggedDescription", { name }),
     alternates: await localizedAlternates(page > 1 ? `${href}?page=${page}` : href),
   };
 }
@@ -60,7 +62,7 @@ export default async function BlogTagPage(
 
   return (
     <BlogArchive
-      eyebrow="Tag"
+      eyebrow={(await getTranslations("blog"))("tag")}
       title={`#${displayName(tag.content?.name, tag.slug)}`}
       description={renderJsonText(tag.content?.description)}
       href={blogTagHref(tag)}

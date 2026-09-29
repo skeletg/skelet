@@ -7,6 +7,7 @@
 // a server read made this vanish on exactly the pages a rep spends their time on while the session stayed masqueraded
 
 import { useSyncExternalStore } from "react";
+import { useTranslations } from "next-intl";
 
 import { MASQUERADE_COOKIE } from "@/app/lib/auth/cookies";
 import { useCustomerIdentity } from "@/app/lib/customer/client";
@@ -23,11 +24,14 @@ export function MasqueradeBanner() {
   // than one that appears a beat late
   const masquerading = useSyncExternalStore(noopSubscribe, readMarker, () => false);
   const { identity } = useCustomerIdentity();
+  const t = useTranslations("masquerade");
   if (!masquerading || !identity) return null;
   return (
     <div className="bg-amber-500 px-4 py-1.5 text-center text-sm font-medium text-black">
-      Rep session: shopping as {identity.firstName} {identity.lastName} (
-      {identity.email}) - expires automatically in 15 minutes.
+      {t("banner", {
+        name: `${identity.firstName} ${identity.lastName}`,
+        email: identity.email,
+      })}
     </div>
   );
 }

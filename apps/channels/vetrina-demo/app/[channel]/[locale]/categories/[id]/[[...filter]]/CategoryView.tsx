@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { getSiteUrl } from "@/app/lib/channel/site";
 import { canonicalPathMapper, localizedAlternates } from "@/app/lib/locale/alternates";
 import { Link } from "@/app/components/LocaleLink";
@@ -37,7 +38,8 @@ export async function generateMetadata(
   };
   const { id, filter } = rawParams;
   const { category } = await getCategory(id);
-  if (!category) return { title: "Category not found" };
+  const t = await getTranslations("listing");
+  if (!category) return { title: t("categoryNotFound") };
   const pathFilters = filter ? parseFilterSegments(filter) : [];
   const sortSlug = filter ? parseSortFromSegments(filter) : "";
   const [{ indexable: filtersIndexable }, sortOpts] = await Promise.all([
@@ -53,7 +55,7 @@ export async function generateMetadata(
     isSortUrlIndexable(sortSlug, sortOpts) &&
     isPagedUrlIndexable(page, pathFilters.length > 0, pageIndexCaps);
   const baseTitle = displayName(category.name, category.slug);
-  const title = page > 1 ? `${baseTitle} - page ${page}` : baseTitle;
+  const title = page > 1 ? t("paged", { name: baseTitle, page }) : baseTitle;
   // Page N self-canonicalizes WITH ?page=N (the blog pattern) - pointing it at page 1 would
   // hide the deeper products, and in load-more modes page 1 is a strict subset anyway
   const pagedHref = withPageSegment(categoryHref(category, pathFilters), page);
@@ -111,7 +113,11 @@ export default async function CategoryPage(
     string,
     string | string[] | undefined
   >;
-  const { category } = await getCategory(id);
+  const [{ category }, t, tc] = await Promise.all([
+    getCategory(id),
+    getTranslations("listing"),
+    getTranslations("common"),
+  ]);
   if (!category) notFound();
 
   const baseName = displayName(category.name, category.slug);
@@ -135,7 +141,7 @@ export default async function CategoryPage(
   // Drop the synthetic "Products" root and the top-level root category (ancestors[0], e.g. "Shop") so the trail matches
   // the PDP: Home / <ancestors below root> / <this category>
   const breadcrumbItems = [
-    { name: "Home", href: "/" },
+    { name: tc("home"), href: "/" },
     ...category.ancestors.slice(1).map((a) => ({
       name: displayName(a.name, a.slug),
       href: categoryHref(a),
@@ -152,7 +158,7 @@ export default async function CategoryPage(
       pathSort={sortSlug}
       pathPage={parsePageFromSegments(filter ?? [])}
       basePath={basePath}
-      emptyText="No products match the current filters in this category."
+      emptyText={t("categoryEmpty")}
       header={
         <>
           <JsonLd
@@ -163,7 +169,7 @@ export default async function CategoryPage(
           />
           <Breadcrumbs items={breadcrumbItems} className="text-sm mb-3" />
           <p className="text-xs uppercase tracking-wider text-muted-foreground">
-            Category
+            {t("category")}
           </p>
           {/* heading already carries the filter segments when the values are indexable */}
           <h1 className="mt-1 text-3xl font-medium tracking-tight">
@@ -178,7 +184,7 @@ export default async function CategoryPage(
             </div>
           )}
           <Description
-            label="About"
+            label={t("about")}
             value={category.shortDescription}
             className="mt-6"
           />
@@ -188,7 +194,7 @@ export default async function CategoryPage(
         lexicalHasContent(category.description) ? (
           <section className="mt-12 max-w-3xl border-t border-border pt-8">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              About {baseName}
+              {t("aboutName", { name: baseName })}
             </h2>
             <div className="mt-3 space-y-4 text-sm leading-relaxed text-foreground">
               <LexicalRichText value={category.description} />
@@ -200,7 +206,7 @@ export default async function CategoryPage(
         category.children.length > 0 ? (
           <nav className="mt-8">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Subcategories
+              {t("subcategories")}
             </h2>
             <ul className="mt-2 flex flex-wrap gap-2 text-sm">
               {category.children.map((c) => (

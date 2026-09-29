@@ -1,5 +1,6 @@
+import type { Metadata } from "next";
 import { Link } from "@/app/components/LocaleLink";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { withLocalePrefix } from "@/app/lib/locale/path";
 import { notFound, redirect } from "next/navigation";
 import { AnalyticsEvent } from "@/app/components/AnalyticsEvent";
@@ -11,7 +12,13 @@ import { getCustomerOrNull } from "@/app/lib/customer/read";
 import { gqlFetch } from "@/app/lib/graphql";
 import { GuestOrderDocument } from "@/app/lib/checkout/operations.gql";
 
-export const metadata = { title: "Order" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/orders/[id]">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "account.orders" });
+  return { title: t("detailTitle") };
+}
 
 export default async function GuestOrderPage({
   params,
@@ -23,7 +30,11 @@ export default async function GuestOrderPage({
     just_placed?: string | string[];
   }>;
 }) {
-  const customer = await getCustomerOrNull();
+  const [customer, t] = await Promise.all([
+    getCustomerOrNull(),
+    getTranslations("order.guest"),
+  ]);
+  const ta = await getTranslations("account.orders");
   const { id } = await params;
   const sp = await searchParams;
 
@@ -65,8 +76,8 @@ export default async function GuestOrderPage({
               tax: order.taxAmount / 100,
               shipping: order.shippingAmount / 100,
               items: order.lines.map((line) => ({
-                item_id: line.productSku,
-                item_name: displayName(line.productName, line.productSku),
+                item_id: line.sku,
+                item_name: displayName(line.name, line.sku),
                 quantity: line.quantity,
                 price: line.unitPrice / 100,
               })),
@@ -76,16 +87,16 @@ export default async function GuestOrderPage({
       )}
 
       <div className="mb-4">
-        <BackButton fallbackHref="/" label="Continue shopping" />
+        <BackButton fallbackHref="/" label={t("continue")} />
       </div>
 
       {justPlaced && (
         <section className="glass mb-6 rounded-xl p-5">
-          <h2 className="text-lg font-semibold">Thanks for your order</h2>
+          <h2 className="text-lg font-semibold">{ta("thanksTitle")}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            We sent a receipt to <span className="font-mono">{email}</span>.
-            Bookmark this page - without an account it&rsquo;s the only way back
-            to this order.
+            {t.rich("receiptSent", {
+              email: () => <span className="font-mono">{email}</span>,
+            })}
           </p>
           <Link
             href={`/account/register?returnTo=${encodeURIComponent(
@@ -93,10 +104,10 @@ export default async function GuestOrderPage({
             )}`}
             className="mt-3 inline-flex h-10 items-center rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground"
           >
-            Create an account
+            {t("createAccount")}
           </Link>
           <p className="mt-2 text-xs text-muted-foreground">
-            Use this email and every order lands in one place.
+            {t("oneAccount")}
           </p>
         </section>
       )}

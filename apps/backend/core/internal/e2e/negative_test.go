@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
@@ -72,7 +71,7 @@ func TestCartRejectsUnpublishedSKU(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create guest cart: %v", err)
 	}
-	_, err = h.D.Cart.AddToCart(h.Ctx, c.ID, nil, cart.AddCartLineInput{ProductSku: hidden.SKU, Quantity: 1})
+	_, err = h.D.Cart.AddToCart(h.Ctx, c.ID, nil, hidden.SKU, 1)
 	if err == nil {
 		t.Fatal("adding an unpublished sku succeeded")
 	}
@@ -91,7 +90,7 @@ func TestPlacementRejectsInsufficientStock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create guest cart: %v", err)
 	}
-	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, cart.AddCartLineInput{ProductSku: f.Product.SKU, Quantity: 3}); err != nil {
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, f.Product.SKU, 3); err != nil {
 		t.Logf("rejected at add-to-cart: %v", err) // also a valid outcome, and placement is moot
 		return
 	}

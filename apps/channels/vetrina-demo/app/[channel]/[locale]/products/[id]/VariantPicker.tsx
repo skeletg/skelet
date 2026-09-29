@@ -6,6 +6,7 @@
 // specs, etc.), so it has to live one level up
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useTranslations } from "next-intl";
 
 import { Drawer } from "@/app/components/Drawer";
 import { displayName } from "@/app/lib/display";
@@ -181,6 +182,7 @@ function ValueSearchPicker({
   const searchRef = useRef<HTMLInputElement>(null);
   const pickedRef = useRef<HTMLButtonElement>(null);
   const pickedValue = values.find((v) => v.id === picked);
+  const t = useTranslations("product.variants");
 
   // showModal() runs in Modal's effect (child effects fire first) and parks focus on the drawer's close button, so
   // autoFocus on the input never sticks - take it back here, where the effect runs after
@@ -212,7 +214,7 @@ function ValueSearchPicker({
         ].join(" ")}
       >
         <span className={pickedValue ? "font-medium" : "text-muted-foreground"}>
-          {pickedValue ? pickedValue.name : `Choose ${optionName.toLowerCase()}`}
+          {pickedValue ? pickedValue.name : t("choose", { option: optionName.toLowerCase() })}
         </span>
         <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
           {values.length} options
@@ -241,8 +243,8 @@ function ValueSearchPicker({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search ${optionName.toLowerCase()}`}
-            aria-label={`Search ${optionName.toLowerCase()}`}
+            placeholder={t("search", { option: optionName.toLowerCase() })}
+            aria-label={t("search", { option: optionName.toLowerCase() })}
             ref={searchRef}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/50"
           />
@@ -283,7 +285,7 @@ function ValueSearchPicker({
           })}
           {shown.length === 0 ? (
             <li className="px-3 py-6 text-center text-sm text-muted-foreground">
-              Nothing matches &ldquo;{query}&rdquo;
+              {t("noMatch", { query })}
             </li>
           ) : null}
         </ul>
@@ -327,6 +329,7 @@ export function ListVariantPicker({
   // themselves rather than boxing the whole picker
   invalid?: boolean;
 }) {
+  const t = useTranslations("product.variants");
   if (variants.length > INLINE_VARIANT_LIMIT) {
     return (
       <VariantSearchPicker
@@ -340,7 +343,7 @@ export function ListVariantPicker({
   return (
     <fieldset className="space-y-2">
       <legend className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Choose a variant
+        {t("chooseVariant")}
       </legend>
       <div className="mt-2 grid gap-2">
         {variants.map((v) => (
@@ -371,6 +374,7 @@ function VariantRow({
   onPick: () => void;
   rowRef?: RefObject<HTMLButtonElement | null>;
 }) {
+  const tc = useTranslations("common");
   const out = !v.inStock;
   return (
     <button
@@ -399,7 +403,7 @@ function VariantRow({
           aria-hidden="true"
           className="flex size-12 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-[10px] text-muted-foreground"
         >
-          No image
+          {tc("noImage")}
         </span>
       )}
       <span className="min-w-0 flex-1">
@@ -439,6 +443,7 @@ function VariantSearchPicker({
   const searchRef = useRef<HTMLInputElement>(null);
   const pickedRef = useRef<HTMLButtonElement>(null);
   const picked = variants.find((v) => v.id === selectedId) ?? null;
+  const t = useTranslations("product.variants");
 
   // Same reason as ValueSearchPicker: Modal parks focus on its close button in a child effect, so
   // the input has to claim it back here, where the effect runs later
@@ -463,7 +468,7 @@ function VariantSearchPicker({
   return (
     <fieldset className="space-y-2">
       <legend className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Choose a variant
+        {t("chooseVariant")}
       </legend>
       <button
         type="button"
@@ -479,7 +484,7 @@ function VariantSearchPicker({
         ].join(" ")}
       >
         <span className={picked ? "font-medium" : "text-muted-foreground"}>
-          {picked ? displayName(picked.name, picked.sku) : "Choose a variant"}
+          {picked ? displayName(picked.name, picked.sku) : t("chooseVariant")}
         </span>
         <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
           {variants.length} variants
@@ -504,7 +509,7 @@ function VariantSearchPicker({
         open={open}
         onOpenChange={setOpen}
         side="right"
-        title="Choose a variant"
+        title={t("chooseVariant")}
       >
         {open ? (
           <>
@@ -513,8 +518,8 @@ function VariantSearchPicker({
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search name or SKU"
-                aria-label="Search variants by name or SKU"
+                placeholder={t("searchVariants")}
+                aria-label={t("searchVariantsLabel")}
                 ref={searchRef}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/50"
               />
@@ -541,7 +546,7 @@ function VariantSearchPicker({
               ) : null}
               {matches.length === 0 ? (
                 <li className="px-3 py-6 text-center text-sm text-muted-foreground">
-                  Nothing matches &ldquo;{query}&rdquo;
+                  {t("noMatch", { query })}
                 </li>
               ) : null}
             </ul>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   UNDO_WINDOW_MS,
@@ -19,6 +20,8 @@ export function CartRemovedRow({
   size?: "sm" | "md";
 }) {
   const { undoRemove, dismissRemoval } = useCartStore();
+  const t = useTranslations("cart");
+  const tc = useTranslations("common");
 
   // Honour reduced-motion: keep the behaviour, drop the animation
   const [reduce] = useState(
@@ -64,7 +67,7 @@ export function CartRemovedRow({
     return () => clearTimeout(t);
   }, [pending.token, dismissRemoval, finish, remainingMs]);
 
-  const name = displayName(pending.line.productName, pending.line.productSku);
+  const name = displayName(pending.line.name, pending.line.sku);
   const imgSize = size === "sm" ? "size-12" : "size-14";
   const dur = reduce ? 0 : EXIT_MS;
   // Padding lives inside the collapsing wrapper (not on the parent <li>) so the row's
@@ -100,16 +103,17 @@ export function CartRemovedRow({
           <div
             className={`${imgSize} flex shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-[9px] text-muted-foreground`}
           >
-            No image
+            {tc("noImage")}
           </div>
         )}
 
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm text-muted-foreground">
-            Removed{" "}
-            <span className="font-medium text-foreground">
-              {name}
-            </span>
+            {t.rich("removedLine", {
+              name: () => (
+                <span className="font-medium text-foreground">{name}</span>
+              ),
+            })}
           </p>
           {/* Countdown bar: depletes over the undo window. */}
           <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-border">
@@ -129,11 +133,11 @@ export function CartRemovedRow({
             onClick={() => finish(() => undoRemove(pending.token))}
             className="rounded-md bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Undo
+            {tc("undo")}
           </button>
           <button
             type="button"
-            aria-label="Dismiss"
+            aria-label={tc("dismiss")}
             onClick={() => finish(() => dismissRemoval(pending.token))}
             className="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-foreground"
           >

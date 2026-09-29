@@ -121,8 +121,8 @@ query OrderDetail($id: ID!) {
     total
     currencyCode
     lines {
-      productName
-      productSku
+      name
+      sku
       quantity
       unitPrice
       totalPrice

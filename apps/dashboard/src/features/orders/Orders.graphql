@@ -68,16 +68,16 @@ query Order($id: ID!) {
     }
     lines {
       id
-      productName
-      productSku
+      name
+      sku
       unitPrice
       quantity
       totalPrice
       isGift
       components {
         id
-        productSku
-        productName
+        sku
+        name
         unitPrice
         quantity
       }
@@ -384,8 +384,8 @@ query CreditMemos($orderId: ID!) {
     createdAt
     lines {
       orderLineId
-      productSku
-      productName
+      sku
+      name
       quantity
       unitAmount
       totalAmount

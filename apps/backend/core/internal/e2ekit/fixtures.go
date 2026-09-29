@@ -3,7 +3,6 @@ package e2ekit
 import (
 	"github.com/google/uuid"
 
-	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
@@ -158,10 +157,7 @@ func (h *Harness) NewGuestCartSKU(t TB, f *Store, sku string, qty float64) uuid.
 	if err != nil {
 		t.Fatalf("create guest cart: %v", err)
 	}
-	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, cart.AddCartLineInput{
-		ProductSku: sku,
-		Quantity:   qty,
-	}); err != nil {
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, nil, sku, qty); err != nil {
 		t.Fatalf("add to cart: %v", err)
 	}
 	return c.ID
@@ -174,10 +170,7 @@ func (h *Harness) NewCustomerCart(t TB, f *Store, customerID uuid.UUID, sku stri
 	if err != nil {
 		t.Fatalf("customer cart: %v", err)
 	}
-	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, &customerID, cart.AddCartLineInput{
-		ProductSku: sku,
-		Quantity:   qty,
-	}); err != nil {
+	if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, &customerID, sku, qty); err != nil {
 		t.Fatalf("add to customer cart: %v", err)
 	}
 	return c.ID

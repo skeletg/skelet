@@ -78,7 +78,7 @@ func (r *Resolver) HydrateCartLineIssues(ctx context.Context, m *frontmodel.Cart
 	}
 	skus := make([]string, 0, len(m.Lines))
 	for _, line := range m.Lines {
-		skus = append(skus, line.ProductSku)
+		skus = append(skus, line.Sku)
 	}
 	bySKU, err := r.CatalogSvc.GetProductsBySKUs(ctx, skus)
 	if err != nil || len(bySKU) == 0 {
@@ -94,7 +94,7 @@ func (r *Resolver) HydrateCartLineIssues(ctx context.Context, m *frontmodel.Cart
 	}
 	backorderable, _ := r.InventorySvc.BackorderableByProductIDs(ctx, ids)
 	for _, line := range m.Lines {
-		p, ok := bySKU[line.ProductSku]
+		p, ok := bySKU[line.Sku]
 		if !ok {
 			continue
 		}
@@ -135,10 +135,10 @@ func (r *Resolver) HydrateCartLineNames(ctx context.Context, m *frontmodel.Cart)
 		if line == nil {
 			continue
 		}
-		skuSet[line.ProductSku] = struct{}{}
+		skuSet[line.Sku] = struct{}{}
 		for _, comp := range line.Components {
 			if comp != nil {
-				skuSet[comp.ProductSku] = struct{}{}
+				skuSet[comp.Sku] = struct{}{}
 			}
 		}
 	}
@@ -176,10 +176,10 @@ func (r *Resolver) HydrateCartLineNames(ctx context.Context, m *frontmodel.Cart)
 		if line == nil {
 			continue
 		}
-		if name, ok := nameFor(line.ProductSku); ok {
-			line.ProductName = name
+		if name, ok := nameFor(line.Sku); ok {
+			line.Name = name
 		}
-		if url := imageBySKU[line.ProductSku]; url != "" {
+		if url := imageBySKU[line.Sku]; url != "" {
 			u := url
 			line.ImageURL = &u
 		}
@@ -187,8 +187,8 @@ func (r *Resolver) HydrateCartLineNames(ctx context.Context, m *frontmodel.Cart)
 			if comp == nil {
 				continue
 			}
-			if name, ok := nameFor(comp.ProductSku); ok {
-				comp.ProductName = name
+			if name, ok := nameFor(comp.Sku); ok {
+				comp.Name = name
 			}
 		}
 	}
@@ -227,10 +227,10 @@ func (r *Resolver) HydrateCartSavedItems(ctx context.Context, m *frontmodel.Cart
 	}
 	for _, it := range items {
 		si := &frontmodel.SavedItem{
-			ID:          it.ID.String(),
-			ProductSku:  it.ProductSku,
-			ProductName: it.ProductName,
-			Quantity:    it.Quantity,
+			ID:       it.ID.String(),
+			Sku:      it.ProductSku,
+			Name:     it.ProductName,
+			Quantity: it.Quantity,
 		}
 		if url := imageBySKU[it.ProductSku]; url != "" {
 			u := url
@@ -359,9 +359,9 @@ func (r *Resolver) resolveFreeGifts(
 	out := make([]*frontmodel.PromotionFreeGift, 0, len(offers))
 	for _, o := range offers {
 		gift := &frontmodel.PromotionFreeGift{
-			ProductSku:  o.ProductSKU,
-			ProductName: o.ProductSKU,
-			Quantity:    o.Quantity,
+			Sku:      o.ProductSKU,
+			Name:     o.ProductSKU,
+			Quantity: o.Quantity,
 		}
 		if _, ok := cartSkus[o.ProductSKU]; ok {
 			gift.InCart = true
@@ -399,8 +399,8 @@ func toCartLineModel(l cart.CartLine) *frontmodel.CartLine {
 			ID:          c.ID.String(),
 			OptionID:    c.BundleOptionID.String(),
 			SelectionID: c.BundleSelectionID.String(),
-			ProductSku:  c.ProductSku,
-			ProductName: c.ProductName,
+			Sku:         c.ProductSku,
+			Name:        c.ProductName,
 			UnitPrice:   int32(c.UnitPrice),
 			Quantity:    c.Quantity,
 			SortOrder:   c.SortOrder,
@@ -427,14 +427,14 @@ func toCartLineModel(l cart.CartLine) *frontmodel.CartLine {
 		options[i] = opt
 	}
 	return &frontmodel.CartLine{
-		ID:          l.ID.String(),
-		ProductName: l.ProductName,
-		ProductSku:  l.ProductSku,
-		UnitPrice:   int32(l.UnitPrice),
-		Quantity:    l.Quantity,
-		TotalPrice:  int32(money.LineTotal(l.UnitPrice, l.Quantity)),
-		Components:  components,
-		Options:     options,
+		ID:         l.ID.String(),
+		Name:       l.ProductName,
+		Sku:        l.ProductSku,
+		UnitPrice:  int32(l.UnitPrice),
+		Quantity:   l.Quantity,
+		TotalPrice: int32(money.LineTotal(l.UnitPrice, l.Quantity)),
+		Components: components,
+		Options:    options,
 	}
 }
 

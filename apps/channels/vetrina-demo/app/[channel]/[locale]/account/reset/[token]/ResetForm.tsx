@@ -1,16 +1,16 @@
 "use client";
 
-import { useActionState, useMemo } from "react";
+import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 
 import {
-  FormError,
+  Field,
+  FormErrors,
   buttonPrimary,
-  inputClass,
 } from "@/app/components/account/AccountUI";
-import {
-  resetPasswordAction,
-  type AuthResult,
-} from "@/app/lib/auth/actions";
+import { resetPasswordAction } from "@/app/lib/auth/actions";
+import { resetSchema } from "@/app/lib/auth/schemas";
+import { useActionForm } from "@/app/lib/forms/use-action-form";
 
 export function ResetForm({ token }: { token: string }) {
   // Bound, not a hidden field - a hidden input is captured by rrweb (maskAllInputs has
@@ -19,41 +19,48 @@ export function ResetForm({ token }: { token: string }) {
     () => resetPasswordAction.bind(null, token),
     [token],
   );
-  const [state, formAction, pending] = useActionState<
-    AuthResult | null,
-    FormData
-  >(boundAction, null);
+  const t = useTranslations("auth.reset");
+  const tf = useTranslations("forms.fields");
+  const tc = useTranslations("common");
+  const { form, fields, formAction, onSubmit, pending } = useActionForm(
+    boundAction,
+    resetSchema,
+  );
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      <PasswordField label="New password" name="newPassword" />
-      <PasswordField label="Confirm password" name="confirmPassword" />
+    <form
+      id={form.id}
+      onSubmit={onSubmit}
+      action={formAction}
+      noValidate
+      className="flex flex-col gap-4"
+    >
+      <Field
+        label={t("newPassword")}
+        field={fields.newPassword}
+        type="password"
+        required
+        minLength={8}
+        autoComplete="new-password"
+      />
+      <Field
+        label={tf("confirmPassword")}
+        field={fields.confirmPassword}
+        type="password"
+        required
+        minLength={8}
+        autoComplete="new-password"
+      />
 
-      {state && !state.ok && <FormError>{state.error}</FormError>}
+      <FormErrors errors={form.errors} />
 
       <button
         type="submit"
         disabled={pending}
         className={`${buttonPrimary} w-full`}
       >
-        {pending ? "Saving…" : "Save new password"}
+        {pending ? tc("saving") : t("submit")}
       </button>
     </form>
-  );
-}
-
-function PasswordField({ label, name }: { label: string; name: string }) {
-  return (
-    <label className="flex flex-col gap-1.5 text-sm">
-      <span className="font-medium">{label}</span>
-      <input
-        name={name}
-        type="password"
-        required
-        minLength={8}
-        autoComplete="new-password"
-        className={`${inputClass} w-full`}
-      />
-    </label>
   );
 }

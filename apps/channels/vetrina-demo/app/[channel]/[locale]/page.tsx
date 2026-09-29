@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 import { getSiteUrl } from "@/app/lib/channel/site";
 import { Link } from "@/app/components/LocaleLink";
 import {
@@ -25,16 +27,17 @@ import { loadHeader } from "@/app/lib/header/read";
 import type { HeaderCategory } from "@/app/lib/header/read";
 import { getStoreName } from "@/app/lib/channel/read";
 import { cmsPageJsonLd, cmsSchemaFromSpec, parseCustomJsonLd } from "@/app/lib/json-ld";
-import { canonicalPathMapper } from "@/app/lib/locale/alternates";
+import { canonicalPathMapper, localizedAlternates } from "@/app/lib/locale/alternates";
 import { cmsPageMetadata } from "@/app/lib/seo-metadata";
-import { renderJsonText } from "./products/[id]/parts";
+import { renderJsonText } from "@/app/lib/json-text";
 
 // A CMS homepage carries the same operator SEO fields as any CMS page (noindex/
 // nofollow, canonical override, OG copy) - without this they were silently dropped
 export async function generateMetadata(): Promise<Metadata> {
   const cmsHome = await getHomePage();
-  // no CMS homepage → the layout's default metadata stands
-  if (!cmsHome) return {};
+  // no CMS homepage → the layout's title and description stand; the canonical and
+  // hreflang still have to be declared here, the layout can't know the path
+  if (!cmsHome) return { alternates: await localizedAlternates("/") };
   return cmsPageMetadata(cmsHome, "/", await getSiteUrl());
 }
 
@@ -63,10 +66,11 @@ export default async function Home() {
 }
 
 async function HardcodedHome() {
-  const [brand, { posts }, { categories, collections }] = await Promise.all([
+  const [brand, { posts }, { categories, collections }, t] = await Promise.all([
     getStoreName(),
     listBlogPosts({ limit: 3 }),
     loadHeader(),
+    getTranslations("home"),
   ]);
   const products = await listRailProducts(categories.map((c) => c.id));
   const deals = products.filter(
@@ -89,13 +93,13 @@ async function HardcodedHome() {
       {deals.length >= 3 && (
         <RailProvider>
           <Section
-            eyebrow="Limited time"
-            title="Flash deals"
+            eyebrow={t("limitedTime")}
+            title={t("flashDeals")}
             href="/products"
-            hrefLabel="View all"
+            hrefLabel={t("viewAll")}
             actions={<RailArrows />}
           >
-            <Rail label="Flash deals">
+            <Rail label={t("flashDeals")}>
               {deals.map((p) => (
                 <div key={p.id} className="w-56 shrink-0 snap-start sm:w-64">
                   <ProductCard product={p} variant="compact" />
@@ -109,10 +113,10 @@ async function HardcodedHome() {
 
       {categories.length > 0 && (
         <Section
-          eyebrow="Departments"
-          title="Shop by category"
+          eyebrow={t("departments")}
+          title={t("shopByCategory")}
           href="/products"
-          hrefLabel="All products"
+          hrefLabel={t("allProducts")}
         >
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {categories.slice(0, 8).map((c) => (
@@ -140,13 +144,13 @@ async function HardcodedHome() {
       {products.length > 0 && (
         <RailProvider>
           <Section
-            eyebrow="Popular right now"
-            title="Trending now"
+            eyebrow={t("popularNow")}
+            title={t("trending")}
             href="/products"
-            hrefLabel="View all"
+            hrefLabel={t("viewAll")}
             actions={<RailArrows />}
           >
-            <Rail label="Trending now">
+            <Rail label={t("trending")}>
               {products.map((p) => (
                 <div key={p.id} className="w-56 shrink-0 snap-start sm:w-64">
                   <ProductCard product={p} variant="compact" />
@@ -160,10 +164,10 @@ async function HardcodedHome() {
 
       {collections.length > 0 && (
         <Section
-          eyebrow="Curated"
-          title="Collections"
+          eyebrow={t("curated")}
+          title={t("collections")}
           href="/products"
-          hrefLabel="Shop all"
+          hrefLabel={t("shopAll")}
         >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {collections.slice(0, 4).map((c) => (
@@ -181,7 +185,7 @@ async function HardcodedHome() {
                     {displayName(c.name, c.slug)}
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    Curated selection
+                    {t("curatedSelection")}
                   </span>
                 </span>
                 <ArrowRightIcon
@@ -196,10 +200,10 @@ async function HardcodedHome() {
 
       {posts.length > 0 && (
         <Section
-          eyebrow="Journal"
-          title="From the blog"
+          eyebrow={t("journal")}
+          title={t("fromBlog")}
           href="/blog"
-          hrefLabel="All posts"
+          hrefLabel={t("allPosts")}
         >
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {posts.map((p) => {
@@ -256,38 +260,40 @@ function Hero({
   categories: HeaderCategory[];
   product: Awaited<ReturnType<typeof listRailProducts>>[number] | null;
 }) {
+  const t = useTranslations("home.hero");
   return (
     <section className="border-b border-border bg-background">
       <div className="mx-auto grid w-full max-w-8xl items-center gap-10 px-6 py-14 md:px-10 sm:py-20 lg:grid-cols-12">
         <div className="flex flex-col items-start gap-6 lg:col-span-7">
           <p className="font-mono text-xs font-medium uppercase tracking-[0.22em] text-signal">
-            The {brand} catalog
+            {t("eyebrow", { brand })}
           </p>
           {/* Mixed-weight headline - the second clause carries the weight */}
           <h1 className="max-w-2xl text-5xl font-normal leading-[1.02] tracking-[-0.03em] sm:text-7xl">
-            The right products, <strong className="font-extrabold">at the right price.</strong>
+            {t.rich("headline", {
+              strong: (chunks) => <strong className="font-extrabold">{chunks}</strong>,
+            })}
           </h1>
           <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Transparent pricing across the whole {brand} catalog - fast
-            shipping, easy returns, and real people on support.
+            {t("body", { brand })}
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
               href="/products"
               className="inline-flex h-12 items-center gap-2 rounded-md bg-primary px-7 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/85"
             >
-              Shop all products
+              {t("shopAll")}
             </Link>
             <Link
               href="/collections"
               className="inline-flex h-12 items-center gap-2 rounded-md border border-foreground/25 px-7 text-sm font-semibold text-foreground transition hover:border-foreground"
             >
-              Browse collections
+              {t("browseCollections")}
             </Link>
           </div>
           {categories.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-              <span className="text-muted-foreground">Popular:</span>
+              <span className="text-muted-foreground">{t("popular")}</span>
               {categories.slice(0, 4).map((c) => (
                 <Link
                   key={c.id}
@@ -316,7 +322,7 @@ function Hero({
             <span className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/60 to-transparent p-5 text-white">
               <span className="min-w-0">
                 <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-white/70">
-                  Featured
+                  {t("featured")}
                 </span>
                 <span className="block truncate text-base font-semibold">
                   {displayName(product.name, product.sku)}

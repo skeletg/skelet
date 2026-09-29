@@ -3,12 +3,28 @@ import { createGraphiQLFetcher } from '@graphiql/toolkit'
 import { GraphiQL } from 'graphiql'
 import 'graphiql/setup-workers/vite' // without it MonacoEnvironment.getWorker is unset, the monaco-graphql worker never loads, and the editor silently loses autocomplete and validation
 import 'graphiql/style.css'
+import { RotateCcwIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { getAccessToken } from '@/shared/auth/auth'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { exampleTabs, frontExampleTabs } from './examples'
 import { OperationsPluginContent, OperationsPluginIcon } from './OperationsPlugin'
-import { namespacedStorage, SURFACES, surfaceById, type SurfaceId } from './surfaces'
+import { ResponseDetailsBar } from './ResponseDetailsBar'
+import { PickerProvider, ValuesPluginContent, ValuesPluginIcon } from './ValuesPlugin'
+import { timedFetch, type ResponseDetails } from './responseDetails'
+import type { PickRunner } from './valueTargets'
+import { namespacedStorage, resetSurfaceTabs, SURFACES, surfaceById, type SurfaceId } from './surfaces'
+import { ADMIN_GRAPHQL_ENDPOINT } from '@/lib/api-endpoint'
 
 // GraphiQL's own docs explorer browses types, which is a different question from "what can I call"
 const operationsPlugin = {
@@ -17,11 +33,24 @@ const operationsPlugin = {
   content: OperationsPluginContent,
 }
 
+const valuesPlugin = { title: 'Values', icon: ValuesPluginIcon, content: ValuesPluginContent }
+
 // The admin's token rides every request the IDE issues, so introspection and live queries honour the same guards the dashboard does - auth.Middleware runs on both endpoints and injects admin claims either way
 export function Playground() {
   const { has, loading, isSuperuser } = usePermissions()
   const [surfaceId, setSurfaceId] = useState<SurfaceId>('admin')
   const surface = surfaceById(surfaceId)
+  // Tagged with its surface so a response still in flight when the admin switches can't land on the other tab
+  const [last, setLast] = useState<{ surfaceId: SurfaceId; details: ResponseDetails } | null>(null)
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [generation, setGeneration] = useState(0) // bumped by a reset, so GraphiQL remounts and re-reads the now-empty tab storage
+
+  function resetTabs() {
+    resetSurfaceTabs(surfaceId)
+    setLast(null)
+    setGeneration((g) => g + 1)
+    setConfirmReset(false)
+  }
 
   const fetcher = useMemo(
     () =>
@@ -32,13 +61,30 @@ export function Playground() {
           const headers = new Headers(init?.headers)
           if (token) headers.set('Authorization', `Bearer ${token}`)
           headers.set('Content-Type', 'application/json')
-          return fetch(input, { ...init, headers })
+          return timedFetch(input, { ...init, headers }, (details) => setLast({ surfaceId: surface.id, details }))
         },
       }),
-    [surface.endpoint],
+    [surface.endpoint, surface.id],
   )
 
   const storage = useMemo(() => namespacedStorage(surfaceId), [surfaceId]) // per surface, so switching back finds the same editor
+
+  // The pickers' own lookups - same token as the IDE, and a storefront list goes out under the channel the panel picked
+  const runPick = useMemo<PickRunner>(
+    () => async ({ query, variables, admin, channelId }) => {
+      const headers = new Headers({ 'Content-Type': 'application/json' })
+      const token = getAccessToken()
+      if (token) headers.set('Authorization', `Bearer ${token}`)
+      if (!admin && surface.id === 'front' && channelId) headers.set('X-Channel-Id', channelId)
+      const res = await fetch(admin ? ADMIN_GRAPHQL_ENDPOINT : surface.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query, variables }),
+      })
+      return (await res.json()) as Awaited<ReturnType<PickRunner>>
+    },
+    [surface.endpoint, surface.id],
+  )
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>
 
@@ -78,16 +124,44 @@ export function Playground() {
         <p className="text-xs text-muted-foreground">
           {surface.hint} - <code className="font-mono">{surface.endpoint}</code>
         </p>
+        <button
+          type="button"
+          onClick={() => setConfirmReset(true)}
+          className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <RotateCcwIcon className="size-3" aria-hidden /> Reset tabs
+        </button>
       </div>
+      <AlertDialog open={confirmReset} onOpenChange={setConfirmReset}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset the {surface.label} tabs?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Closes every {surface.label} tab and their variables and headers, and opens the example tabs again. Operations
+              saved from an older schema go with them. The other surface's tabs stay as they are.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={resetTabs}>Reset tabs</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="min-h-0 flex-1 overflow-hidden rounded-lg border">
         {/* Remount per surface: the schema, tabs and storage all change together */}
-        <GraphiQL
-          key={surfaceId}
-          fetcher={fetcher}
-          storage={storage}
-          plugins={[operationsPlugin]}
-          defaultTabs={surfaceId === 'admin' ? exampleTabs : frontExampleTabs}
-        />
+        <PickerProvider run={runPick} surface={surface.id}>
+          <GraphiQL
+            key={`${surfaceId}:${generation}`}
+            fetcher={fetcher}
+            storage={storage}
+            plugins={[operationsPlugin, valuesPlugin]}
+            defaultTabs={surfaceId === 'admin' ? exampleTabs : frontExampleTabs}
+          >
+            <GraphiQL.Footer>
+              <ResponseDetailsBar details={last?.surfaceId === surfaceId ? last.details : null} />
+            </GraphiQL.Footer>
+          </GraphiQL>
+        </PickerProvider>
       </div>
     </div>
   )

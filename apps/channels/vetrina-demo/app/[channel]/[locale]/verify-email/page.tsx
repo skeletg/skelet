@@ -1,5 +1,8 @@
 // Landing page for the emailed verification link (<storefront>/verify-email?token=...)
 
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+
 import { Link } from "@/app/components/LocaleLink";
 
 import { resendVerificationEmailAction } from "@/app/lib/auth/actions";
@@ -7,10 +10,13 @@ import { VerifyEmailDocument } from "@/app/lib/auth/operations.gql";
 import { getCustomerOrNull } from "@/app/lib/customer/read";
 import { gqlFetch } from "@/app/lib/graphql";
 
-export const metadata = {
-  title: "Verify your email",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata({
+  params,
+}: PageProps<"/[channel]/[locale]/verify-email">): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "verifyEmail" });
+  return { title: t("title"), robots: { index: false, follow: false } };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +35,12 @@ const pillCta =
   "hover:bg-primary/90";
 
 export default async function VerifyEmailPage({
+  params,
   searchParams,
-}: {
-  searchParams: Promise<RawSearchParams>;
-}) {
-  const sp = await searchParams;
+}: PageProps<"/[channel]/[locale]/verify-email">) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "verifyEmail" });
+  const sp: RawSearchParams = await searchParams;
   const token = pick(sp, "token");
   const resent = pick(sp, "resent");
 
@@ -45,24 +52,18 @@ export default async function VerifyEmailPage({
         {resent === "1" ? (
           <>
             <h1 className="text-2xl font-extrabold tracking-tight">
-              Check your inbox
+              {t("inboxTitle")}
             </h1>
-            <p className="mt-3 text-sm text-muted-foreground">
-              We sent a fresh verification link to your email address.
-              Open it on this device to finish up.
-            </p>
+            <p className="mt-3 text-sm text-muted-foreground">{t("inboxBody")}</p>
           </>
         ) : (
           <>
             <h1 className="text-2xl font-extrabold tracking-tight">
-              Couldn&rsquo;t send the email
+              {t("sendFailedTitle")}
             </h1>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Something went wrong on our side. Give it a minute, then
-              try again from your account page.
-            </p>
+            <p className="mt-3 text-sm text-muted-foreground">{t("sendFailedBody")}</p>
             <Link href="/account" className={`${pillCta} mt-6`}>
-              Go to your account
+              {t("goToAccount")}
             </Link>
           </>
         )}
@@ -74,12 +75,9 @@ export default async function VerifyEmailPage({
     return (
       <Card>
         <h1 className="text-2xl font-extrabold tracking-tight">
-          Verify your email
+          {t("title")}
         </h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          This page needs the verification link from your email - open
-          the most recent message from us and click the button inside.
-        </p>
+        <p className="mt-3 text-sm text-muted-foreground">{t("noTokenBody")}</p>
         <ResendBlock />
       </Card>
     );
@@ -97,14 +95,11 @@ export default async function VerifyEmailPage({
     return (
       <Card>
         <h1 className="text-2xl font-extrabold tracking-tight">
-          Email verified
+          {t("verifiedTitle")}
         </h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Thanks - your email address is confirmed and your account is
-          all set.
-        </p>
+        <p className="mt-3 text-sm text-muted-foreground">{t("verifiedBody")}</p>
         <Link href="/account" className={`${pillCta} mt-6`}>
-          Go to your account
+          {t("goToAccount")}
         </Link>
       </Card>
     );
@@ -113,13 +108,9 @@ export default async function VerifyEmailPage({
   return (
     <Card>
       <h1 className="text-2xl font-extrabold tracking-tight">
-        That link didn&rsquo;t work
+        {t("failedTitle")}
       </h1>
-      <p className="mt-3 text-sm text-muted-foreground">
-        The verification link is invalid or has expired - they&rsquo;re
-        single-use, so a link you already clicked won&rsquo;t work
-        twice.
-      </p>
+      <p className="mt-3 text-sm text-muted-foreground">{t("failedBody")}</p>
       <ResendBlock />
     </Card>
   );
@@ -128,17 +119,23 @@ export default async function VerifyEmailPage({
 // Resend affordance: a one-click server action when signed in, a pointer to login when
 // not (the mutation needs a bearer token)
 async function ResendBlock() {
-  const customer = await getCustomerOrNull();
+  const [customer, t] = await Promise.all([
+    getCustomerOrNull(),
+    getTranslations("verifyEmail"),
+  ]);
   if (!customer) {
     return (
       <p className="mt-6 text-sm text-muted-foreground">
-        <Link
-          href={`/account/login?returnTo=${encodeURIComponent("/verify-email")}`}
-          className="text-foreground underline underline-offset-2"
-        >
-          Sign in
-        </Link>{" "}
-        to request a new verification link.
+        {t.rich("signInToResend", {
+          link: (chunks) => (
+            <Link
+              href={`/account/login?returnTo=${encodeURIComponent("/verify-email")}`}
+              className="text-foreground underline underline-offset-2"
+            >
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
     );
   }
@@ -146,10 +143,10 @@ async function ResendBlock() {
     return (
       <div className="mt-6">
         <p className="text-sm text-muted-foreground">
-          Good news though - {customer.email} is already verified.
+          {t("alreadyVerified", { email: customer.email })}
         </p>
         <Link href="/account" className={`${pillCta} mt-4`}>
-          Go to your account
+          {t("goToAccount")}
         </Link>
       </div>
     );
@@ -158,10 +155,10 @@ async function ResendBlock() {
     <form action={resendVerificationEmailAction} className="mt-6">
       <input type="hidden" name="returnTo" value="/verify-email" />
       <button type="submit" className={pillCta}>
-        Send a new link
+        {t("sendNew")}
       </button>
       <p className="mt-3 text-xs text-muted-foreground">
-        Goes to {customer.email}.
+        {t("goesTo", { email: customer.email })}
       </p>
     </form>
   );

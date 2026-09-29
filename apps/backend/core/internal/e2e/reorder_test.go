@@ -73,8 +73,8 @@ func (h *harness) gqlPostAs(t *testing.T, ts *httptest.Server, channelID, token,
 
 const reorderQuery = `mutation { reorder(orderId: %q) {
 	added
-	skipped { productSku reason }
-	cart { id lines { productSku quantity unitPrice } }
+	skipped { sku reason }
+	cart { id lines { sku quantity unitPrice } }
 } }`
 
 type reorderOutcome struct {
@@ -100,7 +100,7 @@ func (h *harness) reorder(t *testing.T, ts *httptest.Server, ch uuid.UUID, token
 	if sk, ok := res["skipped"].([]any); ok {
 		for _, s := range sk {
 			if m, ok := s.(map[string]any); ok {
-				out.skipped = append(out.skipped, fmt.Sprint(m["productSku"]))
+				out.skipped = append(out.skipped, fmt.Sprint(m["sku"]))
 			}
 		}
 	}
@@ -109,7 +109,7 @@ func (h *harness) reorder(t *testing.T, ts *httptest.Server, ch uuid.UUID, token
 			for _, l := range lines {
 				if m, ok := l.(map[string]any); ok {
 					qty, _ := m["quantity"].(float64)
-					out.lines[fmt.Sprint(m["productSku"])] = qty
+					out.lines[fmt.Sprint(m["sku"])] = qty
 				}
 			}
 		}
@@ -182,7 +182,7 @@ func TestReorderSkipsUnavailableLinesAndKeepsTheRest(t *testing.T) {
 		t.Fatalf("cart: %v", err)
 	}
 	for _, sku := range []string{f.Product.SKU, gone.SKU} {
-		if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, &buyer, cart.AddCartLineInput{ProductSku: sku, Quantity: 1}); err != nil {
+		if _, err := h.D.Cart.AddToCart(h.Ctx, c.ID, &buyer, sku, 1); err != nil {
 			t.Fatalf("add %s: %v", sku, err)
 		}
 	}

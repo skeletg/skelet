@@ -1569,6 +1569,8 @@ function CategoryAvailabilitySection({
 }: {
   category: {
     id: string
+    // The global flag - a store listing only puts the category on that storefront while this is on too
+    isPublished: boolean
     listings: {
       channelId: string
       channel: { id: string; name: string }
@@ -1580,13 +1582,17 @@ function CategoryAvailabilitySection({
   globalPublished: boolean
   canManage: boolean
 }) {
-  const draftNotice = globalPublished ? null : (
-    <p className="text-xs text-amber-600">
-      This category is a Draft, so it is hidden on every storefront even where it is published below. Switch it to
-      Published in the header to make it live.
-    </p>
-  )
   const { isChannel, effectiveChannelId, selectedChannel, channels } = useConfigScope()
+  // Follows the staged header switch, so the warning appears the moment the save would take the category off every store
+  const draftNotice = globalPublished ? null : (
+    <Alert variant="warning">
+      <AlertTitle>Draft</AlertTitle>
+      <AlertDescription>
+        This category is a Draft, so it is hidden on every storefront even where it is published below. Switch it to
+        Published in the header to make it live.
+      </AlertDescription>
+    </Alert>
+  )
   const refetch = [{ query: CategoryDocument, variables: { id: category.id } }]
   const [setListing] = useMutation(SetCategoryListingDocument, { refetchQueries: refetch })
   const [clearListing] = useMutation(ClearCategoryListingDocument, { refetchQueries: refetch })
@@ -1744,8 +1750,8 @@ function CategoryAvailabilitySection({
         title={`Availability on ${selectedChannel?.name ?? 'this store'}`}
         description="Switch the header store to manage another. Use the global tree (header → Global default) for cross-store assignment."
       >
+        {draftNotice}
         <div className="grid gap-3 rounded-md border p-4">
-          {draftNotice}
           <div className="flex items-center justify-between gap-4">
             <div>
               <Label htmlFor="cat-store-published">Published on store</Label>
@@ -1804,7 +1810,7 @@ function CategoryAvailabilitySection({
       title="Per-channel availability"
       description="Toggle which channels carry this category. A category is hidden on a store with no listing row."
     >
-      {draftNotice ? <div className="mb-3">{draftNotice}</div> : null}
+      {draftNotice}
       <div className="overflow-hidden rounded-md border">
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
