@@ -1,4 +1,7 @@
+import { print } from "graphql";
+
 import { BACKEND_INTERNAL_URL } from "@/app/lib/backend-url";
+import { ChannelLocalesDocument, type ChannelLocalesQuery } from "@/app/lib/locale/operations.gql";
 // A channel's locale set, straight from the backend. Single source for the whole app -
 // the proxy, the next-intl request config, and render-time callers all read this
 //
@@ -13,9 +16,8 @@ const FRONT_API_PATH = process.env.FRONT_API_SLUG
   ? `/api/front/${process.env.FRONT_API_SLUG}/graphql`
   : "/api/front/graphql";
 
-// The channel's own list, NOT the top-level `locales` query - that one returns every globally
-// active locale, which would have this storefront routing languages its channel doesn't serve
-const QUERY = "query{ currentChannel{ defaultLocale locales{ code hreflangValue } } }";
+// Printed once - the proxy calls this on every request
+const QUERY = print(ChannelLocalesDocument);
 const TTL_MS = 60_000;
 
 export type ChannelLocales = {
@@ -43,14 +45,7 @@ export async function getChannelLocales(channelId: string): Promise<ChannelLocal
       cache: "no-store",
     });
     if (!r.ok) throw new Error(String(r.status));
-    const body = (await r.json()) as {
-      data?: {
-        currentChannel?: {
-          defaultLocale?: string;
-          locales?: { code: string; hreflangValue?: string }[];
-        };
-      };
-    };
+    const body = (await r.json()) as { data?: ChannelLocalesQuery };
     const list = body.data?.currentChannel?.locales ?? [];
     const codes = list.map((l) => l.code);
     const hreflang: Record<string, string> = {};
