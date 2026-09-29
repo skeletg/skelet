@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ConfigScopeContext, type ConfigScopeContextValue } from '@/lib/config-scope'
 import { PrefsContext } from '@/lib/admin-prefs'
 import { MeDocument } from '@/shared/auth/Me.gql'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { SectionHost } from './SectionHost'
 
 // Shared setup for the form page tests - a real page under Apollo's MockedProvider, a router and
@@ -100,13 +101,16 @@ export function renderPage({
     <MockedProvider mocks={mocks}>
       <PrefsContext.Provider value={adminId ?? null}>
         <ConfigScopeContext.Provider value={scope}>
-          <MemoryRouter initialEntries={[path]}>
-            <Routes>
-              {Object.entries(routes).map(([pattern, element]) => (
-                <Route key={pattern} path={pattern} element={element} />
-              ))}
-            </Routes>
-          </MemoryRouter>
+          {/* App.tsx mounts one around every page, so a page using Tooltip needs it here too */}
+          <TooltipProvider>
+            <MemoryRouter initialEntries={[path]}>
+              <Routes>
+                {Object.entries(routes).map(([pattern, element]) => (
+                  <Route key={pattern} path={pattern} element={element} />
+                ))}
+              </Routes>
+            </MemoryRouter>
+          </TooltipProvider>
         </ConfigScopeContext.Provider>
       </PrefsContext.Provider>
     </MockedProvider>,
@@ -118,7 +122,9 @@ export function renderDialog(node: ReactNode, mocks: MockLink.MockedResponse[] =
   stubResizeObserver()
   return render(
     <MockedProvider mocks={mocks}>
-      <ConfigScopeContext.Provider value={scope}>{node}</ConfigScopeContext.Provider>
+      <ConfigScopeContext.Provider value={scope}>
+        <TooltipProvider>{node}</TooltipProvider>
+      </ConfigScopeContext.Provider>
     </MockedProvider>,
   )
 }

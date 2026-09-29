@@ -511,6 +511,41 @@ query ProductPicker($search: String, $kinds: [ProductKind!], $limit: Int) {
   }
 }
 
+# Source for the shared ProductPickerDialog - server-paged, so a picker never hydrates the whole
+# catalogue. attributeValues rides along only for callers that show or filter by option values
+query ProductPickerPaged(
+  $search: String
+  $kinds: [ProductKind!]
+  $productTypeSlugs: [String!]
+  $published: Boolean
+  $attributeValueIds: [ID!]
+  $limit: Int
+  $offset: Int
+  $withAttributes: Boolean! = false
+) {
+  productsPaged(
+    search: $search
+    kinds: $kinds
+    productTypeSlugs: $productTypeSlugs
+    published: $published
+    attributeValueIds: $attributeValueIds
+    limit: $limit
+    offset: $offset
+  ) {
+    totalCount
+    items {
+      id name sku kind defaultPrice defaultCurrencyCode
+      productType { id slug name }
+      thumbnail { id url altText status }
+      displayImage { id url altText status }
+      attributeValues @include(if: $withAttributes) {
+        attribute { id slug name }
+        selectedValues { id slug name value }
+      }
+    }
+  }
+}
+
 # Label resolution for pickers holding bare linked ids
 query ProductLabels($ids: [ID!]!) {
   productsByIds(ids: $ids) {
