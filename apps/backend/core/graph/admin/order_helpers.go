@@ -40,7 +40,7 @@ func toCreateDraftOrderInput(in model.CreateDraftOrderInput, channelID uuid.UUID
 		if l == nil {
 			continue
 		}
-		dl := order.CreateDraftLine{ProductSku: l.ProductSku, Quantity: l.Quantity}
+		dl := order.CreateDraftLine{ProductSku: l.Sku, Quantity: l.Quantity}
 		if l.UnitPriceCents != nil {
 			v := int64(*l.UnitPriceCents)
 			dl.UnitPriceCents = &v

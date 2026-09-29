@@ -2367,14 +2367,14 @@ export type DefaultValueUpdate = {
 };
 
 export type DraftOrderLineInput = {
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
+  sku: Scalars['String']['input'];
   unitPriceCents?: InputMaybe<Scalars['Int']['input']>;
 };
 
 export type EditAddLineInput = {
-  productSku: Scalars['String']['input'];
   quantity: Scalars['Float']['input'];
+  sku: Scalars['String']['input'];
 };
 
 export type EditLineQtyInput = {

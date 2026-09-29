@@ -33708,7 +33708,7 @@ input CreateDraftOrderInput {
 }
 
 input DraftOrderLineInput {
-  productSku: String!
+  sku:        String!
   quantity:   Float!
   # Override the catalog price (cents) - manual admin pricing / quote
   # conversion at negotiated prices. Omit for the catalog price.
@@ -33728,7 +33728,7 @@ input EditLineQtyInput {
 }
 
 input EditAddLineInput {
-  productSku: String!
+  sku:        String!
   quantity:   Float!
 }
 
@@ -153236,20 +153236,20 @@ func (ec *executionContext) unmarshalInputDraftOrderLineInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"productSku", "quantity", "unitPriceCents"}
+	fieldsInOrder := [...]string{"sku", "quantity", "unitPriceCents"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "productSku":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("productSku"))
+		case "sku":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sku"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.ProductSku = data
+			it.Sku = data
 		case "quantity":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quantity"))
 			data, err := ec.unmarshalNFloat2float64(ctx, v)
@@ -153280,20 +153280,20 @@ func (ec *executionContext) unmarshalInputEditAddLineInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"productSku", "quantity"}
+	fieldsInOrder := [...]string{"sku", "quantity"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "productSku":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("productSku"))
+		case "sku":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sku"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.ProductSku = data
+			it.Sku = data
 		case "quantity":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("quantity"))
 			data, err := ec.unmarshalNFloat2float64(ctx, v)

@@ -2085,14 +2085,14 @@ type DefaultValueUpdate struct {
 }
 
 type DraftOrderLineInput struct {
-	ProductSku     string  `json:"productSku"`
+	Sku            string  `json:"sku"`
 	Quantity       float64 `json:"quantity"`
 	UnitPriceCents *int32  `json:"unitPriceCents,omitempty"`
 }
 
 type EditAddLineInput struct {
-	ProductSku string  `json:"productSku"`
-	Quantity   float64 `json:"quantity"`
+	Sku      string  `json:"sku"`
+	Quantity float64 `json:"quantity"`
 }
 
 type EditLineQtyInput struct {
