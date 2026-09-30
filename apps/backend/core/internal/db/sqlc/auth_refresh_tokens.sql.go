@@ -43,6 +43,35 @@ func (q *Queries) ClaimRefreshTokenForRotate(ctx context.Context, arg ClaimRefre
 	return owner_id, err
 }
 
+const clearLapsedRefreshSuccessors = `-- name: ClearLapsedRefreshSuccessors :execrows
+UPDATE auth_refresh_tokens SET successor_token = NULL
+WHERE successor_token IS NOT NULL AND grace_expires_at <= now()
+`
+
+// The successor is a raw, working token parked only for the grace window - Valkey expires it with the window, so Postgres must not keep it after
+func (q *Queries) ClearLapsedRefreshSuccessors(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, clearLapsedRefreshSuccessors)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const clearRefreshSuccessor = `-- name: ClearRefreshSuccessor :exec
+UPDATE auth_refresh_tokens SET successor_token = NULL
+WHERE token_hash = $1 AND scope = $2
+`
+
+type ClearRefreshSuccessorParams struct {
+	TokenHash string `json:"token_hash"`
+	Scope     string `json:"scope"`
+}
+
+func (q *Queries) ClearRefreshSuccessor(ctx context.Context, arg ClearRefreshSuccessorParams) error {
+	_, err := q.db.ExecContext(ctx, clearRefreshSuccessor, arg.TokenHash, arg.Scope)
+	return err
+}
+
 const consumeRefreshToken = `-- name: ConsumeRefreshToken :one
 DELETE FROM auth_refresh_tokens
 WHERE token_hash = $1 AND scope = $2
@@ -161,11 +190,11 @@ func (q *Queries) GetRotatedRefreshToken(ctx context.Context, arg GetRotatedRefr
 
 const pruneExpiredRefreshTokens = `-- name: PruneExpiredRefreshTokens :execrows
 DELETE FROM auth_refresh_tokens
-WHERE expires_at <= now()
-  AND (rotated_at IS NULL OR rotated_at <= $1::timestamptz)
+WHERE (rotated_at IS NULL AND expires_at <= now())
+   OR rotated_at <= $1::timestamptz
 `
 
-// Keep a rotated row until its reuse window lapses, so replaying a token that expired after rotation still trips the tripwire. $1 is the reuse-window cutoff The cast keeps the param a plain time.Time not NullTime - it's always supplied
+// An unrotated row goes at expiry; a rotated one once its reuse window lapses, whatever its expiry, since past the window it is neither live nor a tripwire. The cast keeps the param a plain time.Time, not NullTime
 func (q *Queries) PruneExpiredRefreshTokens(ctx context.Context, reuseCutoff time.Time) (int64, error) {
 	result, err := q.db.ExecContext(ctx, pruneExpiredRefreshTokens, reuseCutoff)
 	if err != nil {

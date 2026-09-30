@@ -26,6 +26,7 @@ type SessionLog interface {
 	DeleteAll(ctx context.Context, adminID uuid.UUID) (killed []uuid.UUID, err error)
 	DeleteExcept(ctx context.Context, adminID uuid.UUID, keepHash string) (killed []uuid.UUID, err error)
 	List(ctx context.Context, adminID uuid.UUID) ([]AdminSession, error)
+	Exists(ctx context.Context, adminID, sessionID uuid.UUID) (bool, error) // the per-request guard's lookup
 }
 
 // Event is what the refresh store publishes - the lifecycle events in events.go
