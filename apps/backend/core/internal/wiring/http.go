@@ -25,7 +25,6 @@ import (
 	graphadmin "github.com/skeletg/skelet/apps/backend/core/graph/admin"
 	graphfront "github.com/skeletg/skelet/apps/backend/core/graph/front"
 	"github.com/skeletg/skelet/apps/backend/core/graph/front/dataloaders"
-	"github.com/skeletg/skelet/apps/backend/core/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
@@ -200,10 +199,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		},
 	}))
 
-	// Blog public routes - XML responses don't fit the GraphQL surface so they live as plain HTTP - the channel middleware resolves the active store from the X-Channel-Id header / Host so the handlers can scope posts via per-store listings; non-store requests fall back to global (admin / single-store deployments)
-	mux.Handle("/blog/feed.rss.xml", channel.Middleware(s.Channel)(blogFeedHandler(s.Blog, blog.FeedKindRSS)))
-	mux.Handle("/blog/feed.atom.xml", channel.Middleware(s.Channel)(blogFeedHandler(s.Blog, blog.FeedKindAtom)))
-	mux.Handle("/sitemap.xml", channel.Middleware(s.Channel)(blogSitemapHandler(s.Blog)))
+	// XML doesn't fit the GraphQL surface, so the product feed is plain HTTP, scoped by the channel middleware
 	feed := catalog.NewMerchantFeed(infra.Queries, s.MediaStorage)
 	feed.SetSalable(s.Inventory)
 	mux.Handle("/feeds/products.xml", channel.Middleware(s.Channel)(merchantFeedHandler(feed))) // Google Merchant product feed: channel-priced, channel-scoped - operators point Merchant Center at https://<store-host>/feeds/products.xml
@@ -411,38 +407,6 @@ func frontRateLimit(limiter ratelimit.Limiter, serviceSecret string) func(http.H
 	}
 }
 
-// blogFeedHandler returns an HTTP handler that renders a blog RSS or Atom feed - locale, channel, and base URL are pulled from the channel context; the `locale` query parameter still wins if provided - without a resolved store the feed is global (suitable for single-store deployments)
-func blogFeedHandler(svc *blog.Service, kind blog.FeedKind) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		locale := r.URL.Query().Get("locale")
-		baseURL := os.Getenv("STOREFRONT_URL")
-		opts := blog.FeedOptions{BaseURL: baseURL, Locale: locale}
-		if sv, ok := channel.FromContext(ctx); ok && sv != nil {
-			id := sv.ID
-			opts.ChannelID = &id
-			if locale == "" {
-				opts.Locale = sv.DefaultLocale
-			}
-			if sv.PublicURL != "" {
-				opts.BaseURL = sv.PublicURL
-			}
-			if opts.Title == "" {
-				opts.Title = sv.Name
-			}
-		}
-		body, contentType, err := svc.RenderFeed(ctx, kind, opts)
-		if err != nil {
-			slog.Error("render feed", "kind", kind, "err", err) // public endpoint - the cause names queries, tables and channel internals
-			http.Error(w, "feed unavailable", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Cache-Control", "public, max-age=300")
-		_, _ = w.Write(body)
-	}
-}
-
 func merchantFeedHandler(feed *catalog.MerchantFeed) http.HandlerFunc { // prices and currency are channel-bound, so a request that doesn't resolve to a channel gets 404 rather than a mispriced global feed
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -473,30 +437,6 @@ func merchantFeedHandler(feed *catalog.MerchantFeed) http.HandlerFunc { // price
 		}
 		w.Header().Set("Content-Type", contentType)
 		w.Header().Set("Cache-Control", "public, max-age=3600") // feeds are pulled by Merchant Center on a schedule; an hour of staleness is fine and keeps the flat query off the hot path
-		_, _ = w.Write(body)
-	}
-}
-
-func blogSitemapHandler(svc *blog.Service) http.HandlerFunc { // scoped to the resolved channel when present so each store gets its own URL set
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		baseURL := os.Getenv("STOREFRONT_URL")
-		opts := blog.SitemapOptions{BaseURL: baseURL}
-		if sv, ok := channel.FromContext(ctx); ok && sv != nil {
-			id := sv.ID
-			opts.ChannelID = &id
-			if sv.PublicURL != "" {
-				opts.BaseURL = sv.PublicURL
-			}
-		}
-		body, contentType, err := svc.RenderSitemap(ctx, opts)
-		if err != nil {
-			slog.Error("render sitemap", "err", err)
-			http.Error(w, "sitemap unavailable", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Cache-Control", "public, max-age=600")
 		_, _ = w.Write(body)
 	}
 }

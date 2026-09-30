@@ -87,7 +87,7 @@ function AuthorForm({ author }: { author?: BlogAuthorRowFragment }) {
       const bio = bioFromText(v.bio.trim())
       if (!author) {
         await createAuthor({
-          variables: { input: { slug, displayName, email: email || null, locale, name: displayName, bio } },
+          variables: { input: { slug, displayName, email: email || null, emailPublic: email ? v.emailPublic : false, locale, name: displayName, bio } },
         })
         return
       }
@@ -99,6 +99,7 @@ function AuthorForm({ author }: { author?: BlogAuthorRowFragment }) {
             displayName,
             email: email || null,
             clearEmail: !email,
+            emailPublic: email ? v.emailPublic : false,
           },
         },
       })
@@ -181,6 +182,17 @@ function AuthorForm({ author }: { author?: BlogAuthorRowFragment }) {
             </form.AppField>
             <form.AppField name="email">
               {(f) => <f.TextField id="email" label="Email (optional)" placeholder="jane@example.com" note={clash('email')} />}
+            </form.AppField>
+            <form.AppField name="emailPublic">
+              {(f) => (
+                <f.SwitchField
+                  id="emailPublic"
+                  label="Show email publicly"
+                  description="Lets the storefront show this address on the author's posts and page. Off keeps it staff-only."
+                  disabled={!values.email.trim()}
+                  note={clash('emailPublic')}
+                />
+              )}
             </form.AppField>
             <form.AppField name="bio">
               {(f) => <f.TextareaField id="bio" label={`Bio (${locale}, plain text)`} rows={4} note={clash('bio')} />}

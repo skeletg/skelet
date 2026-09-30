@@ -510,6 +510,7 @@ export type BlogAuthor = {
   createdAt: Scalars['Time']['output'];
   displayName: Scalars['String']['output'];
   email?: Maybe<Scalars['String']['output']>;
+  emailPublic: Scalars['Boolean']['output'];
   id: Scalars['ID']['output'];
   linkedAdmin?: Maybe<AdminUser>;
   metadata: Array<MetadataItem>;
@@ -1494,6 +1495,7 @@ export type CreateBlogAuthorInput = {
   bio?: InputMaybe<Scalars['JSON']['input']>;
   displayName: Scalars['String']['input'];
   email?: InputMaybe<Scalars['String']['input']>;
+  emailPublic?: InputMaybe<Scalars['Boolean']['input']>;
   linkedAdminId?: InputMaybe<Scalars['ID']['input']>;
   locale?: InputMaybe<Scalars['String']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
@@ -9859,6 +9861,7 @@ export type UpdateBlogAuthorInput = {
   clearLinkedAdmin?: InputMaybe<Scalars['Boolean']['input']>;
   displayName?: InputMaybe<Scalars['String']['input']>;
   email?: InputMaybe<Scalars['String']['input']>;
+  emailPublic?: InputMaybe<Scalars['Boolean']['input']>;
   id: Scalars['ID']['input'];
   linkedAdminId?: InputMaybe<Scalars['ID']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;

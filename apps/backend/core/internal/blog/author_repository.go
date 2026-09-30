@@ -22,6 +22,7 @@ func (r *postgresRepository) CreateAuthor(ctx context.Context, in CreateAuthorIn
 		AvatarAssetID: sqlnull.UUID(in.AvatarAssetID),
 		LinkedAdminID: sqlnull.UUID(in.LinkedAdminID),
 		Metadata:      metadataToJSON(in.Metadata),
+		EmailPublic:   in.EmailPublic,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -132,6 +133,10 @@ func (r *postgresRepository) UpdateAuthor(ctx context.Context, in UpdateAuthorIn
 	if in.Metadata != nil {
 		metadata = metadataToJSON(*in.Metadata)
 	}
+	emailPublic := current.EmailPublic
+	if in.EmailPublic != nil {
+		emailPublic = *in.EmailPublic
+	}
 
 	row, err := r.queries.UpdateBlogAuthor(ctx, db.UpdateBlogAuthorParams{
 		ID:            in.ID,
@@ -141,6 +146,7 @@ func (r *postgresRepository) UpdateAuthor(ctx context.Context, in UpdateAuthorIn
 		AvatarAssetID: avatar,
 		LinkedAdminID: admin,
 		Metadata:      metadata,
+		EmailPublic:   emailPublic,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -230,6 +236,7 @@ func toAuthor(row db.BlogAuthor) Author {
 		Slug:          row.Slug,
 		DisplayName:   row.DisplayName,
 		Email:         sqlnull.StringPtr(row.Email),
+		EmailPublic:   row.EmailPublic,
 		AvatarAssetID: sqlnull.UUIDPtr(row.AvatarAssetID),
 		LinkedAdminID: sqlnull.UUIDPtr(row.LinkedAdminID),
 		Metadata:      metadataFromJSON(row.Metadata),
