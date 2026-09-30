@@ -1,6 +1,7 @@
 package blockkit
 
 import (
+	"html"
 	"regexp"
 	"sort"
 	"strings"
@@ -36,8 +37,8 @@ func collectPropsText(props map[string]any, sb *strings.Builder) {
 		switch val := v.(type) {
 		case string:
 			switch {
-			case k == "html":
-				writeText(sb, htmlTagRe.ReplaceAllString(val, " "))
+			case k == "html": // sanitized first, which drops <script> and <style> with their contents, so only visible text is indexed
+				writeText(sb, html.UnescapeString(htmlTagRe.ReplaceAllString(SanitizeHTML(val), " ")))
 			case humanTextProps[k]:
 				writeText(sb, val)
 			}
