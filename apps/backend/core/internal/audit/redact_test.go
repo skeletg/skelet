@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 )
 
 const placeholder = "[REDACTED]"
@@ -165,4 +167,57 @@ func TestRedactPrefersOverReachingToLeaking(t *testing.T) {
 			t.Errorf("Redact(%q) = %v, want the substring match to redact it - update this test if the pattern is tightened", key, got[key])
 		}
 	}
+}
+
+const testSecretPath = "audittest/creds/remote_credential"
+
+func init() {
+	config.Register(config.Definition{Path: testSecretPath, Type: config.TypeSecret, Label: "test-only secret setting"})
+	config.Register(config.Definition{Path: "audittest/creds/plain", Type: config.TypeString, Label: "test-only plain setting"})
+}
+
+// A settings save's variables are {path, value} - neither name looks secret, so the setting's own type has to decide
+func TestRedactHidesTheValueOfASecretSetting(t *testing.T) {
+	got := Redact(map[string]any{"path": testSecretPath, "value": "sk-live-123", "scope": map[string]any{"channelId": nil}})
+	if got["value"] != placeholder || got["path"] != testSecretPath {
+		t.Errorf("secret setting save = %v, want the value redacted and the path kept", got)
+	}
+	plain := Redact(map[string]any{"path": "audittest/creds/plain", "value": "blue"})
+	if plain["value"] != "blue" {
+		t.Errorf("an ordinary setting's value was redacted: %v", plain)
+	}
+	nested := Redact(map[string]any{"input": []any{map[string]any{"path": testSecretPath, "value": "x"}}})
+	if !strings.Contains(mustMarshal(t, nested), placeholder) {
+		t.Errorf("a nested secret setting save kept its value: %v", nested)
+	}
+}
+
+func TestRedactWalksListsInsideLists(t *testing.T) {
+	got := mustMarshal(t, Redact(map[string]any{"rows": []any{[]any{map[string]any{"password": "hunter2"}}}}))
+	if strings.Contains(got, "hunter2") {
+		t.Errorf("a password inside a list of lists survived: %s", got)
+	}
+}
+
+func TestOversizedDetailKeepsItsFieldNames(t *testing.T) {
+	d := encodeDetail(map[string]any{"productId": "p1", "input": strings.Repeat("x", maxDetailBytes)})
+	var got struct {
+		Truncated bool     `json:"truncated"`
+		Keys      []string `json:"keys"`
+	}
+	if err := json.Unmarshal(d.RawMessage, &got); err != nil || !got.Truncated || strings.Join(got.Keys, ",") != "input,productId" {
+		t.Errorf("stored %s, want truncated with the sorted field names", d.RawMessage)
+	}
+	if encodeDetail(nil).Valid {
+		t.Error("no detail should store NULL")
+	}
+}
+
+func mustMarshal(t *testing.T, v any) string {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
