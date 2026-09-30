@@ -117,7 +117,6 @@ type ComplexityRoot struct {
 	BlogAuthor struct {
 		Content     func(childComplexity int) int
 		DisplayName func(childComplexity int) int
-		Email       func(childComplexity int) int
 		ID          func(childComplexity int) int
 		Slug        func(childComplexity int) int
 	}
@@ -1798,12 +1797,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BlogAuthor.DisplayName(childComplexity), true
-	case "BlogAuthor.email":
-		if e.ComplexityRoot.BlogAuthor.Email == nil {
-			break
-		}
-
-		return e.ComplexityRoot.BlogAuthor.Email(childComplexity), true
 	case "BlogAuthor.id":
 		if e.ComplexityRoot.BlogAuthor.ID == nil {
 			break
@@ -7419,7 +7412,6 @@ type BlogAuthor {
   id:           ID!
   slug:         String!
   displayName:  String!
-  email:        String
   content:      BlogAuthorContent
 }
 
@@ -9580,8 +9572,6 @@ func (ec *executionContext) childFields_BlogAuthor(ctx context.Context, field gr
 		return ec.fieldContext_BlogAuthor_slug(ctx, field)
 	case "displayName":
 		return ec.fieldContext_BlogAuthor_displayName(ctx, field)
-	case "email":
-		return ec.fieldContext_BlogAuthor_email(ctx, field)
 	case "content":
 		return ec.fieldContext_BlogAuthor_content(ctx, field)
 	}
@@ -14939,29 +14929,6 @@ func (ec *executionContext) _BlogAuthor_displayName(ctx context.Context, field g
 	)
 }
 func (ec *executionContext) fieldContext_BlogAuthor_displayName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("BlogAuthor", field, false, false, errors.New("field of type String does not have child fields"))
-}
-
-func (ec *executionContext) _BlogAuthor_email(ctx context.Context, field graphql.CollectedField, obj *model.BlogAuthor) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_BlogAuthor_email(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Email, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
-			return ec.marshalOString2ᚖstring(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_BlogAuthor_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BlogAuthor", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -39472,11 +39439,6 @@ func (ec *executionContext) _BlogAuthor(ctx context.Context, sel ast.SelectionSe
 		case "displayName":
 			out.Values[i] = ec._BlogAuthor_displayName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "email":
-			out.Values[i] = ec._BlogAuthor_email(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "content":
