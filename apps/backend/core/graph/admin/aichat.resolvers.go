@@ -81,13 +81,12 @@ func (r *mutationResolver) SignalsChat(ctx context.Context, channelID string, si
 	tools := permittedTools(perms, r.AISvc.AllowCustomerData(ctx))
 	const maxRounds = 6
 	for round := 0; round <= maxRounds; round++ {
-		sys := system
 		last := round == maxRounds
-		if last {
-			sys = system + "\n\nYou have gathered enough data. Answer the user's question now using the " +
+		if last && msgs[len(msgs)-1].Role == "tool" { // rides on the pending tool results, never the system prompt - editing that mid-loop invalidates the thinking blocks replayed from earlier rounds
+			msgs[len(msgs)-1].Text = "You have gathered enough data. Answer the user's question now using the " +
 				"information above - do not request any more tools."
 		}
-		turn, err := r.AISvc.ChatWithTools(ctx, sys, msgs, tools, 4096)
+		turn, err := r.AISvc.ChatWithTools(ctx, system, msgs, tools, 4096)
 		if err != nil {
 			return nil, aiProviderError(ctx, err)
 		}
@@ -98,7 +97,7 @@ func (r *mutationResolver) SignalsChat(ctx context.Context, channelID string, si
 			}
 			return &model.SignalsChatReply{Reply: reply}, nil
 		}
-		msgs = append(msgs, ai.ChatMessage{Role: "assistant", Text: turn.Text, ToolCalls: turn.ToolCalls})
+		msgs = append(msgs, turn.AsMessage())
 		results := make([]ai.ToolResult, 0, len(turn.ToolCalls))
 		for _, call := range turn.ToolCalls {
 			results = append(results, runSignalTool(ctx, r.Resolver, perms, cid, days, call))
