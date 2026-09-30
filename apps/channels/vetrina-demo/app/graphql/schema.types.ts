@@ -139,8 +139,8 @@ export type BlogAuthor = {
   __typename?: 'BlogAuthor';
   content?: Maybe<BlogAuthorContent>;
   displayName: Scalars['String']['output'];
-  email?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
+  publicEmail?: Maybe<Scalars['String']['output']>;
   slug: Scalars['String']['output'];
 };
 

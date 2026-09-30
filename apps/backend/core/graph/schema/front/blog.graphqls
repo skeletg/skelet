@@ -9,7 +9,8 @@ type BlogAuthor {
   id:           ID!
   slug:         String!
   displayName:  String!
-  email:        String
+  # Only for authors who chose to publish their email - null otherwise
+  publicEmail:  String
   content:      BlogAuthorContent
 }
 

@@ -12,6 +12,7 @@ export const authorSchema = z
     slug: z.string().trim().min(1, 'Slug is required').describe("URL slug of the author's page"),
     displayName: z.string().trim().min(1, 'Display name is required').describe('Name shown on the posts they wrote'),
     email: optionalEmail().describe("The author's contact email, or an empty string for none"),
+    emailPublic: z.boolean().describe('Whether the storefront shows the email on the author\'s posts and page'),
     bio: z.string().describe("Plain-text bio in the edited locale - empty string for none"),
   })
   .describe('A blog author')
@@ -22,6 +23,7 @@ export const AUTHOR_LABELS: Record<keyof AuthorValues, string> = {
   slug: 'Slug',
   displayName: 'Display name',
   email: 'Email',
+  emailPublic: 'Email shown publicly',
   bio: 'Bio',
 }
 
@@ -49,6 +51,7 @@ export function toAuthorValues(author?: BlogAuthorRowFragment): AuthorValues {
     slug: author?.slug ?? '',
     displayName: author?.displayName ?? '',
     email: author?.email ?? '',
+    emailPublic: author?.emailPublic ?? false,
     bio: bioToText(author?.content?.bio ?? author?.allContent[0]?.bio),
   }
 }
