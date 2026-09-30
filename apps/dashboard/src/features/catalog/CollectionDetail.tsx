@@ -5,13 +5,10 @@ import {
   useState,
   type ChangeEvent,
 } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
   ImageIcon,
-  ShapesIcon,
   Trash2Icon,
   XIcon,
 } from 'lucide-react'
@@ -32,20 +29,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { DetailPageSection } from '@/components/layout/detail-page'
-import { formatCents } from '@/lib/format'
 import { useConfigScope } from '@/lib/config-scope'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { LoadError } from '@/shared/errors/LoadError'
 import {
-  AddProductToCollectionDocument,
   ClearCollectionCoverDocument,
   CollectionDocument,
-  CollectionProductPickerDocument,
   CollectionsDocument,
   type CollectionQuery,
   ConfirmCollectionCoverUploadDocument,
-  RemoveProductFromCollectionDocument,
-  ReorderCollectionProductsDocument,
   DeleteCollectionContentDocument,
   DeleteCollectionDocument,
   RequestCollectionCoverUploadDocument,
@@ -54,7 +46,7 @@ import {
 } from './Collections.gql'
 import { FormRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
 import { UrlRewritesSection } from './UrlRewritesSection'
-import { AutocompletePicker, type Option } from '@/features/promotions/widgets/AutocompletePicker'
+import { CollectionProductsSection } from './CollectionProductsSection'
 import { RecordFormPage } from '@/shared/saving/RecordFormPage'
 import { useRecordForm } from '@/shared/saving/useRecordForm'
 import { useSaveSection, type SectionDiffEntry } from '@/shared/saving/saveRegistry'
@@ -71,7 +63,6 @@ import {
 import { COLLECTION_LABELS, collectionChanges, collectionDiff, collectionSchema, toCollectionValues } from './schemas/collection'
 
 type CollectionRecord = NonNullable<CollectionQuery['collection']>
-type CollectionProduct = CollectionRecord['products'][number]
 
 type CollectionRefetch = Array<{ query: typeof CollectionDocument; variables: { id: string } }>
 
@@ -99,10 +90,6 @@ function resolveCollectionName(collection: CollectionRecord) {
   if (resolved) return resolved
   const fallback = collection.content.find((entry) => entry.name.trim())?.name.trim()
   return fallback || collection.slug
-}
-
-function resolveProductName(product: CollectionProduct) {
-  return product.name?.trim() || product.sku?.trim() || product.id
 }
 
 export function CollectionDetail() {
@@ -138,8 +125,8 @@ export function CollectionDetail() {
 }
 
 // Slug, flags, the translation and metadata are one form behind the header Save; the cover upload and
-// the storefront filter order stage as their own sections into the same registry, and products and
-// URL paths write as they're edited
+// the storefront filter order and the products (membership and order) stage as their own sections
+// into the same registry, and URL paths write as they're edited
 function CollectionForm({ collection, locale }: { collection: CollectionRecord; locale: string }) {
   const navigate = useNavigate()
   const { has } = usePermissions()
@@ -288,7 +275,7 @@ function CollectionForm({ collection, locale }: { collection: CollectionRecord; 
         </div>
       </DetailPageSection>
 
-      <CollectionProductsSection collection={collection} canManage={canManage} refetchQueries={refetchQueries} />
+      <CollectionProductsSection collection={collection} canManage={canManage} />
 
       <DetailPageSection title="SEO" description="Meta tags and search-engine URL paths." trailing={<Badge variant="outline">{locale}</Badge>}>
         <div className="grid gap-4">
@@ -621,10 +608,6 @@ function CollectionCoverBlock({
   )
 }
 
-// Collection membership - Ordering is meaningful - the storefront renders a
-// collection in this order - so rows carry move up/down alongside remove
-// Writes go straight through (no save-registry staging) because each mutation
-// returns the re-ordered server list, which is the authoritative answer
 /**
  * CollectionFacetOverridesSection - per-collection storefront filter presentation,
  * same drag-and-drop editor and save contract as the category twin
@@ -681,206 +664,4 @@ function CollectionFacetOverridesSection({
   )
 }
 
-function CollectionProductsSection({
-  collection,
-  canManage,
-  refetchQueries,
-}: {
-  collection: CollectionRecord
-  canManage: boolean
-  refetchQueries: CollectionRefetch
-}) {
-  const rows = collection.products
-  const [productId, setProductId] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const { data: pickerData, loading: pickerLoading } = useQuery(
-    CollectionProductPickerDocument,
-    { skip: !canManage, fetchPolicy: 'cache-first' },
-  )
-  // Refetch rather than trusting cache normalization: the mutations return a Collection whose products list is a
-  // different shape from the one the page query asked for, so the cached entity doesn't reliably pick up the change
-  const [addProduct] = useMutation(AddProductToCollectionDocument, { refetchQueries })
-  const [removeProduct] = useMutation(RemoveProductFromCollectionDocument, { refetchQueries })
-  const [reorderProducts] = useMutation(ReorderCollectionProductsDocument, { refetchQueries })
-
-  const options = useMemo<Option[]>(
-    () =>
-      (pickerData?.products ?? [])
-        .filter((p) => !rows.some((r) => r.id === p.id))
-        .map((p) => ({ value: p.id, label: p.name || p.sku || p.id, hint: p.sku ?? undefined })),
-    [pickerData, rows],
-  )
-
-  async function run(fn: () => Promise<unknown>) {
-    setError(null)
-    setBusy(true)
-    try {
-      await fn()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not update the collection.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  // Move by swapping with the neighbour and sending the whole id list, which
-  // is what reorderCollectionProducts expects
-  function move(index: number, delta: number) {
-    const next = rows.map((r) => r.id)
-    const target = index + delta
-    if (target < 0 || target >= next.length) return
-    ;[next[index], next[target]] = [next[target], next[index]]
-    void run(() =>
-      reorderProducts({ variables: { collectionId: collection.id, productIds: next } }),
-    )
-  }
-
-  return (
-    <DetailPageSection
-      title="Products"
-      description="Products in this collection, in the order the storefront shows them."
-    >
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Update failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {canManage && (
-        <div className="grid max-w-2xl grid-cols-[1fr_auto] items-end gap-2">
-          <div className="grid gap-1.5">
-            <Label>Add a product</Label>
-            <AutocompletePicker
-              options={options}
-              value={productId}
-              onChange={(v) => setProductId((v as string) ?? '')}
-              placeholder="Search products…"
-              emptyMessage="No products left to add."
-              loading={pickerLoading}
-            />
-          </div>
-          <Button
-            type="button"
-            disabled={!productId || busy}
-            onClick={() =>
-              void run(async () => {
-                await addProduct({
-                  variables: { collectionId: collection.id, productId },
-                })
-                setProductId('')
-              })
-            }
-          >
-            Add
-          </Button>
-        </div>
-      )}
-
-      {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed bg-muted/20 p-5 text-sm text-muted-foreground">
-          No products are assigned to this collection yet.
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-md border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
-              <tr>
-                <th className="w-12 px-3 py-2 font-medium">#</th>
-                <th className="px-3 py-2 font-medium">Product</th>
-                <th className="px-3 py-2 font-medium">SKU</th>
-                <th className="px-3 py-2 text-right font-medium">Price</th>
-                {canManage && <th className="w-28 px-3 py-2" />}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((product, index) => (
-                <tr key={product.id} className="border-t">
-                  <td className="px-3 py-2 text-muted-foreground tabular-nums">{index + 1}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex min-w-0 items-center gap-3">
-                      {product.thumbnail?.url ? (
-                        <img
-                          src={product.thumbnail.url}
-                          alt={product.thumbnail.altText}
-                          className="size-8 shrink-0 rounded-md border object-cover"
-                        />
-                      ) : (
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-muted/25 text-muted-foreground">
-                          <ShapesIcon className="size-3.5" />
-                        </div>
-                      )}
-                      <Link
-                        to={`/products/${product.id}`}
-                        className="truncate font-medium hover:underline"
-                      >
-                        {resolveProductName(product)}
-                      </Link>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-                    {product.sku ?? '-'}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {formatCents(product.defaultPrice, product.defaultCurrencyCode)}
-                  </td>
-                  {canManage && (
-                    <td className="px-3 py-2">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-7"
-                          title="Move up"
-                          disabled={index === 0 || busy}
-                          onClick={() => move(index, -1)}
-                        >
-                          <ArrowUpIcon className="size-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-7"
-                          title="Move down"
-                          disabled={index === rows.length - 1 || busy}
-                          onClick={() => move(index, 1)}
-                        >
-                          <ArrowDownIcon className="size-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-destructive"
-                          title="Remove from collection"
-                          disabled={busy}
-                          onClick={() =>
-                            void run(() =>
-                              removeProduct({
-                                variables: {
-                                  collectionId: collection.id,
-                                  productId: product.id,
-                                },
-                              }),
-                            )
-                          }
-                        >
-                          <Trash2Icon className="size-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </DetailPageSection>
-  )
-}
 

@@ -13,9 +13,12 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  useDraggable,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
 import {
@@ -49,15 +52,11 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { usePermissions } from '@/shared/auth/usePermissions'
 import { useConfigScope, type ChannelScopeOption } from '@/lib/config-scope'
 import { cn } from '@/lib/utils'
 import { useScrollHideHeader } from '@/lib/use-scroll-hide-header'
-import {
-  AddProductToCategoryDocument,
-  ProductsDocument,
-  RemoveProductFromCategoryDocument,
-} from './Catalog.gql'
 import { FormRichTextEditor, type RichTextValue } from './LexicalRichTextEditor'
 import { TranslationLocales } from '@/components/TranslationLocales'
 import {
@@ -76,7 +75,9 @@ import {
   type CategoryDetailFieldsFragment,
 } from './Categories.gql'
 import { SetCategoryFacetOverridesDocument } from './Categories.gql'
-import type { CategorySummary } from './category-tree'
+import { dropZone, isDescendant, type CategorySummary, type DropZone } from './category-tree'
+import { CategoryProductsSection } from './CategoryProductsSection'
+import { Section } from './CategorySection'
 import { AttributesDocument } from './Catalog.gql'
 import { FacetOverridesEditor } from './FacetOverridesEditor'
 import { sortFacetCandidates, useFacetOverridesDraft } from './facet-overrides-draft'
@@ -279,16 +280,29 @@ export function CategoriesPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   // ── drag state ──
-  const [dropTarget, setDropTarget] = useState<{ id: string; zone: 'before' | 'on' | 'after' } | null>(null)
+  // Structure is global-only, and a filtered tree hides the siblings a drop would reorder against
+  const canDrag = canManage && isGlobal && !search.trim()
+  const [dropTarget, setDropTarget] = useState<{ id: string; zone: DropZone } | null>(null)
 
   function onDragStart({ active }: DragStartEvent) {
     setDragActiveId(active.id as string)
   }
 
+  function onDragMove({ active, over, activatorEvent, delta }: DragMoveEvent) {
+    // Nothing droppable under the pointer, or a drop that would nest a category inside itself
+    if (!over || isDescendant(roots, String(active.id), String(over.id))) {
+      if (dropTarget) setDropTarget(null)
+      return
+    }
+    const startY = activatorEvent instanceof PointerEvent || activatorEvent instanceof MouseEvent ? activatorEvent.clientY : 0
+    const zone = dropZone(startY + delta.y, over.rect.top, over.rect.height)
+    if (dropTarget?.id !== over.id || dropTarget.zone !== zone) setDropTarget({ id: String(over.id), zone })
+  }
+
   async function onDragEnd({ active, over }: DragEndEvent) {
     setDragActiveId(null)
     setDropTarget(null)
-    if (!over || active.id === over.id || !dropTarget) return
+    if (!over || !dropTarget || isDescendant(roots, String(active.id), dropTarget.id)) return
 
     const draggedNode = flat.find((n) => n.id === active.id)
     const targetNode = flat.find((n) => n.id === dropTarget.id)
@@ -299,6 +313,8 @@ export function CategoriesPage() {
         await updateCategory({
           variables: { input: { id: draggedNode.id, parentId: targetNode.id } },
         })
+        // Open the new parent so the moved category is visible where it landed
+        setExpandedIds((prev) => new Set([...prev, targetNode.id]))
       } else {
         const newPosition = dropTarget.zone === 'before' ? targetNode.position : targetNode.position + 1
         await updateCategory({
@@ -313,8 +329,11 @@ export function CategoriesPage() {
         })
       }
       void refetch()
-    } catch {
-      // ignore - tree will stay unchanged
+    } catch (err) {
+      // The tree stays as it was - say so, rather than leaving the admin wondering why nothing moved
+      toast.error(`Could not move ${draggedNode.name}`, {
+        description: err instanceof Error ? err.message : undefined,
+      })
     }
   }
 
@@ -391,6 +410,7 @@ export function CategoriesPage() {
           <DndContext
             sensors={sensors}
             onDragStart={onDragStart}
+            onDragMove={onDragMove}
             onDragEnd={onDragEnd}
             onDragCancel={() => { setDragActiveId(null); setDropTarget(null) }}
           >
@@ -408,8 +428,7 @@ export function CategoriesPage() {
                     dropTarget={dropTarget}
                     onSelect={() => navigate(`/categories/${node.id}`)}
                     onToggle={() => toggleExpand(node.id)}
-                    onDropTargetChange={setDropTarget}
-                    canManage={canManage}
+                    canDrag={canDrag}
                   />
                 ))
               )}
@@ -473,32 +492,6 @@ function EmptyState({ canManage, onNew }: { canManage: boolean; onNew: () => voi
   )
 }
 
-// ─── section helpers ─────────────────────────────────────────────────────────
-
-function Section({
-  title,
-  description,
-  children,
-}: {
-  title: string
-  description?: string
-  children: React.ReactNode
-}) {
-  return (
-    <section className="grid gap-4 px-6 py-6">
-      <div>
-        <h3 className="text-lg font-semibold tracking-tight">
-          <span className="mr-1.5 text-primary">#</span>{title}
-        </h3>
-        {description ? (
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-      <div className="grid gap-4">{children}</div>
-    </section>
-  )
-}
-
 // ─── tree node ───────────────────────────────────────────────────────────────
 
 function TreeNode({
@@ -507,18 +500,18 @@ function TreeNode({
   dropTarget,
   onSelect,
   onToggle,
-  onDropTargetChange,
-  canManage,
+  canDrag,
 }: {
   node: FlatNode
   isSelected: boolean
-  dropTarget: { id: string; zone: 'before' | 'on' | 'after' } | null
+  dropTarget: { id: string; zone: DropZone } | null
   onSelect: () => void
   onToggle: () => void
-  onDropTargetChange: (t: { id: string; zone: 'before' | 'on' | 'after' } | null) => void
-  canManage: boolean
+  canDrag: boolean
 }) {
-  const rowRef = useRef<HTMLDivElement>(null)
+  // The handle drags, the whole row is the drop target - the zone within it comes from the page's onDragMove
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({ id: node.id, disabled: !canDrag })
+  const { setNodeRef: setDropRef } = useDroppable({ id: node.id, disabled: !canDrag })
 
   const isDropBefore = dropTarget?.id === node.id && dropTarget.zone === 'before'
   const isDropOn = dropTarget?.id === node.id && dropTarget.zone === 'on'
@@ -530,7 +523,7 @@ function TreeNode({
         <div className="pointer-events-none absolute left-2 right-2 top-0 h-0.5 -translate-y-1/2 rounded-full bg-primary" />
       ) : null}
       <div
-        ref={rowRef}
+        ref={setDropRef}
         data-node-id={node.id}
         style={{ paddingLeft: `${node.depth * 1.125 + 0.5}rem` }}
         className={`group relative mx-1 flex cursor-pointer items-center gap-1 rounded-md py-1.5 pr-2 text-sm transition-colors
@@ -539,18 +532,9 @@ function TreeNode({
             : 'text-foreground/90 hover:bg-muted/60'
           }
           ${isDropOn ? 'ring-2 ring-inset ring-primary' : ''}
+          ${isDragging ? 'opacity-40' : ''}
         `}
         onClick={onSelect}
-        onDragOver={(e) => {
-          e.preventDefault()
-          if (!rowRef.current) return
-          const rect = rowRef.current.getBoundingClientRect()
-          const y = e.clientY - rect.top
-          const pct = y / rect.height
-          const zone = pct < 0.25 ? 'before' : pct > 0.75 ? 'after' : 'on'
-          onDropTargetChange({ id: node.id, zone })
-        }}
-        onDragLeave={() => onDropTargetChange(null)}
       >
         {/* indent guides */}
         {node.depth > 0
@@ -564,13 +548,15 @@ function TreeNode({
             ))
           : null}
 
-        {canManage ? (
+        {canDrag ? (
           <span
-            className="cursor-grab text-muted-foreground/60 transition-colors hover:text-muted-foreground active:cursor-grabbing"
-            draggable
-            onDragStart={(e) => e.dataTransfer.setData('text/plain', node.id)}
+            ref={setDragRef}
+            {...attributes}
+            {...listeners}
+            className="cursor-grab touch-none text-muted-foreground/60 transition-colors hover:text-muted-foreground active:cursor-grabbing"
             onClick={(e) => e.stopPropagation()}
-            title="Drag to reorder"
+            title="Drag to move"
+            aria-label={`Move ${node.name}`}
           >
             <GripVerticalIcon className="size-3.5 opacity-0 group-hover:opacity-100" />
           </span>
@@ -696,8 +682,6 @@ function CategoryRecordForm({
   // Answers with a Boolean, so the detail is fetched again - the category is normalised, so the tree
   // loses the removed locale too
   const [deleteContent] = useMutation(DeleteCategoryContentDocument, { refetchQueries: detailRefetch, awaitRefetchQueries: true })
-  const [addToCategory] = useMutation(AddProductToCategoryDocument, { refetchQueries: detailRefetch })
-  const [removeFromCategory] = useMutation(RemoveProductFromCategoryDocument, { refetchQueries: detailRefetch })
 
   const [deleting, setDeleting] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -811,10 +795,20 @@ function CategoryRecordForm({
               <div className="flex shrink-0 items-center gap-2">
                 <form.Field name="isPublished">
                   {(f) => (
-                    <label htmlFor="cat-published-header" className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1 text-sm">
-                      <Switch id="cat-published-header" checked={f.state.value} onCheckedChange={f.handleChange} />
-                      <span className={f.state.value ? 'font-medium' : 'text-muted-foreground'}>{f.state.value ? 'Published' : 'Draft'}</span>
-                    </label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <label htmlFor="cat-published-header" className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1 text-sm">
+                          <Switch id="cat-published-header" checked={f.state.value} onCheckedChange={f.handleChange} />
+                          <span className={f.state.value ? 'font-medium' : 'text-muted-foreground'}>
+                            {f.state.value ? 'Published globally' : 'Draft (all stores)'}
+                          </span>
+                        </label>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        A store shows this category only when it is published globally AND listed and published on that
+                        store - see Per-channel availability.
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                 </form.Field>
                 {!isNew ? (
@@ -925,7 +919,12 @@ function CategoryRecordForm({
                 />
               ) : null}
             </Section>
+          </fieldset>
 
+          {/* ── Products ── the section admins work in most, so it sits right under General */}
+          {category ? <CategoryProductsSection category={category} canManage={canManage} /> : null}
+
+          <fieldset disabled={!canManage} className="contents">
             {/* ── Short description ── */}
             <Section title="Short description" description="Brief summary shown in listings.">
               <div className="overflow-hidden rounded-md border">
@@ -995,21 +994,13 @@ function CategoryRecordForm({
           </fieldset>
 
           {/* ── Per-channel availability ── */}
-          {category ? <CategoryAvailabilitySection category={category} globalPublished={values.isPublished} canManage={canManage} /> : null}
+          {category ? (
+            <CategoryAvailabilitySection category={category} canManage={canManage} globalPublished={values.isPublished} />
+          ) : null}
 
           {/* ── Storefront filters ── */}
           {category ? <CategoryFacetOverridesSection category={category} canManage={canManage} /> : null}
 
-          {/* ── Assigned products ── */}
-          {category ? (
-            <AssignedProductsCard
-              categoryId={category.id}
-              products={category.products ?? []}
-              canManage={canManage}
-              onAdd={(productId) => addToCategory({ variables: { productId, categoryId: category.id } })}
-              onRemove={(productId) => removeFromCategory({ variables: { productId, categoryId: category.id } })}
-            />
-          ) : null}
         </div>
 
         {/* ── Delete confirmation ─────────────────────────────── */}
@@ -1061,109 +1052,6 @@ function LengthHint({ length, max }: { length: number; max: number }) {
     <span className={`text-xs tabular-nums ${length > max ? 'text-destructive' : 'text-muted-foreground'}`}>
       {length}/{max}
     </span>
-  )
-}
-
-// ─── assigned products card ───────────────────────────────────────────────────
-
-type ProductItem = { id: string; name?: string | null; sku?: string | null }
-
-function AssignedProductsCard({
-  products,
-  canManage,
-  onAdd,
-  onRemove,
-}: {
-  categoryId: string
-  products: ProductItem[]
-  canManage: boolean
-  onAdd: (productId: string) => Promise<unknown>
-  onRemove: (productId: string) => Promise<unknown>
-}) {
-  const { data: productsData } = useQuery(ProductsDocument, { variables: {} })
-  const allProducts = productsData?.products ?? []
-  const assignedIds = new Set(products.map((p) => p.id))
-  const available = allProducts.filter((p) => !assignedIds.has(p.id))
-
-  const [search, setSearch] = useState('')
-  const [adding, setAdding] = useState(false)
-  const [selectedProductId, setSelectedProductId] = useState('')
-
-  const filtered = available.filter((p) => {
-    const q = search.toLowerCase()
-    return (p.name ?? '').toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q)
-  })
-
-  async function handleAdd() {
-    if (!selectedProductId) return
-    setAdding(true)
-    try {
-      await onAdd(selectedProductId)
-      setSelectedProductId('')
-      setSearch('')
-    } finally {
-      setAdding(false)
-    }
-  }
-
-  return (
-    <Section title={`Products (${products.length})`} description="Products assigned to this category.">
-      {products.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No products assigned to this category.</p>
-      ) : (
-        <ul className="divide-y rounded-md border">
-          {products.map((p) => (
-            <li key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
-              <div className="min-w-0">
-                <p className="truncate font-medium">{p.name ?? p.sku ?? p.id}</p>
-                {p.sku ? <p className="text-xs text-muted-foreground">{p.sku}</p> : null}
-              </div>
-              {canManage ? (
-                <button
-                  type="button"
-                  className="ml-2 shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => onRemove(p.id)}
-                >
-                  <XIcon className="size-4" />
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-      {canManage ? (
-        <div className="grid gap-2">
-          <Label className="text-xs">Add product</Label>
-          <Input
-            placeholder="Search products…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-8 text-xs"
-          />
-          {search && filtered.length > 0 ? (
-            <ul className="scrollbar-accent max-h-40 overflow-y-auto rounded-md border text-xs">
-              {filtered.map((p) => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    className={`flex w-full items-center justify-between px-3 py-2 hover:bg-muted ${selectedProductId === p.id ? 'bg-muted font-medium' : ''}`}
-                    onClick={() => setSelectedProductId(p.id)}
-                  >
-                    <span>{p.name ?? p.sku ?? ''}</span>
-                    {p.sku ? <span className="text-muted-foreground">{p.sku}</span> : null}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {selectedProductId ? (
-            <Button type="button" size="sm" disabled={adding} onClick={handleAdd}>
-              {adding ? 'Adding…' : 'Add selected product'}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-    </Section>
   )
 }
 
@@ -1564,8 +1452,8 @@ function NewCategoryStores({
  */
 function CategoryAvailabilitySection({
   category,
-  globalPublished,
   canManage,
+  globalPublished,
 }: {
   category: {
     id: string
@@ -1578,9 +1466,9 @@ function CategoryAvailabilitySection({
       sortOrderOverride?: number | null
     }[]
   }
+  canManage: boolean
   // The header's staged Published/Draft switch - a Draft hides the category on every store whatever its listings say
   globalPublished: boolean
-  canManage: boolean
 }) {
   const { isChannel, effectiveChannelId, selectedChannel, channels } = useConfigScope()
   // Follows the staged header switch, so the warning appears the moment the save would take the category off every store
@@ -1655,6 +1543,16 @@ function CategoryAvailabilitySection({
     const sortChanged = (parsed ?? null) !== (d.serverListing.sortOrderOverride ?? null)
     if (d.isPublished !== d.serverListing.isPublished || sortChanged) return 'update'
     return null
+  }
+
+  // What a shopper on that store would see once the staged changes are saved - the global flag and
+  // the store's own listing both gate it, and this is the one place the two are read together
+  function storefrontStatus(d: AvailDraft): { label: string; className: string } {
+    const listed = d.pendingRemove ? false : d.serverListing != null || dirtyOp(d) === 'create'
+    if (!listed) return { label: 'Not listed', className: 'text-muted-foreground' }
+    if (!globalPublished) return { label: 'Hidden: global draft', className: 'text-warning' }
+    if (!d.isPublished) return { label: 'Hidden: unpublished here', className: 'text-muted-foreground' }
+    return { label: 'Live', className: 'text-success' }
   }
 
   const dirtyCount = drafts.filter((d) => dirtyOp(d) != null).length
@@ -1766,6 +1664,10 @@ function CategoryAvailabilitySection({
               disabled={!canManage || draft.pendingRemove}
             />
           </div>
+          <p className="text-xs">
+            <span className="text-muted-foreground">On storefront: </span>
+            <span className={cn('font-medium', storefrontStatus(draft).className)}>{storefrontStatus(draft).label}</span>
+          </p>
           <div className="grid gap-1.5">
             <Label htmlFor="cat-sort-override">Sort override</Label>
             <Input
@@ -1818,12 +1720,14 @@ function CategoryAvailabilitySection({
               <th className="px-3 py-2 font-medium">Channel</th>
               <th className="px-3 py-2 font-medium">Published</th>
               <th className="px-3 py-2 font-medium">Sort override</th>
-              <th className="px-3 py-2 font-medium text-right">Status</th>
+              <th className="px-3 py-2 font-medium">On storefront</th>
+              <th className="px-3 py-2 font-medium text-right">Change</th>
             </tr>
           </thead>
           <tbody>
             {drafts.map((d) => {
               const op = dirtyOp(d)
+              const status = storefrontStatus(d)
               return (
                 <tr key={d.channelId} className="border-t">
                   <td className="px-3 py-2">
@@ -1850,6 +1754,7 @@ function CategoryAvailabilitySection({
                       disabled={!canManage || d.pendingRemove}
                     />
                   </td>
+                  <td className={cn('px-3 py-2 text-xs font-medium', status.className)}>{status.label}</td>
                   <td className="px-3 py-2 text-right">
                     {op === 'create' ? (
                       <span className="text-xs text-warning">will create</span>

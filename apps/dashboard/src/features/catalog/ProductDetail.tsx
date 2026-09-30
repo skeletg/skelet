@@ -442,7 +442,6 @@ export function ProductDetail() {
                 <Separator />
                 <ChildrenSection
                   product={product}
-                  productTypeId={product.productType.id}
                   canManage={canManage}
                   embedded
                 />
