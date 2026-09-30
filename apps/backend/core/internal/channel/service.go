@@ -341,6 +341,9 @@ func (s *Service) Update(ctx context.Context, input UpdateChannelInput) (Channel
 		return Channel{}, err
 	}
 	s.invalidate(ctx)
+	if s.bus != nil {
+		s.bus.Publish(ctx, &Updated{ChannelID: sv.ID})
+	}
 	if input.Locales != nil || input.DefaultLocale != nil {
 		s.publishLocalesChanged(ctx, sv.ID)
 	}
