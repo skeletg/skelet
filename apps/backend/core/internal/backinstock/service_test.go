@@ -81,12 +81,27 @@ func TestRecordRequiresChannelProductAndEmail(t *testing.T) { // the request arr
 	}
 }
 
-func TestSendDirectFallsBackToTheChannelURL(t *testing.T) { // the PDP snapshot can be missing, and a mail with an empty href is a dead end for a shopper who asked to be told
+func TestRecordRefusesAnythingButABareAddress(t *testing.T) { // what isn't a mailbox only bounces, and every bounce costs the store's sending reputation
+	ch, pid := uuid.New(), uuid.New()
+	for _, bad := range []string{"not-an-email", "a@", "@b.test", "Name <a@b.test>", "a@b.test, c@d.test"} {
+		var err error
+		noDBWork(t, bad, func() {
+			err = noDBService().Record(context.Background(), Request{ChannelID: ch, ProductID: pid, Email: bad})
+		})
+		if !errors.Is(err, ErrInvalidEmail) {
+			t.Errorf("%q: err = %v, want ErrInvalidEmail", bad, err)
+		}
+	}
+}
+
+func TestSendDirectFallsBackToTheChannelURL(t *testing.T) { // a listing can have no product path, and a mail with an empty href is a dead end for a shopper who asked to be told
 	sender := &captureSender{}
 	s := &Service{sender: sender}
 	ch := channel.Channel{ID: uuid.New(), Name: "Vetrina", PublicURL: "https://shop.test/"}
 
-	s.sendDirect(context.Background(), "buyer@test", "", "", "", ch)
+	if err := s.sendDirect(context.Background(), "buyer@test", "", "", "", ch); err != nil {
+		t.Fatal(err)
+	}
 	if len(sender.sent) != 1 {
 		t.Fatalf("%d messages sent, want 1", len(sender.sent))
 	}
@@ -108,12 +123,14 @@ func TestSendDirectFallsBackToTheChannelURL(t *testing.T) { // the PDP snapshot 
 	}
 }
 
-func TestSendDirectCarriesTheProductSnapshot(t *testing.T) {
+func TestSendDirectCarriesTheProductDetails(t *testing.T) {
 	sender := &captureSender{}
 	s := &Service{sender: sender}
 	ch := channel.Channel{ID: uuid.New(), Name: "Vetrina", PublicURL: "https://shop.test"}
 
-	s.sendDirect(context.Background(), "buyer@test", "Winter Tire 205/55", "https://cdn.test/t.webp", "https://shop.test/p/tire", ch)
+	if err := s.sendDirect(context.Background(), "buyer@test", "Winter Tire 205/55", "https://cdn.test/t.webp", "https://shop.test/p/tire", ch); err != nil {
+		t.Fatal(err)
+	}
 	msg := sender.sent[0]
 
 	for _, want := range []string{"Winter Tire 205/55", "https://cdn.test/t.webp", "https://shop.test/p/tire"} {
@@ -135,16 +152,20 @@ func TestSendDirectCarriesTheProductSnapshot(t *testing.T) {
 func TestSendDirectOmitsTheImageBlockWhenThereIsNone(t *testing.T) { // an img with an empty src renders as a broken-image icon in most clients
 	sender := &captureSender{}
 	s := &Service{sender: sender}
-	s.sendDirect(context.Background(), "buyer@test", "A Tire", "", "https://shop.test/p", channel.Channel{})
+	if err := s.sendDirect(context.Background(), "buyer@test", "A Tire", "", "https://shop.test/p", channel.Channel{}); err != nil {
+		t.Fatal(err)
+	}
 	if strings.Contains(sender.sent[0].HTMLBody, "<img") {
 		t.Errorf("an img tag was rendered with no image:\n%s", sender.sent[0].HTMLBody)
 	}
 }
 
-func TestSendDirectEscapesTheProductName(t *testing.T) { // the name is a snapshot taken from a storefront request, so it reaches the mail body as untrusted text
+func TestSendDirectEscapesTheProductName(t *testing.T) { // the name is admin-entered catalog content, so it reaches the mail body as text, never markup
 	sender := &captureSender{}
 	s := &Service{sender: sender}
-	s.sendDirect(context.Background(), "buyer@test", `<script>alert("x")</script>&`, "https://cdn.test/i.png", "https://shop.test/p", channel.Channel{})
+	if err := s.sendDirect(context.Background(), "buyer@test", `<script>alert("x")</script>&`, "https://cdn.test/i.png", "https://shop.test/p", channel.Channel{}); err != nil {
+		t.Fatal(err)
+	}
 
 	html := sender.sent[0].HTMLBody
 	if strings.Contains(html, "<script>") {
@@ -157,12 +178,14 @@ func TestSendDirectEscapesTheProductName(t *testing.T) { // the name is a snapsh
 	}
 }
 
-func TestSendDirectEscapesTheImageAndLink(t *testing.T) { // both come off the public storefront request the same way the name does, and unescaped they break out of the src and href attributes
+func TestSendDirectEscapesTheImageAndLink(t *testing.T) { // both come from catalog data the same way the name does, and unescaped they break out of the src and href attributes
 	sender := &captureSender{}
 	s := &Service{sender: sender}
-	s.sendDirect(context.Background(), "buyer@test", "A Tire",
+	if err := s.sendDirect(context.Background(), "buyer@test", "A Tire",
 		`https://cdn.test/i.png" onerror="alert(1)`,
-		`https://shop.test/p"><script>alert(1)</script>`, channel.Channel{})
+		`https://shop.test/p"><script>alert(1)</script>`, channel.Channel{}); err != nil {
+		t.Fatal(err)
+	}
 
 	html := sender.sent[0].HTMLBody
 	if strings.Contains(html, `png" onerror`) { // the quote is what breaks out - the word itself is harmless once it is escaped
@@ -179,7 +202,9 @@ func TestSendDirectEscapesTheImageAndLink(t *testing.T) { // both come off the p
 func TestSendDirectKeepsAQueryStringUsable(t *testing.T) { // escaping is in an HTML attribute, so & has to become &amp; and still resolve to the same link in a mail client
 	sender := &captureSender{}
 	s := &Service{sender: sender}
-	s.sendDirect(context.Background(), "buyer@test", "A Tire", "", "https://shop.test/p?a=1&b=2", channel.Channel{})
+	if err := s.sendDirect(context.Background(), "buyer@test", "A Tire", "", "https://shop.test/p?a=1&b=2", channel.Channel{}); err != nil {
+		t.Fatal(err)
+	}
 
 	html := sender.sent[0].HTMLBody
 	if !strings.Contains(html, "https://shop.test/p?a=1&amp;b=2") {
@@ -190,10 +215,13 @@ func TestSendDirectKeepsAQueryStringUsable(t *testing.T) { // escaping is in an 
 	}
 }
 
-func TestSendDirectSwallowsASenderFailure(t *testing.T) { // it runs inside an inventory event handler, and one bad address must not abort the rest of the waiting list
-	sender := &captureSender{err: errors.New("smtp refused")}
+func TestSendDirectReportsASenderFailure(t *testing.T) { // the caller puts that request back to waiting, so the failure has to reach it
+	boom := errors.New("smtp refused")
+	sender := &captureSender{err: boom}
 	s := &Service{sender: sender}
-	s.sendDirect(context.Background(), "buyer@test", "A Tire", "", "https://shop.test/p", channel.Channel{})
+	if err := s.sendDirect(context.Background(), "buyer@test", "A Tire", "", "https://shop.test/p", channel.Channel{}); !errors.Is(err, boom) {
+		t.Errorf("err = %v, want the sender's failure", err)
+	}
 	if len(sender.sent) != 1 {
 		t.Errorf("%d send attempts, want the one attempt made", len(sender.sent))
 	}
