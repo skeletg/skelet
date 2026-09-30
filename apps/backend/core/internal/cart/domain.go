@@ -21,6 +21,20 @@ var ErrCartNotActive = errors.New("cart is no longer active")
 
 var ErrCartLineNotFound = errors.New("cart line not found")
 
+var ErrCartNotFound = errors.New("cart not found") // admin console only - the storefront answers ErrCartForbidden for both
+
+var ErrQuantityInvalid = errors.New("quantity must be a positive number")
+
+var ErrSavedItemNotFound = errors.New("saved item not found")
+
+var ErrLineNotSaveable = errors.New("bundle and configured items can't be saved for later yet")
+
+var ErrDuplicateOntoSource = errors.New("a cart can't be duplicated onto itself")
+
+var ErrCartEmailInvalid = errors.New("a valid email is required")
+
+var ErrCartNoteTooLong = errors.New("the note is too long")
+
 var ErrCartStoreMismatch = errors.New("cart store mismatch")
 
 var ErrQuantityOutOfBounds = errors.New("quantity outside the allowed range for this product")
@@ -59,8 +73,8 @@ type ProductResolver interface {
 	ResolveProductOptions(ctx context.Context, channelID uuid.UUID, sku string, customerID *uuid.UUID) (ProductOptionsResolution, error) // customerID scopes pricing to B2B contract prices and customer-group tiers - nil for guests
 }
 
-type FileAssetResolver interface { // resolving also confirms the upload actually landed
-	ResolveFileAsset(ctx context.Context, id uuid.UUID) (FileAsset, error)
+type FileAssetResolver interface { // resolving also confirms the upload actually landed, and that it was uploaded for this product
+	ResolveFileAsset(ctx context.Context, productID, id uuid.UUID) (FileAsset, error)
 }
 
 // Copied onto the line at add time so the client can't tamper with name or price
@@ -153,7 +167,7 @@ type AddConfiguredToCartInput struct { // re-adding the same SKU replaces the co
 	Options    []CartLineOptionInput
 }
 
-// Quantity is per-bundle-unit, multiplied by the parent at reservation - the option and selection ids are snapshots rather than FKs, so editing the bundle later can't break the line
+// Quantity is the line's total (per-bundle quantity times the line quantity), read as-is at reservation - the option and selection ids are snapshots rather than FKs, so editing the bundle later can't break the line
 type CartLineComponent struct {
 	ID                uuid.UUID
 	CartLineID        uuid.UUID
@@ -223,6 +237,7 @@ type Repository interface {
 	UpsertConfiguredCartLine(ctx context.Context, cartID uuid.UUID, input AddConfiguredLineInput) (CartLine, error) // REPLACES quantity and unit_price, and replaces the option rows in place
 	UpdateCartLineQuantity(ctx context.Context, lineID uuid.UUID, quantity float64) (CartLine, error)
 	UpdateCartLineQuantityPrice(ctx context.Context, lineID uuid.UUID, quantity float64, unitPrice int64) (CartLine, error)
+	SetBundleLineQuantity(ctx context.Context, lineID uuid.UUID, quantity float64) error // rescales the component rows with the line
 	RemoveCartLine(ctx context.Context, lineID uuid.UUID) error
 	ClearCartLines(ctx context.Context, cartID uuid.UUID) error
 	ConvertCart(ctx context.Context, cartID uuid.UUID) error
@@ -242,7 +257,7 @@ type Repository interface {
 
 	SaveItem(ctx context.Context, cartID uuid.UUID, sku, name string, qty float64) (SavedItem, error)
 	GetSavedItem(ctx context.Context, id uuid.UUID) (SavedItem, error)
-	DeleteSavedItem(ctx context.Context, id, cartID uuid.UUID) error
+	DeleteSavedItem(ctx context.Context, id, cartID uuid.UUID) (bool, error) // false when nothing was there to delete
 	ListSavedItems(ctx context.Context, cartID uuid.UUID) ([]SavedItem, error)
 
 	WithTx(tx *sql.Tx) Repository

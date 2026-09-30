@@ -156,7 +156,7 @@ func (r *queryResolver) Carts(ctx context.Context, channelID string, customerID 
 		Offset:     0,
 	}
 	if limit != nil && *limit > 0 {
-		f.Limit = *limit
+		f.Limit = min(*limit, maxCartListLimit)
 	}
 	if offset != nil && *offset > 0 {
 		f.Offset = *offset

@@ -72,9 +72,12 @@ func (f fakeRepo) SaveItem(context.Context, uuid.UUID, string, string, float64) 
 func (f fakeRepo) GetSavedItem(context.Context, uuid.UUID) (SavedItem, error) {
 	return SavedItem{}, nil
 }
-func (f fakeRepo) DeleteSavedItem(context.Context, uuid.UUID, uuid.UUID) error    { return nil }
-func (f fakeRepo) ListSavedItems(context.Context, uuid.UUID) ([]SavedItem, error) { return nil, nil }
-func (f fakeRepo) WithTx(*sql.Tx) Repository                                      { return f }
+func (f fakeRepo) DeleteSavedItem(context.Context, uuid.UUID, uuid.UUID) (bool, error) {
+	return false, nil
+}
+func (f fakeRepo) SetBundleLineQuantity(context.Context, uuid.UUID, float64) error { return nil }
+func (f fakeRepo) ListSavedItems(context.Context, uuid.UUID) ([]SavedItem, error)  { return nil, nil }
+func (f fakeRepo) WithTx(*sql.Tx) Repository                                       { return f }
 
 func ptr(u uuid.UUID) *uuid.UUID { return &u }
 

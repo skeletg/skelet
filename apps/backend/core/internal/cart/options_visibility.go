@@ -71,7 +71,6 @@ func pickCarriesValue(in CartLineOptionInput) bool { // drives "filled", and dec
 
 func evalVisibilityGroup(g OptionVisibilityGroup, picks optionPicks) bool { // empty logic means "and"
 	or := g.Logic == "or"
-	matched := false
 	for _, r := range g.Rules {
 		ok := evalVisibilityRule(r, picks)
 		if or && ok {
@@ -80,7 +79,6 @@ func evalVisibilityGroup(g OptionVisibilityGroup, picks optionPicks) bool { // e
 		if !or && !ok {
 			return false
 		}
-		matched = true
 	}
 	for _, sub := range g.Groups {
 		ok := evalVisibilityGroup(sub, picks)
@@ -90,13 +88,8 @@ func evalVisibilityGroup(g OptionVisibilityGroup, picks optionPicks) bool { // e
 		if !or && !ok {
 			return false
 		}
-		matched = true
 	}
-	if or {
-		return false
-	}
-	_ = matched // "and" over nothing - validation forbids empty groups, but one that slips through is always-true rather than hidden forever
-	return true
+	return !or // "and" over nothing - validation forbids empty groups, but one that slips through is always-true rather than hidden forever
 }
 
 func evalVisibilityRule(r OptionVisibilityRule, picks optionPicks) bool { // a hidden or unfilled parent has no picks, so filled and anyOf are false while empty and noneOf are true
