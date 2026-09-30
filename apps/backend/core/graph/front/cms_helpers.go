@@ -336,9 +336,8 @@ func preparedCMSBody(raw json.RawMessage, snippets blockkit.SnippetResolver, cus
 	if !ok {
 		return raw
 	}
-	prepared := blockkit.PrepareForFront(doc, snippets, custom, links, assets, forms)
 	// Blocks hidden by schedule/segment for this viewer drop and the survivors lose their audience info - device rules ride through for client CSS
-	prepared = blockkit.FilterServerSide(prepared, ec)
+	prepared := blockkit.ForFront(doc, ec, snippets, custom, links, assets, forms)
 	out, err := json.Marshal(prepared)
 	if err != nil {
 		return raw
