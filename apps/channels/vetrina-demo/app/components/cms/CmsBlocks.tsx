@@ -79,40 +79,40 @@ function deviceVisibilityClass(props: Record<string, unknown>): string {
   return ""; // both / neither → always
 }
 
-export async function CmsBlocks({
+// Each block renders as an element, never a direct call - a renderer calling a hook (useTranslations) inside an
+// awaited call is React's "Expected a suspended thenable", which hangs the whole page with no boundary above it
+export function CmsBlocks({
   blocks,
   selectable = false,
 }: {
   blocks: Block[];
   selectable?: boolean;
 }) {
-  const rendered = await Promise.all(
-    blocks.map(async (block) => {
-      const Renderer = REGISTRY[block.type];
-      if (!Renderer) return null;
-      const node = await Renderer({ block });
-      const viewEvent = typeof block.props?.viewEvent === "string" ? block.props.viewEvent : "";
-      const inner = viewEvent ? <TrackView event={viewEvent}>{node}</TrackView> : node;
-      // Per-block DEVICE visibility (the schedule/segment rules are applied server-side
-      // before render; only the device hint reaches us)
-      const deviceCls = deviceVisibilityClass(block.props);
-      if (!selectable) {
-        return (
-          <div key={block.id} className={deviceCls || undefined}>
-            {inner}
-          </div>
-        );
-      }
+  const rendered = blocks.map((block) => {
+    const Renderer = REGISTRY[block.type];
+    if (!Renderer) return null;
+    const node = <Renderer block={block} />;
+    const viewEvent = typeof block.props?.viewEvent === "string" ? block.props.viewEvent : "";
+    const inner = viewEvent ? <TrackView event={viewEvent}>{node}</TrackView> : node;
+    // Per-block DEVICE visibility (the schedule/segment rules are applied server-side
+    // before render; only the device hint reaches us)
+    const deviceCls = deviceVisibilityClass(block.props);
+    if (!selectable) {
       return (
-        <div
-          key={block.id}
-          data-block-id={block.id}
-          className={`group/cms relative cursor-pointer outline-offset-[-2px] transition-[outline] hover:outline hover:outline-2 hover:outline-sky-400 ${deviceCls}`}
-        >
+        <div key={block.id} className={deviceCls || undefined}>
           {inner}
         </div>
       );
-    }),
-  );
+    }
+    return (
+      <div
+        key={block.id}
+        data-block-id={block.id}
+        className={`group/cms relative cursor-pointer outline-offset-[-2px] transition-[outline] hover:outline hover:outline-2 hover:outline-sky-400 ${deviceCls}`}
+      >
+        {inner}
+      </div>
+    );
+  });
   return <>{rendered}</>;
 }
