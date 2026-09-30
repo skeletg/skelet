@@ -12,9 +12,10 @@ import (
 const (
 	maxKeyLen     = 128
 	maxValueBytes = 32 << 10 // preferences are UI state, not documents - 32KB catches a runaway payload
+	maxKeys       = 256      // the dashboard writes a few fixed keys plus one per list page; any admin can write, so this bounds what one can store
 )
 
-// Lowercase namespaced keys like "table:catalog.products", "views:/orders", "nav:pins"
+// Namespaced keys that start lowercase, like "table:catalog.products", "views:/orders", "notif:mutedCategories"
 var keyPattern = regexp.MustCompile(`^[a-z0-9][a-zA-Z0-9:./_-]*$`)
 
 type Service struct {
@@ -29,7 +30,7 @@ func (s *Service) List(ctx context.Context, adminID uuid.UUID) ([]Preference, er
 	return s.repo.List(ctx, adminID)
 }
 
-// Strings reads a preference the dashboard stores as a JSON array of strings, for the server-side consumers of a client-owned blob (the inbox's muted categories) A missing key and a value the client wrote in some other shape both read as none: these are opaque UI blobs, and one hand-edited entry must not take a feature down
+// Strings reads a preference the dashboard stores as a JSON array of strings, for the server-side consumers of a client-owned blob (the inbox's muted categories). A missing key and a value the client wrote in some other shape both read as none: these are opaque UI blobs, and one hand-edited entry must not take a feature down
 func (s *Service) Strings(ctx context.Context, adminID uuid.UUID, key string) ([]string, error) {
 	raw, err := s.repo.Get(ctx, adminID, key)
 	if err != nil || len(raw) == 0 {
@@ -56,6 +57,13 @@ func (s *Service) Set(ctx context.Context, adminID uuid.UUID, key string, value 
 	}
 	if len(raw) > maxValueBytes {
 		return fmt.Errorf("preference value too large")
+	}
+	others, err := s.repo.CountOthers(ctx, adminID, key)
+	if err != nil {
+		return err
+	}
+	if others >= maxKeys {
+		return fmt.Errorf("too many preferences - clear some before saving new ones")
 	}
 	return s.repo.Set(ctx, adminID, key, raw)
 }
