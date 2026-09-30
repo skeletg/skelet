@@ -8,10 +8,28 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
+
+const adminSessionExists = `-- name: AdminSessionExists :one
+SELECT EXISTS (SELECT 1 FROM admin_sessions WHERE id = $1 AND admin_id = $2)
+`
+
+type AdminSessionExistsParams struct {
+	ID      uuid.UUID `json:"id"`
+	AdminID uuid.UUID `json:"admin_id"`
+}
+
+// The per-request session guard - one indexed lookup instead of listing every session the admin has
+func (q *Queries) AdminSessionExists(ctx context.Context, arg AdminSessionExistsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, adminSessionExists, arg.ID, arg.AdminID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
 
 const createAdminSession = `-- name: CreateAdminSession :one
 INSERT INTO admin_sessions (admin_id, token_hash, ip_address, user_agent)
@@ -162,4 +180,17 @@ func (q *Queries) ListAdminSessionsByAdminID(ctx context.Context, adminID uuid.U
 		return nil, err
 	}
 	return items, nil
+}
+
+const pruneStaleAdminSessions = `-- name: PruneStaleAdminSessions :execrows
+DELETE FROM admin_sessions WHERE last_active_at < $1::timestamptz
+`
+
+// A session untouched for longer than a refresh token lives can never be refreshed again - admins who close the tab instead of logging out leave these behind
+func (q *Queries) PruneStaleAdminSessions(ctx context.Context, cutoff time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneStaleAdminSessions, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

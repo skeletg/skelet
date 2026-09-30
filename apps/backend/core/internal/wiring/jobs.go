@@ -13,6 +13,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audit"
+	"github.com/skeletg/skelet/apps/backend/core/internal/authstore"
 	"github.com/skeletg/skelet/apps/backend/core/internal/blog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
@@ -249,19 +250,15 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 			}
 			return runBrowseAbandonment(ctx, channels, d.Config, d.SignalsClient, d.Queries, d.Flows, time.Now())
 		})
-	// Postgres has no TTL, so the auth-token fallback tables need sweeping - always registered - expiry is enforced on read anyway, this just reclaims space and no-ops when Valkey holds the tokens (tables stay empty)
-	jobScheduler.Register("auth-token-prune", "@every 1h", "Delete expired rows from the Postgres auth-token fallback tables (no-op when Valkey is configured).",
+	// Always registered: the Postgres token tables stay empty when Valkey holds the tokens, but admin sessions live in Postgres either way
+	jobScheduler.Register("auth-token-prune", "@every 1h", "Delete expired auth tokens, lapsed refresh successors and admin sessions whose refresh token can no longer be used.",
 		func(ctx context.Context) error {
-			n, err := d.Queries.PruneExpiredAuthTokens(ctx)
+			c, err := authstore.Prune(ctx, d.Queries, time.Now())
 			if err != nil {
-				return fmt.Errorf("prune auth tokens: %w", err)
+				return err
 			}
-			m, err := d.Queries.PruneExpiredRefreshTokens(ctx, time.Now().Add(-24*time.Hour)) // rotated rows outlive their expiry until the reuse window lapses, so a replay of a token that expired after rotation still trips the tripwire
-			if err != nil {
-				return fmt.Errorf("prune refresh tokens: %w", err)
-			}
-			if n+m > 0 {
-				slog.Info("auth token prune", "auth_tokens", n, "refresh_tokens", m)
+			if c.Total() > 0 {
+				slog.Info("auth token prune", "auth_tokens", c.AuthTokens, "refresh_tokens", c.RefreshTokens, "successors", c.Successors, "admin_sessions", c.Sessions)
 			}
 			return nil
 		})
