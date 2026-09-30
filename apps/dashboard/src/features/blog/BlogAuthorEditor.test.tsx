@@ -22,6 +22,7 @@ const author = {
   slug: 'jane-doe',
   displayName: 'Jane Doe',
   email: 'jane@example.com',
+  emailPublic: false,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
   content: row,
@@ -57,10 +58,38 @@ describe('BlogAuthorEditor', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply 2 changes/ }))
 
     await screen.findByText('taxonomy', {}, SLOW)
-    expect(writes.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1', slug: null, email: null, clearEmail: true }))
+    expect(writes.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1', slug: null, email: null, clearEmail: true, emailPublic: false }))
     const upsert = writes.upsert.mock.calls[0][0]
     expect(upsert).toMatchObject({ authorId: 'a1', locale: 'en', name: 'Jane Doe' })
     expect(bioToText(upsert.bio)).toBe('Writes about Rust.')
+  })
+
+  it('publishes the email only when the switch is turned on', async () => {
+    const writes = { update: vi.fn(), upsert: vi.fn() }
+    renderPage({
+      path: '/blog/authors/a1',
+      routes: { '/blog/authors/:id': <BlogAuthorEditor />, '/blog/taxonomy': <p>taxonomy</p> },
+      mocks: [
+        meMock(),
+        { request: { query: BlogAuthorDocument, variables: { id: 'a1' } }, result: { data: { blogAuthor: author } }, maxUsageCount: 3 },
+        { request: { query: UpdateBlogAuthorDocument, variables: captureInput(writes.update) }, result: { data: { updateBlogAuthor: author } } },
+        {
+          request: { query: UpsertBlogAuthorContentDocument, variables: captureInput(writes.upsert) },
+          result: { data: { upsertBlogAuthorContent: author } },
+        },
+        { request: { query: BlogAuthorsDocument }, result: { data: { blogAuthors: [] } }, maxUsageCount: 5 },
+      ],
+    })
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Show email publicly' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Save changes' }))
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('Email shown publicly')).toBeDefined()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Apply 1 change/ }))
+
+    await screen.findByText('taxonomy', {}, SLOW)
+    expect(writes.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1', email: 'jane@example.com', emailPublic: true }))
   })
 
   it('sends an untouched bio back as stored, formatting included', async () => {

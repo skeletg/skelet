@@ -140,6 +140,7 @@ export type BlogAuthor = {
   content?: Maybe<BlogAuthorContent>;
   displayName: Scalars['String']['output'];
   id: Scalars['ID']['output'];
+  publicEmail?: Maybe<Scalars['String']['output']>;
   slug: Scalars['String']['output'];
 };
 

@@ -9,6 +9,14 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/blog"
 )
 
+// The address an author chose to publish, nothing for anyone who didn't
+func (r *blogAuthorResolver) PublicEmail(ctx context.Context, obj *model.BlogAuthor) (*string, error) {
+	if obj == nil || !obj.EmailPublic || obj.Email == nil || *obj.Email == "" {
+		return nil, nil
+	}
+	return obj.Email, nil
+}
+
 func (r *queryResolver) BlogPost(ctx context.Context, slug *string, id *string) (*model.BlogPost, error) {
 	loc := r.activeLocale(ctx)
 	storeID := channelIDFromContext(ctx)
@@ -269,3 +277,7 @@ func (r *queryResolver) SearchBlogPosts(ctx context.Context, query string, limit
 	}
 	return &model1.BlogPostSearchResult{Items: items, TotalCount: int32(total)}, nil
 }
+
+func (r *Resolver) BlogAuthor() BlogAuthorResolver { return &blogAuthorResolver{r} }
+
+type blogAuthorResolver struct{ *Resolver }

@@ -49,6 +49,7 @@ type Author struct {
 	Slug          string
 	DisplayName   string
 	Email         *string
+	EmailPublic   bool // the email shows on the storefront only when the author opted in
 	AvatarAssetID *uuid.UUID
 	LinkedAdminID *uuid.UUID
 	Metadata      Metadata
@@ -69,6 +70,7 @@ type CreateAuthorInput struct {
 	Slug          string
 	DisplayName   string
 	Email         *string
+	EmailPublic   bool
 	AvatarAssetID *uuid.UUID
 	LinkedAdminID *uuid.UUID
 	Metadata      Metadata
@@ -83,6 +85,7 @@ type UpdateAuthorInput struct {
 	DisplayName   *string
 	Email         *string
 	ClearEmail    bool
+	EmailPublic   *bool
 	AvatarAssetID *uuid.UUID
 	ClearAvatar   bool
 	LinkedAdminID *uuid.UUID

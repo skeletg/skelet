@@ -449,6 +449,7 @@ type BlogAuthor struct {
 	Slug        string               `json:"slug"`
 	DisplayName string               `json:"displayName"`
 	Email       *string              `json:"email,omitempty"`
+	EmailPublic bool                 `json:"emailPublic"`
 	AvatarAsset *MediaAsset          `json:"avatarAsset,omitempty"`
 	LinkedAdmin *AdminUser           `json:"linkedAdmin,omitempty"`
 	Metadata    []*MetadataItem      `json:"metadata"`
@@ -1248,6 +1249,7 @@ type CreateBlogAuthorInput struct {
 	Slug          string           `json:"slug"`
 	DisplayName   string           `json:"displayName"`
 	Email         *string          `json:"email,omitempty"`
+	EmailPublic   *bool            `json:"emailPublic,omitempty"`
 	AvatarAssetID *string          `json:"avatarAssetId,omitempty"`
 	LinkedAdminID *string          `json:"linkedAdminId,omitempty"`
 	Metadata      []*MetadataInput `json:"metadata,omitempty"`
@@ -4718,6 +4720,7 @@ type UpdateBlogAuthorInput struct {
 	DisplayName      *string          `json:"displayName,omitempty"`
 	Email            *string          `json:"email,omitempty"`
 	ClearEmail       *bool            `json:"clearEmail,omitempty"`
+	EmailPublic      *bool            `json:"emailPublic,omitempty"`
 	AvatarAssetID    *string          `json:"avatarAssetId,omitempty"`
 	ClearAvatar      *bool            `json:"clearAvatar,omitempty"`
 	LinkedAdminID    *string          `json:"linkedAdminId,omitempty"`

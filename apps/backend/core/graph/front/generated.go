@@ -30,6 +30,7 @@ func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
 type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
+	BlogAuthor() BlogAuthorResolver
 	CMSPage() CMSPageResolver
 	Category() CategoryResolver
 	Channel() ChannelResolver
@@ -118,6 +119,7 @@ type ComplexityRoot struct {
 		Content     func(childComplexity int) int
 		DisplayName func(childComplexity int) int
 		ID          func(childComplexity int) int
+		PublicEmail func(childComplexity int) int
 		Slug        func(childComplexity int) int
 	}
 
@@ -1269,6 +1271,9 @@ type ComplexityRoot struct {
 
 // region    ************************** generated!.gotpl **************************
 
+type BlogAuthorResolver interface {
+	PublicEmail(ctx context.Context, obj *model.BlogAuthor) (*string, error)
+}
 type CMSPageResolver interface {
 	OgImage(ctx context.Context, obj *model.CMSPage) (*string, error)
 	CanonicalURL(ctx context.Context, obj *model.CMSPage) (*string, error)
@@ -1803,6 +1808,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BlogAuthor.ID(childComplexity), true
+	case "BlogAuthor.publicEmail":
+		if e.ComplexityRoot.BlogAuthor.PublicEmail == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BlogAuthor.PublicEmail(childComplexity), true
 	case "BlogAuthor.slug":
 		if e.ComplexityRoot.BlogAuthor.Slug == nil {
 			break
@@ -7412,6 +7423,8 @@ type BlogAuthor {
   id:           ID!
   slug:         String!
   displayName:  String!
+  # Only for authors who chose to publish their email - null otherwise
+  publicEmail:  String
   content:      BlogAuthorContent
 }
 
@@ -9572,6 +9585,8 @@ func (ec *executionContext) childFields_BlogAuthor(ctx context.Context, field gr
 		return ec.fieldContext_BlogAuthor_slug(ctx, field)
 	case "displayName":
 		return ec.fieldContext_BlogAuthor_displayName(ctx, field)
+	case "publicEmail":
+		return ec.fieldContext_BlogAuthor_publicEmail(ctx, field)
 	case "content":
 		return ec.fieldContext_BlogAuthor_content(ctx, field)
 	}
@@ -14930,6 +14945,29 @@ func (ec *executionContext) _BlogAuthor_displayName(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_BlogAuthor_displayName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BlogAuthor", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BlogAuthor_publicEmail(ctx context.Context, field graphql.CollectedField, obj *model.BlogAuthor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BlogAuthor_publicEmail(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.BlogAuthor().PublicEmail(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_BlogAuthor_publicEmail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BlogAuthor", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _BlogAuthor_content(ctx context.Context, field graphql.CollectedField, obj *model.BlogAuthor) (ret graphql.Marshaler) {
@@ -39429,22 +39467,60 @@ func (ec *executionContext) _BlogAuthor(ctx context.Context, sel ast.SelectionSe
 		case "id":
 			out.Values[i] = ec._BlogAuthor_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "slug":
 			out.Values[i] = ec._BlogAuthor_slug(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "displayName":
 			out.Values[i] = ec._BlogAuthor_displayName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "publicEmail":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._BlogAuthor_publicEmail(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "content":
 			out.Values[i] = ec._BlogAuthor_content(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
