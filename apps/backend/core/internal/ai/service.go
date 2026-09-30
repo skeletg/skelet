@@ -1,4 +1,8 @@
-// Package ai is a thin, provider-pluggable LLM client for the CMS content assistant - SEO meta, image alt-text, structure-preserving page translation - and it is SUGGESTION-ONLY, since callers drop results into editable fields a human reviews and saves Ships dark: disabled by default and a no-op until an operator picks a provider and sets a key, with AI_ENABLED=false as the hard kill switch above the DB config that also hides every dashboard AI surface and skips the AI scheduler jobs and review-classify subscriber Two providers hand-rolled over net/http, no SDK: "anthropic" for the Claude Messages API, "openai" for any OpenAI-compatible Chat Completions endpoint (Azure, Gemini's OpenAI endpoint, OpenRouter, Groq, Together, local Ollama / LM Studio / vLLM), selected by base_url
+// Package ai is a thin, provider-pluggable LLM client for the CMS content assistant - SEO meta, image alt-text, structure-preserving page translation - and it is SUGGESTION-ONLY, since callers drop results into editable fields a human reviews and saves.
+//
+// It ships dark: disabled by default and a no-op until an operator picks a provider and sets a key, with AI_ENABLED=false as the hard kill switch above the DB config that also hides every dashboard AI surface and skips the AI scheduler jobs and review-classify subscriber.
+//
+// Two providers are hand-rolled over net/http, no SDK: "anthropic" for the Claude Messages API, "openai" for any OpenAI-compatible Chat Completions endpoint (Azure, Gemini's OpenAI endpoint, OpenRouter, Groq, Together, local Ollama / LM Studio / vLLM), selected by base_url.
 package ai
 
 import (
@@ -24,10 +28,18 @@ var ErrNotConfigured = errors.New("ai: not configured (enable AI and set a provi
 
 var ErrDisabled = errors.New("ai: disabled on this server (AI_ENABLED=false)") // unlike ErrNotConfigured, an operator can't fix this from the admin UI
 
+var ErrTruncated = errors.New("ai: the reply hit its length limit before it finished") // a cut-off reply is never handed back as if it were whole
+
+var ErrRefused = errors.New("ai: the model declined this request")
+
 const (
 	anthropicVersion = "2023-06-01"
 	maxBodyChars     = 6000    // cost guard on page text fed to the model
 	maxImageBytes    = 5 << 20 // 5 MiB - common per-image ceiling
+	maxErrorSnippet  = 1000    // characters of a provider error body kept in the error - enough for "invalid x-api-key", not a whole HTML page
+
+	// Thinking counts toward max_tokens on the models that always think, so a budget sized for a 300-token reply would be spent before the reply started
+	thinkingMaxTokens = 16000
 )
 
 // The slice of *config.Service this package needs - enabled flag, provider, decrypted API key, model and base URL are all read at request time, so the admin UI can change them without a redeploy
@@ -53,7 +65,7 @@ func NewService(cfg ConfigReader) *Service {
 	}
 	return &Service{
 		cfg:        cfg,
-		http:       &http.Client{Timeout: 60 * time.Second, Transport: otelx.HTTPTransport(webhook.SafeTransport(allowPrivate))},
+		http:       &http.Client{Timeout: 120 * time.Second, Transport: otelx.HTTPTransport(webhook.SafeTransport(allowPrivate))}, // thinking models take longer per call; callers bound whole exchanges with their own context
 		envEnabled: envEnabled,
 	}
 }
@@ -196,9 +208,82 @@ func (s *Service) post(ctx context.Context, url string, headers map[string]strin
 	defer func() { _ = resp.Body.Close() }()
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("ai: %s HTTP %d: %s", hostOf(url), resp.StatusCode, strings.TrimSpace(string(data)))
+		return nil, fmt.Errorf("ai: %s HTTP %d: %s", hostOf(url), resp.StatusCode, truncate(strings.TrimSpace(string(data)), maxErrorSnippet))
 	}
 	return data, nil
+}
+
+func anthropicStop(reason string) error {
+	switch reason {
+	case "max_tokens":
+		return ErrTruncated
+	case "refusal":
+		return ErrRefused
+	}
+	return nil
+}
+
+func openaiStop(reason string) error {
+	switch reason {
+	case "length":
+		return ErrTruncated
+	case "content_filter":
+		return ErrRefused
+	}
+	return nil
+}
+
+// The model is operator-set, so each newer-model field is sent only to the models that accept it - older ones 400 on an unknown effort
+func modelIs(model string, prefixes ...string) bool {
+	m := strings.TrimPrefix(model, "anthropic.")
+	for _, p := range prefixes {
+		if strings.HasPrefix(m, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func thinksByDefault(model string) bool {
+	return modelIs(model, "claude-opus-5", "claude-sonnet-5", "claude-fable-5", "claude-mythos-5")
+}
+
+func supportsEffort(model string) bool {
+	return thinksByDefault(model) || modelIs(model, "claude-opus-4-5", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8", "claude-sonnet-4-6")
+}
+
+func supportsFallbacks(model string) bool {
+	switch strings.TrimPrefix(model, "anthropic.") {
+	case "claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5":
+		return true
+	}
+	return false
+}
+
+// Fills in the model-dependent fields of a Messages request and returns its headers - effort "" leaves the model's default. Refusal fallbacks go only to Anthropic's own endpoint, since a proxy behind a custom base_url may not know the beta
+func (pc providerCfg) anthropicRequest(payload map[string]any, model string, maxTokens int, effort string) map[string]string {
+	if thinksByDefault(model) && maxTokens < thinkingMaxTokens {
+		maxTokens = thinkingMaxTokens
+	}
+	payload["model"] = model
+	payload["max_tokens"] = maxTokens
+	if effort != "" && supportsEffort(model) {
+		payload["output_config"] = map[string]any{"effort": effort}
+	}
+	headers := map[string]string{"x-api-key": pc.apiKey, "anthropic-version": anthropicVersion}
+	if !pc.baseConfigured && supportsFallbacks(model) {
+		payload["fallbacks"] = "default"
+		headers["anthropic-beta"] = "server-side-fallback-2026-07-01"
+	}
+	return headers
+}
+
+// OpenAI's own API wants max_completion_tokens (its reasoning models reject max_tokens), while the compatible servers behind a custom base_url mostly only know max_tokens
+func (pc providerCfg) openaiMaxTokensField() string {
+	if !pc.baseConfigured {
+		return "max_completion_tokens"
+	}
+	return "max_tokens"
 }
 
 func hostOf(url string) string {
@@ -224,26 +309,26 @@ func (s *Service) anthropicComplete(ctx context.Context, pc providerCfg, model, 
 		}
 	}
 	payload := map[string]any{
-		"model":      model,
-		"max_tokens": maxTokens,
-		"system":     system,
-		"messages":   []map[string]any{{"role": "user", "content": blocks}},
+		"system":   system,
+		"messages": []map[string]any{{"role": "user", "content": blocks}},
 	}
-	data, err := s.post(ctx, pc.baseURL+"/v1/messages", map[string]string{
-		"x-api-key":         pc.apiKey,
-		"anthropic-version": anthropicVersion,
-	}, payload)
+	headers := pc.anthropicRequest(payload, model, maxTokens, "low") // short, well-specified content tasks - little to gain from deep thinking
+	data, err := s.post(ctx, pc.baseURL+"/v1/messages", headers, payload)
 	if err != nil {
 		return "", err
 	}
 	var out struct {
-		Content []struct {
+		StopReason string `json:"stop_reason"`
+		Content    []struct {
 			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
 	}
 	if err := json.Unmarshal(data, &out); err != nil {
 		return "", fmt.Errorf("ai: decode: %w", err)
+	}
+	if err := anthropicStop(out.StopReason); err != nil {
+		return "", err
 	}
 	var sb strings.Builder
 	for _, c := range out.Content {
@@ -274,9 +359,9 @@ func (s *Service) openaiComplete(ctx context.Context, pc providerCfg, model, sys
 	}
 	messages = append(messages, map[string]any{"role": "user", "content": parts})
 	payload := map[string]any{
-		"model":      model,
-		"max_tokens": maxTokens,
-		"messages":   messages,
+		"model":                   model,
+		pc.openaiMaxTokensField(): maxTokens,
+		"messages":                messages,
 	}
 	headers := map[string]string{}
 	if pc.apiKey != "" {
@@ -286,9 +371,14 @@ func (s *Service) openaiComplete(ctx context.Context, pc providerCfg, model, sys
 	if err != nil {
 		return "", err
 	}
+	return openaiText(data)
+}
+
+func openaiText(data []byte) (string, error) {
 	var out struct {
 		Choices []struct {
-			Message struct {
+			FinishReason string `json:"finish_reason"`
+			Message      struct {
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
@@ -298,6 +388,9 @@ func (s *Service) openaiComplete(ctx context.Context, pc providerCfg, model, sys
 	}
 	if len(out.Choices) == 0 {
 		return "", fmt.Errorf("ai: empty response")
+	}
+	if err := openaiStop(out.Choices[0].FinishReason); err != nil {
+		return "", err
 	}
 	return strings.TrimSpace(out.Choices[0].Message.Content), nil
 }
@@ -430,10 +523,11 @@ func (s *Service) Translate(ctx context.Context, sourceLocale, targetLocale stri
 }
 
 type ChatMessage struct {
-	Role        string // "user", "assistant" or "tool"
-	Text        string
+	Role        string       // "user", "assistant" or "tool"
+	Text        string       // on a tool turn, sent after the results - how a caller adds an instruction without editing earlier turns
 	ToolCalls   []ToolCall   // assistant turn: tools the model asked to call
 	ToolResults []ToolResult // tool turn: results returned to the model
+	blocks      json.RawMessage
 }
 
 func chatRole(r string) string {
@@ -444,6 +538,9 @@ func chatRole(r string) string {
 }
 
 func (s *Service) Chat(ctx context.Context, system string, messages []ChatMessage, maxTokens int) (string, error) { // text-only - ChatWithTools is the tool-aware form
+	if !s.envEnabled {
+		return "", ErrDisabled
+	}
 	if !s.enabled(ctx) {
 		return "", ErrNotConfigured
 	}
@@ -465,27 +562,24 @@ func (s *Service) anthropicChat(ctx context.Context, pc providerCfg, system stri
 	for _, m := range messages {
 		msgs = append(msgs, map[string]any{"role": chatRole(m.Role), "content": m.Text})
 	}
-	payload := map[string]any{
-		"model":      pc.model,
-		"max_tokens": maxTokens,
-		"system":     system,
-		"messages":   msgs,
-	}
-	data, err := s.post(ctx, pc.baseURL+"/v1/messages", map[string]string{
-		"x-api-key":         pc.apiKey,
-		"anthropic-version": anthropicVersion,
-	}, payload)
+	payload := map[string]any{"system": system, "messages": msgs}
+	headers := pc.anthropicRequest(payload, pc.model, maxTokens, "")
+	data, err := s.post(ctx, pc.baseURL+"/v1/messages", headers, payload)
 	if err != nil {
 		return "", err
 	}
 	var out struct {
-		Content []struct {
+		StopReason string `json:"stop_reason"`
+		Content    []struct {
 			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
 	}
 	if err := json.Unmarshal(data, &out); err != nil {
 		return "", fmt.Errorf("ai: decode: %w", err)
+	}
+	if err := anthropicStop(out.StopReason); err != nil {
+		return "", err
 	}
 	var sb strings.Builder
 	for _, c := range out.Content {
@@ -504,7 +598,7 @@ func (s *Service) openaiChat(ctx context.Context, pc providerCfg, system string,
 	for _, m := range messages {
 		msgs = append(msgs, map[string]any{"role": chatRole(m.Role), "content": m.Text})
 	}
-	payload := map[string]any{"model": pc.model, "max_tokens": maxTokens, "messages": msgs}
+	payload := map[string]any{"model": pc.model, pc.openaiMaxTokensField(): maxTokens, "messages": msgs}
 	headers := map[string]string{}
 	if pc.apiKey != "" {
 		headers["Authorization"] = "Bearer " + pc.apiKey
@@ -513,20 +607,7 @@ func (s *Service) openaiChat(ctx context.Context, pc providerCfg, system string,
 	if err != nil {
 		return "", err
 	}
-	var out struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return "", fmt.Errorf("ai: decode: %w", err)
-	}
-	if len(out.Choices) == 0 {
-		return "", fmt.Errorf("ai: empty response")
-	}
-	return strings.TrimSpace(out.Choices[0].Message.Content), nil
+	return openaiText(data)
 }
 
 // An operator-defined topic the classifier may assign - it lives here, not in the review package, so `ai` stays a leaf and the review service maps its own records onto this shape (same for ModerationTagOption below)

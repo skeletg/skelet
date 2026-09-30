@@ -20,7 +20,7 @@ const (
 	providerOpenAI    = "openai"
 )
 
-const defaultModel = "claude-sonnet-4-6" // matches the default provider - switching providers means setting the matching model too, e.g. gpt-4o
+const defaultModel = "claude-opus-5-5" // matches the default provider - switching providers means setting the matching model too, e.g. gpt-4o
 
 func init() { // only this package registers "ai", so no dedup guard - RegisterSection panics on duplicate
 	config.RegisterSection(config.Section{Slug: "ai", Label: "AI", SortOrder: 70})
@@ -51,7 +51,7 @@ func init() { // only this package registers "ai", so no dedup guard - RegisterS
 		Path:    cfgModel,
 		Type:    config.TypeString,
 		Default: defaultModel,
-		Label:   "Model (e.g. claude-sonnet-4-6, gpt-4o, gemini-2.0-flash)",
+		Label:   "Model (e.g. claude-opus-5-5, claude-sonnet-5-5, gpt-4o, gemini-2.0-flash)",
 	})
 	config.Register(config.Definition{
 		Path:    cfgVisionModel,
