@@ -88,7 +88,10 @@ func stripVisibility(props map[string]any, devices []string) map[string]any { //
 	return cp
 }
 
-func toStringSlice(v any) []string {
+func toStringSlice(v any) []string { // []any from decoded JSON, []string from a rule this package already filtered once
+	if ss, ok := v.([]string); ok {
+		return toStringSlice(anySlice(ss))
+	}
 	arr, ok := v.([]any)
 	if !ok {
 		return nil
@@ -98,6 +101,14 @@ func toStringSlice(v any) []string {
 		if s, ok := x.(string); ok && s != "" {
 			out = append(out, s)
 		}
+	}
+	return out
+}
+
+func anySlice(ss []string) []any {
+	out := make([]any, len(ss))
+	for i, s := range ss {
+		out[i] = s
 	}
 	return out
 }
