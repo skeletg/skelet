@@ -40,10 +40,13 @@ query SchemaFormCustomerGroups {
   }
 }
 
-query SchemaFormSkuPickerProducts {
-  products {
-    id
-    sku
-    name
+# Server-searched - the unpaged `products` list hydrates the whole catalogue for one dropdown
+query SchemaFormSkuPickerProducts($search: String) {
+  productsPaged(search: $search, limit: 20) {
+    items {
+      id
+      sku
+      name
+    }
   }
 }
