@@ -54,7 +54,16 @@ DELETE FROM auth_refresh_tokens
 WHERE scope = $1 AND owner_id = $2 AND token_hash <> $3;
 
 -- name: PruneExpiredRefreshTokens :execrows
--- Keep a rotated row until its reuse window lapses, so replaying a token that expired after rotation still trips the tripwire. $1 is the reuse-window cutoff The cast keeps the param a plain time.Time not NullTime - it's always supplied
+-- An unrotated row goes at expiry; a rotated one once its reuse window lapses, whatever its expiry, since past the window it is neither live nor a tripwire. The cast keeps the param a plain time.Time, not NullTime
 DELETE FROM auth_refresh_tokens
-WHERE expires_at <= now()
-  AND (rotated_at IS NULL OR rotated_at <= sqlc.arg(reuse_cutoff)::timestamptz);
+WHERE (rotated_at IS NULL AND expires_at <= now())
+   OR rotated_at <= sqlc.arg(reuse_cutoff)::timestamptz;
+
+-- name: ClearLapsedRefreshSuccessors :execrows
+-- The successor is a raw, working token parked only for the grace window - Valkey expires it with the window, so Postgres must not keep it after
+UPDATE auth_refresh_tokens SET successor_token = NULL
+WHERE successor_token IS NOT NULL AND grace_expires_at <= now();
+
+-- name: ClearRefreshSuccessor :exec
+UPDATE auth_refresh_tokens SET successor_token = NULL
+WHERE token_hash = $1 AND scope = $2;
