@@ -15,39 +15,43 @@ RETURNING *;
 SELECT * FROM carts WHERE id = $1 LIMIT 1;
 
 -- name: ListCarts :many
--- Admin cart console listing: channel-scoped, with optional customer / status / abandoned (updated_before) filters and a free-text search over the linked customer's email + name. item_count + subtotal are computed from cart_lines (subtotal is an estimate - fractional-cent rounding, no tax/shipping)
+-- Admin cart console listing: channel-scoped, with optional customer / status / abandoned (updated_before) filters and a free-text search over the linked customer's email + name. The page is cut first and only its carts' lines are summed - subtotal is an estimate (fractional-cent rounding, no tax/shipping)
 SELECT
-    c.id                                              AS id,
-    c.customer_id                                     AS customer_id,
-    c.channel_id                                      AS channel_id,
-    c.status                                          AS status,
-    c.created_at                                      AS created_at,
-    c.updated_at                                      AS updated_at,
-    cu.email                                          AS customer_email,
-    cu.first_name                                     AS customer_first_name,
-    cu.last_name                                      AS customer_last_name,
-    COALESCE(li.item_count, 0)::int                   AS item_count,
-    COALESCE(li.subtotal, 0)::bigint                  AS subtotal
-FROM carts c
-LEFT JOIN customers cu ON cu.id = c.customer_id
-LEFT JOIN (
-    SELECT cart_id,
-           COUNT(*)::int                              AS item_count,
-           ROUND(SUM(quantity * unit_price))::bigint  AS subtotal
-    FROM cart_lines
-    GROUP BY cart_id
-) li ON li.cart_id = c.id
-WHERE c.channel_id = sqlc.arg(channel_id)
-  AND (sqlc.narg(customer_id)::uuid IS NULL OR c.customer_id = sqlc.narg(customer_id)::uuid)
-  AND (sqlc.narg(status)::text IS NULL OR c.status = sqlc.narg(status)::text)
-  AND (sqlc.narg(updated_before)::timestamptz IS NULL OR c.updated_at < sqlc.narg(updated_before)::timestamptz)
-  AND (
-    sqlc.narg(search)::text IS NULL
-    OR cu.email ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || sqlc.narg(search)::text || '%'
-  )
-ORDER BY c.updated_at DESC
-LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+    p.id                                              AS id,
+    p.customer_id                                     AS customer_id,
+    p.channel_id                                      AS channel_id,
+    p.status                                          AS status,
+    p.created_at                                      AS created_at,
+    p.updated_at                                      AS updated_at,
+    p.customer_email                                  AS customer_email,
+    p.customer_first_name                             AS customer_first_name,
+    p.customer_last_name                              AS customer_last_name,
+    li.item_count::int                                AS item_count,
+    li.subtotal::bigint                               AS subtotal
+FROM (
+    SELECT c.id, c.customer_id, c.channel_id, c.status, c.created_at, c.updated_at,
+           cu.email AS customer_email, cu.first_name AS customer_first_name, cu.last_name AS customer_last_name
+    FROM carts c
+    LEFT JOIN customers cu ON cu.id = c.customer_id
+    WHERE c.channel_id = sqlc.arg(channel_id)
+      AND (sqlc.narg(customer_id)::uuid IS NULL OR c.customer_id = sqlc.narg(customer_id)::uuid)
+      AND (sqlc.narg(status)::text IS NULL OR c.status = sqlc.narg(status)::text)
+      AND (sqlc.narg(updated_before)::timestamptz IS NULL OR c.updated_at < sqlc.narg(updated_before)::timestamptz)
+      AND (
+        sqlc.narg(search)::text IS NULL
+        OR cu.email ILIKE '%' || sqlc.narg(search)::text || '%'
+        OR (COALESCE(cu.first_name, '') || ' ' || COALESCE(cu.last_name, '')) ILIKE '%' || sqlc.narg(search)::text || '%'
+      )
+    ORDER BY c.updated_at DESC
+    LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off)
+) p
+CROSS JOIN LATERAL (
+    SELECT COUNT(*)::int                                              AS item_count,
+           COALESCE(ROUND(SUM(l.quantity * l.unit_price)), 0)::bigint AS subtotal
+    FROM cart_lines l
+    WHERE l.cart_id = p.id
+) li
+ORDER BY p.updated_at DESC;
 
 -- name: CountCarts :one
 SELECT COUNT(*)::int
@@ -135,7 +139,7 @@ RETURNING *;
 -- name: GetSavedItem :one
 SELECT * FROM cart_saved_items WHERE id = $1;
 
--- name: DeleteSavedItem :exec
+-- name: DeleteSavedItem :execrows
 DELETE FROM cart_saved_items WHERE id = $1 AND cart_id = $2;
 
 -- name: ListSavedItemsByCart :many

@@ -50,6 +50,8 @@ func (r *mutationResolver) cartForAdmin(ctx context.Context, idStr string) (uuid
 
 const cartAbandonedAfter = time.Hour // how long an active cart sits untouched before the `abandoned` filter surfaces it
 
+const maxCartListLimit = 200
+
 // Carts store no totals, so line totals and the subtotal are computed here
 func toAdminCartModel(c cart.Cart, email, name *string, currency string) *model.AdminCart {
 	lines := make([]*model.AdminCartLine, len(c.Lines))

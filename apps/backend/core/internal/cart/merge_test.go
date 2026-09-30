@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -102,6 +103,14 @@ func (r *mergeRepo) UpsertBundleCartLine(_ context.Context, _ uuid.UUID, in AddB
 }
 
 func (r *mergeRepo) WithTx(*sql.Tx) Repository { return r }
+
+type savedFailRepo struct{ *mergeRepo }
+
+func (r *savedFailRepo) ListSavedItems(context.Context, uuid.UUID) ([]SavedItem, error) {
+	return nil, errors.New("db down")
+}
+
+func (r *savedFailRepo) WithTx(*sql.Tx) Repository { return r }
 
 func TestMergeGuestCart(t *testing.T) {
 	customerID := uuid.New()
@@ -222,11 +231,26 @@ func TestMergeGuestCart(t *testing.T) {
 		repo.carts[guestID] = owned
 		svc := NewService(repo, newTestTxManager(t), nil)
 		_, err := svc.MergeGuestCart(context.Background(), customerID, guestID)
-		if err == nil || !strings.Contains(err.Error(), "not a guest cart") {
-			t.Fatalf("merging an owned cart must be rejected, got %v", err)
+		if !errors.Is(err, ErrCartForbidden) || !strings.Contains(err.Error(), "not a guest cart") {
+			t.Fatalf("merging an owned cart must be rejected as forbidden, got %v", err)
 		}
 		if len(repo.mergedCarts) != 0 {
 			t.Fatal("owned cart must not be tombstoned")
+		}
+	})
+
+	t.Run("a missing guest cart answers like a foreign one", func(t *testing.T) {
+		svc := NewService(newRepo(true), newTestTxManager(t), nil)
+		if _, err := svc.MergeGuestCart(context.Background(), customerID, uuid.New()); !errors.Is(err, ErrCartForbidden) {
+			t.Fatalf("got %v, want ErrCartForbidden", err)
+		}
+	})
+
+	t.Run("a saved-items failure fails the merge instead of dropping them", func(t *testing.T) {
+		repo := &savedFailRepo{mergeRepo: newRepo(true)}
+		svc := NewService(repo, newTestTxManager(t), nil)
+		if _, err := svc.MergeGuestCart(context.Background(), customerID, guestID); err == nil {
+			t.Fatal("the merge committed without the guest's saved items")
 		}
 	})
 
