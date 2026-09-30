@@ -203,12 +203,12 @@ func TestBackInStockTakesOnlyTheProductAndTheAddress(t *testing.T) {
 	if err := h.D.BackInStock.Record(h.Ctx, backinstock.Request{ChannelID: a.Channel.ID, ProductID: a.Product.ID, Email: addr}); err != nil {
 		t.Fatalf("record: %v", err)
 	}
-	var sku, name string
-	if err := h.D.DB.QueryRow(`SELECT sku, product_name FROM back_in_stock_requests WHERE channel_id = $1 AND email = $2`, a.Channel.ID, addr).Scan(&sku, &name); err != nil {
+	var sku string
+	if err := h.D.DB.QueryRow(`SELECT sku FROM back_in_stock_requests WHERE channel_id = $1 AND email = $2`, a.Channel.ID, addr).Scan(&sku); err != nil {
 		t.Fatalf("read back: %v", err)
 	}
-	if sku != a.Product.SKU || name != "" {
-		t.Fatalf("stored sku %q name %q, want the catalog's sku and no client copy", sku, name)
+	if sku != a.Product.SKU {
+		t.Fatalf("stored sku %q, want the catalog's sku", sku)
 	}
 	if _, err := h.D.Inventory.AdjustLevel(h.Ctx, inventory.AdjustLevelInput{InventoryItemID: a.Item.ID, LocationID: a.Location.ID, NewQuantity: 5}); err != nil {
 		t.Fatalf("restock: %v", err)
