@@ -39,7 +39,7 @@ func WireRemoteProviders(d remoteProviderDeps) {
 	d.Order.SetRemoteReturns(order.NewRemoteReturnsPolicy(prov, invoke))                    // external returns policy: windows, exclusions
 	d.Currency.SetRemoteRateSource(currency.NewRemoteRateSource(prov, invoke))              // alternate FX source for the rate-refresh job
 	d.Catalog.SetRemoteRecommendations(catalog.NewRemoteRecommendationSource(prov, invoke)) // supplies the "also bought" rail
-	d.Cart.SetRemotePricing(cart.NewRemotePricingSource(prov, invoke))                      // authoritative cart price (B2B contract / dynamic pricing) over the catalog price
+	d.Cart.SetRemotePricing(NewCartRemotePricing(prov, invoke))                             // authoritative cart price (B2B contract / dynamic pricing) over the catalog price
 	d.Inventory.SetRemoteAvailability(inventory.NewRemoteAvailabilitySource(prov, invoke))  // salable stock from an external WMS/ERP - feeds product cards, cart and search
 	d.Review.SetRemoteAggregates(review.NewRemoteAggregateSource(prov, invoke))             // rating aggregates from an external reviews platform (Yotpo/Bazaarvoice/...)
 

@@ -64,14 +64,14 @@ func TestABundleOnlySellsWhereItAndItsComponentsAreListed(t *testing.T) {
 	}
 
 	line := Cart{ChannelID: home, Lines: []CartLine{{ProductSku: "set", Components: []CartLineComponent{{ProductSku: "comp"}}}}}
-	if err := NewService(&mergeRepo{}, nil, listed).ValidateBundleLines(ctx, line); err != nil {
+	if err := NewService(&mergeRepo{}, nil, listed).ValidateCheckoutLines(ctx, line); err != nil {
 		t.Fatalf("a still-listed bundle line failed placement: %v", err)
 	}
-	if err := NewService(&mergeRepo{}, nil, unlistedComp).ValidateBundleLines(ctx, line); !errors.Is(err, ErrProductNotPublished) {
+	if err := NewService(&mergeRepo{}, nil, unlistedComp).ValidateCheckoutLines(ctx, line); !errors.Is(err, ErrProductNotPublished) {
 		t.Fatalf("a bundle line whose component was pulled placed anyway: %v", err)
 	}
 	line.ChannelID = other
-	if err := NewService(&mergeRepo{}, nil, listed).ValidateBundleLines(ctx, line); !errors.Is(err, ErrProductNotPublished) {
+	if err := NewService(&mergeRepo{}, nil, listed).ValidateCheckoutLines(ctx, line); !errors.Is(err, ErrProductNotPublished) {
 		t.Fatalf("a bundle line for a bundle pulled from the channel placed anyway: %v", err)
 	}
 }

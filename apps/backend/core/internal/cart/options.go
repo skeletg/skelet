@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/money"
 )
+
+const maxOptionTextRunes = 2000
 
 type ProductOptionsResolution struct { // built by the catalog bridge, so the cart never trusts the client for option structure or pricing
 	ProductID   uuid.UUID
@@ -169,8 +172,12 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 			}
 			continue
 		}
-		if isTextInput(opt.InputType) && opt.MaxChars != nil && int32(len([]rune(text))) > *opt.MaxChars {
-			return nil, 0, nil, fmt.Errorf("%w: option %s exceeds %d characters", ErrProductOptionInvalid, opt.ID, *opt.MaxChars)
+		limit := int32(maxOptionTextRunes) // an uncapped option still gets a ceiling, or the request body limit is the only thing bounding what a line snapshots
+		if isTextInput(opt.InputType) && opt.MaxChars != nil {
+			limit = *opt.MaxChars
+		}
+		if int32(utf8.RuneCountInString(text)) > limit {
+			return nil, 0, nil, fmt.Errorf("%w: option %s exceeds %d characters", ErrProductOptionInvalid, opt.ID, limit)
 		}
 		if err := validateDateValue(opt.InputType, text); err != nil {
 			return nil, 0, nil, fmt.Errorf("%w: option %s: %w", ErrProductOptionInvalid, opt.ID, err)

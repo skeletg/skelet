@@ -2,6 +2,7 @@ package front
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -384,8 +385,11 @@ func (r *queryResolver) Cart(ctx context.Context, id string) (*model1.Cart, erro
 		return nil, nil
 	}
 	c, err := r.CartSvc.GetCart(ctx, cid, channel.OptionalCustomerID(ctx))
-	if err != nil {
+	if errors.Is(err, cart.ErrCartForbidden) || errors.Is(err, cart.ErrCartNotActive) {
 		return nil, nil
+	}
+	if err != nil {
+		return nil, err // a DB failure isn't "no cart" - reading it as one sent the shopper off to start a fresh cart
 	}
 	sv, ok := channel.FromContext(ctx)
 	if !ok || sv == nil || c.ChannelID != sv.ID {
