@@ -3,6 +3,7 @@ package adminprefs
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -39,6 +40,16 @@ func (r *fakeRepo) Set(_ context.Context, adminID uuid.UUID, key string, value j
 func (r *fakeRepo) Delete(_ context.Context, adminID uuid.UUID, key string) error {
 	delete(r.rows, k(adminID, key))
 	return nil
+}
+
+func (r *fakeRepo) CountOthers(_ context.Context, adminID uuid.UUID, key string) (int64, error) {
+	var n int64
+	for rk := range r.rows {
+		if other, ok := strings.CutPrefix(rk, adminID.String()+"|"); ok && other != key {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func TestSetThenListRoundtrips(t *testing.T) {
@@ -147,5 +158,31 @@ func TestStringsReadsAnArrayAndShrugsOffAnythingElse(t *testing.T) {
 		if err != nil || got != nil {
 			t.Errorf("value %v: got %v, %v - want nil, nil", junk, got, err)
 		}
+	}
+}
+
+// Any signed-in admin can write here, so the key count is what bounds one admin's storage - and the boot-time load
+func TestKeyCapRefusesNewKeysButNotUpdates(t *testing.T) {
+	svc := NewService(newFakeRepo())
+	ctx, admin := context.Background(), uuid.New()
+	for i := range maxKeys {
+		if err := svc.Set(ctx, admin, fmt.Sprintf("table:list%d", i), true); err != nil {
+			t.Fatalf("key %d of %d refused: %v", i+1, maxKeys, err)
+		}
+	}
+	if err := svc.Set(ctx, admin, "table:one-too-many", true); err == nil {
+		t.Fatal("a key past the cap was stored")
+	}
+	if err := svc.Set(ctx, admin, "table:list0", false); err != nil {
+		t.Errorf("updating an existing key at the cap: %v", err)
+	}
+	if err := svc.Set(ctx, admin, "table:list1", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Set(ctx, admin, "table:one-too-many", true); err != nil {
+		t.Errorf("a new key after freeing a slot: %v", err)
+	}
+	if err := svc.Set(ctx, uuid.New(), "table:list0", true); err != nil {
+		t.Errorf("the cap leaked across admins: %v", err)
 	}
 }

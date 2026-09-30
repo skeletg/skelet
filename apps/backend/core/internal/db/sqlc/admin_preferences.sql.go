@@ -13,6 +13,24 @@ import (
 	"github.com/google/uuid"
 )
 
+const countOtherAdminPreferences = `-- name: CountOtherAdminPreferences :one
+SELECT count(*) FROM admin_preferences
+WHERE admin_id = $1 AND key <> $2
+`
+
+type CountOtherAdminPreferencesParams struct {
+	AdminID uuid.UUID `json:"admin_id"`
+	Key     string    `json:"key"`
+}
+
+// Keys the admin holds besides this one, so the cap blocks a new key without blocking an update to an existing one
+func (q *Queries) CountOtherAdminPreferences(ctx context.Context, arg CountOtherAdminPreferencesParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOtherAdminPreferences, arg.AdminID, arg.Key)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteAdminPreference = `-- name: DeleteAdminPreference :exec
 DELETE FROM admin_preferences
 WHERE admin_id = $1 AND key = $2
