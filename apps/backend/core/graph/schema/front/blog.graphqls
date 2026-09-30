@@ -9,7 +9,6 @@ type BlogAuthor {
   id:           ID!
   slug:         String!
   displayName:  String!
-  email:        String
   content:      BlogAuthorContent
 }
 

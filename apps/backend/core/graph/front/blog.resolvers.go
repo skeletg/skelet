@@ -31,13 +31,13 @@ func (r *queryResolver) BlogPost(ctx context.Context, slug *string, id *string) 
 		if !postListedAndPublished(p, *storeID) {
 			return nil, nil
 		}
-		return toBlogPostModel(p), nil
+		return publicPost(toBlogPostModel(p)), nil
 	case slug != nil && *slug != "":
 		p, err := r.BlogSvc.GetPublishedPostBySlugForChannel(ctx, *slug, *storeID, loc)
 		if err != nil {
 			return nil, err
 		}
-		return toBlogPostModel(p), nil
+		return publicPost(toBlogPostModel(p)), nil
 	}
 	return nil, selectorRequired("slug or id is required")
 }
@@ -83,7 +83,7 @@ func (r *queryResolver) BlogPosts(ctx context.Context, filter *model.BlogPostFil
 	}
 	out := make([]*model.BlogPost, len(posts))
 	for i, p := range posts {
-		out[i] = toBlogPostModel(p)
+		out[i] = publicPost(toBlogPostModel(p))
 	}
 	return &model.BlogPostList{Items: out}, nil
 }
@@ -121,13 +121,13 @@ func (r *queryResolver) BlogCategory(ctx context.Context, slug *string, id *stri
 		if err != nil {
 			return nil, err
 		}
-		return toBlogCategoryModel(c), nil
+		return publicCategory(toBlogCategoryModel(c))
 	case slug != nil && *slug != "":
 		c, err := r.BlogSvc.GetCategoryBySlug(ctx, *slug, loc)
 		if err != nil {
 			return nil, err
 		}
-		return toBlogCategoryModel(c), nil
+		return publicCategory(toBlogCategoryModel(c))
 	}
 	return nil, selectorRequired("slug or id is required")
 }
@@ -143,13 +143,13 @@ func (r *queryResolver) BlogCategories(ctx context.Context, parentID *string) ([
 		if err != nil {
 			return nil, err
 		}
-		return blogCategoryModels(cats), nil
+		return publicCategories(blogCategoryModels(cats)), nil
 	}
 	cats, err := r.BlogSvc.ListRootCategories(ctx, loc)
 	if err != nil {
 		return nil, err
 	}
-	return blogCategoryModels(cats), nil
+	return publicCategories(blogCategoryModels(cats)), nil
 }
 
 func (r *queryResolver) BlogTag(ctx context.Context, slug *string, id *string) (*model.BlogTag, error) {
@@ -164,13 +164,13 @@ func (r *queryResolver) BlogTag(ctx context.Context, slug *string, id *string) (
 		if err != nil {
 			return nil, err
 		}
-		return toBlogTagModel(t), nil
+		return publicTag(toBlogTagModel(t))
 	case slug != nil && *slug != "":
 		t, err := r.BlogSvc.GetTagBySlug(ctx, *slug, loc)
 		if err != nil {
 			return nil, err
 		}
-		return toBlogTagModel(t), nil
+		return publicTag(toBlogTagModel(t))
 	}
 	return nil, selectorRequired("slug or id is required")
 }
@@ -184,7 +184,7 @@ func (r *queryResolver) BlogTags(ctx context.Context) ([]*model.BlogTag, error) 
 	for i, t := range tags {
 		out[i] = toBlogTagModel(t)
 	}
-	return out, nil
+	return publicTags(out), nil
 }
 
 func (r *queryResolver) BlogAuthor(ctx context.Context, slug *string, id *string) (*model.BlogAuthor, error) {
