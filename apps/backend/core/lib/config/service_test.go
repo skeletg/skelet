@@ -632,3 +632,23 @@ func uuidPtrEqual(a, b *uuid.UUID) bool {
 	}
 	return *a == *b
 }
+
+// Consumers like the storefront cache purge hang off this - it must fire for every saved or reset field, and never for a refused write
+func TestOnChangeFiresForSavesAndResetsOnly(t *testing.T) {
+	svc, _ := newTestService(t, Definition{Path: "shop/general/name", Type: TypeString, Public: true})
+	var seen []string
+	svc.OnChange(func(_ context.Context, def Definition) { seen = append(seen, def.Path) })
+	ctx := context.Background()
+	scope := DefaultScope
+
+	if _, err := svc.Set(ctx, "shop/general/name", "Acme", scope); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Reset(ctx, "shop/general/name", scope); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = svc.Set(ctx, "shop/general/unknown", "x", scope)
+	if len(seen) != 2 || seen[0] != "shop/general/name" || seen[1] != "shop/general/name" {
+		t.Errorf("OnChange saw %v, want the save and the reset only", seen)
+	}
+}

@@ -436,6 +436,12 @@ func init() {
 		Description: "Fires after a store's active locale set changes.",
 	})
 	RegisterEvent(EventDefinition{
+		Type:        channel.EventUpdated,
+		Kind:        KindAsync,
+		Name:        "Channel Updated",
+		Description: "Fires after a store's own fields change - name, branding, currencies, public URL. Subscribe to bust a headless frontend's nav cache.",
+	})
+	RegisterEvent(EventDefinition{
 		Type:        channel.EventDeleted,
 		Kind:        KindAsync,
 		Name:        "Channel Deleted",

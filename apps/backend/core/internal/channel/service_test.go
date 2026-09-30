@@ -7,7 +7,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
+	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
+	"time"
 )
 
 // Extends the middleware fake with just enough write behavior for Service tests
@@ -166,4 +168,28 @@ func TestServiceCurrencyChangeGuard(t *testing.T) {
 			t.Fatalf("expected ErrInvalidCurrency, got %v", err)
 		}
 	})
+}
+
+// The storefront header caches a channel's own fields, so an edit has to announce itself for anything to purge it
+func TestUpdatePublishesChannelUpdated(t *testing.T) {
+	svc := channel.NewService(newSvcRepo(active(usID, "us", "https://shop.example.com", true)), nil)
+	bus := events.NewBus()
+	svc.SetEventBus(bus)
+	got := make(chan uuid.UUID, 1)
+	bus.Subscribe(channel.EventUpdated, func(_ context.Context, e events.Event) error {
+		got <- e.(*channel.Updated).ChannelID
+		return nil
+	})
+	name := "Renamed"
+	if _, err := svc.Update(context.Background(), channel.UpdateChannelInput{ID: usID, Name: &name}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case id := <-got:
+		if id != usID {
+			t.Errorf("event names %s, want %s", id, usID)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no channel.updated after an edit")
+	}
 }
