@@ -115,6 +115,35 @@ func (q *Queries) ListCartLineComponentsByLineIDs(ctx context.Context, cartLineI
 	return items, nil
 }
 
+const setBundleLineQuantity = `-- name: SetBundleLineQuantity :execrows
+WITH old AS (
+    SELECT cl.id, cl.quantity FROM cart_lines cl WHERE cl.id = $2 FOR UPDATE
+), scaled AS (
+    UPDATE cart_line_components c
+    SET quantity = ROUND(c.quantity * $1::numeric / old.quantity, 4)
+    FROM old
+    WHERE c.cart_line_id = old.id
+)
+UPDATE cart_lines l
+SET quantity = $1::numeric, updated_at = NOW()
+FROM old
+WHERE l.id = old.id
+`
+
+type SetBundleLineQuantityParams struct {
+	Quantity float64   `json:"quantity"`
+	LineID   uuid.UUID `json:"line_id"`
+}
+
+// Component rows hold the line's TOTAL per component (per-bundle quantity x line quantity), and reservation reads them as-is, so a bundle line's quantity change rescales them by new/old in the same statement - the locked read keeps two concurrent edits from scaling off a stale old quantity
+func (q *Queries) SetBundleLineQuantity(ctx context.Context, arg SetBundleLineQuantityParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setBundleLineQuantity, arg.Quantity, arg.LineID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertBundleCartLine = `-- name: UpsertBundleCartLine :one
 INSERT INTO cart_lines (cart_id, product_name, product_sku, unit_price, quantity)
 VALUES ($1, $2, $3, $4, $5)

@@ -105,8 +105,8 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 	// Reprice BEFORE the subtotal so promotions, tax and fraud all see today's prices - the fail-open contract lives in the repricer
 	if s.repricer != nil {
 		cartObj = s.repricer.RepriceCartLines(ctx, cartObj)
-		if v, ok := s.repricer.(bundleValidator); ok {
-			if err := v.ValidateBundleLines(ctx, cartObj); err != nil {
+		if v, ok := s.repricer.(lineValidator); ok {
+			if err := v.ValidateCheckoutLines(ctx, cartObj); err != nil {
 				return nil, err
 			}
 		}
@@ -695,6 +695,6 @@ func (s *Service) authorizePostPlacement(ctx context.Context, in PlaceOrderInput
 	return outcome
 }
 
-type bundleValidator interface {
-	ValidateBundleLines(context.Context, cart.Cart) error
+type lineValidator interface { // bundle availability plus each line's min/max/step
+	ValidateCheckoutLines(context.Context, cart.Cart) error
 }

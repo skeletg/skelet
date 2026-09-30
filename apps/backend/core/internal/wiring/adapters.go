@@ -122,14 +122,14 @@ type CartFileAdapter struct {
 	storage *objstore.Storage
 }
 
-func (a CartFileAdapter) ResolveFileAsset(ctx context.Context, id uuid.UUID) (cart.FileAsset, error) {
+func (a CartFileAdapter) ResolveFileAsset(ctx context.Context, productID, id uuid.UUID) (cart.FileAsset, error) {
 	asset, err := a.media.GetAsset(ctx, id)
 	if err != nil {
 		return cart.FileAsset{}, err
 	}
-	// Scope fence: option picks may only reference assets minted by the product-option presign flow - a caller can't attach arbitrary media-library assets (admin catalog images, other uploads) to a line
-	if !strings.HasPrefix(asset.ObjectKey, "product-options/") {
-		return cart.FileAsset{}, fmt.Errorf("asset is not a product-option upload")
+	// Scope fence: a pick may only reference an upload the product-option presign flow minted for THIS product - not arbitrary media-library assets (admin catalog images, other uploads), and not another product's option upload
+	if asset.DirectoryPrefix != "product-options/"+productID.String() {
+		return cart.FileAsset{}, fmt.Errorf("asset is not an option upload for this product")
 	}
 	size, _, exists, err := a.storage.Head(ctx, asset.ObjectKey)
 	if err != nil {
