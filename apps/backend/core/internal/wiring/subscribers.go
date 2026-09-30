@@ -46,6 +46,7 @@ import (
 // The one call the entrypoint makes - every "what reacts when X fires" decision is below it, and registration order is load-bearing where sync priorities tie, so treat the sequence here as part of the contract
 type subscriberDeps struct {
 	fx.In
+	Lifecycle           fx.Lifecycle
 	Bus                 *events.Bus
 	Outbox              *outbox.Outbox
 	WebhookDispatcher   *webhook.Dispatcher
@@ -107,7 +108,8 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	registerEventSubscribers(bus, d.WebhookDispatcher, d.Order)
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)
-	cacheinvalidate.Register(bus, d.RevalidateCli, d.RevalidateQueue, d.URLRewrite, d.Config)
+	purges := cacheinvalidate.Register(bus, d.RevalidateCli, d.RevalidateQueue, d.URLRewrite, d.Config)
+	d.Lifecycle.Append(fx.Hook{OnStop: func(ctx context.Context) error { purges.Flush(ctx); return nil }}) // a purge gathered in the last second still goes out
 	d.Flows.Subscribe(bus)
 	// Owns the order-lifecycle mail: asks the flow engine first, sends directly when no flow took it.
 	// Ahead of the conversion attribution below, which also listens on order.EventPlaced
