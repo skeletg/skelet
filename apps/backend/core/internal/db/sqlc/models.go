@@ -363,18 +363,15 @@ type AuthToken struct {
 }
 
 type BackInStockRequest struct {
-	ID           uuid.UUID     `json:"id"`
-	ChannelID    uuid.UUID     `json:"channel_id"`
-	ProductID    uuid.UUID     `json:"product_id"`
-	Sku          string        `json:"sku"`
-	Email        string        `json:"email"`
-	CustomerID   uuid.NullUUID `json:"customer_id"`
-	AnonID       string        `json:"anon_id"`
-	ProductName  string        `json:"product_name"`
-	ProductImage string        `json:"product_image"`
-	ProductUrl   string        `json:"product_url"`
-	NotifiedAt   sql.NullTime  `json:"notified_at"`
-	CreatedAt    time.Time     `json:"created_at"`
+	ID         uuid.UUID     `json:"id"`
+	ChannelID  uuid.UUID     `json:"channel_id"`
+	ProductID  uuid.UUID     `json:"product_id"`
+	Sku        string        `json:"sku"`
+	Email      string        `json:"email"`
+	CustomerID uuid.NullUUID `json:"customer_id"`
+	AnonID     string        `json:"anon_id"`
+	NotifiedAt sql.NullTime  `json:"notified_at"`
+	CreatedAt  time.Time     `json:"created_at"`
 }
 
 type BlogAuthor struct {
