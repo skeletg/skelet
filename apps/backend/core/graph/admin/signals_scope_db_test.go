@@ -135,3 +135,30 @@ func TestSyncAudienceSendsOnlyTheDestinationChannelsCustomers(t *testing.T) {
 		t.Errorf("synced %d identifiers %v, want only the destination channel's customer %v", n, dests.synced, want)
 	}
 }
+
+// Membership comes back filtered to the channels the caller may see customers in, so a settings-only admin would otherwise push an empty snapshot and clear the audience
+func TestSyncAudienceNeedsTheCustomerGrantOnTheDestinationChannel(t *testing.T) {
+	channel := uuid.New()
+	dests := &fakeDestinations{channelID: channel.String()}
+	client := fakeSignalsClient(t)
+	client.Destination = dests
+	client.Segments = &fakeSegmentMembers{}
+	r := &mutationResolver{&Resolver{SignalsEnabled: true, SignalsAPI: client}}
+	on := func(slug string, ch uuid.UUID) auth.Grant { return auth.Grant{Slug: slug, ChannelID: &ch} }
+
+	for name, ctx := range map[string]context.Context{
+		"settings only":                     adminWithCachedGrants(on("settings.manage", channel)),
+		"customer grant on another channel": adminWithCachedGrants(on("settings.manage", channel), on("customers.manage", uuid.New())),
+		"customer view only":                adminWithCachedGrants(on("settings.manage", channel), on("customers.view", channel)),
+	} {
+		if _, err := r.SyncAudience(ctx, uuid.NewString(), uuid.NewString()); err == nil {
+			t.Errorf("%s: the sync ran", name)
+		}
+	}
+	if dests.synced != nil {
+		t.Errorf("identifiers reached the destination: %v", dests.synced)
+	}
+	if _, err := r.SyncAudience(adminWithCachedGrants(on("settings.manage", channel), on("customers.manage", channel)), uuid.NewString(), uuid.NewString()); err != nil {
+		t.Errorf("both grants on the destination channel: %v", err)
+	}
+}

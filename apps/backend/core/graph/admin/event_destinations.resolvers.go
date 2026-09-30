@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/audienceio"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	signalsv1 "github.com/skeletg/skelet/apps/backend/core/signalsapi/v1"
 )
 
@@ -73,6 +74,10 @@ func (r *mutationResolver) SyncAudience(ctx context.Context, segmentID string, d
 	channelID, err := uuid.Parse(dest.GetDestination().GetChannelId())
 	if err != nil {
 		return 0, errInvalidID("channelId", err)
+	}
+	// Membership comes back filtered to the channels the caller may see customers in, so without this a settings-only admin would push an empty snapshot and clear the audience
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, audienceio.Permission, channelID, nil); err != nil {
+		return 0, err
 	}
 	// The addresses are core's, so core hashes them - the suite forwards identifiers it cannot reverse
 	ids, err := audienceio.Hashes(ctx, r.segmentMembers, r.channelCustomerEmails(channelID), uuid.Nil, segID) // a live request, so the caller on the context is the actor
