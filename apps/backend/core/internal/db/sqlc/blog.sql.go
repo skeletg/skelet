@@ -71,9 +71,9 @@ func (q *Queries) ClearBlogPostTags(ctx context.Context, postID uuid.UUID) error
 const createBlogAuthor = `-- name: CreateBlogAuthor :one
 
 INSERT INTO blog_authors (
-    slug, display_name, email, avatar_asset_id, linked_admin_id, metadata
-) VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at
+    slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, email_public
+) VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at, email_public
 `
 
 type CreateBlogAuthorParams struct {
@@ -83,6 +83,7 @@ type CreateBlogAuthorParams struct {
 	AvatarAssetID uuid.NullUUID   `json:"avatar_asset_id"`
 	LinkedAdminID uuid.NullUUID   `json:"linked_admin_id"`
 	Metadata      json.RawMessage `json:"metadata"`
+	EmailPublic   bool            `json:"email_public"`
 }
 
 // ==================== Blog Authors ====================
@@ -94,6 +95,7 @@ func (q *Queries) CreateBlogAuthor(ctx context.Context, arg CreateBlogAuthorPara
 		arg.AvatarAssetID,
 		arg.LinkedAdminID,
 		arg.Metadata,
+		arg.EmailPublic,
 	)
 	var i BlogAuthor
 	err := row.Scan(
@@ -106,6 +108,7 @@ func (q *Queries) CreateBlogAuthor(ctx context.Context, arg CreateBlogAuthorPara
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EmailPublic,
 	)
 	return i, err
 }
@@ -349,7 +352,7 @@ func (q *Queries) DeleteBlogTagContent(ctx context.Context, arg DeleteBlogTagCon
 }
 
 const getBlogAuthorByID = `-- name: GetBlogAuthorByID :one
-SELECT id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at FROM blog_authors WHERE id = $1
+SELECT id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at, email_public FROM blog_authors WHERE id = $1
 `
 
 func (q *Queries) GetBlogAuthorByID(ctx context.Context, id uuid.UUID) (BlogAuthor, error) {
@@ -365,12 +368,13 @@ func (q *Queries) GetBlogAuthorByID(ctx context.Context, id uuid.UUID) (BlogAuth
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EmailPublic,
 	)
 	return i, err
 }
 
 const getBlogAuthorBySlug = `-- name: GetBlogAuthorBySlug :one
-SELECT id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at FROM blog_authors WHERE slug = $1
+SELECT id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at, email_public FROM blog_authors WHERE slug = $1
 `
 
 func (q *Queries) GetBlogAuthorBySlug(ctx context.Context, slug string) (BlogAuthor, error) {
@@ -386,6 +390,7 @@ func (q *Queries) GetBlogAuthorBySlug(ctx context.Context, slug string) (BlogAut
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EmailPublic,
 	)
 	return i, err
 }
@@ -826,7 +831,7 @@ func (q *Queries) ListBlogAuthorContentForAuthors(ctx context.Context, authorIds
 }
 
 const listBlogAuthors = `-- name: ListBlogAuthors :many
-SELECT id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at FROM blog_authors ORDER BY display_name
+SELECT id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at, email_public FROM blog_authors ORDER BY display_name
 `
 
 func (q *Queries) ListBlogAuthors(ctx context.Context) ([]BlogAuthor, error) {
@@ -848,6 +853,7 @@ func (q *Queries) ListBlogAuthors(ctx context.Context) ([]BlogAuthor, error) {
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EmailPublic,
 		); err != nil {
 			return nil, err
 		}
@@ -863,7 +869,7 @@ func (q *Queries) ListBlogAuthors(ctx context.Context) ([]BlogAuthor, error) {
 }
 
 const listBlogAuthorsByIDs = `-- name: ListBlogAuthorsByIDs :many
-SELECT id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at FROM blog_authors WHERE id = ANY($1::uuid[])
+SELECT id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at, email_public FROM blog_authors WHERE id = ANY($1::uuid[])
 `
 
 func (q *Queries) ListBlogAuthorsByIDs(ctx context.Context, ids []uuid.UUID) ([]BlogAuthor, error) {
@@ -885,6 +891,7 @@ func (q *Queries) ListBlogAuthorsByIDs(ctx context.Context, ids []uuid.UUID) ([]
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EmailPublic,
 		); err != nil {
 			return nil, err
 		}
@@ -2222,9 +2229,10 @@ SET slug            = $2,
     avatar_asset_id = $5,
     linked_admin_id = $6,
     metadata        = $7,
+    email_public    = $8,
     updated_at      = NOW()
 WHERE id = $1
-RETURNING id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at
+RETURNING id, slug, display_name, email, avatar_asset_id, linked_admin_id, metadata, created_at, updated_at, email_public
 `
 
 type UpdateBlogAuthorParams struct {
@@ -2235,6 +2243,7 @@ type UpdateBlogAuthorParams struct {
 	AvatarAssetID uuid.NullUUID   `json:"avatar_asset_id"`
 	LinkedAdminID uuid.NullUUID   `json:"linked_admin_id"`
 	Metadata      json.RawMessage `json:"metadata"`
+	EmailPublic   bool            `json:"email_public"`
 }
 
 func (q *Queries) UpdateBlogAuthor(ctx context.Context, arg UpdateBlogAuthorParams) (BlogAuthor, error) {
@@ -2246,6 +2255,7 @@ func (q *Queries) UpdateBlogAuthor(ctx context.Context, arg UpdateBlogAuthorPara
 		arg.AvatarAssetID,
 		arg.LinkedAdminID,
 		arg.Metadata,
+		arg.EmailPublic,
 	)
 	var i BlogAuthor
 	err := row.Scan(
@@ -2258,6 +2268,7 @@ func (q *Queries) UpdateBlogAuthor(ctx context.Context, arg UpdateBlogAuthorPara
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EmailPublic,
 	)
 	return i, err
 }

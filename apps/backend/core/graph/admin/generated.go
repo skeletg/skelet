@@ -337,6 +337,7 @@ type ComplexityRoot struct {
 		CreatedAt   func(childComplexity int) int
 		DisplayName func(childComplexity int) int
 		Email       func(childComplexity int) int
+		EmailPublic func(childComplexity int) int
 		ID          func(childComplexity int) int
 		LinkedAdmin func(childComplexity int) int
 		Metadata    func(childComplexity int) int
@@ -6347,6 +6348,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BlogAuthor.Email(childComplexity), true
+	case "BlogAuthor.emailPublic":
+		if e.ComplexityRoot.BlogAuthor.EmailPublic == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BlogAuthor.EmailPublic(childComplexity), true
 	case "BlogAuthor.id":
 		if e.ComplexityRoot.BlogAuthor.ID == nil {
 			break
@@ -28453,6 +28460,8 @@ type BlogAuthor {
   slug:         String!
   displayName:  String!
   email:        String
+  # Whether the storefront may show the email - off unless the author opted in
+  emailPublic:  Boolean!
   avatarAsset:  MediaAsset
   linkedAdmin:  AdminUser
   metadata:     [MetadataItem!]!
@@ -28476,6 +28485,7 @@ input CreateBlogAuthorInput {
   slug:          String!
   displayName:   String!
   email:         String
+  emailPublic:   Boolean
   avatarAssetId: ID
   linkedAdminId: ID
   metadata:      [MetadataInput!]
@@ -28491,6 +28501,7 @@ input UpdateBlogAuthorInput {
   displayName:      String
   email:            String
   clearEmail:       Boolean
+  emailPublic:      Boolean
   avatarAssetId:    ID
   clearAvatar:      Boolean
   linkedAdminId:    ID
@@ -37112,6 +37123,8 @@ func (ec *executionContext) childFields_BlogAuthor(ctx context.Context, field gr
 		return ec.fieldContext_BlogAuthor_displayName(ctx, field)
 	case "email":
 		return ec.fieldContext_BlogAuthor_email(ctx, field)
+	case "emailPublic":
+		return ec.fieldContext_BlogAuthor_emailPublic(ctx, field)
 	case "avatarAsset":
 		return ec.fieldContext_BlogAuthor_avatarAsset(ctx, field)
 	case "linkedAdmin":
@@ -61133,6 +61146,29 @@ func (ec *executionContext) _BlogAuthor_email(ctx context.Context, field graphql
 }
 func (ec *executionContext) fieldContext_BlogAuthor_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BlogAuthor", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _BlogAuthor_emailPublic(ctx context.Context, field graphql.CollectedField, obj *model.BlogAuthor) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BlogAuthor_emailPublic(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EmailPublic, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BlogAuthor_emailPublic(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BlogAuthor", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _BlogAuthor_avatarAsset(ctx context.Context, field graphql.CollectedField, obj *model.BlogAuthor) (ret graphql.Marshaler) {
@@ -149680,7 +149716,7 @@ func (ec *executionContext) unmarshalInputCreateBlogAuthorInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"slug", "displayName", "email", "avatarAssetId", "linkedAdminId", "metadata", "locale", "name", "bio"}
+	fieldsInOrder := [...]string{"slug", "displayName", "email", "emailPublic", "avatarAssetId", "linkedAdminId", "metadata", "locale", "name", "bio"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -149708,6 +149744,13 @@ func (ec *executionContext) unmarshalInputCreateBlogAuthorInput(ctx context.Cont
 				return it, err
 			}
 			it.Email = data
+		case "emailPublic":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("emailPublic"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EmailPublic = data
 		case "avatarAssetId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avatarAssetId"))
 			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
@@ -156877,7 +156920,7 @@ func (ec *executionContext) unmarshalInputUpdateBlogAuthorInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "slug", "displayName", "email", "clearEmail", "avatarAssetId", "clearAvatar", "linkedAdminId", "clearLinkedAdmin", "metadata"}
+	fieldsInOrder := [...]string{"id", "slug", "displayName", "email", "clearEmail", "emailPublic", "avatarAssetId", "clearAvatar", "linkedAdminId", "clearLinkedAdmin", "metadata"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -156919,6 +156962,13 @@ func (ec *executionContext) unmarshalInputUpdateBlogAuthorInput(ctx context.Cont
 				return it, err
 			}
 			it.ClearEmail = data
+		case "emailPublic":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("emailPublic"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EmailPublic = data
 		case "avatarAssetId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avatarAssetId"))
 			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
@@ -163357,6 +163407,11 @@ func (ec *executionContext) _BlogAuthor(ctx context.Context, sel ast.SelectionSe
 		case "email":
 			out.Values[i] = ec._BlogAuthor_email(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "emailPublic":
+			out.Values[i] = ec._BlogAuthor_emailPublic(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "avatarAsset":

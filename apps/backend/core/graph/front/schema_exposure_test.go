@@ -39,6 +39,9 @@ var acknowledgedFrontExposures = map[string]string{
 
 	// Handed to the browser on purpose - these are the public half of a gateway handshake, scoped to one payment
 	"Order.paymentClientSecret": "gateway client secret, meant for the browser that completes the payment",
+
+	// Published by the author's own choice
+	"BlogAuthor.publicEmail": "null unless the author turned on emailPublic in the dashboard",
 }
 
 // The same, for fields a plugin's SDL publishes - enforced while its type is in the schema, inert

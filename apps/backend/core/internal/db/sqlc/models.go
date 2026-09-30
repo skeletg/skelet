@@ -384,6 +384,7 @@ type BlogAuthor struct {
 	Metadata      json.RawMessage `json:"metadata"`
 	CreatedAt     time.Time       `json:"created_at"`
 	UpdatedAt     time.Time       `json:"updated_at"`
+	EmailPublic   bool            `json:"email_public"`
 }
 
 type BlogAuthorContent struct {

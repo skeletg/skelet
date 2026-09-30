@@ -64,3 +64,22 @@ func TestThePublicAuthorTypeHasNoEmail(t *testing.T) {
 		t.Error("the storefront BlogAuthor exposes email again")
 	}
 }
+
+func TestPublicEmailOnlyForAuthorsWhoOptedIn(t *testing.T) {
+	addr, blank := "jane@example.com", ""
+	r := &blogAuthorResolver{}
+	for name, c := range map[string]struct {
+		author *model.BlogAuthor
+		want   *string
+	}{
+		"opted in":             {&model.BlogAuthor{Email: &addr, EmailPublic: true}, &addr},
+		"not opted in":         {&model.BlogAuthor{Email: &addr}, nil},
+		"opted in, no address": {&model.BlogAuthor{Email: &blank, EmailPublic: true}, nil},
+		"opted in, nil email":  {&model.BlogAuthor{EmailPublic: true}, nil},
+	} {
+		got, err := r.PublicEmail(t.Context(), c.author)
+		if err != nil || (got == nil) != (c.want == nil) || (got != nil && *got != *c.want) {
+			t.Errorf("%s: PublicEmail = (%v, %v), want %v", name, got, err, c.want)
+		}
+	}
+}
