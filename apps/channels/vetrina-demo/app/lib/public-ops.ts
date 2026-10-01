@@ -23,6 +23,7 @@ export const PUBLIC_OPS: ReadonlySet<string> = new Set([
   "Countries",
   "CountrySettings",
   "Regions",
+  "PhoneSettings",
   "BlogPost",
   "BlogPostById",
   "BlogPosts",
