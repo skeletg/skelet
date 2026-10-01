@@ -323,6 +323,11 @@ var (
 	ErrLocaleMustBeDefault               = errors.New("initial content must use the default locale")                   // every entity is born in the canonical locale - translations arrive later via UpsertContent
 	ErrCannotDeleteDefaultLocale         = errors.New("cannot delete default-locale content while translations exist") // removing the default would leave translations with nothing to fall back to
 	ErrDuplicateFacetOverride            = errors.New("duplicate attribute in facet overrides")
+	ErrNameRequired                      = errors.New("name is required")
+	ErrLocaleRequired                    = errors.New("locale is required")
+	ErrInvalidSize                       = errors.New("size_bytes must be positive")
+	ErrInvalidDimensions                 = errors.New("width and height must be positive")
+	ErrTooManyItems                      = errors.New("too many items in one request")
 )
 
 // No producer-defined repository interfaces here - a consumer that needs to mock a slice of persistence declares the narrow interface it uses, in its own package

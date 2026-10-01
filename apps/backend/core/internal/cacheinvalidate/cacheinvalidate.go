@@ -114,11 +114,18 @@ func Register(bus *events.Bus, purger Purger, queue Rebuilder, paths PathResolve
 		func(id uuid.UUID) []string { return append(collection(id), tagBrowse) }, "collection products changed")
 
 	// The nav surface (channel fields, menus, locales) feeds the header on every page and changes rarely, so any change busts it whole - ungated, because the storefront caches pages on a statically-analysable revalidate that no config can switch off, so skipping the purge only ever yields a stale page nobody can evict
+	// Categories and collections feed the header's menus too, so any change to one busts it like a menu edit
 	for _, n := range []struct{ event, reason string }{
 		{menu.EventMenuUpdated, "menu updated"},
 		{channel.EventUpdated, "channel updated"},
 		{channel.EventLocalesChanged, "channel locales changed"},
 		{channel.EventDeleted, "channel deleted"},
+		{catalog.EventCategoryCreated, "category created"},
+		{catalog.EventCategoryUpdated, "category updated"},
+		{catalog.EventCategoryDeleted, "category deleted"},
+		{catalog.EventCollectionCreated, "collection created"},
+		{catalog.EventCollectionUpdated, "collection updated"},
+		{catalog.EventCollectionDeleted, "collection deleted"},
 	} {
 		bus.Subscribe(n.event, func(ctx context.Context, _ events.Event) error {
 			purger.PurgeSurface(ctx, menu.CacheSurface, n.reason, nil)
