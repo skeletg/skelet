@@ -110,6 +110,14 @@ func (im *customerImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outc
 	if im.opts.ChannelID == uuid.Nil {
 		return dataio.OutcomeSkipped, errChannelRequired
 	}
+	// Checked before any write, so a bad phone neither leaves a half-imported contact behind nor passes a dry run
+	var phone *string
+	if raw := r.Str(colPhone); raw != "" {
+		var err error
+		if phone, err = im.customers.NormalizeProfilePhone(ctx, im.opts.ChannelID, &raw); err != nil {
+			return dataio.OutcomeSkipped, err
+		}
+	}
 	if im.opts.DryRun {
 		if _, exists := im.customers.CustomerIDByEmail(ctx, im.opts.ChannelID, email); exists {
 			return dataio.OutcomeUpdated, nil
@@ -122,14 +130,12 @@ func (im *customerImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outc
 		return dataio.OutcomeSkipped, err
 	}
 	// The file is the operator's source of truth for these three, so they fill in on both paths
-	first, last, phone := r.Str(colFirstName), r.Str(colLastName), r.Str(colPhone)
-	if first != "" || last != "" || phone != "" {
+	first, last := r.Str(colFirstName), r.Str(colLastName)
+	if first != "" || last != "" || phone != nil {
 		upd := customer.UpdateCustomerInput{
 			FirstName: firstNonEmpty(first, c.FirstName),
 			LastName:  firstNonEmpty(last, c.LastName),
-		}
-		if phone != "" {
-			upd.Phone = &phone
+			Phone:     phone,
 		}
 		if _, err := im.customers.UpdateProfile(ctx, c.ID, upd); err != nil {
 			return dataio.OutcomeSkipped, err

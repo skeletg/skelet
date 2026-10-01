@@ -16,6 +16,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
+	"github.com/skeletg/skelet/apps/backend/core/lib/phone"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -93,9 +94,11 @@ func (s *Service) storeName(ctx context.Context, st StoreSnapshot) string {
 	return st.EmailFromName
 }
 
-// Optional - nil skips per-channel country/region enforcement on address writes
+// Optional - nil skips per-channel country/region enforcement on address writes, and phones fall back to the
+// default country alone
 type CountryValidator interface {
 	ValidateAddressForChannel(ctx context.Context, channelID uuid.UUID, countryCode string, region *string) error
+	PhoneRulesForChannel(ctx context.Context, channelID uuid.UUID) phone.Rules
 }
 
 func (s *Service) SetCountryValidator(v CountryValidator) { s.countries = v }
@@ -109,6 +112,43 @@ func (s *Service) SetConfigService(c *config.Service) {
 // Applied at every write AND every lookup, or the two disagree and a legitimately-registered address stops matching
 func NormalizeEmail(e string) string {
 	return strings.ToLower(strings.TrimSpace(e))
+}
+
+// The store's phone policy - the country domain's when it's wired, else only its default country to read a
+// national number in
+func (s *Service) phoneRules(ctx context.Context, channelID uuid.UUID) phone.Rules {
+	if s.countries != nil {
+		return s.countries.PhoneRulesForChannel(ctx, channelID)
+	}
+	var r phone.Rules
+	if s.cfg != nil {
+		scope := config.Scope{Kind: config.ScopeChannel, ChannelID: &channelID}
+		if v, err := s.cfg.GetString(ctx, pathDefaultCountry, scope); err == nil {
+			r.Default = v
+		}
+	}
+	return r
+}
+
+// A profile phone carries no country of its own, so one typed nationally is read in the store's default country - with none set only international input parses
+// Exported so the CSV import can refuse a bad phone before it writes the contact
+func (s *Service) NormalizeProfilePhone(ctx context.Context, channelID uuid.UUID, raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	return s.phoneRules(ctx, channelID).NormalizePtr(raw, "")
+}
+
+// An address phone is read in the address's own country, under its store's rules
+func (s *Service) normalizeAddressPhone(ctx context.Context, customerID uuid.UUID, input AddressInput) (*string, error) {
+	if input.Phone == nil {
+		return nil, nil
+	}
+	cust, err := s.repo.GetByID(ctx, customerID)
+	if err != nil {
+		return nil, err
+	}
+	return s.phoneRules(ctx, cust.ChannelID).NormalizePtr(input.Phone, input.CountryCode)
 }
 
 // RequiresEmailVerification exposes the channel's gate so the registration resolver can withhold the session - minting one before the address is proven would make the whole setting a no-op
@@ -389,6 +429,9 @@ func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, input UpdateC
 	if err != nil {
 		return Customer{}, fmt.Errorf("customer not found")
 	}
+	if input.Phone, err = s.NormalizeProfilePhone(ctx, existing.ChannelID, input.Phone); err != nil {
+		return Customer{}, err
+	}
 	merged := UpdateCustomerInput{
 		FirstName: existing.FirstName,
 		LastName:  existing.LastName,
@@ -453,6 +496,10 @@ func (s *Service) AddAddress(ctx context.Context, customerID uuid.UUID, input Ad
 	if err := s.validateAddressCountry(ctx, customerID, input); err != nil {
 		return Address{}, err
 	}
+	var err error
+	if input.Phone, err = s.normalizeAddressPhone(ctx, customerID, input); err != nil {
+		return Address{}, err
+	}
 	addr, err := s.repo.CreateAddress(ctx, customerID, input)
 	if err != nil {
 		return Address{}, err
@@ -482,6 +529,9 @@ func (s *Service) UpdateAddress(ctx context.Context, customerID, addressID uuid.
 		return Address{}, fmt.Errorf("forbidden")
 	}
 	if err := s.validateAddressCountry(ctx, customerID, input); err != nil {
+		return Address{}, err
+	}
+	if input.Phone, err = s.normalizeAddressPhone(ctx, customerID, input); err != nil {
 		return Address{}, err
 	}
 	updated, err := s.repo.UpdateAddress(ctx, addressID, input)
@@ -824,6 +874,9 @@ func (s *Service) AdminCreateCustomer(ctx context.Context, input AdminCreateCust
 
 	// Normalized copy so we don't mutate the caller's input
 	normalized := input
+	if normalized.Phone, err = s.NormalizeProfilePhone(ctx, input.ChannelID, input.Phone); err != nil {
+		return Customer{}, err
+	}
 	if normalized.IsActive == nil {
 		t := true
 		normalized.IsActive = &t
@@ -897,6 +950,9 @@ func (s *Service) AdminUpdateCustomer(ctx context.Context, id uuid.UUID, input A
 	// Load the customer first so events carry its store - subscribers filter on that
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
+		return Customer{}, err
+	}
+	if input.Phone, err = s.NormalizeProfilePhone(ctx, existing.ChannelID, input.Phone); err != nil {
 		return Customer{}, err
 	}
 

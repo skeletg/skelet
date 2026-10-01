@@ -2,12 +2,15 @@ package customerio
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
+	"github.com/skeletg/skelet/apps/backend/core/lib/phone"
 )
 
 // A nil customer service means any row surviving validation panics, which is how these prove a row never reached a write
@@ -59,6 +62,22 @@ func TestImportLowercasesTheEmailForMatching(t *testing.T) {
 	}()
 	if r.Ref != "ada@example.com" {
 		t.Fatalf("ref = %q, want the lowered address so the operator can grep the file", r.Ref)
+	}
+}
+
+// A bad phone is refused before the contact is written - the zero service has no repository, so reaching
+// EnsureContact would panic - and a dry run reports it too
+func TestImportRefusesABadPhoneBeforeWriting(t *testing.T) {
+	for _, dryRun := range []bool{false, true} {
+		opts := optsFor(uuid.New())
+		opts.DryRun = dryRun
+		im := &customerImporter{customers: &customer.Service{}, opts: opts}
+		r := dataio.NewRow()
+		r.Set(colEmail, "ada@example.com")
+		r.Set(colPhone, "+381 64")
+		if _, err := im.Row(context.Background(), r); !errors.Is(err, phone.ErrInvalid) {
+			t.Errorf("dry run %v: row with a bad phone = %v, want phone.ErrInvalid", dryRun, err)
+		}
 	}
 }
 
