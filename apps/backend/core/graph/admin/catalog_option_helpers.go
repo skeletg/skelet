@@ -7,37 +7,49 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // Values only exist for the select family - for text/date/file the option's own priceValue/priceType carry the adjustment
-func toProductOptionModels(opts []catalog.ProductOption) []*model.ProductOption {
+func toProductOptionModels(opts []catalog.ProductOption, perm auth.PermittedChannels) []*model.ProductOption {
 	out := make([]*model.ProductOption, len(opts))
 	for i, o := range opts {
-		out[i] = toProductOptionModel(o)
+		out[i] = toProductOptionModel(o, perm)
 	}
 	return out
 }
 
-func toProductOptionModel(o catalog.ProductOption) *model.ProductOption {
+func toOptionChannelPriceModels(prices []catalog.OptionChannelPrice, perm auth.PermittedChannels) []*model.OptionChannelPrice {
+	out := make([]*model.OptionChannelPrice, 0, len(prices))
+	for _, p := range prices {
+		if perm.Allows(p.ChannelID) {
+			out = append(out, &model.OptionChannelPrice{ChannelID: p.ChannelID.String(), PriceValue: p.PriceValue})
+		}
+	}
+	return out
+}
+
+func toProductOptionModel(o catalog.ProductOption, perm auth.PermittedChannels) *model.ProductOption {
 	content := make([]*model.ProductOptionContent, len(o.AllContent))
 	for i, c := range o.AllContent {
 		content[i] = &model.ProductOptionContent{Locale: c.Locale, Title: c.Title, HelpText: c.HelpText}
 	}
 	values := make([]*model.ProductOptionValue, len(o.Values))
 	for i, v := range o.Values {
-		values[i] = toProductOptionValueModel(v)
+		values[i] = toProductOptionValueModel(v, perm)
 	}
 	m := &model.ProductOption{
-		ID:         o.ID.String(),
-		InputType:  model.ProductOptionInputType(strings.ToUpper(string(o.InputType))),
-		IsRequired: o.IsRequired,
-		SortOrder:  o.SortOrder,
-		Title:      o.Title,
-		HelpText:   o.HelpText,
-		Content:    content,
-		Values:     values,
-		CreatedAt:  o.CreatedAt,
-		UpdatedAt:  o.UpdatedAt,
+		ID:            o.ID.String(),
+		InputType:     model.ProductOptionInputType(strings.ToUpper(string(o.InputType))),
+		IsRequired:    o.IsRequired,
+		SortOrder:     o.SortOrder,
+		Title:         o.Title,
+		HelpText:      o.HelpText,
+		Content:       content,
+		Values:        values,
+		ChannelPrices: toOptionChannelPriceModels(o.ChannelPrices, perm),
+		CreatedAt:     o.CreatedAt,
+		UpdatedAt:     o.UpdatedAt,
 	}
 	if o.PriceValue != nil {
 		v := *o.PriceValue
@@ -96,22 +108,23 @@ func visibleIfFromInput(v any) (*catalog.OptionConditionGroup, error) {
 	return &g, nil
 }
 
-func toProductOptionValueModel(v catalog.ProductOptionValue) *model.ProductOptionValue {
+func toProductOptionValueModel(v catalog.ProductOptionValue, perm auth.PermittedChannels) *model.ProductOptionValue {
 	content := make([]*model.ProductOptionValueContent, len(v.AllContent))
 	for i, c := range v.AllContent {
 		content[i] = &model.ProductOptionValueContent{Locale: c.Locale, Title: c.Title}
 	}
 	m := &model.ProductOptionValue{
-		ID:         v.ID.String(),
-		SortOrder:  v.SortOrder,
-		PriceValue: v.PriceValue,
-		PriceType:  model.ProductOptionPriceType(strings.ToUpper(string(v.PriceType))),
-		IsDefault:  v.IsDefault,
-		Quantity:   v.Quantity,
-		Title:      v.Title,
-		Content:    content,
-		CreatedAt:  v.CreatedAt,
-		UpdatedAt:  v.UpdatedAt,
+		ID:            v.ID.String(),
+		SortOrder:     v.SortOrder,
+		PriceValue:    v.PriceValue,
+		PriceType:     model.ProductOptionPriceType(strings.ToUpper(string(v.PriceType))),
+		IsDefault:     v.IsDefault,
+		Quantity:      v.Quantity,
+		Title:         v.Title,
+		Content:       content,
+		ChannelPrices: toOptionChannelPriceModels(v.ChannelPrices, perm),
+		CreatedAt:     v.CreatedAt,
+		UpdatedAt:     v.UpdatedAt,
 	}
 	if v.ForcedLineQty != nil {
 		q := *v.ForcedLineQty

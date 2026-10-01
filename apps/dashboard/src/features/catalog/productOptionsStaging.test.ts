@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   applyOps,
+  CommitError,
+  commitOps,
+  opsToDiff,
+  type Committers,
   isTemp,
   newTempId,
   optionContentFor,
@@ -228,5 +232,84 @@ describe('applyOps', () => {
     const staged = applyOps([], [addOption(), addValue(), { kind: 'delete-value', id: 'tmp_v1' }])
     expect(staged).toHaveLength(1)
     expect(staged[0].values).toEqual([])
+  })
+})
+
+describe('per-channel surcharges', () => {
+  const label = (id: string) => (id === 'c-eur' ? 'Tyres (EUR)' : 'Wheels (USD)')
+  const valued = () =>
+    option({ values: [{ id: 'v1', sortOrder: 0, priceValue: 500, priceType: 'FIXED', isDefault: false, quantity: 1, title: 'Gloss', channelPrices: [{ channelId: 'c-eur', priceValue: 400 }] }] })
+
+  it('merges channel edits across updates instead of the last one replacing them', () => {
+    const got = reduceOps([
+      { kind: 'update-value', id: 'v1', channelPrices: { 'c-eur': 450 } },
+      { kind: 'update-value', id: 'v1', priceValue: 600, channelPrices: { 'c-usd': 550 } },
+    ])
+    expect(got).toEqual([{ kind: 'update-value', id: 'v1', priceValue: 600, channelPrices: { 'c-eur': 450, 'c-usd': 550 } }])
+  })
+
+  it('folds channel edits into a staged add', () => {
+    const got = reduceOps([addOption(), addValue({ channelPrices: { 'c-eur': 450 } }), { kind: 'update-value', id: 'tmp_v1', channelPrices: { 'c-usd': 1 } }])
+    expect((got[1] as AddValueOp).channelPrices).toEqual({ 'c-eur': 450, 'c-usd': 1 })
+  })
+
+  it('shows set amounts and drops cleared ones in the staged view', () => {
+    const [o] = applyOps([valued()], [{ kind: 'update-value', id: 'v1', channelPrices: { 'c-eur': null, 'c-usd': 550 } }])
+    expect(o.values[0].channelPrices).toEqual([{ channelId: 'c-usd', priceValue: 550 }])
+  })
+
+  it('lists one row per channel that moved, named and with before and after', () => {
+    const rows = opsToDiff([valued()], [{ kind: 'update-value', id: 'v1', channelPrices: { 'c-eur': null, 'c-usd': 550 } }], label)
+    expect(rows).toEqual([
+      { kind: 'change', label: 'Value · Gloss · price on Tyres (EUR)', before: '400', after: '' },
+      { kind: 'change', label: 'Value · Gloss · price on Wheels (USD)', before: '', after: '550' },
+    ])
+    expect(opsToDiff([valued()], [{ kind: 'update-value', id: 'v1', channelPrices: { 'c-eur': 400 } }], label)).toEqual([])
+  })
+
+  it('names the channels a staged add sets', () => {
+    const [row] = opsToDiff([], [addValue({ priceValue: 500, channelPrices: { 'c-eur': 450 } })], label)
+    expect(row.kind).toBe('add')
+    expect(JSON.stringify(row)).toContain('Tyres (EUR) 450')
+  })
+
+  const committers = (over: Partial<Committers> = {}): Committers => ({
+    addOption: vi.fn(async () => 'o-real'),
+    updateOption: vi.fn(async () => {}),
+    upsertOptionContent: vi.fn(async () => {}),
+    deleteOption: vi.fn(async () => {}),
+    addValue: vi.fn(async () => 'v-real'),
+    updateValue: vi.fn(async () => {}),
+    upsertValueContent: vi.fn(async () => {}),
+    deleteValue: vi.fn(async () => {}),
+    setOptionChannelPrice: vi.fn(async () => {}),
+    setValueChannelPrice: vi.fn(async () => {}),
+    ...over,
+  })
+
+  it('writes a prices-only edit without re-sending the value', async () => {
+    const c = committers()
+    await commitOps([{ kind: 'update-value', id: 'v1', channelPrices: { 'c-eur': 450 } }], 'p1', c)
+    expect(c.updateValue).not.toHaveBeenCalled()
+    expect(c.setValueChannelPrice).toHaveBeenCalledWith({ valueId: 'v1', channelId: 'c-eur', priceValue: 450 })
+  })
+
+  it('sets an added value\'s prices on its real id, and a failed price retries without adding it again', async () => {
+    const setValueChannelPrice = vi.fn(async () => {
+      throw new Error('boom')
+    })
+    const c = committers({ setValueChannelPrice })
+    const err = await commitOps([addValue({ optionRef: 'o1', channelPrices: { 'c-eur': 450 } })], 'p1', c).catch((e: unknown) => e)
+    expect(c.addValue).toHaveBeenCalledTimes(1)
+    expect(setValueChannelPrice).toHaveBeenCalledWith({ valueId: 'v-real', channelId: 'c-eur', priceValue: 450 })
+    expect(err).toBeInstanceOf(CommitError)
+    expect((err as CommitError).remaining).toEqual([{ kind: 'update-value', id: 'v-real', channelPrices: { 'c-eur': 450 } }])
+  })
+
+  it('sets an option-level amount after the option update', async () => {
+    const c = committers()
+    await commitOps([{ kind: 'update-option', id: 'o1', priceValue: 300, channelPrices: { 'c-eur': 280 } }], 'p1', c)
+    expect(c.updateOption).toHaveBeenCalledTimes(1)
+    expect(c.setOptionChannelPrice).toHaveBeenCalledWith({ optionId: 'o1', channelId: 'c-eur', priceValue: 280 })
   })
 })

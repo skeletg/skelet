@@ -204,3 +204,27 @@ func TestBuildOptions_DuplicateOptionRejected(t *testing.T) {
 		t.Fatalf("got %v, want ErrProductOptionInvalid", err)
 	}
 }
+
+// A surcharge with no amount for the channel's currency can't be charged, so picking it is refused rather than priced in the wrong currency
+func TestBuildOptions_UnpricedSurchargeRefused(t *testing.T) {
+	unpriced := val(500, 1)
+	unpriced.PriceUnavailable = true
+	o := selOpt(false, "dropdown", val(0, 1), unpriced)
+	r := res(1000, o)
+	if _, _, _, err := buildConfiguredLineOptions(r, []CartLineOptionInput{{OptionID: o.ID, ValueIDs: []uuid.UUID{unpriced.ID}}}, nil); !errors.Is(err, ErrOptionPriceUnavailable) {
+		t.Fatalf("unpriced value err = %v, want ErrOptionPriceUnavailable", err)
+	}
+	if _, _, _, err := buildConfiguredLineOptions(r, []CartLineOptionInput{{OptionID: o.ID, ValueIDs: []uuid.UUID{o.Values[0].ID}}}, nil); err != nil {
+		t.Fatalf("a priced sibling must still be pickable: %v", err)
+	}
+
+	p := int32(300)
+	text := ProductOptionConfig{ID: uuid.New(), InputType: "field", Title: "Engraving", PriceValue: &p, PriceType: "fixed", PriceUnavailable: true}
+	r = res(1000, text)
+	if _, _, _, err := buildConfiguredLineOptions(r, []CartLineOptionInput{{OptionID: text.ID, TextValue: "hi"}}, nil); !errors.Is(err, ErrOptionPriceUnavailable) {
+		t.Fatalf("filled unpriced text option err = %v, want ErrOptionPriceUnavailable", err)
+	}
+	if _, _, _, err := buildConfiguredLineOptions(r, nil, nil); err != nil {
+		t.Fatalf("leaving an optional unpriced option empty: %v", err)
+	}
+}

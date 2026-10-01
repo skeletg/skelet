@@ -32,8 +32,10 @@ type ProductOptionConfig struct { // snapshot of the catalog row
 	FileExtensions string // FILE-input constraint, comma-separated allow-list, empty = no constraint
 	PriceValue     *int32 // option-level adjustment for text, date and file options, since select-family carries adjustments on values instead - nil for none
 	PriceType      string // "fixed" or "percent"
-	Values         []ProductOptionValueConfig
-	VisibleIf      *OptionVisibilityGroup // gates the option on EARLIER picks (nil = always visible), see options_visibility.go
+	// The FIXED surcharge has no amount for this channel's currency, so filling the option is refused
+	PriceUnavailable bool
+	Values           []ProductOptionValueConfig
+	VisibleIf        *OptionVisibilityGroup // gates the option on EARLIER picks (nil = always visible), see options_visibility.go
 }
 
 type FileAsset struct { // enough to validate an upload against the option's constraints and snapshot a durable reference on the line
@@ -50,8 +52,10 @@ type ProductOptionValueConfig struct { // one select-family value, snapshotted
 	PriceType          string // "fixed" | "percent"
 	Quantity           float64
 	HasSource          bool // backed by a SIMPLE product, so the contribution is that product's price plus PriceValue, forced fixed
+	SourceProductID    uuid.UUID
 	SourceProductPrice int64
 	SourceUnavailable  bool     // the linked source isn't sold on this channel, so the value can't be picked
+	PriceUnavailable   bool     // no surcharge for this channel's currency, so the value can't be picked
 	ForcedLineQty      *float64 // picking this value forces the line quantity and locks it against manual edits - nil means no constraint
 }
 
@@ -113,6 +117,9 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 				if v.SourceUnavailable {
 					return nil, 0, nil, fmt.Errorf("%w: value %s", ErrOptionValueUnavailable, vid)
 				}
+				if v.PriceUnavailable {
+					return nil, 0, nil, fmt.Errorf("%w: value %s", ErrOptionPriceUnavailable, vid)
+				}
 				seen[vid] = true
 				if v.ForcedLineQty != nil {
 					if forcedQty != nil && *forcedQty != *v.ForcedLineQty {
@@ -124,7 +131,7 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 				rowDelta := money.LineTotal(valueContribution(res.BasePrice, v), v.Quantity)
 				delta += rowDelta
 				valID := vid
-				out = append(out, CartLineOption{
+				lo := CartLineOption{
 					ProductOptionID: opt.ID,
 					OptionValueID:   &valID,
 					InputType:       opt.InputType,
@@ -133,7 +140,12 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 					PriceDelta:      rowDelta,
 					Quantity:        v.Quantity,
 					SortOrder:       sort,
-				})
+				}
+				if v.HasSource && v.SourceProductID != uuid.Nil {
+					src := v.SourceProductID
+					lo.SourceProductID = &src
+				}
+				out = append(out, lo)
 				sort++
 			}
 			continue
@@ -152,6 +164,9 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 			}
 			if err := validateFilePick(opt, asset); err != nil {
 				return nil, 0, nil, err
+			}
+			if opt.PriceUnavailable {
+				return nil, 0, nil, fmt.Errorf("%w: option %s", ErrOptionPriceUnavailable, opt.ID)
 			}
 			c := optionContribution(res.BasePrice, opt)
 			delta += c
@@ -185,6 +200,9 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 		}
 		if err := validateDateValue(opt.InputType, text); err != nil {
 			return nil, 0, nil, fmt.Errorf("%w: option %s: %w", ErrProductOptionInvalid, opt.ID, err)
+		}
+		if opt.PriceUnavailable {
+			return nil, 0, nil, fmt.Errorf("%w: option %s", ErrOptionPriceUnavailable, opt.ID)
 		}
 		c := optionContribution(res.BasePrice, opt)
 		delta += c

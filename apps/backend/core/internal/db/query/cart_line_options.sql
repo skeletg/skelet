@@ -5,9 +5,9 @@
 INSERT INTO cart_line_options (
     cart_line_id, product_option_id, option_value_id, input_type,
     option_title, value_label, text_value, price_delta, quantity, sort_order,
-    file_url
+    file_url, source_product_id
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: ListCartLineOptionsByLineIDs :many

@@ -63,6 +63,7 @@ var (
 	ErrProductOptionQtyConflict = errors.New("selected options force conflicting quantities")               // two picked values force DIFFERENT line quantities
 	ErrProductOptionQtyForced   = errors.New("quantity is set by the selected product options")
 	ErrOptionValueUnavailable   = errors.New("this option choice is not sold on this channel")
+	ErrOptionPriceUnavailable   = errors.New("this option choice has no surcharge set in this channel's currency")
 	ErrProductOptionCardinality = errors.New("product option does not allow this many values")
 	ErrOptionsUnsupportedKind   = errors.New("product kind does not support custom options") // sentinel the catalog adapter returns for kinds that never carry options (bundle, grouped, ...) - gates treat it as "no options" while any OTHER resolve error fails closed instead of skipping enforcement
 )
@@ -136,16 +137,44 @@ type CartLine struct {
 	Quantity    float64
 	IsGift      bool // a promotion free gift - order placement appends these in memory after the engine runs, so they reach order_lines and the stock reservation without ever being a cart_lines row the shopper could edit
 	Components  []CartLineComponent
-	// Set by order placement and edits, never stored on a cart: the kit recipe per unit the order takes stock by
-	KitComponents []CartLineKitComponent `json:"-"`
-	Options       []CartLineOption
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	// Set by order placement and edits, never stored on a cart: what the order takes stock from per line unit
+	StockParts []CartLineStockPart `json:"-"`
+	Options    []CartLineOption
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
-type CartLineKitComponent struct {
+const (
+	StockPartKit    = "kit"    // a kit component - the kit line itself owns no stock
+	StockPartOption = "option" // a picked value's linked source, taken on top of the line's own product
+)
+
+type CartLineStockPart struct {
 	ProductID uuid.UUID
 	Quantity  float64
+	Source    string
+}
+
+// Whether the line's own product is reserved - a kit line takes only its components
+func OwnsStock(parts []CartLineStockPart) bool {
+	for _, p := range parts {
+		if p.Source == StockPartKit {
+			return false
+		}
+	}
+	return true
+}
+
+// The linked sources a configured line's picks take stock from, per line unit
+func OptionStockParts(opts []CartLineOption) []CartLineStockPart {
+	var out []CartLineStockPart
+	for _, o := range opts {
+		if o.SourceProductID == nil || o.Quantity <= 0 {
+			continue
+		}
+		out = append(out, CartLineStockPart{ProductID: *o.SourceProductID, Quantity: o.Quantity, Source: StockPartOption})
+	}
+	return out
 }
 
 type CartLineOptionInput struct { // ValueIDs for select-family options, TextValue for free-text, ISO-date and the file reference
@@ -167,6 +196,7 @@ type CartLineOption struct { // PriceDelta is the cents added to the UNIT price,
 	Quantity        float64
 	SortOrder       int32
 	FileURL         string
+	SourceProductID *uuid.UUID // snapshot of the value's linked source, so a later relink can't change what the line takes stock from
 }
 
 type AddConfiguredToCartInput struct { // re-adding the same SKU replaces the configuration rather than summing, like AddBundleToCartInput

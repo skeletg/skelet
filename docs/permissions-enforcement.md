@@ -195,6 +195,11 @@ selected into the bundle, not the bundle itself (that one comes through
 `OptionID`), while `KitComponent.ProductID` *is* the owning kit and
 `ComponentProductID` is the reference.
 
+Per-channel option surcharges (`setProductOptionChannelPrice`,
+`setProductOptionValueChannelPrice`) take the same gate, and the channel they
+name has to be one the product is listed on - so a channel-scoped admin can
+only ever price a channel they already hold.
+
 `graph/admin/catalog_product_scope_test.go` enforces this: every mutation in
 the product-row resolver files has to reach a channel-aware gate, so a bare
 `RequirePermission` fails the build. Product *types* are deliberately out of

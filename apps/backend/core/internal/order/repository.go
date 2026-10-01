@@ -837,15 +837,16 @@ func (r *postgresRepository) AddOrderLineComponent(ctx context.Context, c OrderL
 	return toOrderLineComponent(row), nil
 }
 
-func (r *postgresRepository) AddOrderLineKitComponents(ctx context.Context, orderLineID uuid.UUID, comps []OrderLineKitComponent) error {
-	for i, c := range comps {
-		if err := r.queries.InsertOrderLineKitComponent(ctx, db.InsertOrderLineKitComponentParams{
+func (r *postgresRepository) AddOrderLineStockParts(ctx context.Context, orderLineID uuid.UUID, parts []OrderLineStockPart) error {
+	for i, p := range parts {
+		if err := r.queries.InsertOrderLineStockPart(ctx, db.InsertOrderLineStockPartParams{
 			OrderLineID: orderLineID,
-			ProductID:   c.ProductID,
-			Quantity:    c.Quantity,
+			ProductID:   p.ProductID,
+			Quantity:    p.Quantity,
+			Source:      p.Source,
 			SortOrder:   int32(i),
 		}); err != nil {
-			return fmt.Errorf("add order line kit component: %w", err)
+			return fmt.Errorf("add order line stock part: %w", err)
 		}
 	}
 	return nil
@@ -949,7 +950,7 @@ func (r *postgresRepository) hydrateOrder(ctx context.Context, o Order) (Order, 
 	if err := r.attachOrderLineComponents(ctx, o.Lines); err != nil {
 		return Order{}, err
 	}
-	if err := r.attachOrderLineKitComponents(ctx, o.Lines); err != nil {
+	if err := r.attachOrderLineStockParts(ctx, o.Lines); err != nil {
 		return Order{}, err
 	}
 	events, err := r.queries.ListOrderEventsByOrder(ctx, o.ID)
@@ -1281,7 +1282,7 @@ func (r *postgresRepository) attachOrderLineComponents(ctx context.Context, line
 	return nil
 }
 
-func (r *postgresRepository) attachOrderLineKitComponents(ctx context.Context, lines []OrderLine) error {
+func (r *postgresRepository) attachOrderLineStockParts(ctx context.Context, lines []OrderLine) error {
 	if len(lines) == 0 {
 		return nil
 	}
@@ -1289,16 +1290,16 @@ func (r *postgresRepository) attachOrderLineKitComponents(ctx context.Context, l
 	for i := range lines {
 		ids[i] = lines[i].ID
 	}
-	rows, err := r.queries.ListOrderLineKitComponentsByOrderLineIDs(ctx, ids)
+	rows, err := r.queries.ListOrderLineStockPartsByOrderLineIDs(ctx, ids)
 	if err != nil {
-		return fmt.Errorf("load order line kit components: %w", err)
+		return fmt.Errorf("load order line stock parts: %w", err)
 	}
-	byLine := make(map[uuid.UUID][]OrderLineKitComponent, len(lines))
+	byLine := make(map[uuid.UUID][]OrderLineStockPart, len(lines))
 	for _, row := range rows {
-		byLine[row.OrderLineID] = append(byLine[row.OrderLineID], OrderLineKitComponent{ProductID: row.ProductID, Quantity: row.Quantity})
+		byLine[row.OrderLineID] = append(byLine[row.OrderLineID], OrderLineStockPart{ProductID: row.ProductID, Quantity: row.Quantity, Source: row.Source})
 	}
 	for i := range lines {
-		lines[i].KitComponents = byLine[lines[i].ID]
+		lines[i].StockParts = byLine[lines[i].ID]
 	}
 	return nil
 }
