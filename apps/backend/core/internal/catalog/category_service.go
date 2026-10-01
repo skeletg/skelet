@@ -61,7 +61,7 @@ func (s *categoryService) CreateCategory(ctx context.Context, input CreateCatego
 
 	var created Category
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		r := s.repo.WithTx(t)
+		r := s.core.repo.WithTx(t)
 		c, err := r.CreateCategory(ctx, input)
 		if err != nil {
 			return err
@@ -299,7 +299,7 @@ func (s *categoryService) UpdateCategory(ctx context.Context, input UpdateCatego
 	var moves []CategoryPathMove
 	relocated := false
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		r := s.repo.WithTx(t)
+		r := s.core.repo.WithTx(t)
 		if input.Slug != nil || input.ParentID != nil || input.ClearParent {
 			if err := r.LockCategoryTree(ctx); err != nil {
 				return err
@@ -376,7 +376,7 @@ func changedCategoryFields(in UpdateCategoryInput) []string {
 }
 
 // A parent inside the moved subtree closes a loop, and the subtree's deepest leaf must still fit under the depth cap
-func checkCategoryPlacement(ctx context.Context, r Repository, id, parentID uuid.UUID) error {
+func checkCategoryPlacement(ctx context.Context, r CategoryRepository, id, parentID uuid.UUID) error {
 	if parentID == id {
 		return ErrCategoryCycle
 	}
@@ -396,7 +396,7 @@ func checkCategoryPlacement(ctx context.Context, r Repository, id, parentID uuid
 	return categoryDepthFits(len(chain), height)
 }
 
-func checkCategoryDepth(ctx context.Context, r Repository, parentID uuid.UUID, height int32) error {
+func checkCategoryDepth(ctx context.Context, r CategoryRepository, parentID uuid.UUID, height int32) error {
 	chain, err := r.GetCategoryAncestors(ctx, parentID)
 	if err != nil {
 		return err
@@ -434,7 +434,7 @@ func (s *categoryService) syncMovedCategoryPaths(ctx context.Context, moves []Ca
 func (s *categoryService) DeleteCategory(ctx context.Context, id uuid.UUID) error {
 	var snap Category
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		r := s.repo.WithTx(t)
+		r := s.core.repo.WithTx(t)
 		var err error
 		if snap, err = r.LockCategoryByID(ctx, id); err != nil {
 			return err
@@ -544,7 +544,7 @@ func (s *categoryService) AddProductToCategory(ctx context.Context, productID, c
 	if isPrimary {
 		// Clear any existing primary before inserting to avoid unique constraint violation - wrap in a single tx so there's no window with zero primaries
 		if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
-			r := s.repo.WithTx(t)
+			r := s.core.repo.WithTx(t)
 			if err := r.AddProductToCategory(ctx, productID, categoryID, position, false); err != nil {
 				return err
 			}

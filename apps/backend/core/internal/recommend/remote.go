@@ -1,4 +1,4 @@
-package catalog
+package recommend
 
 import (
 	"context"
@@ -16,19 +16,6 @@ const StrategyAlsoBought = "also_bought"
 
 type RemoteRecommendationSource interface {
 	Recommend(ctx context.Context, productID uuid.UUID, strategy string, limit int32) ([]uuid.UUID, bool)
-}
-
-// Optional - nil leaves recommendations on the native co-occurrence table
-func (s *Service) SetRemoteRecommendations(src RemoteRecommendationSource) { s.remoteRecs = src }
-
-// Shadows the embedded listingService method to consult the remote provider first - the single high-leverage hook, since both the PDP rail and the cart rail ride on it
-func (s *Service) ListAlsoBought(ctx context.Context, productID uuid.UUID, limit int32) ([]uuid.UUID, error) {
-	if s.remoteRecs != nil {
-		if ids, ok := s.remoteRecs.Recommend(ctx, productID, StrategyAlsoBought, limit); ok {
-			return ids, nil
-		}
-	}
-	return s.listingService.ListAlsoBought(ctx, productID, limit)
 }
 
 type remoteRecRequest struct {

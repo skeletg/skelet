@@ -43,7 +43,7 @@ var ops = []op{
 		"Supply FX rates for a base currency."},
 	{"pricing", "pricing", "internal/wiring", "remotePricingRequest", "remotePricingResponse",
 		"Override a line's unit price. Null or negative means no override - keep the catalog price."},
-	{"recommendation", "recommendation", "internal/catalog", "remoteRecRequest", "remoteRecResponse",
+	{"recommendation", "recommendation", "internal/recommend", "remoteRecRequest", "remoteRecResponse",
 		"Recommend related products for a product page."},
 	{"reviews", "reviews", "internal/review", "remoteReviewRequest", "remoteReviewResponse",
 		"Supply review aggregates from an external review platform."},

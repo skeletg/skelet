@@ -131,7 +131,7 @@ func bundleDefaultsFit(t BundleInputType, max *int32, defaults int64) error {
 }
 
 // One more default on optionID must still fit - the option row lock serializes concurrent default flips
-func addingBundleDefault(ctx context.Context, r Repository, optionID uuid.UUID) error {
+func addingBundleDefault(ctx context.Context, r BundleRepository, optionID uuid.UUID) error {
 	option, err := r.GetBundleOptionByIDForUpdate(ctx, optionID)
 	if err != nil {
 		return err

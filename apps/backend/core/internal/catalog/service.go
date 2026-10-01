@@ -93,8 +93,6 @@ type Service struct {
 	*subscriptionTermsService
 	*kitService
 	*listingService
-	// remoteRecs, when wired, overrides the native "also bought" list with a remote recommendation provider - Consulted by ListAlsoBought (which shadows the embedded listingService method) - See remote_recommendation.go
-	remoteRecs RemoteRecommendationSource
 }
 
 // LinkLabelsByIDs returns id→display-name for a catalog entity kind (product/category/collection) in the given locale - Used by the CMS link picker to label references - Best-effort: missing ids/errors yield no entry (caller falls back to the path) - Unknown kinds return an empty map
@@ -102,19 +100,19 @@ func (s *Service) LinkLabelsByIDs(ctx context.Context, entityType string, ids []
 	out := make(map[uuid.UUID]string)
 	switch entityType {
 	case string(urlrewrite.EntityTypeProduct):
-		if m, err := s.repo.ListProductContentByScope(ctx, ids, locale); err == nil {
+		if m, err := s.core.repo.ListProductContentByScope(ctx, ids, locale); err == nil {
 			for id, c := range m {
 				out[id] = c.Name
 			}
 		}
 	case categoryEntityType:
-		if m, err := s.repo.ListCategoryContentByScope(ctx, ids, locale); err == nil {
+		if m, err := s.core.repo.ListCategoryContentByScope(ctx, ids, locale); err == nil {
 			for id, c := range m {
 				out[id] = c.Name
 			}
 		}
 	case collectionEntityType:
-		if m, err := s.repo.ListCollectionContentByScope(ctx, ids, locale); err == nil {
+		if m, err := s.core.repo.ListCollectionContentByScope(ctx, ids, locale); err == nil {
 			for id, c := range m {
 				out[id] = c.Name
 			}
@@ -151,16 +149,16 @@ func NewService(d Deps) *Service {
 	return &Service{
 		core:                     c,
 		productService:           &productService{core: c},
-		categoryService:          &categoryService{core: c},
-		collectionService:        &collectionService{core: c},
-		optionService:            &optionService{core: c},
-		mediaService:             &mediaService{core: c},
-		bundleService:            &bundleService{core: c},
-		groupedService:           &groupedService{core: c},
-		downloadService:          &downloadService{core: c},
-		subscriptionTermsService: &subscriptionTermsService{core: c},
-		kitService:               &kitService{core: c},
-		listingService:           &listingService{core: c},
+		categoryService:          &categoryService{core: c, repo: d.Repo},
+		collectionService:        &collectionService{core: c, repo: d.Repo},
+		optionService:            &optionService{core: c, repo: d.Repo},
+		mediaService:             &mediaService{core: c, repo: d.Repo},
+		bundleService:            &bundleService{core: c, repo: d.Repo},
+		groupedService:           &groupedService{core: c, repo: d.Repo},
+		downloadService:          &downloadService{core: c, repo: d.Repo},
+		subscriptionTermsService: &subscriptionTermsService{core: c, repo: d.Repo},
+		kitService:               &kitService{core: c, repo: d.Repo},
+		listingService:           &listingService{core: c, repo: d.Repo},
 	}
 }
 
