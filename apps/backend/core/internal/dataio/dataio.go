@@ -4,8 +4,10 @@ package dataio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -44,6 +46,7 @@ type Field struct {
 	Identifier bool
 	ReadOnly   bool     // exported for context, ignored on import
 	Enum       []string // allowed values, validated by Row.Enum and listed in the UI
+	Aliases    []string // older header names an import still accepts, read as this column
 }
 
 // Falls back to the column name so a resource can skip Label on self-explanatory columns
@@ -173,6 +176,15 @@ func (r Resource) identifiers() []string {
 	return out
 }
 
+func (r Resource) canonical(name string) string {
+	for _, f := range r.Fields {
+		if slices.Contains(f.Aliases, name) {
+			return f.Name
+		}
+	}
+	return name
+}
+
 func (r Resource) knownColumn(name string) bool {
 	if _, ok := r.field(name); ok {
 		return true
@@ -265,6 +277,19 @@ var (
 	ErrNotImportable   = fmt.Errorf("resource does not support import")
 	ErrNotExportable   = fmt.Errorf("resource does not support export")
 )
+
+// Wraps a row error that another row of the file may resolve - retried until a round lands nothing, then failed with the cause
+func Defer(cause error) error { return deferredError{cause: cause} }
+
+type deferredError struct{ cause error }
+
+func (e deferredError) Error() string { return e.cause.Error() }
+func (e deferredError) Unwrap() error { return e.cause }
+
+func isDeferred(err error) bool {
+	var d deferredError
+	return errors.As(err, &d)
+}
 
 // Rows past this are refused before anything runs - a 5M-row paste is a mistake, not a workload
 const DefaultMaxImportRows = 250_000

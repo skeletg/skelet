@@ -44,7 +44,7 @@ func TestTheMerchantFeedSnapsAnUnknownLocaleToTheDefault(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	feed := catalogio.NewMerchantFeed(db.New(conn), nil, untrackedSalable{})
+	feed := catalogio.NewMerchantFeed(db.New(conn), nil, untrackedSalable{}, nil)
 	sv := &channel.Channel{ID: ch, Name: "loc", CurrencyCode: "USD", DefaultLocale: "en", PublicURL: "https://loc.test", Locales: []locale.Locale{{Code: "en", IsActive: true}}}
 	req := httptest.NewRequest("GET", "/feeds/products.xml?locale=zz", nil)
 	req = req.WithContext(channel.WithChannel(req.Context(), sv))
