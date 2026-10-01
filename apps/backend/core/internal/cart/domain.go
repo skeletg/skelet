@@ -63,6 +63,7 @@ var (
 	ErrProductOptionQtyConflict = errors.New("selected options force conflicting quantities")               // two picked values force DIFFERENT line quantities
 	ErrProductOptionQtyForced   = errors.New("quantity is set by the selected product options")
 	ErrOptionValueUnavailable   = errors.New("this option choice is not sold on this channel")
+	ErrOptionPriceUnavailable   = errors.New("this option choice has no surcharge set in this channel's currency")
 	ErrProductOptionCardinality = errors.New("product option does not allow this many values")
 	ErrOptionsUnsupportedKind   = errors.New("product kind does not support custom options") // sentinel the catalog adapter returns for kinds that never carry options (bundle, grouped, ...) - gates treat it as "no options" while any OTHER resolve error fails closed instead of skipping enforcement
 )

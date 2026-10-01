@@ -2481,6 +2481,8 @@ type ComplexityRoot struct {
 		SetProductLinks                   func(childComplexity int, productID string, kind model.ProductLinkKind, linkedProductIds []string) int
 		SetProductListing                 func(childComplexity int, input model.SetProductListingInput) int
 		SetProductMediaRole               func(childComplexity int, productID string, role model.ProductMediaRole, mediaID string) int
+		SetProductOptionChannelPrice      func(childComplexity int, optionID string, channelID string, priceValue *int32) int
+		SetProductOptionValueChannelPrice func(childComplexity int, valueID string, channelID string, priceValue *int32) int
 		SetProductPrimaryCategory         func(childComplexity int, productID string, categoryID string) int
 		SetProductTaxClass                func(childComplexity int, productID string, taxClass string) int
 		SetProductTypeURLPathTemplate     func(childComplexity int, productTypeID string, template string) int
@@ -2596,6 +2598,11 @@ type ComplexityRoot struct {
 		UpsertSearchRedirect              func(childComplexity int, channelID string, query string, targetURL string) int
 		UpsertShippingBox                 func(childComplexity int, input model.ShippingBoxInput) int
 		VoidPayment                       func(childComplexity int, orderID string) int
+	}
+
+	OptionChannelPrice struct {
+		ChannelID  func(childComplexity int) int
+		PriceValue func(childComplexity int) int
 	}
 
 	Order struct {
@@ -2930,6 +2937,7 @@ type ComplexityRoot struct {
 	}
 
 	ProductOption struct {
+		ChannelPrices  func(childComplexity int) int
 		Content        func(childComplexity int) int
 		CreatedAt      func(childComplexity int) int
 		FileExtensions func(childComplexity int) int
@@ -2955,6 +2963,7 @@ type ComplexityRoot struct {
 	}
 
 	ProductOptionValue struct {
+		ChannelPrices func(childComplexity int) int
 		Content       func(childComplexity int) int
 		CreatedAt     func(childComplexity int) int
 		ForcedLineQty func(childComplexity int) int
@@ -4539,6 +4548,8 @@ type MutationResolver interface {
 	UpsertProductOptionValueContent(ctx context.Context, valueID string, locale string, title string) (*model.Product, error)
 	DeleteProductOptionValueContent(ctx context.Context, valueID string, locale string) (*model.Product, error)
 	DeleteProductOptionValue(ctx context.Context, id string) (*model.Product, error)
+	SetProductOptionChannelPrice(ctx context.Context, optionID string, channelID string, priceValue *int32) (*model.Product, error)
+	SetProductOptionValueChannelPrice(ctx context.Context, valueID string, channelID string, priceValue *int32) (*model.Product, error)
 	AddBundleOption(ctx context.Context, input model.AddBundleOptionInput) (*model.Product, error)
 	UpdateBundleOption(ctx context.Context, input model.UpdateBundleOptionInput) (*model.Product, error)
 	UpsertBundleOptionContent(ctx context.Context, optionID string, locale string, title string) (*model.Product, error)
@@ -17853,6 +17864,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetProductMediaRole(childComplexity, args["productId"].(string), args["role"].(model.ProductMediaRole), args["mediaId"].(string)), true
+	case "Mutation.setProductOptionChannelPrice":
+		if e.ComplexityRoot.Mutation.SetProductOptionChannelPrice == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setProductOptionChannelPrice_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetProductOptionChannelPrice(childComplexity, args["optionId"].(string), args["channelId"].(string), args["priceValue"].(*int32)), true
+	case "Mutation.setProductOptionValueChannelPrice":
+		if e.ComplexityRoot.Mutation.SetProductOptionValueChannelPrice == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setProductOptionValueChannelPrice_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetProductOptionValueChannelPrice(childComplexity, args["valueId"].(string), args["channelId"].(string), args["priceValue"].(*int32)), true
 	case "Mutation.setProductPrimaryCategory":
 		if e.ComplexityRoot.Mutation.SetProductPrimaryCategory == nil {
 			break
@@ -19118,6 +19151,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.VoidPayment(childComplexity, args["orderId"].(string)), true
+
+	case "OptionChannelPrice.channelId":
+		if e.ComplexityRoot.OptionChannelPrice.ChannelID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OptionChannelPrice.ChannelID(childComplexity), true
+	case "OptionChannelPrice.priceValue":
+		if e.ComplexityRoot.OptionChannelPrice.PriceValue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OptionChannelPrice.PriceValue(childComplexity), true
 
 	case "Order.appliedPromotions":
 		if e.ComplexityRoot.Order.AppliedPromotions == nil {
@@ -20673,6 +20719,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ProductMemberships.GroupedProducts(childComplexity), true
 
+	case "ProductOption.channelPrices":
+		if e.ComplexityRoot.ProductOption.ChannelPrices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProductOption.ChannelPrices(childComplexity), true
 	case "ProductOption.content":
 		if e.ComplexityRoot.ProductOption.Content == nil {
 			break
@@ -20789,6 +20841,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ProductOptionContent.Title(childComplexity), true
 
+	case "ProductOptionValue.channelPrices":
+		if e.ComplexityRoot.ProductOptionValue.ChannelPrices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProductOptionValue.ChannelPrices(childComplexity), true
 	case "ProductOptionValue.content":
 		if e.ComplexityRoot.ProductOptionValue.Content == nil {
 			break
@@ -29717,6 +29775,8 @@ type ProductOption {
   maxChars:       Int
   maxFileBytes:   Int
   fileExtensions: String
+  # Per-channel FIXED surcharges replacing priceValue on those channels, only for channels the caller can see. Without one, priceValue applies only on channels selling in the product's default currency, and the option can't be filled elsewhere.
+  channelPrices:  [OptionChannelPrice!]!
   # Values for select-family options. Empty for text/date/file.
   values:         [ProductOptionValue!]!
   # Visibility condition group gating this option on EARLIER options' picks (null = always visible). Shape: { logic: "and"|"or", rules: [{ option_id, op: anyOf|noneOf|filled|empty, value_ids: [ID] }], groups: [...] }. Rules may only reference options with strictly lower sortOrder.
@@ -29749,8 +29809,15 @@ type ProductOptionValue {
   content:    [ProductOptionValueContent!]!
   # Optional reference to an existing SIMPLE product. When set, the value inherits the product's display data (name, SKU, default price, image) for storefront rendering; priceValue stays a markup on top of the source product's default_price (FIXED only).
   sourceProduct: Product
+  # Per-channel FIXED amounts (the markup for a linked value) replacing priceValue on those channels, only for channels the caller can see. Without one, priceValue applies only on channels selling in the product's default currency, and the value can't be picked elsewhere.
+  channelPrices: [OptionChannelPrice!]!
   createdAt:  Time!
   updatedAt:  Time!
+}
+
+type OptionChannelPrice {
+  channelId:  ID!
+  priceValue: Int!
 }
 
 type ProductOptionValueContent {
@@ -29849,6 +29916,9 @@ extend type Mutation {
   upsertProductOptionValueContent(valueId: ID!, locale: String!, title: String!): Product!
   deleteProductOptionValueContent(valueId: ID!, locale: String!): Product!
   deleteProductOptionValue(id: ID!): Product!
+  # Set (or, with a null priceValue, clear) a FIXED surcharge for one channel the product is listed on. Gated like every option write, and on the named channel too.
+  setProductOptionChannelPrice(optionId: ID!, channelId: ID!, priceValue: Int): Product!
+  setProductOptionValueChannelPrice(valueId: ID!, channelId: ID!, priceValue: Int): Product!
 }
 `, BuiltIn: false},
 	{Name: "../schema/admin/catalog_product_structure.graphqls", Input: `# ==================== Bundle structure ====================
@@ -40678,6 +40748,16 @@ func (ec *executionContext) childFields_MetadataItem(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type MetadataItem", field.Name)
 }
 
+func (ec *executionContext) childFields_OptionChannelPrice(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "channelId":
+		return ec.fieldContext_OptionChannelPrice_channelId(ctx, field)
+	case "priceValue":
+		return ec.fieldContext_OptionChannelPrice_priceValue(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OptionChannelPrice", field.Name)
+}
+
 func (ec *executionContext) childFields_Order(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -41366,6 +41446,8 @@ func (ec *executionContext) childFields_ProductOption(ctx context.Context, field
 		return ec.fieldContext_ProductOption_maxFileBytes(ctx, field)
 	case "fileExtensions":
 		return ec.fieldContext_ProductOption_fileExtensions(ctx, field)
+	case "channelPrices":
+		return ec.fieldContext_ProductOption_channelPrices(ctx, field)
 	case "values":
 		return ec.fieldContext_ProductOption_values(ctx, field)
 	case "visibleIf":
@@ -41412,6 +41494,8 @@ func (ec *executionContext) childFields_ProductOptionValue(ctx context.Context, 
 		return ec.fieldContext_ProductOptionValue_content(ctx, field)
 	case "sourceProduct":
 		return ec.fieldContext_ProductOptionValue_sourceProduct(ctx, field)
+	case "channelPrices":
+		return ec.fieldContext_ProductOptionValue_channelPrices(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_ProductOptionValue_createdAt(ctx, field)
 	case "updatedAt":
@@ -50275,6 +50359,66 @@ func (ec *executionContext) field_Mutation_setProductMediaRole_args(ctx context.
 		return nil, err
 	}
 	args["mediaId"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setProductOptionChannelPrice_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "optionId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["optionId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "priceValue",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["priceValue"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setProductOptionValueChannelPrice_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "valueId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["valueId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "priceValue",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["priceValue"] = arg2
 	return args, nil
 }
 
@@ -97266,6 +97410,94 @@ func (ec *executionContext) fieldContext_Mutation_deleteProductOptionValue(ctx c
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setProductOptionChannelPrice(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setProductOptionChannelPrice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetProductOptionChannelPrice(ctx, fc.Args["optionId"].(string), fc.Args["channelId"].(string), fc.Args["priceValue"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
+			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setProductOptionChannelPrice(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Product(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setProductOptionChannelPrice_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setProductOptionValueChannelPrice(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setProductOptionValueChannelPrice(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetProductOptionValueChannelPrice(ctx, fc.Args["valueId"].(string), fc.Args["channelId"].(string), fc.Args["priceValue"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Product) graphql.Marshaler {
+			return ec.marshalNProduct2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐProduct(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setProductOptionValueChannelPrice(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Product(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setProductOptionValueChannelPrice_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_addBundleOption(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -112009,6 +112241,52 @@ func (ec *executionContext) fieldContext_Mutation_redeliverWebhookDelivery(ctx c
 	return fc, nil
 }
 
+func (ec *executionContext) _OptionChannelPrice_channelId(ctx context.Context, field graphql.CollectedField, obj *model.OptionChannelPrice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OptionChannelPrice_channelId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OptionChannelPrice_channelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OptionChannelPrice", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _OptionChannelPrice_priceValue(ctx context.Context, field graphql.CollectedField, obj *model.OptionChannelPrice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OptionChannelPrice_priceValue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PriceValue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OptionChannelPrice_priceValue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OptionChannelPrice", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Order_id(ctx context.Context, field graphql.CollectedField, obj *model.Order) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -118560,6 +118838,38 @@ func (ec *executionContext) fieldContext_ProductOption_fileExtensions(_ context.
 	return graphql.NewScalarFieldContext("ProductOption", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _ProductOption_channelPrices(ctx context.Context, field graphql.CollectedField, obj *model.ProductOption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProductOption_channelPrices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelPrices, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.OptionChannelPrice) graphql.Marshaler {
+			return ec.marshalNOptionChannelPrice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOptionChannelPriceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProductOption_channelPrices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProductOption",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OptionChannelPrice(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ProductOption_values(ctx context.Context, field graphql.CollectedField, obj *model.ProductOption) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -118973,6 +119283,38 @@ func (ec *executionContext) fieldContext_ProductOptionValue_sourceProduct(_ cont
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Product(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProductOptionValue_channelPrices(ctx context.Context, field graphql.CollectedField, obj *model.ProductOptionValue) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProductOptionValue_channelPrices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelPrices, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.OptionChannelPrice) graphql.Marshaler {
+			return ec.marshalNOptionChannelPrice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOptionChannelPriceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProductOptionValue_channelPrices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProductOptionValue",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OptionChannelPrice(ctx, field)
 		},
 	}
 	return fc, nil
@@ -177082,6 +177424,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setProductOptionChannelPrice":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setProductOptionChannelPrice(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setProductOptionValueChannelPrice":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setProductOptionValueChannelPrice(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "addBundleOption":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_addBundleOption(ctx, field)
@@ -179424,6 +179780,49 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_redeliverWebhookDelivery(ctx, field)
 			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var optionChannelPriceImplementors = []string{"OptionChannelPrice"}
+
+func (ec *executionContext) _OptionChannelPrice(ctx context.Context, sel ast.SelectionSet, obj *model.OptionChannelPrice) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, optionChannelPriceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OptionChannelPrice")
+		case "channelId":
+			out.Values[i] = ec._OptionChannelPrice_channelId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priceValue":
+			out.Values[i] = ec._OptionChannelPrice_priceValue(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -182138,6 +182537,11 @@ func (ec *executionContext) _ProductOption(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "channelPrices":
+			out.Values[i] = ec._ProductOption_channelPrices(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "values":
 			out.Values[i] = ec._ProductOption_values(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -182287,6 +182691,11 @@ func (ec *executionContext) _ProductOptionValue(ctx context.Context, sel ast.Sel
 		case "sourceProduct":
 			out.Values[i] = ec._ProductOptionValue_sourceProduct(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "channelPrices":
+			out.Values[i] = ec._ProductOptionValue_channelPrices(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "createdAt":
@@ -202024,6 +202433,32 @@ func (ec *executionContext) unmarshalNMintBlogPostPreviewTokenInput2githubᚗcom
 func (ec *executionContext) unmarshalNMintCMSPagePreviewTokenInput2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐMintCMSPagePreviewTokenInput(ctx context.Context, v any) (model.MintCMSPagePreviewTokenInput, error) {
 	res, err := ec.unmarshalInputMintCMSPagePreviewTokenInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNOptionChannelPrice2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOptionChannelPriceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OptionChannelPrice) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOptionChannelPrice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOptionChannelPrice(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOptionChannelPrice2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOptionChannelPrice(ctx context.Context, sel ast.SelectionSet, v *model.OptionChannelPrice) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OptionChannelPrice(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNOrder2githubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐOrder(ctx context.Context, sel ast.SelectionSet, v model.Order) graphql.Marshaler {

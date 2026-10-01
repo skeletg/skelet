@@ -114,6 +114,7 @@ func (a AuditURLCollisions) RecordURLCollision(ctx context.Context, entityType, 
 type CartCatalogAdapter struct {
 	svc       *catalog.Service
 	customers *customer.Service // resolves a customer's group for tier pricing - nil in contexts without customer access (then group tiers don't apply)
+	channels  *channel.Service  // the channel's currency decides which FIXED option surcharges can be charged
 }
 
 // CartFileAdapter resolves an uploaded media asset for a FILE-type product option pick - it reads the asset row (filename, mime, public URL) and HEADs object storage for the authoritative byte size + existence, so the cart validates against the real upload rather than client-claimed values
@@ -285,6 +286,13 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 	if err != nil {
 		return cart.ProductOptionsResolution{}, err
 	}
+	if a.channels == nil {
+		return cart.ProductOptionsResolution{}, errors.New("resolve product options: no channel lookup wired")
+	}
+	ch, err := a.channels.GetByID(ctx, channelID)
+	if err != nil {
+		return cart.ProductOptionsResolution{}, err
+	}
 	loc := locale.Active(ctx, nil)
 	opts, err := a.svc.GetProductOptions(ctx, p.ID, loc)
 	if err != nil {
@@ -297,7 +305,7 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 		BasePrice:   pricing.UnitPrice,
 		Options:     make([]cart.ProductOptionConfig, 0, len(opts)),
 	}
-	if err := a.appendCartOptions(ctx, channelID, &res, opts); err != nil {
+	if err := a.appendCartOptions(ctx, ch, &res, opts); err != nil {
 		return cart.ProductOptionsResolution{}, err
 	}
 
@@ -311,7 +319,7 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 		if err != nil {
 			return cart.ProductOptionsResolution{}, err
 		}
-		if err := a.appendCartOptions(ctx, channelID, &res, parentOpts); err != nil {
+		if err := a.appendCartOptions(ctx, ch, &res, parentOpts); err != nil {
 			return cart.ProductOptionsResolution{}, err
 		}
 		// The merged set displays and snapshots in walk order - stable-sort so parent and variant options interleave by their authored sort_order like the PDP shows them, while same-product relative order (the visible_if evaluation invariant) is preserved
@@ -323,7 +331,8 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 }
 
 // appendCartOptions maps catalog product options into the cart's option-config shape and appends them to res - shared so a variant's own options and its configurable parent's options funnel through the same conversion
-func (a CartCatalogAdapter) appendCartOptions(ctx context.Context, channelID uuid.UUID, res *cart.ProductOptionsResolution, opts []catalog.ProductOption) error {
+func (a CartCatalogAdapter) appendCartOptions(ctx context.Context, ch channel.Channel, res *cart.ProductOptionsResolution, opts []catalog.ProductOption) error {
+	channelID := ch.ID
 	// Channel-priced source products, deduped - a linked value charges what its source costs on THIS channel (listing override/special), mirroring the bundle component BILLING rule; a source this channel doesn't sell makes the value unpickable
 	srcPrice := map[string]int64{}
 	unavailable := map[string]bool{}
@@ -356,19 +365,23 @@ func (a CartCatalogAdapter) appendCartOptions(ctx context.Context, channelID uui
 			MaxChars:       o.MaxChars,
 			MaxFileBytes:   o.MaxFileBytes,
 			FileExtensions: o.FileExtensions,
-			PriceValue:     o.PriceValue,
 		}
+		var priced bool
+		cfg.PriceValue, priced = o.ChannelPriceValue(channelID, ch.CurrencyCode)
+		cfg.PriceUnavailable = !priced
 		if o.PriceType != nil {
 			cfg.PriceType = string(*o.PriceType)
 		}
 		cfg.VisibleIf = toCartVisibilityGroup(o.VisibleIf)
 		for _, v := range o.Values {
+			price, priced := v.ChannelPriceValue(channelID, ch.CurrencyCode, o.Currency)
 			vc := cart.ProductOptionValueConfig{
-				ID:         v.ID,
-				Title:      v.Title,
-				PriceValue: v.PriceValue,
-				PriceType:  string(v.PriceType),
-				Quantity:   v.Quantity,
+				ID:               v.ID,
+				Title:            v.Title,
+				PriceValue:       price,
+				PriceType:        string(v.PriceType),
+				Quantity:         v.Quantity,
+				PriceUnavailable: !priced,
 			}
 			if v.SourceProductID != nil {
 				vc.HasSource = true
@@ -908,8 +921,8 @@ func NewAuditURLCollisions(auditSvc *audit.Service) AuditURLCollisions {
 	return AuditURLCollisions{audit: auditSvc}
 }
 
-func NewCartCatalogAdapter(cat *catalog.Service, customers *customer.Service) CartCatalogAdapter {
-	return CartCatalogAdapter{svc: cat, customers: customers}
+func NewCartCatalogAdapter(cat *catalog.Service, customers *customer.Service, channels *channel.Service) CartCatalogAdapter {
+	return CartCatalogAdapter{svc: cat, customers: customers, channels: channels}
 }
 
 func NewCartFileAdapter(lib *medialibrary.Service, store *objstore.Storage) CartFileAdapter {

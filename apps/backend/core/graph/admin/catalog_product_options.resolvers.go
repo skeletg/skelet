@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 func (r *mutationResolver) AddProductOption(ctx context.Context, input model.AddProductOptionInput) (*model.Product, error) {
@@ -329,6 +330,51 @@ func (r *mutationResolver) DeleteProductOptionValue(ctx context.Context, id stri
 		return nil, err
 	}
 	if err := r.CatalogSvc.DeleteProductOptionValue(ctx, valID); err != nil {
+		return nil, err
+	}
+	return r.reloadProduct(ctx, opt.ProductID)
+}
+
+func (r *mutationResolver) SetProductOptionChannelPrice(ctx context.Context, optionID string, channelID string, priceValue *int32) (*model.Product, error) {
+	id, err := parseID(optionID, "option")
+	if err != nil {
+		return nil, err
+	}
+	chID, err := parseID(channelID, "channel")
+	if err != nil {
+		return nil, err
+	}
+	opt, err := r.requireCatalogManageForOptionChannelPrice(ctx, id, chID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := r.CatalogSvc.SetProductOptionChannelPrice(ctx, id, chID, priceValue); err != nil {
+		return nil, err
+	}
+	return r.reloadProduct(ctx, opt.ProductID)
+}
+
+func (r *mutationResolver) SetProductOptionValueChannelPrice(ctx context.Context, valueID string, channelID string, priceValue *int32) (*model.Product, error) {
+	id, err := parseID(valueID, "value")
+	if err != nil {
+		return nil, err
+	}
+	chID, err := parseID(channelID, "channel")
+	if err != nil {
+		return nil, err
+	}
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.manage"); err != nil {
+		return nil, err
+	}
+	val, err := r.CatalogSvc.GetProductOptionValue(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	opt, err := r.requireCatalogManageForOptionChannelPrice(ctx, val.OptionID, chID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := r.CatalogSvc.SetProductOptionValueChannelPrice(ctx, id, chID, priceValue); err != nil {
 		return nil, err
 	}
 	return r.reloadProduct(ctx, opt.ProductID)

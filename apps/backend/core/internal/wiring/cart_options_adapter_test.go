@@ -9,6 +9,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 )
 
 var errCatalogDown = errors.New("catalog read failed")
@@ -31,7 +32,7 @@ func TestLinkedValueSourcePricingErrorSurfaces(t *testing.T) {
 		Values:    []catalog.ProductOptionValue{{ID: uuid.New(), SourceProductID: &src, SourceProductSKU: "SRC-1", Quantity: 1}},
 	}}
 	var res cart.ProductOptionsResolution
-	err := a.appendCartOptions(context.Background(), uuid.New(), &res, opts)
+	err := a.appendCartOptions(context.Background(), channel.Channel{ID: uuid.New(), CurrencyCode: "USD"}, &res, opts)
 	if !errors.Is(err, errCatalogDown) {
 		t.Fatalf("appendCartOptions err = %v, want the source lookup failure", err)
 	}

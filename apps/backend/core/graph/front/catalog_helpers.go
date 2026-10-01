@@ -1200,3 +1200,11 @@ func (r *Resolver) renderMemberProducts(ctx context.Context, products []catalog.
 	}
 	return out, nil
 }
+
+func optionPricingChannel(ctx context.Context) (uuid.UUID, string, bool) {
+	ch, ok := channel.FromContext(ctx)
+	if !ok || ch == nil {
+		return uuid.Nil, "", false
+	}
+	return ch.ID, ch.CurrencyCode, true
+}

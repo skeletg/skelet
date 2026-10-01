@@ -3675,6 +3675,8 @@ export type Mutation = {
   setProductLinks: Scalars['Boolean']['output'];
   setProductListing: Product;
   setProductMediaRole: Product;
+  setProductOptionChannelPrice: Product;
+  setProductOptionValueChannelPrice: Product;
   setProductPrimaryCategory: Product;
   setProductTaxClass: Product;
   setProductTypeURLPathTemplate: ProductType;
@@ -5720,6 +5722,20 @@ export type MutationSetProductMediaRoleArgs = {
 };
 
 
+export type MutationSetProductOptionChannelPriceArgs = {
+  channelId: Scalars['ID']['input'];
+  optionId: Scalars['ID']['input'];
+  priceValue?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type MutationSetProductOptionValueChannelPriceArgs = {
+  channelId: Scalars['ID']['input'];
+  priceValue?: InputMaybe<Scalars['Int']['input']>;
+  valueId: Scalars['ID']['input'];
+};
+
+
 export type MutationSetProductPrimaryCategoryArgs = {
   categoryId: Scalars['ID']['input'];
   productId: Scalars['ID']['input'];
@@ -6369,6 +6385,12 @@ export type MutationVoidPaymentArgs = {
   orderId: Scalars['ID']['input'];
 };
 
+export type OptionChannelPrice = {
+  __typename?: 'OptionChannelPrice';
+  channelId: Scalars['ID']['output'];
+  priceValue: Scalars['Int']['output'];
+};
+
 export type Order = {
   __typename?: 'Order';
   appliedPromotions: Array<AppliedPromotion>;
@@ -6809,6 +6831,7 @@ export type ProductMemberships = {
 
 export type ProductOption = {
   __typename?: 'ProductOption';
+  channelPrices: Array<OptionChannelPrice>;
   content: Array<ProductOptionContent>;
   createdAt: Scalars['Time']['output'];
   fileExtensions?: Maybe<Scalars['String']['output']>;
@@ -6852,6 +6875,7 @@ export type ProductOptionPriceType =
 
 export type ProductOptionValue = {
   __typename?: 'ProductOptionValue';
+  channelPrices: Array<OptionChannelPrice>;
   content: Array<ProductOptionValueContent>;
   createdAt: Scalars['Time']['output'];
   forcedLineQty?: Maybe<Scalars['Float']['output']>;

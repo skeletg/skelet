@@ -134,7 +134,7 @@ func wireOrderPlacement(d orderPlacementDeps) {
 	d.Order.SetGiftStockChecker(d.Inventory) // lets placement drop a promotion free gift stock can't cover, rather than appending a line the reservation rejects and taking the whole paid order down
 	d.Order.SetInventoryEditor(d.Inventory)
 	d.Order.SetChannelLoader(NewOrderChannelLoader(d.Channel)) // pre-fulfillment editing: the order's channel drives the tax-inclusive recompute
-	d.Order.SetProductPricer(NewOrderProductPricer(NewCartCatalogAdapter(d.Catalog, d.Customer)))
+	d.Order.SetProductPricer(NewOrderProductPricer(NewCartCatalogAdapter(d.Catalog, d.Customer, d.Channel)))
 	d.Order.SetRiskHoldThreshold(NewRiskHoldThreshold(d.Config))
 	d.Order.SetShippingTax(NewShippingTax(d.Config))
 	d.Order.SetAddressChecker(d.Address)

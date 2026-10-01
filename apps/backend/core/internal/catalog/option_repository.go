@@ -451,3 +451,59 @@ func nullPriceType(t *ProductOptionPriceType) db.NullCatalogProductOptionPriceTy
 	}
 	return db.NullCatalogProductOptionPriceType{Valid: true, CatalogProductOptionPriceType: db.CatalogProductOptionPriceType(*t)}
 }
+
+func (r *postgresRepository) SetProductOptionChannelPrice(ctx context.Context, optionID, channelID uuid.UUID, priceValue *int32) error {
+	var err error
+	if priceValue == nil {
+		err = r.queries.DeleteProductOptionChannelPrice(ctx, db.DeleteProductOptionChannelPriceParams{OptionID: optionID, ChannelID: channelID})
+	} else {
+		err = r.queries.UpsertProductOptionChannelPrice(ctx, db.UpsertProductOptionChannelPriceParams{OptionID: optionID, ChannelID: channelID, PriceValue: *priceValue})
+	}
+	if err != nil {
+		return fmt.Errorf("set product option channel price: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) SetProductOptionValueChannelPrice(ctx context.Context, valueID, channelID uuid.UUID, priceValue *int32) error {
+	var err error
+	if priceValue == nil {
+		err = r.queries.DeleteProductOptionValueChannelPrice(ctx, db.DeleteProductOptionValueChannelPriceParams{ValueID: valueID, ChannelID: channelID})
+	} else {
+		err = r.queries.UpsertProductOptionValueChannelPrice(ctx, db.UpsertProductOptionValueChannelPriceParams{ValueID: valueID, ChannelID: channelID, PriceValue: *priceValue})
+	}
+	if err != nil {
+		return fmt.Errorf("set product option value channel price: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) ListProductOptionChannelPricesByOptionIDs(ctx context.Context, optionIDs []uuid.UUID) (map[uuid.UUID][]OptionChannelPrice, error) {
+	out := make(map[uuid.UUID][]OptionChannelPrice)
+	if len(optionIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListProductOptionChannelPricesByOptionIDs(ctx, optionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list product option channel prices: %w", err)
+	}
+	for _, row := range rows {
+		out[row.OptionID] = append(out[row.OptionID], OptionChannelPrice{ChannelID: row.ChannelID, PriceValue: row.PriceValue})
+	}
+	return out, nil
+}
+
+func (r *postgresRepository) ListProductOptionValueChannelPricesByValueIDs(ctx context.Context, valueIDs []uuid.UUID) (map[uuid.UUID][]OptionChannelPrice, error) {
+	out := make(map[uuid.UUID][]OptionChannelPrice)
+	if len(valueIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.ListProductOptionValueChannelPricesByValueIDs(ctx, valueIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list product option value channel prices: %w", err)
+	}
+	for _, row := range rows {
+		out[row.ValueID] = append(out[row.ValueID], OptionChannelPrice{ChannelID: row.ChannelID, PriceValue: row.PriceValue})
+	}
+	return out, nil
+}
