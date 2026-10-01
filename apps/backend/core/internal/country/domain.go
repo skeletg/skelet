@@ -61,6 +61,7 @@ type Country struct {
 	IsActive            bool
 	SortOrder           int32
 	Metadata            map[string]string
+	BusinessIDFields    []BusinessIDField
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 }
@@ -84,6 +85,7 @@ type CreateCountryInput struct {
 	IsActive            bool
 	SortOrder           int32
 	Metadata            map[string]string
+	BusinessIDFields    []BusinessIDField
 }
 
 type UpdateCountryInput struct {
@@ -96,6 +98,7 @@ type UpdateCountryInput struct {
 	IsActive            *bool
 	SortOrder           *int32
 	Metadata            *map[string]string
+	BusinessIDFields    *[]BusinessIDField
 }
 
 var (

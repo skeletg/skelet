@@ -41,6 +41,7 @@ func (r *mutationResolver) CreateCountry(ctx context.Context, input model.Create
 		IsActive:            boolOrDefault(input.IsActive, true),
 		SortOrder:           int32Or(input.SortOrder, 0),
 		Metadata:            metadataInputToStringMap(input.Metadata),
+		BusinessIDFields:    businessIDFieldInputs(input.BusinessIDFields),
 	})
 	if err != nil {
 		return nil, err
@@ -68,6 +69,10 @@ func (r *mutationResolver) UpdateCountry(ctx context.Context, input model.Update
 	if input.Metadata != nil {
 		m := metadataInputToStringMap(input.Metadata)
 		domainInput.Metadata = &m
+	}
+	if input.BusinessIDFields != nil {
+		f := businessIDFieldInputs(input.BusinessIDFields)
+		domainInput.BusinessIDFields = &f
 	}
 	c, err := r.CountrySvc.Update(ctx, domainInput)
 	if err != nil {
