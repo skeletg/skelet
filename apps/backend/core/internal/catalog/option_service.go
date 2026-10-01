@@ -235,7 +235,7 @@ func (s *optionService) DuplicateProductOption(ctx context.Context, id uuid.UUID
 	return out, err
 }
 
-func duplicateProductOption(ctx context.Context, r Repository, id uuid.UUID, def string) (ProductOption, error) {
+func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUID, def string) (ProductOption, error) {
 	source, err := r.GetProductOptionByID(ctx, id)
 	if err != nil {
 		return ProductOption{}, err
@@ -413,7 +413,7 @@ func (s *optionService) AddProductOptionValue(ctx context.Context, input AddProd
 }
 
 // A single-select option takes one default - the option row lock serializes concurrent default flips
-func addingOptionDefault(ctx context.Context, r Repository, optionID uuid.UUID) error {
+func addingOptionDefault(ctx context.Context, r OptionRepository, optionID uuid.UUID) error {
 	option, err := r.GetProductOptionByIDForUpdate(ctx, optionID)
 	if err != nil {
 		return err

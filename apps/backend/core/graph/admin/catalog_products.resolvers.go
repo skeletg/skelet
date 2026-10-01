@@ -9,6 +9,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
@@ -626,7 +627,7 @@ func (r *mutationResolver) SetProductLinks(ctx context.Context, productID string
 		}
 		linked = append(linked, id)
 	}
-	if err := r.CatalogSvc.SetProductLinks(ctx, pid, catalog.LinkKind(strings.ToLower(string(kind))), linked); err != nil {
+	if err := r.RecommendSvc.SetProductLinks(ctx, pid, recommend.LinkKind(strings.ToLower(string(kind))), linked); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -868,7 +869,7 @@ func (r *queryResolver) ProductLinks(ctx context.Context, productID string, kind
 	if err != nil {
 		return nil, err
 	}
-	ids, err := r.CatalogSvc.ListProductLinks(ctx, pid, catalog.LinkKind(strings.ToLower(string(kind))))
+	ids, err := r.RecommendSvc.ListProductLinks(ctx, pid, recommend.LinkKind(strings.ToLower(string(kind))))
 	if err != nil {
 		return nil, err
 	}

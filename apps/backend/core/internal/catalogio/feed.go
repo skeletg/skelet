@@ -1,4 +1,4 @@
-package catalog
+package catalogio
 
 // Google Merchant Center product feed (RSS 2.0 with the g: namespace) - Mirrors internal/blog/feed.go: a renderer the HTTP layer calls with channel-resolved options - Standalone from Service on purpose - the feed reads a purpose-built flat query (no renderProduct hydration) so a 50k catalog renders in one pass without the attribute pipeline
 

@@ -147,7 +147,6 @@ func init() {
 	apperr.RegisterSentinel(ErrSelectableSlugOverride, "SELECTABLE_SLUG_OVERRIDE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrAttributeNotTranslatable, "ATTRIBUTE_NOT_TRANSLATABLE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrMediaStorageUnavailable, "MEDIA_STORAGE_UNAVAILABLE", apperr.ClassUnavailable)
-	apperr.RegisterSentinel(ErrInvalidLinkKind, "INVALID_LINK_KIND", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidTierQuantity, "INVALID_TIER_QUANTITY", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrCustomerGroupNotFound, "CUSTOMER_GROUP_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrNegativePrice, "NEGATIVE_PRICE", apperr.ClassValidation)

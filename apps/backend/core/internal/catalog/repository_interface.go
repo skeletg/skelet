@@ -10,14 +10,72 @@ import (
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 )
 
-// Repository is the persistence contract for the catalog domain, satisfied by *postgresRepository
-// It exists as a seam so the service layer can be tested against an in-memory fake (see service_test.go); production wiring still passes the concrete Postgres implementation - WithTx returns Repository so transactional call sites compose against the interface
+// Repository is the persistence contract for the catalog domain, satisfied by *postgresRepository - one role interface per aggregate, so a sub-service holds only the roles it reads and a fake implements only the role it stands in for
 var _ Repository = (*postgresRepository)(nil)
+
+// Repos assembles a Repository from roles implemented separately - a test fake implements the roles it stands in for and the rest stay nil, so touching one fails loudly
+type Repos struct {
+	ProductTypeRepository
+	AttributeRepository
+	ProductRepository
+	ListingRepository
+	MediaRepository
+	ProductAttributeRepository
+	ProductContentRepository
+	CategoryRepository
+	CollectionRepository
+	OptionRepository
+	BundleRepository
+	GroupedRepository
+	KitRepository
+	DownloadRepository
+	SubscriptionTermsRepository
+}
+
+func (r Repos) WithTx(*sql.Tx) Repository { return r }
+
+// ReposOf fills every role impl fully implements
+func ReposOf(impl any) Repos {
+	var r Repos
+	r.ProductTypeRepository, _ = impl.(ProductTypeRepository)
+	r.AttributeRepository, _ = impl.(AttributeRepository)
+	r.ProductRepository, _ = impl.(ProductRepository)
+	r.ListingRepository, _ = impl.(ListingRepository)
+	r.MediaRepository, _ = impl.(MediaRepository)
+	r.ProductAttributeRepository, _ = impl.(ProductAttributeRepository)
+	r.ProductContentRepository, _ = impl.(ProductContentRepository)
+	r.CategoryRepository, _ = impl.(CategoryRepository)
+	r.CollectionRepository, _ = impl.(CollectionRepository)
+	r.OptionRepository, _ = impl.(OptionRepository)
+	r.BundleRepository, _ = impl.(BundleRepository)
+	r.GroupedRepository, _ = impl.(GroupedRepository)
+	r.KitRepository, _ = impl.(KitRepository)
+	r.DownloadRepository, _ = impl.(DownloadRepository)
+	r.SubscriptionTermsRepository, _ = impl.(SubscriptionTermsRepository)
+	return r
+}
 
 type Repository interface {
 	WithTx(t *sql.Tx) Repository
+	ProductTypeRepository
+	AttributeRepository
+	ProductRepository
+	ListingRepository
+	MediaRepository
+	ProductAttributeRepository
+	ProductContentRepository
+	CategoryRepository
+	CollectionRepository
+	OptionRepository
+	BundleRepository
+	GroupedRepository
+	KitRepository
+	DownloadRepository
+	SubscriptionTermsRepository
+}
 
-	// Product types, attribute groups, and the wiring that assigns attributes to types
+// Product types, attribute groups, and the wiring that assigns attributes to types
+type ProductTypeRepository interface {
 	AssignAttribute(ctx context.Context, input AssignAttributeInput) error
 	CountProductsUsingConfigurableOptionForType(ctx context.Context, attributeID, productTypeID uuid.UUID) (int64, error)
 	CreateAttributeGroup(ctx context.Context, input CreateAttributeGroupInput) (AttributeGroup, error)
@@ -33,8 +91,10 @@ type Repository interface {
 	UnassignAttribute(ctx context.Context, productTypeID, attributeID uuid.UUID) error
 	UpdateAttributeGroup(ctx context.Context, input UpdateAttributeGroupInput) (AttributeGroup, error)
 	UpdateProductType(ctx context.Context, input UpdateProductTypeInput) (ProductType, error)
+}
 
-	// Attributes, attribute values, their localized content, and channel slugs
+// Attributes, attribute values, their localized content, and channel slugs
+type AttributeRepository interface {
 	AddAttributeValue(ctx context.Context, attributeID uuid.UUID, v AttributeValueInput) (AttributeValue, error)
 	CascadeAttributeIndexable(ctx context.Context, attributeID uuid.UUID, isIndexable bool) (CascadeAttributeIndexableResult, error)
 	SetAttributeValuesIndexable(ctx context.Context, valueIDs []uuid.UUID, isIndexable bool) (int64, error)
@@ -61,8 +121,10 @@ type Repository interface {
 	UpsertAttributeContent(ctx context.Context, input UpsertAttributeContentInput) (AttributeContent, error)
 	UpsertAttributeValueChannelSlug(ctx context.Context, valueID, attributeID, channelID uuid.UUID, slug string) (AttributeValueChannelSlug, error)
 	UpsertAttributeValueContent(ctx context.Context, input UpsertAttributeValueContentInput) (AttributeValueContent, error)
+}
 
-	// Product CRUD, parent/child relations, variants, and configurable-option wiring
+// Product CRUD, parent/child relations, variants, and configurable-option wiring
+type ProductRepository interface {
 	AddProductChild(ctx context.Context, parentID, childID uuid.UUID, sortOrder int32) error
 	CreateProduct(ctx context.Context, input CreateProductInput) (Product, error)
 	DeleteProduct(ctx context.Context, id uuid.UUID) error
@@ -79,13 +141,9 @@ type Repository interface {
 	ListProductChildIDsByParentIDs(ctx context.Context, parentIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
 	ListProductTypeIDsByProductIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]uuid.UUID, error)
 	ListProductRowsByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Product, error)
-	ListProductContentByProductIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]ProductContent, error)
 	ListProductParents(ctx context.Context, childID uuid.UUID) ([]Product, error)
 	ListProductSelectableValuesByIDs(ctx context.Context, productIDs, attributeIDs []uuid.UUID) (map[uuid.UUID]map[uuid.UUID][]uuid.UUID, error)
 	CountActiveCartReferencesToSKU(ctx context.Context, sku string) (int64, error)
-	CountInheritingListingsWithCurrencyMismatchForProduct(ctx context.Context, productID uuid.UUID, currency string) (int64, error)
-	UpsertProductChannelListingPublished(ctx context.Context, productID, channelID uuid.UUID, published bool) (ProductChannelListing, error)
-	ListReadyProductMediaByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductMedia, error)
 	ListProductIDsCarryingAttribute(ctx context.Context, attributeID uuid.UUID, slug string) ([]uuid.UUID, error)
 	ListProductIDsCarryingAttributeValue(ctx context.Context, valueID uuid.UUID) ([]uuid.UUID, error)
 	ListProducts(ctx context.Context, rowLimit int32) ([]Product, error) // rowLimit 0 means every row - see the query comment
@@ -108,8 +166,50 @@ type Repository interface {
 	SetProductTaxClass(ctx context.Context, id uuid.UUID, taxClass string) (Product, error)
 	SetProductVariantMode(ctx context.Context, id uuid.UUID, mode VariantMode) (Product, error)
 	UpdateProduct(ctx context.Context, input UpdateProductInput) (Product, error)
+	FilterPublishedProductIDsForChannel(ctx context.Context, candidateIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID]struct{}, error)
+	GetListingProductIDByChannelURL(ctx context.Context, channelID uuid.UUID, url string) (uuid.UUID, error)
+	GetPublishedProductForChannel(ctx context.Context, id, channelID uuid.UUID) (Product, error)
+	ListProductIDsInPrimaryCategoryDescendants(ctx context.Context, rootID uuid.UUID) ([]uuid.UUID, error)
+}
 
-	// Per-product attribute selections, locale values, and slugs
+// Product channel listings, URL paths and tier prices
+type ListingRepository interface {
+	CountInheritingListingsWithCurrencyMismatchForProduct(ctx context.Context, productID uuid.UUID, currency string) (int64, error)
+	UpsertProductChannelListingPublished(ctx context.Context, productID, channelID uuid.UUID, published bool) (ProductChannelListing, error)
+	CountInheritingListingsForChannel(ctx context.Context, channelID uuid.UUID) (int64, error)
+	DeleteProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) error
+	GetProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) (ProductChannelListing, error)
+	ListProductChannelListingsByChannel(ctx context.Context, channelID uuid.UUID) ([]ProductChannelListing, error)
+	ListProductChannelListingsByProduct(ctx context.Context, productID uuid.UUID) ([]ProductChannelListing, error)
+	ListProductChannelListingsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error)
+	ListProductChannelListingsByProductIDsForChannel(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error)
+	UpdateProductURL(ctx context.Context, id uuid.UUID, url string) error
+	UpsertProductChannelListing(ctx context.Context, input ProductChannelListingInput) (ProductChannelListing, error)
+	ListGroupPrices(ctx context.Context, productID uuid.UUID) ([]GroupPrice, error)
+	ReplaceGroupPrices(ctx context.Context, productID uuid.UUID, inputs []GroupPriceInput) ([]GroupPrice, error)
+}
+
+// Product media assets and media role assignments
+type MediaRepository interface {
+	ListReadyProductMediaByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductMedia, error)
+	ClearMediaRole(ctx context.Context, productID uuid.UUID, role MediaRole) error
+	CreateProductMedia(ctx context.Context, id, productID uuid.UUID, s3Key, mimeType string, sizeBytes int64, altText string, sortOrder int32) (ProductMedia, error)
+	DeletePendingMediaOlderThan(ctx context.Context, before time.Time) ([]PendingMediaRow, error)
+	DeleteProductMedia(ctx context.Context, id uuid.UUID) error
+	DeleteProductMediaByIDs(ctx context.Context, productID uuid.UUID, ids []uuid.UUID) ([]PendingMediaRow, error)
+	GetMediaRoles(ctx context.Context, productID uuid.UUID) (map[MediaRole]uuid.UUID, error)
+	GetMediaRolesByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID]map[MediaRole]uuid.UUID, error)
+	GetProductMediaByID(ctx context.Context, id uuid.UUID) (ProductMedia, error)
+	ListProductMediaByProduct(ctx context.Context, productID uuid.UUID) ([]ProductMedia, error)
+	ListProductMediaByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductMedia, error)
+	MarkProductMediaReady(ctx context.Context, id uuid.UUID, width, height int32) (ProductMedia, error)
+	SetMediaRole(ctx context.Context, productID, mediaID uuid.UUID, role MediaRole) error
+	SetProductMediaSortOrder(ctx context.Context, id uuid.UUID, order int32) error
+	UpdateProductMediaMetadata(ctx context.Context, input UpdateProductMediaInput) (ProductMedia, error)
+}
+
+// Per-product attribute selections, locale values, and slugs
+type ProductAttributeRepository interface {
 	DeleteProductAttributeLocaleValue(ctx context.Context, productID, attributeID uuid.UUID, locale string) error
 	DeleteProductAttributeLocaleValuesForAttribute(ctx context.Context, productID, attributeID uuid.UUID) error
 	DeleteProductAttributeSlug(ctx context.Context, productID, attributeID uuid.UUID, channelID *uuid.UUID) error
@@ -123,35 +223,21 @@ type Repository interface {
 	SetProductAttributeReferences(ctx context.Context, productID, attributeID uuid.UUID, refs []ProductAttributeReference) error
 	UpsertProductAttributeLocaleValue(ctx context.Context, input ProductAttributeLocaleValue) (ProductAttributeLocaleValue, error)
 	UpsertProductAttributeSlug(ctx context.Context, input UpsertProductAttributeSlugInput) (ProductAttributeSlug, error)
+}
 
-	// Localized product content
+// Localized product content
+type ProductContentRepository interface {
 	DeleteProductContent(ctx context.Context, productID uuid.UUID, locale string) error
 	GetProductContent(ctx context.Context, productID uuid.UUID, locale string) (ProductContent, error)
 	ListProductContent(ctx context.Context, productID uuid.UUID) ([]ProductContent, error)
+	ListProductContentByProductIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]ProductContent, error)
 	ListProductContentByScope(ctx context.Context, productIDs []uuid.UUID, locale string) (map[uuid.UUID]ProductContent, error)
 	ListProductContentForProducts(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductContent, error)
 	UpsertProductContent(ctx context.Context, productID uuid.UUID, input ProductContentInput) (ProductContent, error)
+}
 
-	// Product channel listings and URL paths
-	CountInheritingListingsForChannel(ctx context.Context, channelID uuid.UUID) (int64, error)
-	DeleteProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) error
-	GetProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) (ProductChannelListing, error)
-	ListProductChannelListingsByChannel(ctx context.Context, channelID uuid.UUID) ([]ProductChannelListing, error)
-	ListProductChannelListingsByProduct(ctx context.Context, productID uuid.UUID) ([]ProductChannelListing, error)
-	ListProductChannelListingsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error)
-	ListProductChannelListingsByProductIDsForChannel(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID][]ProductChannelListing, error)
-	UpdateProductURL(ctx context.Context, id uuid.UUID, url string) error
-	UpsertProductChannelListing(ctx context.Context, input ProductChannelListingInput) (ProductChannelListing, error)
-	// Tier (customer-group / quantity-break) prices
-	ListGroupPrices(ctx context.Context, productID uuid.UUID) ([]GroupPrice, error)
-	ReplaceGroupPrices(ctx context.Context, productID uuid.UUID, inputs []GroupPriceInput) ([]GroupPrice, error)
-	// Curated links + also-bought recommendations
-	ListProductLinks(ctx context.Context, productID uuid.UUID, kind LinkKind) ([]uuid.UUID, error)
-	ReplaceProductLinks(ctx context.Context, productID uuid.UUID, kind LinkKind, linked []uuid.UUID) error
-	ListAlsoBought(ctx context.Context, productID uuid.UUID, limit int32) ([]uuid.UUID, error)
-	RebuildAlsoBought(ctx context.Context) error
-
-	// Categories: tree, membership, content, channel listings, cover, and storefront/published reads
+// Categories: tree, membership, content, channel listings, cover, and storefront/published reads
+type CategoryRepository interface {
 	AddProductToCategory(ctx context.Context, productID, categoryID uuid.UUID, position int32, isPrimary bool) error
 	ClearCategoryCover(ctx context.Context, categoryID uuid.UUID) (Category, error)
 	ConfirmCategoryCover(ctx context.Context, categoryID, coverID uuid.UUID, width, height int32) (Category, error)
@@ -196,8 +282,10 @@ type Repository interface {
 	UpdateCategoryURLPath(ctx context.Context, id uuid.UUID, urlPath string) error
 	UpsertCategoryChannelListing(ctx context.Context, in SetCategoryChannelListingInput) (CategoryChannelListing, error)
 	UpsertCategoryContent(ctx context.Context, categoryID uuid.UUID, input CategoryContentInput) (CategoryContent, error)
+}
 
-	// Collections: CRUD, content, cover, and membership
+// Collections: CRUD, content, cover, and membership
+type CollectionRepository interface {
 	AddProductToCollection(ctx context.Context, collectionID, productID uuid.UUID, sortOrder int32) error
 	ClearCollectionCover(ctx context.Context, collectionID uuid.UUID) (Collection, error)
 	ConfirmCollectionCover(ctx context.Context, collectionID, coverID uuid.UUID, width, height int32) (Collection, error)
@@ -219,8 +307,10 @@ type Repository interface {
 	SetCollectionCover(ctx context.Context, collectionID, coverID uuid.UUID, s3Key, mimeType string, sizeBytes int64, altText string) (Collection, error)
 	UpdateCollection(ctx context.Context, input UpdateCollectionInput) (Collection, error)
 	UpsertCollectionContent(ctx context.Context, collectionID uuid.UUID, input CollectionContentInput) (CollectionContent, error)
+}
 
-	// Product options and their values, including localized content
+// Product options and their values, including localized content
+type OptionRepository interface {
 	CountProductOptionValueDefaultsForOption(ctx context.Context, optionID uuid.UUID) (int64, error)
 	CreateProductOption(ctx context.Context, input AddProductOptionInput) (ProductOption, error)
 	CreateProductOptionValue(ctx context.Context, input AddProductOptionValueInput) (ProductOptionValue, error)
@@ -243,24 +333,10 @@ type Repository interface {
 	UpdateProductOptionValue(ctx context.Context, id uuid.UUID, sortOrder, priceValue int32, priceType ProductOptionPriceType, isDefault bool, sourceProductID *uuid.UUID, quantity float64, forcedLineQty *float64) (ProductOptionValue, error)
 	UpsertProductOptionContent(ctx context.Context, input UpsertProductOptionContentInput) (ProductOptionContent, error)
 	UpsertProductOptionValueContent(ctx context.Context, input UpsertProductOptionValueContentInput) (ProductOptionValueContent, error)
+}
 
-	// Product media assets and media role assignments
-	ClearMediaRole(ctx context.Context, productID uuid.UUID, role MediaRole) error
-	CreateProductMedia(ctx context.Context, id, productID uuid.UUID, s3Key, mimeType string, sizeBytes int64, altText string, sortOrder int32) (ProductMedia, error)
-	DeletePendingMediaOlderThan(ctx context.Context, before time.Time) ([]PendingMediaRow, error)
-	DeleteProductMedia(ctx context.Context, id uuid.UUID) error
-	DeleteProductMediaByIDs(ctx context.Context, productID uuid.UUID, ids []uuid.UUID) ([]PendingMediaRow, error)
-	GetMediaRoles(ctx context.Context, productID uuid.UUID) (map[MediaRole]uuid.UUID, error)
-	GetMediaRolesByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID]map[MediaRole]uuid.UUID, error)
-	GetProductMediaByID(ctx context.Context, id uuid.UUID) (ProductMedia, error)
-	ListProductMediaByProduct(ctx context.Context, productID uuid.UUID) ([]ProductMedia, error)
-	ListProductMediaByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductMedia, error)
-	MarkProductMediaReady(ctx context.Context, id uuid.UUID, width, height int32) (ProductMedia, error)
-	SetMediaRole(ctx context.Context, productID, mediaID uuid.UUID, role MediaRole) error
-	SetProductMediaSortOrder(ctx context.Context, id uuid.UUID, order int32) error
-	UpdateProductMediaMetadata(ctx context.Context, input UpdateProductMediaInput) (ProductMedia, error)
-
-	// Bundle options and selections, including localized content
+// Bundle options and selections, including localized content
+type BundleRepository interface {
 	CountBundleSelectionDefaultsForOption(ctx context.Context, optionID uuid.UUID) (int64, error)
 	CreateBundleOption(ctx context.Context, input AddBundleOptionInput) (BundleOption, error)
 	CreateBundleSelection(ctx context.Context, input AddBundleSelectionInput) (BundleSelection, error)
@@ -278,37 +354,39 @@ type Repository interface {
 	UpdateBundleOption(ctx context.Context, id uuid.UUID, inputType BundleInputType, isRequired bool, sortOrder, minSelections int32, maxSelections *int32) (BundleOption, error)
 	UpdateBundleSelection(ctx context.Context, id uuid.UUID, quantity float64, isDefault bool, sortOrder int32) (BundleSelection, error)
 	UpsertBundleOptionContent(ctx context.Context, input UpsertBundleOptionContentInput) (BundleOptionContent, error)
+}
 
-	// Grouped-product members
+// Grouped-product members
+type GroupedRepository interface {
 	CreateGroupedMember(ctx context.Context, input AddGroupedMemberInput) (GroupedMember, error)
 	DeleteGroupedMember(ctx context.Context, id uuid.UUID) error
 	GetGroupedMemberByID(ctx context.Context, id uuid.UUID) (GroupedMember, error)
 	ListGroupedMemberLinksByMemberIDs(ctx context.Context, memberIDs []uuid.UUID) (map[uuid.UUID][]GroupedMemberLink, error)
 	ListGroupedMembersByParentID(ctx context.Context, parentID uuid.UUID) ([]GroupedMember, error)
 	UpdateGroupedMember(ctx context.Context, id uuid.UUID, defaultQuantity float64, sortOrder int32) (GroupedMember, error)
+}
 
-	// Kit components
+// Kit components
+type KitRepository interface {
 	CreateKitComponent(ctx context.Context, input AddKitComponentInput) (KitComponent, error)
 	DeleteKitComponent(ctx context.Context, id uuid.UUID) error
 	GetKitComponentByID(ctx context.Context, id uuid.UUID) (KitComponent, error)
 	ListKitComponentsByProductID(ctx context.Context, productID uuid.UUID) ([]KitComponent, error)
 	UpdateKitComponent(ctx context.Context, id uuid.UUID, quantity float64, sortOrder int32) (KitComponent, error)
+}
 
-	// Digital product download definitions
+// Digital product download definitions
+type DownloadRepository interface {
 	CreateProductDownload(ctx context.Context, input AddProductDownloadInput) (ProductDownload, error)
 	DeleteProductDownload(ctx context.Context, id uuid.UUID) error
 	GetProductDownloadByID(ctx context.Context, id uuid.UUID) (ProductDownload, error)
 	ListProductDownloadsByProductID(ctx context.Context, productID uuid.UUID) ([]ProductDownload, error)
 	UpdateProductDownload(ctx context.Context, id uuid.UUID, title, url string, maxDownloads *int32, sortOrder int32) (ProductDownload, error)
+}
 
-	// Per-product subscription terms
+// Per-product subscription terms
+type SubscriptionTermsRepository interface {
 	DeleteSubscriptionTerms(ctx context.Context, productID uuid.UUID) error
 	GetSubscriptionTerms(ctx context.Context, productID uuid.UUID) (SubscriptionTerms, error)
 	UpsertSubscriptionTerms(ctx context.Context, input SetSubscriptionTermsInput) (SubscriptionTerms, error)
-
-	// Product storefront/published reads and pretty-URL resolution
-	FilterPublishedProductIDsForChannel(ctx context.Context, candidateIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID]struct{}, error)
-	GetListingProductIDByChannelURL(ctx context.Context, channelID uuid.UUID, url string) (uuid.UUID, error)
-	GetPublishedProductForChannel(ctx context.Context, id, channelID uuid.UUID) (Product, error)
-	ListProductIDsInPrimaryCategoryDescendants(ctx context.Context, rootID uuid.UUID) ([]uuid.UUID, error)
 }

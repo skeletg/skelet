@@ -336,7 +336,6 @@ var (
 	ErrSelectableSlugOverride            = errors.New("selectable attributes manage slugs through AttributeValue, not per-product overrides")
 	ErrAttributeNotTranslatable          = errors.New("only plain_text scalar attribute values are translatable")
 	ErrMediaStorageUnavailable           = errors.New("media storage not configured")
-	ErrInvalidLinkKind                   = errors.New("invalid product link kind")
 	ErrInvalidTierQuantity               = errors.New("tier min quantity must be greater than zero")
 	ErrCustomerGroupNotFound             = errors.New("customer group not found")
 	ErrTitleRequired                     = errors.New("title is required")

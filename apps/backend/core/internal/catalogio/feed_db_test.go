@@ -1,7 +1,8 @@
-package catalog
+package catalogio
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -10,7 +11,55 @@ import (
 	"github.com/google/uuid"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
 )
+
+type feedRig struct {
+	t    *testing.T
+	conn *sql.DB
+	sfx  string
+}
+
+func newFeedRig(t *testing.T) *feedRig {
+	return &feedRig{t: t, conn: testdb.Require(t), sfx: uuid.NewString()[:8]}
+}
+
+func (r *feedRig) exec(q string, args ...any) {
+	r.t.Helper()
+	if _, err := r.conn.Exec(q, args...); err != nil {
+		r.t.Fatalf("%s: %v", q, err)
+	}
+}
+
+func (r *feedRig) id(q string, args ...any) uuid.UUID {
+	r.t.Helper()
+	var id uuid.UUID
+	if err := r.conn.QueryRow(q, args...).Scan(&id); err != nil {
+		r.t.Fatalf("%s: %v", q, err)
+	}
+	return id
+}
+
+func (r *feedRig) product(sku string) uuid.UUID {
+	r.t.Helper()
+	typeID := r.id(`INSERT INTO catalog_product_types (slug, name) VALUES ($1, 'rig') RETURNING id`, "rig-"+sku+"-"+r.sfx)
+	id := r.id(`INSERT INTO catalog_products (product_type_id, sku, url, kind, default_price) VALUES ($1, $2, $3, 'simple', 1000) RETURNING id`,
+		typeID, sku+"-"+r.sfx, strings.ToLower(sku)+"-"+r.sfx)
+	r.t.Cleanup(func() {
+		_, _ = r.conn.Exec(`DELETE FROM catalog_product_channel_listings WHERE product_id = $1`, id)
+		_, _ = r.conn.Exec(`DELETE FROM inventory_items WHERE product_id = $1`, id)
+		_, _ = r.conn.Exec(`DELETE FROM catalog_products WHERE id = $1`, id)
+		_, _ = r.conn.Exec(`DELETE FROM catalog_product_types WHERE id = $1`, typeID)
+	})
+	return id
+}
+
+func (r *feedRig) channel() uuid.UUID {
+	r.t.Helper()
+	id := r.id(`INSERT INTO channels (slug, name, currency_code) VALUES ($1, 'rig', 'USD') RETURNING id`, "rig-"+r.sfx)
+	r.t.Cleanup(func() { _, _ = r.conn.Exec(`DELETE FROM channels WHERE id = $1`, id) })
+	return id
+}
 
 type fakeSalable map[uuid.UUID]float64
 
@@ -34,13 +83,13 @@ func feedItem(t *testing.T, feed, sku string) string {
 }
 
 func TestTheMerchantFeedPagesPricesAndCaches(t *testing.T) {
-	r := newCatalogRig(t)
+	r := newFeedRig(t)
 	ctx := context.Background()
 	ch := r.channel()
 	skus := []string{"FA", "FB", "FC"}
 	ids := make([]uuid.UUID, len(skus))
 	for i, sku := range skus {
-		ids[i] = r.product(sku, "")
+		ids[i] = r.product(sku)
 		r.exec(`INSERT INTO catalog_product_channel_listings (product_id, channel_id, price, is_published) VALUES ($1, $2, 900, TRUE)`, ids[i], ch)
 	}
 	r.exec(`UPDATE catalog_products SET special_price = 500 WHERE id = $1`, ids[0])

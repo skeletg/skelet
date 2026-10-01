@@ -12,9 +12,10 @@ import (
 
 // --- test doubles -----------------------------------------------------------
 
-// fakeRepo embeds catalog.Repository so any method the test doesn't exercise panics (nil interface deref) - a loud signal that coverage is missing rather than a silent wrong answer - Only the read methods the validation paths touch are overridden - Mirrors the payment/giftcard service-test pattern
+// fakeRepo stands in for the product and attribute roles only - any other role is nil in the assembled Repos, and an un-faked method of these two panics, a loud signal that coverage is missing rather than a silent wrong answer
 type fakeRepo struct {
-	catalog.Repository
+	catalog.ProductRepository
+	catalog.AttributeRepository
 
 	productByID      map[uuid.UUID]catalog.Product
 	configOptions    []catalog.Attribute
@@ -68,8 +69,8 @@ type fakeDefaultLocale struct{ code string }
 
 func (f fakeDefaultLocale) DefaultLocale(context.Context) (string, error) { return f.code, nil }
 
-func svcWith(repo catalog.Repository, deps ...func(*catalog.Deps)) *catalog.Service {
-	d := catalog.Deps{Repo: repo}
+func svcWith(fake any, deps ...func(*catalog.Deps)) *catalog.Service {
+	d := catalog.Deps{Repo: catalog.ReposOf(fake)}
 	for _, fn := range deps {
 		fn(&d)
 	}

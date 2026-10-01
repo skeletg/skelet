@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"os"
 	"reflect"
 	"slices"
@@ -610,56 +609,6 @@ func TestTheChannelProductListFiltersBeforeTheCap(t *testing.T) {
 	}
 }
 
-func TestAlsoBoughtRollsVariantsUpAndCountsOrders(t *testing.T) {
-	r := newCatalogRig(t)
-	r.sweep()
-	ctx := context.Background()
-	pt := r.ptype("", false)
-	parent := r.newProduct(pt.ID, KindConfigurable, "AB-PAR-"+r.sfx, "Parent", "USD")
-	v1 := r.newProduct(pt.ID, KindSimple, "AB-V1-"+r.sfx, "V1", "USD")
-	v2 := r.newProduct(pt.ID, KindSimple, "AB-V2-"+r.sfx, "V2", "USD")
-	other := r.newProduct(pt.ID, KindSimple, "AB-O-"+r.sfx, "Other", "USD")
-	r.exec(`INSERT INTO catalog_product_children (parent_id, child_id) VALUES ($1, $2), ($1, $3)`, parent.ID, v1.ID, v2.ID)
-	ch := r.channelIn("USD")
-	var orders []uuid.UUID
-	line := func(order uuid.UUID, sku string) {
-		r.exec(`INSERT INTO order_lines (order_id, product_name, product_sku, unit_price, quantity, total_price) VALUES ($1, 'x', $2, 1, 1, 1)`, order, sku)
-	}
-	for _, skus := range [][]string{{v1.SKU, v2.SKU, other.SKU}, {v1.SKU, other.SKU}} {
-		o := r.id(`INSERT INTO orders (currency_code, channel_id, status) VALUES ('USD', $1, 'pending') RETURNING id`, ch)
-		orders = append(orders, o)
-		for _, sku := range skus {
-			line(o, sku)
-		}
-	}
-	t.Cleanup(func() {
-		for _, o := range orders {
-			_, _ = r.conn.Exec(`DELETE FROM order_lines WHERE order_id = $1`, o)
-			_, _ = r.conn.Exec(`DELETE FROM orders WHERE id = $1`, o)
-		}
-		_, _ = r.conn.Exec(`DELETE FROM product_also_bought`)
-	})
-	for range 2 {
-		if err := r.svc.RebuildAlsoBought(ctx); err != nil {
-			t.Fatalf("rebuild: %v", err)
-		}
-	}
-	var score int
-	if err := r.conn.QueryRow(`SELECT score FROM product_also_bought WHERE product_id = $1 AND other_product_id = $2`, other.ID, parent.ID).Scan(&score); err != nil {
-		t.Fatalf("other -> parent pair: %v", err)
-	}
-	if score != 2 {
-		t.Errorf("score = %d, want 2 distinct orders (two variants in one order count once)", score)
-	}
-	var variants int
-	if err := r.conn.QueryRow(`SELECT COUNT(*) FROM product_also_bought WHERE product_id = ANY($1) OR other_product_id = ANY($1)`, fmt.Sprintf("{%s,%s}", v1.ID, v2.ID)).Scan(&variants); err != nil {
-		t.Fatal(err)
-	}
-	if variants != 0 {
-		t.Errorf("%d pairs still name a variant instead of its parent", variants)
-	}
-}
-
 func TestChannelPathsResolveOnlyPublishedBoundedOverrides(t *testing.T) {
 	r := newCatalogRig(t)
 	r.sweep()
@@ -706,12 +655,6 @@ func TestBulkWritesAreBoundedAndNameTheirMissingTargets(t *testing.T) {
 	if _, err := r.svc.SetGroupPrices(ctx, p.ID, []GroupPriceInput{{ChannelID: &ghost, MinQty: 1, Price: 1}}); !errors.Is(err, channel.ErrChannelNotFound) {
 		t.Errorf("unknown tier channel = %v, want ErrChannelNotFound", err)
 	}
-	if err := r.svc.SetProductLinks(ctx, p.ID, LinkRelated, []uuid.UUID{ghost}); !errors.Is(err, ErrProductNotFound) {
-		t.Errorf("unknown linked product = %v, want ErrProductNotFound", err)
-	}
-	if err := r.svc.SetProductLinks(ctx, p.ID, LinkRelated, make([]uuid.UUID, maxProductLinks+1)); !errors.Is(err, ErrTooManyItems) {
-		t.Errorf("oversized link set = %v, want ErrTooManyItems", err)
-	}
 	if _, err := r.svc.SetGroupPrices(ctx, p.ID, make([]GroupPriceInput, maxGroupPriceTiers+1)); !errors.Is(err, ErrTooManyItems) {
 		t.Errorf("oversized tier set = %v, want ErrTooManyItems", err)
 	}
@@ -723,7 +666,6 @@ func TestSideWritesAnnounceTheProduct(t *testing.T) {
 	ctx := context.Background()
 	pt := r.ptype("", false)
 	p := r.newProduct(pt.ID, KindSimple, "SIDE-"+r.sfx, "Side", "USD")
-	other := r.newProduct(pt.ID, KindSimple, "SIDE2-"+r.sfx, "Side2", "USD")
 	r.exec(`INSERT INTO locales (code, name) VALUES ('xx', 'xx') ON CONFLICT DO NOTHING`)
 	if _, err := r.svc.UpsertProductContent(ctx, p.ID, ProductContentInput{Locale: "xx", Name: "x"}); err != nil {
 		t.Fatal(err)
@@ -733,7 +675,6 @@ func TestSideWritesAnnounceTheProduct(t *testing.T) {
 			_, err := r.svc.SetGroupPrices(ctx, p.ID, []GroupPriceInput{{MinQty: 2, Price: 1}})
 			return err
 		},
-		"links":   func() error { return r.svc.SetProductLinks(ctx, p.ID, LinkRelated, []uuid.UUID{other.ID}) },
 		"content": func() error { return r.svc.DeleteProductContent(ctx, p.ID, "xx") },
 		"media":   func() error { _, err := r.svc.ReorderProductMedia(ctx, p.ID, nil); return err },
 		"subscriptionTerms": func() error {

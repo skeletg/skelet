@@ -41,6 +41,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
@@ -83,6 +84,7 @@ type Resolver struct {
 	WebhookSvc        *webhook.Service
 	RemoteProviderSvc *remoteprovider.Service
 	CatalogSvc        *catalog.Service
+	RecommendSvc      *recommend.Service
 	BlogSvc           *blog.Service
 	CMSSvc            *cms.Service
 	AISvc             *ai.Service
