@@ -8,6 +8,17 @@ type Country {
   defaultCurrency:     Currency
   isActive:            Boolean!
   sortOrder:           Int!
+  # The company identifiers a business purchase from this country asks for. Empty means one generic tax ID, per sales/checkout/tax_id_field.
+  businessIdFields:    [BusinessIdField!]!
+}
+
+type BusinessIdField {
+  key:      String!
+  label:    String!
+  required: Boolean!
+  # An RE2 regular expression the whole value must match. Empty accepts any value.
+  pattern:  String!
+  hint:     String!
 }
 
 # ISO 3166-2 subdivision (state/province). `code` is the subdivision

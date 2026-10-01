@@ -21,15 +21,16 @@ func NewRepository(queries *db.Queries) Repository {
 
 func (r *postgresRepository) Create(ctx context.Context, input CreateCountryInput) (Country, error) {
 	row, err := r.queries.CreateCountry(ctx, db.CreateCountryParams{
-		Upper:      input.Code,
-		Name:       input.Name,
-		NativeName: input.NativeName,
-		EmojiFlag:  input.EmojiFlag,
-		PhoneCode:  input.PhoneCode,
-		Upper_2:    input.DefaultCurrencyCode, // NULLIF('', '') in SQL
-		IsActive:   input.IsActive,
-		SortOrder:  input.SortOrder,
-		Metadata:   mapToJSON(input.Metadata),
+		Upper:            input.Code,
+		Name:             input.Name,
+		NativeName:       input.NativeName,
+		EmojiFlag:        input.EmojiFlag,
+		PhoneCode:        input.PhoneCode,
+		Upper_2:          input.DefaultCurrencyCode, // NULLIF('', '') in SQL
+		IsActive:         input.IsActive,
+		SortOrder:        input.SortOrder,
+		Metadata:         mapToJSON(input.Metadata),
+		BusinessIDFields: fieldsToJSON(input.BusinessIDFields),
 	})
 	if err != nil {
 		if pgdb.IsUniqueViolation(err) {
@@ -87,15 +88,16 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateCountryInpu
 		currentDefault = current.DefaultCurrencyCode.String
 	}
 	params := db.UpdateCountryParams{
-		Upper:      input.Code,
-		Name:       current.Name,
-		NativeName: current.NativeName,
-		EmojiFlag:  current.EmojiFlag,
-		PhoneCode:  current.PhoneCode,
-		Upper_2:    currentDefault,
-		IsActive:   current.IsActive,
-		SortOrder:  current.SortOrder,
-		Metadata:   current.Metadata,
+		Upper:            input.Code,
+		Name:             current.Name,
+		NativeName:       current.NativeName,
+		EmojiFlag:        current.EmojiFlag,
+		PhoneCode:        current.PhoneCode,
+		Upper_2:          currentDefault,
+		IsActive:         current.IsActive,
+		SortOrder:        current.SortOrder,
+		Metadata:         current.Metadata,
+		BusinessIDFields: current.BusinessIDFields,
 	}
 	if input.Name != nil {
 		params.Name = *input.Name
@@ -120,6 +122,9 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateCountryInpu
 	}
 	if input.Metadata != nil {
 		params.Metadata = mapToJSON(*input.Metadata)
+	}
+	if input.BusinessIDFields != nil {
+		params.BusinessIDFields = fieldsToJSON(*input.BusinessIDFields)
 	}
 	row, err := r.queries.UpdateCountry(ctx, params)
 	if err != nil {
@@ -166,23 +171,41 @@ func (r *postgresRepository) ListRegions(ctx context.Context, countryCode string
 
 func toCountry(row db.Country) Country {
 	c := Country{
-		Code:        row.Code,
-		Name:        row.Name,
-		NativeName:  row.NativeName,
-		EmojiFlag:   row.EmojiFlag,
-		PhoneCode:   callingCodeFor(row.Code, row.PhoneCode), // derived on read too, so a row stored before the rule reads right
-		Iso3Code:    row.Iso3Code,
-		NumericCode: row.NumericCode,
-		IsActive:    row.IsActive,
-		SortOrder:   row.SortOrder,
-		Metadata:    jsonToMap(row.Metadata),
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
+		Code:             row.Code,
+		Name:             row.Name,
+		NativeName:       row.NativeName,
+		EmojiFlag:        row.EmojiFlag,
+		PhoneCode:        callingCodeFor(row.Code, row.PhoneCode), // derived on read too, so a row stored before the rule reads right
+		Iso3Code:         row.Iso3Code,
+		NumericCode:      row.NumericCode,
+		IsActive:         row.IsActive,
+		SortOrder:        row.SortOrder,
+		Metadata:         jsonToMap(row.Metadata),
+		BusinessIDFields: jsonToFields(row.BusinessIDFields),
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
 	}
 	if row.DefaultCurrencyCode.Valid {
 		c.DefaultCurrencyCode = row.DefaultCurrencyCode.String
 	}
 	return c
+}
+
+func fieldsToJSON(fields []BusinessIDField) json.RawMessage {
+	if fields == nil {
+		fields = []BusinessIDField{}
+	}
+	b, _ := json.Marshal(fields) // plain strings and bools - can't fail
+	return b
+}
+
+// Only the service writes the column, so an undecodable one reads as no fields rather than failing the country
+func jsonToFields(raw json.RawMessage) []BusinessIDField {
+	var fields []BusinessIDField
+	if json.Unmarshal(raw, &fields) != nil {
+		return nil
+	}
+	return fields
 }
 
 func mapToJSON(m map[string]string) json.RawMessage {

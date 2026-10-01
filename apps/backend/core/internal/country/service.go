@@ -63,6 +63,11 @@ func (s *Service) Create(ctx context.Context, input CreateCountryInput) (Country
 	if err := validateMetadata(input.Metadata); err != nil {
 		return Country{}, err
 	}
+	fields, err := NormalizeBusinessIDFields(input.BusinessIDFields)
+	if err != nil {
+		return Country{}, err
+	}
+	input.BusinessIDFields = fields
 	input.PhoneCode = callingCodeFor(input.Code, input.PhoneCode)
 	input.DefaultCurrencyCode = strings.ToUpper(strings.TrimSpace(input.DefaultCurrencyCode))
 	if input.DefaultCurrencyCode != "" && s.currencies != nil {
@@ -109,6 +114,13 @@ func (s *Service) Update(ctx context.Context, input UpdateCountryInput) (Country
 			}
 		}
 		input.DefaultCurrencyCode = &v
+	}
+	if input.BusinessIDFields != nil {
+		fields, err := NormalizeBusinessIDFields(*input.BusinessIDFields)
+		if err != nil {
+			return Country{}, err
+		}
+		input.BusinessIDFields = &fields
 	}
 	return s.repo.Update(ctx, input)
 }

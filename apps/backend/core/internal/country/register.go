@@ -14,4 +14,5 @@ func init() {
 	apperr.RegisterSentinel(ErrCountryNotAllowed, "COUNTRY_NOT_ALLOWED", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrRegionRequired, "REGION_REQUIRED", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidRegion, "INVALID_REGION", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrBusinessIDFieldInvalid, "BUSINESS_ID_FIELD_INVALID", apperr.ClassValidation)
 }
