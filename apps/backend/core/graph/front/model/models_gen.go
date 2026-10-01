@@ -110,6 +110,16 @@ type BrowseProductsResult struct {
 	Facets     []*BrowseFacet   `json:"facets"`
 }
 
+type BusinessIDValue struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type BusinessIDValueInput struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 type Cart struct {
 	ID            string                  `json:"id"`
 	Note          string                  `json:"note"`
@@ -118,6 +128,41 @@ type Cart struct {
 	Subtotal      int32                   `json:"subtotal"`
 	AppliedCodes  []*AppliedPromotionCode `json:"appliedCodes"`
 	TotalDiscount int32                   `json:"totalDiscount"`
+	Checkout      *CartCheckout           `json:"checkout"`
+}
+
+type CartAddress struct {
+	FirstName       string  `json:"firstName"`
+	LastName        string  `json:"lastName"`
+	Company         *string `json:"company,omitempty"`
+	Street1         string  `json:"street1"`
+	Street2         *string `json:"street2,omitempty"`
+	City            string  `json:"city"`
+	State           *string `json:"state,omitempty"`
+	PostalCode      string  `json:"postalCode"`
+	CountryCode     string  `json:"countryCode"`
+	Phone           *string `json:"phone,omitempty"`
+	SourceAddressID *string `json:"sourceAddressId,omitempty"`
+}
+
+type CartCheckout struct {
+	Email                 string               `json:"email"`
+	Destination           *CheckoutDestination `json:"destination,omitempty"`
+	ShippingMethod        *ShippingQuote       `json:"shippingMethod,omitempty"`
+	IsPickup              bool                 `json:"isPickup"`
+	Phone                 string               `json:"phone"`
+	PurchaseType          PurchaseType         `json:"purchaseType"`
+	Company               string               `json:"company"`
+	BusinessIds           []*BusinessIDValue   `json:"businessIds"`
+	PoNumber              string               `json:"poNumber"`
+	ShippingAddress       *CartAddress         `json:"shippingAddress,omitempty"`
+	BillingSameAsShipping bool                 `json:"billingSameAsShipping"`
+	BillingAddress        *CartAddress         `json:"billingAddress,omitempty"`
+	PickupContact         *PickupContact       `json:"pickupContact,omitempty"`
+	PaymentProviderSlug   *string              `json:"paymentProviderSlug,omitempty"`
+	GiftCards             []*CartGiftCard      `json:"giftCards"`
+	UseStoreCredit        bool                 `json:"useStoreCredit"`
+	Totals                *CheckoutTotals      `json:"totals"`
 }
 
 type CartEstimate struct {
@@ -126,6 +171,12 @@ type CartEstimate struct {
 	CheapestShippingCents int32            `json:"cheapestShippingCents"`
 	TaxCents              int32            `json:"taxCents"`
 	EstimatedTotalCents   int32            `json:"estimatedTotalCents"`
+}
+
+type CartGiftCard struct {
+	Code         string `json:"code"`
+	AppliedCents int32  `json:"appliedCents"`
+	BalanceCents int32  `json:"balanceCents"`
 }
 
 type CartLine struct {
@@ -165,6 +216,38 @@ type CartLineOption struct {
 	Quantity        float64 `json:"quantity"`
 	SortOrder       int32   `json:"sortOrder"`
 	FileURL         string  `json:"fileUrl"`
+}
+
+type CheckoutDestination struct {
+	CountryCode string  `json:"countryCode"`
+	RegionCode  *string `json:"regionCode,omitempty"`
+	PostalCode  string  `json:"postalCode"`
+}
+
+type CheckoutDetailsInput struct {
+	Email                 *string                 `json:"email,omitempty"`
+	Phone                 *string                 `json:"phone,omitempty"`
+	PurchaseType          PurchaseType            `json:"purchaseType"`
+	Company               *string                 `json:"company,omitempty"`
+	BusinessIds           []*BusinessIDValueInput `json:"businessIds,omitempty"`
+	PoNumber              *string                 `json:"poNumber,omitempty"`
+	ShippingAddressID     *string                 `json:"shippingAddressId,omitempty"`
+	ShippingAddress       *model.AddressInput     `json:"shippingAddress,omitempty"`
+	PickupContact         *PickupContactInput     `json:"pickupContact,omitempty"`
+	BillingSameAsShipping bool                    `json:"billingSameAsShipping"`
+	BillingAddressID      *string                 `json:"billingAddressId,omitempty"`
+	BillingAddress        *model.AddressInput     `json:"billingAddress,omitempty"`
+}
+
+type CheckoutTotals struct {
+	SubtotalCents    int32 `json:"subtotalCents"`
+	DiscountCents    int32 `json:"discountCents"`
+	ShippingCents    int32 `json:"shippingCents"`
+	TaxCents         int32 `json:"taxCents"`
+	TotalCents       int32 `json:"totalCents"`
+	GiftCardCents    int32 `json:"giftCardCents"`
+	StoreCreditCents int32 `json:"storeCreditCents"`
+	AmountDueCents   int32 `json:"amountDueCents"`
 }
 
 type CountrySettings struct {
@@ -210,6 +293,33 @@ type PaymentMethodOption struct {
 	DisplayName  string `json:"displayName"`
 	SortOrder    int32  `json:"sortOrder"`
 	Instructions string `json:"instructions"`
+}
+
+type PhoneCountryFormat struct {
+	CountryCode     string `json:"countryCode"`
+	CallingCode     string `json:"callingCode"`
+	Example         string `json:"example"`
+	NationalExample string `json:"nationalExample"`
+	Template        string `json:"template"`
+}
+
+type PhoneSettings struct {
+	RestrictedToStoreCountries bool                  `json:"restrictedToStoreCountries"`
+	LockedCountryCode          *string               `json:"lockedCountryCode,omitempty"`
+	DefaultCountryCode         string                `json:"defaultCountryCode"`
+	Formats                    []*PhoneCountryFormat `json:"formats"`
+}
+
+type PickupContact struct {
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	SomeoneElse bool   `json:"someoneElse"`
+}
+
+type PickupContactInput struct {
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	SomeoneElse bool   `json:"someoneElse"`
 }
 
 type PickupLocation struct {
@@ -410,11 +520,12 @@ type SavedPaymentMethod struct {
 }
 
 type ShippingQuote struct {
-	CarrierSlug string `json:"carrierSlug"`
-	CarrierName string `json:"carrierName"`
-	Code        string `json:"code"`
-	Name        string `json:"name"`
-	PriceCents  int32  `json:"priceCents"`
+	CarrierSlug   string `json:"carrierSlug"`
+	CarrierName   string `json:"carrierName"`
+	Code          string `json:"code"`
+	Name          string `json:"name"`
+	PriceCents    int32  `json:"priceCents"`
+	EstimatedDays *int32 `json:"estimatedDays,omitempty"`
 }
 
 type SitemapCounts struct {
@@ -528,6 +639,61 @@ func (e *BrowseFacetH1Position) UnmarshalJSON(b []byte) error {
 }
 
 func (e BrowseFacetH1Position) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type PurchaseType string
+
+const (
+	PurchaseTypePersonal PurchaseType = "PERSONAL"
+	PurchaseTypeBusiness PurchaseType = "BUSINESS"
+)
+
+var AllPurchaseType = []PurchaseType{
+	PurchaseTypePersonal,
+	PurchaseTypeBusiness,
+}
+
+func (e PurchaseType) IsValid() bool {
+	switch e {
+	case PurchaseTypePersonal, PurchaseTypeBusiness:
+		return true
+	}
+	return false
+}
+
+func (e PurchaseType) String() string {
+	return string(e)
+}
+
+func (e *PurchaseType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PurchaseType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PurchaseType", str)
+	}
+	return nil
+}
+
+func (e PurchaseType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *PurchaseType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e PurchaseType) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

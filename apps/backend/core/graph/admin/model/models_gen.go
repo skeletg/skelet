@@ -633,6 +633,22 @@ type BundleSelection struct {
 	SortOrder int32    `json:"sortOrder"`
 }
 
+type BusinessIDField struct {
+	Key      string `json:"key"`
+	Label    string `json:"label"`
+	Required bool   `json:"required"`
+	Pattern  string `json:"pattern"`
+	Hint     string `json:"hint"`
+}
+
+type BusinessIDFieldInput struct {
+	Key      *string `json:"key,omitempty"`
+	Label    string  `json:"label"`
+	Required bool    `json:"required"`
+	Pattern  *string `json:"pattern,omitempty"`
+	Hint     *string `json:"hint,omitempty"`
+}
+
 type CMSAttribute struct {
 	ID                 string                 `json:"id"`
 	Slug               string                 `json:"slug"`
@@ -1133,21 +1149,22 @@ type ConsentDefinition struct {
 }
 
 type Country struct {
-	Code                string          `json:"code"`
-	Name                string          `json:"name"`
-	NativeName          string          `json:"nativeName"`
-	EmojiFlag           string          `json:"emojiFlag"`
-	PhoneCode           string          `json:"phoneCode"`
-	DefaultCurrencyCode string          `json:"defaultCurrencyCode"`
-	DefaultCurrency     *Currency       `json:"defaultCurrency,omitempty"`
-	Iso3Code            string          `json:"iso3Code"`
-	NumericCode         string          `json:"numericCode"`
-	IsActive            bool            `json:"isActive"`
-	SortOrder           int32           `json:"sortOrder"`
-	Metadata            []*MetadataItem `json:"metadata"`
-	Regions             []*Region       `json:"regions"`
-	CreatedAt           time.Time       `json:"createdAt"`
-	UpdatedAt           time.Time       `json:"updatedAt"`
+	Code                string             `json:"code"`
+	Name                string             `json:"name"`
+	NativeName          string             `json:"nativeName"`
+	EmojiFlag           string             `json:"emojiFlag"`
+	PhoneCode           string             `json:"phoneCode"`
+	DefaultCurrencyCode string             `json:"defaultCurrencyCode"`
+	DefaultCurrency     *Currency          `json:"defaultCurrency,omitempty"`
+	Iso3Code            string             `json:"iso3Code"`
+	NumericCode         string             `json:"numericCode"`
+	IsActive            bool               `json:"isActive"`
+	SortOrder           int32              `json:"sortOrder"`
+	Metadata            []*MetadataItem    `json:"metadata"`
+	BusinessIDFields    []*BusinessIDField `json:"businessIdFields"`
+	Regions             []*Region          `json:"regions"`
+	CreatedAt           time.Time          `json:"createdAt"`
+	UpdatedAt           time.Time          `json:"updatedAt"`
 }
 
 type CrawlAudit struct {
@@ -1403,15 +1420,16 @@ type CreateCollectionInput struct {
 }
 
 type CreateCountryInput struct {
-	Code                string           `json:"code"`
-	Name                string           `json:"name"`
-	NativeName          *string          `json:"nativeName,omitempty"`
-	EmojiFlag           *string          `json:"emojiFlag,omitempty"`
-	PhoneCode           *string          `json:"phoneCode,omitempty"`
-	DefaultCurrencyCode *string          `json:"defaultCurrencyCode,omitempty"`
-	IsActive            *bool            `json:"isActive,omitempty"`
-	SortOrder           *int32           `json:"sortOrder,omitempty"`
-	Metadata            []*MetadataInput `json:"metadata,omitempty"`
+	Code                string                  `json:"code"`
+	Name                string                  `json:"name"`
+	NativeName          *string                 `json:"nativeName,omitempty"`
+	EmojiFlag           *string                 `json:"emojiFlag,omitempty"`
+	PhoneCode           *string                 `json:"phoneCode,omitempty"`
+	DefaultCurrencyCode *string                 `json:"defaultCurrencyCode,omitempty"`
+	IsActive            *bool                   `json:"isActive,omitempty"`
+	SortOrder           *int32                  `json:"sortOrder,omitempty"`
+	Metadata            []*MetadataInput        `json:"metadata,omitempty"`
+	BusinessIDFields    []*BusinessIDFieldInput `json:"businessIdFields,omitempty"`
 }
 
 type CreateCurrencyInput struct {
@@ -2930,6 +2948,7 @@ type Order struct {
 	BillingAddress      *OrderAddress         `json:"billingAddress"`
 	ShippingAddress     *OrderAddress         `json:"shippingAddress"`
 	PoNumber            *string               `json:"poNumber,omitempty"`
+	BusinessIds         []*OrderBusinessID    `json:"businessIds"`
 	Lines               []*OrderLine          `json:"lines"`
 	Events              []*OrderEvent         `json:"events"`
 	Subtotal            int32                 `json:"subtotal"`
@@ -2965,6 +2984,12 @@ type OrderAddress struct {
 	PostalCode  string  `json:"postalCode"`
 	CountryCode string  `json:"countryCode"`
 	Phone       *string `json:"phone,omitempty"`
+}
+
+type OrderBusinessID struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Value string `json:"value"`
 }
 
 type OrderEvent struct {
@@ -4859,15 +4884,16 @@ type UpdateCollectionInput struct {
 }
 
 type UpdateCountryInput struct {
-	Code                string           `json:"code"`
-	Name                *string          `json:"name,omitempty"`
-	NativeName          *string          `json:"nativeName,omitempty"`
-	EmojiFlag           *string          `json:"emojiFlag,omitempty"`
-	PhoneCode           *string          `json:"phoneCode,omitempty"`
-	DefaultCurrencyCode *string          `json:"defaultCurrencyCode,omitempty"`
-	IsActive            *bool            `json:"isActive,omitempty"`
-	SortOrder           *int32           `json:"sortOrder,omitempty"`
-	Metadata            []*MetadataInput `json:"metadata,omitempty"`
+	Code                string                  `json:"code"`
+	Name                *string                 `json:"name,omitempty"`
+	NativeName          *string                 `json:"nativeName,omitempty"`
+	EmojiFlag           *string                 `json:"emojiFlag,omitempty"`
+	PhoneCode           *string                 `json:"phoneCode,omitempty"`
+	DefaultCurrencyCode *string                 `json:"defaultCurrencyCode,omitempty"`
+	IsActive            *bool                   `json:"isActive,omitempty"`
+	SortOrder           *int32                  `json:"sortOrder,omitempty"`
+	Metadata            []*MetadataInput        `json:"metadata,omitempty"`
+	BusinessIDFields    []*BusinessIDFieldInput `json:"businessIdFields,omitempty"`
 }
 
 type UpdateCurrencyInput struct {
