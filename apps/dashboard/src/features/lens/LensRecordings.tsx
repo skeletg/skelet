@@ -15,6 +15,7 @@ import {
 import { useConfigScope } from '@/lib/config-scope'
 import { type LensSessionsQuery, LensSessionsDocument } from './Lens.gql'
 import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNames'
+import { formatDateTime } from '@/lib/format'
 
 type Row = LensSessionsQuery['lensSessions'][number]
 
@@ -22,11 +23,6 @@ function fmtDur(ms: number): string {
   const s = Math.round(ms / 1000)
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`
 }
-function fmtWhen(v: string): string {
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
-
 // LensRecordings is the channel-wide session-replay browser - a catalog-style data table (search / sort / paginate)
 // with a faceted filter to split logged-in customers from anonymous visitors - A row opens the rrweb player
 export function LensRecordings() {
@@ -76,7 +72,7 @@ export function LensRecordings() {
       {
         accessorKey: 'startedAt',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Started" />,
-        cell: ({ row }) => <span className="whitespace-nowrap text-sm">{fmtWhen(row.original.startedAt)}</span>,
+        cell: ({ row }) => <span className="whitespace-nowrap text-sm">{formatDateTime(row.original.startedAt)}</span>,
       },
       {
         id: 'duration',

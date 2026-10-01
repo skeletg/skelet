@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -18,6 +18,8 @@ import { EmailCampaignsDocument } from '@/features/campaigns/Campaigns.gql'
 import { FlowsDocument } from '@/features/flows/Flows.gql'
 import { LibraryEmailsDocument } from '@/features/emails/Emails.gql'
 import { PulseEngagementDocument } from './Pulse.gql'
+import { Empty, Panel } from '@/components/layout/panels'
+import { formatCents, formatDate, formatDateTime, formatNumber } from '@/lib/format'
 
 
 type NavCard = { to: string; title: string; description: string; icon: LucideIcon }
@@ -42,20 +44,7 @@ const TRIGGER_LABEL: Record<string, string> = {
 }
 const triggerLabel = (t: string) => TRIGGER_LABEL[t] ?? t.replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
-const nfmt = (n: number) => n.toLocaleString()
 const pctStr = (x: number | null) => (x == null ? '-' : `${Math.round(x * 100)}%`)
-const fmtMoney = (cents: number, currency: string) => (cents / 100).toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
-function fmtDateTime(iso?: string | null): string {
-  if (!iso) return '-'
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
-function fmtDate(iso?: string | null): string {
-  if (!iso) return '-'
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString(undefined, { dateStyle: 'medium' })
-}
-
 export function PulseHome() {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const channelId = effectiveChannelId ?? ''
@@ -193,10 +182,10 @@ export function PulseHome() {
           <>
             <DetailPageSection title="At a glance">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <StatTile icon={MailIcon} value={nfmt(s.emailCount)} label="Emails" sub="in the library" />
-                <StatTile icon={WorkflowIcon} value={nfmt(s.activeFlows)} label="Active flows" sub={`of ${nfmt(s.flowCount)} total`} />
-                <StatTile icon={MegaphoneIcon} value={nfmt(s.campaignCount)} label="Campaigns" sub={`${nfmt(s.sentCampaigns)} sent`} />
-                <StatTile icon={SendIcon} value={nfmt(s.sent)} label="Emails delivered" sub={s.deliveryRate != null ? `${pctStr(s.deliveryRate)} delivery rate` : 'across all campaigns'} />
+                <StatTile icon={MailIcon} value={formatNumber(s.emailCount)} label="Emails" sub="in the library" />
+                <StatTile icon={WorkflowIcon} value={formatNumber(s.activeFlows)} label="Active flows" sub={`of ${formatNumber(s.flowCount)} total`} />
+                <StatTile icon={MegaphoneIcon} value={formatNumber(s.campaignCount)} label="Campaigns" sub={`${formatNumber(s.sentCampaigns)} sent`} />
+                <StatTile icon={SendIcon} value={formatNumber(s.sent)} label="Emails delivered" sub={s.deliveryRate != null ? `${pctStr(s.deliveryRate)} delivery rate` : 'across all campaigns'} />
               </div>
             </DetailPageSection>
 
@@ -213,7 +202,7 @@ export function PulseHome() {
                           <span className="h-2.5 min-w-16 flex-1 overflow-hidden rounded-full bg-muted">
                             <span className="block h-full rounded-full bg-primary" style={{ width: `${(f.value / funnelBase) * 100}%` }} />
                           </span>
-                          <span className="w-14 shrink-0 text-right tabular-nums">{nfmt(f.value)}</span>
+                          <span className="w-14 shrink-0 text-right tabular-nums">{formatNumber(f.value)}</span>
                           <span className="w-24 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{f.rate != null ? `${pctStr(f.rate)} ${f.note}` : ''}</span>
                         </div>
                       ))}
@@ -224,11 +213,11 @@ export function PulseHome() {
                 <Panel title="Delivery">
                   <DeliveryBar sent={s.sent} failed={s.failed} skipped={s.skipped} />
                   <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                    <Metric label="Delivered" value={nfmt(s.sent)} dotClass="bg-success" />
-                    <Metric label="Failed" value={nfmt(s.failed)} dotClass="bg-destructive" />
-                    <Metric label="Skipped" value={nfmt(s.skipped)} dotClass="bg-muted-foreground/40" />
+                    <Metric label="Delivered" value={formatNumber(s.sent)} dotClass="bg-success" />
+                    <Metric label="Failed" value={formatNumber(s.failed)} dotClass="bg-destructive" />
+                    <Metric label="Skipped" value={formatNumber(s.skipped)} dotClass="bg-muted-foreground/40" />
                   </div>
-                  <p className="mt-3 text-xs text-muted-foreground">{nfmt(s.recipients)} recipients targeted across {nfmt(s.campaignCount)} campaigns.</p>
+                  <p className="mt-3 text-xs text-muted-foreground">{formatNumber(s.recipients)} recipients targeted across {formatNumber(s.campaignCount)} campaigns.</p>
                 </Panel>
               </div>
             </DetailPageSection>
@@ -239,11 +228,11 @@ export function PulseHome() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="text-3xl font-semibold tabular-nums">{pctStr(s.openRate)}</div>
-                      <p className="mt-1 text-xs text-muted-foreground">{nfmt(s.opened)} opens</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{formatNumber(s.opened)} opens</p>
                     </div>
                     <div>
                       <div className="text-3xl font-semibold tabular-nums">{pctStr(s.clickRate)}</div>
-                      <p className="mt-1 text-xs text-muted-foreground">{nfmt(s.clicked)} clicks</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{formatNumber(s.clicked)} clicks</p>
                     </div>
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">Opens rely on a tracking pixel - undercounted by image-blockers, inflated by privacy proxies. Clicks are the reliable signal.</p>
@@ -252,12 +241,12 @@ export function PulseHome() {
                 <Panel title="Opens - real vs machine">
                   {eng ? (
                     <>
-                      <div className="text-3xl font-semibold tabular-nums">{nfmt(eng.opensHuman)}</div>
+                      <div className="text-3xl font-semibold tabular-nums">{formatNumber(eng.opensHuman)}</div>
                       <p className="mt-1 text-xs text-muted-foreground">real opens</p>
                       <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                        <div className="flex justify-between"><span>Raw opens</span><span className="tabular-nums">{nfmt(eng.opensRaw)}</span></div>
-                        <div className="flex justify-between"><span>Machine / prefetch</span><span className="tabular-nums">{nfmt(Math.max(0, eng.opensRaw - eng.opensHuman))}</span></div>
-                        <div className="flex justify-between"><span>Clicks</span><span className="tabular-nums">{nfmt(eng.clicks)}</span></div>
+                        <div className="flex justify-between"><span>Raw opens</span><span className="tabular-nums">{formatNumber(eng.opensRaw)}</span></div>
+                        <div className="flex justify-between"><span>Machine / prefetch</span><span className="tabular-nums">{formatNumber(Math.max(0, eng.opensRaw - eng.opensHuman))}</span></div>
+                        <div className="flex justify-between"><span>Clicks</span><span className="tabular-nums">{formatNumber(eng.clicks)}</span></div>
                       </div>
                     </>
                   ) : (
@@ -272,10 +261,10 @@ export function PulseHome() {
                         <div className="text-3xl font-semibold tabular-nums">-</div>
                       ) : (
                         eng.revenue.map((r) => (
-                          <div key={r.currency || 'na'} className="text-2xl font-semibold tabular-nums">{fmtMoney(r.cents, r.currency)}</div>
+                          <div key={r.currency || 'na'} className="text-2xl font-semibold tabular-nums">{formatCents(r.cents, r.currency)}</div>
                         ))
                       )}
-                      <p className="mt-1 text-xs text-muted-foreground">{nfmt(eng.conversions)} orders credited to email (last-touch, 30d)</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{formatNumber(eng.conversions)} orders credited to email (last-touch, 30d)</p>
                     </>
                   ) : (
                     <Empty>No spine data yet.</Empty>
@@ -323,9 +312,9 @@ export function PulseHome() {
                             <tr key={c.id} className="border-b last:border-0 hover:bg-muted/40">
                               <td className="px-3 py-2">
                                 <Link to={`/campaigns/${c.id}`} className="font-medium hover:underline">{c.name}</Link>
-                                <div className="text-xs text-muted-foreground">{fmtDate(c.sentAt)}</div>
+                                <div className="text-xs text-muted-foreground">{formatDate(c.sentAt)}</div>
                               </td>
-                              <td className="px-3 py-2 text-right tabular-nums">{nfmt(c.sent)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{formatNumber(c.sent)}</td>
                               <td className="px-3 py-2 text-right tabular-nums">{pctStr(c.open)}</td>
                               <td className="px-3 py-2 text-right tabular-nums">{pctStr(c.click)}</td>
                             </tr>
@@ -345,7 +334,7 @@ export function PulseHome() {
                     {eng.topLinks.slice(0, 8).map((l) => (
                       <li key={l.url} className="flex items-center justify-between gap-3 text-sm">
                         <span className="min-w-0 truncate text-muted-foreground">{l.url}</span>
-                        <span className="shrink-0 font-medium tabular-nums">{nfmt(l.clicks)}</span>
+                        <span className="shrink-0 font-medium tabular-nums">{formatNumber(l.clicks)}</span>
                       </li>
                     ))}
                   </ul>
@@ -353,7 +342,7 @@ export function PulseHome() {
               </DetailPageSection>
             )}
 
-            <DetailPageSection title="Automation" description={`${nfmt(s.activeFlows)} active · ${nfmt(s.byFlowStatus['paused'] ?? 0)} paused · ${nfmt(s.byFlowStatus['draft'] ?? 0)} draft`}>
+            <DetailPageSection title="Automation" description={`${formatNumber(s.activeFlows)} active · ${formatNumber(s.byFlowStatus['paused'] ?? 0)} paused · ${formatNumber(s.byFlowStatus['draft'] ?? 0)} draft`}>
               <Panel title="Flows">
                 {s.flowRows.length === 0 ? (
                   <Empty>No flows yet. <Link to="/flows" className="text-primary hover:underline">Create one</Link>.</Empty>
@@ -392,7 +381,7 @@ export function PulseHome() {
                       {s.upcoming.map((c) => (
                         <li key={c.id} className="flex items-center justify-between gap-3 py-2">
                           <Link to={`/campaigns/${c.id}`} className="min-w-0 truncate text-sm font-medium hover:underline">{c.name}</Link>
-                          <span className="shrink-0 text-xs text-muted-foreground">{fmtDateTime(c.scheduledFor)}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{formatDateTime(c.scheduledFor)}</span>
                         </li>
                       ))}
                     </ul>
@@ -460,18 +449,4 @@ function Metric({ label, value, dotClass }: { label: string; value: string; dotC
       </div>
     </div>
   )
-}
-
-// A bordered panel with a header strip - the flat skelet alternative to a Card
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded border">
-      <div className="border-b px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">{title}</div>
-      <div className="p-3">{children}</div>
-    </div>
-  )
-}
-
-function Empty({ children }: { children: ReactNode }) {
-  return <p className="py-6 text-center text-sm text-muted-foreground">{children}</p>
 }

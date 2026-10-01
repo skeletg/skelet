@@ -3,35 +3,11 @@ import { Link } from 'react-router-dom'
 import { ArrowRightIcon } from 'lucide-react'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { cn } from '@/lib/utils'
+import { Empty } from '@/components/layout/panels'
 
 // The pieces every dashboard section is built from, so twenty sections don't each invent a panel,
-// an empty state and a loading row
-
-export function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
-    </div>
-  )
-}
-
-// A bordered panel with a header strip - the flat skelet alternative to a Card
-export function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded border">
-      <div className="border-b px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        {title}
-      </div>
-      <div className="p-3">{children}</div>
-    </div>
-  )
-}
-
-export function Empty({ children }: { children: ReactNode }) {
-  return <p className="py-6 text-center text-sm text-muted-foreground">{children}</p>
-}
+// an empty state and a loading row - the tile, panel and empty state are shared with the analytics pages
+export { Empty, Panel, Tile } from '@/components/layout/panels'
 
 // One section of the dashboard: the heading and description feed the page's section index, `to` turns the section into an entry point
 // rather than a dead end, and the three states below are handled here so a section body only ever renders the happy path

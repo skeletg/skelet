@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { LensCustomerSessionsDocument, LensVisitorSessionsDocument } from './Lens.gql'
+import { formatDateTime } from '@/lib/format'
 
 // One row's worth of a recording, as returned by the LensSession* queries
 export type SessionRow = {
@@ -22,11 +23,6 @@ function fmtDur(ms: number): string {
   const m = Math.floor(s / 60)
   return `${m}m ${String(s % 60).padStart(2, '0')}s`
 }
-function fmtWhen(v: string): string {
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
-
 // SessionRows is the shared presentational list of recordings - used by the
 // channel Recordings browser and the per-profile "Session recordings" panels
 // Each row links to the rrweb player. showVisitor adds the anon/customer tag
@@ -59,7 +55,7 @@ export function SessionRows({
                 </span>
               </div>
               <div className="text-xs text-muted-foreground">
-                {fmtWhen(s.startedAt)} · {s.eventCount.toLocaleString()} events · {s.viewport}
+                {formatDateTime(s.startedAt)} · {s.eventCount.toLocaleString()} events · {s.viewport}
                 {showVisitor ? ` · ${s.customerId ? 'customer' : 'anon ' + s.anonId.slice(0, 8)}` : ''}
               </div>
             </div>

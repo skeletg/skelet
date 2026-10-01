@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@apollo/client/react'
 import { type ColumnDef } from '@/components/data-table/tanstack'
@@ -14,12 +14,10 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { type LensSearchAnalyticsQuery, LensSearchAnalyticsDocument } from './Lens.gql'
+import { Empty, Tile } from '@/components/layout/panels'
+import { formatNumber } from '@/lib/format'
 
 type TermRow = LensSearchAnalyticsQuery['lensSearchAnalytics']['top'][number]
-
-function nfmt(n: number): string {
-  return n.toLocaleString()
-}
 
 // LensSearch reports on-site search: headline totals, a daily volume trend, the most-searched terms, and zero-result
 // searches (the merchandising-gap list) Rollup-backed (dim='search' / 'search_zero'), so it scales with traffic
@@ -50,7 +48,7 @@ export function LensSearch() {
         header: ({ column }) => <DataTableColumnHeader column={column} title="Searches" />,
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
-            <span className="w-12 shrink-0 tabular-nums">{nfmt(row.original.count)}</span>
+            <span className="w-12 shrink-0 tabular-nums">{formatNumber(row.original.count)}</span>
             <Bar value={Math.round((row.original.count / maxTop) * 100)} />
           </div>
         ),
@@ -73,7 +71,7 @@ export function LensSearch() {
       {
         accessorKey: 'count',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Searches" />,
-        cell: ({ row }) => <span className="tabular-nums">{nfmt(row.original.count)}</span>,
+        cell: ({ row }) => <span className="tabular-nums">{formatNumber(row.original.count)}</span>,
       },
     ],
     [],
@@ -105,9 +103,9 @@ export function LensSearch() {
           <>
             <DetailPageSection title="At a glance">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Tile label="Total searches" value={nfmt(a?.totalSearches ?? 0)} sub="last 30 days" />
-                <Tile label="Distinct terms" value={nfmt(a?.distinctTerms ?? 0)} sub="unique queries" />
-                <Tile label="Zero-result searches" value={nfmt(a?.zeroResultSearches ?? 0)} sub="returned nothing" />
+                <Tile label="Total searches" value={formatNumber(a?.totalSearches ?? 0)} sub="last 30 days" />
+                <Tile label="Distinct terms" value={formatNumber(a?.distinctTerms ?? 0)} sub="unique queries" />
+                <Tile label="Zero-result searches" value={formatNumber(a?.zeroResultSearches ?? 0)} sub="returned nothing" />
                 <Tile
                   label="Zero-result rate"
                   value={`${zeroRate}%`}
@@ -197,26 +195,10 @@ function TrendBars({ daily }: { daily: { date: string; searches: number; zeroRes
   )
 }
 
-function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'warn' }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone === 'warn' ? 'text-warning' : ''}`}>
-        {value}
-      </p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
-    </div>
-  )
-}
-
 function Bar({ value }: { value: number }) {
   return (
     <span className="h-1.5 min-w-16 flex-1 overflow-hidden rounded-full bg-muted">
       <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
     </span>
   )
-}
-
-function Empty({ children }: { children: ReactNode }) {
-  return <p className="py-6 text-center text-sm text-muted-foreground">{children}</p>
 }

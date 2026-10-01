@@ -14,13 +14,9 @@ import {
 } from '@/components/layout/detail-page'
 import { useConfigScope } from '@/lib/config-scope'
 import { type LensErrorsQuery, LensErrorsDocument } from './Lens.gql'
+import { formatDateTime } from '@/lib/format'
 
 type Row = LensErrorsQuery['lensErrors'][number]
-
-function fmtWhen(v: string): string {
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
 
 // LensErrors lists JS errors captured on the storefront (window.onerror + unhandledrejection), grouped by message - the
 // Clarity-style "what's breaking" view - Errors ride the same custom-event pipeline as the rest of Lens
@@ -58,7 +54,7 @@ export function LensErrors() {
       {
         accessorKey: 'lastSeen',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Last seen" />,
-        cell: ({ row }) => <span className="whitespace-nowrap text-sm text-muted-foreground">{fmtWhen(row.original.lastSeen)}</span>,
+        cell: ({ row }) => <span className="whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(row.original.lastSeen)}</span>,
       },
     ],
     [],
