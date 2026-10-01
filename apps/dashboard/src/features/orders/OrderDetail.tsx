@@ -73,6 +73,7 @@ import {
   OrdersPagedDocument,
 } from './Orders.gql'
 import { PluginSections } from '@/plugins/detail-sections'
+import { formatPhone } from '@/lib/phone'
 
 // Shipping is gated on the status machine, so the note names the transition that unblocks it
 function shipmentBlockedReason(status: string): string {
@@ -522,6 +523,9 @@ export function OrderDetail() {
           <div className="grid gap-4 md:grid-cols-2">
             <AddressBlock title="Billing address" address={order.billingAddress} />
             <AddressBlock title="Shipping address" address={order.shippingAddress} />
+            {(order.businessIds.length > 0 || order.poNumber) && (
+              <BusinessBlock ids={order.businessIds} poNumber={order.poNumber ?? null} />
+            )}
           </div>
         </DetailPageSection>
 
@@ -860,6 +864,36 @@ function TransitionButtons({
   return <>{buttons}</>
 }
 
+// The company identifiers the buyer gave at checkout, with the labels they saw (PIB, Matični broj, VAT number) - the
+// company name itself is on the billing address
+function BusinessBlock({
+  ids,
+  poNumber,
+}: {
+  ids: { key: string; label: string; value: string }[]
+  poNumber: string | null
+}) {
+  return (
+    <div className="rounded-md border p-4 text-sm md:col-span-2">
+      <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Business purchase</div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+        {ids.map((id) => (
+          <div key={id.key} className="contents">
+            <dt className="text-muted-foreground">{id.label}</dt>
+            <dd className="font-mono">{id.value}</dd>
+          </div>
+        ))}
+        {poNumber && (
+          <>
+            <dt className="text-muted-foreground">PO number</dt>
+            <dd className="font-mono">{poNumber}</dd>
+          </>
+        )}
+      </dl>
+    </div>
+  )
+}
+
 function AddressBlock({ title, address }: { title: string; address: Address }) {
   return (
     <div className="rounded-md border p-4 text-sm">
@@ -877,7 +911,7 @@ function AddressBlock({ title, address }: { title: string; address: Address }) {
         {address.state ? `, ${address.state}` : ''} {address.postalCode}
       </div>
       <div className="text-muted-foreground">{address.countryCode}</div>
-      {address.phone && <div className="text-muted-foreground">{address.phone}</div>}
+      {address.phone && <div className="text-muted-foreground">{formatPhone(address.phone)}</div>}
     </div>
   )
 }
