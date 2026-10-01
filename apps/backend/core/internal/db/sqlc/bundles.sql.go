@@ -320,42 +320,6 @@ func (q *Queries) ListBundleSelectionLinksByProductIDs(ctx context.Context, prod
 	return items, nil
 }
 
-const listBundleSelectionsByOptionID = `-- name: ListBundleSelectionsByOptionID :many
-SELECT id, option_id, product_id, quantity, is_default, sort_order FROM catalog_product_bundle_selections
-WHERE option_id = $1
-ORDER BY sort_order, id
-`
-
-func (q *Queries) ListBundleSelectionsByOptionID(ctx context.Context, optionID uuid.UUID) ([]CatalogProductBundleSelection, error) {
-	rows, err := q.db.QueryContext(ctx, listBundleSelectionsByOptionID, optionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CatalogProductBundleSelection{}
-	for rows.Next() {
-		var i CatalogProductBundleSelection
-		if err := rows.Scan(
-			&i.ID,
-			&i.OptionID,
-			&i.ProductID,
-			&i.Quantity,
-			&i.IsDefault,
-			&i.SortOrder,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listBundleSelectionsByOptionIDs = `-- name: ListBundleSelectionsByOptionIDs :many
 SELECT id, option_id, product_id, quantity, is_default, sort_order FROM catalog_product_bundle_selections
 WHERE option_id = ANY($1::uuid[])

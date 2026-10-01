@@ -284,6 +284,22 @@ func (q *Queries) BrowseProductsFallback(ctx context.Context, arg BrowseProducts
 	return items, nil
 }
 
+const countActiveCartReferencesToSKU = `-- name: CountActiveCartReferencesToSKU :one
+SELECT ((SELECT COUNT(*) FROM cart_lines cl JOIN carts c ON c.id = cl.cart_id
+         WHERE c.status = 'active' AND cl.product_sku = $1::text)
+      + (SELECT COUNT(*) FROM cart_saved_items si JOIN carts c ON c.id = si.cart_id
+         WHERE c.status = 'active' AND si.product_sku = $1::text)
+      + (SELECT COUNT(*) FROM cart_line_components lc JOIN cart_lines cl ON cl.id = lc.cart_line_id JOIN carts c ON c.id = cl.cart_id
+         WHERE c.status = 'active' AND lc.product_sku = $1::text))::bigint
+`
+
+func (q *Queries) CountActiveCartReferencesToSKU(ctx context.Context, sku string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveCartReferencesToSKU, sku)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countProductsUsingConfigurableOption = `-- name: CountProductsUsingConfigurableOption :one
 SELECT COUNT(*)::bigint FROM catalog_product_configurable_options WHERE attribute_id = $1
 `
@@ -504,6 +520,51 @@ SELECT id, product_type_id, default_price, default_currency_code, attributes, me
 
 func (q *Queries) GetProductByID(ctx context.Context, id uuid.UUID) (Product, error) {
 	row := q.db.QueryRowContext(ctx, getProductByID, id)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.ProductTypeID,
+		&i.DefaultPrice,
+		&i.DefaultCurrencyCode,
+		&i.Attributes,
+		&i.Metadata,
+		&i.PrivateMetadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Sku,
+		&i.SeoNoindex,
+		&i.CanonicalUrl,
+		&i.Url,
+		&i.UrlAuto,
+		&i.UrlTemplateOverride,
+		&i.TracksInventoryOverride,
+		&i.Kind,
+		&i.QuantityDecimals,
+		&i.QuantityStep,
+		&i.TaxClass,
+		&i.VariantMode,
+		&i.CompareAtPrice,
+		&i.SpecialPrice,
+		&i.SpecialFrom,
+		&i.SpecialTo,
+		&i.WeightGrams,
+		&i.LengthMm,
+		&i.WidthMm,
+		&i.HeightMm,
+		&i.MinOrderQty,
+		&i.MaxOrderQty,
+		&i.CostCents,
+	)
+	return i, err
+}
+
+const getProductByIDForUpdate = `-- name: GetProductByIDForUpdate :one
+SELECT id, product_type_id, default_price, default_currency_code, attributes, metadata, private_metadata, created_at, updated_at, sku, seo_noindex, canonical_url, url, url_auto, url_template_override, tracks_inventory_override, kind, quantity_decimals, quantity_step, tax_class, variant_mode, compare_at_price, special_price, special_from, special_to, weight_grams, length_mm, width_mm, height_mm, min_order_qty, max_order_qty, cost_cents FROM catalog_products WHERE id = $1 FOR UPDATE
+`
+
+// UpdateProduct merges the input over this row in Go, so the lock keeps a concurrent edit from being overwritten
+func (q *Queries) GetProductByIDForUpdate(ctx context.Context, id uuid.UUID) (Product, error) {
+	row := q.db.QueryRowContext(ctx, getProductByIDForUpdate, id)
 	var i Product
 	err := row.Scan(
 		&i.ID,
@@ -1730,6 +1791,73 @@ SELECT id, product_type_id, default_price, default_currency_code, attributes, me
 
 func (q *Queries) ListProductsByType(ctx context.Context, productTypeID uuid.UUID) ([]Product, error) {
 	rows, err := q.db.QueryContext(ctx, listProductsByType, productTypeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Product{}
+	for rows.Next() {
+		var i Product
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProductTypeID,
+			&i.DefaultPrice,
+			&i.DefaultCurrencyCode,
+			&i.Attributes,
+			&i.Metadata,
+			&i.PrivateMetadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Sku,
+			&i.SeoNoindex,
+			&i.CanonicalUrl,
+			&i.Url,
+			&i.UrlAuto,
+			&i.UrlTemplateOverride,
+			&i.TracksInventoryOverride,
+			&i.Kind,
+			&i.QuantityDecimals,
+			&i.QuantityStep,
+			&i.TaxClass,
+			&i.VariantMode,
+			&i.CompareAtPrice,
+			&i.SpecialPrice,
+			&i.SpecialFrom,
+			&i.SpecialTo,
+			&i.WeightGrams,
+			&i.LengthMm,
+			&i.WidthMm,
+			&i.HeightMm,
+			&i.MinOrderQty,
+			&i.MaxOrderQty,
+			&i.CostCents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProductsForChannel = `-- name: ListProductsForChannel :many
+SELECT p.id, p.product_type_id, p.default_price, p.default_currency_code, p.attributes, p.metadata, p.private_metadata, p.created_at, p.updated_at, p.sku, p.seo_noindex, p.canonical_url, p.url, p.url_auto, p.url_template_override, p.tracks_inventory_override, p.kind, p.quantity_decimals, p.quantity_step, p.tax_class, p.variant_mode, p.compare_at_price, p.special_price, p.special_from, p.special_to, p.weight_grams, p.length_mm, p.width_mm, p.height_mm, p.min_order_qty, p.max_order_qty, p.cost_cents FROM catalog_products p
+WHERE EXISTS (SELECT 1 FROM catalog_product_channel_listings l WHERE l.product_id = p.id AND l.channel_id = $1)
+ORDER BY p.created_at DESC LIMIT NULLIF($2::int, 0)
+`
+
+type ListProductsForChannelParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	RowLimit  int32     `json:"row_limit"`
+}
+
+func (q *Queries) ListProductsForChannel(ctx context.Context, arg ListProductsForChannelParams) ([]Product, error) {
+	rows, err := q.db.QueryContext(ctx, listProductsForChannel, arg.ChannelID, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}

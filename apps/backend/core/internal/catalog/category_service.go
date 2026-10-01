@@ -910,11 +910,6 @@ func (s *categoryService) ListCategoryChannelListings(ctx context.Context, categ
 	return s.repo.ListCategoryChannelListings(ctx, categoryID)
 }
 
-// GetCategoryChannelListing returns one listing or ErrCategoryChannelListingNotFound
-func (s *categoryService) GetCategoryChannelListing(ctx context.Context, categoryID, channelID uuid.UUID) (CategoryChannelListing, error) {
-	return s.repo.GetCategoryChannelListing(ctx, categoryID, channelID)
-}
-
 // Storefront tree: roots come back nested (Children populated recursively), limited to categories listed+published on the store - cached in Valkey per (store, locale), admin mutations invalidate the namespace so reads stay fresh within a request, and the TTL is only an upper bound for catastrophic cases (cache misconfig, namespace lock contention)
 func (s *categoryService) ListPublishedRootCategoriesForChannel(ctx context.Context, channelID uuid.UUID, locale string) ([]Category, error) {
 	cacheKey := categoryTreeCachePrefix + channelID.String() + ":" + locale

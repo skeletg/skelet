@@ -597,7 +597,7 @@ func (r *queryResolver) CartRecommendations(ctx context.Context, cartID string) 
 	}
 	if len(recs) < 4 {
 		for _, pid := range cartProductIDs {
-			if ab, aerr := r.CatalogSvc.ListAlsoBought(ctx, pid, 8); aerr == nil {
+			if ab, aerr := r.CatalogSvc.ListAlsoBought(ctx, pid, catalog.AlsoBoughtDefaultLimit); aerr == nil {
 				add(ab)
 			}
 		}

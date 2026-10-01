@@ -156,43 +156,6 @@ func (q *Queries) ListGroupedMembersByParentID(ctx context.Context, parentID uui
 	return items, nil
 }
 
-const listGroupedMembersByParentIDs = `-- name: ListGroupedMembersByParentIDs :many
-SELECT id, parent_id, member_id, default_quantity, sort_order, created_at, updated_at FROM catalog_product_grouped_members
-WHERE parent_id = ANY($1::uuid[])
-ORDER BY parent_id, sort_order, created_at
-`
-
-func (q *Queries) ListGroupedMembersByParentIDs(ctx context.Context, parentIds []uuid.UUID) ([]CatalogProductGroupedMember, error) {
-	rows, err := q.db.QueryContext(ctx, listGroupedMembersByParentIDs, pq.Array(parentIds))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CatalogProductGroupedMember{}
-	for rows.Next() {
-		var i CatalogProductGroupedMember
-		if err := rows.Scan(
-			&i.ID,
-			&i.ParentID,
-			&i.MemberID,
-			&i.DefaultQuantity,
-			&i.SortOrder,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const updateGroupedMember = `-- name: UpdateGroupedMember :one
 UPDATE catalog_product_grouped_members
 SET default_quantity = $2,

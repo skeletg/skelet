@@ -256,23 +256,15 @@ func (a CartCatalogAdapter) ResolveSimplePricing(ctx context.Context, channelID 
 		}
 	}
 	// Tier (quantity-break) prices, pre-filtered to this channel and the caller's customer group so the cart can apply BestTier scope-free
-	if tiers, terr := a.svc.ListGroupPrices(ctx, p.ID); terr == nil && len(tiers) > 0 {
-		var groupID *uuid.UUID
-		if customerID != nil && a.customers != nil {
-			if c, cerr := a.customers.GetByID(ctx, *customerID); cerr == nil && c.CustomerGroupID != uuid.Nil {
-				g := c.CustomerGroupID
-				groupID = &g
-			}
+	var groupID *uuid.UUID
+	if customerID != nil && a.customers != nil {
+		if c, cerr := a.customers.GetByID(ctx, *customerID); cerr == nil && c.CustomerGroupID != uuid.Nil {
+			g := c.CustomerGroupID
+			groupID = &g
 		}
+	}
+	if tiers, terr := a.svc.ApplicableGroupPrices(ctx, p.ID, &channelID, groupID); terr == nil {
 		for _, t := range tiers {
-			if t.ChannelID != nil && *t.ChannelID != channelID {
-				continue
-			}
-			if t.CustomerGroupID != nil {
-				if groupID == nil || *t.CustomerGroupID != *groupID {
-					continue
-				}
-			}
 			out.Tiers = append(out.Tiers, pricing.Tier{MinQty: t.MinQty, Price: t.Price})
 		}
 	}

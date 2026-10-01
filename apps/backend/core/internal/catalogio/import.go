@@ -258,9 +258,7 @@ func (im *importer) upsert(ctx context.Context, r *dataio.Row, isChild bool, sor
 	}
 
 	if im.opts.ChannelID != uuid.Nil && publish != nil {
-		if _, err := im.cat.SetProductListing(ctx, catalog.ProductChannelListingInput{
-			ProductID: productID, ChannelID: im.opts.ChannelID, IsPublished: *publish,
-		}); err != nil {
+		if _, err := im.cat.SetProductListingPublished(ctx, productID, im.opts.ChannelID, *publish); err != nil {
 			return false, fmt.Errorf("set listing: %w", err)
 		}
 	}

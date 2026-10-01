@@ -58,11 +58,6 @@ RETURNING *;
 -- name: GetBundleSelectionByID :one
 SELECT * FROM catalog_product_bundle_selections WHERE id = $1;
 
--- name: ListBundleSelectionsByOptionID :many
-SELECT * FROM catalog_product_bundle_selections
-WHERE option_id = $1
-ORDER BY sort_order, id;
-
 -- name: ListBundleSelectionsByOptionIDs :many
 SELECT * FROM catalog_product_bundle_selections
 WHERE option_id = ANY(sqlc.arg(option_ids)::uuid[])

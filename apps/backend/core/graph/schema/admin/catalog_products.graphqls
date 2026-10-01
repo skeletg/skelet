@@ -268,8 +268,9 @@ input UpdateProductInput {
   # Order quantity bounds. null = no change; 0 clears.
   minOrderQty:          Float
   maxOrderQty:          Float
-  # Unit cost. null = no change; 0 clears.
+  # Unit cost. null = no change; 0 is a real cost (a free sample); clearCostCents removes it.
   costCents:            Int
+  clearCostCents:       Boolean
   sku:                  String
   seoNoindex:           Boolean
   canonicalUrl:         String

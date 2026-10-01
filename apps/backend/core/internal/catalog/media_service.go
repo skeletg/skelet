@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sync"
 	"time"
@@ -13,20 +14,22 @@ import (
 
 const (
 	// presignTTL caps how long an upload URL stays valid - Long enough for a realistic upload (slow connections, big files) but short enough that a leaked URL is low-value
-	presignTTL = 15 * time.Minute
+	presignTTL          = 15 * time.Minute
+	s3DeleteTimeout     = 30 * time.Second
+	s3DeleteConcurrency = 8
 )
 
 // RequestMediaUpload validates the request, inserts a pending product_media row and returns a presigned PUT URL for the client
 // Validation is the MIME allow-list, the storage's MaxUploadBytes and the product existing
 func (s *mediaService) RequestMediaUpload(ctx context.Context, input RequestMediaUploadInput) (RequestMediaUploadResult, error) {
 	if s.media == nil {
-		return RequestMediaUploadResult{}, fmt.Errorf("media storage not configured")
+		return RequestMediaUploadResult{}, ErrMediaStorageUnavailable
 	}
 	if !media.IsAllowedImage(input.MimeType) {
 		return RequestMediaUploadResult{}, fmt.Errorf("%w: %s", ErrInvalidMimeType, input.MimeType)
 	}
 	if input.SizeBytes <= 0 {
-		return RequestMediaUploadResult{}, fmt.Errorf("size_bytes must be positive")
+		return RequestMediaUploadResult{}, ErrInvalidSize
 	}
 	if input.SizeBytes > s.media.MaxUploadBytes() {
 		return RequestMediaUploadResult{}, fmt.Errorf("%w: %d > %d", ErrFileTooLarge, input.SizeBytes, s.media.MaxUploadBytes())
@@ -94,13 +97,14 @@ func (s *mediaService) ConfirmMediaUpload(ctx context.Context, input ConfirmMedi
 	}
 
 	if input.Width <= 0 || input.Height <= 0 {
-		return ProductMedia{}, fmt.Errorf("width and height must be positive")
+		return ProductMedia{}, ErrInvalidDimensions
 	}
 
 	updated, err := s.repo.MarkProductMediaReady(ctx, input.MediaID, input.Width, input.Height)
 	if err != nil {
 		return ProductMedia{}, err
 	}
+	s.publishProductUpdatedByID(ctx, updated.ProductID, "media")
 	updated.URL = s.media.PublicURL(updated.S3Key)
 	return updated, nil
 }
@@ -134,6 +138,7 @@ func (s *mediaService) UpdateProductMedia(ctx context.Context, input UpdateProdu
 	if err != nil {
 		return ProductMedia{}, err
 	}
+	s.publishProductUpdatedByID(ctx, m.ProductID, "media")
 	if s.media != nil {
 		m.URL = s.media.PublicURL(m.S3Key)
 	}
@@ -149,6 +154,7 @@ func (s *mediaService) DeleteProductMedia(ctx context.Context, id uuid.UUID, del
 	if err := s.repo.DeleteProductMedia(ctx, id); err != nil {
 		return err
 	}
+	s.publishProductUpdatedByID(ctx, m.ProductID, "media")
 	if deleteFromStorage && s.media != nil {
 		s.asyncDeleteS3(m.S3Key)
 	}
@@ -164,6 +170,9 @@ func (s *mediaService) DeleteProductMediaBulk(ctx context.Context, productID uui
 	if err != nil {
 		return 0, err
 	}
+	if len(deleted) > 0 {
+		s.publishProductUpdatedByID(ctx, productID, "media")
+	}
 	if deleteFromStorage && s.media != nil {
 		for _, row := range deleted {
 			s.asyncDeleteS3(row.S3Key)
@@ -174,7 +183,7 @@ func (s *mediaService) DeleteProductMediaBulk(ctx context.Context, productID uui
 
 func (s *mediaService) asyncDeleteS3(key string) {
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), s3DeleteTimeout)
 		defer cancel()
 		defer func() {
 			if rec := recover(); rec != nil {
@@ -219,8 +228,7 @@ func (s *mediaService) CleanupPendingMedia(ctx context.Context, olderThan time.D
 	}
 	applog.From(ctx).Info("media: cleanup removed orphaned pending rows", "count", len(rows))
 	// Bounded fan-out: a large sweep could otherwise open hundreds of S3 connections at once - Cap concurrency and wait for the batch so the work is visible to the caller's lifecycle (the cleanup ticker, which graceful shutdown drains) rather than leaking detached goroutines
-	const maxConcurrent = 8
-	sem := make(chan struct{}, maxConcurrent)
+	sem := make(chan struct{}, s3DeleteConcurrency)
 	var wg sync.WaitGroup
 	for _, row := range rows {
 		key := row.S3Key
@@ -235,7 +243,7 @@ func (s *mediaService) CleanupPendingMedia(ctx context.Context, olderThan time.D
 				}
 			}()
 			// Detach from the ticker ctx's cancellation so an in-flight delete finishes, but keep its values and bound it with a hard timeout
-			delCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			delCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s3DeleteTimeout)
 			defer cancel()
 			if err := s.media.Delete(delCtx, key); err != nil {
 				applog.From(delCtx).Error("media: cleanup orphan s3 delete failed", "key", key, "err", err)
@@ -265,6 +273,7 @@ func (s *mediaService) SetProductMediaRole(ctx context.Context, productID, media
 	if err := s.repo.SetMediaRole(ctx, productID, mediaID, role); err != nil {
 		return Product{}, err
 	}
+	s.publishProductUpdatedByID(ctx, productID, "media")
 	return s.repo.GetProductWithAttributes(ctx, productID)
 }
 
@@ -273,29 +282,57 @@ func (s *mediaService) ClearProductMediaRole(ctx context.Context, productID uuid
 	if err := s.repo.ClearMediaRole(ctx, productID, role); err != nil {
 		return Product{}, err
 	}
+	s.publishProductUpdatedByID(ctx, productID, "media")
 	return s.repo.GetProductWithAttributes(ctx, productID)
 }
 
-// ReorderProductMedia takes a list of media IDs in the desired display order and rewrites sort_order on each (0, 1, 2, ...) - Any media belonging to the product but not in the list is left untouched - the admin UI is expected to send the full list
+// ReorderProductMedia rewrites sort_order in list order in one tx - a duplicate keeps its first position, a foreign id rejects the call, and media left out is untouched
 func (s *mediaService) ReorderProductMedia(ctx context.Context, productID uuid.UUID, mediaIDs []uuid.UUID) ([]ProductMedia, error) {
-	// Validate all IDs belong to this product before mutating anything
 	existing, err := s.repo.ListProductMediaByProduct(ctx, productID)
 	if err != nil {
 		return nil, err
 	}
-	byID := make(map[uuid.UUID]ProductMedia, len(existing))
+	owned := make(map[uuid.UUID]struct{}, len(existing))
 	for _, m := range existing {
-		byID[m.ID] = m
+		owned[m.ID] = struct{}{}
 	}
+	ordered := make([]uuid.UUID, 0, len(mediaIDs))
+	seen := make(map[uuid.UUID]struct{}, len(mediaIDs))
 	for _, id := range mediaIDs {
-		if _, ok := byID[id]; !ok {
-			return nil, fmt.Errorf("%w: media %s on product %s", ErrMediaNotFound, id, productID)
+		if _, ok := owned[id]; !ok {
+			return nil, fmt.Errorf("%w: media %s on product %s", ErrMediaWrongProduct, id, productID)
+		}
+		if _, dup := seen[id]; !dup {
+			seen[id] = struct{}{}
+			ordered = append(ordered, id)
 		}
 	}
-	for i, id := range mediaIDs {
-		if err := s.repo.SetProductMediaSortOrder(ctx, id, int32(i)); err != nil {
-			return nil, err
+	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		r := s.repo.WithTx(t)
+		for i, id := range ordered {
+			if err := r.SetProductMediaSortOrder(ctx, id, int32(i)); err != nil {
+				return err
+			}
 		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
+	s.publishProductUpdatedByID(ctx, productID, "media")
 	return s.ListProductMedia(ctx, productID)
+}
+
+func (s *mediaService) ListReadyProductMediaByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductMedia, error) {
+	byProduct, err := s.repo.ListReadyProductMediaByProductIDs(ctx, productIDs)
+	if err != nil {
+		return nil, err
+	}
+	if s.media != nil {
+		for _, items := range byProduct {
+			for i := range items {
+				items[i].URL = s.media.PublicURL(items[i].S3Key)
+			}
+		}
+	}
+	return byProduct, nil
 }
