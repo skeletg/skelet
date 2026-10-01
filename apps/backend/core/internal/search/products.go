@@ -949,7 +949,7 @@ func (i *ProductIndexer) buildDoc(
 		if value == "" {
 			continue
 		}
-		slug := slugify(value)
+		slug := catalog.Slugify(value)
 		if row, ok := globalSlugOverrides[attr.ID]; ok {
 			slug = row.Slug
 		}

@@ -230,3 +230,19 @@ func TestCreateProductTypeRejectsATemplateUpdateWouldRefuse(t *testing.T) {
 		t.Error("attribute token on a type with no attributes: got nil, want a refusal")
 	}
 }
+
+func TestSlugify(t *testing.T) {
+	for in, want := range map[string]string{
+		"Navy Blue":                      "navy-blue",
+		"  Rough  Cut ":                  "rough-cut",
+		"205/55 R16":                     "205-55-r16",
+		"--edge--":                       "edge",
+		"???":                            "",
+		"\u00e9clair":                    "clair",
+		"\u00dcn\u00efc\u00f6d\u00e9!!!": "n-c-d",
+	} {
+		if got := Slugify(in); got != want {
+			t.Errorf("Slugify(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

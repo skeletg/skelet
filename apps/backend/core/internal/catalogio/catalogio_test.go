@@ -44,20 +44,6 @@ func TestCoerceScalar(t *testing.T) {
 	}
 }
 
-func TestSlugify(t *testing.T) {
-	tests := map[string]string{
-		"Cotton T-Shirt":  "cotton-t-shirt",
-		"  Spaced  Out  ": "spaced-out",
-		"Already-slug":    "already-slug",
-		"Ünïcödé!!!":      "n-c-d",
-	}
-	for in, want := range tests {
-		if got := slugify(in); got != want {
-			t.Errorf("slugify(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestSplitMulti(t *testing.T) {
 	got := splitMulti(" red | blue ||green ")
 	want := []string{"red", "blue", "green"}
@@ -155,7 +141,7 @@ func TestParseGroupedMembers(t *testing.T) {
 // The registry validates every registration, so a malformed field set never reaches a run
 func TestResourceRegisters(t *testing.T) {
 	reg := dataio.NewRegistry()
-	reg.Register(Resource(nil, nil, nil))
+	reg.Register(Resource(nil, nil))
 	res, err := reg.Get("products")
 	if err != nil {
 		t.Fatalf("get: %v", err)

@@ -265,6 +265,9 @@ func (s *core) resolveDefaultLocale(ctx context.Context) string {
 	return strings.TrimSpace(code)
 }
 
+// DefaultLocale is the install's canonical content locale, "" when none is wired
+func (s *core) DefaultLocale(ctx context.Context) string { return s.resolveDefaultLocale(ctx) }
+
 // ==================== ProductType ====================
 
 func (s *core) CreateProductType(ctx context.Context, input CreateProductTypeInput) (ProductType, error) {

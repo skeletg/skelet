@@ -41,60 +41,65 @@ var categoryFields = []dataio.Field{
 // describe a whole hierarchy in any row order
 func CategoryResource(cat *catalog.Service) dataio.Resource {
 	return dataio.Resource{
-		Slug:                "categories",
+		Slug:                resourceCategories,
 		Label:               "Categories",
 		Group:               "Catalog",
 		Description:         "The category tree. Rows link to their parent by slug, so the file can arrive in any order.",
-		ViewPermission:      "catalog.view",
-		ImportPermission:    "catalog.manage",
+		ViewPermission:      permView,
+		ImportPermission:    permManage,
 		RequireGlobalImport: true,
 		Fields:              categoryFields,
-		NewExporter: func(_ context.Context, o dataio.Opts) (dataio.Exporter, error) {
-			return &categoryExporter{cat: cat, opts: o}, nil
+		NewExporter: func(ctx context.Context, o dataio.Opts) (dataio.Exporter, error) {
+			locale, err := runLocale(ctx, cat, o)
+			if err != nil {
+				return nil, err
+			}
+			return &categoryExporter{cat: cat, locale: locale}, nil
 		},
-		NewImporter: func(_ context.Context, o dataio.Opts) (dataio.Importer, error) {
-			return &categoryImporter{cat: cat, opts: o, bySlug: map[string]uuid.UUID{}}, nil
+		NewImporter: func(ctx context.Context, o dataio.Opts) (dataio.Importer, error) {
+			locale, err := runLocale(ctx, cat, o)
+			if err != nil {
+				return nil, err
+			}
+			return &categoryImporter{cat: cat, opts: o, locale: locale, bySlug: map[string]uuid.UUID{}}, nil
 		},
 	}
 }
 
 type categoryExporter struct {
-	cat  *catalog.Service
-	opts dataio.Opts
-	flat []catalog.Category
+	cat    *catalog.Service
+	locale string
+	flat   []catalog.Category
+	counts map[uuid.UUID]int64
 }
 
-func (e *categoryExporter) locale() string {
-	if l := e.opts.Locale; l != "" {
-		return l
-	}
-	return "en"
-}
-
+// One read of the whole tree plus one grouped count, walked depth-first so a parent always precedes its children
 func (e *categoryExporter) Columns(ctx context.Context) ([]dataio.Field, error) {
-	roots, err := e.cat.ListRootCategories(ctx, e.locale())
+	roots, err := e.cat.ListRootCategories(ctx, e.locale)
 	if err != nil {
 		return nil, err
 	}
-	// Depth-first so a parent always precedes its children, which is what makes the file readable
-	var walk func(nodes []catalog.Category) error
-	walk = func(nodes []catalog.Category) error {
+	var walk func(nodes []catalog.Category)
+	walk = func(nodes []catalog.Category) {
 		for _, n := range nodes {
+			kids := n.Children
+			n.Children = nil
 			e.flat = append(e.flat, n)
-			kids, err := e.cat.ListCategoryChildren(ctx, n.ID, e.locale())
-			if err != nil {
-				return err
-			}
-			if err := walk(kids); err != nil {
-				return err
-			}
+			walk(kids)
 		}
-		return nil
 	}
-	return nil, walk(roots)
+	walk(roots)
+	ids := make([]uuid.UUID, len(e.flat))
+	for i, c := range e.flat {
+		ids[i] = c.ID
+	}
+	if e.counts, err = e.cat.CountProductsInCategories(ctx, ids); err != nil {
+		return nil, fmt.Errorf("count category products: %w", err)
+	}
+	return nil, nil
 }
 
-func (e *categoryExporter) Stream(ctx context.Context, emit func(*dataio.Row) error) error {
+func (e *categoryExporter) Stream(_ context.Context, emit func(*dataio.Row) error) error {
 	slugByID := make(map[uuid.UUID]string, len(e.flat))
 	for _, c := range e.flat {
 		slugByID[c.ID] = c.Slug
@@ -119,9 +124,7 @@ func (e *categoryExporter) Stream(ctx context.Context, emit func(*dataio.Row) er
 		r.Set(colCatPublished, c.IsPublished)
 		r.Set(colCatNoindex, c.SEONoindex)
 		r.Set(colCatURLPath, c.URLPath)
-		if n, err := e.cat.CountProductsInCategory(ctx, c.ID); err == nil {
-			r.Set(colCatProductCnt, n)
-		}
+		r.Set(colCatProductCnt, e.counts[c.ID])
 		if err := emit(r); err != nil {
 			return err
 		}
@@ -132,16 +135,21 @@ func (e *categoryExporter) Stream(ctx context.Context, emit func(*dataio.Row) er
 type categoryImporter struct {
 	cat    *catalog.Service
 	opts   dataio.Opts
+	locale string
 	bySlug map[string]uuid.UUID // resolved this run, so a child finds a parent created moments earlier
 }
 
-// Roots first, then everything with a parent - a two-pass split is enough because the framework re-runs
-// resolution per row, so a deeper tree resolves as each level lands
+const (
+	passCatRoots    = 0
+	passCatChildren = 1
+)
+
+// Roots first - a child whose parent row hasn't landed yet defers until it has, so any depth resolves in any row order
 func (im *categoryImporter) Pass(r *dataio.Row) int {
 	if r.Has(colCatParent) {
-		return 1
+		return passCatChildren
 	}
-	return 0
+	return passCatRoots
 }
 
 func (im *categoryImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outcome, error) {
@@ -157,6 +165,9 @@ func (im *categoryImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outc
 			return dataio.OutcomeSkipped, errors.New("a category cannot be its own parent")
 		}
 		id, err := im.resolve(ctx, p)
+		if errors.Is(err, catalog.ErrCategoryNotFound) {
+			return dataio.OutcomeSkipped, dataio.Defer(fmt.Errorf("parent %q not found (not in the catalog or this file)", p))
+		}
 		if err != nil {
 			return dataio.OutcomeSkipped, fmt.Errorf("parent %q: %w", p, err)
 		}
@@ -171,6 +182,9 @@ func (im *categoryImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outc
 	}
 
 	existing, getErr := im.cat.GetCategoryBySlug(ctx, slug)
+	if getErr != nil && !errors.Is(getErr, catalog.ErrCategoryNotFound) {
+		return dataio.OutcomeSkipped, fmt.Errorf("lookup by slug: %w", getErr)
+	}
 	exists := getErr == nil
 	if !exists && !r.RequireDeclared() {
 		return dataio.OutcomeSkipped, r.Err()
@@ -183,7 +197,7 @@ func (im *categoryImporter) Row(ctx context.Context, r *dataio.Row) (dataio.Outc
 		return dataio.OutcomeCreated, nil
 	}
 
-	locale := im.locale()
+	locale := im.locale
 	if exists {
 		upd := catalog.UpdateCategoryInput{ID: existing.ID, ParentID: parentID, Position: position, IsPublished: published, SEONoindex: noindex}
 		if parentID == nil && r.Column(colCatParent) && !r.Has(colCatParent) {
@@ -275,11 +289,4 @@ func (im *categoryImporter) resolve(ctx context.Context, slug string) (uuid.UUID
 	}
 	im.bySlug[slug] = c.ID
 	return c.ID, nil
-}
-
-func (im *categoryImporter) locale() string {
-	if l := im.opts.Locale; l != "" {
-		return l
-	}
-	return "en"
 }
