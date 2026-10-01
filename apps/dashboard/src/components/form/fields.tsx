@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { formatAsTyped, formatPhone } from '@/lib/phone'
 import { useFieldContext } from './form-context'
 import { fieldErrorText } from './field-errors'
 
@@ -48,6 +49,49 @@ export function TextField({ label, hint, note, id, className, onValueChange, par
           const value = parse ? parse(e.target.value) : e.target.value
           field.handleChange(value)
           onValueChange?.(value)
+        }}
+        onBlur={field.handleBlur}
+      />
+      {error ? (
+        <p className="text-xs text-destructive">{error}</p>
+      ) : (
+        hint && <p className="text-xs text-muted-foreground">{hint}</p>
+      )}
+      {note}
+    </div>
+  )
+}
+
+type PhoneFieldProps = Omit<TextFieldProps, 'type' | 'parse' | 'onValueChange' | 'defaultValue'> & {
+  /** The country a nationally typed number is formatted in - the address's own, when there is one */
+  country?: string
+}
+
+// A TextField that formats as it's typed. It only reformats while typing at the end - mid-edit the caret would jump,
+// and reformatting a deletion would put back the bracket or space just removed. A stored E.164 value shows
+// international until it's edited
+export function PhoneField({ label, hint, note, id, className, country, ...inputProps }: PhoneFieldProps) {
+  const field = useFieldContext<string>()
+  const inputId = id ?? `f-${field.name}`
+  const error = fieldErrorText(field)
+  const value = field.state.meta.isDirty ? field.state.value : formatPhone(field.state.value)
+  return (
+    <div className={['grid gap-1.5', className].filter(Boolean).join(' ')}>
+      {label && <Label htmlFor={inputId}>{label}</Label>}
+      <Input
+        autoComplete="tel"
+        {...inputProps}
+        type="tel"
+        inputMode="tel"
+        id={inputId}
+        name={field.name}
+        value={value}
+        aria-invalid={error ? true : undefined}
+        onChange={(e) => {
+          const el = e.target
+          const inputType = (e.nativeEvent as InputEvent).inputType ?? ''
+          const atEnd = el.selectionStart === el.value.length
+          field.handleChange(atEnd && !inputType.startsWith('delete') ? formatAsTyped(el.value, country) : el.value)
         }}
         onBlur={field.handleBlur}
       />
