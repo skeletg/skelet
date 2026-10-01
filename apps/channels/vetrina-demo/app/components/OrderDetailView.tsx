@@ -10,6 +10,7 @@ import {
   StatusChip,
   humanizeStatus,
 } from "./account/StatusChip";
+import { formatPhone } from "@/app/lib/forms/phone";
 
 type OrderEvent = { id: string; message: string; createdAt: string };
 
@@ -274,7 +275,7 @@ function AddressCard({ title, address }: { title: string; address: Address }) {
         {address.phone ? (
           <>
             <br />
-            <span className="text-muted-foreground">{address.phone}</span>
+            <span className="text-muted-foreground">{formatPhone(address.phone)}</span>
           </>
         ) : null}
       </address>

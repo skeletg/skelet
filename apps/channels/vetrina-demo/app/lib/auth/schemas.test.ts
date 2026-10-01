@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   addressSchema,
   loginSchema,
+  profileSchema,
   registerSchema,
 } from "@/app/lib/auth/schemas";
 import { parseForm } from "@/app/lib/forms/schema";
@@ -81,5 +82,35 @@ describe("auth schemas", () => {
     expect(bad.status === "error" && bad.error?.countryCode).toEqual([
       "countryCode",
     ]);
+  });
+
+  it("reads a national phone in the address's country, and an international one in any", () => {
+    const base = {
+      firstName: "Ana",
+      lastName: "Ilić",
+      street1: "Knez Mihailova 1",
+      city: "Beograd",
+      postalCode: "11000",
+      countryCode: "rs",
+    };
+    const national = parseForm(form({ ...base, phone: "064 123 4567" }), addressSchema);
+    expect(national.status).toBe("success");
+    const foreign = parseForm(form({ ...base, phone: "+49 1512 3456789" }), addressSchema);
+    expect(foreign.status).toBe("success");
+
+    const elsewhere = parseForm(form({ ...base, countryCode: "US", phone: "064 123 4567" }), addressSchema);
+    expect(elsewhere.status === "error" && elsewhere.error?.phone).toEqual(["phoneInvalid"]);
+    const short = parseForm(form({ ...base, phone: "064 12" }), addressSchema);
+    expect(short.status === "error" && short.error?.phone).toEqual(["phoneInvalid"]);
+  });
+
+  it("reads a profile phone in the store's default country", () => {
+    const base = { firstName: "Ana", lastName: "Ilić" };
+    const ok = parseForm(form({ ...base, phone: "064 123 4567", phoneCountry: "RS" }), profileSchema);
+    expect(ok.status).toBe("success");
+    const noCountry = parseForm(form({ ...base, phone: "064 123 4567" }), profileSchema);
+    expect(noCountry.status === "error" && noCountry.error?.phone).toEqual(["phoneInvalid"]);
+    const blank = parseForm(form({ ...base, phone: "" }), profileSchema);
+    expect(blank.status === "success" && blank.value.phone).toBeNull();
   });
 });

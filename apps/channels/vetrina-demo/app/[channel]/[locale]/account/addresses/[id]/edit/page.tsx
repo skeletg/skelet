@@ -6,6 +6,7 @@ import {
   AccountCard,
   AccountPageHeader,
 } from "@/app/components/account/AccountUI";
+import { getAddressFormOptions } from "@/app/lib/countries/read";
 import { getCurrentCustomer } from "@/app/lib/customer/read";
 import { AddressForm } from "@/app/[channel]/[locale]/account/addresses/AddressForm";
 
@@ -23,7 +24,7 @@ export default async function EditAddressPage(
   const { id, locale } = await props.params;
   const t = await getTranslations({ locale, namespace: "account.addresses" });
   const tc = await getTranslations({ locale, namespace: "common" });
-  const customer = await getCurrentCustomer();
+  const [customer, options] = await Promise.all([getCurrentCustomer(), getAddressFormOptions()]);
   if (!customer) {
     redirect(
       await withLocalePrefix(
@@ -42,6 +43,7 @@ export default async function EditAddressPage(
         <AddressForm
           id={address.id}
           submitLabel={tc("saveChanges")}
+          options={options}
           initial={{
             firstName: address.firstName,
             lastName: address.lastName,

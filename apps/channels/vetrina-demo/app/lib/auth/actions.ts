@@ -268,6 +268,12 @@ export async function updateProfileAction(
 // Address actions live with the auth surface because every mutation here is gated on a logged-in customer; failures
 // bubble back as the same form result the profile/password forms use
 
+// The form posts PhoneInput's hidden companions beside the address - the API takes the address alone
+function addressInput<T extends { phoneCountry?: unknown; phoneAllowed?: unknown }>(v: T) {
+  const { phoneCountry: _country, phoneAllowed: _allowed, ...address } = v;
+  return address;
+}
+
 export async function addAddressAction(
   _prev: FormResult | undefined,
   formData: FormData,
@@ -275,7 +281,7 @@ export async function addAddressAction(
   const submission = parseForm(formData, addressSchema);
   if (submission.status !== "success") return submission.reply();
   try {
-    await gqlFetch(AccountAddAddressDocument, { input: submission.value });
+    await gqlFetch(AccountAddAddressDocument, { input: addressInput(submission.value) });
   } catch (err) {
     return replyError(submission, err, "addressAddFailed");
   }
@@ -294,7 +300,7 @@ export async function updateAddressAction(
   try {
     await gqlFetch(AccountUpdateAddressDocument, {
       id,
-      input: submission.value,
+      input: addressInput(submission.value),
     });
   } catch (err) {
     return replyError(submission, err, "addressSaveFailed");
