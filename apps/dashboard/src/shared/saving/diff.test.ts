@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { added, changed, display, fieldDiff, removed } from './diff'
+import { added, changed, clip, display, fieldDiff, removed, sameJson, sameSet } from './diff'
 import { normalizeDiff } from './saveRegistry'
 
 describe('display', () => {
@@ -67,5 +67,46 @@ describe('normalizeDiff (central sanitizer)', () => {
       { kind: 'remove', label: 'old row', before: '', after: '' },
     ])
     expect(kept.map((d) => d.label)).toEqual(['real', 'new row', 'old row'])
+  })
+})
+
+describe('clip', () => {
+  it('leaves short strings alone', () => {
+    expect(clip('short')).toBe('short')
+    expect(clip('x'.repeat(120))).toBe('x'.repeat(120))
+  })
+
+  it('cuts long strings to 120 characters, ellipsis included', () => {
+    const out = clip('x'.repeat(200))
+    expect(out).toHaveLength(120)
+    expect(out.endsWith('…')).toBe(true)
+  })
+})
+
+describe('sameJson', () => {
+  it('compares structurally', () => {
+    expect(sameJson({ a: [1, 2] }, { a: [1, 2] })).toBe(true)
+    expect(sameJson({ a: [1, 2] }, { a: [2, 1] })).toBe(false)
+  })
+
+  it('treats null and undefined as equal, so an unset draft field is not a change', () => {
+    expect(sameJson(null, undefined)).toBe(true)
+    expect(sameJson(undefined, {})).toBe(false)
+  })
+})
+
+describe('sameSet', () => {
+  it('ignores order', () => {
+    expect(sameSet(['a', 'b', 'c'], ['c', 'a', 'b'])).toBe(true)
+  })
+
+  it('sees additions and removals', () => {
+    expect(sameSet(['a', 'b'], ['a'])).toBe(false)
+    expect(sameSet(['a'], ['a', 'b'])).toBe(false)
+    expect(sameSet(['a', 'b'], ['a', 'c'])).toBe(false)
+  })
+
+  it('treats two empty lists as the same', () => {
+    expect(sameSet([], [])).toBe(true)
   })
 })
