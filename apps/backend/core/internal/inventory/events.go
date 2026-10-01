@@ -140,7 +140,7 @@ func (s *Service) onCartLineAdding(ctx context.Context, e events.Event) error {
 	if !ok {
 		return nil
 	}
-	return s.guardCartStock(ctx, ev.ChannelID, ev.ProductSku, qtyOrOne(ev.Quantity))
+	return s.guardCartLine(ctx, ev.ChannelID, ev.ProductSku, qtyOrOne(ev.Quantity), ev.StockParts)
 }
 
 func (s *Service) onCartBundleAdding(ctx context.Context, e events.Event) error {
@@ -157,7 +157,27 @@ func (s *Service) onCartLineUpdating(ctx context.Context, e events.Event) error 
 	if !ok {
 		return nil
 	}
-	return s.guardCartStock(ctx, ev.ChannelID, ev.ProductSku, qtyOrOne(ev.Quantity))
+	return s.guardCartLine(ctx, ev.ChannelID, ev.ProductSku, qtyOrOne(ev.Quantity), ev.StockParts)
+}
+
+// The line's own SKU plus every linked option source it takes per unit
+func (s *Service) guardCartLine(ctx context.Context, channelID uuid.UUID, sku string, qty float64, parts []cart.CartLineStockPart) error {
+	if err := s.guardCartStock(ctx, channelID, sku, qty); err != nil {
+		return err
+	}
+	if channelID == uuid.Nil || qty <= 0 || !s.ledgerEnabled(ctx) {
+		return nil
+	}
+	need := make(map[uuid.UUID]float64, len(parts))
+	for _, p := range parts {
+		need[p.ProductID] += p.Quantity * qty
+	}
+	for productID, q := range need {
+		if err := s.guardProductStock(ctx, channelID, productID, q); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func qtyOrOne(q *float64) float64 {
@@ -185,6 +205,10 @@ func (s *Service) guardCartStock(ctx context.Context, channelID uuid.UUID, sku s
 	if err != nil {
 		return nil // not a catalog product we can resolve → don't gate
 	}
+	return s.guardProductStock(ctx, channelID, productID, qty)
+}
+
+func (s *Service) guardProductStock(ctx context.Context, channelID, productID uuid.UUID, qty float64) error {
 	item, err := s.repo.GetItemByProductID(ctx, productID)
 	if err != nil {
 		return nil // no inventory item (always in stock) or a lookup blip → fail open
@@ -250,15 +274,17 @@ func (s *Service) linesFromCart(ctx context.Context, c cart.Cart) ([]ReserveLine
 			}
 			continue
 		}
-		if len(line.KitComponents) > 0 {
-			for _, comp := range line.KitComponents {
+		if len(line.StockParts) > 0 {
+			for _, part := range line.StockParts {
 				out = append(out, ReserveLine{
-					ProductID:   comp.ProductID,
+					ProductID:   part.ProductID,
 					OrderLineID: line.ID,
-					Quantity:    comp.Quantity * line.Quantity,
+					Quantity:    part.Quantity * line.Quantity,
 				})
 			}
-			continue
+			if !cart.OwnsStock(line.StockParts) {
+				continue
+			}
 		}
 		if line.ProductSku == "" {
 			continue

@@ -53,6 +53,8 @@ type LineAdding struct { // fires BEFORE a simple line is upserted - sync handle
 	ProductName string
 	UnitPrice   *int64   // mutable: nil = "use input price"
 	Quantity    *float64 // mutable: nil = "use input quantity"
+	// Linked option sources the line also takes, per line unit, so the stock guard can check them
+	StockParts []CartLineStockPart `json:"-"`
 }
 
 func (*LineAdding) Type() string                { return EventLineAdding }
@@ -138,8 +140,9 @@ type LineUpdating struct { // fires BEFORE a line's quantity changes, sync - a p
 	ChannelID  uuid.UUID
 	CustomerID *uuid.UUID
 	LineID     uuid.UUID
-	ProductSku string   // the line's SKU, so a stock guard can resolve the product; empty when the emitter couldn't hydrate it
-	Quantity   *float64 // mutable; absolute new line quantity
+	ProductSku string              // the line's SKU, so a stock guard can resolve the product; empty when the emitter couldn't hydrate it
+	Quantity   *float64            // mutable; absolute new line quantity
+	StockParts []CartLineStockPart `json:"-"`
 }
 
 func (*LineUpdating) Type() string                { return EventLineUpdating }

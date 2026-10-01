@@ -50,6 +50,7 @@ type ProductOptionValueConfig struct { // one select-family value, snapshotted
 	PriceType          string // "fixed" | "percent"
 	Quantity           float64
 	HasSource          bool // backed by a SIMPLE product, so the contribution is that product's price plus PriceValue, forced fixed
+	SourceProductID    uuid.UUID
 	SourceProductPrice int64
 	SourceUnavailable  bool     // the linked source isn't sold on this channel, so the value can't be picked
 	ForcedLineQty      *float64 // picking this value forces the line quantity and locks it against manual edits - nil means no constraint
@@ -124,7 +125,7 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 				rowDelta := money.LineTotal(valueContribution(res.BasePrice, v), v.Quantity)
 				delta += rowDelta
 				valID := vid
-				out = append(out, CartLineOption{
+				lo := CartLineOption{
 					ProductOptionID: opt.ID,
 					OptionValueID:   &valID,
 					InputType:       opt.InputType,
@@ -133,7 +134,12 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 					PriceDelta:      rowDelta,
 					Quantity:        v.Quantity,
 					SortOrder:       sort,
-				})
+				}
+				if v.HasSource && v.SourceProductID != uuid.Nil {
+					src := v.SourceProductID
+					lo.SourceProductID = &src
+				}
+				out = append(out, lo)
 				sort++
 			}
 			continue

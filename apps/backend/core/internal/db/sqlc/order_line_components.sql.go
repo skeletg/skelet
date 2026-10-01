@@ -65,23 +65,25 @@ func (q *Queries) InsertOrderLineComponent(ctx context.Context, arg InsertOrderL
 	return i, err
 }
 
-const insertOrderLineKitComponent = `-- name: InsertOrderLineKitComponent :exec
-INSERT INTO order_line_kit_components (order_line_id, product_id, quantity, sort_order)
-VALUES ($1, $2, $3, $4)
+const insertOrderLineStockPart = `-- name: InsertOrderLineStockPart :exec
+INSERT INTO order_line_stock_parts (order_line_id, product_id, quantity, source, sort_order)
+VALUES ($1, $2, $3, $4, $5)
 `
 
-type InsertOrderLineKitComponentParams struct {
+type InsertOrderLineStockPartParams struct {
 	OrderLineID uuid.UUID `json:"order_line_id"`
 	ProductID   uuid.UUID `json:"product_id"`
 	Quantity    float64   `json:"quantity"`
+	Source      string    `json:"source"`
 	SortOrder   int32     `json:"sort_order"`
 }
 
-func (q *Queries) InsertOrderLineKitComponent(ctx context.Context, arg InsertOrderLineKitComponentParams) error {
-	_, err := q.db.ExecContext(ctx, insertOrderLineKitComponent,
+func (q *Queries) InsertOrderLineStockPart(ctx context.Context, arg InsertOrderLineStockPartParams) error {
+	_, err := q.db.ExecContext(ctx, insertOrderLineStockPart,
 		arg.OrderLineID,
 		arg.ProductID,
 		arg.Quantity,
+		arg.Source,
 		arg.SortOrder,
 	)
 	return err
@@ -128,21 +130,21 @@ func (q *Queries) ListOrderLineComponentsByOrderLineIDs(ctx context.Context, dol
 	return items, nil
 }
 
-const listOrderLineKitComponentsByOrderLineIDs = `-- name: ListOrderLineKitComponentsByOrderLineIDs :many
-SELECT id, order_line_id, product_id, quantity, sort_order, created_at FROM order_line_kit_components
+const listOrderLineStockPartsByOrderLineIDs = `-- name: ListOrderLineStockPartsByOrderLineIDs :many
+SELECT id, order_line_id, product_id, quantity, sort_order, created_at, source FROM order_line_stock_parts
 WHERE order_line_id = ANY($1::uuid[])
 ORDER BY order_line_id, sort_order, created_at
 `
 
-func (q *Queries) ListOrderLineKitComponentsByOrderLineIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]OrderLineKitComponent, error) {
-	rows, err := q.db.QueryContext(ctx, listOrderLineKitComponentsByOrderLineIDs, pq.Array(dollar_1))
+func (q *Queries) ListOrderLineStockPartsByOrderLineIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]OrderLineStockPart, error) {
+	rows, err := q.db.QueryContext(ctx, listOrderLineStockPartsByOrderLineIDs, pq.Array(dollar_1))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []OrderLineKitComponent{}
+	items := []OrderLineStockPart{}
 	for rows.Next() {
-		var i OrderLineKitComponent
+		var i OrderLineStockPart
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrderLineID,
@@ -150,6 +152,7 @@ func (q *Queries) ListOrderLineKitComponentsByOrderLineIDs(ctx context.Context, 
 			&i.Quantity,
 			&i.SortOrder,
 			&i.CreatedAt,
+			&i.Source,
 		); err != nil {
 			return nil, err
 		}

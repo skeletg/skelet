@@ -81,6 +81,7 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 			ProductName: name,
 			UnitPrice:   &unitPrice,
 			Quantity:    &quantity,
+			StockParts:  OptionStockParts(options),
 		}
 		if err := s.bus.PublishSync(ctx, adding); err != nil {
 			return Cart{}, fmt.Errorf("add to cart rejected: %w", err)
