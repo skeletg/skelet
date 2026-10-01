@@ -170,7 +170,7 @@ func toCountry(row db.Country) Country {
 		Name:        row.Name,
 		NativeName:  row.NativeName,
 		EmojiFlag:   row.EmojiFlag,
-		PhoneCode:   row.PhoneCode,
+		PhoneCode:   callingCodeFor(row.Code, row.PhoneCode), // derived on read too, so a row stored before the rule reads right
 		Iso3Code:    row.Iso3Code,
 		NumericCode: row.NumericCode,
 		IsActive:    row.IsActive,
