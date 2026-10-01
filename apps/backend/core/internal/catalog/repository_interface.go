@@ -150,7 +150,12 @@ type Repository interface {
 	// Categories: tree, membership, content, channel listings, cover, and storefront/published reads
 	AddProductToCategory(ctx context.Context, productID, categoryID uuid.UUID, position int32, isPrimary bool) error
 	ClearCategoryCover(ctx context.Context, categoryID uuid.UUID) (Category, error)
-	ConfirmCategoryCover(ctx context.Context, categoryID uuid.UUID, width, height int32) (Category, error)
+	ConfirmCategoryCover(ctx context.Context, categoryID, coverID uuid.UUID, width, height int32) (Category, error)
+	RewriteCategorySubtreeURLPaths(ctx context.Context, id uuid.UUID, urlPath string) ([]CategoryPathMove, error)
+	CategorySubtreeHeight(ctx context.Context, id uuid.UUID) (int32, error)
+	LockCategoryTree(ctx context.Context) error
+	LockCategoryByID(ctx context.Context, id uuid.UUID) (Category, error)
+	CountProductsByCategoryIDs(ctx context.Context, categoryIDs []uuid.UUID) (map[uuid.UUID]int64, error)
 	CreateCategory(ctx context.Context, input CreateCategoryInput) (Category, error)
 	DeleteCategory(ctx context.Context, id uuid.UUID) error
 	DeleteCategoryChannelListing(ctx context.Context, categoryID, channelID uuid.UUID) error
@@ -192,7 +197,7 @@ type Repository interface {
 	// Collections: CRUD, content, cover, and membership
 	AddProductToCollection(ctx context.Context, collectionID, productID uuid.UUID, sortOrder int32) error
 	ClearCollectionCover(ctx context.Context, collectionID uuid.UUID) (Collection, error)
-	ConfirmCollectionCover(ctx context.Context, collectionID uuid.UUID, width, height int32) (Collection, error)
+	ConfirmCollectionCover(ctx context.Context, collectionID, coverID uuid.UUID, width, height int32) (Collection, error)
 	CreateCollection(ctx context.Context, input CreateCollectionInput) (Collection, error)
 	DeleteCollection(ctx context.Context, id uuid.UUID) error
 	DeleteCollectionContent(ctx context.Context, collectionID uuid.UUID, locale string) error

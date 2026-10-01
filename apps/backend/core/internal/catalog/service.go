@@ -56,6 +56,8 @@ type core struct {
 	bus           *events.Bus
 	// categoryTreeCache stores the assembled per-(store,locale) category tree used by the storefront's header navigation - Reads dominate writes (every storefront page); admin publish/unpublish/edit/move drops the namespace via invalidateCategoryTreeCache - Nil disables caching
 	categoryTreeCache *cache.Cache
+	// outbox makes the category-move regeneration durable - nil falls back to the bus
+	outbox OutboxEnqueuer
 	// channelPathCache memoizes per-channel pretty-URL → product-id resolution (listingService.ResolveProductIDForChannelPath - the storefront catch-all route) - dropped when a listing changes its override - Nil disables
 	channelPathCache *cache.Cache
 }
@@ -93,13 +95,13 @@ func (s *Service) LinkLabelsByIDs(ctx context.Context, entityType string, ids []
 				out[id] = c.Name
 			}
 		}
-	case "category":
+	case categoryEntityType:
 		if m, err := s.repo.ListCategoryContentByScope(ctx, ids, locale); err == nil {
 			for id, c := range m {
 				out[id] = c.Name
 			}
 		}
-	case "collection":
+	case collectionEntityType:
 		if m, err := s.repo.ListCollectionContentByScope(ctx, ids, locale); err == nil {
 			for id, c := range m {
 				out[id] = c.Name

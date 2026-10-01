@@ -42,10 +42,6 @@ SELECT
       ORDER BY m.sort_order, m.created_at LIMIT 1),
     '')::text                                                                             AS image_key,
   COALESCE(ii.tracked, FALSE)                                                             AS tracked,
-  COALESCE((SELECT sum(CASE WHEN ii.tracked THEN lv.quantity - GREATEST(lv.reserved_quantity, 0) ELSE lv.quantity END)
-    FROM inventory_levels lv
-    JOIN inventory_channel_locations cl ON cl.location_id = lv.location_id AND cl.channel_id = $1::uuid
-    WHERE lv.inventory_item_id = ii.id), 0)::float8                                       AS channel_salable,
   COALESCE(ii.backorderable, FALSE)                                                       AS backorderable
 FROM catalog_products p
 JOIN catalog_product_channel_listings l
@@ -56,15 +52,16 @@ LEFT JOIN catalog_product_content c
   ON c.product_id = p.id AND c.locale = $2::text
 LEFT JOIN inventory_items ii ON ii.product_id = p.id
 WHERE p.seo_noindex = FALSE
+  AND p.id > $3::uuid
 ORDER BY p.id
-LIMIT $4 OFFSET $3
+LIMIT $4
 `
 
 type MerchantFeedProductsParams struct {
-	ChannelID  uuid.UUID `json:"channel_id"`
-	Locale     string    `json:"locale"`
-	PageOffset int32     `json:"page_offset"`
-	PageLimit  int32     `json:"page_limit"`
+	ChannelID uuid.UUID `json:"channel_id"`
+	Locale    string    `json:"locale"`
+	AfterID   uuid.UUID `json:"after_id"`
+	PageLimit int32     `json:"page_limit"`
 }
 
 type MerchantFeedProductsRow struct {
@@ -86,18 +83,17 @@ type MerchantFeedProductsRow struct {
 	Brand              string             `json:"brand"`
 	ImageKey           string             `json:"image_key"`
 	Tracked            bool               `json:"tracked"`
-	ChannelSalable     float64            `json:"channel_salable"`
 	Backorderable      bool               `json:"backorderable"`
 }
 
 // Google Merchant product feed page - one row per product published on the channel: channel-priced, default-locale content, first ready
-// image, and what the channel's own locations can sell (physical minus held for tracked items) - pages by product id for stable iteration
+// image - salability comes from the inventory service, and pages are keyset on product id so a late page costs the same as the first
 // The path is channel-first like the sitemap: the listing's url override, then the channel's canonical rewrite, then the global one
 func (q *Queries) MerchantFeedProducts(ctx context.Context, arg MerchantFeedProductsParams) ([]MerchantFeedProductsRow, error) {
 	rows, err := q.db.QueryContext(ctx, merchantFeedProducts,
 		arg.ChannelID,
 		arg.Locale,
-		arg.PageOffset,
+		arg.AfterID,
 		arg.PageLimit,
 	)
 	if err != nil {
@@ -126,7 +122,6 @@ func (q *Queries) MerchantFeedProducts(ctx context.Context, arg MerchantFeedProd
 			&i.Brand,
 			&i.ImageKey,
 			&i.Tracked,
-			&i.ChannelSalable,
 			&i.Backorderable,
 		); err != nil {
 			return nil, err

@@ -29,6 +29,7 @@ func init() {
 	apperr.RegisterSentinel(ErrCategoryNotFound, "CATEGORY_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrCategoryProductNotFound, "CATEGORY_PRODUCT_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrCategoryChannelListingNotFound, "CATEGORY_STORE_LISTING_NOT_FOUND", apperr.ClassNotFound)
+	apperr.RegisterSentinel(ErrCategoryContentNotFound, "CATEGORY_CONTENT_NOT_FOUND", apperr.ClassNotFound)
 
 	// --- conflict class (uniqueness / state-machine) ---
 	apperr.RegisterSentinel(ErrSlugTaken, "SLUG_TAKEN", apperr.ClassConflict)
@@ -58,6 +59,13 @@ func init() {
 
 	// --- validation class (caller-side input invalid) ---
 	apperr.RegisterSentinel(ErrInvalidSlug, "INVALID_SLUG", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrNameRequired, "NAME_REQUIRED", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrLocaleRequired, "LOCALE_REQUIRED", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrInvalidSize, "INVALID_SIZE", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrInvalidDimensions, "INVALID_DIMENSIONS", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrTooManyItems, "TOO_MANY_ITEMS", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrCategoryCycle, "CATEGORY_CYCLE", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrCategoryTooDeep, "CATEGORY_TOO_DEEP", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidInputType, "INVALID_INPUT_TYPE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrValuesNotApplicable, "VALUES_NOT_APPLICABLE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrLocaleMustBeDefault, "LOCALE_MUST_BE_DEFAULT", apperr.ClassValidation)

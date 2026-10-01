@@ -179,6 +179,12 @@ func TestEveryNavChangeBustsTheHeader(t *testing.T) {
 		&channel.Updated{ChannelID: uuid.New()},
 		&channel.LocalesChanged{ChannelID: uuid.New()},
 		&channel.Deleted{ChannelID: uuid.New()},
+		&catalog.CategoryCreated{CategoryID: uuid.New()},
+		&catalog.CategoryUpdated{CategoryID: uuid.New()},
+		&catalog.CategoryDeleted{CategoryID: uuid.New()},
+		&catalog.CollectionCreated{CollectionID: uuid.New()},
+		&catalog.CollectionUpdated{CollectionID: uuid.New()},
+		&catalog.CollectionDeleted{CollectionID: uuid.New()},
 	} {
 		r := newRig("", nil)
 		_ = r.fire(t, e)

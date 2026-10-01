@@ -10,6 +10,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cacheinvalidate"
+	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
@@ -70,6 +71,7 @@ type subscriberDeps struct {
 	BackInStock         *backinstock.Service
 	Customer            *customer.Service
 	Consent             *consent.Service
+	Catalog             *catalog.Service
 	Tx                  *txrunner.Manager
 
 	Inventory    *inventory.Service // the order reactors - each subscribes itself, this only decides that they all do and in what order
@@ -87,9 +89,11 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	payment.RegisterOutboxTypes(d.Outbox)
 	customer.RegisterOutboxTypes(d.Outbox)
 	consent.RegisterOutboxTypes(d.Outbox)
+	catalog.RegisterOutboxTypes(d.Outbox)
 	d.Payment.SetOutbox(d.Outbox)        // gateway webhook events become durable - a 204 to Stripe means "will be applied", not "was published"
 	d.Customer.SetOutbox(d.Outbox, d.Tx) // the roster pushes and the welcome flow hang off these, and a suite that is down when they fire has to get them on the relay's next pass
 	d.Consent.SetOutbox(d.Outbox, d.Tx)
+	d.Catalog.SetOutbox(d.Outbox)                                                                       // a category move re-renders the product URLs under it off the request, and a crash after commit mustn't lose that
 	d.Outbox.SetDropAlert(func(ctx context.Context, eventType string, rowID uuid.UUID, reason string) { // a dropped row means a domain reaction (points, credit, capture) silently never ran - that needs an operator, not a log line
 		if err := d.Notification.Create(ctx, notification.Input{
 			Category:           notification.CategorySystem,
@@ -106,6 +110,7 @@ func RegisterDomainSubscribers(d subscriberDeps) {
 	})
 
 	registerEventSubscribers(bus, d.WebhookDispatcher, d.Order)
+	d.Catalog.RegisterSubscribers(bus)
 	subscribeOrderReactors(d)
 	ordercapture.Register(bus, d.Order, d.Payment)
 	purges := cacheinvalidate.Register(bus, d.RevalidateCli, d.RevalidateQueue, d.URLRewrite, d.Config)
