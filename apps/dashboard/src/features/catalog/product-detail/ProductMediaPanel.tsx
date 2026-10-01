@@ -63,7 +63,8 @@ import {
   type SectionDiffEntry,
 } from '../productSaveRegistry'
 import { type ProductMediaSummary } from './shared'
-import { effectiveMediaRoles, readImageDimensions } from './media-utils'
+import { readImageDimensions } from '@/lib/image'
+import { effectiveMediaRoles } from './media-utils'
 
 const MEDIA_ROLE_OPTIONS: Array<{ role: ProductMediaRole; label: string; Icon: LucideIcon; fallbackHint: string }> = [
   { role: 'MAIN', label: 'Main', Icon: StarIcon, fallbackHint: 'Uses the first image until one is chosen' },
