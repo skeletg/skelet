@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 import { redactPath } from "@/app/lib/analytics/redact";
+import { ensureAnonId, fnv1a, sampleBucket, viewportBucket } from "@/app/lib/analytics/visitor";
 import { randomId } from "@/app/lib/random-id";
 
-const AID_COOKIE = "lens_aid";
 const ENDPOINT = "/t/collect";
 const CONFIG_ENDPOINT = "/t/config";
 const FLUSH_MS = 5000;
@@ -107,41 +107,6 @@ function detectState(): string {
   return chosen ? stateKeyOf(chosen) : "default";
 }
 
-function readCookie(name: string): string {
-  if (typeof document === "undefined") return "";
-  const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
-  return m ? decodeURIComponent(m[1]) : "";
-}
-
-function ensureAnonId(): string {
-  let id = readCookie(AID_COOKIE);
-  if (!id) {
-    id = randomId();
-    document.cookie = `${AID_COOKIE}=${id}; max-age=${60 * 60 * 24 * 365}; path=/; samesite=lax`;
-  }
-  return id;
-}
-
-function viewportBucket(): string {
-  const w = window.innerWidth;
-  if (w < 768) return "mobile";
-  if (w < 1024) return "tablet";
-  return "desktop";
-}
-
-function fnv1a(s: string): string {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(16);
-}
-
-function sampleBucket(id: string): number {
-  return parseInt(fnv1a(id), 16) % 100;
-}
-
 function selectorFor(el: Element | null): string {
   if (!el) return "";
   const parts: string[] = [];
@@ -184,7 +149,7 @@ function recordSnapshot(st: State, state: string) {
         pageKey: st.curPageKey,
         viewport: st.curViewport,
         state,
-        layoutHash: fnv1a(html),
+        layoutHash: fnv1a(html).toString(16),
         html,
         width: document.documentElement.scrollWidth,
         height: document.documentElement.scrollHeight,
