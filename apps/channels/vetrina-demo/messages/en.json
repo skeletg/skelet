@@ -51,7 +51,8 @@
       "firstName": "First name",
       "lastName": "Last name",
       "phone": "Phone",
-      "passwordHint": "At least 8 characters."
+      "passwordHint": "At least 8 characters.",
+      "showPassword": "Show password"
     }
   },
   "common": {
