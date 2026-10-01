@@ -2,7 +2,6 @@ package front
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -13,31 +12,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/paymentvault"
+	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
-
-func addressInputToOrderAddress(in model.AddressInput) order.OrderAddress {
-	out := order.OrderAddress{
-		FirstName:   in.FirstName,
-		LastName:    in.LastName,
-		Street1:     in.Street1,
-		City:        in.City,
-		PostalCode:  in.PostalCode,
-		CountryCode: strings.ToUpper(in.CountryCode), // force-uppercased so the storefront can stay lenient about input casing
-	}
-	if in.Company != nil {
-		out.Company = in.Company
-	}
-	if in.Street2 != nil {
-		out.Street2 = in.Street2
-	}
-	if in.State != nil {
-		out.State = in.State
-	}
-	if in.Phone != nil {
-		out.Phone = in.Phone
-	}
-	return out
-}
 
 func toOrderModel(o order.Order) *model.Order {
 	var paymentClientSecret *string // PaymentActionSecret is transient - it only ever rides the placement response
@@ -164,16 +141,88 @@ func toSavedPaymentMethod(m paymentvault.Method) *frontmodel.SavedPaymentMethod 
 	}
 }
 
-// An explicit id wins, and a signed-in customer without one falls back to their active cart - which is exactly the cart PlaceOrder will go on to use
-func (r *Resolver) cartForMinimumCheck(ctx context.Context, input order.PlaceOrderInput, channelID uuid.UUID) (cart.Cart, error) {
+// The cart placeOrder places - an explicit id wins (it must be on this store), and a signed-in customer without one gets their active cart
+func (r *Resolver) checkoutCart(ctx context.Context, cartID *string) (cart.Cart, error) {
+	sv, ok := channel.FromContext(ctx)
+	if !ok || sv == nil {
+		return cart.Cart{}, storeRequired()
+	}
 	callerID := channel.OptionalCustomerID(ctx)
-	if input.CartID != nil {
-		return r.CartSvc.GetCart(ctx, *input.CartID, callerID)
+	if cartID != nil && *cartID != "" {
+		cid, err := uuid.Parse(*cartID)
+		if err != nil {
+			return cart.Cart{}, invalidID("cart")
+		}
+		c, err := r.CartSvc.GetCart(ctx, cid, callerID)
+		if err != nil {
+			return cart.Cart{}, err
+		}
+		if c.ChannelID != sv.ID {
+			return cart.Cart{}, cart.ErrCartStoreMismatch
+		}
+		return c, nil
 	}
 	if callerID == nil {
-		return cart.Cart{}, fmt.Errorf("no cart to measure")
+		return cart.Cart{}, apperr.New("CART_REQUIRED", apperr.ClassValidation, "a cart id is required for guest checkout")
 	}
-	return r.CartSvc.GetOrCreateCart(ctx, *callerID, channelID)
+	return r.CartSvc.GetOrCreateCart(ctx, *callerID, sv.ID)
+}
+
+// checkoutComplete names the first step the shopper still owes, as a code the storefront can send them back to - a selection the store no longer offers counts as missing, and what the details step owes follows the store's settings
+func (r *Resolver) checkoutComplete(ctx context.Context, c cart.Cart, method *shipping.RatedQuote, paymentOK bool) error {
+	co := c.Checkout
+	dest := co.QuoteDestination()
+	if dest.IsZero() {
+		return errCheckoutNeedsDestination
+	}
+	// With nothing quoted for the destination there's nothing to choose, and placement prices shipping as it always has
+	if method == nil && len(r.quotesFor(ctx, c, dest)) > 0 {
+		return apperr.New("CHECKOUT_SHIPPING_METHOD_REQUIRED", apperr.ClassValidation, "choose a delivery or pickup option")
+	}
+	if err := r.detailsComplete(ctx, c); err != nil {
+		return err
+	}
+	// No provider is allowed - gift cards or store credit may cover the total, and placement refuses with PAYMENT_REQUIRED when they don't
+	if co.PaymentProviderSlug != "" && !paymentOK {
+		return errPaymentMethodOffered
+	}
+	return nil
+}
+
+// detailsComplete is what the details step owes - the same rules setCartDetails enforces, re-checked at placement because a setting can change after the step was saved
+func (r *Resolver) detailsComplete(ctx context.Context, c cart.Cart) error {
+	co := c.Checkout
+	set := r.checkoutSettings(ctx, c.ChannelID)
+	switch {
+	case r.checkoutEmail(ctx, c) == "":
+		return errCheckoutNeedsEmail
+	case set.Phone == "required" && co.ContactPhone == "":
+		return errCheckoutNeedsPhone
+	}
+	if set.Business && co.PurchaseType == cart.PurchaseBusiness {
+		if co.Company == "" {
+			return errCheckoutNeedsCompany
+		}
+		if r.missingBusinessID(ctx, co, set) {
+			return apperr.New("CHECKOUT_BUSINESS_ID_REQUIRED", apperr.ClassValidation, "enter the company's identification numbers")
+		}
+	}
+	if co.IsPickup() {
+		if co.PickupContact == nil {
+			return errCheckoutNeedsCollector
+		}
+		if set.pickupNeedsBilling(co) && co.BillingAddress == nil {
+			return errCheckoutNeedsBilling
+		}
+		return nil
+	}
+	if co.ShippingAddress == nil {
+		return errCheckoutNeedsAddress
+	}
+	if !co.BillingSameAsShipping && co.BillingAddress == nil {
+		return errCheckoutNeedsBilling
+	}
+	return nil
 }
 
 func orderOnCurrentStore(ctx context.Context, o order.Order) bool {

@@ -47,6 +47,8 @@ type Order {
   shippingAddress: OrderAddress!
   # Buyer's PO reference, captured at checkout when they pay by purchase order.
   poNumber: String
+  # The buyer's company identifiers on a business purchase, with the labels the shopper saw (PIB, Matični broj, VAT number). Empty for personal purchases.
+  businessIds: [OrderBusinessId!]!
   lines:           [OrderLine!]!
   events:          [OrderEvent!]!
   subtotal:        Int!
@@ -495,4 +497,10 @@ input EditOrderAddressInput {
   # Omit either side to leave it unchanged.
   shippingAddress: AddressInput
   billingAddress:  AddressInput
+}
+
+type OrderBusinessId {
+  key:   String!
+  label: String!
+  value: String!
 }
