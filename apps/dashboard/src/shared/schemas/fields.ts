@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { phoneIssue } from '@/lib/phone'
 
 // Field rules every form shares - email, password, numbers typed as text, slugs, URLs, ISO codes and
 // datetime-local text - so a schema says what a field is rather than how it is checked.
@@ -20,6 +21,17 @@ export const optionalEmail = (message = EMAIL_MESSAGE) =>
     .string()
     .refine((v) => v.trim() === '' || isEmail(v), message)
     .describe('An email address, or an empty string for none')
+
+// ---------- Phone ----------
+
+// A phone with no country of its own - a customer's. Only a +number can be judged here; the backend reads a national
+// one in the channel's default country. A phone that belongs to an address is checked with that address's country
+// (phoneIssue in the address or location refinement)
+export const optionalPhone = () =>
+  z
+    .string()
+    .refine((v) => phoneIssue(v) === null, 'Not a valid phone number')
+    .describe('A phone number, international with + and the country code, or an empty string for none')
 
 // ---------- Password ----------
 

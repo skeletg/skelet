@@ -318,10 +318,12 @@ function FieldEditor({
       )
 
     case 'PHONE':
+      // Saved as E.164 - a store-wide setting has no country to read a national number in
       return (
         <Input
           id={id}
           type="tel"
+          placeholder="+ country code and number"
           {...NO_AUTOFILL}
           value={value}
           onChange={textChange(value, onChange)}
