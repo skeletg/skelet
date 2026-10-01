@@ -56,6 +56,44 @@ func (q *Queries) DeleteGroupedMember(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const exportGroupedMemberSKUs = `-- name: ExportGroupedMemberSKUs :many
+SELECT gm.parent_id, p.sku AS member_sku, gm.default_quantity
+FROM catalog_product_grouped_members gm
+JOIN catalog_products p ON p.id = gm.member_id
+WHERE gm.parent_id = ANY($1::uuid[])
+ORDER BY gm.parent_id, gm.sort_order, gm.created_at
+`
+
+type ExportGroupedMemberSKUsRow struct {
+	ParentID        uuid.UUID `json:"parent_id"`
+	MemberSku       string    `json:"member_sku"`
+	DefaultQuantity float64   `json:"default_quantity"`
+}
+
+// A page of grouped parents' members in one read, for the products export
+func (q *Queries) ExportGroupedMemberSKUs(ctx context.Context, parentIds []uuid.UUID) ([]ExportGroupedMemberSKUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, exportGroupedMemberSKUs, pq.Array(parentIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ExportGroupedMemberSKUsRow{}
+	for rows.Next() {
+		var i ExportGroupedMemberSKUsRow
+		if err := rows.Scan(&i.ParentID, &i.MemberSku, &i.DefaultQuantity); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getGroupedMemberByID = `-- name: GetGroupedMemberByID :one
 SELECT id, parent_id, member_id, default_quantity, sort_order, created_at, updated_at FROM catalog_product_grouped_members WHERE id = $1
 `

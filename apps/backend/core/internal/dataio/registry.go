@@ -95,6 +95,14 @@ func validate(res Resource) error {
 		}
 		seen[f.Name] = true
 	}
+	for _, f := range res.Fields {
+		for _, a := range f.Aliases {
+			if seen[a] || a != strings.ToLower(a) {
+				return fmt.Errorf("field %q alias %q must be lowercase and unique", f.Name, a)
+			}
+			seen[a] = true
+		}
+	}
 	// An importer with no identifier has nothing to upsert on, so every row would create a duplicate
 	if res.NewImporter != nil && len(res.identifiers()) == 0 {
 		return fmt.Errorf("an importer needs at least one Identifier field")

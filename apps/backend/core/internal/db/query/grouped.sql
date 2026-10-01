@@ -31,3 +31,11 @@ SELECT member_id, parent_id, default_quantity, sort_order
 FROM catalog_product_grouped_members
 WHERE member_id = ANY(sqlc.arg(member_ids)::uuid[])
 ORDER BY member_id, sort_order, created_at;
+
+-- name: ExportGroupedMemberSKUs :many
+-- A page of grouped parents' members in one read, for the products export
+SELECT gm.parent_id, p.sku AS member_sku, gm.default_quantity
+FROM catalog_product_grouped_members gm
+JOIN catalog_products p ON p.id = gm.member_id
+WHERE gm.parent_id = ANY(sqlc.arg(parent_ids)::uuid[])
+ORDER BY gm.parent_id, gm.sort_order, gm.created_at;

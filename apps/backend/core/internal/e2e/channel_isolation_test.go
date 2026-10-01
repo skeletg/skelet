@@ -242,7 +242,7 @@ func TestTheMerchantFeedIsChannelTrue(t *testing.T) {
 		a.Product.ID, path, a.Channel.ID); err != nil {
 		t.Fatalf("channel rewrite: %v", err)
 	}
-	out, _, err := catalogio.NewMerchantFeed(h.D.Queries, nil, h.D.Inventory).Render(context.Background(), catalogio.MerchantFeedOptions{
+	out, _, err := catalogio.NewMerchantFeed(h.D.Queries, nil, h.D.Inventory, h.D.Catalog).Render(context.Background(), catalogio.MerchantFeedOptions{
 		ChannelID: a.Channel.ID, BaseURL: "https://a.test", CurrencyCode: "USD", Locale: "en", Title: "A",
 	})
 	if err != nil {

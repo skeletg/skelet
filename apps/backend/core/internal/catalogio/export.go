@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
-	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 )
@@ -20,22 +19,15 @@ const exportPageSize = 500
 
 type exporter struct {
 	cat     *catalog.Service
-	ch      *channel.Service
 	queries *db.Queries
 	opts    dataio.Opts
+	locale  string
 
 	// Resolved once in Columns, then reused per page - these are small maps, unlike the product set itself
 	typeSlug     map[uuid.UUID]string
 	attrSlugByID map[uuid.UUID]string
 	childParent  map[uuid.UUID]string
 	attrCols     []dataio.Field
-}
-
-func (ex *exporter) locale() string {
-	if l := ex.opts.Locale; l != "" {
-		return l
-	}
-	return "en"
 }
 
 // The attribute columns come from the attribute registry rather than a scan of every product's values. A superset
@@ -83,17 +75,17 @@ func (ex *exporter) Columns(ctx context.Context) ([]dataio.Field, error) {
 // Rows arrive in SKU order rather than parents-then-their-children: the importer groups rows into passes itself,
 // so the file no longer has to carry that ordering, and paging no longer has to preserve it
 func (ex *exporter) Stream(ctx context.Context, emit func(*dataio.Row) error) error {
-	locale := ex.locale()
+	filter := catalog.ProductPageFilter{Locale: ex.locale, SortKey: "sku", Limit: exportPageSize}
+	if ex.opts.ChannelID != uuid.Nil {
+		ch := ex.opts.ChannelID
+		filter.ChannelID = &ch
+	}
 	for offset := int32(0); ; offset += exportPageSize {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		page, _, err := ex.cat.ListPageWithGraph(ctx, catalog.ProductPageFilter{
-			Locale:  locale,
-			SortKey: "sku",
-			Limit:   exportPageSize,
-			Offset:  offset,
-		})
+		filter.Offset = offset
+		page, _, err := ex.cat.ListPageWithGraph(ctx, filter)
 		if err != nil {
 			return err
 		}
@@ -134,35 +126,46 @@ func (ex *exporter) emitPage(ctx context.Context, page []catalog.Product, emit f
 		}
 	}
 
+	grouped, err := ex.groupedMembers(ctx, page)
+	if err != nil {
+		return err
+	}
 	for _, p := range page {
-		grouped := ""
-		if p.Kind == catalog.KindGrouped {
-			if grouped, err = ex.groupedMembers(ctx, p); err != nil {
-				return err
-			}
-		}
-		if err := emit(ex.row(p, primary, published, grouped)); err != nil {
+		if err := emit(ex.row(p, primary, published, grouped[p.ID])); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// "SKU" or "SKU:qty" tokens, so a round trip reproduces the memberships - the :qty suffix is omitted for 1
-func (ex *exporter) groupedMembers(ctx context.Context, p catalog.Product) (string, error) {
-	members, err := ex.cat.ListGroupedMembers(ctx, p.ID, ex.locale())
-	if err != nil {
-		return "", fmt.Errorf("list grouped members for %s: %w", p.SKU, err)
+// "SKU" or "SKU:qty" tokens per grouped parent on the page, so a round trip reproduces the memberships - the :qty suffix is omitted for 1
+func (ex *exporter) groupedMembers(ctx context.Context, page []catalog.Product) (map[uuid.UUID]string, error) {
+	var parents []uuid.UUID
+	for _, p := range page {
+		if p.Kind == catalog.KindGrouped {
+			parents = append(parents, p.ID)
+		}
 	}
-	toks := make([]string, 0, len(members))
-	for _, m := range members {
-		tok := m.MemberSKU
+	if len(parents) == 0 {
+		return nil, nil
+	}
+	rows, err := ex.queries.ExportGroupedMemberSKUs(ctx, parents)
+	if err != nil {
+		return nil, fmt.Errorf("list grouped members: %w", err)
+	}
+	toks := map[uuid.UUID][]string{}
+	for _, m := range rows {
+		tok := m.MemberSku
 		if m.DefaultQuantity != 1 {
 			tok += ":" + strconv.FormatFloat(m.DefaultQuantity, 'f', -1, 64)
 		}
-		toks = append(toks, tok)
+		toks[m.ParentID] = append(toks[m.ParentID], tok)
 	}
-	return strings.Join(toks, "|"), nil
+	out := make(map[uuid.UUID]string, len(toks))
+	for id, t := range toks {
+		out[id] = strings.Join(t, "|")
+	}
+	return out, nil
 }
 
 func (ex *exporter) row(p catalog.Product, primary map[uuid.UUID]*catalog.Category, published map[uuid.UUID]bool, grouped string) *dataio.Row {
@@ -182,7 +185,9 @@ func (ex *exporter) row(p catalog.Product, primary map[uuid.UUID]*catalog.Catego
 	r.Set(colKind, string(p.Kind))
 	r.Set(colParentSKU, parentSKU)
 	r.Set(colName, name)
-	r.Set(colSlug, p.URL)
+	if !p.URLAuto {
+		r.Set(colURLPath, p.URL) // an auto path is derived, and re-importing it would pin the product to manual URLs
+	}
 	r.Set(colProductType, ex.typeSlug[p.ProductTypeID])
 	r.Set(colPrice, p.DefaultPrice)
 	r.Set(colCurrency, p.DefaultCurrencyCode)
