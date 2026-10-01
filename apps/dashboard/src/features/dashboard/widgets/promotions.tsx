@@ -1,16 +1,8 @@
 import { useQuery } from '@apollo/client/react'
 import { formatCents } from '@/lib/format'
 import { PromotionTotalsDocument } from '@/features/promotions/Promotions.gql'
-import { SALES_DAYS } from './sales'
+import { SALES_DAYS, windowStart } from './sales'
 import { Tile, WidgetSection } from './primitives'
-
-// Value-equal across renders all day, so Apollo has no reason to refetch
-function windowStart(): string {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  d.setDate(d.getDate() - (SALES_DAYS - 1))
-  return d.toISOString()
-}
 
 export function PromotionsWidget() {
   const { data, loading, error } = useQuery(PromotionTotalsDocument, {
