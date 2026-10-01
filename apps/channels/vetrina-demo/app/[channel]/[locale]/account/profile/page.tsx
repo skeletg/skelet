@@ -8,6 +8,7 @@ import {
   AccountCard,
   AccountPageHeader,
 } from "@/app/components/account/AccountUI";
+import { getPhoneSettings } from "@/app/lib/countries/read";
 import { getCurrentCustomer } from "@/app/lib/customer/read";
 import { ProfileForm } from "./ProfileForm";
 
@@ -25,7 +26,7 @@ export default async function EditProfilePage({ params }: PageProps<"/[channel]/
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "account.profile" });
 
-  const customer = await getCurrentCustomer();
+  const [customer, phoneSettings] = await Promise.all([getCurrentCustomer(), getPhoneSettings()]);
   if (!customer) redirect(await withLocalePrefix("/account/login?returnTo=/account/profile", locale));
   return (
     <div className="max-w-2xl">
@@ -38,6 +39,7 @@ export default async function EditProfilePage({ params }: PageProps<"/[channel]/
           firstName={customer.firstName}
           lastName={customer.lastName}
           phone={customer.phone ?? ""}
+          phoneSettings={phoneSettings}
           email={customer.email}
         />
       </AccountCard>

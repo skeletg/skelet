@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { PASSWORD, main, open, registerCustomer } from "./helpers";
+import { PASSWORD, addSavedAddress, main, open, registerCustomer } from "./helpers";
 
 test.describe("profile", () => {
   test("a cleared name is refused; a saved phone survives a reload", async ({ page }) => {
@@ -52,7 +52,7 @@ test.describe("password", () => {
     const fresh = await context.newPage();
     await open(fresh, "/account/login");
     await main(fresh).getByLabel("Email").fill(email);
-    await main(fresh).getByLabel("Password").fill("a-new-password-1");
+    await main(fresh).getByLabel("Password", { exact: true }).fill("a-new-password-1");
     await main(fresh).getByRole("button", { name: "Sign in" }).click();
     await expect(fresh).toHaveURL(/\/account$/);
     await context.close();
@@ -60,26 +60,14 @@ test.describe("password", () => {
 });
 
 test.describe("addresses", () => {
-  test("a bad country code is caught before posting; a good address is saved, listed and editable", async ({ page }) => {
+  test("a missing field is caught before posting; a good address is saved, listed and editable", async ({ page }) => {
     await registerCustomer(page);
     await open(page, "/account/addresses/new");
     const form = main(page);
-    await form.getByLabel("First name").fill("Ana");
-    await form.getByLabel("Last name").fill("E2E");
-    await form.getByLabel("Street address").fill("350 Fifth Avenue");
-    await form.getByLabel("City").fill("New York");
-    await form.getByLabel("State / Region").fill("NY");
-    await form.getByLabel("Postal code").fill("10118");
-    await form.getByLabel("Country code (2-letter)").fill("S1");
     await form.getByRole("button", { name: "Save address" }).click();
-    await expect(form.getByLabel("Country code (2-letter)")).toHaveAccessibleDescription(
-      "Country must be a 2-letter code (e.g. US, DE, RS).",
-    );
+    await expect(form.getByLabel("Street address")).toHaveAccessibleDescription(/This field is required/);
 
-    // Lower case on purpose - the schema upper-cases it. and US is in the dev reference data (Serbia is not)
-    await form.getByLabel("Country code (2-letter)").fill("us");
-    await form.getByRole("button", { name: "Save address" }).click();
-    await expect(page).toHaveURL(/\/account\/addresses$/);
+    await addSavedAddress(page, { street1: "350 Fifth Avenue", city: "New York", state: "NY", postalCode: "10118" });
     const card = main(page).locator("address");
     await expect(card).toContainText("350 Fifth Avenue");
     await expect(card).toContainText("New York, NY 10118");
