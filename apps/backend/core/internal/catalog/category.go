@@ -140,6 +140,12 @@ var (
 	ErrCategoryProductNotFound = errors.New("product is not in this category")
 	ErrCategoryNoCover         = errors.New("category has no cover image")
 	ErrCategoryCoverNotPending = errors.New("category cover is not pending")
+	ErrCategoryContentNotFound = errors.New("category content not found for this locale")
+	ErrCategoryCycle           = errors.New("a category cannot be moved under itself or one of its descendants")
+	ErrCategoryTooDeep         = errors.New("category tree would exceed the maximum depth")
 )
+
+// The deepest a category tree may nest, and the cap every recursive walk over parent_id runs under
+const maxCategoryDepth = 64
 
 var ErrCategoryChannelListingNotFound = errors.New("category store listing not found")

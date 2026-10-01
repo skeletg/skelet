@@ -1,5 +1,5 @@
 -- Google Merchant product feed page - one row per product published on the channel: channel-priced, default-locale content, first ready
--- image, and what the channel's own locations can sell (physical minus held for tracked items) - pages by product id for stable iteration
+-- image - salability comes from the inventory service, and pages are keyset on product id so a late page costs the same as the first
 -- The path is channel-first like the sitemap: the listing's url override, then the channel's canonical rewrite, then the global one
 
 -- name: MerchantFeedProducts :many
@@ -31,10 +31,6 @@ SELECT
       ORDER BY m.sort_order, m.created_at LIMIT 1),
     '')::text                                                                             AS image_key,
   COALESCE(ii.tracked, FALSE)                                                             AS tracked,
-  COALESCE((SELECT sum(CASE WHEN ii.tracked THEN lv.quantity - GREATEST(lv.reserved_quantity, 0) ELSE lv.quantity END)
-    FROM inventory_levels lv
-    JOIN inventory_channel_locations cl ON cl.location_id = lv.location_id AND cl.channel_id = sqlc.arg(channel_id)::uuid
-    WHERE lv.inventory_item_id = ii.id), 0)::float8                                       AS channel_salable,
   COALESCE(ii.backorderable, FALSE)                                                       AS backorderable
 FROM catalog_products p
 JOIN catalog_product_channel_listings l
@@ -45,5 +41,6 @@ LEFT JOIN catalog_product_content c
   ON c.product_id = p.id AND c.locale = sqlc.arg(locale)::text
 LEFT JOIN inventory_items ii ON ii.product_id = p.id
 WHERE p.seo_noindex = FALSE
+  AND p.id > sqlc.arg(after_id)::uuid
 ORDER BY p.id
-LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+LIMIT sqlc.arg(page_limit);

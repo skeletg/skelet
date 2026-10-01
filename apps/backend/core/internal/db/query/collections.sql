@@ -43,11 +43,11 @@ RETURNING *;
 
 -- name: ConfirmCollectionCover :one
 UPDATE catalog_collections
-SET cover_width  = $2,
-    cover_height = $3,
+SET cover_width  = sqlc.arg(cover_width),
+    cover_height = sqlc.arg(cover_height),
     cover_status = 'ready',
     updated_at   = NOW()
-WHERE id = $1
+WHERE id = sqlc.arg(id) AND cover_id = sqlc.arg(cover_id) AND cover_status = 'pending'
 RETURNING *;
 
 -- name: ClearCollectionCover :one
@@ -114,7 +114,7 @@ VALUES ($1, $2, $3);
 DELETE FROM catalog_collection_products
 WHERE collection_id = $1 AND product_id = $2;
 
--- name: ReorderCollectionProduct :exec
+-- name: ReorderCollectionProduct :execrows
 UPDATE catalog_collection_products
 SET sort_order = $3
 WHERE collection_id = $1 AND product_id = $2;

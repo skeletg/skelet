@@ -54,11 +54,3 @@ func TestAncestorsComeBackRootFirstFromOneQuery(t *testing.T) {
 		t.Fatalf("a corrupted cycle must terminate, got %v", err)
 	}
 }
-
-func categoryIDs(cs []Category) []uuid.UUID {
-	out := make([]uuid.UUID, len(cs))
-	for i, c := range cs {
-		out[i] = c.ID
-	}
-	return out
-}

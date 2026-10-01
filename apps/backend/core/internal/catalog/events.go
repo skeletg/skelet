@@ -17,6 +17,7 @@ const (
 	EventCategoryCreated = "category.created"
 	EventCategoryUpdated = "category.updated"
 	EventCategoryDeleted = "category.deleted"
+	EventCategoryMoved   = "category.moved"
 
 	EventCollectionCreated         = "collection.created"
 	EventCollectionUpdated         = "collection.updated"
@@ -157,6 +158,13 @@ type CategoryDeleted struct {
 }
 
 func (*CategoryDeleted) Type() string { return EventCategoryDeleted }
+
+// Enqueued in the same tx as a rename or re-parent, so the product URL regeneration under the subtree survives a crash after commit
+type CategoryMoved struct {
+	CategoryID uuid.UUID
+}
+
+func (*CategoryMoved) Type() string { return EventCategoryMoved }
 
 type CollectionCreated struct { // this and the other Collection* events fire AFTER the mutation commits, async-only
 	CollectionID uuid.UUID

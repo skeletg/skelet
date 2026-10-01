@@ -7,41 +7,59 @@ import (
 	"context"
 	"database/sql"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/singleflight"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/pricing"
 )
 
-// merchantFeedPageSize bounds one DB round-trip - the renderer loops pages until exhaustion
-const merchantFeedPageSize = 5000
+const (
+	merchantFeedPageSize            = 5000 // bounds one DB round-trip - the renderer loops pages until exhaustion
+	merchantFeedDescriptionMaxRunes = 5000 // Merchant Center's description limit, counted in characters
+	merchantFeedCacheTTL            = 5 * time.Minute
+	merchantFeedContentType         = "application/xml; charset=utf-8"
+)
 
 // MediaURLer resolves a stored media key to its public URL - Satisfied by *objstore.Storage
 type MediaURLer interface {
 	PublicURL(key string) string
 }
 
-type MerchantFeed struct {
-	queries *db.Queries
-	media   MediaURLer
-	salable SalableReader
-}
-
 type SalableReader interface {
 	SalableByProductIDs(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID]float64, error)
 }
 
-func (f *MerchantFeed) SetSalable(s SalableReader) { f.salable = s }
+// Rendered bytes are kept per (channel, locale) for a few minutes and concurrent misses share one render, so a burst of crawler pulls costs one pass over the catalog
+type MerchantFeed struct {
+	queries *db.Queries
+	media   MediaURLer
+	salable SalableReader
 
-func NewMerchantFeed(queries *db.Queries, media MediaURLer) *MerchantFeed {
-	return &MerchantFeed{queries: queries, media: media}
+	now      func() time.Time
+	ttl      time.Duration
+	pageSize int32
+	mu       sync.Mutex
+	cache    map[string]cachedFeed
+	renders  singleflight.Group
 }
 
-// MerchantFeedOptions carries the channel-resolved rendering inputs
+type cachedFeed struct {
+	body    []byte
+	expires time.Time
+}
+
+func NewMerchantFeed(queries *db.Queries, media MediaURLer, salable SalableReader) *MerchantFeed {
+	return &MerchantFeed{queries: queries, media: media, salable: salable, now: time.Now, ttl: merchantFeedCacheTTL, pageSize: merchantFeedPageSize, cache: map[string]cachedFeed{}}
+}
+
+// MerchantFeedOptions carries the channel-resolved rendering inputs - Locale must already be one the channel serves, since it keys the cache
 type MerchantFeedOptions struct {
 	ChannelID    uuid.UUID
 	BaseURL      string // absolute storefront origin, no trailing slash
@@ -64,58 +82,95 @@ type merchantItem struct {
 	MPN          string   `xml:"g:mpn,omitempty"`
 }
 
-type merchantChannel struct {
-	Title       string         `xml:"title"`
-	Link        string         `xml:"link"`
-	Description string         `xml:"description"`
-	Items       []merchantItem `xml:"item"`
-}
-
-type merchantRSS struct {
-	XMLName xml.Name        `xml:"rss"`
-	Version string          `xml:"version,attr"`
-	NSG     string          `xml:"xmlns:g,attr"`
-	Channel merchantChannel `xml:"channel"`
-}
-
 // Render produces the feed XML + content type - Digital and subscription products are included (Merchant Center supports them); availability maps tracked inventory to in_stock / backorder / out_of_stock
 func (f *MerchantFeed) Render(ctx context.Context, opts MerchantFeedOptions) ([]byte, string, error) {
+	key := opts.ChannelID.String() + "|" + opts.Locale
+	f.mu.Lock()
+	hit, ok := f.cache[key]
+	f.mu.Unlock()
+	if ok && f.now().Before(hit.expires) {
+		return hit.body, merchantFeedContentType, nil
+	}
+	// Detached so one crawler hanging up doesn't fail every request sharing the render
+	v, err, _ := f.renders.Do(key, func() (any, error) {
+		body, err := f.render(context.WithoutCancel(ctx), opts)
+		if err != nil {
+			return nil, err
+		}
+		f.mu.Lock()
+		f.cache[key] = cachedFeed{body: body, expires: f.now().Add(f.ttl)}
+		f.mu.Unlock()
+		return body, nil
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	return v.([]byte), merchantFeedContentType, nil
+}
+
+// Streams items into the buffer page by page - keyset on product id, so no page re-scans the ones before it
+func (f *MerchantFeed) render(ctx context.Context, opts MerchantFeedOptions) ([]byte, error) {
+	if f.salable == nil {
+		return nil, errors.New("merchant feed: no salable reader wired")
+	}
 	base := strings.TrimRight(opts.BaseURL, "/")
-	now := time.Now()
-	items := []merchantItem{}
-	for offset := int32(0); ; offset += merchantFeedPageSize {
+	now := f.now()
+	var buf bytes.Buffer
+	buf.WriteString(xml.Header)
+	enc := xml.NewEncoder(&buf)
+	enc.Indent("", "  ")
+	rss := xml.StartElement{Name: xml.Name{Local: "rss"}, Attr: []xml.Attr{
+		{Name: xml.Name{Local: "version"}, Value: "2.0"},
+		{Name: xml.Name{Local: "xmlns:g"}, Value: "http://base.google.com/ns/1.0"},
+	}}
+	channelEl := xml.StartElement{Name: xml.Name{Local: "channel"}}
+	if err := enc.EncodeToken(rss); err != nil {
+		return nil, fmt.Errorf("merchant feed encode: %w", err)
+	}
+	if err := enc.EncodeToken(channelEl); err != nil {
+		return nil, fmt.Errorf("merchant feed encode: %w", err)
+	}
+	for _, el := range []struct{ name, value string }{
+		{"title", opts.Title},
+		{"link", base + "/"},
+		{"description", opts.Title + " product feed"},
+	} {
+		if err := enc.EncodeElement(el.value, xml.StartElement{Name: xml.Name{Local: el.name}}); err != nil {
+			return nil, fmt.Errorf("merchant feed encode: %w", err)
+		}
+	}
+
+	after := uuid.Nil
+	for {
 		rows, err := f.queries.MerchantFeedProducts(ctx, db.MerchantFeedProductsParams{
-			ChannelID:  opts.ChannelID,
-			Locale:     opts.Locale,
-			PageLimit:  merchantFeedPageSize,
-			PageOffset: offset,
+			ChannelID: opts.ChannelID,
+			Locale:    opts.Locale,
+			AfterID:   after,
+			PageLimit: f.pageSize,
 		})
 		if err != nil {
-			return nil, "", fmt.Errorf("merchant feed page: %w", err)
+			return nil, fmt.Errorf("merchant feed page: %w", err)
 		}
-		var salable map[uuid.UUID]float64
-		if f.salable != nil && len(rows) > 0 {
-			ids := make([]uuid.UUID, len(rows))
-			for i, r := range rows {
-				ids[i] = r.ID
-			}
-			if salable, err = f.salable.SalableByProductIDs(ctx, ids, opts.ChannelID); err != nil {
-				return nil, "", fmt.Errorf("merchant feed salable: %w", err)
-			}
+		if len(rows) == 0 {
+			break
+		}
+		ids := make([]uuid.UUID, len(rows))
+		for i, r := range rows {
+			ids[i] = r.ID
+		}
+		salable, err := f.salable.SalableByProductIDs(ctx, ids, opts.ChannelID)
+		if err != nil {
+			return nil, fmt.Errorf("merchant feed salable: %w", err)
 		}
 		for _, r := range rows {
-			qty := r.ChannelSalable
-			if v, ok := salable[r.ID]; ok {
-				qty = v
-			}
 			price := effectiveFeedPrice(r, now)
 			item := merchantItem{
 				ID:           r.Sku,
 				Title:        r.Title,
-				Description:  truncate(r.Description, 5000),
+				Description:  truncateRunes(r.Description, merchantFeedDescriptionMaxRunes),
 				Link:         base + "/" + strings.TrimPrefix(r.Path, "/"),
 				Price:        fmt.Sprintf("%d.%02d %s", price/100, price%100, opts.CurrencyCode),
-				Availability: availabilityFor(r, qty),
+				Availability: availabilityFor(r, salable[r.ID]),
 				Condition:    "new",
 				Brand:        r.Brand,
 				MPN:          r.Sku,
@@ -123,31 +178,25 @@ func (f *MerchantFeed) Render(ctx context.Context, opts MerchantFeedOptions) ([]
 			if r.ImageKey != "" && f.media != nil {
 				item.ImageLink = f.media.PublicURL(r.ImageKey)
 			}
-			items = append(items, item)
+			if err := enc.Encode(item); err != nil {
+				return nil, fmt.Errorf("merchant feed encode: %w", err)
+			}
 		}
-		if len(rows) < merchantFeedPageSize {
+		after = rows[len(rows)-1].ID
+		if len(rows) < int(f.pageSize) {
 			break
 		}
 	}
-
-	feed := merchantRSS{
-		Version: "2.0",
-		NSG:     "http://base.google.com/ns/1.0",
-		Channel: merchantChannel{
-			Title:       opts.Title,
-			Link:        base + "/",
-			Description: opts.Title + " product feed",
-			Items:       items,
-		},
+	if err := enc.EncodeToken(channelEl.End()); err != nil {
+		return nil, fmt.Errorf("merchant feed encode: %w", err)
 	}
-	var buf bytes.Buffer
-	buf.WriteString(xml.Header)
-	enc := xml.NewEncoder(&buf)
-	enc.Indent("", "  ")
-	if err := enc.Encode(feed); err != nil {
-		return nil, "", fmt.Errorf("merchant feed encode: %w", err)
+	if err := enc.EncodeToken(rss.End()); err != nil {
+		return nil, fmt.Errorf("merchant feed encode: %w", err)
 	}
-	return buf.Bytes(), "application/xml; charset=utf-8", nil
+	if err := enc.Flush(); err != nil {
+		return nil, fmt.Errorf("merchant feed encode: %w", err)
+	}
+	return buf.Bytes(), nil
 }
 
 // effectiveFeedPrice folds the channel/product special-price trio (listing wholesale-overrides the product's, mirroring EffectivePricingInputs)
@@ -196,9 +245,17 @@ func availabilityFor(r db.MerchantFeedProductsRow, salable float64) string {
 	return "out_of_stock"
 }
 
-func truncate(s string, n int) string {
+// Cuts on a character boundary - a byte cut splits a multibyte rune and the encoder writes U+FFFD in its place
+func truncateRunes(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n]
+	count := 0
+	for i := range s {
+		if count == n {
+			return s[:i]
+		}
+		count++
+	}
+	return s
 }

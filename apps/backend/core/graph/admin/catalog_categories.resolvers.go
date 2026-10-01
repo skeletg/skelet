@@ -38,7 +38,7 @@ func (r *categoryResolver) Products(ctx context.Context, obj *model.Category) ([
 	if err != nil {
 		return nil, err
 	}
-	products, err := r.CatalogSvc.ListProductsByCategory(ctx, cid, r.activeLocale(ctx), 0) // whole list - the assign picker hides members from it
+	products, err := r.CatalogSvc.ListProductsByCategory(ctx, cid, r.activeLocale(ctx), catalog.MaxUnpagedRows) // the assign picker hides members from it
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (r *categoryResolver) ProductCount(ctx context.Context, obj *model.Category
 	if err != nil {
 		return 0, err
 	}
-	n, err := r.CatalogSvc.CountProductsInCategory(ctx, id)
+	n, err := r.getCategoryProductCount(ctx, id)
 	if err != nil {
 		return 0, err
 	}
@@ -182,6 +182,9 @@ func (r *mutationResolver) UpdateCategory(ctx context.Context, input model.Updat
 	if input.PrivateMetadata != nil {
 		m := metadataFromInput(input.PrivateMetadata)
 		domainInput.PrivateMetadata = &m
+	}
+	if err := r.requireCategoryMoveScope(ctx, domainInput); err != nil {
+		return nil, err
 	}
 	c, err := r.CatalogSvc.UpdateCategory(ctx, domainInput)
 	if err != nil {
