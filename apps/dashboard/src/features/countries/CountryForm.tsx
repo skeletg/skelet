@@ -1,9 +1,11 @@
 import { useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@apollo/client/react'
+import { z } from 'zod'
 import { DetailPageSection } from '@/components/layout/detail-page'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { callingCode } from '@/lib/phone'
 import {
   Select,
   SelectContent,
@@ -23,7 +25,9 @@ import {
   CreateCountryDocument,
   UpdateCountryDocument,
 } from './Countries.gql'
+import { BusinessIdFieldsEditor } from './BusinessIdFieldsEditor'
 import {
+  businessIdFieldSchema,
   COUNTRY_LABELS,
   countryDiff,
   countrySchema,
@@ -149,12 +153,19 @@ function CountryFormPage({ mode, country }: { mode: 'create' | 'edit'; country?:
 
       <DetailPageSection
         title="Defaults"
-        description="Phone calling code and default currency. Default currency is FK-validated."
+        description="Phone calling code, which follows the country code, and default currency."
       >
         <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
-          <form.AppField name="phoneCode">
-            {(f) => <f.TextField id="country-phone" label="Phone code" maxLength={6} placeholder="+1" note={clash('phoneCode')} />}
-          </form.AppField>
+          {/* Read-only: phone checks take the calling code from libphonenumber, so a typed one could only disagree */}
+          <form.Subscribe selector={(s) => [s.values.code, s.values.phoneCode] as const}>
+            {([code, stored]) => (
+              <div className="grid gap-2">
+                <Label htmlFor="country-phone">Phone code</Label>
+                <Input id="country-phone" value={callingCode(code) ?? stored} readOnly disabled placeholder="From the country code" />
+                <p className="text-xs text-muted-foreground">Set by the country code.</p>
+              </div>
+            )}
+          </form.Subscribe>
           <form.Field name="defaultCurrencyCode">
             {(f) => (
               <div className="grid gap-2">
@@ -188,6 +199,24 @@ function CountryFormPage({ mode, country }: { mode: 'create' | 'edit'; country?:
         </div>
       </DetailPageSection>
 
+      <DetailPageSection
+        title="Company identification at checkout"
+        description="What a business purchase from this country asks for, in this order - Serbia's PIB and Matični broj, a VAT number elsewhere. Checkout checks each value against its format, and the order keeps them with their labels for the invoice. The company's country is its billing address, else where the order goes."
+      >
+        <form.Field name="businessIdFields">
+          {(f) => (
+            <>
+              <BusinessIdFieldsEditor
+                value={f.state.value}
+                onChange={(next) => f.handleChange(next)}
+                errors={rowErrors(f.state.value)}
+              />
+              {clash('businessIdFields')}
+            </>
+          )}
+        </form.Field>
+      </DetailPageSection>
+
       <DetailPageSection title="Display & state">
         <div className="grid gap-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -212,6 +241,18 @@ function CountryFormPage({ mode, country }: { mode: 'create' | 'edit'; country?:
       </DetailPageSection>
     </RecordFormPage>
   )
+}
+
+// "Field 2: Label is required" - the list's own problems, named by row, since the rows have no field of their own
+function rowErrors(fields: z.input<typeof businessIdFieldSchema>[]): string[] {
+  const res = z.array(businessIdFieldSchema).safeParse(fields)
+  if (res.success) return []
+  const keys = fields.map((f) => f.key.trim()).filter(Boolean)
+  const dup = keys.find((k, i) => keys.indexOf(k) !== i)
+  return [
+    ...res.error.issues.map((i) => `Field ${Number(i.path[0]) + 1}: ${i.message}.`),
+    ...(dup ? [`The key ${dup} is used twice.`] : []),
+  ]
 }
 
 // Reference data from the country/region seed - shown, never edited here
