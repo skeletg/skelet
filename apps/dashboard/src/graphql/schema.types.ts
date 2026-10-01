@@ -733,6 +733,23 @@ export type BundleSelection = {
   sortOrder: Scalars['Int']['output'];
 };
 
+export type BusinessIdField = {
+  __typename?: 'BusinessIdField';
+  hint: Scalars['String']['output'];
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  pattern: Scalars['String']['output'];
+  required: Scalars['Boolean']['output'];
+};
+
+export type BusinessIdFieldInput = {
+  hint?: InputMaybe<Scalars['String']['input']>;
+  key?: InputMaybe<Scalars['String']['input']>;
+  label: Scalars['String']['input'];
+  pattern?: InputMaybe<Scalars['String']['input']>;
+  required: Scalars['Boolean']['input'];
+};
+
 export type CmsAttribute = {
   __typename?: 'CMSAttribute';
   allContent: Array<CmsAttributeContent>;
@@ -1351,6 +1368,7 @@ export type ConsentPurpose =
 
 export type Country = {
   __typename?: 'Country';
+  businessIdFields: Array<BusinessIdField>;
   code: Scalars['String']['output'];
   createdAt: Scalars['Time']['output'];
   defaultCurrency?: Maybe<Currency>;
@@ -1648,6 +1666,7 @@ export type CreateCollectionInput = {
 };
 
 export type CreateCountryInput = {
+  businessIdFields?: InputMaybe<Array<BusinessIdFieldInput>>;
   code: Scalars['String']['input'];
   defaultCurrencyCode?: InputMaybe<Scalars['String']['input']>;
   emojiFlag?: InputMaybe<Scalars['String']['input']>;
@@ -6371,6 +6390,7 @@ export type Order = {
   __typename?: 'Order';
   appliedPromotions: Array<AppliedPromotion>;
   billingAddress: OrderAddress;
+  businessIds: Array<OrderBusinessId>;
   carrier: Scalars['String']['output'];
   channelId: Scalars['ID']['output'];
   createdAt: Scalars['Time']['output'];
@@ -6418,6 +6438,13 @@ export type OrderAddress = {
   state?: Maybe<Scalars['String']['output']>;
   street1: Scalars['String']['output'];
   street2?: Maybe<Scalars['String']['output']>;
+};
+
+export type OrderBusinessId = {
+  __typename?: 'OrderBusinessId';
+  key: Scalars['String']['output'];
+  label: Scalars['String']['output'];
+  value: Scalars['String']['output'];
 };
 
 export type OrderDocumentKind =
@@ -9999,6 +10026,7 @@ export type UpdateCollectionInput = {
 };
 
 export type UpdateCountryInput = {
+  businessIdFields?: InputMaybe<Array<BusinessIdFieldInput>>;
   code: Scalars['String']['input'];
   defaultCurrencyCode?: InputMaybe<Scalars['String']['input']>;
   emojiFlag?: InputMaybe<Scalars['String']['input']>;

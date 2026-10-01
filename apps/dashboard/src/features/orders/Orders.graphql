@@ -38,6 +38,12 @@ query Order($id: ID!) {
     storeCreditAmount
     currencyCode
     customerNote
+    poNumber
+    businessIds {
+      key
+      label
+      value
+    }
     carrier
     trackingNumber
     trackingUrl
