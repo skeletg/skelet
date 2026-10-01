@@ -30,12 +30,15 @@ var acknowledgedFrontExposures = map[string]string{
 
 	// Notes the customer wrote, coming back to the customer who wrote them
 	"Cart.note":          "the shopper's own cart note",
+	"CartCheckout.email": "the receipt address the shopper typed into their own checkout - a guest cart is readable only by whoever holds its id, a customer cart only by its owner",
 	"Order.customerNote": "the note the buyer left on their own order",
 
 	// Store credit - all three hang off the caller's own customer, order or redemption
 	"Customer.storeCreditBalance":            "the caller's own balance, and the resolver re-checks obj.ID against the session",
 	"LoyaltyRedeemResult.storeCreditBalance": "the balance left after the caller's own redemption",
 	"Order.storeCreditAmount":                "how much credit was applied to the caller's own order",
+	"CartCheckout.useStoreCredit":            "the caller's own opt-in on their own cart - always false on a guest cart",
+	"CheckoutTotals.storeCreditCents":        "the credit the caller's own cart will spend - customer carts are readable only by their owner, and guest carts have none",
 
 	// Handed to the browser on purpose - these are the public half of a gateway handshake, scoped to one payment
 	"Order.paymentClientSecret": "gateway client secret, meant for the browser that completes the payment",
