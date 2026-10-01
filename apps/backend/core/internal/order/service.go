@@ -24,6 +24,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
+	"github.com/skeletg/skelet/apps/backend/core/lib/phone"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -149,9 +150,18 @@ type CartRepricer interface {
 	RepriceCartLines(ctx context.Context, c cart.Cart) cart.Cart
 }
 
-// Enforces the channel's country and region options on addresses, nil skips
+// Enforces the channel's country and region options on addresses, and its phone rules on their phones - nil skips
+// both, leaving a phone read in its address's country alone
 type CountryValidator interface {
 	ValidateAddressForChannel(ctx context.Context, channelID uuid.UUID, countryCode string, region *string) error
+	PhoneRulesForChannel(ctx context.Context, channelID uuid.UUID) phone.Rules
+}
+
+func (s *Service) phoneRules(ctx context.Context, channelID uuid.UUID) phone.Rules {
+	if s.countries == nil {
+		return phone.Rules{}
+	}
+	return s.countries.PhoneRulesForChannel(ctx, channelID)
 }
 
 // Enforces that a chosen provider is enabled for the channel and shipping country, nil skips - here so order to payment stays a one-way interface dep
@@ -312,6 +322,8 @@ type PlaceOrderInput struct {
 	CustomerNote      string
 	// The buyer's PO reference, meaningful with the on-account tender but stored regardless
 	PONumber string
+	// The company identifiers on a business purchase, with the labels the shopper saw - printed on the invoice
+	BusinessIDs []BusinessID
 	// The chosen carrier and method - both empty falls back to the cheapest quote, and the price is always re-derived server-side
 	ShippingCarrierSlug *string
 	ShippingMethodCode  *string
@@ -370,7 +382,7 @@ type PaymentAuthorizer interface {
 // The whole create, add-lines, emit and convert-cart sequence is one transaction so a failure leaves no partial state - Plugins hook order.placing (sync, pre-commit, can abort or enrich) and order.placed (async, post-commit), both carrying a nil-able CustomerID
 func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, error) {
 	// resolveCheckout owns all the input validation and resolution
-	cc, err := s.resolveCheckout(ctx, in)
+	cc, err := s.resolveCheckout(ctx, in, false)
 	if err != nil {
 		return Order{}, err
 	}
@@ -557,6 +569,7 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 			CurrencyCode:        store.CurrencyCode,
 			CustomerNote:        in.CustomerNote,
 			PONumber:            in.PONumber,
+			BusinessIDs:         in.BusinessIDs,
 			ShippingMethodID:    shipSel.MethodID,
 			ShippingCarrierSlug: ptr.NonZero(shipSel.CarrierSlug),
 			ShippingMethodCode:  ptr.NonZero(shipSel.MethodCode),
@@ -731,7 +744,7 @@ func (s *Service) GetGuestOrder(ctx context.Context, orderID uuid.UUID, email st
 	return s.repo.GetGuestOrder(ctx, orderID, email)
 }
 
-// Attaches a channel's guest orders under an email to a new customer and returns the count - subscribed to customer.registered so history shows up post-signup
+// Attaches a channel's guest orders under an email to a new customer and returns the count - subscribed to customer.email_verified so history shows up once the address is proven
 func (s *Service) ClaimGuestOrdersByEmail(ctx context.Context, customerID uuid.UUID, email string, channelID uuid.UUID) (int64, error) {
 	if email == "" {
 		return 0, nil
@@ -932,12 +945,24 @@ func findAddress(c customer.Customer, id uuid.UUID) (customer.Address, error) {
 }
 
 // Picks an OrderAddress for one slot from an inline payload (guests, one-off addresses) or an id in the customer's book (logged-in only) - inline wins when both are set, so a caller can override a stale book pick
-func resolveAddress(inline *OrderAddress, id *uuid.UUID, hasCustomer bool, c customer.Customer, slot string) (OrderAddress, error) {
+// A quote prices a checkout still being filled in, so it accepts a destination-only address - country, region and postcode are all shipping and tax read
+func resolveAddress(inline *OrderAddress, id *uuid.UUID, hasCustomer bool, c customer.Customer, slot string, quote bool, rules phone.Rules) (OrderAddress, error) {
 	if inline != nil {
+		if quote && inline.CountryCode != "" {
+			return *inline, nil
+		}
 		if inline.Street1 == "" || inline.City == "" || inline.PostalCode == "" || inline.CountryCode == "" {
 			return OrderAddress{}, fmt.Errorf("%w: %s address is missing required fields", ErrAddressInvalid, slot)
 		}
-		return *inline, nil
+		a := *inline
+		if a.Phone != nil {
+			p, err := rules.Normalize(*a.Phone, a.CountryCode)
+			if err != nil {
+				return OrderAddress{}, fmt.Errorf("%s address: %w", slot, err)
+			}
+			a.Phone = &p
+		}
+		return a, nil
 	}
 	if id != nil {
 		if !hasCustomer {
