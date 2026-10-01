@@ -503,6 +503,7 @@ export function ProductOptionsSection({
         <AddOptionForm
           locale={defaultLocale}
           existingMaxSort={sortedOptions.reduce((m, o) => Math.max(m, o.sortOrder), -1)}
+          surcharges={surcharges}
           onStage={stage}
           onClose={() => setAddingOption(false)}
         />
@@ -705,11 +706,13 @@ function TwoClickDelete({ label, onConfirm }: { label: string; onConfirm: () => 
 function AddOptionForm({
   locale,
   existingMaxSort,
+  surcharges,
   onStage,
   onClose,
 }: {
   locale: string
   existingMaxSort: number
+  surcharges: Surcharges
   onStage: (op: PendingOp) => void
   onClose: () => void
 }) {
@@ -722,10 +725,12 @@ function AddOptionForm({
   const [maxChars, setMaxChars] = useState<string>('')
   const [maxFileBytes, setMaxFileBytes] = useState<string>('')
   const [fileExtensions, setFileExtensions] = useState<string>('')
+  const [channelPrices, setChannelPrices] = useState<Record<string, string>>({})
 
   const showPriceOnOption = !isSelect(inputType)
   const showTextConstraints = isText(inputType)
   const showFileConstraints = isFile(inputType)
+  const fixedSurcharge = showPriceOnOption && priceValue.trim() !== '' && priceType === 'FIXED'
 
   function reset() {
     setTitle('')
@@ -737,11 +742,13 @@ function AddOptionForm({
     setMaxChars('')
     setMaxFileBytes('')
     setFileExtensions('')
+    setChannelPrices({})
   }
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const pv = priceValue.trim() === '' ? null : Number(priceValue)
+    const priceEdits = fixedSurcharge ? channelEditsFrom(surcharges.channels, channelPrices, []) : undefined
     onStage({
       kind: 'add-option',
       tempId: newTempId(),
@@ -756,6 +763,7 @@ function AddOptionForm({
       maxChars: showTextConstraints && maxChars.trim() !== '' ? Number(maxChars) : null,
       maxFileBytes: showFileConstraints && maxFileBytes.trim() !== '' ? Number(maxFileBytes) : null,
       fileExtensions: showFileConstraints && fileExtensions.trim() !== '' ? fileExtensions.trim() : null,
+      ...(priceEdits ? { channelPrices: priceEdits } : {}),
     })
     reset()
     onClose()
@@ -824,6 +832,16 @@ function AddOptionForm({
                 </Select>
               </div>
             </div>
+          )}
+          {fixedSurcharge && (
+            <ChannelSurchargeInputs
+              idPrefix="po-channel-price-add"
+              channels={surcharges.channels}
+              baseCurrency={surcharges.baseCurrency}
+              baseAmount={Number(priceValue) || 0}
+              values={channelPrices}
+              onChange={(id, raw) => setChannelPrices((prev) => ({ ...prev, [id]: raw }))}
+            />
           )}
           {isSelect(inputType) && (
             <p className="text-xs text-muted-foreground">
