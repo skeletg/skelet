@@ -328,6 +328,15 @@ var (
 	ErrInvalidSize                       = errors.New("size_bytes must be positive")
 	ErrInvalidDimensions                 = errors.New("width and height must be positive")
 	ErrTooManyItems                      = errors.New("too many items in one request")
+	ErrInvalidH1Position                 = errors.New("invalid h1Position")
+	ErrAttributeGroupNameTaken           = errors.New("an attribute group with this name already exists on the product type")
+	ErrAttributeGroupWrongType           = errors.New("attribute group belongs to a different product type")
+	ErrSelectableSlugOverride            = errors.New("selectable attributes manage slugs through AttributeValue, not per-product overrides")
+	ErrAttributeNotTranslatable          = errors.New("only plain_text scalar attribute values are translatable")
+	ErrMediaStorageUnavailable           = errors.New("media storage not configured")
+	ErrInvalidLinkKind                   = errors.New("invalid product link kind")
+	ErrInvalidTierQuantity               = errors.New("tier min quantity must be greater than zero")
+	ErrCustomerGroupNotFound             = errors.New("customer group not found")
 )
 
 // No producer-defined repository interfaces here - a consumer that needs to mock a slice of persistence declares the narrow interface it uses, in its own package

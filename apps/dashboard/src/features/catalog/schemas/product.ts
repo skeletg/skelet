@@ -182,7 +182,7 @@ export function toProductAdvancedInput(before: ProductAdvancedValues, v: Product
     ...(differs(before, v, ['minQty', 'maxQty'])
       ? { minOrderQty: v.minQty.trim() ? Math.max(0, Number(v.minQty)) || 0 : 0, maxOrderQty: v.maxQty.trim() ? Math.max(0, Number(v.maxQty)) || 0 : 0 }
       : {}),
-    ...(differs(before, v, ['cost']) ? { costCents: v.cost.trim() ? dollarsToCents(v.cost) : 0 } : {}),
+    ...(differs(before, v, ['cost']) ? (v.cost.trim() ? { costCents: dollarsToCents(v.cost) } : { clearCostCents: true }) : {}),
   }
 }
 

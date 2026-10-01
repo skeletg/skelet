@@ -15,6 +15,15 @@ SET price            = EXCLUDED.price,
     updated_at       = NOW()
 RETURNING *;
 
+-- name: UpsertProductChannelListingPublished :one
+-- Touches only is_published, so a bulk publish toggle (CSV import) keeps the listing's prices and url override
+INSERT INTO catalog_product_channel_listings (product_id, channel_id, is_published)
+VALUES ($1, $2, $3)
+ON CONFLICT (product_id, channel_id) DO UPDATE
+SET is_published = EXCLUDED.is_published,
+    updated_at   = NOW()
+RETURNING *;
+
 -- name: GetProductChannelListing :one
 SELECT * FROM catalog_product_channel_listings
 WHERE product_id = $1 AND channel_id = $2;
@@ -43,7 +52,7 @@ ORDER BY product_id;
 -- name: GetListingProductIDByChannelURL :one
 -- Channel-override url → product - the storefront tries this before the global catalog_products.url lookup so a channel's own URL namespace wins on that channel
 SELECT product_id FROM catalog_product_channel_listings
-WHERE channel_id = $1 AND url = $2;
+WHERE channel_id = $1 AND url = $2 AND is_published;
 
 -- name: DeleteProductChannelListing :exec
 DELETE FROM catalog_product_channel_listings
@@ -55,10 +64,10 @@ SELECT COUNT(*)::bigint
 FROM catalog_product_channel_listings
 WHERE channel_id = $1 AND price IS NULL;
 
--- name: CountInheritingListingsAcrossStoresWithCurrencyMismatch :one
--- How many inheriting listings would become incoherent if the global default currency changed to $1 - A listing is incoherent under the new global currency when its store's currency differs from the new global, because inheritance requires currency match
+-- name: CountInheritingListingsWithCurrencyMismatchForProduct :one
 SELECT COUNT(*)::bigint
 FROM catalog_product_channel_listings l
-JOIN channels s ON s.id = l.channel_id
-WHERE l.price IS NULL
-  AND s.currency_code <> $1;
+JOIN channels c ON c.id = l.channel_id
+WHERE l.product_id = sqlc.arg(product_id)
+  AND l.price IS NULL
+  AND c.currency_code <> sqlc.arg(currency_code)::text;

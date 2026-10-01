@@ -96,6 +96,7 @@ func (r *mutationResolver) UpdateProduct(ctx context.Context, input model.Update
 		v := int64(*input.CostCents)
 		domainInput.CostCents = &v
 	}
+	domainInput.ClearCostCents = input.ClearCostCents != nil && *input.ClearCostCents
 	if input.Metadata != nil {
 		m := metadataFromInput(input.Metadata)
 		domainInput.Metadata = &m
@@ -736,30 +737,13 @@ func (r *queryResolver) Products(ctx context.Context, channelID *string) ([]*mod
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "catalog.view"); err != nil {
 		return nil, err
 	}
-	products, err := r.CatalogSvc.ListProductsWithGraph(ctx, r.activeLocale(ctx), catalog.MaxUnpagedRows)
-	if err != nil {
-		return nil, err
-	}
 	chID, err := r.scopedChannelID(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
-	if chID != nil {
-		listings, err := r.CatalogSvc.ListProductChannelListingsByChannel(ctx, *chID)
-		if err != nil {
-			return nil, err
-		}
-		listed := make(map[uuid.UUID]struct{}, len(listings))
-		for _, l := range listings {
-			listed[l.ProductID] = struct{}{}
-		}
-		filtered := products[:0]
-		for _, p := range products {
-			if _, ok := listed[p.ID]; ok {
-				filtered = append(filtered, p)
-			}
-		}
-		products = filtered
+	products, err := r.CatalogSvc.ListProductsWithGraph(ctx, r.activeLocale(ctx), catalog.MaxUnpagedRows, chID)
+	if err != nil {
+		return nil, err
 	}
 	return r.renderProductRows(ctx, products, channelID)
 }

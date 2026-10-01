@@ -661,21 +661,6 @@ func (r *postgresRepository) ListCategoryChannelListings(ctx context.Context, ca
 	return out, nil
 }
 
-func (r *postgresRepository) ListCategoryChannelListingsByCategoryIDs(ctx context.Context, categoryIDs []uuid.UUID) (map[uuid.UUID][]CategoryChannelListing, error) {
-	if len(categoryIDs) == 0 {
-		return map[uuid.UUID][]CategoryChannelListing{}, nil
-	}
-	rows, err := r.queries.ListCatalogCategoryChannelListingsByCategoryIDs(ctx, categoryIDs)
-	if err != nil {
-		return nil, fmt.Errorf("list category store listings by ids: %w", err)
-	}
-	out := make(map[uuid.UUID][]CategoryChannelListing, len(categoryIDs))
-	for _, row := range rows {
-		out[row.CategoryID] = append(out[row.CategoryID], toCategoryChannelListing(row))
-	}
-	return out, nil
-}
-
 func (r *postgresRepository) GetCategoryChannelListing(ctx context.Context, categoryID, channelID uuid.UUID) (CategoryChannelListing, error) {
 	row, err := r.queries.GetCatalogCategoryChannelListing(ctx, db.GetCatalogCategoryChannelListingParams{
 		CategoryID: categoryID,
@@ -935,8 +920,7 @@ func (r *postgresRepository) ListCategoryFacetOverrides(ctx context.Context, cat
 // Same clear-and-rebuild shape as ReplaceProductLinks - an empty slice resets the
 // category to the attribute-order default
 func (r *postgresRepository) ReplaceCategoryFacetOverrides(ctx context.Context, categoryID uuid.UUID, overrides []FacetOverride) error {
-	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	return r.atomic(ctx, func(q *db.Queries) error {
 		if err := q.DeleteCategoryFacetOverrides(ctx, categoryID); err != nil {
 			return fmt.Errorf("clear category facet overrides: %w", err)
 		}

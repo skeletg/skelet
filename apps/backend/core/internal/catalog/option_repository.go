@@ -19,8 +19,7 @@ import (
 
 func (r *postgresRepository) CreateProductOption(ctx context.Context, input AddProductOptionInput) (ProductOption, error) {
 	var out ProductOption
-	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	err := r.atomic(ctx, func(q *db.Queries) error {
 		row, err := q.CreateProductOption(ctx, db.CreateProductOptionParams{
 			ProductID:      input.ProductID,
 			InputType:      db.CatalogProductOptionInputType(input.InputType),
@@ -175,8 +174,7 @@ func (r *postgresRepository) DeleteProductOptionContent(ctx context.Context, opt
 
 func (r *postgresRepository) CreateProductOptionValue(ctx context.Context, input AddProductOptionValueInput) (ProductOptionValue, error) {
 	var out ProductOptionValue
-	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	err := r.atomic(ctx, func(q *db.Queries) error {
 		qty := input.Quantity
 		if qty < 1 {
 			qty = 1

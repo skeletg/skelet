@@ -16,6 +16,18 @@ RETURNING *;
 -- name: GetProductByID :one
 SELECT * FROM catalog_products WHERE id = $1;
 
+-- name: GetProductByIDForUpdate :one
+-- UpdateProduct merges the input over this row in Go, so the lock keeps a concurrent edit from being overwritten
+SELECT * FROM catalog_products WHERE id = $1 FOR UPDATE;
+
+-- name: CountActiveCartReferencesToSKU :one
+SELECT ((SELECT COUNT(*) FROM cart_lines cl JOIN carts c ON c.id = cl.cart_id
+         WHERE c.status = 'active' AND cl.product_sku = sqlc.arg(sku)::text)
+      + (SELECT COUNT(*) FROM cart_saved_items si JOIN carts c ON c.id = si.cart_id
+         WHERE c.status = 'active' AND si.product_sku = sqlc.arg(sku)::text)
+      + (SELECT COUNT(*) FROM cart_line_components lc JOIN cart_lines cl ON cl.id = lc.cart_line_id JOIN carts c ON c.id = cl.cart_id
+         WHERE c.status = 'active' AND lc.product_sku = sqlc.arg(sku)::text))::bigint;
+
 -- Batched product loader for the storefront browse hydration - one query replaces N GetProductByID round-trips - order is restored Go-side from the caller's id slice
 -- name: GetProductsByIDs :many
 SELECT * FROM catalog_products WHERE id = ANY(sqlc.arg(ids)::uuid[]);
@@ -70,6 +82,11 @@ ORDER BY p.url;
 -- name: ListProducts :many
 -- row_limit 0 means every row - only the CSV export needs that, and the GraphQL surface never does: an uncapped list is 101k rows and ~17MB on a real catalog, which pins a connection for ~20s and is reachable by any admin who can view the catalog
 SELECT * FROM catalog_products ORDER BY created_at DESC LIMIT NULLIF(sqlc.arg(row_limit)::int, 0);
+
+-- name: ListProductsForChannel :many
+SELECT p.* FROM catalog_products p
+WHERE EXISTS (SELECT 1 FROM catalog_product_channel_listings l WHERE l.product_id = p.id AND l.channel_id = sqlc.arg(channel_id))
+ORDER BY p.created_at DESC LIMIT NULLIF(sqlc.arg(row_limit)::int, 0);
 
 -- name: UpdateProduct :one
 UPDATE catalog_products

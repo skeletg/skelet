@@ -13,7 +13,7 @@ import (
 type variantSource interface {
 	GetProductOptionsByProductIDs(ctx context.Context, productIDs []uuid.UUID, locale string) (map[uuid.UUID][]catalog.ProductOption, error)
 	ListConfigurableParentByChildIDs(ctx context.Context, childIDs []uuid.UUID) (map[uuid.UUID]catalog.ConfigurableParentLink, error)
-	ListProductMediaByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]catalog.ProductMedia, error)
+	ListReadyProductMediaByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]catalog.ProductMedia, error)
 	ListProductMediaRolesByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID]map[catalog.MediaRole]uuid.UUID, error)
 }
 
@@ -95,7 +95,7 @@ func primeGroup[V any](ctx context.Context, l *Loaders, id uuid.UUID, key string
 
 func (l *Loaders) LoadProductMedia(ctx context.Context, id uuid.UUID) ([]catalog.ProductMedia, error) {
 	if l.catalog != nil {
-		primeGroup(ctx, l, id, "media", l.ProductMedia, l.catalog.ListProductMediaByProductIDs)
+		primeGroup(ctx, l, id, "media", l.ProductMedia, l.catalog.ListReadyProductMediaByProductIDs)
 	}
 	return l.ProductMedia.Load(ctx, id)()
 }

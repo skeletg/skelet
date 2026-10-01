@@ -277,3 +277,51 @@ func TestTheBatchSendsOnItsOwnAfterTheWindow(t *testing.T) {
 	}
 	t.Error("the batch never sent after its window")
 }
+
+func productTagged(calls []purgeCall, id uuid.UUID) bool {
+	for _, c := range calls {
+		if slices.Contains(c.tags, productTag(id)) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestAListingChangeReachesTheProductPage(t *testing.T) {
+	id := uuid.New()
+	r := newRig("invalidate", map[string]bool{})
+	_ = r.fire(t, &catalog.ProductListingChanged{ProductID: id, IsPublished: false})
+	if !productTagged(r.purger.on(catalog.CacheSurfaceProduct), id) {
+		t.Error("an unpublished listing left the PDP cached")
+	}
+	r = newRig("invalidate", map[string]bool{catalog.CacheProductOnUpdate: true})
+	_ = r.fire(t, &catalog.ProductListingChanged{ProductID: id, IsPublished: true})
+	if !productTagged(r.purger.on(catalog.CacheSurfaceProduct), id) {
+		t.Error("a published listing edit didn't purge the PDP")
+	}
+	if len(r.purger.on(catalog.CacheSurfaceCatalog)) == 0 {
+		t.Error("the grids weren't busted")
+	}
+}
+
+func TestAttributeChangesPurgeTheProductsCarryingThem(t *testing.T) {
+	id := uuid.New()
+	r := newRig("invalidate", map[string]bool{})
+	_ = r.fire(t, &catalog.AttributeUpdated{ProductIDs: []uuid.UUID{id}, ChangedFields: []string{catalog.AttributeFieldIsPublic}})
+	if !productTagged(r.purger.on(catalog.CacheSurfaceProduct), id) {
+		t.Error("an isPublic flip left the PDP cached")
+	}
+	if len(r.purger.on(catalog.CacheSurfaceCatalog)) == 0 {
+		t.Error("the grids weren't busted")
+	}
+	r = newRig("invalidate", map[string]bool{})
+	_ = r.fire(t, &catalog.AttributeUpdated{ProductIDs: []uuid.UUID{id}, ChangedFields: []string{"name"}})
+	if productTagged(r.purger.on(catalog.CacheSurfaceProduct), id) {
+		t.Error("a rename purged the PDP with the update toggle off")
+	}
+	r = newRig("invalidate", map[string]bool{})
+	_ = r.fire(t, &catalog.AttributeDeleted{ProductIDs: []uuid.UUID{id}})
+	if !productTagged(r.purger.on(catalog.CacheSurfaceProduct), id) {
+		t.Error("a deleted attribute left the PDP cached")
+	}
+}

@@ -436,8 +436,7 @@ func (r *postgresRepository) ListCollectionFacetOverrides(ctx context.Context, c
 
 // Same clear-and-rebuild shape as the category twin
 func (r *postgresRepository) ReplaceCollectionFacetOverrides(ctx context.Context, collectionID uuid.UUID, overrides []FacetOverride) error {
-	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	return r.atomic(ctx, func(q *db.Queries) error {
 		if err := q.DeleteCollectionFacetOverrides(ctx, collectionID); err != nil {
 			return fmt.Errorf("clear collection facet overrides: %w", err)
 		}

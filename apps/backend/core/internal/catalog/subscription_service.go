@@ -21,9 +21,18 @@ func (s *subscriptionTermsService) SetSubscriptionTerms(ctx context.Context, inp
 	if !IsValidIntervalUnit(input.IntervalUnit) {
 		return SubscriptionTerms{}, ErrSubscriptionTermsInvalid
 	}
-	return s.repo.UpsertSubscriptionTerms(ctx, input)
+	terms, err := s.repo.UpsertSubscriptionTerms(ctx, input)
+	if err != nil {
+		return SubscriptionTerms{}, err
+	}
+	s.publishProductUpdatedByID(ctx, input.ProductID, "subscriptionTerms")
+	return terms, nil
 }
 
 func (s *subscriptionTermsService) ClearSubscriptionTerms(ctx context.Context, productID uuid.UUID) error {
-	return s.repo.DeleteSubscriptionTerms(ctx, productID)
+	if err := s.repo.DeleteSubscriptionTerms(ctx, productID); err != nil {
+		return err
+	}
+	s.publishProductUpdatedByID(ctx, productID, "subscriptionTerms")
+	return nil
 }

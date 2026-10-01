@@ -19,6 +19,11 @@ SELECT * FROM catalog_product_media
 WHERE product_id = ANY(sqlc.arg(product_ids)::uuid[])
 ORDER BY product_id, sort_order, created_at;
 
+-- name: ListReadyProductMediaByProductIDs :many
+SELECT * FROM catalog_product_media
+WHERE product_id = ANY(sqlc.arg(product_ids)::uuid[]) AND status = 'ready'
+ORDER BY product_id, sort_order, created_at;
+
 -- name: UpdateProductMediaMetadata :one
 UPDATE catalog_product_media
 SET alt_text   = $2,

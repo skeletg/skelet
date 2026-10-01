@@ -67,7 +67,9 @@ func (r *Resolver) productMediaModels(ctx context.Context, obj *model.Product) (
 	if l := dataloaders.For(ctx); l != nil && l.ProductMedia != nil {
 		items, err = l.LoadProductMedia(ctx, pid)
 	} else {
-		items, err = r.CatalogSvc.ListProductMedia(ctx, pid)
+		var byID map[uuid.UUID][]catalog.ProductMedia
+		byID, err = r.CatalogSvc.ListReadyProductMediaByProductIDs(ctx, []uuid.UUID{pid})
+		items = byID[pid]
 	}
 	if err != nil {
 		return nil, err

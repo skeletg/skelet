@@ -3,6 +3,8 @@ package cacheinvalidate
 
 import (
 	"context"
+	"errors"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -88,8 +90,34 @@ func Register(bus *events.Bus, purger Purger, queue Rebuilder, paths PathResolve
 		r.grids("product created")
 		return nil
 	})
-	on(bus, catalog.EventProductListingChanged, func(context.Context, *catalog.ProductListingChanged) error {
+	on(bus, catalog.EventProductListingChanged, func(ctx context.Context, e *catalog.ProductListingChanged) error {
 		r.grids("product listing changed")
+		if e.Cleared || !e.IsPublished {
+			r.productEvict(ctx, e.ProductID, "product unlisted")
+			return nil
+		}
+		return r.product(ctx, e.ProductID, catalog.CacheProductOnUpdate, "product listing changed")
+	})
+
+	// Attribute edits reshape facets on every grid and the attribute block on each product carrying it - a visibility flip may hide a value, so it always evicts
+	on(bus, catalog.EventAttributeUpdated, func(ctx context.Context, e *catalog.AttributeUpdated) error {
+		r.grids("attribute updated")
+		evict := slices.Contains(e.ChangedFields, catalog.AttributeFieldIsPublic)
+		var errs []error
+		for _, id := range e.ProductIDs {
+			if evict {
+				r.productEvict(ctx, id, "attribute visibility changed")
+				continue
+			}
+			errs = append(errs, r.product(ctx, id, catalog.CacheProductOnUpdate, "attribute updated"))
+		}
+		return errors.Join(errs...)
+	})
+	on(bus, catalog.EventAttributeDeleted, func(ctx context.Context, e *catalog.AttributeDeleted) error {
+		r.grids("attribute deleted")
+		for _, id := range e.ProductIDs {
+			r.productEvict(ctx, id, "attribute deleted")
+		}
 		return nil
 	})
 
@@ -196,6 +224,13 @@ func (r reactor) productDeleted(ctx context.Context, productID uuid.UUID) {
 		return
 	}
 	r.batch.Purge(catalog.CacheSurfaceProduct, []string{productTag(productID)}, nil, "product deleted")
+}
+
+func (r reactor) productEvict(ctx context.Context, productID uuid.UUID, reason string) {
+	if productID == uuid.Nil {
+		return
+	}
+	r.batch.Purge(catalog.CacheSurfaceProduct, []string{productTag(productID)}, r.paths.CanonicalPaths(ctx, urlrewrite.EntityTypeProduct, productID), reason)
 }
 
 // The configured product mode, "" when off

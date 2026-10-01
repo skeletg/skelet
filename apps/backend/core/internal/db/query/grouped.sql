@@ -13,11 +13,6 @@ SELECT * FROM catalog_product_grouped_members
 WHERE parent_id = $1
 ORDER BY sort_order, created_at;
 
--- name: ListGroupedMembersByParentIDs :many
-SELECT * FROM catalog_product_grouped_members
-WHERE parent_id = ANY(sqlc.arg(parent_ids)::uuid[])
-ORDER BY parent_id, sort_order, created_at;
-
 -- name: UpdateGroupedMember :one
 UPDATE catalog_product_grouped_members
 SET default_quantity = $2,
