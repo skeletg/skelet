@@ -65,6 +65,8 @@ func (f fakeRepo) ListAbandoned(context.Context, uuid.UUID, time.Time, time.Time
 func (f fakeRepo) MarkAbandonedNotified(context.Context, []uuid.UUID) error { return nil }
 func (f fakeRepo) SetEmail(context.Context, uuid.UUID, string) error        { return nil }
 func (f fakeRepo) SetNote(context.Context, uuid.UUID, string) error         { return nil }
+func (f fakeRepo) LockCart(_ context.Context, id uuid.UUID) (Cart, error)   { return f.getCart(id) }
+func (f fakeRepo) SetCheckout(context.Context, uuid.UUID, Checkout) error   { return nil }
 func (f fakeRepo) PruneStale(context.Context, time.Time) (int64, error)     { return 0, nil }
 func (f fakeRepo) SaveItem(context.Context, uuid.UUID, string, string, float64) (SavedItem, error) {
 	return SavedItem{}, nil

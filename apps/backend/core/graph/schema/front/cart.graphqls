@@ -12,6 +12,123 @@ type Cart {
   appliedCodes:  [AppliedPromotionCode!]!
   # Aggregate discount across every applied code (subtotal-level).
   totalDiscount: Int!
+  # What the shopper has chosen at checkout so far, saved step by step. Resolved on demand - it prices shipping and tax, so select it on the checkout page rather than in every cart fragment.
+  checkout: CartCheckout!
+}
+
+type CartCheckout {
+  email: String!
+  # Where the order is headed - saved by the first step from a postcode, then kept in step with the shipping address. Null until the first step is saved.
+  destination: CheckoutDestination
+  # The chosen method, priced for this cart at the destination. Null when none is chosen, or when the chosen one is no longer offered (the destination or the lines changed) - the shopper picks again.
+  shippingMethod: ShippingQuote
+  # True when the chosen method is collection from a store - the order then needs pickupContact rather than a shipping address.
+  isPickup: Boolean!
+  phone: String!
+  purchaseType: PurchaseType!
+  company: String!
+  # The company identifiers given, by the country's field key.
+  businessIds: [BusinessIdValue!]!
+  poNumber: String!
+  shippingAddress: CartAddress
+  billingSameAsShipping: Boolean!
+  # The billing address placement will use - the shipping address when billingSameAsShipping.
+  billingAddress: CartAddress
+  pickupContact: PickupContact
+  # The chosen payment method. Null when none is chosen, or when it doesn't accept the destination country.
+  paymentProviderSlug: String
+  giftCards: [CartGiftCard!]!
+  useStoreCredit: Boolean!
+  totals: CheckoutTotals!
+}
+
+type CheckoutDestination {
+  countryCode: String!
+  regionCode:  String
+  postalCode:  String!
+}
+
+type BusinessIdValue {
+  key:   String!
+  value: String!
+}
+
+input BusinessIdValueInput {
+  key:   String!
+  value: String!
+}
+
+enum PurchaseType {
+  PERSONAL
+  BUSINESS
+}
+
+# Who collects a pickup order. someoneElse is false when the shopper collects it themselves.
+type PickupContact {
+  firstName:   String!
+  lastName:    String!
+  someoneElse: Boolean!
+}
+
+input PickupContactInput {
+  firstName:   String!
+  lastName:    String!
+  someoneElse: Boolean!
+}
+
+# The details step, saved as one write. The shape follows the chosen method: a delivery needs a shipping address (exactly one of shippingAddressId or shippingAddress), a pickup needs pickupContact. Which of phone, company, poNumber and the pickup billing address are asked for or required follows the store's sales/checkout settings, and the company identifiers follow the company's country.
+input CheckoutDetailsInput {
+  # Required unless the shopper is signed in - their account email is used then.
+  email:                 String
+  phone:                 String
+  purchaseType:          PurchaseType! = PERSONAL
+  company:               String
+  # The company identifiers for the company's country - its billing country, else the destination. Keys it doesn't ask for are dropped.
+  businessIds:           [BusinessIdValueInput!]
+  poNumber:              String
+  shippingAddressId:     ID
+  shippingAddress:       AddressInput
+  pickupContact:         PickupContactInput
+  # A delivery's billing address may mirror its shipping address. Otherwise exactly one of billingAddressId or billingAddress - a pickup has no shipping address to mirror.
+  billingSameAsShipping: Boolean!
+  billingAddressId:      ID
+  billingAddress:        AddressInput
+}
+
+# An address snapshot on the cart. sourceAddressId is the saved address it was copied from, null when it was typed in.
+type CartAddress {
+  firstName:       String!
+  lastName:        String!
+  company:         String
+  street1:         String!
+  street2:         String
+  city:            String!
+  state:           String
+  postalCode:      String!
+  countryCode:     String!
+  phone:           String
+  sourceAddressId: ID
+}
+
+type CartGiftCard {
+  code: String!
+  # What this card covers of the current total, in the order they were added.
+  appliedCents: Int!
+  balanceCents: Int!
+}
+
+# Priced the way placeOrder will charge. Before a shipping address is saved, shipping and tax are 0 and total is the discounted subtotal.
+type CheckoutTotals {
+  subtotalCents:    Int!
+  discountCents:    Int!
+  shippingCents:    Int!
+  # Included in total unless the store prices tax-inclusive.
+  taxCents:         Int!
+  totalCents:       Int!
+  giftCardCents:    Int!
+  storeCreditCents: Int!
+  # What the payment method is charged: total less gift cards and store credit.
+  amountDueCents:   Int!
 }
 
 type AppliedPromotionCode {
@@ -71,6 +188,8 @@ type ShippingQuote {
   code:        String!
   name:        String!
   priceCents:  Int!
+  # Business days until it arrives, as the carrier quotes it. Null when the carrier gives no estimate.
+  estimatedDays: Int
 }
 
 # A save-for-later item parked off the cart. imageUrl is hydrated like a line.
@@ -215,4 +334,17 @@ extend type Mutation {
   applyCoupon(cartId: ID!, code: String!): Cart!
   # Remove a specific code from the cart.
   removeCoupon(cartId: ID!, code: String!): Cart!
+  # Checkout steps. Each saves one choice to the cart, validated against the store, and returns the whole cart so a reload resumes where the shopper was. placeOrder reads all of it from the cart.
+  # Step 1 - where the order is headed. Delivery and pickup are quoted from this alone, so no address is needed yet. A saved shipping address in another country or postcode is cleared, and a shipping or payment method the new destination doesn't support is dropped.
+  setCartDestination(cartId: ID!, countryCode: String!, regionCode: String, postalCode: String!): Cart!
+  # One of the shippingQuotes offered for the destination, delivery or pickup. Needs a destination first.
+  setCartShippingMethod(cartId: ID!, carrierSlug: String!, code: String!): Cart!
+  # Step 2 - contact, business details and the addresses or pickup contact, in one write. A shipping address in another country or postcode moves the destination, which can drop the chosen method - the shopper then picks again.
+  setCartDetails(cartId: ID!, input: CheckoutDetailsInput!): Cart!
+  # One of the paymentMethods offered for the destination country. Needs a destination first.
+  setCartPaymentMethod(cartId: ID!, providerSlug: String!): Cart!
+  applyGiftCard(cartId: ID!, code: String!): Cart!
+  removeGiftCard(cartId: ID!, code: String!): Cart!
+  # Signed-in only - spends the customer's balance against what gift cards leave.
+  setCartStoreCredit(cartId: ID!, use: Boolean!): Cart!
 }

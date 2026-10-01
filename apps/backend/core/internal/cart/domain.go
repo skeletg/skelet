@@ -105,10 +105,103 @@ type Cart struct {
 	CustomerID *uuid.UUID
 	ChannelID  uuid.UUID
 	Status     string
+	Email      string
 	Note       string
+	Checkout   Checkout
 	Lines      []CartLine
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+}
+
+// Checkout is what the shopper has chosen so far, saved step by step so a reload resumes where they were - the cart stores it as given, and the resolvers validate each step before it lands here. Placement re-prices and re-validates all of it
+type Checkout struct {
+	ShippingAddress       *Address
+	ShippingAddressID     *uuid.UUID // the saved address the snapshot came from, nil when typed in
+	BillingSameAsShipping bool
+	BillingAddress        *Address
+	BillingAddressID      *uuid.UUID
+	ShippingCarrierSlug   string // with ShippingMethodCode, empty when nothing is chosen
+	ShippingMethodCode    string
+	PaymentProviderSlug   string
+	PONumber              string
+	UseStoreCredit        bool
+	GiftCardCodes         []string
+	// Destination is where the order is headed before a full address exists - the first step quotes from it, and saving a shipping address overwrites it with that address's own
+	Destination   Destination
+	ContactPhone  string
+	PurchaseType  string            // PurchasePersonal or PurchaseBusiness
+	Company       string            // business purchases only, with BusinessIDs
+	BusinessIDs   map[string]string // the company identifiers the country asks for, by field key ("pib" -> "123456789")
+	PickupContact *PickupContact    // who collects a pickup order, nil until the details step of one
+}
+
+const (
+	PurchasePersonal = "personal"
+	PurchaseBusiness = "business"
+)
+
+// Destination is the country, region and postcode shipping and tax are quoted for
+type Destination struct {
+	CountryCode string
+	Region      string
+	PostalCode  string
+}
+
+func (d Destination) IsZero() bool { return d.CountryCode == "" }
+
+// PickupContact names who collects a pickup order - the shopper, or someone they send
+type PickupContact struct {
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	SomeoneElse bool   `json:"someoneElse"`
+}
+
+// Address is a snapshot in the AddressInput shape - the storage format of the cart's address columns
+type Address struct {
+	FirstName   string  `json:"firstName"`
+	LastName    string  `json:"lastName"`
+	Company     *string `json:"company,omitempty"`
+	Street1     string  `json:"street1"`
+	Street2     *string `json:"street2,omitempty"`
+	City        string  `json:"city"`
+	State       *string `json:"state,omitempty"`
+	PostalCode  string  `json:"postalCode"`
+	CountryCode string  `json:"countryCode"`
+	Phone       *string `json:"phone,omitempty"`
+}
+
+// EffectiveBilling is the billing address placement uses - the shipping snapshot when billing mirrors it
+func (c Checkout) EffectiveBilling() (*Address, *uuid.UUID) {
+	if c.BillingSameAsShipping {
+		return c.ShippingAddress, c.ShippingAddressID
+	}
+	return c.BillingAddress, c.BillingAddressID
+}
+
+// QuoteDestination is what shipping and tax are quoted for - the shipping address once there is one, else the destination the first step saved
+func (c Checkout) QuoteDestination() Destination {
+	if c.ShippingAddress != nil && !c.IsPickup() {
+		a := c.ShippingAddress
+		d := Destination{CountryCode: a.CountryCode, PostalCode: a.PostalCode}
+		if a.State != nil {
+			d.Region = *a.State
+		}
+		return d
+	}
+	return c.Destination
+}
+
+// ShippingCountry is the destination's country, empty until the first step is saved
+func (c Checkout) ShippingCountry() string {
+	return c.QuoteDestination().CountryCode
+}
+
+// PickupCarrierSlug mirrors shipping.PickupCarrierSlug - the cart doesn't import shipping
+const PickupCarrierSlug = "pickup"
+
+// IsPickup reports whether the chosen method is collection from a store, which needs no shipping address
+func (c Checkout) IsPickup() bool {
+	return c.ShippingCarrierSlug == PickupCarrierSlug
 }
 
 // A BUNDLE line carries the bundle total with picks in Components, one row per component - simple lines leave it empty
@@ -237,6 +330,9 @@ type Repository interface {
 	SetEmail(ctx context.Context, cartID uuid.UUID, email string) error
 
 	SetNote(ctx context.Context, cartID uuid.UUID, note string) error
+
+	LockCart(ctx context.Context, cartID uuid.UUID) (Cart, error) // GetCartByID under FOR UPDATE, for a checkout read-modify-write inside a transaction
+	SetCheckout(ctx context.Context, cartID uuid.UUID, c Checkout) error
 
 	PruneStale(ctx context.Context, cutoff time.Time) (int64, error)
 

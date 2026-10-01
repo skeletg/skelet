@@ -63,6 +63,11 @@ models:
     model: github.com/skeletg/skelet/apps/backend/core/graph/front/model.BundleMembership
   GroupedMembership:
     model: github.com/skeletg/skelet/apps/backend/core/graph/front/model.GroupedMembership
+  Cart:
+    fields:
+      # Prices shipping and tax, so only the checkout page pays for it
+      checkout:
+        resolver: true
   Order:
     fields:
       # The autobound admin Order struct carries a Returns field that the storefront order load never populates - force a resolver so the customer's RMAs are fetched on demand. returnableLines has no struct field, so it would resolve automatically; pinned here for clarity.
