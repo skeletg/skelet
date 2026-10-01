@@ -147,3 +147,31 @@ SELECT * FROM cart_saved_items WHERE cart_id = $1 ORDER BY created_at DESC;
 
 -- name: SetCartNote :exec
 UPDATE carts SET note = $2, updated_at = NOW() WHERE id = $1;
+
+-- name: LockCart :one
+-- Row lock for a checkout read-modify-write, so two step saves can't overwrite each other
+SELECT * FROM carts WHERE id = $1 FOR UPDATE;
+
+-- name: SetCartCheckout :exec
+UPDATE carts SET
+    shipping_address         = sqlc.narg(shipping_address),
+    shipping_address_id      = sqlc.narg(shipping_address_id),
+    billing_same_as_shipping = sqlc.arg(billing_same_as_shipping),
+    billing_address          = sqlc.narg(billing_address),
+    billing_address_id       = sqlc.narg(billing_address_id),
+    shipping_carrier_slug    = sqlc.arg(shipping_carrier_slug),
+    shipping_method_code     = sqlc.arg(shipping_method_code),
+    payment_provider_slug    = sqlc.arg(payment_provider_slug),
+    po_number                = sqlc.arg(po_number),
+    use_store_credit         = sqlc.arg(use_store_credit),
+    gift_card_codes          = sqlc.arg(gift_card_codes)::text[],
+    destination_country      = sqlc.arg(destination_country),
+    destination_region       = sqlc.arg(destination_region),
+    destination_postal_code  = sqlc.arg(destination_postal_code),
+    contact_phone            = sqlc.arg(contact_phone),
+    purchase_type            = sqlc.arg(purchase_type),
+    company_name             = sqlc.arg(company_name),
+    business_ids             = sqlc.arg(business_ids),
+    pickup_contact           = sqlc.narg(pickup_contact),
+    updated_at               = NOW()
+WHERE id = sqlc.arg(id);

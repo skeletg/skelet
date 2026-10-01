@@ -112,9 +112,9 @@ func (s *Service) AuthorizeCart(ctx context.Context, cartID uuid.UUID, callerID 
 }
 
 func (s *Service) SetCartEmail(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, email string) error { // a checkout-entry email makes an abandoned cart recoverable before any account or order exists
-	email = strings.ToLower(strings.TrimSpace(email)) // the form customer emails take, so recovery and the guest-order claim match it
-	if addr, err := mail.ParseAddress(email); err != nil || addr.Address != email || len(email) > maxEmailBytes {
-		return ErrCartEmailInvalid
+	email, err := normalizeCartEmail(email)
+	if err != nil {
+		return err
 	}
 	cart, err := authorizeCart(ctx, s.repo, cartID, callerID)
 	if err != nil {
@@ -133,6 +133,37 @@ func (s *Service) SetCartNote(ctx context.Context, cartID uuid.UUID, callerID *u
 		return err
 	}
 	return s.repo.SetNote(ctx, cart.ID, note)
+}
+
+// UpdateCheckout applies one checkout step under a row lock, so concurrent step saves can't overwrite each other. The step edits c.Checkout, and may set c.Email - the details step saves contact and addresses as one write. The resolvers validate the step against shipping, payment and gift cards before calling this - the cart only stores what it's given
+func (s *Service) UpdateCheckout(ctx context.Context, cartID uuid.UUID, callerID *uuid.UUID, apply func(c *Cart) error) error {
+	return s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
+		r := s.repo.WithTx(sqlTx)
+		cart, err := r.LockCart(ctx, cartID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrCartForbidden
+			}
+			return fmt.Errorf("lock cart: %w", err)
+		}
+		if err := checkCartAccess(cart, callerID); err != nil {
+			return err
+		}
+		next := cart
+		next.Checkout.GiftCardCodes = append([]string(nil), cart.Checkout.GiftCardCodes...)
+		if err := apply(&next); err != nil {
+			return err
+		}
+		if strings.TrimSpace(next.Email) != cart.Email {
+			if next.Email, err = normalizeCartEmail(next.Email); err != nil {
+				return err
+			}
+			if err := r.SetEmail(ctx, cart.ID, next.Email); err != nil {
+				return err
+			}
+		}
+		return r.SetCheckout(ctx, cart.ID, next.Checkout)
+	})
 }
 
 func (s *Service) PruneStale(ctx context.Context, olderThan time.Duration) (int64, error) { // retention reaper - a converted cart's durable record lives on its order, so dropping the stale row loses nothing
@@ -511,6 +542,15 @@ func (s *Service) MarkAbandonedNotified(ctx context.Context, ids []uuid.UUID) er
 
 // --- helpers ---
 
+// The form customer emails take, so recovery and the guest-order claim match it - SetCartEmail and the details step share it
+func normalizeCartEmail(email string) (string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if addr, err := mail.ParseAddress(email); err != nil || addr.Address != email || len(email) > maxEmailBytes {
+		return "", ErrCartEmailInvalid
+	}
+	return email, nil
+}
+
 // A nil callerID is the guest path, allowed only for guest carts - not-found and not-authorized both return "forbidden" to avoid UUID enumeration
 func authorizeCart(ctx context.Context, repo Repository, cartID uuid.UUID, callerID *uuid.UUID) (Cart, error) {
 	cart, err := repo.GetCartByID(ctx, cartID)
@@ -520,16 +560,23 @@ func authorizeCart(ctx context.Context, repo Repository, cartID uuid.UUID, calle
 		}
 		return Cart{}, fmt.Errorf("load cart: %w", err) // a DB failure is NOT a permission answer - masking it as forbidden told the shopper their own cart was gone
 	}
-	if cart.Status != "active" {
-		return Cart{}, ErrCartNotActive
-	}
-	if cart.CustomerID == nil {
-		return cart, nil
-	}
-	if callerID == nil || *callerID != *cart.CustomerID {
-		return Cart{}, ErrCartForbidden
+	if err := checkCartAccess(cart, callerID); err != nil {
+		return Cart{}, err
 	}
 	return cart, nil
+}
+
+func checkCartAccess(cart Cart, callerID *uuid.UUID) error {
+	if cart.Status != "active" {
+		return ErrCartNotActive
+	}
+	if cart.CustomerID == nil {
+		return nil
+	}
+	if callerID == nil || *callerID != *cart.CustomerID {
+		return ErrCartForbidden
+	}
+	return nil
 }
 
 func valueOr[T any](p *T, fallback T) T { // a hook that nils an override field means "keep the input"

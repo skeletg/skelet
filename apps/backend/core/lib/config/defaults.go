@@ -56,6 +56,26 @@ func init() {
 
 	Register(Definition{Path: "sales/checkout/allow_guest", Type: TypeBool, Default: "true", Label: "Allow guest checkout", Description: "Whether someone can complete checkout without an account. Off forces registration or sign-in before the order can be placed.", Public: true})
 	Register(Definition{Path: "sales/checkout/min_order", Type: TypeInt, Default: "0", Label: "Minimum order amount (cents)", Description: "Orders below this merchandise total are refused at checkout. In minor units, so 2500 is $25.00. 0 disables the floor.", Public: true})
+	Register(Definition{Path: "sales/checkout/phone_field", Type: TypeSelect, Default: "optional", Label: "Phone number at checkout", Description: "Whether the details step asks for a phone number the carrier or store can reach the shopper on. Required refuses the order without one.", Public: true, Options: []Option{
+		{Value: "hidden", Label: "Hidden"},
+		{Value: "optional", Label: "Optional"},
+		{Value: "required", Label: "Required"},
+	}})
+	Register(Definition{Path: "sales/checkout/business_purchase", Type: TypeBool, Default: "false", Label: "Offer business purchases", Description: "Adds a Personal / Business switch to the details step. Business asks for the company name, and the tax ID and PO number below when they are on.", Public: true})
+	Register(Definition{Path: "sales/checkout/tax_id_field", Type: TypeSelect, Default: "optional", Label: "Generic tax ID on business purchases", Description: "The one tax ID a business purchase asks for when the company's country defines no company ID fields of its own. Set a country's own (Serbia's PIB and Matični broj, a VAT number) on the country's page.", Public: true, Options: []Option{
+		{Value: "hidden", Label: "Hidden"},
+		{Value: "optional", Label: "Optional"},
+		{Value: "required", Label: "Required"},
+	}})
+	Register(Definition{Path: "sales/checkout/po_number_field", Type: TypeBool, Default: "false", Label: "Ask business buyers for a PO number", Description: "An optional purchase-order reference on business purchases, stored on the order for invoicing.", Public: true})
+	Register(Definition{Path: "sales/checkout/pickup_by_someone_else", Type: TypeBool, Default: "true", Label: "Let someone else collect a pickup order", Description: "Adds \"Someone else will collect it\" to pickup orders, with the collector's name. The payer's billing address is then required so the order still names who paid.", Public: true})
+	Register(Definition{Path: "sales/checkout/pickup_requires_billing_address", Type: TypeBool, Default: "false", Label: "Require a billing address on pickup orders", Description: "Off, a pickup order needs only a name, email and the store. On, the shopper also enters a billing address - some markets need one on every invoice.", Public: true})
+	Register(Definition{Path: "sales/checkout/threshold_progress", Type: TypeBool, Default: "true", Label: "Show spend-more progress at checkout", Description: "Shows how much more unlocks the minimum order or free shipping, with a link back to the cart, instead of only refusing the order.", Public: true})
+	Register(Definition{Path: "sales/checkout/terms_consent", Type: TypeSelect, Default: "checkbox", Label: "Terms consent at payment", Description: "Checkbox makes the shopper tick that they accept the terms before paying, which many EU markets need. Notice shows a line saying placing the order accepts them. Off shows neither.", Public: true, Options: []Option{
+		{Value: "checkbox", Label: "Checkbox"},
+		{Value: "notice", Label: "Notice"},
+		{Value: "off", Label: "Off"},
+	}})
 	Register(Definition{Path: "sales/checkout/shipping_taxable", Type: TypeBool, Default: "true", Label: "Charge tax on shipping", Description: "Shipping is taxed like a product line under the shipping tax class below. Turn it off where shipping is exempt."})
 	Register(Definition{Path: "sales/checkout/shipping_tax_class", Type: TypeString, Default: "", Label: "Shipping tax class", Description: "The tax class shipping is taxed under. Empty matches only the rules that apply to every product."})
 	Register(Definition{Path: "sales/checkout/risk_hold_threshold", Type: TypeInt, Default: "0", Label: "Auto-hold orders at or above this risk score (0 = off)", Description: "Orders scoring at or above this are placed on hold for manual review instead of flowing straight to fulfillment. 0 disables the hold.", Public: false})

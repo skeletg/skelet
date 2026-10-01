@@ -85,6 +85,14 @@ func (s *Service) MergeGuestCart(ctx context.Context, customerID, guestCartID uu
 				return err
 			}
 		}
+		if err := r.SetCheckout(ctx, cc.ID, mergeCheckout(guest.Checkout, cc.Checkout)); err != nil { // the adoption path keeps checkout state on the same row; a merge carries it across
+			return err
+		}
+		if guest.Email != "" { // the receipt address the guest typed wins, like the rest of their checkout
+			if err := r.SetEmail(ctx, cc.ID, guest.Email); err != nil {
+				return err
+			}
+		}
 		resultID = cc.ID
 		return nil
 	})
@@ -162,4 +170,47 @@ func copyLines(ctx context.Context, r Repository, destID uuid.UUID, lines []Cart
 		}
 	}
 	return nil
+}
+
+// mergeCheckout is what a customer cart holds after a guest cart merges into it - the guest's selections win, since that is what the shopper was just filling in, and the customer cart's fill only what the guest left empty
+func mergeCheckout(guest, customer Checkout) Checkout {
+	out := customer
+	if guest.ShippingAddress != nil {
+		out.ShippingAddress, out.ShippingAddressID = guest.ShippingAddress, guest.ShippingAddressID
+	}
+	if guest.ShippingAddress != nil || guest.BillingAddress != nil { // billing travels as a unit with its same-as-shipping flag
+		out.BillingSameAsShipping = guest.BillingSameAsShipping
+		out.BillingAddress, out.BillingAddressID = guest.BillingAddress, guest.BillingAddressID
+	}
+	if guest.ShippingCarrierSlug != "" {
+		out.ShippingCarrierSlug, out.ShippingMethodCode = guest.ShippingCarrierSlug, guest.ShippingMethodCode
+	}
+	if guest.PaymentProviderSlug != "" {
+		out.PaymentProviderSlug = guest.PaymentProviderSlug
+	}
+	if guest.PONumber != "" {
+		out.PONumber = guest.PONumber
+	}
+	if !guest.Destination.IsZero() {
+		out.Destination = guest.Destination
+	}
+	if guest.ContactPhone != "" {
+		out.ContactPhone = guest.ContactPhone
+	}
+	if guest.PurchaseType == PurchaseBusiness { // the business details travel as a unit with the purchase type
+		out.PurchaseType, out.Company, out.BusinessIDs = guest.PurchaseType, guest.Company, guest.BusinessIDs
+	}
+	if guest.PickupContact != nil {
+		out.PickupContact = guest.PickupContact
+	}
+	out.UseStoreCredit = customer.UseStoreCredit // a guest can't hold store credit
+	seen := make(map[string]bool)
+	out.GiftCardCodes = nil
+	for _, c := range append(append([]string(nil), guest.GiftCardCodes...), customer.GiftCardCodes...) {
+		if !seen[c] {
+			seen[c] = true
+			out.GiftCardCodes = append(out.GiftCardCodes, c)
+		}
+	}
+	return out
 }
