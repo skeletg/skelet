@@ -3,13 +3,9 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { AID_COOKIE } from "@/app/lib/analytics/visitor";
+import { readCookie } from "@/app/lib/cookies";
 import { useCustomerIdentity } from "@/app/lib/customer/client";
-
-function readCookie(name: string): string {
-  if (typeof document === "undefined") return "";
-  const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
-  return m ? decodeURIComponent(m[1]) : "";
-}
 
 export function BackInStockForm({
   productId,
@@ -45,7 +41,7 @@ export function BackInStockForm({
         "Content-Type": "application/json",
         "X-Channel-Id": channelId,
       };
-      const aid = readCookie("lens_aid");
+      const aid = readCookie(AID_COOKIE);
       if (aid) headers["X-Anon-Id"] = aid;
       const res = await fetch("/t/back-in-stock", {
         method: "POST",
