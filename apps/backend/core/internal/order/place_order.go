@@ -37,8 +37,9 @@ type checkoutContext struct {
 }
 
 // Loads and validates everything PlaceOrder needs before the tx - customer, addresses, channel country and region enforcement, payment provider, the cart with its ownership checks and subtotal, and a pre-allocated order id
-func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*checkoutContext, error) {
-	if in.Email == "" {
+// A quote (QuoteCheckout) skips the email requirement and the strict address validator: it prices a checkout still being filled in, and the remote validator is a per-call round-trip that placement runs anyway
+func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput, quote bool) (*checkoutContext, error) {
+	if in.Email == "" && !quote {
 		return nil, apperr.New("EMAIL_REQUIRED", apperr.ClassValidation, "email is required")
 	}
 
@@ -53,11 +54,17 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 	}
 
 	// Resolve billing + shipping - inline wins, an ID lookup needs a logged-in customer with that address
-	billing, err := resolveAddress(in.BillingAddress, in.BillingAddressID, in.CustomerID != nil, c, "billing")
+	// The store is only required further down, so a missing one reads its phones under the default rules until then
+	var storeID uuid.UUID
+	if st, ok := channel.FromContext(ctx); ok {
+		storeID = st.ID
+	}
+	rules := s.phoneRules(ctx, storeID)
+	billing, err := resolveAddress(in.BillingAddress, in.BillingAddressID, in.CustomerID != nil, c, "billing", quote, rules)
 	if err != nil {
 		return nil, err
 	}
-	shipping, err := resolveAddress(in.ShippingAddress, in.ShippingAddressID, in.CustomerID != nil, c, "shipping")
+	shipping, err := resolveAddress(in.ShippingAddress, in.ShippingAddressID, in.CustomerID != nil, c, "shipping", quote, rules)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +85,10 @@ func (s *Service) resolveCheckout(ctx context.Context, in PlaceOrderInput) (*che
 		}
 	}
 
-	if err := s.checkStrictAddresses(ctx, store.ID, shipping, billing); err != nil {
-		return nil, err
+	if !quote {
+		if err := s.checkStrictAddresses(ctx, store.ID, shipping, billing); err != nil {
+			return nil, err
+		}
 	}
 
 	// Resolve + validate the payment provider - optional (no slug = no provider),

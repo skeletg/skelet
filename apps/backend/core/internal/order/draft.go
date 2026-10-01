@@ -55,11 +55,12 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 		return Order{}, apperr.New("DRAFT_UNAVAILABLE", apperr.ClassUnavailable, "draft orders are not configured (no pricer)")
 	}
 
-	billing, err := resolveAddress(&in.BillingAddress, nil, false, customer.Customer{}, "billing")
+	rules := s.phoneRules(ctx, in.ChannelID)
+	billing, err := resolveAddress(&in.BillingAddress, nil, false, customer.Customer{}, "billing", false, rules)
 	if err != nil {
 		return Order{}, err
 	}
-	shipping, err := resolveAddress(&in.ShippingAddress, nil, false, customer.Customer{}, "shipping")
+	shipping, err := resolveAddress(&in.ShippingAddress, nil, false, customer.Customer{}, "shipping", false, rules)
 	if err != nil {
 		return Order{}, err
 	}

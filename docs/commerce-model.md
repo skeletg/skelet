@@ -129,6 +129,38 @@ cart (no copy). `ConvertCart` is the concurrent placement serialization
 point - concurrent callers get `ErrCartAlreadyConverted`. Statuses:
 `active → converted` (placeOrder) or `merged` (mergeGuestCart).
 
+**Checkout** lives on the cart, in three steps: how the order arrives,
+who it is for, then payment. `setCartDestination` saves a country and
+postcode, which is all delivery and pickup need to be quoted, so no
+address is typed until the second step. `setCartShippingMethod` picks
+one of the quotes, delivery or pickup. `setCartDetails` saves contact,
+the business details, and either the delivery address with its billing
+address or, for pickup, who collects it, in one write. A pickup order
+needs no shipping address: placement ships it to the pickup location,
+addressed to the collector. Then `setCartPaymentMethod`,
+`applyGiftCard` and `setCartStoreCredit`, plus `setCartEmail` and
+`setCartNote`. Each is validated in the resolver and saved under the
+cart's row lock, so a reload resumes where the shopper was. What the
+details step asks for and requires follows the `sales/checkout/*`
+settings (phone, business purchase, PO number, someone else
+collecting, a billing address on pickup orders), and placement
+re-checks them. The company identifiers a business purchase asks for
+are defined per country (`countries.business_id_fields`: label, key,
+required, an RE2 pattern, a hint) and follow the company's country - its
+billing address, else the destination - with one generic tax ID, per
+`sales/checkout/tax_id_field`, where a country defines none. The order
+keeps them with their labels (`orders.business_ids`) for the invoice. Addresses are snapshots with the saved address they
+came from. Moving the destination, or saving an address in another
+postcode, drops a shipping or payment method it no longer supports, and
+`Cart.checkout` re-checks both on read, so a line change that alters the
+quotes shows up as an unchosen method. `Cart.checkout.totals` is priced
+by `order.Service.QuoteCheckout`, the placement pricing path without the
+transaction, which quotes from the destination alone until there is an
+address. `placeOrder(cartId, paymentToken, savedPaymentMethodId)` reads
+everything else from the cart and refuses an incomplete checkout with a
+`CHECKOUT_*_REQUIRED` code. On merge the guest cart's selections and
+email win.
+
 **Orders**: prices in **cents** (BIGINT). Address denormalized on
 `orders` (snapshot at placement, never changes). `order_events`
 immutable audit log. Number format `ORD-001000`. `PlaceOrder` wraps

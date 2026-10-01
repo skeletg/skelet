@@ -41,6 +41,7 @@ type Order struct {
 	CurrencyCode      string
 	CustomerNote      string
 	PONumber          string
+	BusinessIDs       []BusinessID // the buyer's company identifiers, empty on personal purchases
 	// Stamped at fulfillment, from admin args or an OrderFulfilling subscriber, and empty otherwise
 	Carrier        string
 	TrackingNumber string
@@ -69,6 +70,14 @@ type OrderAddress struct {
 	PostalCode  string
 	CountryCode string
 	Phone       *string
+}
+
+// BusinessID is one company identifier as the order records it - the label travels with the value, so an invoice reads
+// "PIB 123456789" even after the country's fields are edited
+type BusinessID struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Value string `json:"value"`
 }
 
 type OrderAmounts struct {
