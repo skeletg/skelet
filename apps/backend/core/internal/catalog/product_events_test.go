@@ -2,6 +2,7 @@ package catalog_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -187,5 +188,46 @@ func TestProductUpdatedOnIndexRelevantMutations(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+type deleteRepo struct {
+	catalog.ProductRepository
+}
+
+func (deleteRepo) ListProductParents(context.Context, uuid.UUID) ([]catalog.Product, error) {
+	return nil, nil
+}
+
+func (deleteRepo) GetProductByID(context.Context, uuid.UUID) (catalog.Product, error) {
+	return catalog.Product{}, errors.New("read replica down")
+}
+
+func (deleteRepo) DeleteProduct(context.Context, uuid.UUID) error { return nil }
+
+func TestDeleteProductAnnouncesTheIDWhenThePreReadFails(t *testing.T) {
+	bus := events.NewBus()
+	var mu sync.Mutex
+	var seen []uuid.UUID
+	bus.Subscribe(catalog.EventProductDeleted, func(_ context.Context, e events.Event) error {
+		mu.Lock()
+		defer mu.Unlock()
+		seen = append(seen, e.(*catalog.ProductDeleted).ProductID)
+		return nil
+	})
+	svc := svcWith(deleteRepo{}, func(d *catalog.Deps) { d.Bus = bus })
+	id := uuid.New()
+	if err := svc.DeleteProduct(context.Background(), id); err != nil {
+		t.Fatalf("DeleteProduct: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := bus.Drain(ctx); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(seen) != 1 || seen[0] != id {
+		t.Fatalf("product.deleted ids = %v, want [%s]", seen, id)
 	}
 }
