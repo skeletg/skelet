@@ -128,6 +128,7 @@ func wireOrderPlacement(d orderPlacementDeps) {
 	d.Order.SetCountryValidator(d.Country)
 	d.Order.SetProductTaxClassLookup(d.Catalog) // per-line tax needs each line's product tax class, resolved by SKU at placement time
 	d.Order.SetProductCostLookup(d.Catalog)
+	d.Order.SetKitComponentLookup(OrderKitLookup{svc: d.Catalog})
 	d.Order.SetGiftCardTender(NewGiftcardTender(d.Giftcard)) // gift-card codes redeem as a tender, inside the placement tx
 	d.Order.SetStoreCreditTender(NewStoreCreditTender(d.StoreCredit))
 	d.Order.SetGiftStockChecker(d.Inventory) // lets placement drop a promotion free gift stock can't cover, rather than appending a line the reservation rejects and taking the whole paid order down

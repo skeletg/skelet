@@ -837,6 +837,20 @@ func (r *postgresRepository) AddOrderLineComponent(ctx context.Context, c OrderL
 	return toOrderLineComponent(row), nil
 }
 
+func (r *postgresRepository) AddOrderLineKitComponents(ctx context.Context, orderLineID uuid.UUID, comps []OrderLineKitComponent) error {
+	for i, c := range comps {
+		if err := r.queries.InsertOrderLineKitComponent(ctx, db.InsertOrderLineKitComponentParams{
+			OrderLineID: orderLineID,
+			ProductID:   c.ProductID,
+			Quantity:    c.Quantity,
+			SortOrder:   int32(i),
+		}); err != nil {
+			return fmt.Errorf("add order line kit component: %w", err)
+		}
+	}
+	return nil
+}
+
 func (r *postgresRepository) AddOrderLineOption(ctx context.Context, o OrderLineOption) (OrderLineOption, error) {
 	valueID := uuid.NullUUID{}
 	if o.OptionValueID != nil {
@@ -933,6 +947,9 @@ func (r *postgresRepository) hydrateOrder(ctx context.Context, o Order) (Order, 
 		return Order{}, err
 	}
 	if err := r.attachOrderLineComponents(ctx, o.Lines); err != nil {
+		return Order{}, err
+	}
+	if err := r.attachOrderLineKitComponents(ctx, o.Lines); err != nil {
 		return Order{}, err
 	}
 	events, err := r.queries.ListOrderEventsByOrder(ctx, o.ID)
@@ -1260,6 +1277,28 @@ func (r *postgresRepository) attachOrderLineComponents(ctx context.Context, line
 	}
 	for i := range lines {
 		lines[i].Components = byLine[lines[i].ID]
+	}
+	return nil
+}
+
+func (r *postgresRepository) attachOrderLineKitComponents(ctx context.Context, lines []OrderLine) error {
+	if len(lines) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, len(lines))
+	for i := range lines {
+		ids[i] = lines[i].ID
+	}
+	rows, err := r.queries.ListOrderLineKitComponentsByOrderLineIDs(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("load order line kit components: %w", err)
+	}
+	byLine := make(map[uuid.UUID][]OrderLineKitComponent, len(lines))
+	for _, row := range rows {
+		byLine[row.OrderLineID] = append(byLine[row.OrderLineID], OrderLineKitComponent{ProductID: row.ProductID, Quantity: row.Quantity})
+	}
+	for i := range lines {
+		lines[i].KitComponents = byLine[lines[i].ID]
 	}
 	return nil
 }

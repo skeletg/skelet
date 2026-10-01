@@ -14,8 +14,8 @@ func (s *groupedService) GetGroupedMember(ctx context.Context, id uuid.UUID) (Gr
 
 // AddGroupedMember attaches a SIMPLE product to a GROUPED parent - The parent's kind, the member's kind, and the "not self" rule are all validated here - Duplicates (same parent+member pair) are caught by the UNIQUE constraint and surfaced as ErrGroupedMemberDuplicate
 func (s *groupedService) AddGroupedMember(ctx context.Context, input AddGroupedMemberInput) (GroupedMember, error) {
-	if input.DefaultQuantity <= 0 {
-		input.DefaultQuantity = 1
+	if err := validUnitQuantity(input.DefaultQuantity); err != nil {
+		return GroupedMember{}, err
 	}
 	parent, err := s.repo.GetProductByID(ctx, input.ParentID)
 	if err != nil {
@@ -45,8 +45,8 @@ func (s *groupedService) UpdateGroupedMember(ctx context.Context, input UpdateGr
 	}
 	finalQuantity := current.DefaultQuantity
 	if input.DefaultQuantity != nil {
-		if *input.DefaultQuantity <= 0 {
-			return GroupedMember{}, fmt.Errorf("default_quantity must be positive")
+		if err := validUnitQuantity(*input.DefaultQuantity); err != nil {
+			return GroupedMember{}, err
 		}
 		finalQuantity = *input.DefaultQuantity
 	}
@@ -65,12 +65,12 @@ func (s *groupedService) RemoveGroupedMember(ctx context.Context, id uuid.UUID) 
 	return s.repo.DeleteGroupedMember(ctx, id)
 }
 
-// ListGroupedMembers loads every member for a grouped parent, hydrating each with the member product's display fields (slug, sku, name, price, currency) - Member names resolve to the requested locale with default-locale fallback, matching the bundle read path
 // ListGroupedMemberLinksByMemberIDs batch-resolves the grouped products each product is a member of - Powers Product.partOf.groupedProducts
 func (s *groupedService) ListGroupedMemberLinksByMemberIDs(ctx context.Context, memberIDs []uuid.UUID) (map[uuid.UUID][]GroupedMemberLink, error) {
 	return s.repo.ListGroupedMemberLinksByMemberIDs(ctx, memberIDs)
 }
 
+// ListGroupedMembers loads every member for a grouped parent, hydrating each with the member product's display fields (slug, sku, name, price, currency) - Member names resolve to the requested locale with default-locale fallback, matching the bundle read path
 func (s *groupedService) ListGroupedMembers(ctx context.Context, parentID uuid.UUID, locale string) ([]GroupedMember, error) {
 	members, err := s.repo.ListGroupedMembersByParentID(ctx, parentID)
 	if err != nil {
@@ -79,47 +79,11 @@ func (s *groupedService) ListGroupedMembers(ctx context.Context, parentID uuid.U
 	if len(members) == 0 {
 		return []GroupedMember{}, nil
 	}
-
-	defLocale := s.resolveDefaultLocale(ctx)
-	if locale == "" {
-		locale = defLocale
-	}
-
-	memberIDs := make([]uuid.UUID, 0, len(members))
-	seen := make(map[uuid.UUID]struct{})
-	for _, m := range members {
-		if _, ok := seen[m.MemberID]; ok {
-			continue
-		}
-		seen[m.MemberID] = struct{}{}
-		memberIDs = append(memberIDs, m.MemberID)
-	}
-
-	productByID, err := s.repo.ListProductRowsByIDs(ctx, memberIDs)
+	ids := uniqueIDs(len(members), func(i int) uuid.UUID { return members[i].MemberID })
+	productByID, contentByProduct, err := s.loadProductsWithContent(ctx, ids, locale, true)
 	if err != nil {
-		return nil, fmt.Errorf("load grouped member products: %w", err)
+		return nil, fmt.Errorf("grouped members: %w", err)
 	}
-	for _, pid := range memberIDs {
-		if _, ok := productByID[pid]; !ok {
-			return nil, fmt.Errorf("load grouped member product %s: %w", pid, ErrProductNotFound)
-		}
-	}
-	contentByProduct, err := s.repo.ListProductContentByScope(ctx, memberIDs, locale)
-	if err != nil {
-		return nil, fmt.Errorf("load grouped member content: %w", err)
-	}
-	if locale != defLocale && defLocale != "" {
-		fallback, err := s.repo.ListProductContentByScope(ctx, memberIDs, defLocale)
-		if err != nil {
-			return nil, fmt.Errorf("load grouped member fallback content: %w", err)
-		}
-		for pid, c := range fallback {
-			if _, ok := contentByProduct[pid]; !ok {
-				contentByProduct[pid] = c
-			}
-		}
-	}
-
 	for i := range members {
 		m := &members[i]
 		if p, ok := productByID[m.MemberID]; ok {
@@ -136,6 +100,5 @@ func (s *groupedService) ListGroupedMembers(ctx context.Context, parentID uuid.U
 			}
 		}
 	}
-
 	return members, nil
 }

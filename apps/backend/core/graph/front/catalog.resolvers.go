@@ -245,6 +245,10 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 			}
 		}
 	}
+	visibleSources, err := r.visibleOptionSources(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]*model1.ProductCustomOption, 0, len(opts))
 	for _, o := range opts {
 		mo := &model1.ProductCustomOption{
@@ -285,7 +289,7 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 				mv.ForcedLineQty = &q
 			}
 			// Slim stand-in built from what GetProductOptions already hydrated - no extra fetch, mirroring the admin toProductOptionValueModel mapping
-			if v.SourceProductID != nil {
+			if v.SourceProductID != nil && hasKey(visibleSources, *v.SourceProductID) {
 				prod := &model.Product{
 					ID:                  v.SourceProductID.String(),
 					URL:                 v.SourceProductURL,

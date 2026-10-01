@@ -156,6 +156,27 @@ func (q *Queries) GetBundleOptionByID(ctx context.Context, id uuid.UUID) (Catalo
 	return i, err
 }
 
+const getBundleOptionByIDForUpdate = `-- name: GetBundleOptionByIDForUpdate :one
+SELECT id, product_id, input_type, is_required, sort_order, created_at, updated_at, min_selections, max_selections FROM catalog_product_bundle_options WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetBundleOptionByIDForUpdate(ctx context.Context, id uuid.UUID) (CatalogProductBundleOption, error) {
+	row := q.db.QueryRowContext(ctx, getBundleOptionByIDForUpdate, id)
+	var i CatalogProductBundleOption
+	err := row.Scan(
+		&i.ID,
+		&i.ProductID,
+		&i.InputType,
+		&i.IsRequired,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.MinSelections,
+		&i.MaxSelections,
+	)
+	return i, err
+}
+
 const getBundleSelectionByID = `-- name: GetBundleSelectionByID :one
 SELECT id, option_id, product_id, quantity, is_default, sort_order FROM catalog_product_bundle_selections WHERE id = $1
 `

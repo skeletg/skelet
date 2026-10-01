@@ -276,7 +276,7 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 	if err != nil {
 		return cart.ProductOptionsResolution{}, err
 	}
-	if string(p.Kind) != "simple" {
+	if p.Kind != catalog.KindSimple {
 		// Sentinel, not a plain error - AddToCart's required-options gate fails closed on real resolve errors and must be able to tell "this kind never has options" apart from a catalog hiccup
 		return cart.ProductOptionsResolution{}, fmt.Errorf("sku %q is kind %q, not simple: %w", sku, p.Kind, cart.ErrOptionsUnsupportedKind)
 	}
@@ -294,10 +294,12 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 		ProductID:   p.ID,
 		ProductName: pricing.ProductName,
 		UnitPrice:   pricing.UnitPrice,
-		BasePrice:   p.DefaultPrice, // percent adjustments are of default_price
+		BasePrice:   pricing.UnitPrice,
 		Options:     make([]cart.ProductOptionConfig, 0, len(opts)),
 	}
-	a.appendCartOptions(ctx, channelID, &res, opts)
+	if err := a.appendCartOptions(ctx, channelID, &res, opts); err != nil {
+		return cart.ProductOptionsResolution{}, err
+	}
 
 	// A variant of a configurable also carries its parent's product-wide options (e.g. a gift message that applies to every variant) - merge them in so buildConfiguredLineOptions accepts and prices both sets - a variant belongs to at most one configurable (UNIQUE(child_id)) so this is a single extra lookup, and option IDs are globally unique so appending never collides with the variant's own
 	parents, err := a.svc.ListConfigurableParentByChildIDs(ctx, []uuid.UUID{p.ID})
@@ -309,7 +311,9 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 		if err != nil {
 			return cart.ProductOptionsResolution{}, err
 		}
-		a.appendCartOptions(ctx, channelID, &res, parentOpts)
+		if err := a.appendCartOptions(ctx, channelID, &res, parentOpts); err != nil {
+			return cart.ProductOptionsResolution{}, err
+		}
 		// The merged set displays and snapshots in walk order - stable-sort so parent and variant options interleave by their authored sort_order like the PDP shows them, while same-product relative order (the visible_if evaluation invariant) is preserved
 		sort.SliceStable(res.Options, func(i, j int) bool {
 			return res.Options[i].SortOrder < res.Options[j].SortOrder
@@ -319,22 +323,27 @@ func (a CartCatalogAdapter) ResolveProductOptions(ctx context.Context, channelID
 }
 
 // appendCartOptions maps catalog product options into the cart's option-config shape and appends them to res - shared so a variant's own options and its configurable parent's options funnel through the same conversion
-func (a CartCatalogAdapter) appendCartOptions(ctx context.Context, channelID uuid.UUID, res *cart.ProductOptionsResolution, opts []catalog.ProductOption) {
-	// Channel-priced source products, deduped - a linked value charges what its source costs on THIS channel (listing override/special), not the raw default_price, mirroring the bundle component BILLING rule - fall back to default_price when the source has no channel listing
+func (a CartCatalogAdapter) appendCartOptions(ctx context.Context, channelID uuid.UUID, res *cart.ProductOptionsResolution, opts []catalog.ProductOption) error {
+	// Channel-priced source products, deduped - a linked value charges what its source costs on THIS channel (listing override/special), mirroring the bundle component BILLING rule; a source this channel doesn't sell makes the value unpickable
 	srcPrice := map[string]int64{}
+	unavailable := map[string]bool{}
 	for _, o := range opts {
 		for _, v := range o.Values {
 			if v.SourceProductID == nil || v.SourceProductSKU == "" {
 				continue
 			}
-			if _, done := srcPrice[v.SourceProductSKU]; done {
+			if _, done := srcPrice[v.SourceProductSKU]; done || unavailable[v.SourceProductSKU] {
 				continue
 			}
-			price := v.SourceProductDefaultPrice
-			if sp, err := a.ResolveSimplePricing(ctx, channelID, v.SourceProductSKU, nil); err == nil {
-				price = sp.UnitPrice
+			sp, err := a.ResolveSimplePricing(ctx, channelID, v.SourceProductSKU, nil)
+			switch {
+			case errors.Is(err, cart.ErrProductNotPublished), errors.Is(err, cart.ErrProductNotPurchasable):
+				unavailable[v.SourceProductSKU] = true
+			case err != nil:
+				return fmt.Errorf("price option source %q: %w", v.SourceProductSKU, err)
+			default:
+				srcPrice[v.SourceProductSKU] = sp.UnitPrice
 			}
-			srcPrice[v.SourceProductSKU] = price
 		}
 	}
 	for _, o := range opts {
@@ -363,16 +372,16 @@ func (a CartCatalogAdapter) appendCartOptions(ctx context.Context, channelID uui
 			}
 			if v.SourceProductID != nil {
 				vc.HasSource = true
-				vc.SourceProductPrice = v.SourceProductDefaultPrice
-				if p, ok := srcPrice[v.SourceProductSKU]; ok {
-					vc.SourceProductPrice = p
-				}
+				p, ok := srcPrice[v.SourceProductSKU]
+				vc.SourceProductPrice = p
+				vc.SourceUnavailable = !ok
 			}
 			vc.ForcedLineQty = v.ForcedLineQty
 			cfg.Values = append(cfg.Values, vc)
 		}
 		res.Options = append(res.Options, cfg)
 	}
+	return nil
 }
 
 func toCartVisibilityGroup(g *catalog.OptionConditionGroup) *cart.OptionVisibilityGroup {
@@ -399,7 +408,7 @@ func (a CartCatalogAdapter) ResolveBundleBySKU(ctx context.Context, channelID uu
 	if err != nil {
 		return cart.BundleSnapshot{}, err
 	}
-	if string(p.Kind) != "bundle" {
+	if p.Kind != catalog.KindBundle {
 		return cart.BundleSnapshot{}, fmt.Errorf("product %q is kind %q, not bundle", p.SKU, string(p.Kind))
 	}
 	listings, err := a.svc.ListProductChannelListings(ctx, p.ID)
@@ -467,7 +476,7 @@ func (l CatalogProductLookup) KitComponents(ctx context.Context, productID uuid.
 	return out, nil
 }
 
-// OrderLineLookup adapts order.Service + catalog.Service for the inventory service's flat-mode cancellation path - mirrors the cart-to-ReserveLine projection in inventory/events.go: simple lines resolve their SKU to a product id, bundle lines expand into one entry per component (with the component's product id + total qty)
+// OrderLineLookup adapts order.Service + catalog.Service for the inventory service's flat-mode cancellation path - mirrors the cart-to-ReserveLine projection in inventory/events.go: simple lines resolve their SKU to a product id, bundle and kit lines expand into one entry per component (with the component's product id + total qty)
 type OrderLineLookup struct {
 	orderSvc   *order.Service
 	catalogSvc *catalog.Service
@@ -504,13 +513,40 @@ func (l OrderLineLookup) GetOrderLines(ctx context.Context, orderID uuid.UUID) (
 			}
 			continue
 		}
-		if line.ProductSku == "" {
+		kit := line.KitComponents
+		if len(kit) == 0 && line.ProductSku == "" {
 			continue
 		}
-		p, err := l.catalogSvc.GetProductBySKU(ctx, line.ProductSku)
-		if err != nil {
-			// Best-effort: log and skip so a stale SKU doesn't strand a cancellation - same posture as the Reserve-time linesFromCart
-			log.Printf("[inventory] resolve sku %q for order %s release: %v", line.ProductSku, orderID, err)
+		var p catalog.Product
+		if len(kit) == 0 {
+			p, err = l.catalogSvc.GetProductBySKU(ctx, line.ProductSku)
+			if err != nil {
+				// Best-effort: log and skip so a stale SKU doesn't strand a cancellation - same posture as the Reserve-time linesFromCart
+				log.Printf("[inventory] resolve sku %q for order %s release: %v", line.ProductSku, orderID, err)
+				continue
+			}
+			// Orders placed before kit lines were snapshotted took today's recipe, the best record there is
+			if p.Kind == catalog.KindKit {
+				refs, err := l.catalogSvc.KitComponentRefs(ctx, p.ID)
+				if err != nil {
+					return nil, fmt.Errorf("kit components for %q: %w", line.ProductSku, err)
+				}
+				for _, r := range refs {
+					kit = append(kit, order.OrderLineKitComponent{ProductID: r.ComponentProductID, Quantity: r.Quantity})
+				}
+			}
+		}
+		if len(kit) > 0 {
+			for _, comp := range kit {
+				out = append(out, inventory.OrderLine{
+					ProductID:         comp.ProductID,
+					Quantity:          comp.Quantity * line.Quantity,
+					FulfilledQuantity: comp.Quantity * done,
+					LineID:            line.ID,
+					LineQuantity:      line.Quantity,
+					LineFulfilled:     done,
+				})
+			}
 			continue
 		}
 		out = append(out, inventory.OrderLine{
@@ -521,6 +557,31 @@ func (l OrderLineLookup) GetOrderLines(ctx context.Context, orderID uuid.UUID) (
 			LineQuantity:      line.Quantity,
 			LineFulfilled:     done,
 		})
+	}
+	return out, nil
+}
+
+// OrderKitLookup gives order placement a kit's per-unit recipe to snapshot onto the line
+type OrderKitLookup struct{ svc *catalog.Service }
+
+func (l OrderKitLookup) KitComponentsBySKU(ctx context.Context, sku string) ([]cart.CartLineKitComponent, error) {
+	p, err := l.svc.GetProductBySKU(ctx, sku)
+	if err != nil {
+		if errors.Is(err, catalog.ErrProductNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if p.Kind != catalog.KindKit {
+		return nil, nil
+	}
+	refs, err := l.svc.KitComponentRefs(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]cart.CartLineKitComponent, len(refs))
+	for i, r := range refs {
+		out[i] = cart.CartLineKitComponent{ProductID: r.ComponentProductID, Quantity: r.Quantity}
 	}
 	return out, nil
 }

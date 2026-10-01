@@ -250,6 +250,16 @@ func (s *Service) linesFromCart(ctx context.Context, c cart.Cart) ([]ReserveLine
 			}
 			continue
 		}
+		if len(line.KitComponents) > 0 {
+			for _, comp := range line.KitComponents {
+				out = append(out, ReserveLine{
+					ProductID:   comp.ProductID,
+					OrderLineID: line.ID,
+					Quantity:    comp.Quantity * line.Quantity,
+				})
+			}
+			continue
+		}
 		if line.ProductSku == "" {
 			continue
 		}
@@ -311,7 +321,7 @@ func (s *Service) onOrderPlaced(ctx context.Context, e events.Event) error {
 	return nil
 }
 
-// Flat mode writes no ledger, so the placement's movement is rebuilt from the order's lines - kits expand into the components that actually own the stock
+// Flat mode writes no ledger, so the placement's movement is rebuilt from the order's lines, which already come expanded into the components that own the stock
 func (s *Service) publishFlatPlacementStock(ctx context.Context, orderID uuid.UUID) {
 	if s.orders == nil {
 		return
@@ -323,16 +333,6 @@ func (s *Service) publishFlatPlacementStock(ctx context.Context, orderID uuid.UU
 	}
 	byProduct := make(map[uuid.UUID]float64, len(lines))
 	for _, l := range lines {
-		var comps []KitComponentRef
-		if s.products != nil {
-			comps, _ = s.products.KitComponents(ctx, l.ProductID)
-		}
-		if len(comps) > 0 {
-			for _, c := range comps {
-				byProduct[c.ProductID] -= c.Quantity * l.Quantity
-			}
-			continue
-		}
 		byProduct[l.ProductID] -= l.Quantity
 	}
 	s.publishStockChangedForProducts(ctx, byProduct, ReasonOrderPlaced)

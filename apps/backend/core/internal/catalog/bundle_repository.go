@@ -58,6 +58,17 @@ func (r *postgresRepository) GetBundleOptionByID(ctx context.Context, id uuid.UU
 	return toBundleOption(row), nil
 }
 
+func (r *postgresRepository) GetBundleOptionByIDForUpdate(ctx context.Context, id uuid.UUID) (BundleOption, error) {
+	row, err := r.queries.GetBundleOptionByIDForUpdate(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return BundleOption{}, ErrBundleOptionNotFound
+		}
+		return BundleOption{}, fmt.Errorf("lock bundle option: %w", err)
+	}
+	return toBundleOption(row), nil
+}
+
 func (r *postgresRepository) ListBundleOptionsByProductID(ctx context.Context, productID uuid.UUID) ([]BundleOption, error) {
 	rows, err := r.queries.ListBundleOptionsByProductID(ctx, productID)
 	if err != nil {
@@ -153,7 +164,7 @@ func (r *postgresRepository) CreateBundleSelection(ctx context.Context, input Ad
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
-			return BundleSelection{}, fmt.Errorf("selection already exists for this option/product")
+			return BundleSelection{}, ErrBundleSelectionDuplicate
 		}
 		return BundleSelection{}, fmt.Errorf("create bundle selection: %w", err)
 	}
