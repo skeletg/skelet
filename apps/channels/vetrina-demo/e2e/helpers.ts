@@ -20,6 +20,25 @@ export async function open(page: Page, path: string) {
   await page.waitForLoadState("networkidle");
 }
 
+// Fills the account's new-address form and saves it, landing back on the address book. US, because it's in the dev
+// reference data with its states seeded
+export async function addSavedAddress(
+  page: Page,
+  a: { street1: string; city: string; state: string; postalCode: string },
+) {
+  await open(page, "/account/addresses/new");
+  const form = main(page);
+  await form.getByLabel("First name").fill("Ana");
+  await form.getByLabel("Last name").fill("E2E");
+  await form.getByLabel("Street address").fill(a.street1);
+  await form.getByLabel("City").fill(a.city);
+  await form.getByLabel("Postal code").fill(a.postalCode);
+  await form.getByLabel("Country").selectOption("US");
+  await form.getByLabel("State / region").selectOption(a.state);
+  await form.getByRole("button", { name: "Save address" }).click();
+  await expect(page).toHaveURL(/\/account\/addresses$/);
+}
+
 export async function registerCustomer(
   page: Page,
   { firstName = "Ana", lastName = "E2E", email = uniqueEmail("customer") } = {},

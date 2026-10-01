@@ -8,6 +8,7 @@ import {
   AccountCard,
   AccountPageHeader,
 } from "@/app/components/account/AccountUI";
+import { getAddressFormOptions } from "@/app/lib/countries/read";
 import { getCurrentCustomer } from "@/app/lib/customer/read";
 import { AddressForm } from "@/app/[channel]/[locale]/account/addresses/AddressForm";
 
@@ -25,7 +26,7 @@ export default async function NewAddressPage({ params }: PageProps<"/[channel]/[
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "account.addresses" });
 
-  const customer = await getCurrentCustomer();
+  const [customer, options] = await Promise.all([getCurrentCustomer(), getAddressFormOptions()]);
   if (!customer) redirect(await withLocalePrefix("/account/login?returnTo=/account/addresses/new", locale));
 
   return (
@@ -35,7 +36,7 @@ export default async function NewAddressPage({ params }: PageProps<"/[channel]/[
         description={t("newDescription")}
       />
       <AccountCard>
-        <AddressForm submitLabel={t("save")} />
+        <AddressForm submitLabel={t("save")} options={options} />
       </AccountCard>
     </div>
   );

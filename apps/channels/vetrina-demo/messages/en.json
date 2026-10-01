@@ -6,6 +6,8 @@
       "passwordMin": "Password must be at least 8 characters.",
       "passwordMismatch": "Passwords do not match.",
       "countryCode": "Country must be a 2-letter code (e.g. US, DE, RS).",
+      "phoneInvalid": "Enter a valid phone number, or start it with + and the country code.",
+      "phoneCountryNotAllowed": "This store only takes phone numbers from the countries it ships to.",
       "signInFailed": "Sign in failed.",
       "registrationFailed": "Registration failed.",
       "resetLinkMissing": "Reset link is missing.",
@@ -366,7 +368,12 @@
       "continue": "Continue shopping",
       "receiptSent": "We sent a receipt to <email></email>. Bookmark this page - without an account it’s the only way back to this order.",
       "createAccount": "Create an account",
-      "oneAccount": "Use this email and every order lands in one place."
+      "oneAccount": "Use this email and every order lands in one place.",
+      "claimTitle": "Confirm your email to add this order to your account",
+      "claimBody": "We sent a confirmation link to your inbox. Once you open it, this order and any earlier ones placed with this email move into your account.",
+      "claimSent": "Sent - give it a minute, then check your inbox.",
+      "claimResend": "Resend confirmation email",
+      "claimResendFailed": "Sending failed - try again"
     }
   },
   "header": {
