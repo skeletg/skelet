@@ -38,5 +38,5 @@
   },
   "title": "pricing",
   "x-kind": "pricing",
-  "x-source": "internal/cart.remotePricingRequest -\u003e internal/cart.remotePricingResponse"
+  "x-source": "internal/wiring.remotePricingRequest -\u003e internal/wiring.remotePricingResponse"
 }
