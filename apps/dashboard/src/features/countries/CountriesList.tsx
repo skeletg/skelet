@@ -36,6 +36,7 @@ import {
   CountriesAdminListDocument,
   DeleteCountryDocument,
 } from './Countries.gql'
+import { parseReferenceCount } from '@/shared/errors/parseReferenceCount'
 
 type CountryRow = {
   code: string
@@ -47,13 +48,6 @@ type CountryRow = {
   isActive: boolean
   sortOrder: number
   updatedAt: string
-}
-
-function parseReferenceCount(message: string): number | null {
-  const match = message.match(/(\d+)\s+references?/i)
-  if (!match) return null
-  const n = Number(match[1])
-  return Number.isFinite(n) ? n : null
 }
 
 function friendlyDeleteError(message: string): string {
