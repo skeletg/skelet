@@ -123,3 +123,31 @@ ORDER BY value_id, locale;
 -- name: DeleteProductOptionValueContent :exec
 DELETE FROM catalog_product_option_value_content
 WHERE value_id = $1 AND locale = $2;
+
+-- name: UpsertProductOptionChannelPrice :exec
+INSERT INTO catalog_product_option_channel_prices (option_id, channel_id, price_value)
+VALUES ($1, $2, $3)
+ON CONFLICT (option_id, channel_id)
+DO UPDATE SET price_value = EXCLUDED.price_value, updated_at = NOW();
+
+-- name: DeleteProductOptionChannelPrice :exec
+DELETE FROM catalog_product_option_channel_prices WHERE option_id = $1 AND channel_id = $2;
+
+-- name: ListProductOptionChannelPricesByOptionIDs :many
+SELECT * FROM catalog_product_option_channel_prices
+WHERE option_id = ANY(sqlc.arg(option_ids)::uuid[])
+ORDER BY option_id, channel_id;
+
+-- name: UpsertProductOptionValueChannelPrice :exec
+INSERT INTO catalog_product_option_value_channel_prices (value_id, channel_id, price_value)
+VALUES ($1, $2, $3)
+ON CONFLICT (value_id, channel_id)
+DO UPDATE SET price_value = EXCLUDED.price_value, updated_at = NOW();
+
+-- name: DeleteProductOptionValueChannelPrice :exec
+DELETE FROM catalog_product_option_value_channel_prices WHERE value_id = $1 AND channel_id = $2;
+
+-- name: ListProductOptionValueChannelPricesByValueIDs :many
+SELECT * FROM catalog_product_option_value_channel_prices
+WHERE value_id = ANY(sqlc.arg(value_ids)::uuid[])
+ORDER BY value_id, channel_id;

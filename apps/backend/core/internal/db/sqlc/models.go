@@ -786,6 +786,14 @@ type CatalogProductOption struct {
 	VisibleIf      pqtype.NullRawMessage             `json:"visible_if"`
 }
 
+type CatalogProductOptionChannelPrice struct {
+	OptionID   uuid.UUID `json:"option_id"`
+	ChannelID  uuid.UUID `json:"channel_id"`
+	PriceValue int32     `json:"price_value"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
 type CatalogProductOptionContent struct {
 	OptionID uuid.UUID `json:"option_id"`
 	Locale   string    `json:"locale"`
@@ -805,6 +813,14 @@ type CatalogProductOptionValue struct {
 	SourceProductID uuid.NullUUID                 `json:"source_product_id"`
 	Quantity        float64                       `json:"quantity"`
 	ForcedLineQty   sql.NullFloat64               `json:"forced_line_qty"`
+}
+
+type CatalogProductOptionValueChannelPrice struct {
+	ValueID    uuid.UUID `json:"value_id"`
+	ChannelID  uuid.UUID `json:"channel_id"`
+	PriceValue int32     `json:"price_value"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type CatalogProductOptionValueContent struct {

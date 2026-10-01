@@ -208,7 +208,7 @@ type GroupedMember {
   sortOrder:       Int!
 }
 
-# A customer-facing custom option on a product (engraving text, gift wrap, add-on, …). inputType is one of field, area, dropdown, radio, checkbox, multiselect, date, date_time, time, file. Select-family input types carry their price adjustments on the values; text/date/file carry an option-level priceValue (priceType "fixed" or "percent").
+# A customer-facing custom option on a product (engraving text, gift wrap, add-on, …). inputType is one of field, area, dropdown, radio, checkbox, multiselect, date, date_time, time, file. Select-family input types carry their price adjustments on the values; text/date/file carry an option-level priceValue (priceType "fixed" or "percent"), resolved to this channel's surcharge - an option whose fixed surcharge has no amount in this channel's currency is left out.
 type ProductCustomOption {
   id:         ID!
   inputType:  String!
@@ -227,7 +227,7 @@ type ProductCustomOption {
   visibleIf:  JSON
 }
 
-# One pre-defined choice on a select-family product option. priceValue is a per-unit adjustment in cents (or percent points when priceType is "percent"); quantity is the units this value represents.
+# One pre-defined choice on a select-family product option. priceValue is a per-unit adjustment in the channel's minor units (or percent points when priceType is "percent"), already resolved to this channel's own surcharge - a choice with no surcharge in this channel's currency is left out of values, as the cart would refuse it; quantity is the units this value represents.
 type ProductCustomOptionValue {
   id:         ID!
   title:      String!

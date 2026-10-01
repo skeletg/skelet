@@ -2918,6 +2918,11 @@ type MintCMSPagePreviewTokenInput struct {
 type Mutation struct {
 }
 
+type OptionChannelPrice struct {
+	ChannelID  string `json:"channelId"`
+	PriceValue int32  `json:"priceValue"`
+}
+
 type Order struct {
 	ID                  string                `json:"id"`
 	ChannelID           string                `json:"channelId"`
@@ -3269,6 +3274,7 @@ type ProductOption struct {
 	MaxChars       *int32                  `json:"maxChars,omitempty"`
 	MaxFileBytes   *int32                  `json:"maxFileBytes,omitempty"`
 	FileExtensions *string                 `json:"fileExtensions,omitempty"`
+	ChannelPrices  []*OptionChannelPrice   `json:"channelPrices"`
 	Values         []*ProductOptionValue   `json:"values"`
 	VisibleIf      any                     `json:"visibleIf,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
@@ -3292,6 +3298,7 @@ type ProductOptionValue struct {
 	Title         string                       `json:"title"`
 	Content       []*ProductOptionValueContent `json:"content"`
 	SourceProduct *Product                     `json:"sourceProduct,omitempty"`
+	ChannelPrices []*OptionChannelPrice        `json:"channelPrices"`
 	CreatedAt     time.Time                    `json:"createdAt"`
 	UpdatedAt     time.Time                    `json:"updatedAt"`
 }
