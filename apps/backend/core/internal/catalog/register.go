@@ -158,4 +158,12 @@ func init() {
 	apperr.RegisterSentinel(ErrInvalidVariantMode, "INVALID_VARIANT_MODE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrNoVariants, "NO_VARIANTS", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidVariantSelection, "INVALID_VARIANT_SELECTION", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrTitleRequired, "TITLE_REQUIRED", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrQuantityOutOfRange, "QUANTITY_OUT_OF_RANGE", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrOptionPriceIncomplete, "PRODUCT_OPTION_PRICE_INCOMPLETE", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrInvalidForcedLineQty, "INVALID_FORCED_LINE_QTY", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrOptionHasNoContent, "PRODUCT_OPTION_HAS_NO_CONTENT", apperr.ClassConflict)
+	apperr.RegisterSentinel(ErrBundleSelectionDuplicate, "BUNDLE_SELECTION_DUPLICATE", apperr.ClassConflict)
+	apperr.RegisterSentinel(ErrBundleDefaultsExceedMax, "BUNDLE_DEFAULTS_EXCEED_MAX", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrKitComponentDuplicate, "KIT_COMPONENT_DUPLICATE", apperr.ClassConflict)
 }

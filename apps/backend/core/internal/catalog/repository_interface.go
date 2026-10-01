@@ -229,6 +229,7 @@ type Repository interface {
 	DeleteProductOptionValue(ctx context.Context, id uuid.UUID) error
 	DeleteProductOptionValueContent(ctx context.Context, valueID uuid.UUID, locale string) error
 	GetProductOptionByID(ctx context.Context, id uuid.UUID) (ProductOption, error)
+	GetProductOptionByIDForUpdate(ctx context.Context, id uuid.UUID) (ProductOption, error)
 	GetProductOptionValueByID(ctx context.Context, id uuid.UUID) (ProductOptionValue, error)
 	ListProductOptionContent(ctx context.Context, optionID uuid.UUID) ([]ProductOptionContent, error)
 	ListProductOptionContentByOptionIDs(ctx context.Context, optionIDs []uuid.UUID) (map[uuid.UUID][]ProductOptionContent, error)
@@ -267,6 +268,7 @@ type Repository interface {
 	DeleteBundleOptionContent(ctx context.Context, optionID uuid.UUID, locale string) error
 	DeleteBundleSelection(ctx context.Context, id uuid.UUID) error
 	GetBundleOptionByID(ctx context.Context, id uuid.UUID) (BundleOption, error)
+	GetBundleOptionByIDForUpdate(ctx context.Context, id uuid.UUID) (BundleOption, error)
 	GetBundleSelectionByID(ctx context.Context, id uuid.UUID) (BundleSelection, error)
 	ListBundleOptionContent(ctx context.Context, optionID uuid.UUID) ([]BundleOptionContent, error)
 	ListBundleOptionContentByOptionIDs(ctx context.Context, optionIDs []uuid.UUID) (map[uuid.UUID][]BundleOptionContent, error)

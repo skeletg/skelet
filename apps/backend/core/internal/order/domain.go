@@ -89,8 +89,15 @@ type OrderLine struct {
 	// A promotion free gift granted by core.add_free_gift - zero-priced, stock reserved like any other line, and excluded from pro-rata refunds since nothing was paid for it
 	IsGift     bool
 	Components []OrderLineComponent
-	Options    []OrderLineOption
-	CreatedAt  time.Time
+	// What a kit line took from each component, per kit unit, snapshotted at placement
+	KitComponents []OrderLineKitComponent
+	Options       []OrderLineOption
+	CreatedAt     time.Time
+}
+
+type OrderLineKitComponent struct {
+	ProductID uuid.UUID
+	Quantity  float64
 }
 
 // One custom-option pick snapshot copied from the cart at placement - PriceDelta is already folded into the line's UnitPrice
@@ -159,6 +166,7 @@ type Repository interface {
 	CreateOrder(ctx context.Context, o Order) (Order, error)
 	AddOrderLine(ctx context.Context, line OrderLine) (OrderLine, error)
 	AddOrderLineComponent(ctx context.Context, component OrderLineComponent) (OrderLineComponent, error)
+	AddOrderLineKitComponents(ctx context.Context, orderLineID uuid.UUID, comps []OrderLineKitComponent) error
 	AddOrderLineOption(ctx context.Context, option OrderLineOption) (OrderLineOption, error)
 	AddOrderEvent(ctx context.Context, event OrderEvent) (OrderEvent, error)
 	GetOrderByID(ctx context.Context, id uuid.UUID) (Order, error)

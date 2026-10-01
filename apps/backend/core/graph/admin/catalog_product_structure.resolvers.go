@@ -129,7 +129,7 @@ func (r *mutationResolver) AddBundleSelection(ctx context.Context, input model.A
 	sel, err := r.CatalogSvc.AddBundleSelection(ctx, catalog.AddBundleSelectionInput{
 		OptionID:  optionID,
 		ProductID: productID,
-		Quantity:  float64Or(input.Quantity, 1),
+		Quantity:  float64Or(input.Quantity, catalog.DefaultStructureQuantity),
 		IsDefault: boolOrFalse(input.IsDefault),
 		SortOrder: int32Or(input.SortOrder, 0),
 	})
@@ -205,7 +205,7 @@ func (r *mutationResolver) AddGroupedMember(ctx context.Context, input model.Add
 	member, err := r.CatalogSvc.AddGroupedMember(ctx, catalog.AddGroupedMemberInput{
 		ParentID:        parentID,
 		MemberID:        memberID,
-		DefaultQuantity: float64Or(input.DefaultQuantity, 1),
+		DefaultQuantity: float64Or(input.DefaultQuantity, catalog.DefaultStructureQuantity),
 		SortOrder:       int32Or(input.SortOrder, 0),
 	})
 	if err != nil {
@@ -268,7 +268,7 @@ func (r *mutationResolver) AddKitComponent(ctx context.Context, input model.AddK
 	comp, err := r.CatalogSvc.AddKitComponent(ctx, catalog.AddKitComponentInput{
 		ProductID:          productID,
 		ComponentProductID: componentID,
-		Quantity:           float64Or(input.Quantity, 1),
+		Quantity:           float64Or(input.Quantity, catalog.DefaultStructureQuantity),
 		SortOrder:          int32Or(input.SortOrder, 0),
 	})
 	if err != nil {

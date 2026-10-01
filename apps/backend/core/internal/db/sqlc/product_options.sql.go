@@ -201,6 +201,31 @@ func (q *Queries) GetProductOptionByID(ctx context.Context, id uuid.UUID) (Catal
 	return i, err
 }
 
+const getProductOptionByIDForUpdate = `-- name: GetProductOptionByIDForUpdate :one
+SELECT id, product_id, input_type, is_required, sort_order, price_value, price_type, max_chars, max_file_bytes, file_extensions, created_at, updated_at, visible_if FROM catalog_product_options WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetProductOptionByIDForUpdate(ctx context.Context, id uuid.UUID) (CatalogProductOption, error) {
+	row := q.db.QueryRowContext(ctx, getProductOptionByIDForUpdate, id)
+	var i CatalogProductOption
+	err := row.Scan(
+		&i.ID,
+		&i.ProductID,
+		&i.InputType,
+		&i.IsRequired,
+		&i.SortOrder,
+		&i.PriceValue,
+		&i.PriceType,
+		&i.MaxChars,
+		&i.MaxFileBytes,
+		&i.FileExtensions,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.VisibleIf,
+	)
+	return i, err
+}
+
 const getProductOptionValueByID = `-- name: GetProductOptionValueByID :one
 SELECT id, option_id, sort_order, price_value, price_type, is_default, created_at, updated_at, source_product_id, quantity, forced_line_qty FROM catalog_product_option_values WHERE id = $1
 `

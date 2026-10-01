@@ -237,7 +237,7 @@ type ProductCustomOptionValue {
   isDefault:  Boolean!
   # Picking this value forces the cart line quantity to this amount and locks it (qty edits fail with PRODUCT_OPTION_QTY_FORCED). The PDP should submit this quantity and tell the customer.
   forcedLineQty: Float
-  # When this value is backed by an existing SIMPLE product, the linked product (slim stand-in: id/slug/sku/name/defaultPrice/currency). Null for free-form values. priceValue stays a markup on top of the source product's default price.
+  # When this value is backed by an existing SIMPLE product, the linked product (slim stand-in: id/slug/sku/name/defaultPrice/currency). Null for free-form values and for sources this channel doesn't sell. priceValue stays a markup on top of the source product's channel price.
   sourceProduct: Product
 }
 

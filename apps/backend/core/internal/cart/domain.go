@@ -62,6 +62,7 @@ var (
 	ErrProductOptionHidden      = errors.New("product option is not available with the current selections") // loud by design - dropping it silently would desync the client's price from the server's
 	ErrProductOptionQtyConflict = errors.New("selected options force conflicting quantities")               // two picked values force DIFFERENT line quantities
 	ErrProductOptionQtyForced   = errors.New("quantity is set by the selected product options")
+	ErrOptionValueUnavailable   = errors.New("this option choice is not sold on this channel")
 	ErrProductOptionCardinality = errors.New("product option does not allow this many values")
 	ErrOptionsUnsupportedKind   = errors.New("product kind does not support custom options") // sentinel the catalog adapter returns for kinds that never carry options (bundle, grouped, ...) - gates treat it as "no options" while any OTHER resolve error fails closed instead of skipping enforcement
 )
@@ -135,9 +136,16 @@ type CartLine struct {
 	Quantity    float64
 	IsGift      bool // a promotion free gift - order placement appends these in memory after the engine runs, so they reach order_lines and the stock reservation without ever being a cart_lines row the shopper could edit
 	Components  []CartLineComponent
-	Options     []CartLineOption
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// Set by order placement and edits, never stored on a cart: the kit recipe per unit the order takes stock by
+	KitComponents []CartLineKitComponent `json:"-"`
+	Options       []CartLineOption
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type CartLineKitComponent struct {
+	ProductID uuid.UUID
+	Quantity  float64
 }
 
 type CartLineOptionInput struct { // ValueIDs for select-family options, TextValue for free-text, ISO-date and the file reference

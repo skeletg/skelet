@@ -4,6 +4,8 @@ package catalog
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -337,6 +339,29 @@ var (
 	ErrInvalidLinkKind                   = errors.New("invalid product link kind")
 	ErrInvalidTierQuantity               = errors.New("tier min quantity must be greater than zero")
 	ErrCustomerGroupNotFound             = errors.New("customer group not found")
+	ErrTitleRequired                     = errors.New("title is required")
+	ErrQuantityOutOfRange                = errors.New("quantity is out of range")
 )
+
+const (
+	// What an omitted structure quantity means: one unit per kit, bundle, group or option value
+	DefaultStructureQuantity = 1
+	// Matches the cart's line cap, so a configured quantity can always become a cart line
+	MaxStructureQuantity = 1e9
+)
+
+func validPositiveQuantity(q float64) error {
+	if math.IsNaN(q) || q <= 0 || q > MaxStructureQuantity {
+		return fmt.Errorf("%w: %v must be above 0 and at most %v", ErrQuantityOutOfRange, q, MaxStructureQuantity)
+	}
+	return nil
+}
+
+func validUnitQuantity(q float64) error {
+	if math.IsNaN(q) || q < 1 || q > MaxStructureQuantity {
+		return fmt.Errorf("%w: %v must be between 1 and %v", ErrQuantityOutOfRange, q, MaxStructureQuantity)
+	}
+	return nil
+}
 
 // No producer-defined repository interfaces here - a consumer that needs to mock a slice of persistence declares the narrow interface it uses, in its own package

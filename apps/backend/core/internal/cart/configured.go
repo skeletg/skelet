@@ -53,6 +53,9 @@ func (s *Service) addConfiguredLine(ctx context.Context, cart Cart, input AddCon
 	}
 	quantity := input.Quantity // a picked value may force this ("Set of 4" -> 4), and it replaces the request BEFORE tier pricing so breaks apply to what's actually charged
 	if forcedQty != nil {
+		if err := validQuantity(*forcedQty); err != nil {
+			return Cart{}, err
+		}
 		quantity = *forcedQty
 	}
 	base := res.UnitPrice // quantity breaks apply to the BASE price, and option surcharges ride on top

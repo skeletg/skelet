@@ -108,6 +108,7 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 		sku, name string
 		unit      int64
 		qty       float64
+		kit       []cart.CartLineKitComponent
 	}
 	adds := make([]resolvedAdd, 0, len(in.AddLine))
 	for _, a := range in.AddLine {
@@ -125,6 +126,13 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 			return Order{}, err
 		}
 		adds = append(adds, resolvedAdd{sku: a.ProductSku, name: p.ProductName, unit: p.UnitPriceCents, qty: a.Quantity})
+	}
+	if s.kits != nil {
+		for i := range adds {
+			if adds[i].kit, err = s.kits.KitComponentsBySKU(ctx, adds[i].sku); err != nil {
+				return Order{}, fmt.Errorf("kit components for %q: %w", adds[i].sku, err)
+			}
+		}
 	}
 
 	store, err := s.channels.LoadChannel(ctx, o.ChannelID)
@@ -177,6 +185,10 @@ func (s *Service) EditOrder(ctx context.Context, in EditOrderInput) (Order, erro
 				TotalPrice:  money.LineTotal(a.unit, a.qty),
 			})
 			if err != nil {
+				return err
+			}
+			line.KitComponents = orderKitComponents(a.kit)
+			if err := r.AddOrderLineKitComponents(ctx, line.ID, line.KitComponents); err != nil {
 				return err
 			}
 			active = append(active, line)
@@ -304,13 +316,18 @@ func syntheticCart(o Order, lines []OrderLine) cart.Cart {
 				Quantity:    c.Quantity,
 			}
 		}
+		kit := make([]cart.CartLineKitComponent, len(l.KitComponents))
+		for j, c := range l.KitComponents {
+			kit[j] = cart.CartLineKitComponent{ProductID: c.ProductID, Quantity: c.Quantity}
+		}
 		cl[i] = cart.CartLine{
-			ID:          l.ID,
-			ProductSku:  l.ProductSku,
-			ProductName: l.ProductName,
-			UnitPrice:   l.UnitPrice,
-			Quantity:    l.Quantity,
-			Components:  comps,
+			ID:            l.ID,
+			ProductSku:    l.ProductSku,
+			ProductName:   l.ProductName,
+			UnitPrice:     l.UnitPrice,
+			Quantity:      l.Quantity,
+			Components:    comps,
+			KitComponents: kit,
 		}
 	}
 	return cart.Cart{ChannelID: o.ChannelID, CustomerID: o.CustomerID, Lines: cl}
