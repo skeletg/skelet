@@ -36,6 +36,7 @@ import {
   CurrenciesAdminListDocument,
   DeleteCurrencyDocument,
 } from './Currencies.gql'
+import { parseReferenceCount } from '@/shared/errors/parseReferenceCount'
 
 type CurrencyRow = {
   code: string
@@ -46,13 +47,6 @@ type CurrencyRow = {
   isActive: boolean
   sortOrder: number
   updatedAt: string
-}
-
-function parseReferenceCount(message: string): number | null {
-  const match = message.match(/(\d+)\s+references?/i)
-  if (!match) return null
-  const n = Number(match[1])
-  return Number.isFinite(n) ? n : null
 }
 
 function friendlyDeleteError(message: string): string {
