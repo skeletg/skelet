@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
+	"github.com/skeletg/skelet/apps/backend/core/lib/phone"
 	"github.com/skeletg/skelet/apps/backend/core/lib/secrets"
 )
 
@@ -451,8 +452,15 @@ func validateScope(scope Scope) error {
 // Int values round-trip through ParseInt/FormatInt so "007" becomes "7", bools canonicalize to true/false, JSON is re-marshaled to strip whitespace, and strings pass through unchanged
 func parseAndValidate(t Type, raw string) (string, error) {
 	switch t {
-	case TypeString, TypeTextarea, TypePhone, TypeSelect, TypeMultiselect, TypeSecret, TypeImage:
-		// Basic types pass through - specific validation, a regex for phone or membership for select, can go here or in the UI
+	case TypePhone:
+		// A store-wide setting has no country to read a national number in, so only international input parses - stored as E.164, empty means unset
+		n, err := phone.Normalize(raw, "")
+		if err != nil {
+			return "", ErrInvalidValue
+		}
+		return n, nil
+	case TypeString, TypeTextarea, TypeSelect, TypeMultiselect, TypeSecret, TypeImage:
+		// Basic types pass through - specific validation, membership for select, can go here or in the UI
 		// Secrets are opaque strings encrypted in Set after this normalization, and image values are opaque too, either a URL or a serialized AssetRef
 		return raw, nil
 	case TypeColor:
