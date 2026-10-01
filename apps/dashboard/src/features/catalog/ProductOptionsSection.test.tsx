@@ -1,7 +1,13 @@
 import { fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SLOW, captureInput, renderSection } from '@/test/page-harness'
-import { ProductPickerDocument, SetProductOptionValueChannelPriceDocument, UpdateProductOptionValueDocument } from './Catalog.gql'
+import {
+  AddProductOptionDocument,
+  ProductPickerDocument,
+  SetProductOptionChannelPriceDocument,
+  SetProductOptionValueChannelPriceDocument,
+  UpdateProductOptionValueDocument,
+} from './Catalog.gql'
 import { ProductOptionsSection } from './ProductOptionsSection'
 
 // Channel amounts stage into the Save dialog by channel name, and saving writes only the channels that moved
@@ -43,8 +49,29 @@ const product = {
   ],
 }
 
+const addedOption = {
+  __typename: 'ProductOption' as const,
+  id: 'o2',
+  inputType: 'FIELD' as const,
+  isRequired: false,
+  sortOrder: 1,
+  title: 'Engraving',
+  helpText: '',
+  content: [{ __typename: 'ProductOptionContent' as const, locale: 'en', title: 'Engraving', helpText: '' }],
+  priceValue: 300,
+  priceType: 'FIXED' as const,
+  maxChars: null,
+  maxFileBytes: null,
+  fileExtensions: null,
+  visibleIf: null,
+  channelPrices: [],
+  values: [],
+  createdAt: '2026-10-01T00:00:00Z',
+  updatedAt: '2026-10-01T00:00:00Z',
+}
+
 function renderOptions() {
-  const writes = { price: vi.fn(), update: vi.fn() }
+  const writes = { price: vi.fn(), update: vi.fn(), add: vi.fn(), optionPrice: vi.fn() }
   const reply = { __typename: 'Product' as const, id: 'p1', productOptions: [] }
   renderSection(<ProductOptionsSection product={product} canManage />, [
     {
@@ -60,6 +87,15 @@ function renderOptions() {
     {
       request: { query: UpdateProductOptionValueDocument, variables: captureInput(writes.update) },
       result: { data: { updateProductOptionValue: reply } },
+      maxUsageCount: 2,
+    },
+    {
+      request: { query: AddProductOptionDocument, variables: captureInput(writes.add) },
+      result: { data: { addProductOption: { ...reply, productOptions: [addedOption] } } },
+    },
+    {
+      request: { query: SetProductOptionChannelPriceDocument, variables: captureInput(writes.optionPrice) },
+      result: { data: { setProductOptionChannelPrice: reply } },
       maxUsageCount: 2,
     },
   ])
@@ -105,5 +141,25 @@ describe('ProductOptionsSection per-channel surcharges', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
     await vi.waitFor(() => expect(writes.price).toHaveBeenCalledWith({ valueId: 'v1', channelId: 'c-eur', priceValue: null }), SLOW)
     expect(writes.price).toHaveBeenCalledTimes(1)
+  })
+
+  it('a new fixed-price option stages its channel amounts and writes them once it exists', async () => {
+    const writes = renderOptions()
+    fireEvent.click(await screen.findByRole('button', { name: /Add option/ }, SLOW))
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Engraving' } })
+    expect(screen.queryByLabelText(/Tyres/)).toBeNull()
+    fireEvent.change(screen.getByLabelText('Price adjustment'), { target: { value: '300' } })
+    expect(screen.getByText('Not sold on Tyres until set.')).toBeDefined()
+    fireEvent.change(screen.getByLabelText(/Tyres/), { target: { value: '280' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Stage add' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Save changes' }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText(/Tyres/)).toBeDefined()
+    fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
+
+    await vi.waitFor(() => expect(writes.optionPrice).toHaveBeenCalledTimes(1), SLOW)
+    expect(writes.add).toHaveBeenCalledTimes(1)
+    expect(writes.optionPrice).toHaveBeenCalledWith({ optionId: 'o2', channelId: 'c-eur', priceValue: 280 })
   })
 })
