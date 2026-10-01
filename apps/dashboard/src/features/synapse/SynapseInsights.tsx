@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { useConfigScope } from '@/lib/config-scope'
 import { eventLabel } from './eventLabel'
 import { SynapseInsightsDocument, SynapseOverviewDocument } from './Synapse.gql'
+import { formatNumber, formatShortDay } from '@/lib/format'
 
 type Measure = 'total' | 'unique'
 type Unit = 'day' | 'week'
@@ -32,12 +33,6 @@ const BREAKDOWNS: { value: string; label: string }[] = [
   { value: 'page_key', label: 'Page' },
 ]
 const COLORS = [...SERIES, SERIES_OTHER]
-const nfmt = (n: number) => n.toLocaleString()
-function fmtBucket(v: string): string {
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
 export function SynapseInsights() {
   const { effectiveChannelId, isChannel, selectedChannel } = useConfigScope()
   const channelId = effectiveChannelId ?? ''
@@ -62,7 +57,7 @@ export function SynapseInsights() {
   const chartData = useMemo(() => {
     const byBucket = new Map<string, Record<string, number | string>>()
     for (const p of ins?.points ?? []) {
-      const label = fmtBucket(p.bucket)
+      const label = formatShortDay(p.bucket)
       const row = byBucket.get(label) ?? { bucket: label }
       row[p.key] = p.value
       byBucket.set(label, row)
@@ -158,23 +153,23 @@ export function SynapseInsights() {
                     <div className="rounded border p-4">
                       <p className="text-xs uppercase tracking-wider text-muted-foreground">{measureLabel}</p>
                       <div className="mt-1 flex items-baseline gap-2">
-                        <span className="text-2xl font-semibold tabular-nums">{nfmt(cur)}</span>
+                        <span className="text-2xl font-semibold tabular-nums">{formatNumber(cur)}</span>
                         {delta !== null ? (
                           <span className={cn('text-xs font-medium tabular-nums', delta > 0 ? 'text-success' : delta < 0 ? 'text-destructive' : 'text-muted-foreground')}>
                             {delta > 0 ? '▲' : delta < 0 ? '▼' : ''} {Math.abs(delta)}%
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{delta !== null ? `vs ${nfmt(prev)} prior period` : 'no prior-period data'}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{delta !== null ? `vs ${formatNumber(prev)} prior period` : 'no prior-period data'}</p>
                     </div>
                     <div className="rounded border p-4">
                       <p className="text-xs uppercase tracking-wider text-muted-foreground">Avg per {unitWord}</p>
-                      <p className="mt-1 text-2xl font-semibold tabular-nums">{nfmt(avgPerUnit)}</p>
+                      <p className="mt-1 text-2xl font-semibold tabular-nums">{formatNumber(avgPerUnit)}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">across {chartData.length} {unitWord}s</p>
                     </div>
                     <div className="rounded border p-4">
                       <p className="text-xs uppercase tracking-wider text-muted-foreground">Peak {unitWord}</p>
-                      <p className="mt-1 text-2xl font-semibold tabular-nums">{nfmt(peakVal)}</p>
+                      <p className="mt-1 text-2xl font-semibold tabular-nums">{formatNumber(peakVal)}</p>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">{peakLabel ?? '-'}</p>
                     </div>
                   </div>
@@ -211,7 +206,7 @@ export function SynapseInsights() {
                                   <span className="mr-2 inline-block size-2 rounded-full align-middle" style={{ background: COLORS[i % COLORS.length] }} />
                                   {s.key}
                                 </td>
-                                <td className="px-3 py-1.5 text-right tabular-nums">{nfmt(s.total)}</td>
+                                <td className="px-3 py-1.5 text-right tabular-nums">{formatNumber(s.total)}</td>
                                 <td className="px-3 py-1.5">
                                   <div className="flex items-center gap-2">
                                     <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">

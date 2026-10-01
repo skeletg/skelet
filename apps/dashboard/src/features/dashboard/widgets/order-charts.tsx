@@ -12,8 +12,8 @@ import { CHART_ACCENT } from '@/lib/chart-colors'
 import { OrderStatusBadge } from '@/features/orders/OrderStatusBadge'
 import { SALES_DAYS, useSalesReport } from './sales'
 import { Empty, Panel, WidgetSection } from './primitives'
+import { formatNumber } from '@/lib/format'
 
-const nfmt = (n: number) => n.toLocaleString()
 const dayLabel = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
 
 // Volume and lifecycle, both bucketed by the server - never the client reducing over every order
@@ -68,7 +68,7 @@ export function OrderChartsWidget() {
                   <div className="flex items-center justify-between gap-3">
                     <OrderStatusBadge status={row.status} />
                     <span className="text-xs tabular-nums text-muted-foreground">
-                      {nfmt(row.orderCount)} · {row.share}%
+                      {formatNumber(row.orderCount)} · {row.share}%
                     </span>
                   </div>
                   <span className="h-2 overflow-hidden rounded-full bg-muted">

@@ -25,18 +25,8 @@ import {
 import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { SegmentTreeBuilder } from './SegmentTreeBuilder'
 import { definitionToTree, nodeComplete, nodeToInput, summarizeNode, type SegNode, type SummaryNode } from './segment-tree'
-
-// Money values on the segment detail are in the segment channel's currency
-const money = (cents: number, currency: string) => (cents / 100).toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
-const fmtDay = (v: string) => {
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-const fmtDate = (v?: string | null) => {
-  if (!v) return '-'
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString(undefined, { dateStyle: 'medium' })
-}
+import { Tile } from '@/components/layout/panels'
+import { formatCents, formatDate, formatShortDay } from '@/lib/format'
 
 // Derived from the query, so a schema change breaks the build instead of reading undefined at runtime
 type Member = NonNullable<SynapseSegmentQuery['synapseSegment']>['members'][number]
@@ -95,7 +85,7 @@ export function SynapseSegment() {
     }
   }
 
-  const growth = (d?.growth ?? []).map((g) => ({ day: fmtDay(g.day as string), count: g.count }))
+  const growth = (d?.growth ?? []).map((g) => ({ day: formatShortDay(g.day as string), count: g.count }))
   const mix = d?.lifecycleMix ?? []
   const mixTotal = mix.reduce((s, m) => s + m.count, 0) || 1
   // Pivot the RFM distribution to one row per score (0–5) with R/F/M columns
@@ -146,12 +136,12 @@ export function SynapseSegment() {
       {
         accessorKey: 'spendCents',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Spend" />,
-        cell: ({ row }) => <span className="tabular-nums">{row.original.spendCents ? money(row.original.spendCents, currency) : '-'}</span>,
+        cell: ({ row }) => <span className="tabular-nums">{row.original.spendCents ? formatCents(row.original.spendCents, currency) : '-'}</span>,
       },
       {
         accessorKey: 'lastOrderAt',
         header: 'Last order',
-        cell: ({ row }) => <span className="text-xs text-muted-foreground">{fmtDate(row.original.lastOrderAt)}</span>,
+        cell: ({ row }) => <span className="text-xs text-muted-foreground">{formatDate(row.original.lastOrderAt)}</span>,
       },
     ],
     [currency, nameById],
@@ -222,8 +212,8 @@ export function SynapseSegment() {
             <DetailPageSection title="Overview">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Tile label="Members" value={seg!.memberCount.toLocaleString()} />
-                <Tile label="Member revenue" value={money(d.revenueCents, currency)} sub={`${d.orders.toLocaleString()} orders`} />
-                <Tile label="Avg order value" value={d.orders > 0 ? money(d.aovCents, currency) : '-'} />
+                <Tile label="Member revenue" value={formatCents(d.revenueCents, currency)} sub={`${d.orders.toLocaleString()} orders`} />
+                <Tile label="Avg order value" value={d.orders > 0 ? formatCents(d.aovCents, currency) : '-'} />
                 <Tile label="Lifecycle windows" value={seg!.lifecycleWindows ? `${seg!.lifecycleWindows.newDays}/${seg!.lifecycleWindows.activeDays}/${seg!.lifecycleWindows.atRiskDays}d` : 'Channel default'} />
               </div>
             </DetailPageSection>
@@ -344,15 +334,5 @@ export function SynapseSegment() {
         )}
       </DetailPageBody>
     </DetailPageLayout>
-  )
-}
-
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub ? <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p> : null}
-    </div>
   )
 }
