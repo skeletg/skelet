@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { handleSlug } from '@/shared/schemas/fields'
 import type { MenuItemTargetType } from '@/graphql/schema.types'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
-import { added, fieldDiff, removed } from '@/shared/saving/diff'
+import { added, fieldDiff, removed, sameSet } from '@/shared/saving/diff'
 
 // Menu page - THE field list (docs/conventions.md, "Record forms"): the menu's slug, name and the
 // channels serving it. Items are rows with their own dialog (below), not fields of the page
@@ -22,8 +22,6 @@ export const MENU_LABELS: Record<keyof MenuValues, string> = { slug: 'Slug', nam
 export function toMenuValues(menu: { slug: string; name: string; channelIds?: string[] | null }): MenuValues {
   return { slug: menu.slug, name: menu.name, channelIds: menu.channelIds ?? [] }
 }
-
-const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x))
 
 // The menu's writes, each only when its part changed
 export function menuChanges(before: MenuValues, after: MenuValues) {

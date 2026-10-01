@@ -21,8 +21,18 @@ export function display(v: unknown): string {  // empty-ish becomes '' (the dial
   }
 }
 
-function clip(s: string): string {
+export function clip(s: string): string {
   return s.length > CLIP ? `${s.slice(0, CLIP - 1)}…` : s
+}
+
+// Structural equality for the JSON-shaped values a draft holds - null and undefined compare equal
+export function sameJson(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+}
+
+// Order-insensitive equality for id lists, so reordering a multi-select isn't a change
+export function sameSet(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((x) => b.includes(x))
 }
 
 export function changed(label: string, before: unknown, after: unknown): SectionDiffEntry | null {  // null when the displayed values match, so callers can spread-filter
