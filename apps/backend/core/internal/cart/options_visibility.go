@@ -69,8 +69,17 @@ func pickCarriesValue(in CartLineOptionInput) bool { // drives "filled", and dec
 		in.FileAssetID != nil
 }
 
+// Mirrors the catalog's rule vocabulary - the cart never imports catalog
+const (
+	ruleAnyOf  = "anyOf"
+	ruleNoneOf = "noneOf"
+	ruleFilled = "filled"
+	ruleEmpty  = "empty"
+	logicOr    = "or"
+)
+
 func evalVisibilityGroup(g OptionVisibilityGroup, picks optionPicks) bool { // empty logic means "and"
-	or := g.Logic == "or"
+	or := g.Logic == logicOr
 	for _, r := range g.Rules {
 		ok := evalVisibilityRule(r, picks)
 		if or && ok {
@@ -94,11 +103,11 @@ func evalVisibilityGroup(g OptionVisibilityGroup, picks optionPicks) bool { // e
 
 func evalVisibilityRule(r OptionVisibilityRule, picks optionPicks) bool { // a hidden or unfilled parent has no picks, so filled and anyOf are false while empty and noneOf are true
 	switch r.Op {
-	case "filled":
+	case ruleFilled:
 		return picks.filled[r.OptionID]
-	case "empty":
+	case ruleEmpty:
 		return !picks.filled[r.OptionID]
-	case "anyOf", "noneOf":
+	case ruleAnyOf, ruleNoneOf:
 		picked := picks.values[r.OptionID]
 		hit := false
 		for _, vid := range r.ValueIDs {
@@ -107,7 +116,7 @@ func evalVisibilityRule(r OptionVisibilityRule, picks optionPicks) bool { // a h
 				break
 			}
 		}
-		if r.Op == "anyOf" {
+		if r.Op == ruleAnyOf {
 			return hit
 		}
 		return !hit

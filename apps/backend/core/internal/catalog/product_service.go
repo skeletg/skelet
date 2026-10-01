@@ -579,6 +579,11 @@ func (s *core) publishProductUpdated(ctx context.Context, p Product, changed ...
 	})
 }
 
+// Announces a product change made outside the catalog (curated links) so caches and search hear it like any other
+func (s *core) ProductChanged(ctx context.Context, productID uuid.UUID, changed ...string) {
+	s.publishProductUpdatedByID(ctx, productID, changed...)
+}
+
 func (s *core) publishProductUpdatedByID(ctx context.Context, productID uuid.UUID, changed ...string) {
 	if s.bus == nil {
 		return

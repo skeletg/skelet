@@ -10,6 +10,9 @@ RETURNING *;
 -- name: GetProductOptionByID :one
 SELECT * FROM catalog_product_options WHERE id = $1;
 
+-- name: GetProductOptionByIDForUpdate :one
+SELECT * FROM catalog_product_options WHERE id = $1 FOR UPDATE;
+
 -- name: ListProductOptionsByProductID :many
 SELECT * FROM catalog_product_options
 WHERE product_id = $1

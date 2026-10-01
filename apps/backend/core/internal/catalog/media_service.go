@@ -308,7 +308,7 @@ func (s *mediaService) ReorderProductMedia(ctx context.Context, productID uuid.U
 		}
 	}
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		r := s.repo.WithTx(t)
+		r := s.core.repo.WithTx(t)
 		for i, id := range ordered {
 			if err := r.SetProductMediaSortOrder(ctx, id, int32(i)); err != nil {
 				return err

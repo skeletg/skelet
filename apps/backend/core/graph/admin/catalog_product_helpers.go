@@ -237,7 +237,7 @@ func (r *Resolver) renderProduct(ctx context.Context, p catalog.Product, mediaOv
 	}
 
 	if p.Kind == catalog.KindKit {
-		comps, err := r.CatalogSvc.ListKitComponents(ctx, p.ID)
+		comps, err := r.CatalogSvc.ListKitComponents(ctx, p.ID, r.activeLocale(ctx))
 		if err != nil {
 			return nil, fmt.Errorf("load kit components: %w", err)
 		}

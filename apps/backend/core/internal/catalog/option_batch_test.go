@@ -11,6 +11,7 @@ import (
 
 type optionBatchRepo struct {
 	fakeRepo
+	catalog.OptionRepository
 	options      map[uuid.UUID][]catalog.ProductOption
 	content      map[uuid.UUID][]catalog.ProductOptionContent
 	values       map[uuid.UUID][]catalog.ProductOptionValue

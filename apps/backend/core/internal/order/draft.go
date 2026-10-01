@@ -122,6 +122,10 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 		subtotal += money.LineTotal(unit, dl.Quantity)
 	}
 
+	lines, err = s.stampKitComponents(ctx, lines)
+	if err != nil {
+		return Order{}, err
+	}
 	discount := min(max(in.ManualDiscountCents, 0), subtotal)
 
 	// Reuse the placement pricing helpers via a synthetic checkout context

@@ -8,6 +8,9 @@ RETURNING *;
 -- name: GetBundleOptionByID :one
 SELECT * FROM catalog_product_bundle_options WHERE id = $1;
 
+-- name: GetBundleOptionByIDForUpdate :one
+SELECT * FROM catalog_product_bundle_options WHERE id = $1 FOR UPDATE;
+
 -- name: ListBundleOptionsByProductID :many
 SELECT * FROM catalog_product_bundle_options
 WHERE product_id = $1

@@ -29,6 +29,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/paymentvault"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/referral"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
@@ -62,6 +63,7 @@ type Resolver struct {
 	ConfigSvc            *config.Service
 	ConsentSvc           *consent.Service
 	CatalogSvc           *catalog.Service
+	RecommendSvc         *recommend.Service
 	BlogSvc              *blog.Service
 	CMSSvc               *cms.Service
 	ChannelSvc           *channel.Service

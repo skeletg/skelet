@@ -200,7 +200,7 @@ func (r *mutationResolver) AddProductOptionValue(ctx context.Context, input mode
 		PriceValue: int32Or(input.PriceValue, 0),
 		PriceType:  priceType,
 		IsDefault:  boolOrFalse(input.IsDefault),
-		Quantity:   float64Or(input.Quantity, 1),
+		Quantity:   float64Or(input.Quantity, catalog.DefaultStructureQuantity),
 		Locale:     input.Locale,
 		Title:      input.Title,
 	}

@@ -42,7 +42,7 @@ func (s *collectionService) CreateCollection(ctx context.Context, input CreateCo
 
 	var created Collection
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		r := s.repo.WithTx(t)
+		r := s.core.repo.WithTx(t)
 		c, err := r.CreateCollection(ctx, input)
 		if err != nil {
 			return err
@@ -390,7 +390,7 @@ func (s *collectionService) ReorderCollectionProducts(ctx context.Context, colle
 		return Collection{}, err
 	}
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		r := s.repo.WithTx(t)
+		r := s.core.repo.WithTx(t)
 		for i, pid := range productIDs {
 			if err := r.ReorderCollectionProduct(ctx, collectionID, pid, int32(i)); err != nil {
 				return fmt.Errorf("reorder product %s: %w", pid, err)

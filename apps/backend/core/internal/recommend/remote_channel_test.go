@@ -1,4 +1,4 @@
-package catalog
+package recommend
 
 import (
 	"context"
@@ -29,11 +29,11 @@ func TestAChannelsOwnRecommenderAnswersItsStorefront(t *testing.T) {
 	src := NewRemoteRecommendationSource(svc, remoteprovider.NewInvoker(svc, nil))
 
 	ctx := channel.WithChannel(context.Background(), &channel.Channel{ID: ch})
-	if ids, ok := src.Recommend(ctx, uuid.New(), "also_bought", 4); !ok || len(ids) != 1 || ids[0] != want {
+	if ids, ok := src.Recommend(ctx, uuid.New(), StrategyAlsoBought, 4); !ok || len(ids) != 1 || ids[0] != want {
 		t.Fatalf("the channel's storefront got %v, %v, want its own recommender's answer", ids, ok)
 	}
 	other := channel.WithChannel(context.Background(), &channel.Channel{ID: uuid.New()})
-	if _, ok := src.Recommend(other, uuid.New(), "also_bought", 4); ok {
+	if _, ok := src.Recommend(other, uuid.New(), StrategyAlsoBought, 4); ok {
 		t.Fatal("another channel's storefront was answered by a recommender scoped elsewhere")
 	}
 }

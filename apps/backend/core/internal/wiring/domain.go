@@ -26,6 +26,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/ordermail"
 	"github.com/skeletg/skelet/apps/backend/core/internal/outbox"
 	"github.com/skeletg/skelet/apps/backend/core/internal/payment"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient"
 	"github.com/skeletg/skelet/apps/backend/core/internal/signalsclient/enroll"
@@ -66,6 +67,7 @@ var Domain = fx.Module("domain",
 		newOutboxEnqueuer,
 		newPaymentAuthorizer,
 		newCatalogService,
+		newRecommendService,
 		newCartService,
 		newEventOutbox,
 
@@ -184,6 +186,10 @@ func newCatalogService( // catalog depends on channel for the listing-currency-m
 		Bus:               bus,
 		CategoryTreeCache: cache.New(vk.Client, "categorytree"),
 	})
+}
+
+func newRecommendService(q *db.Queries, txMgr *txrunner.Manager, cat *catalog.Service) *recommend.Service {
+	return recommend.NewService(q, txMgr, cat)
 }
 
 // cart needs catalog for its SIMPLE-only line-add invariant and bundle materialization
