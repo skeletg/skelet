@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
 )
 
 // GetProductOption returns the raw option row (no resolved content, no values) - Callers that need the full view should go through GetProductOptions instead
@@ -58,7 +60,8 @@ func (s *optionService) AddProductOption(ctx context.Context, input AddProductOp
 			return ProductOption{}, err
 		}
 	}
-	return s.repo.CreateProductOption(ctx, input)
+	created, err := s.repo.CreateProductOption(ctx, input)
+	return created, s.announced(ctx, input.ProductID, err)
 }
 
 // UpdateProductOption applies pointer-style "no change = nil" updates - Input-type transitions are allowed but constrained: changing from a select-family type to a non-select type or vice-versa is rejected when the option already has values (would leave orphan rows / mismatched shape)
@@ -190,7 +193,7 @@ func (s *optionService) UpdateProductOption(ctx context.Context, input UpdatePro
 			}
 		}
 	}
-	return s.repo.UpdateProductOption(ctx, current.ID, UpdateProductOptionFields{
+	updated, err := s.repo.UpdateProductOption(ctx, current.ID, UpdateProductOptionFields{
 		InputType:      finalInputType,
 		IsRequired:     finalRequired,
 		SortOrder:      finalSortOrder,
@@ -201,6 +204,7 @@ func (s *optionService) UpdateProductOption(ctx context.Context, input UpdatePro
 		FileExtensions: finalFileExtensions,
 		VisibleIf:      finalVisibleIf,
 	})
+	return updated, s.announced(ctx, current.ProductID, err)
 }
 
 // DeleteProductOption removes an option and cascades its content + values (FK CASCADE handles those)
@@ -219,7 +223,7 @@ func (s *optionService) DeleteProductOption(ctx context.Context, id uuid.UUID) e
 			return fmt.Errorf("%w: option %q depends on this one - remove its visibility rule first", ErrOptionVisibilityInvalid, sib.Title)
 		}
 	}
-	return s.repo.DeleteProductOption(ctx, id)
+	return s.announced(ctx, current.ProductID, s.repo.DeleteProductOption(ctx, id))
 }
 
 // DuplicateProductOption clones an option (with all its content rows and, for select-family types, all its values + their content rows) onto the same parent product
@@ -232,7 +236,7 @@ func (s *optionService) DuplicateProductOption(ctx context.Context, id uuid.UUID
 		out, err = duplicateProductOption(ctx, r, id, def)
 		return err
 	})
-	return out, err
+	return out, s.announced(ctx, out.ProductID, err)
 }
 
 func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUID, def string) (ProductOption, error) {
@@ -365,10 +369,12 @@ func (s *optionService) UpsertProductOptionContent(ctx context.Context, input Up
 	if err := s.ensureLocale(ctx, input.Locale); err != nil {
 		return ProductOptionContent{}, err
 	}
-	if _, err := s.repo.GetProductOptionByID(ctx, input.OptionID); err != nil {
+	opt, err := s.repo.GetProductOptionByID(ctx, input.OptionID)
+	if err != nil {
 		return ProductOptionContent{}, err
 	}
-	return s.repo.UpsertProductOptionContent(ctx, input)
+	content, err := s.repo.UpsertProductOptionContent(ctx, input)
+	return content, s.announced(ctx, opt.ProductID, err)
 }
 
 // DeleteProductOptionContent: removing the default-locale translation while other translations still exist is rejected - same rule as ProductContent / BundleOptionContent
@@ -379,7 +385,11 @@ func (s *optionService) DeleteProductOptionContent(ctx context.Context, optionID
 	}); err != nil {
 		return err
 	}
-	return s.repo.DeleteProductOptionContent(ctx, optionID, locale)
+	opt, err := s.repo.GetProductOptionByID(ctx, optionID)
+	if err != nil {
+		return err
+	}
+	return s.announced(ctx, opt.ProductID, s.repo.DeleteProductOptionContent(ctx, optionID, locale))
 }
 
 // ==================== Option values ====================
@@ -427,7 +437,7 @@ func (s *optionService) AddProductOptionValue(ctx context.Context, input AddProd
 		created, err = r.CreateProductOptionValue(ctx, input)
 		return err
 	})
-	return created, err
+	return created, s.announced(ctx, option.ProductID, err)
 }
 
 // A single-select option takes one default - the option row lock serializes concurrent default flips
@@ -538,7 +548,7 @@ func (s *optionService) UpdateProductOptionValue(ctx context.Context, input Upda
 		updated, err = r.UpdateProductOptionValue(ctx, current.ID, finalSortOrder, finalPriceValue, finalPriceType, finalIsDefault, finalSourceProductID, finalQuantity, finalForcedLineQty)
 		return err
 	})
-	return updated, err
+	return updated, s.announcedForOption(ctx, current.OptionID, err)
 }
 
 func (s *optionService) DeleteProductOptionValue(ctx context.Context, id uuid.UUID) error {
@@ -570,7 +580,7 @@ func (s *optionService) DeleteProductOptionValue(ctx context.Context, id uuid.UU
 			return fmt.Errorf("%w: make the option optional before removing its last value", ErrOptionRequiredNeedsValues)
 		}
 	}
-	return s.repo.DeleteProductOptionValue(ctx, id)
+	return s.announced(ctx, option.ProductID, s.repo.DeleteProductOptionValue(ctx, id))
 }
 
 func (s *optionService) UpsertProductOptionValueContent(ctx context.Context, input UpsertProductOptionValueContentInput) (ProductOptionValueContent, error) {
@@ -583,10 +593,12 @@ func (s *optionService) UpsertProductOptionValueContent(ctx context.Context, inp
 	if err := s.ensureLocale(ctx, input.Locale); err != nil {
 		return ProductOptionValueContent{}, err
 	}
-	if _, err := s.repo.GetProductOptionValueByID(ctx, input.ValueID); err != nil {
+	val, err := s.repo.GetProductOptionValueByID(ctx, input.ValueID)
+	if err != nil {
 		return ProductOptionValueContent{}, err
 	}
-	return s.repo.UpsertProductOptionValueContent(ctx, input)
+	content, err := s.repo.UpsertProductOptionValueContent(ctx, input)
+	return content, s.announcedForOption(ctx, val.OptionID, err)
 }
 
 func (s *optionService) DeleteProductOptionValueContent(ctx context.Context, valueID uuid.UUID, locale string) error {
@@ -596,7 +608,11 @@ func (s *optionService) DeleteProductOptionValueContent(ctx context.Context, val
 	}); err != nil {
 		return err
 	}
-	return s.repo.DeleteProductOptionValueContent(ctx, valueID, locale)
+	val, err := s.repo.GetProductOptionValueByID(ctx, valueID)
+	if err != nil {
+		return err
+	}
+	return s.announcedForOption(ctx, val.OptionID, s.repo.DeleteProductOptionValueContent(ctx, valueID, locale))
 }
 
 // ==================== Read-side: full options view ====================
@@ -933,7 +949,7 @@ func (s *optionService) SetProductOptionChannelPrice(ctx context.Context, option
 	if err := s.repo.SetProductOptionChannelPrice(ctx, optionID, channelID, priceValue); err != nil {
 		return ProductOption{}, err
 	}
-	return opt, nil
+	return opt, s.announced(ctx, opt.ProductID, nil)
 }
 
 // Sets or (nil) clears a value's FIXED surcharge, or a linked value's markup, for one channel the product is listed on
@@ -955,7 +971,7 @@ func (s *optionService) SetProductOptionValueChannelPrice(ctx context.Context, v
 	if err := s.repo.SetProductOptionValueChannelPrice(ctx, valueID, channelID, priceValue); err != nil {
 		return ProductOptionValue{}, err
 	}
-	return val, nil
+	return val, s.announced(ctx, opt.ProductID, nil)
 }
 
 func (s *optionService) checkChannelSurcharge(ctx context.Context, productID, channelID uuid.UUID, priceValue *int32) error {
@@ -975,4 +991,24 @@ func (s *optionService) checkChannelSurcharge(ctx context.Context, productID, ch
 		}
 	}
 	return ErrOptionChannelNotListed
+}
+
+// Every option write changes what the product page renders and what the cart charges, so a successful one announces the product - err passes through untouched
+func (s *optionService) announced(ctx context.Context, productID uuid.UUID, err error) error {
+	if err == nil {
+		s.publishProductUpdatedByID(ctx, productID, "options")
+	}
+	return err
+}
+
+func (s *optionService) announcedForOption(ctx context.Context, optionID uuid.UUID, err error) error {
+	if err != nil {
+		return err
+	}
+	opt, oerr := s.repo.GetProductOptionByID(ctx, optionID)
+	if oerr != nil {
+		applog.From(ctx).Warn("announce option change", "option_id", optionID, "err", oerr) // the write stands - only the cache purge is lost
+		return nil
+	}
+	return s.announced(ctx, opt.ProductID, nil)
 }

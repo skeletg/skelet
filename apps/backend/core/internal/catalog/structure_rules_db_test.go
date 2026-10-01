@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 
@@ -248,5 +249,74 @@ func TestDuplicateOptionCopiesValuesAndContent(t *testing.T) {
 	vals, err := r.repo.ListProductOptionValuesByOptionID(ctx, clone.ID)
 	if err != nil || len(vals) != 1 || clone.SortOrder <= o.SortOrder {
 		t.Fatalf("clone values = %d (%v), sort %d vs %d", len(vals), err, clone.SortOrder, o.SortOrder)
+	}
+}
+
+// A cached product page keeps the options it rendered until something says the product changed
+func TestEveryOptionWriteAnnouncesTheProduct(t *testing.T) {
+	r := newStructureRig(t)
+	ctx := context.Background()
+	p := r.product(KindSimple, "mug")
+	ch := r.channelIn("USD")
+	r.exec(`INSERT INTO catalog_product_channel_listings (product_id, channel_id, is_published) VALUES ($1, $2, true)`, p.ID, ch)
+	opt := r.dropdown(p.ID, false)
+	var val ProductOptionValue
+	price := int32(150)
+	steps := []struct {
+		name string
+		run  func() error
+	}{
+		{"update option", func() error {
+			_, err := r.svc.UpdateProductOption(ctx, UpdateProductOptionInput{ID: opt.ID, IsRequired: new(bool)})
+			return err
+		}},
+		{"option content", func() error {
+			_, err := r.svc.UpsertProductOptionContent(ctx, UpsertProductOptionContentInput{OptionID: opt.ID, Locale: "en", Title: "Glaze"})
+			return err
+		}},
+		{"add value", func() (err error) {
+			val, err = r.svc.AddProductOptionValue(ctx, AddProductOptionValueInput{OptionID: opt.ID, PriceType: OptionPriceFixed, PriceValue: 100, Quantity: 1, Locale: "en", Title: "Blue"})
+			return err
+		}},
+		{"update value", func() error {
+			_, err := r.svc.UpdateProductOptionValue(ctx, UpdateProductOptionValueInput{ID: val.ID, PriceValue: &price})
+			return err
+		}},
+		{"value content", func() error {
+			_, err := r.svc.UpsertProductOptionValueContent(ctx, UpsertProductOptionValueContentInput{ValueID: val.ID, Locale: "en", Title: "Navy"})
+			return err
+		}},
+		{"value channel price", func() error {
+			_, err := r.svc.SetProductOptionValueChannelPrice(ctx, val.ID, ch, &price)
+			return err
+		}},
+		{"duplicate option", func() error {
+			_, err := r.svc.DuplicateProductOption(ctx, opt.ID)
+			return err
+		}},
+		{"delete value", func() error { return r.svc.DeleteProductOptionValue(ctx, val.ID) }},
+		{"delete option", func() error { return r.svc.DeleteProductOption(ctx, opt.ID) }},
+	}
+	for _, step := range steps {
+		r.reset()
+		if err := step.run(); err != nil {
+			t.Fatalf("%s: %v", step.name, err)
+		}
+		announced := false
+		for _, e := range r.published() {
+			if u, ok := e.(*ProductUpdated); ok && u.ProductID == p.ID && slices.Contains(u.ChangedFields, "options") {
+				announced = true
+			}
+		}
+		if !announced {
+			t.Errorf("%s published no product.updated for the product", step.name)
+		}
+	}
+	r.reset()
+	if _, err := r.svc.UpdateProductOption(ctx, UpdateProductOptionInput{ID: uuid.New()}); err == nil {
+		t.Fatal("updating a missing option succeeded")
+	}
+	if n := len(r.published()); n != 0 {
+		t.Errorf("a failed write announced %d events", n)
 	}
 }
