@@ -1405,7 +1405,7 @@ function AddValueForm({
             </p>
             {sourceProduct && (
               <p className="text-xs text-muted-foreground">
-                The linked product's stock is not reserved or decremented by this option.
+                Each pick also takes the linked product's stock, this value's quantity per unit ordered.
               </p>
             )}
           </div>
@@ -1545,7 +1545,7 @@ function EditValueForm({
             <SourceProductPicker value={sourceProduct} onChange={onPickProduct} />
             {sourceProduct && (
               <p className="text-xs text-muted-foreground">
-                The linked product's stock is not reserved or decremented by this option.
+                Each pick also takes the linked product's stock, this value's quantity per unit ordered.
               </p>
             )}
           </div>

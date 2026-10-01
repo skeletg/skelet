@@ -1306,6 +1306,10 @@ func (s *Service) FulfillLines(ctx context.Context, orderID uuid.UUID, lines []F
 	moved := make(map[uuid.UUID]float64)
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		r := s.repo.WithTx(t)
+		ratios, err := s.lineItemRatios(ctx, r, orderID)
+		if err != nil {
+			return err
+		}
 		// Read inside the tx - a redelivered event racing this one must see the winner's comps, not a stale snapshot
 		rows, err := r.ListReservationsForOrder(ctx, orderID)
 		if err != nil {
@@ -1327,10 +1331,11 @@ func (s *Service) FulfillLines(ctx context.Context, orderID uuid.UUID, lines []F
 		}
 		oid := orderID
 		for lineID, qty := range want {
-			remaining := qty
+			left := newLineBudget(qty, ratios[lineID])
 			for c, net := range held[lineID] {
+				remaining := left.of(c.item)
 				if remaining <= 0 {
-					break
+					continue
 				}
 				heldQty := -net // positive amount still reserved at this cell
 				if heldQty <= 0 {
@@ -1359,7 +1364,7 @@ func (s *Service) FulfillLines(ctx context.Context, orderID uuid.UUID, lines []F
 					return err
 				}
 				moved[c.item] -= take // the goods leaving lowers it right back
-				remaining -= take
+				left.spend(c.item, take)
 			}
 		}
 		return nil
@@ -1368,6 +1373,69 @@ func (s *Service) FulfillLines(ctx context.Context, orderID uuid.UUID, lines []F
 	}
 	s.publishStockChanged(ctx, moved, ReasonOrderFulfilled)
 	return nil
+}
+
+// Per order line, the units of each inventory item one line unit takes - shipments and returns arrive in line units, while a kit, bundle or linked-source line holds several items at their own ratios. nil without an order lookup, which keeps the 1:1 reading
+func (s *Service) lineItemRatios(ctx context.Context, r Repository, orderID uuid.UUID) (map[uuid.UUID]map[uuid.UUID]float64, error) {
+	if s.orders == nil {
+		return nil, nil
+	}
+	lines, err := s.orders.GetOrderLines(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("load order lines: %w", err)
+	}
+	out := make(map[uuid.UUID]map[uuid.UUID]float64, len(lines))
+	for _, l := range lines {
+		if l.LineID == uuid.Nil || l.LineQuantity <= 0 {
+			continue
+		}
+		item, err := r.GetItemByProductID(ctx, l.ProductID)
+		if err != nil {
+			if errors.Is(err, ErrItemNotFound) {
+				continue
+			}
+			return nil, err
+		}
+		m := out[l.LineID]
+		if m == nil {
+			m = make(map[uuid.UUID]float64)
+			out[l.LineID] = m
+		}
+		m[item.ID] += l.Quantity / l.LineQuantity
+	}
+	return out, nil
+}
+
+// How much of each item a line-unit quantity still allows - one shared pool when the line's ratios are unknown
+type lineBudget struct {
+	shared float64
+	items  map[uuid.UUID]float64
+}
+
+func newLineBudget(qty float64, ratios map[uuid.UUID]float64) *lineBudget {
+	if ratios == nil {
+		return &lineBudget{shared: qty}
+	}
+	b := &lineBudget{items: make(map[uuid.UUID]float64, len(ratios))}
+	for item, k := range ratios {
+		b.items[item] = qty * k
+	}
+	return b
+}
+
+func (b *lineBudget) of(item uuid.UUID) float64 {
+	if b.items == nil {
+		return b.shared
+	}
+	return b.items[item]
+}
+
+func (b *lineBudget) spend(item uuid.UUID, q float64) {
+	if b.items == nil {
+		b.shared -= q
+		return
+	}
+	b.items[item] -= q
 }
 
 type RestockLineQty struct {
@@ -1393,6 +1461,10 @@ func (s *Service) RestockReturn(ctx context.Context, orderID, returnID uuid.UUID
 		r := s.repo.WithTx(t)
 		// Read inside the tx so the idempotency-marker check and the restock see one snapshot
 		rows, err := r.ListReservationsForOrder(ctx, orderID)
+		if err != nil {
+			return err
+		}
+		ratios, err := s.lineItemRatios(ctx, r, orderID)
 		if err != nil {
 			return err
 		}
@@ -1431,10 +1503,11 @@ func (s *Service) RestockReturn(ctx context.Context, orderID, returnID uuid.UUID
 			return nil
 		}
 		for lineID, qty := range want {
-			remaining := qty
+			left := newLineBudget(qty, ratios[lineID])
 			for c, shipped := range shippedFrom[lineID] {
+				remaining := left.of(c.item)
 				if remaining <= 0 {
-					break
+					continue
 				}
 				if shipped <= 0 {
 					continue // a fully restored placement chain nets to zero - nothing left to return to
@@ -1450,7 +1523,7 @@ func (s *Service) RestockReturn(ctx context.Context, orderID, returnID uuid.UUID
 					return err
 				}
 				restocked[c.item] += take // physical back, reservations untouched, so salable rises
-				remaining -= take
+				left.spend(c.item, take)
 			}
 		}
 		// Idempotency marker - the zero delta leaves reserved_quantity unchanged

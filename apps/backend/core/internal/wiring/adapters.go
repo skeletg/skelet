@@ -372,6 +372,7 @@ func (a CartCatalogAdapter) appendCartOptions(ctx context.Context, channelID uui
 			}
 			if v.SourceProductID != nil {
 				vc.HasSource = true
+				vc.SourceProductID = *v.SourceProductID
 				p, ok := srcPrice[v.SourceProductSKU]
 				vc.SourceProductPrice = p
 				vc.SourceUnavailable = !ok
@@ -513,12 +514,12 @@ func (l OrderLineLookup) GetOrderLines(ctx context.Context, orderID uuid.UUID) (
 			}
 			continue
 		}
-		kit := line.KitComponents
-		if len(kit) == 0 && line.ProductSku == "" {
+		parts := line.StockParts
+		if len(parts) == 0 && line.ProductSku == "" {
 			continue
 		}
 		var p catalog.Product
-		if len(kit) == 0 {
+		if len(parts) == 0 {
 			p, err = l.catalogSvc.GetProductBySKU(ctx, line.ProductSku)
 			if err != nil {
 				// Best-effort: log and skip so a stale SKU doesn't strand a cancellation - same posture as the Reserve-time linesFromCart
@@ -532,22 +533,28 @@ func (l OrderLineLookup) GetOrderLines(ctx context.Context, orderID uuid.UUID) (
 					return nil, fmt.Errorf("kit components for %q: %w", line.ProductSku, err)
 				}
 				for _, r := range refs {
-					kit = append(kit, order.OrderLineKitComponent{ProductID: r.ComponentProductID, Quantity: r.Quantity})
+					parts = append(parts, order.OrderLineStockPart{ProductID: r.ComponentProductID, Quantity: r.Quantity, Source: cart.StockPartKit})
 				}
 			}
 		}
-		if len(kit) > 0 {
-			for _, comp := range kit {
-				out = append(out, inventory.OrderLine{
-					ProductID:         comp.ProductID,
-					Quantity:          comp.Quantity * line.Quantity,
-					FulfilledQuantity: comp.Quantity * done,
-					LineID:            line.ID,
-					LineQuantity:      line.Quantity,
-					LineFulfilled:     done,
-				})
-			}
+		for _, part := range parts {
+			out = append(out, inventory.OrderLine{
+				ProductID:         part.ProductID,
+				Quantity:          part.Quantity * line.Quantity,
+				FulfilledQuantity: part.Quantity * done,
+				LineID:            line.ID,
+				LineQuantity:      line.Quantity,
+				LineFulfilled:     done,
+			})
+		}
+		if !ownsStock(parts) || line.ProductSku == "" {
 			continue
+		}
+		if p.ID == uuid.Nil {
+			if p, err = l.catalogSvc.GetProductBySKU(ctx, line.ProductSku); err != nil {
+				log.Printf("[inventory] resolve sku %q for order %s release: %v", line.ProductSku, orderID, err)
+				continue
+			}
 		}
 		out = append(out, inventory.OrderLine{
 			ProductID:         p.ID,
@@ -561,10 +568,19 @@ func (l OrderLineLookup) GetOrderLines(ctx context.Context, orderID uuid.UUID) (
 	return out, nil
 }
 
+func ownsStock(parts []order.OrderLineStockPart) bool {
+	for _, p := range parts {
+		if p.Source == cart.StockPartKit {
+			return false
+		}
+	}
+	return true
+}
+
 // OrderKitLookup gives order placement a kit's per-unit recipe to snapshot onto the line
 type OrderKitLookup struct{ svc *catalog.Service }
 
-func (l OrderKitLookup) KitComponentsBySKU(ctx context.Context, sku string) ([]cart.CartLineKitComponent, error) {
+func (l OrderKitLookup) KitComponentsBySKU(ctx context.Context, sku string) ([]cart.CartLineStockPart, error) {
 	p, err := l.svc.GetProductBySKU(ctx, sku)
 	if err != nil {
 		if errors.Is(err, catalog.ErrProductNotFound) {
@@ -579,9 +595,9 @@ func (l OrderKitLookup) KitComponentsBySKU(ctx context.Context, sku string) ([]c
 	if err != nil {
 		return nil, err
 	}
-	out := make([]cart.CartLineKitComponent, len(refs))
+	out := make([]cart.CartLineStockPart, len(refs))
 	for i, r := range refs {
-		out[i] = cart.CartLineKitComponent{ProductID: r.ComponentProductID, Quantity: r.Quantity}
+		out[i] = cart.CartLineStockPart{ProductID: r.ComponentProductID, Quantity: r.Quantity, Source: cart.StockPartKit}
 	}
 	return out, nil
 }

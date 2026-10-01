@@ -14,11 +14,11 @@ SELECT * FROM order_line_components
 WHERE order_line_id = ANY($1::uuid[])
 ORDER BY order_line_id, sort_order, created_at;
 
--- name: InsertOrderLineKitComponent :exec
-INSERT INTO order_line_kit_components (order_line_id, product_id, quantity, sort_order)
-VALUES ($1, $2, $3, $4);
+-- name: InsertOrderLineStockPart :exec
+INSERT INTO order_line_stock_parts (order_line_id, product_id, quantity, source, sort_order)
+VALUES ($1, $2, $3, $4, $5);
 
--- name: ListOrderLineKitComponentsByOrderLineIDs :many
-SELECT * FROM order_line_kit_components
+-- name: ListOrderLineStockPartsByOrderLineIDs :many
+SELECT * FROM order_line_stock_parts
 WHERE order_line_id = ANY($1::uuid[])
 ORDER BY order_line_id, sort_order, created_at;

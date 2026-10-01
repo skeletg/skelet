@@ -573,6 +573,7 @@ type CartLineOption struct {
 	SortOrder       int32         `json:"sort_order"`
 	CreatedAt       time.Time     `json:"created_at"`
 	FileUrl         string        `json:"file_url"`
+	SourceProductID uuid.NullUUID `json:"source_product_id"`
 }
 
 type CartSavedItem struct {
@@ -1640,15 +1641,6 @@ type OrderLineComponent struct {
 	CreatedAt         time.Time `json:"created_at"`
 }
 
-type OrderLineKitComponent struct {
-	ID          uuid.UUID `json:"id"`
-	OrderLineID uuid.UUID `json:"order_line_id"`
-	ProductID   uuid.UUID `json:"product_id"`
-	Quantity    float64   `json:"quantity"`
-	SortOrder   int32     `json:"sort_order"`
-	CreatedAt   time.Time `json:"created_at"`
-}
-
 type OrderLineOption struct {
 	ID              uuid.UUID     `json:"id"`
 	OrderLineID     uuid.UUID     `json:"order_line_id"`
@@ -1663,6 +1655,16 @@ type OrderLineOption struct {
 	SortOrder       int32         `json:"sort_order"`
 	CreatedAt       time.Time     `json:"created_at"`
 	FileUrl         string        `json:"file_url"`
+}
+
+type OrderLineStockPart struct {
+	ID          uuid.UUID `json:"id"`
+	OrderLineID uuid.UUID `json:"order_line_id"`
+	ProductID   uuid.UUID `json:"product_id"`
+	Quantity    float64   `json:"quantity"`
+	SortOrder   int32     `json:"sort_order"`
+	CreatedAt   time.Time `json:"created_at"`
+	Source      string    `json:"source"`
 }
 
 type OrderPaymentTransaction struct {
