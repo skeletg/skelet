@@ -166,6 +166,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.12.3
 	github.com/microcosm-cc/bluemonday v1.0.27
+	github.com/nyaruka/phonenumbers v1.8.1
 	github.com/opensearch-project/opensearch-go/v5 v5.0.0-rc5
 	github.com/pquerna/otp v1.5.0
 	github.com/ravilushqa/otelgqlgen v0.19.0
