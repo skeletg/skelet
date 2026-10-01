@@ -554,3 +554,35 @@ func TestValidateSourcesCatchesATypo(t *testing.T) {
 		t.Fatalf("a registered source should validate: %v", err)
 	}
 }
+
+func TestImportRetriesDeferredRowsToAFixedPoint(t *testing.T) {
+	landed := map[string]bool{}
+	reg := newTestRegistry(t, testResource(func(_ context.Context, r *Row) (Outcome, error) {
+		if dep := r.Str("name"); dep != "" && !landed[dep] {
+			return OutcomeSkipped, Defer(errors.New("waiting on " + dep))
+		}
+		landed[r.Str("sku")] = true
+		return OutcomeCreated, nil
+	}))
+	res, err := runImport(t, reg, FormatCSV, "sku,name\nC,B\nB,A\nA,\nX,Y\nY,X\n")
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if res.Created != 3 || res.Failed != 2 || len(res.Errors) != 2 || !strings.Contains(res.Errors[0].Message, "waiting on") {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+}
+
+func TestImportReadsAnAliasHeaderAsItsColumn(t *testing.T) {
+	res := testResource(func(_ context.Context, r *Row) (Outcome, error) {
+		if r.Str("name") != "legacy" {
+			return OutcomeSkipped, errors.New("alias not mapped")
+		}
+		return OutcomeCreated, nil
+	})
+	res.Fields[1].Aliases = []string{"title"}
+	out, err := runImport(t, newTestRegistry(t, res), FormatCSV, "sku,title\nA,legacy\n")
+	if err != nil || out.Created != 1 || len(out.Warnings) != 0 {
+		t.Fatalf("result %+v, err %v", out, err)
+	}
+}

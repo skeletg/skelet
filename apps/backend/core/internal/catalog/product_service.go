@@ -66,7 +66,7 @@ func (s *productService) validateAndNormalizeCreateInput(ctx context.Context, in
 	}
 	// url is NOT NULL - seed from the name, regenerateProductURL refines it after create
 	if input.URL == nil || strings.TrimSpace(*input.URL) == "" {
-		seed := slugifyForSKU(input.Name)
+		seed := Slugify(input.Name)
 		if seed == "" {
 			seed = "product"
 		}
@@ -76,7 +76,7 @@ func (s *productService) validateAndNormalizeCreateInput(ctx context.Context, in
 	base := strings.TrimSpace(input.SKU)
 	derived := base == ""
 	if derived {
-		base = slugifyForSKU(input.Name)
+		base = Slugify(input.Name)
 		if base == "" {
 			base = "product"
 		}
@@ -1773,8 +1773,8 @@ func defaultReferencesValue(raw json.RawMessage, valueID uuid.UUID) bool {
 	return false
 }
 
-// Only [a-z0-9] survives - everything else collapses into a single hyphen
-func slugifyForSKU(name string) string {
+// Only [a-z0-9] survives - everything else collapses into a single hyphen, which is the shape validateSlug accepts
+func Slugify(name string) string {
 	var b strings.Builder
 	prev := rune('-')
 	for _, r := range strings.ToLower(name) {
@@ -1834,7 +1834,7 @@ func (s *core) regenerateProductURLPathTyped(ctx context.Context, productID uuid
 		if name := slugifyScalar(urlName); name != "" {
 			return name
 		}
-		return slugifyForSKU(product.SKU)
+		return Slugify(product.SKU)
 	}
 
 	var desired string

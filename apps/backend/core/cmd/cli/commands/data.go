@@ -294,7 +294,7 @@ func newDataServices() (*dataServices, error) {
 	taxSvc := tax.NewService(tax.NewRepository(queries))
 
 	reg := dataio.NewRegistry()
-	reg.Register(catalogio.Resource(queries, catalogSvc, channelSvc))
+	reg.Register(catalogio.Resource(queries, catalogSvc))
 	reg.Register(catalogio.CategoryResource(catalogSvc))
 	reg.Register(customerio.OrderLineResource(queries))
 	reg.Register(inventory.LevelResource(queries, inventorySvc, cliSKULookup{catalogSvc}))

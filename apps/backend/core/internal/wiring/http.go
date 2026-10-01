@@ -200,7 +200,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	}))
 
 	// XML doesn't fit the GraphQL surface, so the product feed is plain HTTP, scoped by the channel middleware
-	feed := catalogio.NewMerchantFeed(infra.Queries, s.MediaStorage, s.Inventory)
+	feed := catalogio.NewMerchantFeed(infra.Queries, s.MediaStorage, s.Inventory, s.Catalog)
 	mux.Handle("/feeds/products.xml", channel.Middleware(s.Channel)(merchantFeedHandler(feed))) // Google Merchant product feed: channel-priced, channel-scoped - operators point Merchant Center at https://<store-host>/feeds/products.xml
 
 	// consume enforces the grant's use-count + expiry under a row lock before the 302; the per-IP budget is shared with the other token-keyed public endpoints - tokens are unguessable so forgery isn't the threat, replay-flooding is, since each hit costs a token verify plus DB work and doubles as a brute-force oracle

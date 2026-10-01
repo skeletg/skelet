@@ -3,7 +3,9 @@
 package catalogio
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -11,23 +13,25 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/internal/dataio"
 )
 
-// The same algorithm the catalog service uses for SKU fallbacks, so generated slugs pass its validateSlug
-func slugify(name string) string {
-	var b strings.Builder
-	prev := '-'
-	for _, r := range strings.ToLower(name) {
-		switch {
-		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
-			b.WriteRune(r)
-			prev = r
-		case prev != '-':
-			b.WriteRune('-')
-			prev = '-'
-		}
+const (
+	resourceProducts   = "products"
+	resourceCategories = "categories"
+	permView           = "catalog.view"
+	permManage         = "catalog.manage"
+)
+
+// The run's locale, else the install's default content locale
+func runLocale(ctx context.Context, cat *catalog.Service, o dataio.Opts) (string, error) {
+	if o.Locale != "" {
+		return o.Locale, nil
 	}
-	return strings.Trim(b.String(), "-")
+	if l := cat.DefaultLocale(ctx); l != "" {
+		return l, nil
+	}
+	return "", errors.New("no locale selected and no default locale configured")
 }
 
 func splitMulti(s string) []string {

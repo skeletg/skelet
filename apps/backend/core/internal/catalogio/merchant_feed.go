@@ -9,6 +9,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +26,12 @@ const (
 	merchantFeedDescriptionMaxRunes = 5000 // Merchant Center's description limit, counted in characters
 	merchantFeedCacheTTL            = 5 * time.Minute
 	merchantFeedContentType         = "application/xml; charset=utf-8"
+	merchantFeedNamespace           = "http://base.google.com/ns/1.0"
+	merchantFeedBrandAttribute      = "brand" // the attribute slug whose value fills g:brand
+	conditionNew                    = "new"
+	availabilityInStock             = "in_stock"
+	availabilityBackorder           = "backorder"
+	availabilityOutOfStock          = "out_of_stock"
 )
 
 // MediaURLer resolves a stored media key to its public URL - Satisfied by *objstore.Storage
@@ -36,11 +43,17 @@ type SalableReader interface {
 	SalableByProductIDs(ctx context.Context, productIDs []uuid.UUID, channelID uuid.UUID) (map[uuid.UUID]float64, error)
 }
 
+// DefaultLocaler names the locale a translation-less product falls back to - satisfied by *catalog.Service
+type DefaultLocaler interface {
+	DefaultLocale(ctx context.Context) string
+}
+
 // Rendered bytes are kept per (channel, locale) for a few minutes and concurrent misses share one render, so a burst of crawler pulls costs one pass over the catalog
 type MerchantFeed struct {
 	queries *db.Queries
 	media   MediaURLer
 	salable SalableReader
+	locales DefaultLocaler
 
 	now      func() time.Time
 	ttl      time.Duration
@@ -55,8 +68,8 @@ type cachedFeed struct {
 	expires time.Time
 }
 
-func NewMerchantFeed(queries *db.Queries, media MediaURLer, salable SalableReader) *MerchantFeed {
-	return &MerchantFeed{queries: queries, media: media, salable: salable, now: time.Now, ttl: merchantFeedCacheTTL, pageSize: merchantFeedPageSize, cache: map[string]cachedFeed{}}
+func NewMerchantFeed(queries *db.Queries, media MediaURLer, salable SalableReader, locales DefaultLocaler) *MerchantFeed {
+	return &MerchantFeed{queries: queries, media: media, salable: salable, locales: locales, now: time.Now, ttl: merchantFeedCacheTTL, pageSize: merchantFeedPageSize, cache: map[string]cachedFeed{}}
 }
 
 // MerchantFeedOptions carries the channel-resolved rendering inputs - Locale must already be one the channel serves, since it keys the cache
@@ -75,6 +88,7 @@ type merchantItem struct {
 	Description  string   `xml:"description,omitempty"`
 	Link         string   `xml:"link"`
 	ImageLink    string   `xml:"g:image_link,omitempty"`
+	ItemGroupID  string   `xml:"g:item_group_id,omitempty"`
 	Price        string   `xml:"g:price"`
 	Availability string   `xml:"g:availability"`
 	Condition    string   `xml:"g:condition"`
@@ -82,7 +96,7 @@ type merchantItem struct {
 	MPN          string   `xml:"g:mpn,omitempty"`
 }
 
-// Render produces the feed XML + content type - Digital and subscription products are included (Merchant Center supports them); availability maps tracked inventory to in_stock / backorder / out_of_stock
+// Render produces the feed XML + content type - Digital and subscription products are included (Merchant Center supports them); availability maps tracked inventory to in_stock / backorder / out_of_stock, and a kit's to its scarcest component
 func (f *MerchantFeed) Render(ctx context.Context, opts MerchantFeedOptions) ([]byte, string, error) {
 	key := opts.ChannelID.String() + "|" + opts.Locale
 	f.mu.Lock()
@@ -121,7 +135,7 @@ func (f *MerchantFeed) render(ctx context.Context, opts MerchantFeedOptions) ([]
 	enc.Indent("", "  ")
 	rss := xml.StartElement{Name: xml.Name{Local: "rss"}, Attr: []xml.Attr{
 		{Name: xml.Name{Local: "version"}, Value: "2.0"},
-		{Name: xml.Name{Local: "xmlns:g"}, Value: "http://base.google.com/ns/1.0"},
+		{Name: xml.Name{Local: "xmlns:g"}, Value: merchantFeedNamespace},
 	}}
 	channelEl := xml.StartElement{Name: xml.Name{Local: "channel"}}
 	if err := enc.EncodeToken(rss); err != nil {
@@ -140,13 +154,19 @@ func (f *MerchantFeed) render(ctx context.Context, opts MerchantFeedOptions) ([]
 		}
 	}
 
+	defaultLocale := ""
+	if f.locales != nil {
+		defaultLocale = f.locales.DefaultLocale(ctx)
+	}
 	after := uuid.Nil
 	for {
 		rows, err := f.queries.MerchantFeedProducts(ctx, db.MerchantFeedProductsParams{
-			ChannelID: opts.ChannelID,
-			Locale:    opts.Locale,
-			AfterID:   after,
-			PageLimit: f.pageSize,
+			ChannelID:      opts.ChannelID,
+			BrandAttribute: merchantFeedBrandAttribute,
+			Locale:         opts.Locale,
+			DefaultLocale:  defaultLocale,
+			AfterID:        after,
+			PageLimit:      f.pageSize,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("merchant feed page: %w", err)
@@ -154,13 +174,9 @@ func (f *MerchantFeed) render(ctx context.Context, opts MerchantFeedOptions) ([]
 		if len(rows) == 0 {
 			break
 		}
-		ids := make([]uuid.UUID, len(rows))
-		for i, r := range rows {
-			ids[i] = r.ID
-		}
-		salable, err := f.salable.SalableByProductIDs(ctx, ids, opts.ChannelID)
+		salable, kits, err := f.pageStock(ctx, rows, opts.ChannelID)
 		if err != nil {
-			return nil, fmt.Errorf("merchant feed salable: %w", err)
+			return nil, err
 		}
 		for _, r := range rows {
 			price := effectiveFeedPrice(r, now)
@@ -170,10 +186,11 @@ func (f *MerchantFeed) render(ctx context.Context, opts MerchantFeedOptions) ([]
 				Description:  truncateRunes(r.Description, merchantFeedDescriptionMaxRunes),
 				Link:         base + "/" + strings.TrimPrefix(r.Path, "/"),
 				Price:        fmt.Sprintf("%d.%02d %s", price/100, price%100, opts.CurrencyCode),
-				Availability: availabilityFor(r, salable[r.ID]),
-				Condition:    "new",
+				Availability: availabilityFor(r, salable, kits[r.ID]),
+				Condition:    conditionNew,
 				Brand:        r.Brand,
 				MPN:          r.Sku,
+				ItemGroupID:  r.ItemGroupID,
 			}
 			if r.ImageKey != "" && f.media != nil {
 				item.ImageLink = f.media.PublicURL(r.ImageKey)
@@ -231,18 +248,60 @@ func effectiveFeedPrice(r db.MerchantFeedProductsRow, now time.Time) int64 {
 	return pricing.Resolve(in, now).Price
 }
 
-// A negative salable is the inventory's always-in-stock sentinel
-func availabilityFor(r db.MerchantFeedProductsRow, salable float64) string {
-	if !r.Tracked || salable < 0 {
-		return "in_stock"
+type kitPart struct {
+	componentID uuid.UUID
+	qty         float64
+}
+
+func (f *MerchantFeed) pageStock(ctx context.Context, rows []db.MerchantFeedProductsRow, channelID uuid.UUID) (map[uuid.UUID]float64, map[uuid.UUID][]kitPart, error) {
+	ids := make([]uuid.UUID, 0, len(rows))
+	var kitIDs []uuid.UUID
+	for _, r := range rows {
+		ids = append(ids, r.ID)
+		if r.Kind == db.CatalogProductKindKit {
+			kitIDs = append(kitIDs, r.ID)
+		}
 	}
-	if salable > 0 {
-		return "in_stock"
+	kits := map[uuid.UUID][]kitPart{}
+	if len(kitIDs) > 0 {
+		comps, err := f.queries.MerchantFeedKitComponents(ctx, kitIDs)
+		if err != nil {
+			return nil, nil, fmt.Errorf("merchant feed kit components: %w", err)
+		}
+		for _, c := range comps {
+			kits[c.KitID] = append(kits[c.KitID], kitPart{componentID: c.ComponentProductID, qty: c.Quantity})
+			ids = append(ids, c.ComponentProductID)
+		}
+	}
+	salable, err := f.salable.SalableByProductIDs(ctx, ids, channelID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("merchant feed salable: %w", err)
+	}
+	return salable, kits, nil
+}
+
+// A negative salable is the inventory's always-in-stock sentinel - a kit's stock is reserved per component, so its scarcest tracked one decides
+func availabilityFor(r db.MerchantFeedProductsRow, salable map[uuid.UUID]float64, parts []kitPart) string {
+	if r.Kind == db.CatalogProductKindKit {
+		units := math.Inf(1)
+		for _, p := range parts {
+			if s := salable[p.componentID]; s >= 0 {
+				units = math.Min(units, math.Floor(s/p.qty))
+			}
+		}
+		if units > 0 {
+			return availabilityInStock
+		}
+		return availabilityOutOfStock
+	}
+	s := salable[r.ID]
+	if !r.Tracked || s < 0 || s > 0 {
+		return availabilityInStock
 	}
 	if r.Backorderable {
-		return "backorder"
+		return availabilityBackorder
 	}
-	return "out_of_stock"
+	return availabilityOutOfStock
 }
 
 // Cuts on a character boundary - a byte cut splits a multibyte rune and the encoder writes U+FFFD in its place

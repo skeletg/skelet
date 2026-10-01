@@ -79,7 +79,7 @@ func (d dataResourceDeps) customerEmails(ctx context.Context, ids []uuid.UUID) (
 
 func newDataRegistry(d dataResourceDeps) *dataio.Registry { // registered here rather than from each package's init() because every handler closes over a live service, the same reason internal/adminaction registers late
 	reg := dataio.NewRegistry()
-	reg.Register(catalogio.Resource(d.Queries, d.Catalog, d.Channel))
+	reg.Register(catalogio.Resource(d.Queries, d.Catalog))
 	reg.Register(catalogio.CategoryResource(d.Catalog))
 	reg.Register(customerio.CustomerResource(d.Queries, d.Customer))
 	reg.Register(customerio.OrderLineResource(d.Queries))
