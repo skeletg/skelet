@@ -16,8 +16,7 @@ import (
 
 func (r *postgresRepository) CreateBundleOption(ctx context.Context, input AddBundleOptionInput) (BundleOption, error) {
 	var out BundleOption
-	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	err := r.atomic(ctx, func(q *db.Queries) error {
 		row, err := q.CreateBundleOption(ctx, db.CreateBundleOptionParams{
 			ProductID:     input.ProductID,
 			InputType:     db.CatalogBundleInputType(input.InputType),
@@ -170,18 +169,6 @@ func (r *postgresRepository) GetBundleSelectionByID(ctx context.Context, id uuid
 		return BundleSelection{}, fmt.Errorf("get bundle selection: %w", err)
 	}
 	return toBundleSelection(row), nil
-}
-
-func (r *postgresRepository) ListBundleSelectionsByOptionID(ctx context.Context, optionID uuid.UUID) ([]BundleSelection, error) {
-	rows, err := r.queries.ListBundleSelectionsByOptionID(ctx, optionID)
-	if err != nil {
-		return nil, fmt.Errorf("list bundle selections: %w", err)
-	}
-	out := make([]BundleSelection, len(rows))
-	for i, row := range rows {
-		out[i] = toBundleSelection(row)
-	}
-	return out, nil
 }
 
 func (r *postgresRepository) ListBundleSelectionsByOptionIDs(ctx context.Context, optionIDs []uuid.UUID) (map[uuid.UUID][]BundleSelection, error) {

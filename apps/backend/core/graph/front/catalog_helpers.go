@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -814,10 +815,12 @@ func keepPublicAttributeValues(values []*model.ProductAttributeValue, axisAttrs 
 }
 
 // The native engines gate facets and filters by IsPublic themselves, but an external engine tier answers before that gate - browse strips both at this seam
-func (r *Resolver) privateAttributeSlugs(ctx context.Context) map[string]bool {
+// ok=false means the attribute set couldn't be read, and callers fail closed by dropping every attribute filter and facet
+func (r *Resolver) privateAttributeSlugs(ctx context.Context) (map[string]bool, bool) {
 	attrs, err := r.getAttributesCached(ctx)
 	if err != nil {
-		return nil
+		log.Printf("[browse] attribute visibility unavailable, stripping attribute filters and facets: %v", err)
+		return nil, false
 	}
 	out := map[string]bool{}
 	for _, a := range attrs {
@@ -825,7 +828,7 @@ func (r *Resolver) privateAttributeSlugs(ctx context.Context) map[string]bool {
 			out[a.Slug] = true
 		}
 	}
-	return out
+	return out, true
 }
 
 // Grouped by attribute id, with targets not visible on the active store silently skipped
@@ -1014,10 +1017,6 @@ func int32PtrFrom64(p *int64) *int32 {
 
 // Rows scoped to another channel or customer group are dropped, so "Buy N+ for $X" renders without leaking other groups' pricing
 func (r *Resolver) renderTierPrices(ctx context.Context, productID uuid.UUID) []*model1.TierPrice {
-	rows, err := r.CatalogSvc.ListGroupPrices(ctx, productID)
-	if err != nil || len(rows) == 0 {
-		return []*model1.TierPrice{}
-	}
 	channelID := channelIDFromContext(ctx)
 	var groupID *uuid.UUID
 	if cid := channel.OptionalCustomerID(ctx); cid != nil {
@@ -1035,15 +1034,11 @@ func (r *Resolver) renderTierPrices(ctx context.Context, productID uuid.UUID) []
 		}
 	}
 	out := []*model1.TierPrice{}
+	rows, err := r.CatalogSvc.ApplicableGroupPrices(ctx, productID, channelID, groupID)
+	if err != nil {
+		return out
+	}
 	for _, t := range rows {
-		if t.ChannelID != nil && (channelID == nil || *t.ChannelID != *channelID) {
-			continue
-		}
-		if t.CustomerGroupID != nil {
-			if groupID == nil || *t.CustomerGroupID != *groupID {
-				continue
-			}
-		}
 		out = append(out, &model1.TierPrice{MinQty: t.MinQty, Price: int32(t.Price)})
 	}
 	return out

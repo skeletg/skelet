@@ -252,6 +252,48 @@ func (q *Queries) ListProductMediaByProductIDs(ctx context.Context, productIds [
 	return items, nil
 }
 
+const listReadyProductMediaByProductIDs = `-- name: ListReadyProductMediaByProductIDs :many
+SELECT id, product_id, s3_key, mime_type, size_bytes, width, height, alt_text, sort_order, status, created_at, updated_at FROM catalog_product_media
+WHERE product_id = ANY($1::uuid[]) AND status = 'ready'
+ORDER BY product_id, sort_order, created_at
+`
+
+func (q *Queries) ListReadyProductMediaByProductIDs(ctx context.Context, productIds []uuid.UUID) ([]ProductMedium, error) {
+	rows, err := q.db.QueryContext(ctx, listReadyProductMediaByProductIDs, pq.Array(productIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProductMedium{}
+	for rows.Next() {
+		var i ProductMedium
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProductID,
+			&i.S3Key,
+			&i.MimeType,
+			&i.SizeBytes,
+			&i.Width,
+			&i.Height,
+			&i.AltText,
+			&i.SortOrder,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markProductMediaReady = `-- name: MarkProductMediaReady :one
 UPDATE catalog_product_media
 SET status     = 'ready',

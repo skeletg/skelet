@@ -5016,6 +5016,7 @@ type UpdateProductInput struct {
 	MinOrderQty                  *float64         `json:"minOrderQty,omitempty"`
 	MaxOrderQty                  *float64         `json:"maxOrderQty,omitempty"`
 	CostCents                    *int32           `json:"costCents,omitempty"`
+	ClearCostCents               *bool            `json:"clearCostCents,omitempty"`
 	Sku                          *string          `json:"sku,omitempty"`
 	SeoNoindex                   *bool            `json:"seoNoindex,omitempty"`
 	CanonicalURL                 *string          `json:"canonicalUrl,omitempty"`

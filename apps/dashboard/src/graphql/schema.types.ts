@@ -10142,6 +10142,7 @@ export type UpdateProductDownloadInput = {
 export type UpdateProductInput = {
   canonicalUrl?: InputMaybe<Scalars['String']['input']>;
   clearCompareAtPrice?: InputMaybe<Scalars['Boolean']['input']>;
+  clearCostCents?: InputMaybe<Scalars['Boolean']['input']>;
   clearSpecialPrice?: InputMaybe<Scalars['Boolean']['input']>;
   clearTracksInventoryOverride?: InputMaybe<Scalars['Boolean']['input']>;
   compareAtPrice?: InputMaybe<Scalars['Int']['input']>;

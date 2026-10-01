@@ -27,12 +27,17 @@ const (
 	EventBundleCreated = "bundle.created"
 	EventBundleUpdated = "bundle.updated"
 	EventBundleDeleted = "bundle.deleted"
+
+	EventAttributeUpdated = "attribute.updated"
+	EventAttributeDeleted = "attribute.deleted"
+
+	EventProductTypeURLTemplateChanged = "product_type.url_template.changed"
+	EventAttributeValueSlugChanged     = "attribute.value.slug.changed"
 )
 
 // Fires BEFORE the insert - sync handlers may abort (PIM duplicate-SKU check, naming policy) or append tags that get merged into the product's metadata, response schema {"reject": bool, "reason": string, "tags": [string]}
 type ProductCreating struct {
 	ProductTypeID uuid.UUID
-	Slug          string
 	SKU           string
 	Tags          []string
 }
@@ -64,7 +69,6 @@ func (e *ProductCreating) ApplyWebhookResponse(body []byte) (bool, string, error
 type ProductUpdating struct {
 	ProductID     uuid.UUID
 	ProductTypeID uuid.UUID
-	Slug          string
 	SKU           string
 	ChangedFields []string
 	Tags          []string
@@ -96,7 +100,6 @@ func (e *ProductUpdating) ApplyWebhookResponse(body []byte) (bool, string, error
 type ProductCreated struct { // fires AFTER the insert commits, async-only
 	ProductID     uuid.UUID
 	ProductTypeID uuid.UUID
-	Slug          string
 	SKU           string
 }
 
@@ -106,7 +109,6 @@ func (*ProductCreated) Type() string { return EventProductCreated }
 type ProductUpdated struct {
 	ProductID     uuid.UUID
 	ProductTypeID uuid.UUID
-	Slug          string
 	SKU           string
 	ChangedFields []string
 }
@@ -117,7 +119,6 @@ func (*ProductUpdated) Type() string { return EventProductUpdated }
 type ProductDeleted struct {
 	ProductID     uuid.UUID
 	ProductTypeID uuid.UUID
-	Slug          string
 	SKU           string
 }
 
@@ -218,3 +219,35 @@ type BundleDeleted struct {
 }
 
 func (*BundleDeleted) Type() string { return EventBundleDeleted }
+
+// Fires AFTER an attribute or its values, assignments or flags change - ProductIDs stays off the webhook payload, which can't carry a catalogue-sized list
+type AttributeUpdated struct {
+	AttributeID   uuid.UUID
+	Slug          string
+	ChangedFields []string
+	ProductIDs    []uuid.UUID `json:"-"`
+}
+
+func (*AttributeUpdated) Type() string { return EventAttributeUpdated }
+
+type AttributeDeleted struct {
+	AttributeID uuid.UUID
+	Slug        string
+	ProductIDs  []uuid.UUID `json:"-"`
+}
+
+func (*AttributeDeleted) Type() string { return EventAttributeDeleted }
+
+// Enqueued in the same tx as the template change, so the bulk product URL recompute survives a crash after commit
+type ProductTypeURLTemplateChanged struct {
+	ProductTypeID uuid.UUID
+}
+
+func (*ProductTypeURLTemplateChanged) Type() string { return EventProductTypeURLTemplateChanged }
+
+type AttributeValueSlugChanged struct {
+	AttributeID uuid.UUID
+	ValueID     uuid.UUID
+}
+
+func (*AttributeValueSlugChanged) Type() string { return EventAttributeValueSlugChanged }

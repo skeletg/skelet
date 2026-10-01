@@ -116,14 +116,6 @@ func (r *postgresRepository) CountInheritingListingsForChannel(ctx context.Conte
 	return n, nil
 }
 
-func (r *postgresRepository) CountInheritingListingsAcrossStoresWithCurrencyMismatch(ctx context.Context, newCurrency string) (int64, error) {
-	n, err := r.queries.CountInheritingListingsAcrossStoresWithCurrencyMismatch(ctx, newCurrency)
-	if err != nil {
-		return 0, fmt.Errorf("count cross-store inheriting listings: %w", err)
-	}
-	return n, nil
-}
-
 // GetListingProductIDByChannelURL resolves a channel-override url to its product - ErrListingNotFound when no listing on this channel carries the url
 func (r *postgresRepository) GetListingProductIDByChannelURL(ctx context.Context, channelID uuid.UUID, url string) (uuid.UUID, error) {
 	id, err := r.queries.GetListingProductIDByChannelURL(ctx, db.GetListingProductIDByChannelURLParams{
@@ -153,4 +145,27 @@ func toListing(row db.ProductChannelListing) ProductChannelListing {
 		CreatedAt:      row.CreatedAt,
 		UpdatedAt:      row.UpdatedAt,
 	}
+}
+
+func (r *postgresRepository) UpsertProductChannelListingPublished(ctx context.Context, productID, channelID uuid.UUID, published bool) (ProductChannelListing, error) {
+	row, err := r.queries.UpsertProductChannelListingPublished(ctx, db.UpsertProductChannelListingPublishedParams{
+		ProductID:   productID,
+		ChannelID:   channelID,
+		IsPublished: published,
+	})
+	if err != nil {
+		return ProductChannelListing{}, fmt.Errorf("upsert listing published: %w", err)
+	}
+	return toListing(row), nil
+}
+
+func (r *postgresRepository) CountInheritingListingsWithCurrencyMismatchForProduct(ctx context.Context, productID uuid.UUID, currency string) (int64, error) {
+	n, err := r.queries.CountInheritingListingsWithCurrencyMismatchForProduct(ctx, db.CountInheritingListingsWithCurrencyMismatchForProductParams{
+		ProductID:    productID,
+		CurrencyCode: currency,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("count inheriting listings with currency mismatch: %w", err)
+	}
+	return n, nil
 }

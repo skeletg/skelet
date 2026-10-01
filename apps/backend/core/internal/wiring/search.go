@@ -168,6 +168,20 @@ func registerSearchSubscribers(root context.Context, bus *events.Bus, products *
 		return nil
 	})
 
+	// Attribute edits change the attr_* fields of every product carrying the attribute; a delete leaves them holding a field that no longer exists
+	bus.Subscribe(catalog.EventAttributeUpdated, func(ctx context.Context, e events.Event) error {
+		for _, id := range e.(*catalog.AttributeUpdated).ProductIDs {
+			upsertProduct(ctx, id)
+		}
+		return nil
+	})
+	bus.Subscribe(catalog.EventAttributeDeleted, func(ctx context.Context, e events.Event) error {
+		for _, id := range e.(*catalog.AttributeDeleted).ProductIDs {
+			upsertProduct(ctx, id)
+		}
+		return nil
+	})
+
 	// Coalesced: StockChanged fires per reservation, so a hot product would re-run its ~dozen-query upsert per order line - deduped ids flush together, and is_in_stock lags stock by at most the interval, which "hide out-of-stock" tolerates
 	stockChanges := newStockCoalescer(upsertProduct)
 	go stockChanges.run(root)

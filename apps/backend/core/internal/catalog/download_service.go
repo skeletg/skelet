@@ -11,7 +11,12 @@ func (s *downloadService) AddProductDownload(ctx context.Context, input AddProdu
 	if strings.TrimSpace(input.Title) == "" || strings.TrimSpace(input.URL) == "" {
 		return ProductDownload{}, ErrProductDownloadInvalid
 	}
-	return s.repo.CreateProductDownload(ctx, input)
+	d, err := s.repo.CreateProductDownload(ctx, input)
+	if err != nil {
+		return ProductDownload{}, err
+	}
+	s.publishProductUpdatedByID(ctx, d.ProductID, "downloads")
+	return d, nil
 }
 
 // Feeds admin reads and the download-grant bridge, which needs to know what to grant at order placement
@@ -47,12 +52,22 @@ func (s *downloadService) UpdateProductDownload(ctx context.Context, input Updat
 	if strings.TrimSpace(title) == "" || strings.TrimSpace(url) == "" {
 		return ProductDownload{}, ErrProductDownloadInvalid
 	}
-	return s.repo.UpdateProductDownload(ctx, cur.ID, title, url, maxDownloads, sortOrder)
+	d, err := s.repo.UpdateProductDownload(ctx, cur.ID, title, url, maxDownloads, sortOrder)
+	if err != nil {
+		return ProductDownload{}, err
+	}
+	s.publishProductUpdatedByID(ctx, d.ProductID, "downloads")
+	return d, nil
 }
 
 func (s *downloadService) DeleteProductDownload(ctx context.Context, id uuid.UUID) error {
-	if _, err := s.repo.GetProductDownloadByID(ctx, id); err != nil {
+	d, err := s.repo.GetProductDownloadByID(ctx, id)
+	if err != nil {
 		return err
 	}
-	return s.repo.DeleteProductDownload(ctx, id)
+	if err := s.repo.DeleteProductDownload(ctx, id); err != nil {
+		return err
+	}
+	s.publishProductUpdatedByID(ctx, d.ProductID, "downloads")
+	return nil
 }

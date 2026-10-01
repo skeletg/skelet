@@ -27,7 +27,6 @@ type Repository interface {
 	GetAttributeGroupByID(ctx context.Context, id uuid.UUID) (AttributeGroup, error)
 	GetProductTypeByID(ctx context.Context, id uuid.UUID) (ProductType, error)
 	GetProductTypeWithAttributes(ctx context.Context, id uuid.UUID) (ProductType, error)
-	GetProductTypesByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]ProductType, error)
 	ListAttributeGroupsByProductType(ctx context.Context, productTypeID uuid.UUID) ([]AttributeGroup, error)
 	ListProductTypes(ctx context.Context) ([]ProductType, error)
 	MoveAttributeToGroup(ctx context.Context, productTypeID, attributeID uuid.UUID, groupID *uuid.UUID) error
@@ -71,6 +70,7 @@ type Repository interface {
 	GetProductBySKU(ctx context.Context, sku string) (Product, error)
 	GetProductsBySKUs(ctx context.Context, skus []string) (map[string]Product, error)
 	GetProductWithAttributes(ctx context.Context, id uuid.UUID) (Product, error)
+	HydrateProductGraph(ctx context.Context, p Product) (Product, error)
 	ListConfigurableOptions(ctx context.Context, productID uuid.UUID) ([]Attribute, error)
 	ListConfigurableOptionsByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]Attribute, error)
 	ListConfigurableParentByChildIDs(ctx context.Context, childIDs []uuid.UUID) (map[uuid.UUID]ConfigurableParentLink, error)
@@ -82,7 +82,14 @@ type Repository interface {
 	ListProductContentByProductIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]ProductContent, error)
 	ListProductParents(ctx context.Context, childID uuid.UUID) ([]Product, error)
 	ListProductSelectableValuesByIDs(ctx context.Context, productIDs, attributeIDs []uuid.UUID) (map[uuid.UUID]map[uuid.UUID][]uuid.UUID, error)
+	CountActiveCartReferencesToSKU(ctx context.Context, sku string) (int64, error)
+	CountInheritingListingsWithCurrencyMismatchForProduct(ctx context.Context, productID uuid.UUID, currency string) (int64, error)
+	UpsertProductChannelListingPublished(ctx context.Context, productID, channelID uuid.UUID, published bool) (ProductChannelListing, error)
+	ListReadyProductMediaByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]ProductMedia, error)
+	ListProductIDsCarryingAttribute(ctx context.Context, attributeID uuid.UUID, slug string) ([]uuid.UUID, error)
+	ListProductIDsCarryingAttributeValue(ctx context.Context, valueID uuid.UUID) ([]uuid.UUID, error)
 	ListProducts(ctx context.Context, rowLimit int32) ([]Product, error) // rowLimit 0 means every row - see the query comment
+	ListProductsForChannel(ctx context.Context, channelID uuid.UUID, rowLimit int32) ([]Product, error)
 	ListProductIDsPaged(ctx context.Context, f ProductPageFilter) ([]uuid.UUID, int64, error)
 	CountProductsInCategory(ctx context.Context, categoryID uuid.UUID) (int64, error)
 	ListProductsByCollection(ctx context.Context, collectionID uuid.UUID, limit int32) ([]Product, error)
@@ -106,10 +113,8 @@ type Repository interface {
 	DeleteProductAttributeLocaleValue(ctx context.Context, productID, attributeID uuid.UUID, locale string) error
 	DeleteProductAttributeLocaleValuesForAttribute(ctx context.Context, productID, attributeID uuid.UUID) error
 	DeleteProductAttributeSlug(ctx context.Context, productID, attributeID uuid.UUID, channelID *uuid.UUID) error
-	GetProductAttributeSlug(ctx context.Context, productID, attributeID uuid.UUID) (ProductAttributeSlug, error)
 	ListProductAttributeLocaleValues(ctx context.Context, productID uuid.UUID) ([]ProductAttributeLocaleValue, error)
 	ListProductAttributeLocaleValuesByProductIDs(ctx context.Context, productIDs []uuid.UUID) ([]ProductAttributeLocaleValue, error)
-	ListProductAttributeSelections(ctx context.Context, productID uuid.UUID) ([]ProductAttributeSelection, error)
 	ListProductAttributeSlugs(ctx context.Context, productID uuid.UUID) ([]ProductAttributeSlug, error)
 	ListProductAttributeSlugsByProductIDs(ctx context.Context, productIDs []uuid.UUID) ([]ProductAttributeSlug, error)
 	LoadProductsAttributeSelections(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]ProductAttributeSelection, error)
@@ -128,7 +133,6 @@ type Repository interface {
 	UpsertProductContent(ctx context.Context, productID uuid.UUID, input ProductContentInput) (ProductContent, error)
 
 	// Product channel listings and URL paths
-	CountInheritingListingsAcrossStoresWithCurrencyMismatch(ctx context.Context, newCurrency string) (int64, error)
 	CountInheritingListingsForChannel(ctx context.Context, channelID uuid.UUID) (int64, error)
 	DeleteProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) error
 	GetProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) (ProductChannelListing, error)
@@ -174,7 +178,6 @@ type Repository interface {
 	ListCategoryChannelListings(ctx context.Context, categoryID uuid.UUID) ([]CategoryChannelListing, error)
 	ListCategoryFacetOverrides(ctx context.Context, categoryID uuid.UUID) ([]FacetOverride, error)
 	ReplaceCategoryFacetOverrides(ctx context.Context, categoryID uuid.UUID, overrides []FacetOverride) error
-	ListCategoryChannelListingsByCategoryIDs(ctx context.Context, categoryIDs []uuid.UUID) (map[uuid.UUID][]CategoryChannelListing, error)
 	ListCategoryChildren(ctx context.Context, parentID uuid.UUID) ([]Category, error)
 	ListCategoriesListedOnChannel(ctx context.Context, channelID uuid.UUID) ([]Category, error)
 	ListCategoryChildrenListedOnChannel(ctx context.Context, channelID, parentID uuid.UUID) ([]Category, error)
@@ -269,7 +272,6 @@ type Repository interface {
 	ListBundleOptionContentByOptionIDs(ctx context.Context, optionIDs []uuid.UUID) (map[uuid.UUID][]BundleOptionContent, error)
 	ListBundleOptionsByProductID(ctx context.Context, productID uuid.UUID) ([]BundleOption, error)
 	ListBundleSelectionLinksByProductIDs(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]BundleSelectionLink, error)
-	ListBundleSelectionsByOptionID(ctx context.Context, optionID uuid.UUID) ([]BundleSelection, error)
 	ListBundleSelectionsByOptionIDs(ctx context.Context, optionIDs []uuid.UUID) (map[uuid.UUID][]BundleSelection, error)
 	UpdateBundleOption(ctx context.Context, id uuid.UUID, inputType BundleInputType, isRequired bool, sortOrder, minSelections int32, maxSelections *int32) (BundleOption, error)
 	UpdateBundleSelection(ctx context.Context, id uuid.UUID, quantity float64, isDefault bool, sortOrder int32) (BundleSelection, error)
@@ -281,7 +283,6 @@ type Repository interface {
 	GetGroupedMemberByID(ctx context.Context, id uuid.UUID) (GroupedMember, error)
 	ListGroupedMemberLinksByMemberIDs(ctx context.Context, memberIDs []uuid.UUID) (map[uuid.UUID][]GroupedMemberLink, error)
 	ListGroupedMembersByParentID(ctx context.Context, parentID uuid.UUID) ([]GroupedMember, error)
-	ListGroupedMembersByParentIDs(ctx context.Context, parentIDs []uuid.UUID) (map[uuid.UUID][]GroupedMember, error)
 	UpdateGroupedMember(ctx context.Context, id uuid.UUID, defaultQuantity float64, sortOrder int32) (GroupedMember, error)
 
 	// Kit components

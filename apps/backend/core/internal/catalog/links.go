@@ -4,14 +4,31 @@ package catalog
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/google/uuid"
+	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 )
 
 type LinkKind string
+
+// Also-bought sizing - the storefront over-fetches by AlsoBoughtOverfetch so its channel filter can't leave a rail short
+const (
+	AlsoBoughtDefaultLimit int32 = 8
+	AlsoBoughtMaxLimit     int32 = 24
+	AlsoBoughtOverfetch    int32 = 3
+	alsoBoughtFetchMax           = AlsoBoughtMaxLimit * AlsoBoughtOverfetch
+	alsoBoughtRebuildTopN        = alsoBoughtFetchMax
+	maxProductLinks              = 200
+)
+
+func ClampAlsoBoughtLimit(limit *int32) int32 {
+	if limit == nil {
+		return AlsoBoughtDefaultLimit
+	}
+	return min(max(*limit, 1), AlsoBoughtMaxLimit)
+}
 
 const (
 	LinkRelated   LinkKind = "related"
@@ -25,7 +42,7 @@ func (k LinkKind) IsValid() bool {
 
 func (s *listingService) ListProductLinks(ctx context.Context, productID uuid.UUID, kind LinkKind) ([]uuid.UUID, error) { // curated order
 	if !kind.IsValid() {
-		return nil, fmt.Errorf("invalid link kind %q", kind)
+		return nil, fmt.Errorf("%w: %q", ErrInvalidLinkKind, kind)
 	}
 	return s.repo.ListProductLinks(ctx, productID, kind)
 }
@@ -33,7 +50,10 @@ func (s *listingService) ListProductLinks(ctx context.Context, productID uuid.UU
 // Replaces one kind's link set wholesale, curated order = slice order - self-links are dropped
 func (s *listingService) SetProductLinks(ctx context.Context, productID uuid.UUID, kind LinkKind, linked []uuid.UUID) error {
 	if !kind.IsValid() {
-		return fmt.Errorf("invalid link kind %q", kind)
+		return fmt.Errorf("%w: %q", ErrInvalidLinkKind, kind)
+	}
+	if len(linked) > maxProductLinks {
+		return fmt.Errorf("%w: %d links, at most %d", ErrTooManyItems, len(linked), maxProductLinks)
 	}
 	clean := make([]uuid.UUID, 0, len(linked))
 	seen := map[uuid.UUID]bool{}
@@ -44,13 +64,18 @@ func (s *listingService) SetProductLinks(ctx context.Context, productID uuid.UUI
 		seen[id] = true
 		clean = append(clean, id)
 	}
-	return s.repo.ReplaceProductLinks(ctx, productID, kind, clean)
+	if err := s.repo.ReplaceProductLinks(ctx, productID, kind, clean); err != nil {
+		return err
+	}
+	s.publishProductUpdatedByID(ctx, productID, "links")
+	return nil
 }
 
 func (s *listingService) ListAlsoBought(ctx context.Context, productID uuid.UUID, limit int32) ([]uuid.UUID, error) { // co-occurrence recommendations, best first
-	if limit <= 0 || limit > 20 {
-		limit = 8
+	if limit <= 0 {
+		limit = AlsoBoughtDefaultLimit
 	}
+	limit = min(limit, alsoBoughtFetchMax)
 	return s.repo.ListAlsoBought(ctx, productID, limit)
 }
 
@@ -71,8 +96,7 @@ func (r *postgresRepository) ListProductLinks(ctx context.Context, productID uui
 }
 
 func (r *postgresRepository) ReplaceProductLinks(ctx context.Context, productID uuid.UUID, kind LinkKind, linked []uuid.UUID) error {
-	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	return r.atomic(ctx, func(q *db.Queries) error {
 		if err := q.DeleteProductLinks(ctx, db.DeleteProductLinksParams{ProductID: productID, Kind: string(kind)}); err != nil {
 			return fmt.Errorf("clear product links: %w", err)
 		}
@@ -83,6 +107,9 @@ func (r *postgresRepository) ReplaceProductLinks(ctx context.Context, productID 
 				Kind:            string(kind),
 				SortOrder:       int32(i),
 			}); err != nil {
+				if pgdb.IsForeignKeyViolation(err) {
+					return fmt.Errorf("%w: linked product %s", ErrProductNotFound, id)
+				}
 				return fmt.Errorf("insert product link: %w", err)
 			}
 		}
@@ -101,12 +128,11 @@ func (r *postgresRepository) ListAlsoBought(ctx context.Context, productID uuid.
 // Clear and rebuild are separate statements in one transaction - fused into one statement via a DELETE CTE, the insert
 // never saw the deletion (one snapshot per statement) and every rebuild after the first failed on the primary key
 func (r *postgresRepository) RebuildAlsoBought(ctx context.Context) error {
-	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	return r.atomic(ctx, func(q *db.Queries) error {
 		if err := q.ClearAlsoBought(ctx); err != nil {
 			return fmt.Errorf("clear also bought: %w", err)
 		}
-		if err := q.RebuildAlsoBought(ctx); err != nil {
+		if err := q.RebuildAlsoBought(ctx, alsoBoughtRebuildTopN); err != nil {
 			return fmt.Errorf("rebuild also bought: %w", err)
 		}
 		return nil
