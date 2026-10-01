@@ -18,31 +18,27 @@ ON CONFLICT DO NOTHING;
 DELETE FROM product_also_bought;
 
 -- name: RebuildAlsoBought :exec
--- Recomputes the co-occurrence table from completed (non-cancelled) order lines: pairs of distinct products bought in the same order, scored by pair frequency, top 20 per product - full rebuild - the table is small relative to orders and the job runs off-peak
-WITH pairs AS (
-    SELECT a.pid AS product_id, b.pid AS other_product_id, COUNT(*)::int AS score
-    FROM (
-        SELECT ol.order_id, p.id AS pid
-        FROM order_lines ol
-        JOIN catalog_products p ON p.sku = ol.product_sku
-        JOIN orders o ON o.id = ol.order_id
-        WHERE o.status NOT IN ('cancelled', 'draft') AND ol.removed_at IS NULL
-    ) a
-    JOIN (
-        SELECT ol.order_id, p.id AS pid
-        FROM order_lines ol
-        JOIN catalog_products p ON p.sku = ol.product_sku
-        JOIN orders o ON o.id = ol.order_id
-        WHERE o.status NOT IN ('cancelled', 'draft') AND ol.removed_at IS NULL
-    ) b ON a.order_id = b.order_id AND a.pid <> b.pid
+-- Recomputes the co-occurrence table from completed (non-cancelled) order lines: variants roll up to their configurable parent, pairs score by the number of distinct orders that bought both, and each product keeps its top_n - full rebuild, the job runs off-peak
+WITH bought AS (
+    SELECT DISTINCT ol.order_id, COALESCE(pc.parent_id, p.id) AS pid
+    FROM order_lines ol
+    JOIN catalog_products p ON p.sku = ol.product_sku
+    JOIN orders o ON o.id = ol.order_id
+    LEFT JOIN catalog_product_children pc ON pc.child_id = p.id
+    WHERE o.status NOT IN ('cancelled', 'draft') AND ol.removed_at IS NULL
+),
+pairs AS (
+    SELECT a.pid AS product_id, b.pid AS other_product_id, COUNT(DISTINCT a.order_id)::int AS score
+    FROM bought a
+    JOIN bought b ON a.order_id = b.order_id AND a.pid <> b.pid
     GROUP BY a.pid, b.pid
 ),
 ranked AS (
-    SELECT *, ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY score DESC) AS rn
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY score DESC, other_product_id) AS rn
     FROM pairs
 )
 INSERT INTO product_also_bought (product_id, other_product_id, score)
-SELECT product_id, other_product_id, score FROM ranked WHERE rn <= 20;
+SELECT product_id, other_product_id, score FROM ranked WHERE rn <= sqlc.arg(top_n)::int;
 
 -- name: ListAlsoBought :many
 SELECT other_product_id FROM product_also_bought

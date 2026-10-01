@@ -260,10 +260,6 @@ WHERE category_id = $1 AND channel_id = $2;
 SELECT * FROM catalog_category_channel_listings
 WHERE category_id = $1 ORDER BY channel_id;
 
--- name: ListCatalogCategoryChannelListingsByCategoryIDs :many
-SELECT * FROM catalog_category_channel_listings
-WHERE category_id = ANY(sqlc.arg(category_ids)::uuid[]);
-
 -- name: GetCatalogCategoryChannelListing :one
 SELECT * FROM catalog_category_channel_listings
 WHERE category_id = $1 AND channel_id = $2;

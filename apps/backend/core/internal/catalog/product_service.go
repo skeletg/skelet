@@ -17,39 +17,44 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
 )
 
+const (
+	maxUniqueSuffixAttempts = 100
+	webhookTagsMetadataKey  = "webhook_tags"
+)
+
 // Carved off the catalog Service god-struct - embeds *core for shared deps, and Service embeds this back so callers keep calling catalogSvc.CreateProduct
 type productService struct{ *core }
 
 // ==================== Product CRUD ====================
 
-// Normalizes in place and returns the loaded product type plus the SKU base for the caller's collision-retry loop - all create-time rejections live here
-func (s *productService) validateAndNormalizeCreateInput(ctx context.Context, input *CreateProductInput) (ProductType, string, error) {
+// Normalizes in place and returns the loaded product type, the SKU base and whether that base was derived from the name (only a derived SKU may be suffixed on collision) - all create-time rejections live here
+func (s *productService) validateAndNormalizeCreateInput(ctx context.Context, input *CreateProductInput) (ProductType, string, bool, error) {
 	if strings.TrimSpace(input.Locale) == "" {
-		return ProductType{}, "", fmt.Errorf("locale is required")
+		return ProductType{}, "", false, ErrLocaleRequired
 	}
 	if def := s.resolveDefaultLocale(ctx); def != "" && input.Locale != def {
-		return ProductType{}, "", fmt.Errorf("%w: got %q, want %q", ErrLocaleMustBeDefault, input.Locale, def)
+		return ProductType{}, "", false, fmt.Errorf("%w: got %q, want %q", ErrLocaleMustBeDefault, input.Locale, def)
 	}
 	if strings.TrimSpace(input.Name) == "" {
-		return ProductType{}, "", fmt.Errorf("name is required")
+		return ProductType{}, "", false, ErrNameRequired
 	}
 	if input.Kind == "" {
 		input.Kind = KindSimple
 	}
 	if !input.Kind.IsKnown() {
-		return ProductType{}, "", fmt.Errorf("%w: %q", ErrInvalidProductKind, string(input.Kind))
+		return ProductType{}, "", false, fmt.Errorf("%w: %q", ErrInvalidProductKind, string(input.Kind))
 	}
 	if input.DefaultPrice < 0 {
-		return ProductType{}, "", fmt.Errorf("default_price must be non-negative")
+		return ProductType{}, "", false, fmt.Errorf("%w: default_price", ErrNegativePrice)
 	}
 	// Required - products are global with no store to inherit from, so an implicit code stamped the wrong one on non-USD catalogs
 	input.DefaultCurrencyCode = strings.ToUpper(strings.TrimSpace(input.DefaultCurrencyCode))
 	if len(input.DefaultCurrencyCode) != 3 {
-		return ProductType{}, "", ErrInvalidCurrency
+		return ProductType{}, "", false, ErrInvalidCurrency
 	}
 	pt, err := s.repo.GetProductTypeByID(ctx, input.ProductTypeID)
 	if err != nil {
-		return ProductType{}, "", err
+		return ProductType{}, "", false, err
 	}
 	// Default to true when the product type has a template
 	if input.URLAuto == nil {
@@ -57,7 +62,7 @@ func (s *productService) validateAndNormalizeCreateInput(ctx context.Context, in
 		input.URLAuto = &v
 	}
 	if *input.URLAuto && input.URL != nil && strings.TrimSpace(*input.URL) != "" {
-		return ProductType{}, "", ErrManualPathWhileAuto
+		return ProductType{}, "", false, ErrManualPathWhileAuto
 	}
 	// url is NOT NULL - seed from the name, regenerateProductURL refines it after create
 	if input.URL == nil || strings.TrimSpace(*input.URL) == "" {
@@ -69,18 +74,19 @@ func (s *productService) validateAndNormalizeCreateInput(ctx context.Context, in
 	}
 	// Empty falls back to a slugified name so imports and fixtures still satisfy the NOT NULL constraint
 	base := strings.TrimSpace(input.SKU)
-	if base == "" {
+	derived := base == ""
+	if derived {
 		base = slugifyForSKU(input.Name)
 		if base == "" {
 			base = "product"
 		}
 	}
 	input.SKU = base
-	return pt, base, nil
+	return pt, base, derived, nil
 }
 
 func (s *productService) CreateProduct(ctx context.Context, input CreateProductInput) (Product, error) {
-	pt, base, err := s.validateAndNormalizeCreateInput(ctx, &input)
+	pt, base, skuDerived, err := s.validateAndNormalizeCreateInput(ctx, &input)
 	if err != nil {
 		return Product{}, err
 	}
@@ -97,12 +103,12 @@ func (s *productService) CreateProduct(ctx context.Context, input CreateProductI
 			if input.Metadata == nil {
 				input.Metadata = Metadata{}
 			}
-			input.Metadata["webhook_tags"] = strings.Join(ing.Tags, ",")
+			input.Metadata[webhookTagsMetadataKey] = strings.Join(ing.Tags, ",")
 		}
 	}
-	// Each attempt is its own transaction so a failed content write can't orphan a product, and a SKU collision retries cleanly
+	// Each attempt is its own transaction so a failed content write can't orphan a product, and a derived SKU's collision retries cleanly
 	var p Product
-	for attempt := range 100 {
+	for attempt := range maxUniqueSuffixAttempts {
 		if attempt > 0 {
 			input.SKU = fmt.Sprintf("%s-%d", base, attempt)
 		}
@@ -126,7 +132,7 @@ func (s *productService) CreateProduct(ctx context.Context, input CreateProductI
 			p = created
 			return nil
 		})
-		if errors.Is(err, ErrSKUTaken) {
+		if errors.Is(err, ErrSKUTaken) && skuDerived {
 			continue
 		}
 		if err != nil {
@@ -135,8 +141,10 @@ func (s *productService) CreateProduct(ctx context.Context, input CreateProductI
 		break
 	}
 	if p.ID == (uuid.UUID{}) {
-		return Product{}, fmt.Errorf("could not generate unique SKU from %q after 100 attempts", base)
+		return Product{}, fmt.Errorf("%w: no free suffix for %q after %d attempts", ErrSKUTaken, base, maxUniqueSuffixAttempts)
 	}
+	// The row is committed, so subscribers hear about it even when a follow-up step below fails
+	defer s.publishProductCreated(ctx, p)
 	// Lenient at create - missing template tokens are tolerated, strict validation kicks in on later recomputes
 	if err := s.regenerateProductURLPath(ctx, p.ID, false); err != nil {
 		return Product{}, err
@@ -157,18 +165,22 @@ func (s *productService) CreateProduct(ctx context.Context, input CreateProductI
 			}
 		}
 	}
-	if s.bus != nil {
-		s.bus.Publish(ctx, &ProductCreated{
-			ProductID:     p.ID,
-			ProductTypeID: p.ProductTypeID,
-			SKU:           p.SKU,
-		})
-		// Emit the specific bundle event too so subscribers can filter on it instead of every product.created
-		if p.Kind == KindBundle {
-			s.bus.Publish(ctx, &BundleCreated{ProductID: p.ID, SKU: p.SKU})
-		}
-	}
 	return s.repo.GetProductWithAttributes(ctx, p.ID)
+}
+
+func (s *productService) publishProductCreated(ctx context.Context, p Product) {
+	if s.bus == nil {
+		return
+	}
+	s.bus.Publish(ctx, &ProductCreated{
+		ProductID:     p.ID,
+		ProductTypeID: p.ProductTypeID,
+		SKU:           p.SKU,
+	})
+	// Emit the specific bundle event too so subscribers can filter on it instead of every product.created
+	if p.Kind == KindBundle {
+		s.bus.Publish(ctx, &BundleCreated{ProductID: p.ID, SKU: p.SKU})
+	}
 }
 
 // ListProductTranslations returns every locale's content row for each product, in one query - list paths only carry the resolved locale, so a caller wanting the full set (the admin Product.content field) reads it here
@@ -208,11 +220,6 @@ func (s *productService) ProductKindBySKU(ctx context.Context, sku string) (stri
 		return "", err
 	}
 	return string(p.Kind), nil
-}
-
-// For callers holding a Product without AttributeSelections - e.g. configurable children, which come back from ListProductChildren bare
-func (s *productService) ListProductAttributeSelections(ctx context.Context, productID uuid.UUID) ([]ProductAttributeSelection, error) {
-	return s.repo.ListProductAttributeSelections(ctx, productID)
 }
 
 func (s *productService) ListProductChildrenByParentIDs(ctx context.Context, parentIDs []uuid.UUID) (map[uuid.UUID][]Product, error) {
@@ -274,13 +281,18 @@ func (s *core) LoadProductsContent(ctx context.Context, ids []uuid.UUID, locale 
 // Storefront-safe GetProduct - returns only when a published listing exists on the channel, so a guessed or leaked id can't reveal an unpublished product
 func (s *productService) GetProductForChannel(ctx context.Context, id, channelID uuid.UUID, locale string) (Product, error) {
 	const op = "catalog.Service.GetProductForChannel"
-	if _, err := s.repo.GetPublishedProductForChannel(ctx, id, channelID); err != nil {
+	row, err := s.repo.GetPublishedProductForChannel(ctx, id, channelID)
+	if err != nil {
 		if apperr.IsNotFound(err) {
 			return Product{}, err
 		}
 		return Product{}, apperr.WrapClass(err, apperr.ClassInternal, op)
 	}
-	return s.GetProduct(ctx, id, locale)
+	p, err := s.repo.HydrateProductGraph(ctx, row)
+	if err != nil {
+		return Product{}, apperr.WrapClass(err, apperr.ClassInternal, op)
+	}
+	return s.withLocalizedContent(ctx, p, locale)
 }
 
 // GetProductForChannel without the graph, for reads that don't need it
@@ -413,6 +425,12 @@ func (s *productService) GetProduct(ctx context.Context, id uuid.UUID, locale st
 		}
 		return Product{}, apperr.WrapClass(err, apperr.ClassInternal, op)
 	}
+	return s.withLocalizedContent(ctx, p, locale)
+}
+
+func (s *productService) withLocalizedContent(ctx context.Context, p Product, locale string) (Product, error) {
+	const op = "catalog.Service.GetProduct"
+	id := p.ID
 	if locale != "" {
 		c, err := s.repo.GetProductContent(ctx, id, locale)
 		switch {
@@ -440,9 +458,15 @@ func (s *productService) GetProduct(ctx context.Context, id uuid.UUID, locale st
 // ListProductsWithGraph is ListProducts plus the full attribute graph in a constant number of batch queries - the admin list would otherwise pay a per-product renderProduct fan-out The ceiling for list queries that take no page - uncapped they are 101k rows and ~17MB on a real catalog, which pins a connection for ~20s and is reachable by any admin who can view the catalog Callers that genuinely need everything (the CSV export) pass 0
 const MaxUnpagedRows int32 = 1000
 
-func (s *productService) ListProductsWithGraph(ctx context.Context, locale string, rowLimit int32) ([]Product, error) {
+func (s *productService) ListProductsWithGraph(ctx context.Context, locale string, rowLimit int32, channelID *uuid.UUID) ([]Product, error) {
 	const op = "catalog.Service.ListProductsWithGraph"
-	bare, err := s.repo.ListProducts(ctx, rowLimit)
+	var bare []Product
+	var err error
+	if channelID != nil {
+		bare, err = s.repo.ListProductsForChannel(ctx, *channelID, rowLimit)
+	} else {
+		bare, err = s.repo.ListProducts(ctx, rowLimit)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -491,58 +515,16 @@ func (s *productService) ListProducts(ctx context.Context, locale string, rowLim
 	if len(products) == 0 {
 		return products, nil
 	}
-	ids := make([]uuid.UUID, len(products))
-	for i, p := range products {
-		ids[i] = p.ID
-	}
-	if locale != "" {
-		batch, err := s.repo.ListProductContentByScope(ctx, ids, locale)
-		if err != nil {
-			return nil, err
-		}
-		for i, p := range products {
-			if c, ok := batch[p.ID]; ok {
-				cp := c
-				products[i].Content = &cp
-			}
-		}
-	}
-	def := s.resolveDefaultLocale(ctx)
-	if def == "" || def == locale {
-		return products, nil
-	}
-	missing := make([]uuid.UUID, 0, len(products))
-	for _, p := range products {
-		if p.Content == nil {
-			missing = append(missing, p.ID)
-		}
-	}
-	if len(missing) == 0 {
-		return products, nil
-	}
-	fallback, err := s.repo.ListProductContentByScope(ctx, missing, def)
-	if err != nil {
-		return nil, err
-	}
-	for i, p := range products {
-		if p.Content != nil {
-			continue
-		}
-		if c, ok := fallback[p.ID]; ok {
-			cp := c
-			products[i].Content = &cp
-		}
-	}
-	return products, nil
+	return s.hydrateContent(ctx, products, locale)
 }
 
 // Pre-validates the locale so a typo surfaces as locale.ErrLocaleNotFound rather than a raw FK violation
 func (s *productService) UpsertProductContent(ctx context.Context, productID uuid.UUID, input ProductContentInput) (Product, error) {
 	if strings.TrimSpace(input.Name) == "" {
-		return Product{}, fmt.Errorf("name is required")
+		return Product{}, ErrNameRequired
 	}
 	if strings.TrimSpace(input.Locale) == "" {
-		return Product{}, fmt.Errorf("locale is required")
+		return Product{}, ErrLocaleRequired
 	}
 	if s.locales != nil {
 		if err := s.locales.EnsureExists(ctx, input.Locale); err != nil {
@@ -577,7 +559,11 @@ func (s *productService) DeleteProductContent(ctx context.Context, productID uui
 			}
 		}
 	}
-	return s.repo.DeleteProductContent(ctx, productID, locale)
+	if err := s.repo.DeleteProductContent(ctx, productID, locale); err != nil {
+		return err
+	}
+	s.publishProductUpdatedByID(ctx, productID, "content")
+	return nil
 }
 
 // The single post-commit "this product's indexed document is stale" signal - mutations outside UpdateProduct (attributes, content, category membership) reuse it so subscribers keep one handler
@@ -593,36 +579,67 @@ func (s *core) publishProductUpdated(ctx context.Context, p Product, changed ...
 	})
 }
 
+func (s *core) publishProductUpdatedByID(ctx context.Context, productID uuid.UUID, changed ...string) {
+	if s.bus == nil {
+		return
+	}
+	p, err := s.repo.GetProductByID(ctx, productID)
+	if err != nil {
+		p = Product{ID: productID}
+	}
+	s.publishProductUpdated(ctx, p, changed...)
+}
+
 // Shared by the sync pre-commit hook and the post-commit async event so both observe one consistent diff list
 func changedProductFields(input UpdateProductInput) []string {
 	var changed []string
-	if input.SKU != nil {
-		changed = append(changed, "sku")
+	add := func(set bool, name string) {
+		if set {
+			changed = append(changed, name)
+		}
 	}
-	if input.DefaultPrice != nil {
-		changed = append(changed, "defaultPrice")
-	}
-	if input.DefaultCurrencyCode != nil {
-		changed = append(changed, "defaultCurrencyCode")
-	}
-	if input.URL != nil {
-		changed = append(changed, "url")
-	}
-	if input.URLAuto != nil {
-		changed = append(changed, "urlAuto")
-	}
-	if input.URLTemplateOverride != nil {
-		changed = append(changed, "urlTemplateOverride")
-	}
-	if input.TracksInventoryOverride != nil {
-		changed = append(changed, "tracksInventoryOverride")
-	}
+	add(input.SKU != nil, "sku")
+	add(input.DefaultPrice != nil, "defaultPrice")
+	add(input.DefaultCurrencyCode != nil, "defaultCurrencyCode")
+	add(input.URL != nil, "url")
+	add(input.URLAuto != nil, "urlAuto")
+	add(input.URLTemplateOverride != nil, "urlTemplateOverride")
+	add(input.TracksInventoryOverride != nil || input.ClearTracksInventoryOverride, "tracksInventoryOverride")
+	add(input.SEONoindex != nil, "seoNoindex")
+	add(input.CanonicalURL != nil, "canonicalUrl")
+	add(input.QuantityDecimals != nil, "quantityDecimals")
+	add(input.QuantityStep != nil, "quantityStep")
+	add(input.Metadata != nil, "metadata")
+	add(input.PrivateMetadata != nil, "privateMetadata")
+	add(input.CompareAtPrice != nil || input.ClearCompareAtPrice, "compareAtPrice")
+	add(input.SpecialPrice != nil || input.ClearSpecialPrice, "specialPrice")
+	add(input.SpecialFrom != nil, "specialFrom")
+	add(input.SpecialTo != nil, "specialTo")
+	add(input.WeightGrams != nil, "weightGrams")
+	add(input.LengthMm != nil, "lengthMm")
+	add(input.WidthMm != nil, "widthMm")
+	add(input.HeightMm != nil, "heightMm")
+	add(input.MinOrderQty != nil, "minOrderQty")
+	add(input.MaxOrderQty != nil, "maxOrderQty")
+	add(input.CostCents != nil || input.ClearCostCents, "costCents")
 	return changed
 }
 
+func validateUpdatePrices(input UpdateProductInput) error {
+	for name, v := range map[string]*int64{
+		"default_price": input.DefaultPrice, "compare_at_price": input.CompareAtPrice,
+		"special_price": input.SpecialPrice, "cost_cents": input.CostCents,
+	} {
+		if v != nil && *v < 0 {
+			return fmt.Errorf("%w: %s", ErrNegativePrice, name)
+		}
+	}
+	return nil
+}
+
 func (s *productService) UpdateProduct(ctx context.Context, input UpdateProductInput) (Product, error) {
-	if input.DefaultPrice != nil && *input.DefaultPrice < 0 {
-		return Product{}, fmt.Errorf("default_price must be non-negative")
+	if err := validateUpdatePrices(input); err != nil {
+		return Product{}, err
 	}
 	if input.DefaultCurrencyCode != nil {
 		if len(*input.DefaultCurrencyCode) != 3 {
@@ -634,12 +651,18 @@ func (s *productService) UpdateProduct(ctx context.Context, input UpdateProductI
 	if input.SKU != nil {
 		trimmed := strings.TrimSpace(*input.SKU)
 		if trimmed == "" {
-			return Product{}, fmt.Errorf("sku is required and cannot be cleared")
+			return Product{}, ErrSKURequired
 		}
 		input.SKU = &trimmed
 	}
 	current, err := s.repo.GetProductByID(ctx, input.ID)
 	if err != nil {
+		return Product{}, err
+	}
+	if err := s.guardSKURename(ctx, current, input.SKU); err != nil {
+		return Product{}, err
+	}
+	if err := s.guardCurrencyChange(ctx, current, input.DefaultCurrencyCode); err != nil {
 		return Product{}, err
 	}
 	// Sync pre-tx hook - external systems can reject the update or contribute tags
@@ -660,7 +683,7 @@ func (s *productService) UpdateProduct(ctx context.Context, input UpdateProductI
 			if input.Metadata != nil {
 				maps.Copy(merged, *input.Metadata)
 			}
-			merged["webhook_tags"] = strings.Join(ing.Tags, ",")
+			merged[webhookTagsMetadataKey] = strings.Join(ing.Tags, ",")
 			input.Metadata = &merged
 		}
 	}
@@ -677,6 +700,7 @@ func (s *productService) UpdateProduct(ctx context.Context, input UpdateProductI
 	if err != nil {
 		return Product{}, err
 	}
+	defer s.publishProductUpdatedFull(ctx, updated, changed)
 	// The override column is inert on its own (Salable reads inventory_items.tracked), so without this reconcile an admin flipping "track inventory" would see no effect
 	if s.inventory != nil && current.Kind.OwnsInventory() &&
 		(input.TracksInventoryOverride != nil || input.ClearTracksInventoryOverride) {
@@ -708,24 +732,52 @@ func (s *productService) UpdateProduct(ctx context.Context, input UpdateProductI
 					return Product{}, err
 				}
 				if finalPath != newPath {
-					s.noteURLCollision(ctx, "product", updated.SKU, updated.ID, newPath, finalPath)
+					s.noteURLCollision(ctx, string(urlrewrite.EntityTypeProduct), updated.SKU, updated.ID, newPath, finalPath)
 				}
-				s.createRenameRedirect(ctx, oldPath, "product", updated.ID)
+				s.createRenameRedirect(ctx, oldPath, string(urlrewrite.EntityTypeProduct), updated.ID)
 			}
 		}
 	}
-	if s.bus != nil {
-		s.bus.Publish(ctx, &ProductUpdated{
-			ProductID:     updated.ID,
-			ProductTypeID: updated.ProductTypeID,
-			SKU:           updated.SKU,
-			ChangedFields: changed,
-		})
-		if updated.Kind == KindBundle {
-			s.bus.Publish(ctx, &BundleUpdated{ProductID: updated.ID, SKU: updated.SKU, ChangedFields: changed})
-		}
-	}
 	return s.repo.GetProductByID(ctx, updated.ID)
+}
+
+func (s *productService) publishProductUpdatedFull(ctx context.Context, p Product, changed []string) {
+	if s.bus == nil {
+		return
+	}
+	s.publishProductUpdated(ctx, p, changed...)
+	if p.Kind == KindBundle {
+		s.bus.Publish(ctx, &BundleUpdated{ProductID: p.ID, SKU: p.SKU, ChangedFields: changed})
+	}
+}
+
+// Carts key their lines by SKU, so renaming one a shopper holds would strand the line
+func (s *productService) guardSKURename(ctx context.Context, current Product, next *string) error {
+	if next == nil || *next == current.SKU {
+		return nil
+	}
+	n, err := s.repo.CountActiveCartReferencesToSKU(ctx, current.SKU)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("%w: %q is held by %d active cart line(s)", ErrSKUInActiveCarts, current.SKU, n)
+	}
+	return nil
+}
+
+func (s *productService) guardCurrencyChange(ctx context.Context, current Product, next *string) error {
+	if next == nil || *next == current.DefaultCurrencyCode {
+		return nil
+	}
+	n, err := s.repo.CountInheritingListingsWithCurrencyMismatchForProduct(ctx, current.ID, *next)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("%w: %d listing(s) inherit the price on a channel not priced in %s; set their price first", ErrListingCurrencyMismatch, n, *next)
+	}
+	return nil
 }
 
 func (s *productService) DeleteProduct(ctx context.Context, id uuid.UUID) error {
@@ -736,31 +788,39 @@ func (s *productService) DeleteProduct(ctx context.Context, id uuid.UUID) error 
 	if len(parents) > 0 {
 		return fmt.Errorf("%w (%d parent(s))", ErrProductIsChild, len(parents))
 	}
-	// Snapshot identity for the post-commit event before the row is gone
+	// Snapshot identity for the post-commit event before the row is gone - a failed read still announces the id
 	pre, getErr := s.repo.GetProductByID(ctx, id)
+	if getErr != nil {
+		pre = Product{ID: id}
+	}
 	if err := s.repo.DeleteProduct(ctx, id); err != nil {
 		return err
 	}
+	defer s.publishProductDeleted(ctx, pre)
 	// Best-effort - a leftover rewrite is an SEO problem, not a reason to fail a delete the operator just confirmed
 	if s.urlRewrites != nil {
-		if err := s.urlRewrites.DeleteAllForEntity(ctx, "product", id); err != nil {
+		if err := s.urlRewrites.DeleteAllForEntity(ctx, string(urlrewrite.EntityTypeProduct), id); err != nil {
 			applog.From(ctx).Error("delete url rewrites",
 				"op", "catalog.Service.DeleteProduct",
 				"product_id", id,
 				"err", err)
 		}
 	}
-	if s.bus != nil && getErr == nil {
-		s.bus.Publish(ctx, &ProductDeleted{
-			ProductID:     pre.ID,
-			ProductTypeID: pre.ProductTypeID,
-			SKU:           pre.SKU,
-		})
-		if pre.Kind == KindBundle {
-			s.bus.Publish(ctx, &BundleDeleted{ProductID: pre.ID, SKU: pre.SKU})
-		}
-	}
 	return nil
+}
+
+func (s *productService) publishProductDeleted(ctx context.Context, pre Product) {
+	if s.bus == nil {
+		return
+	}
+	s.bus.Publish(ctx, &ProductDeleted{
+		ProductID:     pre.ID,
+		ProductTypeID: pre.ProductTypeID,
+		SKU:           pre.SKU,
+	})
+	if pre.Kind == KindBundle {
+		s.bus.Publish(ctx, &BundleDeleted{ProductID: pre.ID, SKU: pre.SKU})
+	}
 }
 
 // ==================== Configurable Options ====================
@@ -790,13 +850,13 @@ func (s *productService) SetConfigurableOptions(ctx context.Context, productID u
 		return Product{}, err
 	}
 	if len(existing) > 0 {
-		return Product{}, fmt.Errorf("cannot change configurable options while children are linked; remove all children first")
+		return Product{}, ErrConfigurableOptionsLocked
 	}
 
 	seen := make(map[uuid.UUID]struct{}, len(attributeIDs))
 	for _, id := range attributeIDs {
 		if _, dup := seen[id]; dup {
-			return Product{}, fmt.Errorf("duplicate attribute id in configurable options: %s", id)
+			return Product{}, fmt.Errorf("%w: %s", ErrDuplicateConfigurableOption, id)
 		}
 		seen[id] = struct{}{}
 	}
@@ -840,7 +900,7 @@ func (p Product) IsConfigurable() bool { return p.Kind == KindConfigurable }
 // LIST mode forbids configurable options, so any have to be removed first
 func (s *productService) SetProductVariantMode(ctx context.Context, productID uuid.UUID, mode VariantMode) (Product, error) {
 	if !mode.IsValid() {
-		return Product{}, fmt.Errorf("invalid variant mode %q", mode)
+		return Product{}, fmt.Errorf("%w: %q", ErrInvalidVariantMode, mode)
 	}
 	p, err := s.repo.GetProductByID(ctx, productID)
 	if err != nil {
@@ -1057,7 +1117,7 @@ func (s *productService) RemoveProductChild(ctx context.Context, parentID, child
 // Best-effort batch - every row is validated up front so the common failures land before any writes Anything that slips through mid-loop stops processing and returns the partial result wrapped with the failing row's index Deliberately not one outer transaction: CreateProduct already retries SKU collisions and a batch-wide rollback on each one is worse than the rare orphan SIMPLE this can leave
 func (s *productService) GenerateConfigurableChildren(ctx context.Context, parentID uuid.UUID, inputs []GenerateConfigurableChildInput) ([]Product, error) {
 	if len(inputs) == 0 {
-		return nil, fmt.Errorf("at least one variant is required")
+		return nil, ErrNoVariants
 	}
 	parent, rowSelections, err := s.validateConfigurableChildrenBatch(ctx, parentID, inputs)
 	if err != nil {
@@ -1111,7 +1171,7 @@ func (s *productService) GenerateConfigurableChildren(ctx context.Context, paren
 // All pre-write validation for GenerateConfigurableChildren - returns the loaded parent and the per-row attribute->value selections the write loop consumes
 func (s *productService) validateConfigurableChildrenBatch(ctx context.Context, parentID uuid.UUID, inputs []GenerateConfigurableChildInput) (Product, []map[uuid.UUID][]uuid.UUID, error) {
 	if len(inputs) == 0 {
-		return Product{}, nil, fmt.Errorf("at least one variant is required")
+		return Product{}, nil, ErrNoVariants
 	}
 	parent, err := s.repo.GetProductByID(ctx, parentID)
 	if err != nil {
@@ -1125,7 +1185,7 @@ func (s *productService) validateConfigurableChildrenBatch(ctx context.Context, 
 		return Product{}, nil, err
 	}
 	if len(opts) == 0 {
-		return Product{}, nil, fmt.Errorf("parent %q has no configurable options; set them before generating variants", parent.SKU)
+		return Product{}, nil, fmt.Errorf("%w: parent %q", ErrConfigurableNeedsOption, parent.SKU)
 	}
 	optIDs := make([]uuid.UUID, len(opts))
 	optByID := make(map[uuid.UUID]Attribute, len(opts))
@@ -1151,29 +1211,29 @@ func (s *productService) validateConfigurableChildrenBatch(ctx context.Context, 
 	rowSelections := make([]map[uuid.UUID][]uuid.UUID, len(inputs)) // attribute_id → []value_id
 	for i, in := range inputs {
 		if len(in.AttributeValueIDs) != len(opts) {
-			return Product{}, nil, fmt.Errorf("variant %d: expected %d configurable option values, got %d", i, len(opts), len(in.AttributeValueIDs))
+			return Product{}, nil, fmt.Errorf("%w: variant %d: expected %d configurable option values, got %d", ErrInvalidVariantSelection, i, len(opts), len(in.AttributeValueIDs))
 		}
 		sel := make(map[uuid.UUID][]uuid.UUID, len(opts))
 		for _, vID := range in.AttributeValueIDs {
 			attrID, ok := valueToAttr[vID]
 			if !ok {
-				return Product{}, nil, fmt.Errorf("variant %d: value %s does not belong to any configurable option of parent %q", i, vID, parent.SKU)
+				return Product{}, nil, fmt.Errorf("%w: variant %d: value %s does not belong to any configurable option of parent %q", ErrInvalidVariantSelection, i, vID, parent.SKU)
 			}
 			if _, dup := sel[attrID]; dup {
-				return Product{}, nil, fmt.Errorf("variant %d: two values supplied for option %q", i, optByID[attrID].Slug)
+				return Product{}, nil, fmt.Errorf("%w: variant %d: two values supplied for option %q", ErrInvalidVariantSelection, i, optByID[attrID].Slug)
 			}
 			sel[attrID] = []uuid.UUID{vID}
 		}
 		for _, oID := range optIDs {
 			if _, ok := sel[oID]; !ok {
-				return Product{}, nil, fmt.Errorf("variant %d: missing value for option %q", i, optByID[oID].Slug)
+				return Product{}, nil, fmt.Errorf("%w: variant %d: missing value for option %q", ErrChildMissingConfigurableOptions, i, optByID[oID].Slug)
 			}
 		}
 		rowSelections[i] = sel
 		sig := superAttrSignature(optIDs, sel)
 		rowSignatures[i] = sig
 		if existing, dup := signatures[sig]; dup {
-			return Product{}, nil, fmt.Errorf("variants %d and %d have the same option combination", existing, i)
+			return Product{}, nil, fmt.Errorf("%w: variants %d and %d", ErrDuplicateSuperAttributeCombination, existing, i)
 		}
 		signatures[sig] = i
 	}
@@ -1184,7 +1244,7 @@ func (s *productService) validateConfigurableChildrenBatch(ctx context.Context, 
 	}
 	for i, sig := range rowSignatures {
 		if conflict, found := existingSigs[sig]; found {
-			return Product{}, nil, fmt.Errorf("variant %d: option combination already exists on child %q", i, conflict)
+			return Product{}, nil, fmt.Errorf("%w: variant %d matches child %q", ErrDuplicateSuperAttributeCombination, i, conflict)
 		}
 	}
 	return parent, rowSelections, nil
@@ -1747,6 +1807,10 @@ func isZeroScalar(v any) bool {
 
 // Recomputes url_path from the effective template, persists it, then syncs the canonical rewrite - no-op when URLAuto is false strict aborts on a missing primary category or attribute value; lenient tolerates missing tokens and lets the slug stand, and is only used at create time where those are attached by later mutations A template resolving to empty clears url_path and re-syncs canonical back to the slug
 func (s *core) regenerateProductURLPath(ctx context.Context, productID uuid.UUID, strict bool) error {
+	return s.regenerateProductURLPathTyped(ctx, productID, strict, nil)
+}
+
+func (s *core) regenerateProductURLPathTyped(ctx context.Context, productID uuid.UUID, strict bool, types map[uuid.UUID]ProductType) error {
 	product, err := s.repo.GetProductWithAttributes(ctx, productID)
 	if err != nil {
 		return err
@@ -1774,12 +1838,12 @@ func (s *core) regenerateProductURLPath(ctx context.Context, productID uuid.UUID
 		// Manual mode - keep the explicit url, it's re-synced below
 		desired = oldURL
 	default:
+		pt, err := s.productTypeForURL(ctx, product.ProductTypeID, types)
+		if err != nil {
+			return err
+		}
 		template := product.URLTemplateOverride
 		if template == "" {
-			pt, err := s.repo.GetProductTypeByID(ctx, product.ProductTypeID)
-			if err != nil {
-				return err
-			}
 			template = pt.URLTemplate
 		}
 		if template == "" {
@@ -1787,7 +1851,7 @@ func (s *core) regenerateProductURLPath(ctx context.Context, productID uuid.UUID
 			desired = safeFallback()
 			break
 		}
-		rendered, ok, rerr := s.renderProductTemplate(ctx, product, template, urlName, strict, s.urlFallbackEnabled(ctx))
+		rendered, ok, rerr := s.renderProductTemplate(ctx, product, pt, template, urlName, strict, s.urlFallbackEnabled(ctx))
 		if rerr != nil {
 			// Infrastructure error, or the template error itself when fallback is off - either way propagate
 			return rerr
@@ -1808,7 +1872,7 @@ func (s *core) regenerateProductURLPath(ctx context.Context, productID uuid.UUID
 	}
 	// The intended path was taken and picked up a uniqueness suffix - record it so an operator can resolve the clash
 	if desired != "" && finalPath != desired {
-		s.noteURLCollision(ctx, "product", product.SKU, productID, desired, finalPath)
+		s.noteURLCollision(ctx, string(urlrewrite.EntityTypeProduct), product.SKU, productID, desired, finalPath)
 	}
 	// Leave a 301 so an auto URL move doesn't break existing or indexed links
 	s.leaveRedirectIfMoved(ctx, productID, oldURL, finalPath)
@@ -1817,7 +1881,21 @@ func (s *core) regenerateProductURLPath(ctx context.Context, productID uuid.UUID
 
 // With fallbackEnabled a template/data problem returns ("", false, nil) after logging so the caller degrades to a safe slug, otherwise it propagates
 // Genuine infrastructure errors always come back as a non-nil error
-func (s *core) renderProductTemplate(ctx context.Context, product Product, template, urlName string, strict, fallbackEnabled bool) (string, bool, error) {
+func (s *core) productTypeForURL(ctx context.Context, id uuid.UUID, types map[uuid.UUID]ProductType) (ProductType, error) {
+	if pt, ok := types[id]; ok {
+		return pt, nil
+	}
+	pt, err := s.repo.GetProductTypeWithAttributes(ctx, id)
+	if err != nil {
+		return ProductType{}, err
+	}
+	if types != nil {
+		types[id] = pt
+	}
+	return pt, nil
+}
+
+func (s *core) renderProductTemplate(ctx context.Context, product Product, pt ProductType, template, urlName string, strict, fallbackEnabled bool) (string, bool, error) {
 	// Swallow a template/data failure when fallback is enabled, else surface it
 	degrade := func(stage string, cause error) (string, bool, error) {
 		if !fallbackEnabled {
@@ -1829,10 +1907,6 @@ func (s *core) renderProductTemplate(ctx context.Context, product Product, templ
 	tokens, err := parseURLTemplate(template)
 	if err != nil {
 		return degrade("parse template", err)
-	}
-	pt, err := s.repo.GetProductTypeWithAttributes(ctx, product.ProductTypeID)
-	if err != nil {
-		return "", false, err
 	}
 	if err := validateURLTemplate(tokens, pt); err != nil {
 		// e.g. the template references an attribute that was since unassigned or switched to multiselect
@@ -1858,7 +1932,7 @@ func (s *core) leaveRedirectIfMoved(ctx context.Context, productID uuid.UUID, ol
 	if oldURL == newURL {
 		return
 	}
-	s.createRenameRedirect(ctx, oldURL, "product", productID)
+	s.createRenameRedirect(ctx, oldURL, string(urlrewrite.EntityTypeProduct), productID)
 }
 
 // Operator-triggered regenerations warn so the issue gets noticed, create-time is expected and stays at debug
@@ -1886,12 +1960,12 @@ func (s *core) persistAndSyncWithRetry(ctx context.Context, productID uuid.UUID,
 		}
 		return path, nil
 	}
-	for attempt := range 100 {
+	for attempt := range maxUniqueSuffixAttempts {
 		candidate := path
 		if attempt > 0 {
 			candidate = fmt.Sprintf("%s-%d", path, attempt+1)
 		}
-		if err := s.urlRewrites.SyncCanonical(ctx, "product", productID, candidate); err != nil {
+		if err := s.urlRewrites.SyncCanonical(ctx, string(urlrewrite.EntityTypeProduct), productID, candidate); err != nil {
 			if errors.Is(err, urlrewrite.ErrPathConflict) {
 				continue
 			}
@@ -1902,5 +1976,5 @@ func (s *core) persistAndSyncWithRetry(ctx context.Context, productID uuid.UUID,
 		}
 		return candidate, nil
 	}
-	return "", fmt.Errorf("could not allocate a unique url path from %q after 100 attempts", path)
+	return "", fmt.Errorf("%w: no free suffix for %q after %d attempts", urlrewrite.ErrPathConflict, path, maxUniqueSuffixAttempts)
 }

@@ -375,6 +375,18 @@ func init() {
 		Description: "Fires when the set of products in a collection changes (manual collections). Payload includes the collection id.",
 	})
 	RegisterEvent(EventDefinition{
+		Type:        catalog.EventAttributeUpdated,
+		Kind:        KindAsync,
+		Name:        "Attribute Updated",
+		Description: "Fires after an attribute, its values, its product-type assignments or its flags change. Payload includes attributeId, slug and changedFields.",
+	})
+	RegisterEvent(EventDefinition{
+		Type:        catalog.EventAttributeDeleted,
+		Kind:        KindAsync,
+		Name:        "Attribute Deleted",
+		Description: "Fires after an attribute is deleted, along with every value products held for it. Payload includes attributeId and slug.",
+	})
+	RegisterEvent(EventDefinition{
 		Type:        catalog.EventProductListingChanged,
 		Kind:        KindAsync,
 		Name:        "Product Listing Changed",

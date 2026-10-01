@@ -174,21 +174,13 @@ func (r *productResolver) AlsoBought(ctx context.Context, obj *model.Product, li
 	if err != nil {
 		return []*model.Product{}, nil
 	}
-	lim := int32(8)
-	if limit != nil {
-		lim = *limit
-	}
-	if lim < 1 { // clamped (unbounded before) so a deep nested query can't amplify each node's fan-out
-		lim = 1
-	}
-	if lim > 24 {
-		lim = 24
-	}
-	ids, err := r.CatalogSvc.ListAlsoBought(ctx, pid, lim)
+	lim := catalog.ClampAlsoBoughtLimit(limit) // clamped so a deep nested query can't amplify each node's fan-out
+	ids, err := r.CatalogSvc.ListAlsoBought(ctx, pid, lim*catalog.AlsoBoughtOverfetch)
 	if err != nil {
 		return nil, err
 	}
-	return r.renderProductsByIDs(ctx, ids), nil
+	out := r.renderProductsByIDs(ctx, ids)
+	return out[:min(len(out), int(lim))], nil
 }
 
 func (r *productResolver) AttributeValues(ctx context.Context, obj *model.Product) ([]*model.ProductAttributeValue, error) {
@@ -772,10 +764,10 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 		}
 		// Private attributes aren't probeable through filters - the native engines gate this themselves, but an external engine tier answers before their gate, so enforce at the seam
 		if len(indexerFilter.AttributeIn) > 0 {
-			private := r.privateAttributeSlugs(ctx)
+			private, known := r.privateAttributeSlugs(ctx)
 			kept := indexerFilter.AttributeIn[:0]
 			for _, af := range indexerFilter.AttributeIn {
-				if !private[af.Slug] {
+				if known && !private[af.Slug] {
 					kept = append(kept, af)
 				}
 			}
@@ -817,10 +809,10 @@ func (r *queryResolver) BrowseProducts(ctx context.Context, query *string, filte
 		return empty, nil
 	}
 	// Same seam rule as the filter input above - a facet on a private attribute never renders, whichever tier built it
-	if private := r.privateAttributeSlugs(ctx); len(private) > 0 {
+	if private, known := r.privateAttributeSlugs(ctx); !known || len(private) > 0 {
 		kept := res.Facets[:0]
 		for _, fg := range res.Facets {
-			if !private[fg.Slug] {
+			if known && !private[fg.Slug] {
 				kept = append(kept, fg)
 			}
 		}

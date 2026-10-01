@@ -376,6 +376,7 @@ export type UpdateProductDownloadInput = {
 export type UpdateProductInput = {
   canonicalUrl?: string | null | undefined;
   clearCompareAtPrice?: boolean | null | undefined;
+  clearCostCents?: boolean | null | undefined;
   clearSpecialPrice?: boolean | null | undefined;
   clearTracksInventoryOverride?: boolean | null | undefined;
   compareAtPrice?: number | null | undefined;

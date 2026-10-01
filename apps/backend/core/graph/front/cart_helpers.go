@@ -246,7 +246,7 @@ func (r *Resolver) batchLineImages(ctx context.Context, bySKU map[string]catalog
 	if len(ids) == 0 {
 		return out
 	}
-	mediaByID, err := r.CatalogSvc.ListProductMediaByProductIDs(ctx, ids)
+	mediaByID, err := r.CatalogSvc.ListReadyProductMediaByProductIDs(ctx, ids)
 	if err != nil || len(mediaByID) == 0 {
 		return out
 	}

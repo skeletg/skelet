@@ -528,41 +528,6 @@ func (q *Queries) ListCatalogCategoryChannelListings(ctx context.Context, catego
 	return items, nil
 }
 
-const listCatalogCategoryChannelListingsByCategoryIDs = `-- name: ListCatalogCategoryChannelListingsByCategoryIDs :many
-SELECT category_id, channel_id, is_published, sort_order_override, created_at, updated_at FROM catalog_category_channel_listings
-WHERE category_id = ANY($1::uuid[])
-`
-
-func (q *Queries) ListCatalogCategoryChannelListingsByCategoryIDs(ctx context.Context, categoryIds []uuid.UUID) ([]CatalogCategoryChannelListing, error) {
-	rows, err := q.db.QueryContext(ctx, listCatalogCategoryChannelListingsByCategoryIDs, pq.Array(categoryIds))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []CatalogCategoryChannelListing{}
-	for rows.Next() {
-		var i CatalogCategoryChannelListing
-		if err := rows.Scan(
-			&i.CategoryID,
-			&i.ChannelID,
-			&i.IsPublished,
-			&i.SortOrderOverride,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listCategoriesByProduct = `-- name: ListCategoriesByProduct :many
 SELECT c.id, c.parent_id, c.slug, c.url_path, c.position, c.is_published, c.seo_noindex, c.cover_id, c.cover_s3_key, c.cover_mime_type, c.cover_size_bytes, c.cover_width, c.cover_height, c.cover_status, c.cover_alt, c.metadata, c.private_metadata, c.created_at, c.updated_at, pc.is_primary AS pc_is_primary
 FROM catalog_product_categories pc

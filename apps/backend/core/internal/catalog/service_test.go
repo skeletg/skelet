@@ -129,7 +129,7 @@ func TestGenerateConfigurableChildren_Validation(t *testing.T) {
 				return r
 			}(),
 			inputs:  []catalog.GenerateConfigurableChildInput{{AttributeValueIDs: []uuid.UUID{red}}},
-			wantErr: "no configurable options",
+			wantErr: "attribute-mode configurable requires at least one configurable option",
 		},
 		{
 			name:    "wrong value count",
@@ -150,7 +150,7 @@ func TestGenerateConfigurableChildren_Validation(t *testing.T) {
 				{AttributeValueIDs: []uuid.UUID{red}},
 				{AttributeValueIDs: []uuid.UUID{red}},
 			},
-			wantErr: "same option combination",
+			wantErr: "same super attribute combination already exists: variants 0 and 1",
 		},
 	}
 
@@ -189,8 +189,8 @@ func TestGenerateConfigurableChildren_ExistingCombinationRejected(t *testing.T) 
 	svc := svcWith(repo)
 	_, err := svc.GenerateConfigurableChildren(context.Background(), parentID,
 		[]catalog.GenerateConfigurableChildInput{{AttributeValueIDs: []uuid.UUID{red}}})
-	if err == nil || !strings.Contains(err.Error(), "already exists on child") {
-		t.Fatalf("got err %v, want 'already exists on child'", err)
+	if err == nil || !errors.Is(err, catalog.ErrDuplicateSuperAttributeCombination) {
+		t.Fatalf("got err %v, want ErrDuplicateSuperAttributeCombination", err)
 	}
 }
 
@@ -243,7 +243,7 @@ func TestCreateProduct_Validation(t *testing.T) {
 		{"empty locale", func(in *catalog.CreateProductInput) { in.Locale = "" }, nil, "locale is required"},
 		{"empty name", func(in *catalog.CreateProductInput) { in.Name = "" }, nil, "name is required"},
 		{"unknown kind", func(in *catalog.CreateProductInput) { in.Kind = "wat" }, nil, "wat"},
-		{"negative price", func(in *catalog.CreateProductInput) { in.DefaultPrice = -1 }, nil, "default_price must be non-negative"},
+		{"negative price", func(in *catalog.CreateProductInput) { in.DefaultPrice = -1 }, nil, "prices must be non-negative: default_price"},
 		{"bad currency", func(in *catalog.CreateProductInput) { in.DefaultCurrencyCode = "US" }, nil, "currency"},
 		{
 			name:    "locale must be default",

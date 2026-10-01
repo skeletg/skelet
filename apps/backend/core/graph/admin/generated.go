@@ -30076,7 +30076,7 @@ extend type Mutation {
   createProductType(input: CreateProductTypeInput!): ProductType!
   updateProductType(input: UpdateProductTypeInput!): ProductType!
   deleteProductType(id: ID!):                        Boolean!
-  # Focused mutation for setting just the URL path template. Pre-flights every affected product (auto + no override) and rejects the change if any can't render against the new template.
+  # Focused mutation for setting just the URL path template. Validates it against the type's attributes, saves it, and recomputes every affected product (auto + no override) asynchronously - a product whose data can't fill the template falls back to a safe slug.
   setProductTypeURLPathTemplate(productTypeId: ID!, template: String!): ProductType!
 
   assignAttribute(
@@ -30364,8 +30364,9 @@ input UpdateProductInput {
   # Order quantity bounds. null = no change; 0 clears.
   minOrderQty:          Float
   maxOrderQty:          Float
-  # Unit cost. null = no change; 0 clears.
+  # Unit cost. null = no change; 0 is a real cost (a free sample); clearCostCents removes it.
   costCents:            Int
+  clearCostCents:       Boolean
   sku:                  String
   seoNoindex:           Boolean
   canonicalUrl:         String
@@ -158971,7 +158972,7 @@ func (ec *executionContext) unmarshalInputUpdateProductInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "defaultPrice", "defaultCurrencyCode", "compareAtPrice", "clearCompareAtPrice", "specialPrice", "specialFrom", "specialTo", "clearSpecialPrice", "weightGrams", "lengthMm", "widthMm", "heightMm", "minOrderQty", "maxOrderQty", "costCents", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "clearTracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata"}
+	fieldsInOrder := [...]string{"id", "defaultPrice", "defaultCurrencyCode", "compareAtPrice", "clearCompareAtPrice", "specialPrice", "specialFrom", "specialTo", "clearSpecialPrice", "weightGrams", "lengthMm", "widthMm", "heightMm", "minOrderQty", "maxOrderQty", "costCents", "clearCostCents", "sku", "seoNoindex", "canonicalUrl", "url", "urlAuto", "urlTemplateOverride", "tracksInventoryOverride", "clearTracksInventoryOverride", "quantityDecimals", "quantityStep", "metadata", "privateMetadata"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -159090,6 +159091,13 @@ func (ec *executionContext) unmarshalInputUpdateProductInput(ctx context.Context
 				return it, err
 			}
 			it.CostCents = data
+		case "clearCostCents":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearCostCents"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearCostCents = data
 		case "sku":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sku"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
