@@ -595,9 +595,15 @@ func (r *queryResolver) CategoryChildren(ctx context.Context, parentID string) (
 	if err != nil {
 		return nil, err
 	}
+	parent, err := r.CatalogSvc.GetPublishedCategoryForChannel(ctx, *storeID, pid, r.activeLocale(ctx))
+	if err != nil {
+		return nil, err
+	}
+	pm := toCategoryModel(parent)
 	out := make([]*model.Category, len(cats))
 	for i, c := range cats {
 		out[i] = toCategoryModel(c)
+		out[i].Parent = pm
 	}
 	return out, nil
 }

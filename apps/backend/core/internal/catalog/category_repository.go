@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	pgdb "github.com/skeletg/skelet/apps/backend/core/internal/db"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/sqlc-dev/pqtype"
@@ -121,7 +122,7 @@ func (r *postgresRepository) ListCategoryChildren(ctx context.Context, parentID 
 }
 
 func (r *postgresRepository) GetCategoryAncestors(ctx context.Context, id uuid.UUID) ([]Category, error) {
-	rows, err := r.queries.ListCategoryChain(ctx, id)
+	rows, err := r.queries.ListCategoryChain(ctx, db.ListCategoryChainParams{ID: id, MaxDepth: maxCategoryDepth})
 	if err != nil {
 		return nil, fmt.Errorf("get category ancestors: %w", err)
 	}
@@ -202,6 +203,58 @@ func (r *postgresRepository) UpdateCategoryURLPath(ctx context.Context, id uuid.
 	return r.queries.UpdateCategoryURLPath(ctx, db.UpdateCategoryURLPathParams{ID: id, UrlPath: urlPath})
 }
 
+// Each category whose url_path the rewrite moved, with the path it left
+type CategoryPathMove struct {
+	ID       uuid.UUID
+	Slug     string
+	ParentID *uuid.UUID
+	OldPath  string
+	NewPath  string
+}
+
+func (r *postgresRepository) RewriteCategorySubtreeURLPaths(ctx context.Context, id uuid.UUID, urlPath string) ([]CategoryPathMove, error) {
+	rows, err := r.queries.RewriteCategorySubtreeURLPaths(ctx, db.RewriteCategorySubtreeURLPathsParams{ID: id, UrlPath: urlPath, MaxDepth: maxCategoryDepth})
+	if err != nil {
+		return nil, fmt.Errorf("rewrite category subtree url paths: %w", err)
+	}
+	out := make([]CategoryPathMove, len(rows))
+	for i, row := range rows {
+		out[i] = CategoryPathMove{ID: row.ID, Slug: row.Slug, OldPath: row.OldPath, NewPath: row.NewPath}
+		if row.ParentID.Valid {
+			pid := row.ParentID.UUID
+			out[i].ParentID = &pid
+		}
+	}
+	return out, nil
+}
+
+// Levels below the category, 0 for a leaf
+func (r *postgresRepository) CategorySubtreeHeight(ctx context.Context, id uuid.UUID) (int32, error) {
+	h, err := r.queries.CategorySubtreeHeight(ctx, db.CategorySubtreeHeightParams{ID: id, MaxDepth: maxCategoryDepth})
+	if err != nil {
+		return 0, fmt.Errorf("category subtree height: %w", err)
+	}
+	return h, nil
+}
+
+func (r *postgresRepository) LockCategoryTree(ctx context.Context) error {
+	if err := r.queries.LockCategoryTree(ctx); err != nil {
+		return fmt.Errorf("lock category tree: %w", err)
+	}
+	return nil
+}
+
+func (r *postgresRepository) LockCategoryByID(ctx context.Context, id uuid.UUID) (Category, error) {
+	row, err := r.queries.LockCategoryByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Category{}, ErrCategoryNotFound
+		}
+		return Category{}, fmt.Errorf("lock category: %w", err)
+	}
+	return toCategory(row), nil
+}
+
 func (r *postgresRepository) DeleteCategory(ctx context.Context, id uuid.UUID) error {
 	if err := r.queries.DeleteCategory(ctx, id); err != nil {
 		return fmt.Errorf("delete category: %w", err)
@@ -232,7 +285,7 @@ func (r *postgresRepository) GetCategoryContent(ctx context.Context, categoryID 
 	row, err := r.queries.GetCategoryContent(ctx, db.GetCategoryContentParams{CategoryID: categoryID, Locale: locale})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return CategoryContent{}, ErrCollectionContentNotFound
+			return CategoryContent{}, ErrCategoryContentNotFound
 		}
 		return CategoryContent{}, fmt.Errorf("get category content: %w", err)
 	}
@@ -299,14 +352,26 @@ func (r *postgresRepository) SetCategoryCover(ctx context.Context, categoryID, c
 		CoverAlt:       altText,
 	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Category{}, ErrCategoryNotFound
+		}
 		return Category{}, fmt.Errorf("set category cover: %w", err)
 	}
 	return toCategory(row), nil
 }
 
-func (r *postgresRepository) ConfirmCategoryCover(ctx context.Context, categoryID uuid.UUID, width, height int32) (Category, error) {
-	row, err := r.queries.ConfirmCategoryCover(ctx, db.ConfirmCategoryCoverParams{ID: categoryID, CoverWidth: sql.NullInt32{Int32: width, Valid: true}, CoverHeight: sql.NullInt32{Int32: height, Valid: true}})
+// Pinned to the cover the caller checked - a replaced or already-confirmed cover matches no row
+func (r *postgresRepository) ConfirmCategoryCover(ctx context.Context, categoryID, coverID uuid.UUID, width, height int32) (Category, error) {
+	row, err := r.queries.ConfirmCategoryCover(ctx, db.ConfirmCategoryCoverParams{
+		ID:          categoryID,
+		CoverID:     uuid.NullUUID{UUID: coverID, Valid: true},
+		CoverWidth:  sql.NullInt32{Int32: width, Valid: true},
+		CoverHeight: sql.NullInt32{Int32: height, Valid: true},
+	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Category{}, ErrCategoryCoverNotPending
+		}
 		return Category{}, fmt.Errorf("confirm category cover: %w", err)
 	}
 	return toCategory(row), nil
@@ -315,6 +380,9 @@ func (r *postgresRepository) ConfirmCategoryCover(ctx context.Context, categoryI
 func (r *postgresRepository) ClearCategoryCover(ctx context.Context, categoryID uuid.UUID) (Category, error) {
 	row, err := r.queries.ClearCategoryCover(ctx, categoryID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Category{}, ErrCategoryNotFound
+		}
 		return Category{}, fmt.Errorf("clear category cover: %w", err)
 	}
 	return toCategory(row), nil
@@ -347,6 +415,21 @@ func (r *postgresRepository) SetPrimaryProductCategory(ctx context.Context, prod
 		ProductID:  productID,
 		CategoryID: categoryID,
 	})
+}
+
+func (r *postgresRepository) CountProductsByCategoryIDs(ctx context.Context, categoryIDs []uuid.UUID) (map[uuid.UUID]int64, error) {
+	out := make(map[uuid.UUID]int64, len(categoryIDs))
+	if len(categoryIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.queries.CountProductsByCategoryIDs(ctx, categoryIDs)
+	if err != nil {
+		return nil, fmt.Errorf("count products by category ids: %w", err)
+	}
+	for _, row := range rows {
+		out[row.CategoryID] = row.ProductCount
+	}
+	return out, nil
 }
 
 func (r *postgresRepository) CountProductsInCategory(ctx context.Context, categoryID uuid.UUID) (int64, error) {
@@ -396,7 +479,7 @@ func (r *postgresRepository) ListPrimaryCategoryByProductIDs(ctx context.Context
 }
 
 func (r *postgresRepository) ListProductIDsInPrimaryCategoryDescendants(ctx context.Context, rootID uuid.UUID) ([]uuid.UUID, error) {
-	ids, err := r.queries.ListProductIDsInPrimaryCategoryDescendants(ctx, rootID)
+	ids, err := r.queries.ListProductIDsInPrimaryCategoryDescendants(ctx, db.ListProductIDsInPrimaryCategoryDescendantsParams{ID: rootID, MaxDepth: maxCategoryDepth})
 	if err != nil {
 		return nil, fmt.Errorf("list product ids in category subtree: %w", err)
 	}
@@ -750,6 +833,7 @@ func (r *postgresRepository) FilterFullyVisibleCategoryIDsForChannel(ctx context
 	rows, err := r.queries.ListFullyVisibleCategoryIDsForChannelFiltered(ctx, db.ListFullyVisibleCategoryIDsForChannelFilteredParams{
 		CategoryIds: ids,
 		ChannelID:   channelID,
+		MaxDepth:    maxCategoryDepth,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("filter fully visible category ids: %w", err)
@@ -863,6 +947,9 @@ func (r *postgresRepository) ReplaceCategoryFacetOverrides(ctx context.Context, 
 				SortOrder:   o.SortOrder,
 				IsHidden:    o.Hidden,
 			}); err != nil {
+				if pgdb.IsForeignKeyViolation(err) {
+					return ErrAttributeNotFound
+				}
 				return fmt.Errorf("insert category facet override: %w", err)
 			}
 		}

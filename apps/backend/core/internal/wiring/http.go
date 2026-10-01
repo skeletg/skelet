@@ -200,8 +200,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	}))
 
 	// XML doesn't fit the GraphQL surface, so the product feed is plain HTTP, scoped by the channel middleware
-	feed := catalog.NewMerchantFeed(infra.Queries, s.MediaStorage)
-	feed.SetSalable(s.Inventory)
+	feed := catalog.NewMerchantFeed(infra.Queries, s.MediaStorage, s.Inventory)
 	mux.Handle("/feeds/products.xml", channel.Middleware(s.Channel)(merchantFeedHandler(feed))) // Google Merchant product feed: channel-priced, channel-scoped - operators point Merchant Center at https://<store-host>/feeds/products.xml
 
 	// consume enforces the grant's use-count + expiry under a row lock before the 302; the per-IP budget is shared with the other token-keyed public endpoints - tokens are unguessable so forgery isn't the threat, replay-flooding is, since each hit costs a token verify plus DB work and doubles as a brute-force oracle
@@ -407,6 +406,9 @@ func frontRateLimit(limiter ratelimit.Limiter, serviceSecret string) func(http.H
 	}
 }
 
+// Feeds are pulled by Merchant Center on a schedule - an hour of staleness is fine and keeps the flat query off the hot path
+const merchantFeedCacheControl = "public, max-age=3600"
+
 func merchantFeedHandler(feed *catalog.MerchantFeed) http.HandlerFunc { // prices and currency are channel-bound, so a request that doesn't resolve to a channel gets 404 rather than a mispriced global feed
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -419,10 +421,7 @@ func merchantFeedHandler(feed *catalog.MerchantFeed) http.HandlerFunc { // price
 		if baseURL == "" {
 			baseURL = os.Getenv("STOREFRONT_URL")
 		}
-		locale := r.URL.Query().Get("locale")
-		if locale == "" {
-			locale = sv.DefaultLocale
-		}
+		locale := channel.ClampLocale(*sv, r.URL.Query().Get("locale")) // an unknown code renders the default - the render cache is keyed on it, so arbitrary values must not each mint an entry
 		body, contentType, err := feed.Render(ctx, catalog.MerchantFeedOptions{
 			ChannelID:    sv.ID,
 			BaseURL:      baseURL,
@@ -436,7 +435,7 @@ func merchantFeedHandler(feed *catalog.MerchantFeed) http.HandlerFunc { // price
 			return
 		}
 		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Cache-Control", "public, max-age=3600") // feeds are pulled by Merchant Center on a schedule; an hour of staleness is fine and keeps the flat query off the hot path
+		w.Header().Set("Cache-Control", merchantFeedCacheControl)
 		_, _ = w.Write(body)
 	}
 }

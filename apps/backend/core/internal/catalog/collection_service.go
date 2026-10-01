@@ -4,15 +4,25 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/media"
+	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
 )
+
+const collectionCoverKeyFormat = "catalog/collections/%s/cover/%s%s"
+
+var collectionEntityType = string(urlrewrite.EntityTypeCollection)
+
+func collectionCoverKey(collectionID, coverID uuid.UUID, ext string) string {
+	return fmt.Sprintf(collectionCoverKeyFormat, collectionID, coverID, ext)
+}
 
 // ==================== Collection CRUD ====================
 
@@ -21,13 +31,13 @@ func (s *collectionService) CreateCollection(ctx context.Context, input CreateCo
 		return Collection{}, err
 	}
 	if strings.TrimSpace(input.Locale) == "" {
-		return Collection{}, fmt.Errorf("locale is required")
+		return Collection{}, ErrLocaleRequired
 	}
 	if def := s.resolveDefaultLocale(ctx); def != "" && input.Locale != def {
 		return Collection{}, fmt.Errorf("%w: got %q, want %q", ErrLocaleMustBeDefault, input.Locale, def)
 	}
 	if strings.TrimSpace(input.Name) == "" {
-		return Collection{}, fmt.Errorf("name is required")
+		return Collection{}, ErrNameRequired
 	}
 
 	var created Collection
@@ -54,7 +64,7 @@ func (s *collectionService) CreateCollection(ctx context.Context, input CreateCo
 	}
 
 	if s.urlRewrites != nil {
-		if err := s.urlRewrites.SyncCanonical(ctx, "collection", created.ID, input.Slug); err != nil {
+		if err := s.urlRewrites.SyncCanonical(ctx, collectionEntityType, created.ID, input.Slug); err != nil {
 			applog.From(ctx).Error("sync canonical url rewrite",
 				"op", "catalog.Service.CreateCollection",
 				"collection_id", created.ID,
@@ -118,55 +128,59 @@ func (s *collectionService) ListCollections(ctx context.Context, locale string) 
 	if err != nil {
 		return nil, err
 	}
+	ids := make([]uuid.UUID, len(collections))
 	for i := range collections {
 		s.resolveCollectionCoverURL(&collections[i])
+		ids[i] = collections[i].ID
 	}
-	if len(collections) == 0 {
-		return collections, nil
-	}
-	ids := make([]uuid.UUID, len(collections))
-	for i, c := range collections {
-		ids[i] = c.ID
-	}
-	if locale != "" {
-		batch, err := s.repo.ListCollectionContentByScope(ctx, ids, locale)
-		if err != nil {
-			return nil, err
-		}
-		for i, c := range collections {
-			if content, ok := batch[c.ID]; ok {
-				cp := content
-				collections[i].Content = &cp
-			}
-		}
-	}
-	def := s.resolveDefaultLocale(ctx)
-	if def == "" || def == locale {
-		return collections, nil
-	}
-	missing := make([]uuid.UUID, 0, len(collections))
-	for _, c := range collections {
-		if c.Content == nil {
-			missing = append(missing, c.ID)
-		}
-	}
-	if len(missing) == 0 {
-		return collections, nil
-	}
-	fallback, err := s.repo.ListCollectionContentByScope(ctx, missing, def)
+	byID, err := s.resolveCollectionContent(ctx, ids, locale)
 	if err != nil {
 		return nil, err
 	}
-	for i, c := range collections {
-		if c.Content != nil {
-			continue
-		}
-		if content, ok := fallback[c.ID]; ok {
+	setCollectionContent(collections, byID)
+	return collections, nil
+}
+
+func setCollectionContent(cols []Collection, byID map[uuid.UUID]CollectionContent) {
+	for i := range cols {
+		if content, ok := byID[cols[i].ID]; ok {
 			cp := content
-			collections[i].Content = &cp
+			cols[i].Content = &cp
 		}
 	}
-	return collections, nil
+}
+
+// Requested locale first, then the system default for whatever is still missing - one query per tier
+func (s *collectionService) resolveCollectionContent(ctx context.Context, ids []uuid.UUID, locale string) (map[uuid.UUID]CollectionContent, error) {
+	out := make(map[uuid.UUID]CollectionContent, len(ids))
+	tiers := []string{locale}
+	if def := s.resolveDefaultLocale(ctx); def != locale {
+		tiers = append(tiers, def)
+	}
+	for _, code := range tiers {
+		var todo []uuid.UUID
+		for _, id := range ids {
+			if _, ok := out[id]; !ok {
+				todo = append(todo, id)
+			}
+		}
+		if code == "" || len(todo) == 0 {
+			continue
+		}
+		byID, err := s.repo.ListCollectionContentByScope(ctx, todo, code)
+		if err != nil {
+			return nil, err
+		}
+		maps.Copy(out, byID)
+	}
+	return out, nil
+}
+
+// Every storefront-visible change that isn't a field update - the collection's pages purge
+func (s *collectionService) collectionChanged(ctx context.Context, c Collection, changed ...string) {
+	if s.bus != nil {
+		s.bus.Publish(ctx, &CollectionUpdated{CollectionID: c.ID, Slug: c.Slug, ChangedFields: changed})
+	}
 }
 
 func (s *collectionService) UpdateCollection(ctx context.Context, input UpdateCollectionInput) (Collection, error) {
@@ -191,21 +205,18 @@ func (s *collectionService) UpdateCollection(ctx context.Context, input UpdateCo
 		logger := applog.From(ctx)
 		// Canonical FIRST: until it moves, this entity's own row still holds the old path, so the
 		// redirect insert dies on the unique index and the rename leaves no 301 behind
-		if err := s.urlRewrites.SyncCanonical(ctx, "collection", input.ID, *input.Slug); err != nil {
+		if err := s.urlRewrites.SyncCanonical(ctx, collectionEntityType, input.ID, *input.Slug); err != nil {
 			logger.Error("sync canonical url rewrite",
 				"op", "catalog.Service.UpdateCollection",
 				"collection_id", input.ID,
 				"slug", *input.Slug,
 				"err", err)
 		}
-		s.createRenameRedirect(ctx, oldSlug, "collection", input.ID)
+		s.createRenameRedirect(ctx, oldSlug, collectionEntityType, input.ID)
 	}
 
 	if s.bus != nil {
-		var changed []string
-		if input.Slug != nil {
-			changed = append(changed, "slug")
-		}
+		changed := changedCollectionFields(input)
 		updatedSlug := oldSlug
 		if input.Slug != nil {
 			updatedSlug = *input.Slug
@@ -219,13 +230,31 @@ func (s *collectionService) UpdateCollection(ctx context.Context, input UpdateCo
 	return s.repo.GetCollectionByID(ctx, input.ID)
 }
 
+func changedCollectionFields(in UpdateCollectionInput) []string {
+	var changed []string
+	add := func(set bool, name string) {
+		if set {
+			changed = append(changed, name)
+		}
+	}
+	add(in.Slug != nil, "slug")
+	add(in.IsPublished != nil, "is_published")
+	add(in.SEONoindex != nil, "seo_noindex")
+	add(in.Metadata != nil, "metadata")
+	add(in.PrivateMetadata != nil, "private_metadata")
+	return changed
+}
+
 func (s *collectionService) DeleteCollection(ctx context.Context, id uuid.UUID) error {
-	snap, _ := s.repo.GetCollectionByID(ctx, id)
+	snap, err := s.repo.GetCollectionByID(ctx, id)
+	if err != nil {
+		return err
+	}
 	if err := s.repo.DeleteCollection(ctx, id); err != nil {
 		return err
 	}
 	if s.urlRewrites != nil {
-		if err := s.urlRewrites.DeleteAllForEntity(ctx, "collection", id); err != nil {
+		if err := s.urlRewrites.DeleteAllForEntity(ctx, collectionEntityType, id); err != nil {
 			applog.From(ctx).Error("delete url rewrites",
 				"op", "catalog.Service.DeleteCollection",
 				"collection_id", id,
@@ -242,10 +271,10 @@ func (s *collectionService) DeleteCollection(ctx context.Context, id uuid.UUID) 
 
 func (s *collectionService) UpsertCollectionContent(ctx context.Context, collectionID uuid.UUID, input CollectionContentInput) (Collection, error) {
 	if strings.TrimSpace(input.Name) == "" {
-		return Collection{}, fmt.Errorf("name is required")
+		return Collection{}, ErrNameRequired
 	}
 	if strings.TrimSpace(input.Locale) == "" {
-		return Collection{}, fmt.Errorf("locale is required")
+		return Collection{}, ErrLocaleRequired
 	}
 	if s.locales != nil {
 		if err := s.locales.EnsureExists(ctx, input.Locale); err != nil {
@@ -258,7 +287,12 @@ func (s *collectionService) UpsertCollectionContent(ctx context.Context, collect
 	if _, err := s.repo.UpsertCollectionContent(ctx, collectionID, input); err != nil {
 		return Collection{}, err
 	}
-	return s.repo.GetCollectionByID(ctx, collectionID)
+	c, err := s.repo.GetCollectionByID(ctx, collectionID)
+	if err != nil {
+		return Collection{}, err
+	}
+	s.collectionChanged(ctx, c, "content")
+	return c, nil
 }
 
 func (s *collectionService) DeleteCollectionContent(ctx context.Context, collectionID uuid.UUID, locale string) error {
@@ -273,7 +307,15 @@ func (s *collectionService) DeleteCollectionContent(ctx context.Context, collect
 			}
 		}
 	}
-	return s.repo.DeleteCollectionContent(ctx, collectionID, locale)
+	c, err := s.repo.GetCollectionByID(ctx, collectionID)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.DeleteCollectionContent(ctx, collectionID, locale); err != nil {
+		return err
+	}
+	s.collectionChanged(ctx, c, "content")
+	return nil
 }
 
 // ==================== Collection Products ====================
@@ -339,7 +381,11 @@ func (s *collectionService) RemoveProductFromCollection(ctx context.Context, col
 	return s.repo.GetCollectionByID(ctx, collectionID)
 }
 
+// One tx, so an id that isn't a member rolls the whole reorder back instead of leaving it half applied
 func (s *collectionService) ReorderCollectionProducts(ctx context.Context, collectionID uuid.UUID, productIDs []uuid.UUID) (Collection, error) {
+	if len(productIDs) > int(MaxUnpagedRows) {
+		return Collection{}, fmt.Errorf("%w: %d products, at most %d", ErrTooManyItems, len(productIDs), MaxUnpagedRows)
+	}
 	if _, err := s.repo.GetCollectionByID(ctx, collectionID); err != nil {
 		return Collection{}, err
 	}
@@ -354,7 +400,12 @@ func (s *collectionService) ReorderCollectionProducts(ctx context.Context, colle
 	}); err != nil {
 		return Collection{}, err
 	}
-	return s.repo.GetCollectionByID(ctx, collectionID)
+	c, err := s.repo.GetCollectionByID(ctx, collectionID)
+	if err != nil {
+		return Collection{}, err
+	}
+	s.collectionChanged(ctx, c, "product_order")
+	return c, nil
 }
 
 // ListCollectionsByProduct returns the collections a single product belongs to - Wraps the repo method so the search indexer can take a *Service without reaching into the repository
@@ -369,52 +420,25 @@ func (s *collectionService) ListCollectionsByProductIDs(ctx context.Context, pro
 		return nil, err
 	}
 
-	if len(byProduct) > 0 {
-		seen := make(map[uuid.UUID]struct{})
-		var collectionIDs []uuid.UUID
-		for _, cols := range byProduct {
-			for _, c := range cols {
-				if _, ok := seen[c.ID]; !ok {
-					collectionIDs = append(collectionIDs, c.ID)
-					seen[c.ID] = struct{}{}
-				}
+	seen := make(map[uuid.UUID]struct{})
+	var ids []uuid.UUID
+	for _, cols := range byProduct {
+		for _, c := range cols {
+			if _, ok := seen[c.ID]; !ok {
+				ids = append(ids, c.ID)
+				seen[c.ID] = struct{}{}
 			}
-		}
-		var primary map[uuid.UUID]CollectionContent
-		if locale != "" {
-			primary, err = s.repo.ListCollectionContentByScope(ctx, collectionIDs, locale)
-			if err != nil {
-				return nil, err
-			}
-		}
-		var fallback map[uuid.UUID]CollectionContent
-		if def := s.resolveDefaultLocale(ctx); def != "" && def != locale {
-			fallback, err = s.repo.ListCollectionContentByScope(ctx, collectionIDs, def)
-			if err != nil {
-				return nil, err
-			}
-		}
-		for pid, cols := range byProduct {
-			for i, c := range cols {
-				if content, ok := primary[c.ID]; ok {
-					cp := content
-					cols[i].Content = &cp
-					continue
-				}
-				if content, ok := fallback[c.ID]; ok {
-					cp := content
-					cols[i].Content = &cp
-				}
-			}
-			byProduct[pid] = cols
 		}
 	}
-
-	for pid, cols := range byProduct {
+	byID, err := s.resolveCollectionContent(ctx, ids, locale)
+	if err != nil {
+		return nil, err
+	}
+	for _, cols := range byProduct {
+		setCollectionContent(cols, byID)
 		for i := range cols {
 			s.resolveCollectionCoverURL(&cols[i])
 		}
-		byProduct[pid] = cols
 	}
 	return byProduct, nil
 }
@@ -429,7 +453,7 @@ func (s *collectionService) RequestCollectionCoverUpload(ctx context.Context, in
 		return RequestCollectionCoverResult{}, fmt.Errorf("%w: %s", ErrInvalidMimeType, input.MimeType)
 	}
 	if input.SizeBytes <= 0 {
-		return RequestCollectionCoverResult{}, fmt.Errorf("size_bytes must be positive")
+		return RequestCollectionCoverResult{}, ErrInvalidSize
 	}
 	if input.SizeBytes > s.media.MaxUploadBytes() {
 		return RequestCollectionCoverResult{}, fmt.Errorf("%w: %d > %d", ErrFileTooLarge, input.SizeBytes, s.media.MaxUploadBytes())
@@ -442,8 +466,7 @@ func (s *collectionService) RequestCollectionCoverUpload(ctx context.Context, in
 	if err != nil {
 		return RequestCollectionCoverResult{}, fmt.Errorf("generate cover id: %w", err)
 	}
-	ext := media.ExtensionForMime(input.MimeType)
-	s3Key := fmt.Sprintf("catalog/collections/%s/cover/%s%s", input.CollectionID, coverID, ext)
+	s3Key := collectionCoverKey(input.CollectionID, coverID, media.ExtensionForMime(input.MimeType))
 
 	uploadURL, err := s.media.PresignUpload(ctx, s3Key, input.MimeType, input.SizeBytes, presignTTL)
 	if err != nil {
@@ -457,6 +480,7 @@ func (s *collectionService) RequestCollectionCoverUpload(ctx context.Context, in
 	if c.CoverImage != nil {
 		c.CoverImage.URL = s.media.PublicURL(s3Key)
 	}
+	s.collectionChanged(ctx, c, "cover")
 
 	return RequestCollectionCoverResult{
 		Collection: c,
@@ -465,9 +489,10 @@ func (s *collectionService) RequestCollectionCoverUpload(ctx context.Context, in
 	}, nil
 }
 
+// Pinned to the cover checked here, like the category twin
 func (s *collectionService) ConfirmCollectionCover(ctx context.Context, collectionID uuid.UUID, width, height int32) (Collection, error) {
 	if width <= 0 || height <= 0 {
-		return Collection{}, fmt.Errorf("width and height must be positive")
+		return Collection{}, ErrInvalidDimensions
 	}
 	current, err := s.repo.GetCollectionByID(ctx, collectionID)
 	if err != nil {
@@ -481,17 +506,19 @@ func (s *collectionService) ConfirmCollectionCover(ctx context.Context, collecti
 	}
 	if s.media != nil {
 		_, _, exists, err := s.media.Head(ctx, current.CoverImage.S3Key)
-		if err == nil && !exists {
+		if err != nil {
+			return Collection{}, fmt.Errorf("%w: %w", ErrUploadNotReceived, err)
+		}
+		if !exists {
 			return Collection{}, ErrUploadNotReceived
 		}
 	}
-	c, err := s.repo.ConfirmCollectionCover(ctx, collectionID, width, height)
+	c, err := s.repo.ConfirmCollectionCover(ctx, collectionID, current.CoverImage.ID, width, height)
 	if err != nil {
 		return Collection{}, err
 	}
-	if s.media != nil && c.CoverImage != nil {
-		c.CoverImage.URL = s.media.PublicURL(c.CoverImage.S3Key)
-	}
+	s.resolveCollectionCoverURL(&c)
+	s.collectionChanged(ctx, c, "cover")
 	return c, nil
 }
 
@@ -500,6 +527,7 @@ func (s *collectionService) ClearCollectionCover(ctx context.Context, collection
 	if err != nil {
 		return Collection{}, err
 	}
+	s.collectionChanged(ctx, c, "cover")
 	return c, nil
 }
 
@@ -518,16 +546,16 @@ func (s *collectionService) ListCollectionFacetOverrides(ctx context.Context, co
 // Same contract as the category twin: full replacement, positions re-numbered from
 // slice order, empty resets to attribute-order defaults
 func (s *collectionService) SetCollectionFacetOverrides(ctx context.Context, collectionID uuid.UUID, overrides []FacetOverride) error {
-	if _, err := s.repo.GetCollectionByID(ctx, collectionID); err != nil {
+	if err := checkFacetOverrides(overrides); err != nil {
 		return err
 	}
-	seen := make(map[uuid.UUID]struct{}, len(overrides))
-	for i := range overrides {
-		if _, dup := seen[overrides[i].AttributeID]; dup {
-			return ErrDuplicateFacetOverride
-		}
-		seen[overrides[i].AttributeID] = struct{}{}
-		overrides[i].SortOrder = int32(i)
+	c, err := s.repo.GetCollectionByID(ctx, collectionID)
+	if err != nil {
+		return err
 	}
-	return s.repo.ReplaceCollectionFacetOverrides(ctx, collectionID, overrides)
+	if err := s.repo.ReplaceCollectionFacetOverrides(ctx, collectionID, overrides); err != nil {
+		return err
+	}
+	s.collectionChanged(ctx, c, "facet_overrides")
+	return nil
 }

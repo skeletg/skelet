@@ -897,6 +897,16 @@ func toCategoryModel(c catalog.Category) *model.Category {
 		CreatedAt:       c.CreatedAt,
 		UpdatedAt:       c.UpdatedAt,
 	}
+	// Ancestors only arrive after Query.category's strict chain check, so the tail is a visible parent - and a child's parent is the node it hangs under
+	for i := 1; i < len(ancestors); i++ {
+		ancestors[i].Parent = ancestors[i-1]
+	}
+	if len(ancestors) > 0 {
+		m.Parent = ancestors[len(ancestors)-1]
+	}
+	for _, ch := range children {
+		ch.Parent = m
+	}
 	if c.CoverImage != nil {
 		m.CoverImage = &model.CollectionCover{
 			URL:      c.CoverImage.URL,
