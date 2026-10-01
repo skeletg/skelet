@@ -30,6 +30,7 @@ func init() { // registers cart sentinels so the front presenter forwards their 
 	apperr.RegisterSentinel(ErrProductOptionHidden, "PRODUCT_OPTION_HIDDEN", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrProductOptionQtyConflict, "PRODUCT_OPTION_QTY_CONFLICT", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrProductOptionQtyForced, "PRODUCT_OPTION_QTY_FORCED", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrOptionValueUnavailable, "PRODUCT_OPTION_VALUE_UNAVAILABLE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrProductOptionsRequired, "PRODUCT_OPTIONS_REQUIRED", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrLineConfigured, "CART_LINE_CONFIGURED", apperr.ClassConflict)
 	apperr.RegisterSentinel(ErrOptionsUnsupportedKind, "PRODUCT_OPTIONS_UNSUPPORTED_KIND", apperr.ClassValidation)

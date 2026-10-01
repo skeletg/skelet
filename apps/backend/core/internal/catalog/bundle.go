@@ -120,4 +120,6 @@ var (
 	ErrBundleMultiDefaultOnSingle = errors.New("single-select bundle options accept at most one default selection")
 	ErrInvalidBundleInputType     = errors.New("invalid bundle input type")
 	ErrInvalidBundleLimits        = errors.New("invalid bundle option selection limits")
+	ErrBundleSelectionDuplicate   = errors.New("this product is already a selection on the option")
+	ErrBundleDefaultsExceedMax    = errors.New("bundle option has more default selections than max_selections allows")
 )

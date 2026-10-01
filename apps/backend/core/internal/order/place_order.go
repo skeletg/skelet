@@ -451,6 +451,9 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 				return fmt.Errorf("add order line component: %w", err)
 			}
 		}
+		if err := orderR.AddOrderLineKitComponents(ctx, orderLine.ID, orderKitComponents(l.KitComponents)); err != nil {
+			return err
+		}
 		for _, o := range l.Options {
 			if _, err := orderR.AddOrderLineOption(ctx, OrderLineOption{
 				OrderLineID:     orderLine.ID,
@@ -470,6 +473,35 @@ func (s *Service) persistOrderLines(ctx context.Context, orderR Repository, orde
 		}
 	}
 	return nil
+}
+
+// Copies each kit line's current recipe onto it, so the order takes and later gives back the same component stock even after the kit is edited
+func (s *Service) stampKitComponents(ctx context.Context, lines []cart.CartLine) ([]cart.CartLine, error) {
+	if s.kits == nil {
+		return lines, nil
+	}
+	out := make([]cart.CartLine, len(lines))
+	copy(out, lines)
+	for i := range out {
+		l := &out[i]
+		if len(l.Components) > 0 || len(l.KitComponents) > 0 || l.ProductSku == "" {
+			continue
+		}
+		comps, err := s.kits.KitComponentsBySKU(ctx, l.ProductSku)
+		if err != nil {
+			return nil, fmt.Errorf("kit components for %q: %w", l.ProductSku, err)
+		}
+		l.KitComponents = comps
+	}
+	return out, nil
+}
+
+func orderKitComponents(in []cart.CartLineKitComponent) []OrderLineKitComponent {
+	out := make([]OrderLineKitComponent, len(in))
+	for i, c := range in {
+		out[i] = OrderLineKitComponent{ProductID: c.ProductID, Quantity: c.Quantity}
+	}
+	return out
 }
 
 // Redeems checkout gift-card codes against the total in the placement tx - each covers what it can, the provider takes the remainder, and payment_status flips to paid when they cover the whole total

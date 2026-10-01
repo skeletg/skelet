@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/backinstock"
-	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
+	"github.com/skeletg/skelet/apps/backend/core/internal/catalogio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
@@ -242,7 +242,7 @@ func TestTheMerchantFeedIsChannelTrue(t *testing.T) {
 		a.Product.ID, path, a.Channel.ID); err != nil {
 		t.Fatalf("channel rewrite: %v", err)
 	}
-	out, _, err := catalog.NewMerchantFeed(h.D.Queries, nil, h.D.Inventory).Render(context.Background(), catalog.MerchantFeedOptions{
+	out, _, err := catalogio.NewMerchantFeed(h.D.Queries, nil, h.D.Inventory).Render(context.Background(), catalogio.MerchantFeedOptions{
 		ChannelID: a.Channel.ID, BaseURL: "https://a.test", CurrencyCode: "USD", Locale: "en", Title: "A",
 	})
 	if err != nil {

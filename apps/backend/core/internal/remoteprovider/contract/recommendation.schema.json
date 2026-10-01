@@ -40,5 +40,5 @@
   },
   "title": "recommendation",
   "x-kind": "recommendation",
-  "x-source": "internal/catalog.remoteRecRequest -\u003e internal/catalog.remoteRecResponse"
+  "x-source": "internal/recommend.remoteRecRequest -\u003e internal/recommend.remoteRecResponse"
 }

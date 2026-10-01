@@ -17,7 +17,7 @@ type ProductOptionsResolution struct { // built by the catalog bridge, so the ca
 	ProductID   uuid.UUID
 	ProductName string
 	UnitPrice   int64 // base line price (cents) before options
-	BasePrice   int64 // product default price (cents) - the base for percent adjustments
+	BasePrice   int64 // resolved channel unit price (cents) - the base for percent adjustments
 	Options     []ProductOptionConfig
 }
 
@@ -51,6 +51,7 @@ type ProductOptionValueConfig struct { // one select-family value, snapshotted
 	Quantity           float64
 	HasSource          bool // backed by a SIMPLE product, so the contribution is that product's price plus PriceValue, forced fixed
 	SourceProductPrice int64
+	SourceUnavailable  bool     // the linked source isn't sold on this channel, so the value can't be picked
 	ForcedLineQty      *float64 // picking this value forces the line quantity and locks it against manual edits - nil means no constraint
 }
 
@@ -108,6 +109,9 @@ func buildConfiguredLineOptions(res ProductOptionsResolution, inputs []CartLineO
 				}
 				if seen[vid] {
 					continue // ignore duplicate value IDs in one option
+				}
+				if v.SourceUnavailable {
+					return nil, 0, nil, fmt.Errorf("%w: value %s", ErrOptionValueUnavailable, vid)
 				}
 				seen[vid] = true
 				if v.ForcedLineQty != nil {

@@ -10,11 +10,11 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
 	model1 "github.com/skeletg/skelet/apps/backend/core/graph/front/model"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
-	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ptr"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
@@ -591,13 +591,13 @@ func (r *queryResolver) CartRecommendations(ctx context.Context, cartID string) 
 		}
 	}
 	for _, pid := range cartProductIDs {
-		if linked, lerr := r.CatalogSvc.ListProductLinks(ctx, pid, catalog.LinkCrosssell); lerr == nil {
+		if linked, lerr := r.RecommendSvc.ListProductLinks(ctx, pid, recommend.LinkCrosssell); lerr == nil {
 			add(linked)
 		}
 	}
 	if len(recs) < 4 {
 		for _, pid := range cartProductIDs {
-			if ab, aerr := r.CatalogSvc.ListAlsoBought(ctx, pid, catalog.AlsoBoughtDefaultLimit); aerr == nil {
+			if ab, aerr := r.RecommendSvc.ListAlsoBought(ctx, pid, recommend.AlsoBoughtDefaultLimit); aerr == nil {
 				add(ab)
 			}
 		}

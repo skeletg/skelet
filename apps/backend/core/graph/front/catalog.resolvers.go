@@ -17,6 +17,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/graphqlx"
 	"github.com/skeletg/skelet/apps/backend/core/internal/media"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/search"
 )
 
@@ -162,7 +163,7 @@ func (r *productResolver) LinkedProducts(ctx context.Context, obj *model.Product
 	if err != nil {
 		return []*model.Product{}, nil
 	}
-	ids, err := r.CatalogSvc.ListProductLinks(ctx, pid, catalog.LinkKind(strings.ToLower(string(kind))))
+	ids, err := r.RecommendSvc.ListProductLinks(ctx, pid, recommend.LinkKind(strings.ToLower(string(kind))))
 	if err != nil {
 		return nil, err
 	}
@@ -174,8 +175,8 @@ func (r *productResolver) AlsoBought(ctx context.Context, obj *model.Product, li
 	if err != nil {
 		return []*model.Product{}, nil
 	}
-	lim := catalog.ClampAlsoBoughtLimit(limit) // clamped so a deep nested query can't amplify each node's fan-out
-	ids, err := r.CatalogSvc.ListAlsoBought(ctx, pid, lim*catalog.AlsoBoughtOverfetch)
+	lim := recommend.ClampAlsoBoughtLimit(limit) // clamped so a deep nested query can't amplify each node's fan-out
+	ids, err := r.RecommendSvc.ListAlsoBought(ctx, pid, lim*recommend.AlsoBoughtOverfetch)
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +246,10 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 			}
 		}
 	}
+	visibleSources, err := r.visibleOptionSources(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]*model1.ProductCustomOption, 0, len(opts))
 	for _, o := range opts {
 		mo := &model1.ProductCustomOption{
@@ -285,7 +290,7 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 				mv.ForcedLineQty = &q
 			}
 			// Slim stand-in built from what GetProductOptions already hydrated - no extra fetch, mirroring the admin toProductOptionValueModel mapping
-			if v.SourceProductID != nil {
+			if v.SourceProductID != nil && hasKey(visibleSources, *v.SourceProductID) {
 				prod := &model.Product{
 					ID:                  v.SourceProductID.String(),
 					URL:                 v.SourceProductURL,

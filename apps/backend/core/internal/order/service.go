@@ -78,6 +78,12 @@ type Service struct {
 	inventoryEditor InventoryEditor
 	// Gates promotion free gifts on salable stock - nil grants them unconditionally
 	giftStock GiftStockChecker
+	kits      KitComponentLookup
+}
+
+// A kit SKU's per-unit components, nil for anything that isn't a kit
+type KitComponentLookup interface {
+	KitComponentsBySKU(ctx context.Context, sku string) ([]cart.CartLineKitComponent, error)
 }
 
 // Loads a channel for the edit recompute (tax-inclusive, currency) so order doesn't import channel directly
@@ -215,6 +221,7 @@ func (s *Service) SetInventoryEditor(e InventoryEditor)             { s.inventor
 func (s *Service) SetGiftStockChecker(c GiftStockChecker)           { s.giftStock = c }
 func (s *Service) SetProductTaxClassLookup(l ProductTaxClassLookup) { s.taxClasses = l }
 func (s *Service) SetProductCostLookup(l ProductCostLookup)         { s.costs = l }
+func (s *Service) SetKitComponentLookup(l KitComponentLookup)       { s.kits = l }
 func (s *Service) SetCountryValidator(v CountryValidator)           { s.countries = v }
 func (s *Service) SetPaymentValidator(v PaymentValidator)           { s.payments = v }
 func (s *Service) SetGiftCardTender(g GiftCardTender)               { s.giftcard = g }
@@ -389,6 +396,12 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		cartObj = s.appendFreeGiftLines(ctx, cartObj, store.ID, evalResult.Ledger.FreeGifts())
 		cc.cart = cartObj
 	}
+	kitLines, err := s.stampKitComponents(ctx, cartObj.Lines)
+	if err != nil {
+		return Order{}, err
+	}
+	cartObj.Lines = kitLines
+	cc.cart = cartObj
 
 	// Pre-tx gate for validators that don't write in the placement tx - fraud, address, B2B - A veto aborts before any tx opens, and enrichment seeds the order.placing payload below
 	validating := &CheckoutValidating{

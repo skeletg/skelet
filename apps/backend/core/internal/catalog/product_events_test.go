@@ -13,7 +13,10 @@ import (
 
 // Backs the mutations that only had to start announcing themselves - every write is a no-op, the assertions are all about the event
 type eventRepo struct {
-	catalog.Repository
+	catalog.ProductRepository
+	catalog.CategoryRepository
+	catalog.ListingRepository
+	catalog.ProductContentRepository
 
 	product catalog.Product
 	primary map[uuid.UUID]*catalog.Category

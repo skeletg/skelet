@@ -30,6 +30,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	paymentpkg "github.com/skeletg/skelet/apps/backend/core/internal/payment"
 	pluginhost "github.com/skeletg/skelet/apps/backend/core/internal/plugin"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
 	"github.com/skeletg/skelet/apps/backend/core/internal/review"
 	"github.com/skeletg/skelet/apps/backend/core/internal/scheduler"
@@ -61,6 +62,7 @@ type jobDeps struct {
 	LinkGraph     *linkgraph.Service
 	Webhook       *webhook.Service
 	Catalog       *catalog.Service
+	Recommend     *recommend.Service
 	MediaLibrary  *medialibrary.Service
 	Subscription  *subscription.Service
 	Chat          *chat.Service
@@ -183,7 +185,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 	jobScheduler.RegisterDisabled("seo-crawl-nightly", "0 3 * * *", "Crawl each storefront that opted in, then compare the result with the previous crawl and notify on regressions.",
 		nightlyCrawl(seoCrawlDeps{Crawl: d.SiteCrawl, Graph: d.LinkGraph, Config: d.Config, Notification: d.Notification}))
 	jobScheduler.Register("also-bought-rebuild", "@every 24h", "Recompute the customers-also-bought co-occurrence table from order history.",
-		func(ctx context.Context) error { return d.Catalog.RebuildAlsoBought(ctx) })
+		func(ctx context.Context) error { return d.Recommend.RebuildAlsoBought(ctx) })
 	jobScheduler.Register("currency-rates", "@every 12h", "Refresh currency exchange rates from ECB (frankfurter.dev) against the platform base currency.",
 		func(ctx context.Context) error {
 			base, _ := d.Config.GetString(ctx, "general/store_information/currency_list", config.DefaultScope)

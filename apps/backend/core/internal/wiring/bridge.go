@@ -44,6 +44,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/paymentvault"
 	"github.com/skeletg/skelet/apps/backend/core/internal/promotion"
 	"github.com/skeletg/skelet/apps/backend/core/internal/qna"
+	"github.com/skeletg/skelet/apps/backend/core/internal/recommend"
 	"github.com/skeletg/skelet/apps/backend/core/internal/referral"
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 	"github.com/skeletg/skelet/apps/backend/core/internal/revalidate"
@@ -160,6 +161,7 @@ type Svcs struct {
 	Order     *order.Service
 	OrderMail *ordermail.Service
 	Catalog   *catalog.Service
+	Recommend *recommend.Service
 	Outbox    *outbox.Outbox
 
 	Flows       *enroll.Enroller

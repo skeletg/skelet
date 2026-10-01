@@ -65,6 +65,28 @@ func (q *Queries) InsertOrderLineComponent(ctx context.Context, arg InsertOrderL
 	return i, err
 }
 
+const insertOrderLineKitComponent = `-- name: InsertOrderLineKitComponent :exec
+INSERT INTO order_line_kit_components (order_line_id, product_id, quantity, sort_order)
+VALUES ($1, $2, $3, $4)
+`
+
+type InsertOrderLineKitComponentParams struct {
+	OrderLineID uuid.UUID `json:"order_line_id"`
+	ProductID   uuid.UUID `json:"product_id"`
+	Quantity    float64   `json:"quantity"`
+	SortOrder   int32     `json:"sort_order"`
+}
+
+func (q *Queries) InsertOrderLineKitComponent(ctx context.Context, arg InsertOrderLineKitComponentParams) error {
+	_, err := q.db.ExecContext(ctx, insertOrderLineKitComponent,
+		arg.OrderLineID,
+		arg.ProductID,
+		arg.Quantity,
+		arg.SortOrder,
+	)
+	return err
+}
+
 const listOrderLineComponentsByOrderLineIDs = `-- name: ListOrderLineComponentsByOrderLineIDs :many
 SELECT id, order_line_id, bundle_option_id, bundle_selection_id, product_id, product_sku, product_name, unit_price, quantity, sort_order, created_at FROM order_line_components
 WHERE order_line_id = ANY($1::uuid[])
@@ -89,6 +111,42 @@ func (q *Queries) ListOrderLineComponentsByOrderLineIDs(ctx context.Context, dol
 			&i.ProductSku,
 			&i.ProductName,
 			&i.UnitPrice,
+			&i.Quantity,
+			&i.SortOrder,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrderLineKitComponentsByOrderLineIDs = `-- name: ListOrderLineKitComponentsByOrderLineIDs :many
+SELECT id, order_line_id, product_id, quantity, sort_order, created_at FROM order_line_kit_components
+WHERE order_line_id = ANY($1::uuid[])
+ORDER BY order_line_id, sort_order, created_at
+`
+
+func (q *Queries) ListOrderLineKitComponentsByOrderLineIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]OrderLineKitComponent, error) {
+	rows, err := q.db.QueryContext(ctx, listOrderLineKitComponentsByOrderLineIDs, pq.Array(dollar_1))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderLineKitComponent{}
+	for rows.Next() {
+		var i OrderLineKitComponent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrderLineID,
+			&i.ProductID,
 			&i.Quantity,
 			&i.SortOrder,
 			&i.CreatedAt,

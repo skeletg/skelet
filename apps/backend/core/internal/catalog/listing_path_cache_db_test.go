@@ -43,7 +43,8 @@ func TestAMovedListingURLStopsResolvingAtOnce(t *testing.T) {
 		_, _ = conn.Exec(`DELETE FROM catalog_product_types WHERE id = $1`, typeID)
 		_, _ = conn.Exec(`DELETE FROM channels WHERE id = $1`, ch)
 	})
-	svc := &listingService{core: &core{repo: &postgresRepository{queries: db.New(conn)}, channelPathCache: cache.New(client, "test:pathcache:"+suffix)}}
+	repo := &postgresRepository{queries: db.New(conn)}
+	svc := &listingService{core: &core{repo: repo, channelPathCache: cache.New(client, "test:pathcache:"+suffix)}, repo: repo}
 	price := int64(100)
 	set := func(url string) {
 		t.Helper()

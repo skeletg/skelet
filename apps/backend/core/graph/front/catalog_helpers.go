@@ -72,7 +72,7 @@ func (r *productResolver) wrapperInStock(ctx context.Context, kind model.Product
 
 	case model.ProductKindKit:
 		// A kit ships every component, so ALL must be sellable - the any-of rule of the other wrappers would call a kit with one dead component in stock
-		comps, err := r.CatalogSvc.ListKitComponents(ctx, pid)
+		comps, err := r.CatalogSvc.KitComponentRefs(ctx, pid)
 		if err != nil {
 			return false, err
 		}
@@ -605,6 +605,32 @@ func (r *Resolver) rawBundleOptions(ctx context.Context, productID uuid.UUID, lo
 			c.rawBundleOptions[key] = o
 			c.mu.Unlock()
 		})
+}
+
+// The linked source products of these options this channel actually shows - a hidden source renders as no product
+func (r *Resolver) visibleOptionSources(ctx context.Context, opts []catalog.ProductOption) (map[uuid.UUID]struct{}, error) {
+	var ids []uuid.UUID
+	for _, o := range opts {
+		for _, v := range o.Values {
+			if v.SourceProductID != nil {
+				ids = append(ids, *v.SourceProductID)
+			}
+		}
+	}
+	storeID := channelIDFromContext(ctx)
+	if len(ids) == 0 || storeID == nil {
+		return nil, nil
+	}
+	visible, err := r.CatalogSvc.FilterVisibleProductIDsForChannel(ctx, ids, *storeID)
+	if err != nil {
+		return nil, fmt.Errorf("filter option source products: %w", err)
+	}
+	return visible, nil
+}
+
+func hasKey(m map[uuid.UUID]struct{}, id uuid.UUID) bool {
+	_, ok := m[id]
+	return ok
 }
 
 func (r *Resolver) loadVisibleBundleOptions(ctx context.Context, productID uuid.UUID, locale string) ([]catalog.BundleOption, error) {

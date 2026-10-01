@@ -1640,6 +1640,15 @@ type OrderLineComponent struct {
 	CreatedAt         time.Time `json:"created_at"`
 }
 
+type OrderLineKitComponent struct {
+	ID          uuid.UUID `json:"id"`
+	OrderLineID uuid.UUID `json:"order_line_id"`
+	ProductID   uuid.UUID `json:"product_id"`
+	Quantity    float64   `json:"quantity"`
+	SortOrder   int32     `json:"sort_order"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type OrderLineOption struct {
 	ID              uuid.UUID     `json:"id"`
 	OrderLineID     uuid.UUID     `json:"order_line_id"`

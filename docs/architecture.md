@@ -118,7 +118,7 @@ contract. Everything below is `apps/backend/core/internal/<name>`.
 | Selling | `catalog`, `pricing`, `promotion`, `cart`, `order`, `ordercapture`, `payment`, `paymentvault`, `shipping`, `tax`, `inventory`, `subscription`, `giftcard`, `storecredit`, `download`, `sales` |
 | Customers | `customer`, `address`, `loyalty`, `referral`, `review`, `qna`, `wishlist`, `customerio` |
 | Content | `cms`, `blog`, `blockkit`, `content`, `menu`, `form`, `webform`, `medialibrary`, `documents` |
-| Merchandising | `search`, `searchmerch`, `urlrewrite`, `sitecrawl`, `linkgraph` |
+| Merchandising | `search`, `searchmerch`, `recommend`, `urlrewrite`, `sitecrawl`, `linkgraph` |
 | Marketing | `backinstock`, `ordermail`, `mailsend` - core's own transactional mail; campaigns, flows and the email builder are the suite's, and core hands them the moments a flow can start on over the contract |
 | Signals (core's side) | `signalsclient` - the wire contract's client; the suite itself is `apps/backend/signals`, see below |
 | Platform | `admin`, `authstore`, `permission`, `channel`, `country`, `currency`, `locale`, `consent`, `integration`, `audit`, `activity`, `notification`, `adminprefs`, `ai`, `chat` |
