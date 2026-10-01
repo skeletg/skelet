@@ -9,11 +9,6 @@ export function isRunning(job: Pick<DataJob, 'status'>): boolean {
   return job.status === 'queued' || job.status === 'running'
 }
 
-export function formatWhen(value?: string | null): string {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
-}
-
 // A required option with no value yet is what blocks the run button - checked here so both panels agree
 export function missingRequired(
   options: readonly DataOption[],

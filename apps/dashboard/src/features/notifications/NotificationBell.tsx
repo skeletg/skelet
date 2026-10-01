@@ -19,6 +19,7 @@ import {
   type NotificationsQuery,
 } from './Notifications.gql'
 import { INBOX_PEEK, severityAtLeast, useToastMinSeverity } from './preferences'
+import { timeAgo } from '@/lib/format'
 
 type Row = NotificationsQuery['notifications'][number]
 type PushRow = NotificationAddedSubscription['notificationAdded']
@@ -27,18 +28,6 @@ const SEVERITY_DOT: Record<string, string> = {
   critical: 'bg-destructive',
   warning: 'bg-warning',
   info: 'bg-info',
-}
-
-function timeAgo(iso: string): string {
-  const t = new Date(iso).getTime()
-  if (Number.isNaN(t)) return ''
-  const s = Math.max(0, Math.round((Date.now() - t) / 1000))
-  if (s < 60) return 'just now'
-  const m = Math.round(s / 60)
-  if (m < 60) return `${m}m ago`
-  const h = Math.round(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.round(h / 24)}d ago`
 }
 
 // NotificationToast is the live-push popup: the SAME row design as the bell dropdown (severity dot + title + time + two-line body) lifted

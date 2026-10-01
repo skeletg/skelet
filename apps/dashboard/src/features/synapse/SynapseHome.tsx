@@ -24,18 +24,8 @@ import { useConfigScope } from '@/lib/config-scope'
 import { customerLabel, useCustomerNames } from '@/shared/signals/useCustomerNames'
 import { eventLabel } from './eventLabel'
 import { SynapseOverviewDocument, SynapseStickinessDocument } from './Synapse.gql'
-
-const nfmt = (n: number) => n.toLocaleString()
-const fmtMoney = (cents: number, currency: string) => (cents / 100).toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
-const fmtWhen = (v?: string | null) => {
-  if (!v) return '-'
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString(undefined, { dateStyle: 'medium' })
-}
-const fmtShort = (v: string) => {
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
+import { Empty, Panel, Tile } from '@/components/layout/panels'
+import { formatCents, formatDate, formatNumber, formatShortDay } from '@/lib/format'
 
 // The Synapse tools, described so the hub explains what each one is
 const REPORTS: { to: string; icon: ReactNode; title: string; desc: string }[] = [
@@ -56,9 +46,9 @@ export function SynapseHome() {
   const { data: stick, error: stickError } = useQuery(SynapseStickinessDocument, { variables: { channelId, event: '', sinceDays: 30 }, skip, fetchPolicy: 'cache-and-network' })
   const error = ovError ?? stickError
   const ov = data?.synapseOverview
-  const revenue = (ov?.revenue ?? []).map((r) => fmtMoney(r.cents, r.currency)).join(' · ')
+  const revenue = (ov?.revenue ?? []).map((r) => formatCents(r.cents, r.currency)).join(' · ')
 
-  const activity = (stick?.synapseStickiness.days ?? []).map((d) => ({ day: fmtShort(d.day), count: d.count }))
+  const activity = (stick?.synapseStickiness.days ?? []).map((d) => ({ day: formatShortDay(d.day), count: d.count }))
   const eventMix = (ov?.topEvents ?? []).slice(0, 10).map((e) => ({ label: eventLabel(e.name), count: e.count }))
   const audience = (ov?.identifiedCustomers ?? 0) + (ov?.anonymousVisitors ?? 0)
   const maxCust = Math.max(1, ...(ov?.activeCustomers ?? []).map((c) => c.events))
@@ -105,11 +95,11 @@ export function SynapseHome() {
           <>
             <DetailPageSection title="At a glance">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <Tile label="Identified customers" value={nfmt(ov.identifiedCustomers)} sub="stitched to a profile" />
-                <Tile label="Anonymous visitors" value={nfmt(ov.anonymousVisitors)} sub="not signed in yet" />
-                <Tile label="Total events" value={nfmt(ov.totalEvents)} sub="web + email + commerce" />
-                <Tile label="Page views" value={nfmt(ov.pageViews)} />
-                <Tile label="Conversions" value={nfmt(ov.conversions)} sub={revenue || 'no attributed revenue'} />
+                <Tile label="Identified customers" value={formatNumber(ov.identifiedCustomers)} sub="stitched to a profile" />
+                <Tile label="Anonymous visitors" value={formatNumber(ov.anonymousVisitors)} sub="not signed in yet" />
+                <Tile label="Total events" value={formatNumber(ov.totalEvents)} sub="web + email + commerce" />
+                <Tile label="Page views" value={formatNumber(ov.pageViews)} />
+                <Tile label="Conversions" value={formatNumber(ov.conversions)} sub={revenue || 'no attributed revenue'} />
               </div>
               {audience > 0 && (
                 <div className="mt-3 rounded border p-3">
@@ -118,8 +108,8 @@ export function SynapseHome() {
                     <span>{Math.round(((ov.identifiedCustomers ?? 0) / audience) * 100)}% identified</span>
                   </div>
                   <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
-                    <div className="bg-primary" style={{ width: `${((ov.identifiedCustomers ?? 0) / audience) * 100}%` }} title={`Identified: ${nfmt(ov.identifiedCustomers)}`} />
-                    <div className="bg-warning" style={{ width: `${((ov.anonymousVisitors ?? 0) / audience) * 100}%` }} title={`Anonymous: ${nfmt(ov.anonymousVisitors)}`} />
+                    <div className="bg-primary" style={{ width: `${((ov.identifiedCustomers ?? 0) / audience) * 100}%` }} title={`Identified: ${formatNumber(ov.identifiedCustomers)}`} />
+                    <div className="bg-warning" style={{ width: `${((ov.anonymousVisitors ?? 0) / audience) * 100}%` }} title={`Anonymous: ${formatNumber(ov.anonymousVisitors)}`} />
                   </div>
                 </div>
               )}
@@ -238,37 +228,14 @@ function ActorTable({ rows, head, empty }: { rows: ActorRow[]; head: string; emp
                   <span className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
                     <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.round((r.events / r.max) * 100)}%` }} />
                   </span>
-                  <span className="tabular-nums text-muted-foreground">{nfmt(r.events)}</span>
+                  <span className="tabular-nums text-muted-foreground">{formatNumber(r.events)}</span>
                 </div>
               </td>
-              <td className="px-3 py-2 text-muted-foreground">{fmtWhen(r.lastSeen)}</td>
+              <td className="px-3 py-2 text-muted-foreground">{formatDate(r.lastSeen)}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   )
-}
-
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded border p-4">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
-    </div>
-  )
-}
-
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded border">
-      <div className="border-b px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">{title}</div>
-      <div className="p-3">{children}</div>
-    </div>
-  )
-}
-
-function Empty({ children }: { children: ReactNode }) {
-  return <p className="py-6 text-center text-sm text-muted-foreground">{children}</p>
 }
