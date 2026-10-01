@@ -1,4 +1,5 @@
 import { useQuery } from '@apollo/client/react'
+import { useStore } from '@tanstack/react-form'
 import { CountriesPickerDocument } from '@/features/countries/Countries.gql'
 import { ADDRESS_FIELDS, toAddressValues } from '@/shared/schemas/address'
 import { withFieldGroup } from './form'
@@ -13,6 +14,8 @@ export const AddressFields = withFieldGroup({
   render: function Render({ group, idPrefix, optionalNames = false }) {
     // the country is a known list - typing it only ever produced a rejected save
     const countries = useQuery(CountriesPickerDocument).data?.countries ?? []
+    // The phone is formatted and checked in the address's own country
+    const country = useStore(group.store, (s) => s.values.countryCode)
     return (
       <div className="grid grid-cols-2 items-start gap-3">
         {ADDRESS_FIELDS.map((f) => {
@@ -32,6 +35,8 @@ export const AddressFields = withFieldGroup({
                     options={countries.map((c) => ({ value: c.code, label: `${c.emojiFlag ? `${c.emojiFlag} ` : ''}${c.name} (${c.code})` }))}
                     className={className}
                   />
+                ) : f.key === 'phone' ? (
+                  <field.PhoneField id={`${idPrefix}-${f.key}`} label={label} country={country} className={className} />
                 ) : (
                   <field.TextField id={`${idPrefix}-${f.key}`} label={label} className={className} />
                 )
