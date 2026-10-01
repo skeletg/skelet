@@ -3,6 +3,14 @@ query Countries {
     code
     name
     emojiFlag
+    # What a business purchase from the country asks for at checkout
+    businessIdFields {
+      key
+      label
+      required
+      pattern
+      hint
+    }
   }
 }
 

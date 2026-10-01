@@ -233,9 +233,7 @@
       "street1": "Street address",
       "street2": "Apartment, suite, etc. (optional)",
       "city": "City",
-      "state": "State / Region",
       "postalCode": "Postal code",
-      "countryCode": "Country code (2-letter)",
       "phone": "Phone (optional)"
     },
     "orders": {
