@@ -3,6 +3,7 @@ import { channel } from "next/root-params";
 import { getLocale } from "next-intl/server";
 
 import { CHANNEL_HEADER, PINNED_CHANNEL_ID } from "@/app/lib/channel";
+import { rethrowIfDynamicBailout } from "@/app/lib/dynamic-bailout";
 import { getChannelLocales, type ChannelLocales } from "@/app/lib/locale/backend-locales";
 
 // From the [locale] route segment, never from a cookie. A cookie can't be read on the routes that
@@ -11,11 +12,6 @@ import { getChannelLocales, type ChannelLocales } from "@/app/lib/locale/backend
 // gets its own cached page
 export async function getCurrentLocale(): Promise<string> {
   return getLocale();
-}
-
-function rethrowIfDynamicBailout(err: unknown): void {
-  const digest = (err as { digest?: unknown } | null | undefined)?.digest;
-  if (typeof digest === "string" && digest.startsWith("DYNAMIC_SERVER_USAGE")) throw err;
 }
 
 // Pages read the [channel] segment, so static renders are per channel; route handlers and actions read the proxy's header
