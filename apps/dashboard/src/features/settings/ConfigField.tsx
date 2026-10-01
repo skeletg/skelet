@@ -21,6 +21,7 @@ import { SortOptionsEditor } from './SortOptionsEditor'
 import { WorkingHoursEditor } from './WorkingHoursEditor'
 import { ConfigImageField } from './ConfigImageField'
 import { ConfigColorField } from './ConfigColorField'
+import { isValidJson } from './useConfigDrafts'
 
 export type ConfigFieldData = {
   path: string
@@ -421,11 +422,3 @@ function FieldEditor({
   }
 }
 
-function isValidJson(raw: string): boolean {
-  try {
-    JSON.parse(raw)
-    return true
-  } catch {
-    return false
-  }
-}
