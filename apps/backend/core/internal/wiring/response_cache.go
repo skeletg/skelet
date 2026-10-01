@@ -23,7 +23,7 @@ var frontCacheableOps = map[string]bool{
 	"Category": true, "Collection": true, "Collections": true,
 	"Menus": true, "Header": true, "HomePage": true, "Route": true,
 	"CurrentChannel": true, "PublicConfig": true, "StoreFeatures": true, "ConsentDefinitions": true,
-	"Countries": true, "CountrySettings": true, "Regions": true,
+	"Countries": true, "CountrySettings": true, "Regions": true, "PhoneSettings": true,
 	"BlogPost": true, "BlogPostById": true, "BlogPosts": true, "SearchBlogPosts": true,
 	"CmsPageById": true, "SynapseAttributes": true,
 	"SitemapCounts": true, "SitemapEntries": true,

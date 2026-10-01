@@ -35,6 +35,10 @@ func (s *Service) AddAddress(ctx context.Context, customerID uuid.UUID, input Ad
 	if err := s.validateAddressCountry(ctx, customerID, input); err != nil {
 		return Address{}, err
 	}
+	var err error
+	if input.Phone, err = s.normalizeAddressPhone(ctx, customerID, input); err != nil {
+		return Address{}, err
+	}
 	addr, err := s.repo.CreateAddress(ctx, customerID, input)
 	if err != nil {
 		return Address{}, err
@@ -62,6 +66,10 @@ func (s *Service) UpdateAddress(ctx context.Context, customerID, addressID uuid.
 		return Address{}, err
 	}
 	if err := s.validateAddressCountry(ctx, customerID, input); err != nil {
+		return Address{}, err
+	}
+	var err error
+	if input.Phone, err = s.normalizeAddressPhone(ctx, customerID, input); err != nil {
 		return Address{}, err
 	}
 	updated, err := s.repo.UpdateAddress(ctx, customerID, addressID, input)
