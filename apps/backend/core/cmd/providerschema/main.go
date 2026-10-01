@@ -41,7 +41,7 @@ var ops = []op{
 		"Score an order for fraud. Only the exact decision \"reject\" blocks the order; anything else approves."},
 	{"currency_rate", "currency_rate", "internal/currency", "remoteRateRequest", "remoteRateResponse",
 		"Supply FX rates for a base currency."},
-	{"pricing", "pricing", "internal/cart", "remotePricingRequest", "remotePricingResponse",
+	{"pricing", "pricing", "internal/wiring", "remotePricingRequest", "remotePricingResponse",
 		"Override a line's unit price. Null or negative means no override - keep the catalog price."},
 	{"recommendation", "recommendation", "internal/catalog", "remoteRecRequest", "remoteRecResponse",
 		"Recommend related products for a product page."},
