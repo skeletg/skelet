@@ -122,7 +122,7 @@ func (s *Service) CreateDraftOrder(ctx context.Context, in CreateDraftOrderInput
 		subtotal += money.LineTotal(unit, dl.Quantity)
 	}
 
-	lines, err = s.stampKitComponents(ctx, lines)
+	lines, err = s.stampStockParts(ctx, lines)
 	if err != nil {
 		return Order{}, err
 	}

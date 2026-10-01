@@ -333,6 +333,10 @@ type OptionRepository interface {
 	UpdateProductOptionValue(ctx context.Context, id uuid.UUID, sortOrder, priceValue int32, priceType ProductOptionPriceType, isDefault bool, sourceProductID *uuid.UUID, quantity float64, forcedLineQty *float64) (ProductOptionValue, error)
 	UpsertProductOptionContent(ctx context.Context, input UpsertProductOptionContentInput) (ProductOptionContent, error)
 	UpsertProductOptionValueContent(ctx context.Context, input UpsertProductOptionValueContentInput) (ProductOptionValueContent, error)
+	SetProductOptionChannelPrice(ctx context.Context, optionID, channelID uuid.UUID, priceValue *int32) error
+	SetProductOptionValueChannelPrice(ctx context.Context, valueID, channelID uuid.UUID, priceValue *int32) error
+	ListProductOptionChannelPricesByOptionIDs(ctx context.Context, optionIDs []uuid.UUID) (map[uuid.UUID][]OptionChannelPrice, error)
+	ListProductOptionValueChannelPricesByValueIDs(ctx context.Context, valueIDs []uuid.UUID) (map[uuid.UUID][]OptionChannelPrice, error)
 }
 
 // Bundle options and selections, including localized content

@@ -340,6 +340,7 @@ func (r *postgresRepository) UpsertConfiguredCartLine(ctx context.Context, cartI
 			Quantity:        o.Quantity,
 			SortOrder:       o.SortOrder,
 			FileUrl:         o.FileURL,
+			SourceProductID: sqlnull.UUID(o.SourceProductID),
 		})
 		if err != nil {
 			return CartLine{}, fmt.Errorf("insert cart line option: %w", err)
@@ -483,6 +484,7 @@ func toCartLineOption(row db.CartLineOption) CartLineOption {
 		v := row.OptionValueID.UUID
 		o.OptionValueID = &v
 	}
+	o.SourceProductID = sqlnull.UUIDPtr(row.SourceProductID)
 	return o
 }
 

@@ -287,6 +287,15 @@ func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUI
 			return ProductOption{}, fmt.Errorf("clone option content %q: %w", c.Locale, err)
 		}
 	}
+	optPrices, err := r.ListProductOptionChannelPricesByOptionIDs(ctx, []uuid.UUID{source.ID})
+	if err != nil {
+		return ProductOption{}, err
+	}
+	for _, p := range optPrices[source.ID] {
+		if err := r.SetProductOptionChannelPrice(ctx, created.ID, p.ChannelID, &p.PriceValue); err != nil {
+			return ProductOption{}, err
+		}
+	}
 
 	if source.InputType.IsSelect() {
 		sourceValues, err := r.ListProductOptionValuesByOptionID(ctx, source.ID)
@@ -298,6 +307,10 @@ func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUI
 			valueIDs[i] = v.ID
 		}
 		vcByValue, err := r.ListProductOptionValueContentByValueIDs(ctx, valueIDs)
+		if err != nil {
+			return ProductOption{}, err
+		}
+		valPrices, err := r.ListProductOptionValueChannelPricesByValueIDs(ctx, valueIDs)
 		if err != nil {
 			return ProductOption{}, err
 		}
@@ -321,6 +334,11 @@ func duplicateProductOption(ctx context.Context, r OptionRepository, id uuid.UUI
 			})
 			if err != nil {
 				return ProductOption{}, fmt.Errorf("clone option value: %w", err)
+			}
+			for _, p := range valPrices[v.ID] {
+				if err := r.SetProductOptionValueChannelPrice(ctx, newValue.ID, p.ChannelID, &p.PriceValue); err != nil {
+					return ProductOption{}, err
+				}
 			}
 			for _, c := range vc {
 				if c.Locale == vInitial.Locale {
@@ -658,12 +676,26 @@ func (s *optionService) GetProductOptionsByProductIDs(ctx context.Context, produ
 	if err != nil {
 		return nil, fmt.Errorf("option value sources: %w", err)
 	}
+	owners, err := s.repo.ListProductRowsByIDs(ctx, productIDs)
+	if err != nil {
+		return nil, fmt.Errorf("option owners: %w", err)
+	}
+	optPrices, err := s.repo.ListProductOptionChannelPricesByOptionIDs(ctx, optionIDs)
+	if err != nil {
+		return nil, err
+	}
+	valPrices, err := s.repo.ListProductOptionValueChannelPricesByValueIDs(ctx, valueIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	for i := range options {
 		opt := &options[i]
 		opt.AllContent = contentByOption[opt.ID]
 		oc, _ := pickLocalized(opt.AllContent, optionContentLocale, locale, defLocale)
 		opt.Title, opt.HelpText = oc.Title, oc.HelpText
+		opt.Currency = owners[opt.ProductID].DefaultCurrencyCode
+		opt.ChannelPrices = optPrices[opt.ID]
 
 		vals := valuesByOption[opt.ID]
 		for j := range vals {
@@ -671,6 +703,7 @@ func (s *optionService) GetProductOptionsByProductIDs(ctx context.Context, produ
 			v.AllContent = valueContentByValue[v.ID]
 			vc, _ := pickLocalized(v.AllContent, valueContentLocale, locale, defLocale)
 			v.Title = vc.Title
+			v.ChannelPrices = valPrices[v.ID]
 			if v.SourceProductID != nil {
 				if p, ok := sourceByID[*v.SourceProductID]; ok {
 					v.SourceProductURL = p.URL
@@ -884,4 +917,62 @@ func groupReferencesOption(g *OptionConditionGroup, id uuid.UUID) bool {
 		}
 	}
 	return false
+}
+
+func (s *optionService) SetProductOptionChannelPrice(ctx context.Context, optionID, channelID uuid.UUID, priceValue *int32) (ProductOption, error) {
+	opt, err := s.repo.GetProductOptionByID(ctx, optionID)
+	if err != nil {
+		return ProductOption{}, err
+	}
+	if priceValue != nil && (opt.PriceType == nil || *opt.PriceType != OptionPriceFixed) {
+		return ProductOption{}, ErrOptionChannelPriceNotFixed
+	}
+	if err := s.checkChannelSurcharge(ctx, opt.ProductID, channelID, priceValue); err != nil {
+		return ProductOption{}, err
+	}
+	if err := s.repo.SetProductOptionChannelPrice(ctx, optionID, channelID, priceValue); err != nil {
+		return ProductOption{}, err
+	}
+	return opt, nil
+}
+
+// Sets or (nil) clears a value's FIXED surcharge, or a linked value's markup, for one channel the product is listed on
+func (s *optionService) SetProductOptionValueChannelPrice(ctx context.Context, valueID, channelID uuid.UUID, priceValue *int32) (ProductOptionValue, error) {
+	val, err := s.repo.GetProductOptionValueByID(ctx, valueID)
+	if err != nil {
+		return ProductOptionValue{}, err
+	}
+	if priceValue != nil && val.PriceType == OptionPricePercent && val.SourceProductID == nil {
+		return ProductOptionValue{}, ErrOptionChannelPriceNotFixed
+	}
+	opt, err := s.repo.GetProductOptionByID(ctx, val.OptionID)
+	if err != nil {
+		return ProductOptionValue{}, err
+	}
+	if err := s.checkChannelSurcharge(ctx, opt.ProductID, channelID, priceValue); err != nil {
+		return ProductOptionValue{}, err
+	}
+	if err := s.repo.SetProductOptionValueChannelPrice(ctx, valueID, channelID, priceValue); err != nil {
+		return ProductOptionValue{}, err
+	}
+	return val, nil
+}
+
+func (s *optionService) checkChannelSurcharge(ctx context.Context, productID, channelID uuid.UUID, priceValue *int32) error {
+	if priceValue != nil && (*priceValue > MaxOptionChannelSurcharge || *priceValue < -MaxOptionChannelSurcharge) {
+		return fmt.Errorf("%w: %d", ErrOptionChannelPriceRange, *priceValue)
+	}
+	if priceValue == nil {
+		return nil // clearing is always allowed, even for a channel the product has since left
+	}
+	listings, err := s.core.repo.ListProductChannelListingsByProduct(ctx, productID)
+	if err != nil {
+		return err
+	}
+	for _, l := range listings {
+		if l.ChannelID == channelID {
+			return nil
+		}
+	}
+	return ErrOptionChannelNotListed
 }

@@ -98,7 +98,7 @@ func TestFlatKitCancelRestoresComponents(t *testing.T) {
 	h.Settle(t)
 	h.wantFlat(t, "after placement", map[uuid.UUID]float64{a: 17, b: 14})
 	var snap int
-	if err := h.D.DB.QueryRow(`SELECT count(*) FROM order_line_kit_components k JOIN order_lines l ON l.id = k.order_line_id WHERE l.order_id = $1`, o.ID).Scan(&snap); err != nil || snap != 2 {
+	if err := h.D.DB.QueryRow(`SELECT count(*) FROM order_line_stock_parts k JOIN order_lines l ON l.id = k.order_line_id WHERE l.order_id = $1`, o.ID).Scan(&snap); err != nil || snap != 2 {
 		t.Fatalf("kit snapshot rows = %d (%v), want 2", snap, err)
 	}
 

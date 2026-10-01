@@ -250,8 +250,18 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 	if err != nil {
 		return nil, err
 	}
+	// The same per-channel surcharge the cart charges - a choice the cart would refuse here isn't offered
+	chID, chCur, perChannel := optionPricingChannel(ctx)
 	out := make([]*model1.ProductCustomOption, 0, len(opts))
 	for _, o := range opts {
+		priceValue := o.PriceValue
+		if perChannel {
+			pv, ok := o.ChannelPriceValue(chID, chCur)
+			if !ok {
+				continue
+			}
+			priceValue = pv
+		}
 		mo := &model1.ProductCustomOption{
 			ID:         o.ID.String(),
 			InputType:  string(o.InputType),
@@ -260,7 +270,7 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 			Title:      o.Title,
 			HelpText:   o.HelpText,
 			MaxChars:   o.MaxChars,
-			PriceValue: o.PriceValue,
+			PriceValue: priceValue,
 		}
 		if o.MaxFileBytes != nil {
 			v := int32(*o.MaxFileBytes)
@@ -277,10 +287,18 @@ func (r *productResolver) Options(ctx context.Context, obj *model.Product) ([]*m
 			mo.VisibleIf = visibleIfToAny(o.VisibleIf)
 		}
 		for _, v := range o.Values {
+			vp := v.PriceValue
+			if perChannel {
+				p, ok := v.ChannelPriceValue(chID, chCur, o.Currency)
+				if !ok {
+					continue
+				}
+				vp = p
+			}
 			mv := &model1.ProductCustomOptionValue{
 				ID:         v.ID.String(),
 				Title:      v.Title,
-				PriceValue: v.PriceValue,
+				PriceValue: vp,
 				PriceType:  string(v.PriceType),
 				Quantity:   v.Quantity,
 				IsDefault:  v.IsDefault,

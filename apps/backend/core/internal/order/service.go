@@ -83,7 +83,7 @@ type Service struct {
 
 // A kit SKU's per-unit components, nil for anything that isn't a kit
 type KitComponentLookup interface {
-	KitComponentsBySKU(ctx context.Context, sku string) ([]cart.CartLineKitComponent, error)
+	KitComponentsBySKU(ctx context.Context, sku string) ([]cart.CartLineStockPart, error)
 }
 
 // Loads a channel for the edit recompute (tax-inclusive, currency) so order doesn't import channel directly
@@ -396,11 +396,11 @@ func (s *Service) PlaceOrder(ctx context.Context, in PlaceOrderInput) (Order, er
 		cartObj = s.appendFreeGiftLines(ctx, cartObj, store.ID, evalResult.Ledger.FreeGifts())
 		cc.cart = cartObj
 	}
-	kitLines, err := s.stampKitComponents(ctx, cartObj.Lines)
+	stamped, err := s.stampStockParts(ctx, cartObj.Lines)
 	if err != nil {
 		return Order{}, err
 	}
-	cartObj.Lines = kitLines
+	cartObj.Lines = stamped
 	cc.cart = cartObj
 
 	// Pre-tx gate for validators that don't write in the placement tx - fraud, address, B2B - A veto aborts before any tx opens, and enrichment seeds the order.placing payload below

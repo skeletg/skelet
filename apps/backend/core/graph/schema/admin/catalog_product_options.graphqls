@@ -38,6 +38,8 @@ type ProductOption {
   maxChars:       Int
   maxFileBytes:   Int
   fileExtensions: String
+  # Per-channel FIXED surcharges replacing priceValue on those channels, only for channels the caller can see. Without one, priceValue applies only on channels selling in the product's default currency, and the option can't be filled elsewhere.
+  channelPrices:  [OptionChannelPrice!]!
   # Values for select-family options. Empty for text/date/file.
   values:         [ProductOptionValue!]!
   # Visibility condition group gating this option on EARLIER options' picks (null = always visible). Shape: { logic: "and"|"or", rules: [{ option_id, op: anyOf|noneOf|filled|empty, value_ids: [ID] }], groups: [...] }. Rules may only reference options with strictly lower sortOrder.
@@ -70,8 +72,15 @@ type ProductOptionValue {
   content:    [ProductOptionValueContent!]!
   # Optional reference to an existing SIMPLE product. When set, the value inherits the product's display data (name, SKU, default price, image) for storefront rendering; priceValue stays a markup on top of the source product's default_price (FIXED only).
   sourceProduct: Product
+  # Per-channel FIXED amounts (the markup for a linked value) replacing priceValue on those channels, only for channels the caller can see. Without one, priceValue applies only on channels selling in the product's default currency, and the value can't be picked elsewhere.
+  channelPrices: [OptionChannelPrice!]!
   createdAt:  Time!
   updatedAt:  Time!
+}
+
+type OptionChannelPrice {
+  channelId:  ID!
+  priceValue: Int!
 }
 
 type ProductOptionValueContent {
@@ -170,4 +179,7 @@ extend type Mutation {
   upsertProductOptionValueContent(valueId: ID!, locale: String!, title: String!): Product!
   deleteProductOptionValueContent(valueId: ID!, locale: String!): Product!
   deleteProductOptionValue(id: ID!): Product!
+  # Set (or, with a null priceValue, clear) a FIXED surcharge for one channel the product is listed on. Gated like every option write, and on the named channel too.
+  setProductOptionChannelPrice(optionId: ID!, channelId: ID!, priceValue: Int): Product!
+  setProductOptionValueChannelPrice(valueId: ID!, channelId: ID!, priceValue: Int): Product!
 }

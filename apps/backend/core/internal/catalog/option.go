@@ -119,8 +119,16 @@ type ProductOption struct {
 	Values         []ProductOptionValue
 	// Gates the option on choices made for EARLIER options (strictly lower sort_order) - nil = always visible
 	VisibleIf *OptionConditionGroup
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	// The owning product's default currency, which a bare FIXED amount is in - resolved only by GetProductOptions, like ChannelPrices on the option and its values
+	Currency      string
+	ChannelPrices []OptionChannelPrice
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type OptionChannelPrice struct {
+	ChannelID  uuid.UUID
+	PriceValue int32
 }
 
 // HelpText renders under the input on the storefront - usage hints, constraints
@@ -153,6 +161,7 @@ type ProductOptionValue struct {
 	SourceProductName         string
 	SourceProductDefaultPrice int64
 	SourceProductCurrency     string
+	ChannelPrices             []OptionChannelPrice
 	CreatedAt                 time.Time
 	UpdatedAt                 time.Time
 }
@@ -258,10 +267,14 @@ var (
 	ErrOptionPriceIncomplete          = errors.New("price_value and price_type must be set together")
 	ErrInvalidForcedLineQty           = errors.New("forced line quantity must be a whole number between 1 and the line cap")
 	ErrOptionHasNoContent             = errors.New("product option has no content rows")
+	ErrOptionChannelPriceNotFixed     = errors.New("only a FIXED surcharge takes a per-channel amount - a PERCENT one already follows the channel price")
+	ErrOptionChannelPriceRange        = errors.New("per-channel surcharge is out of range")
+	ErrOptionChannelNotListed         = errors.New("the product is not listed on this channel")
 )
 
 // Percent adjustments outside this range are typos, not prices - below -100 the line goes negative by definition
 const (
-	MinOptionPercent = -100
-	MaxOptionPercent = 1000
+	MinOptionPercent          = -100
+	MaxOptionPercent          = 1000
+	MaxOptionChannelSurcharge = 1_000_000_000
 )

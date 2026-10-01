@@ -729,7 +729,11 @@ func (r *productResolver) ProductOptions(ctx context.Context, obj *model.Product
 	if err != nil {
 		return nil, fmt.Errorf("load product options: %w", err)
 	}
-	return toProductOptionModels(options), nil
+	perm, err := auth.LoadPermittedChannels(ctx, r.AdminSvc, "catalog.view")
+	if err != nil {
+		return nil, err
+	}
+	return toProductOptionModels(options, perm), nil
 }
 
 // Products is the resolver for the products field. When channelId is set, the result is restricted to products with a
