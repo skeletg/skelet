@@ -34,7 +34,7 @@ func init() {
 	RegisterGroup(Group{Section: "seo", Slug: "facets", Label: "Facet indexing", SortOrder: 3, Scoping: ScopingChannel})
 	RegisterGroup(Group{Section: "seo", Slug: "crawl", Label: "Site crawl", SortOrder: 4, Scoping: ScopingChannel})
 
-	Register(Definition{Path: "general/store_information/support_phone", Type: TypeString, Default: "", Label: "Store phone number", Description: "Served to storefronts over publicConfig; the bundled one doesn't show it.", Public: true})
+	Register(Definition{Path: "general/store_information/support_phone", Type: TypePhone, Default: "", Label: "Store phone number", Description: "Served to storefronts over publicConfig; the bundled one doesn't show it.", Public: true})
 	Register(Definition{Path: "general/store_information/description", Type: TypeTextarea, Default: "", Label: "Store description", Description: "A short line about the store. Served to storefronts over publicConfig; the bundled one doesn't show it.", Public: true})
 	Register(Definition{Path: "general/store_information/phone_mobile", Type: TypePhone, Default: "", Label: "Mobile phone", Description: "A second number, for stores that publish one. Served to storefronts; the bundled one doesn't show it.", Public: true})
 	// Options come from the currencies the operator actually created, not a hardcoded three - and the label says what the value does: it is the base the currency-rates job quotes every other rate against, NOT a display preference. Path kept as-is so existing rows keep resolving
