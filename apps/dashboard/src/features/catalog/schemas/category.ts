@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { contentSlug, wholeNumber } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
-import { changed, fieldDiff } from '@/shared/saving/diff'
-import { richTextToPlainText, type RichTextValue } from '../LexicalRichTextEditor'
+import { clip, fieldDiff, sameJson } from '@/shared/saving/diff'
+import type { RichTextValue } from '../LexicalRichTextEditor'
+import { richTextEntry } from './rich-text-diff'
 
 // Category form - THE field list (docs/conventions.md, "Record forms"), for creating one and for its
 // own page: the tree position, flags, and the edited locale's copy. The banner image, per-channel
@@ -99,8 +100,6 @@ export function toCategoryCreateInput(v: CategoryValues, locale: string) {
   return { parentId: v.parentId || null, locale, ...structureInput(v), ...contentInput(v) }
 }
 
-const sameJson = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
-
 // The writes an edit needs: the category's own update and the locale's content row, each only when
 // its part changed. The content upsert replaces the row, so it always carries every content field
 export function categoryChanges(before: CategoryValues, after: CategoryValues) {
@@ -122,16 +121,6 @@ export function categoryChanges(before: CategoryValues, after: CategoryValues) {
       : null,
     content: content ? contentInput(after) : null,
   }
-}
-
-const clip = (s: string, max = 80) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
-
-// Rich text reads as its plain text; an edit that only changes the formatting still shows up
-function richTextEntry(label: string, before: unknown, after: unknown): SectionDiffEntry | null {
-  if (sameJson(before, after)) return null
-  const b = richTextToPlainText(before as RichTextValue)
-  const a = richTextToPlainText(after as RichTextValue)
-  return b === a ? changed(label, 'previous formatting', 'updated formatting') : changed(label, clip(b), clip(a))
 }
 
 export function categoryDiff(parentName: (id: string) => string) {

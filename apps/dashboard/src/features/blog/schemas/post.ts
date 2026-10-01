@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { contentSlug, numberText } from '@/shared/schemas/fields'
 import type { SectionDiffEntry } from '@/shared/saving/saveRegistry'
-import { added, changed, fieldDiff, removed } from '@/shared/saving/diff'
-import { richTextToPlainText, type RichTextValue } from '@/features/catalog/LexicalRichTextEditor'
+import { added, clip, fieldDiff, removed, sameJson, sameSet } from '@/shared/saving/diff'
+import type { RichTextValue } from '@/features/catalog/LexicalRichTextEditor'
+import { richTextEntry } from '@/features/catalog/schemas/rich-text-diff'
 
 // Blog post page - THE field list (docs/conventions.md, "Record forms"): the post's own settings, the
 // edited locale's content, and its categories and tags. Publishing, scheduling, archiving and the
@@ -76,9 +77,6 @@ export function toPostValues(post: ExistingPost, locale: string): PostValues {
   }
 }
 
-const sameJson = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
-const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x))
-
 // The post's writes, each only when its part changed
 export function postChanges(before: PostValues, after: PostValues) {
   const settings = before.slug !== after.slug || before.seoNoindex !== after.seoNoindex || before.readingTime !== after.readingTime
@@ -109,16 +107,6 @@ export function postChanges(before: PostValues, after: PostValues) {
     categoryIds: sameSet(before.categoryIds, after.categoryIds) ? null : after.categoryIds,
     tagIds: sameSet(before.tagIds, after.tagIds) ? null : after.tagIds,
   }
-}
-
-const clip = (s: string, max = 80) => (s.length > max ? `${s.slice(0, max - 1)}…` : s)
-
-// Rich text reads as its plain text; an edit that only changes the formatting still shows up
-function richTextEntry(label: string, before: unknown, after: unknown): SectionDiffEntry | null {
-  if (sameJson(before, after)) return null
-  const b = richTextToPlainText(before as RichTextValue)
-  const a = richTextToPlainText(after as RichTextValue)
-  return b === a ? changed(label, 'previous formatting', 'updated formatting') : changed(label, clip(b), clip(a))
 }
 
 export function postDiff(names: { category: (id: string) => string; tag: (id: string) => string }) {
