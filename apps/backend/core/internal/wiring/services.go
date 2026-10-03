@@ -9,7 +9,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/adminprefs"
 	"github.com/skeletg/skelet/apps/backend/core/internal/ai"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/chat"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/form"
@@ -65,7 +64,7 @@ var Services = fx.Module("services",
 		newFormService,
 		newWebFormService,
 		newMenuService,
-		newChatService,
+		newChatHistory,
 		newActionService,
 		newPaymentService,
 		newPaymentVaultService,
@@ -147,7 +146,7 @@ func newWebFormService(q *db.Queries, txMgr *txrunner.Manager, cfg *config.Servi
 
 func newMenuService(q *db.Queries) *menu.Service { return menu.NewService(menu.NewRepository(q)) }
 
-func newChatService(q *db.Queries) *chat.Service { return chat.NewService(q) }
+func newChatHistory(q *db.Queries) *ai.History { return ai.NewHistory(q) }
 
 func newActionService() *adminaction.Service { return adminaction.NewService() }
 

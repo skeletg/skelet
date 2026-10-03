@@ -17,7 +17,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/chat"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/country"
@@ -112,7 +111,7 @@ type Resolver struct {
 	NotificationHub  *notification.Hub // live push fan-out for the notificationAdded subscription
 	FormSvc          *form.Service
 	WebFormSvc       *webform.Service
-	ChatSvc          *chat.Service
+	ChatSvc          *ai.History
 	CacheClient      *revalidate.Client
 	CacheQueue       *revalidate.Queue
 	RefreshStore     *auth.RefreshStore // admin refresh tokens

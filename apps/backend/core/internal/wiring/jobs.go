@@ -18,7 +18,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/chat"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
@@ -65,7 +64,7 @@ type jobDeps struct {
 	Recommend     *recommend.Service
 	MediaLibrary  *medialibrary.Service
 	Subscription  *subscription.Service
-	Chat          *chat.Service
+	Chat          *ai.History
 	AI            *ai.Service
 	Review        *review.Service
 	Flows         *enroll.Enroller
@@ -344,7 +343,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 	if d.AI.Enabled() {
 		jobScheduler.Register("chat-prune", "@every 24h", "Delete chat conversations untouched past the retention window (0 days = keep forever).",
 			func(ctx context.Context) error {
-				days, err := d.Config.GetInt(ctx, "ai/llm/history_retention_days", config.DefaultScope)
+				days, err := d.Config.GetInt(ctx, ai.HistoryRetentionPath, config.DefaultScope)
 				if err != nil || days <= 0 {
 					return err
 				}
