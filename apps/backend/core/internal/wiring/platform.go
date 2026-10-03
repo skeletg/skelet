@@ -147,8 +147,8 @@ func newConfigService(q *db.Queries, txMgr *txrunner.Manager) *config.Service {
 	return config.NewService(configstore.New(q, txMgr))
 }
 
-func newChannelService(q *db.Queries, txMgr *txrunner.Manager, cfgSvc *config.Service) *channel.Service { // config first - the storefront URL and email-from live on the store row now, not in env
-	return channel.NewService(channel.NewRepository(q, txMgr), cfgSvc)
+func newChannelService(q *db.Queries, txMgr *txrunner.Manager) *channel.Service {
+	return channel.NewService(channel.NewRepository(q, txMgr))
 }
 
 func newLocaleService(q *db.Queries) *locale.Service {

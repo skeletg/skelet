@@ -857,6 +857,7 @@ type Channel struct {
 	Metadata            json.RawMessage `json:"metadata"`
 	IsDefault           bool            `json:"is_default"`
 	TaxInclusivePricing bool            `json:"tax_inclusive_pricing"`
+	StorefrontHost      string          `json:"storefront_host"`
 }
 
 type ChannelLocale struct {

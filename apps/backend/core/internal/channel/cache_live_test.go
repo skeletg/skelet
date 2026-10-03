@@ -47,7 +47,7 @@ func TestTheStorefrontsChannelLookupIsCachedAndAWriteRefreshesIt(t *testing.T) {
 	ctx := context.Background()
 	ch := channel.Channel{ID: uuid.New(), Slug: "a", Name: "Old", IsActive: true}
 	repo := &countingChannelRepo{svcRepo: newSvcRepo(ch)}
-	svc := channel.NewService(repo, nil)
+	svc := channel.NewService(repo)
 	svc.SetCache(liveCache(t))
 
 	for range 3 {

@@ -184,7 +184,3 @@ func (s *listingService) ListProductChannelListingsByProductIDsForChannel(ctx co
 func (s *listingService) ListProductChannelListingsByChannel(ctx context.Context, channelID uuid.UUID) ([]ProductChannelListing, error) {
 	return s.repo.ListProductChannelListingsByChannel(ctx, channelID)
 }
-
-func (s *listingService) CountInheritingListingsForChannel(ctx context.Context, channelID uuid.UUID) (int64, error) { // backs the channel-update guard
-	return s.repo.CountInheritingListingsForChannel(ctx, channelID)
-}

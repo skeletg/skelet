@@ -108,10 +108,8 @@ func (r *Resolver) activeLocale(ctx context.Context) string {
 type defaultChannelLocale struct{ channels *channel.Service } // last resort when no Locale header and no channel resolved: the DEFAULT channel's default_locale, falling to "en" only when nothing is flagged default - GetDefault is Valkey-cached so it stays cheap
 
 func (c defaultChannelLocale) DefaultLocale(ctx context.Context) (string, error) {
-	if c.channels != nil {
-		if sv, err := c.channels.GetDefault(ctx); err == nil && sv.DefaultLocale != "" {
-			return sv.DefaultLocale, nil
-		}
+	if c.channels == nil {
+		return channel.FallbackLocale, nil
 	}
-	return "en", nil
+	return c.channels.InstallDefaultLocale(ctx), nil
 }

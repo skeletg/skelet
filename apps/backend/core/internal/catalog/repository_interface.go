@@ -176,7 +176,6 @@ type ProductRepository interface {
 type ListingRepository interface {
 	CountInheritingListingsWithCurrencyMismatchForProduct(ctx context.Context, productID uuid.UUID, currency string) (int64, error)
 	UpsertProductChannelListingPublished(ctx context.Context, productID, channelID uuid.UUID, published bool) (ProductChannelListing, error)
-	CountInheritingListingsForChannel(ctx context.Context, channelID uuid.UUID) (int64, error)
 	DeleteProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) error
 	GetProductChannelListing(ctx context.Context, productID, channelID uuid.UUID) (ProductChannelListing, error)
 	ListProductChannelListingsByChannel(ctx context.Context, channelID uuid.UUID) ([]ProductChannelListing, error)

@@ -83,7 +83,6 @@ type validatorDeps struct {
 	Locale    *locale.Service
 	Channel   *channel.Service
 	Inventory *inventory.Service
-	Catalog   *catalog.Service
 	Currency  *currency.Service
 }
 
@@ -95,8 +94,6 @@ func wireValidators(d validatorDeps) {
 	d.Locale.SetCountryValidator(d.Country)
 	d.Channel.SetLocaleValidator(d.Locale)
 	d.Channel.SetLocationAssigner(d.Inventory)
-	// Currency-change guards: channel.Update rejects when listings inherit, and config.Set on the global currency path rejects when listings would be stranded under a new one
-	d.Channel.SetListingCounter(d.Catalog)
 	d.Channel.SetCurrencyValidator(d.Currency)
 }
 
@@ -208,6 +205,7 @@ func wireCatalogInventory(d catalogInventoryDeps) {
 	d.Inventory.SetLedgerToggle(NewInventoryLedgerToggle(d.Config))
 	d.Inventory.SetFlatModeToggle(NewInventoryFlatModeToggle(d.Config))
 	d.Inventory.SetDeductionStepToggle(NewInventoryDeductionStep(d.Config))
+	d.Inventory.SetDefaultLocationSource(NewInventoryDefaultLocation(d.Config))
 	d.Inventory.SetEventBus(d.Bus)
 	d.Catalog.SetInventoryEnsurer(NewCatalogInventoryEnsurer(d.Inventory))
 
