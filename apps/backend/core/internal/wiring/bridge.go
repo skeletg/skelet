@@ -17,7 +17,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/chat"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/country"
@@ -138,7 +137,7 @@ type Svcs struct {
 	Form         *form.Service
 	WebForm      *webform.Service
 	Menu         *menu.Service
-	Chat         *chat.Service
+	Chat         *ai.History
 	Action       *adminaction.Service
 	DataJob      *datajob.Service
 	Payment      *payment.Service

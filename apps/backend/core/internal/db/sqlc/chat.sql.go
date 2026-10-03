@@ -70,25 +70,19 @@ func (q *Queries) GetChatConversation(ctx context.Context, arg GetChatConversati
 }
 
 const insertChatConversation = `-- name: InsertChatConversation :one
-INSERT INTO chat_conversations (admin_id, channel_id, title, messages)
-VALUES ($1, $2, $3, $4)
+INSERT INTO chat_conversations (admin_id, title, messages)
+VALUES ($1, $2, $3)
 RETURNING id
 `
 
 type InsertChatConversationParams struct {
-	AdminID   uuid.UUID       `json:"admin_id"`
-	ChannelID uuid.UUID       `json:"channel_id"`
-	Title     string          `json:"title"`
-	Messages  json.RawMessage `json:"messages"`
+	AdminID  uuid.UUID       `json:"admin_id"`
+	Title    string          `json:"title"`
+	Messages json.RawMessage `json:"messages"`
 }
 
 func (q *Queries) InsertChatConversation(ctx context.Context, arg InsertChatConversationParams) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, insertChatConversation,
-		arg.AdminID,
-		arg.ChannelID,
-		arg.Title,
-		arg.Messages,
-	)
+	row := q.db.QueryRowContext(ctx, insertChatConversation, arg.AdminID, arg.Title, arg.Messages)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err

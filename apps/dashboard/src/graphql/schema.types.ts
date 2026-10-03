@@ -5392,7 +5392,6 @@ export type MutationRunScheduledJobNowArgs = {
 
 
 export type MutationSaveChatConversationArgs = {
-  channelId?: InputMaybe<Scalars['ID']['input']>;
   id?: InputMaybe<Scalars['ID']['input']>;
   messages: Array<SignalsChatMessage>;
   title?: InputMaybe<Scalars['String']['input']>;
