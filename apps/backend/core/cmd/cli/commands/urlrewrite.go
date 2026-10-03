@@ -11,11 +11,9 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
-	"github.com/skeletg/skelet/apps/backend/core/internal/configstore"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
-	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/dbconn"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
@@ -67,9 +65,8 @@ func newURLRewriteServices() (*urlRewriteServices, error) {
 	}
 	queries := db.New(conn)
 	txMgr := txrunner.New(conn)
-	configSvc := config.NewService(configstore.New(queries, txMgr))
 	localeSvc := locale.NewService(locale.NewRepository(queries))
-	channelSvc := channel.NewService(channel.NewRepository(queries, txMgr), configSvc)
+	channelSvc := channel.NewService(channel.NewRepository(queries, txMgr))
 	channelSvc.SetLocaleValidator(localeSvc)
 	catalogSvc := catalog.NewService(catalog.Deps{
 		Repo:    catalog.NewRepository(queries, txMgr),

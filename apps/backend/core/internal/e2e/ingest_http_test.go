@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
@@ -31,7 +32,7 @@ func tRequest(t *testing.T, ts *httptest.Server, method, path, channelID, body s
 		t.Fatalf("build request: %v", err)
 	}
 	if channelID != "" {
-		req.Header.Set("X-Channel-Id", channelID)
+		req.Header.Set(channel.HeaderChannelID, channelID)
 	}
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")

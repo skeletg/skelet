@@ -17,6 +17,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/backinstock"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalogio"
+	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
@@ -30,7 +31,7 @@ func (h *harness) gqlAs(t *testing.T, ts *httptest.Server, channelID, query stri
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Channel-Id", channelID)
+	req.Header.Set(channel.HeaderChannelID, channelID)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

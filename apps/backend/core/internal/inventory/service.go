@@ -59,6 +59,14 @@ type DeductionStepToggle interface {
 	DeductAtPlacement(ctx context.Context) bool
 }
 
+// The config path naming the location a new channel is assigned to
+const ConfigDefaultLocation = "sales/inventory/default_location"
+
+// Reads ConfigDefaultLocation - "" when unset
+type DefaultLocationSource interface {
+	DefaultLocationSlug(ctx context.Context) (string, error)
+}
+
 type Service struct {
 	repo     Repository
 	tx       *txrunner.Manager
@@ -67,6 +75,7 @@ type Service struct {
 	ledger   LedgerToggle
 	flatMode FlatModeToggle
 	deduct   DeductionStepToggle
+	defLoc   DefaultLocationSource
 	bus      *events.Bus
 	// Sources salable stock from an external WMS or ERP when wired - nil means native (remote.go)
 	remoteAvail RemoteAvailabilitySource
@@ -90,6 +99,8 @@ func (s *Service) SetLedgerToggle(t LedgerToggle) { s.ledger = t }
 func (s *Service) SetFlatModeToggle(t FlatModeToggle) { s.flatMode = t }
 
 func (s *Service) SetDeductionStepToggle(t DeductionStepToggle) { s.deduct = t }
+
+func (s *Service) SetDefaultLocationSource(d DefaultLocationSource) { s.defLoc = d }
 
 func (s *Service) deductAtPlacement(ctx context.Context) bool {
 	if s.deduct == nil {
@@ -203,11 +214,24 @@ func (s *Service) SetChannelLocations(ctx context.Context, channelID uuid.UUID, 
 	return s.repo.SetChannelLocations(ctx, channelID, assignments)
 }
 
-// Wires a new channel to one location by slug at priority 0, the shared-warehouse channel-create hook - best-effort, returning nil on an unresolvable slug so it can't fail an otherwise-successful store creation
-func (s *Service) AssignDefaultLocation(ctx context.Context, channelID uuid.UUID, locationSlug string) error {
-	loc, err := s.repo.GetLocationBySlug(ctx, locationSlug)
-	if err != nil {
+// Wires a new channel to the configured default location at priority 0, the shared-warehouse channel-create hook - nil when no location is configured or the configured slug no longer resolves
+func (s *Service) AssignDefaultLocation(ctx context.Context, channelID uuid.UUID) error {
+	if s.defLoc == nil {
 		return nil
+	}
+	slug, err := s.defLoc.DefaultLocationSlug(ctx)
+	if err != nil {
+		return fmt.Errorf("read default location: %w", err)
+	}
+	if slug = strings.TrimSpace(slug); slug == "" {
+		return nil
+	}
+	loc, err := s.repo.GetLocationBySlug(ctx, slug)
+	if errors.Is(err, ErrLocationNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("resolve default location %q: %w", slug, err)
 	}
 	return s.repo.SetChannelLocations(ctx, channelID, []LocationAssignment{
 		{LocationID: loc.ID, Priority: 0},

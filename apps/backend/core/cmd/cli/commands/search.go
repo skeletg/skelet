@@ -125,7 +125,7 @@ func newSearchServices() (*searchServices, error) {
 	txMgr := txrunner.New(conn)
 	configSvc := config.NewService(configstore.New(queries, txMgr))
 	localeSvc := locale.NewService(locale.NewRepository(queries))
-	channelSvc := channel.NewService(channel.NewRepository(queries, txMgr), configSvc)
+	channelSvc := channel.NewService(channel.NewRepository(queries, txMgr))
 	channelSvc.SetLocaleValidator(localeSvc)
 	catalogSvc := catalog.NewService(catalog.Deps{
 		Repo:    catalog.NewRepository(queries, txMgr),

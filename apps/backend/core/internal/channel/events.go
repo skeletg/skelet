@@ -35,7 +35,7 @@ func (*Deleted) Type() string { return EventDeleted }
 
 func (e *Deleted) EventChannelID() uuid.UUID { return e.ChannelID }
 
-// Fires after a channel's own fields change - name, branding, currencies, public URL - which the storefront header caches
+// Fires after a channel's own row changes - name, currency, locales, active flag, public URL, default flag - which the storefront header caches
 type Updated struct {
 	ChannelID uuid.UUID
 }

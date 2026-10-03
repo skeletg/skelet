@@ -346,7 +346,7 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   AllowedOrigins(infra.Config),
 		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodOptions},
-		AllowedHeaders:   []string{"Authorization", "Content-Type", "Apollo-Require-Preflight", "Locale", "X-Channel-Id"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "Apollo-Require-Preflight", "Locale", channel.HeaderChannelID},
 		AllowCredentials: false, // JWT travels in Authorization header, not cookies
 		MaxAge:           300,
 	}).Handler(mux)

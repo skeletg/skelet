@@ -195,7 +195,7 @@ The event picker in Settings shows what your install actually has.
 |---|---|---|
 | `channel.deleted` | async | Fires after a store/channel is deleted. |
 | `channel.locales.changed` | async | Fires after a store's active locale set changes. |
-| `channel.updated` | async | Fires after a store's own fields change - name, branding, currencies, public URL. Subscribe to bust a headless frontend's nav cache. |
+| `channel.updated` | async | Fires after a store's own fields change - name, currency, locales, active flag, public URL or default flag. Subscribe to bust a headless frontend's nav cache. |
 
 ### checkout
 

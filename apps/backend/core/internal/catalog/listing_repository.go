@@ -108,14 +108,6 @@ func (r *postgresRepository) DeleteProductChannelListing(ctx context.Context, pr
 	return nil
 }
 
-func (r *postgresRepository) CountInheritingListingsForChannel(ctx context.Context, channelID uuid.UUID) (int64, error) {
-	n, err := r.queries.CountInheritingListingsForChannel(ctx, channelID)
-	if err != nil {
-		return 0, fmt.Errorf("count inheriting listings for store: %w", err)
-	}
-	return n, nil
-}
-
 // GetListingProductIDByChannelURL resolves a channel-override url to its product - ErrListingNotFound when no listing on this channel carries the url
 func (r *postgresRepository) GetListingProductIDByChannelURL(ctx context.Context, channelID uuid.UUID, url string) (uuid.UUID, error) {
 	id, err := r.queries.GetListingProductIDByChannelURL(ctx, db.GetListingProductIDByChannelURLParams{

@@ -2,9 +2,10 @@ package channel_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -28,9 +29,6 @@ func inactive(id uuid.UUID, slug, publicURL string, isDefault bool) channel.Chan
 	return ch
 }
 
-// Mirrors GetChannelByStorefrontHost's regex - host portion of public_url, scheme optional
-var hostRe = regexp.MustCompile(`^(?:https?://)?([^/]+)`)
-
 type fakeRepo struct{ channels []channel.Channel }
 
 func (f *fakeRepo) GetByID(_ context.Context, id uuid.UUID) (channel.Channel, error) {
@@ -53,10 +51,7 @@ func (f *fakeRepo) GetBySlug(_ context.Context, slug string) (channel.Channel, e
 
 func (f *fakeRepo) GetByStorefrontHost(_ context.Context, host string) (channel.Channel, error) {
 	for _, ch := range f.channels {
-		if ch.PublicURL == "" {
-			continue
-		}
-		if m := hostRe.FindStringSubmatch(ch.PublicURL); m != nil && m[1] == host {
+		if h := channel.StorefrontHost(ch.PublicURL); h != "" && h == host {
 			return ch, nil
 		}
 	}
@@ -76,6 +71,10 @@ func (f *fakeRepo) ListLocales(_ context.Context, _ uuid.UUID) ([]locale.Locale,
 	return nil, nil
 }
 
+func (f *fakeRepo) Atomic(_ context.Context, fn func(channel.Repository) error) error { return fn(f) }
+func (f *fakeRepo) GetForUpdate(ctx context.Context, id uuid.UUID) (channel.Channel, error) {
+	return f.GetByID(ctx, id)
+}
 func (f *fakeRepo) Create(context.Context, channel.CreateChannelInput) (channel.Channel, error) {
 	panic("not used")
 }
@@ -83,11 +82,14 @@ func (f *fakeRepo) List(context.Context) ([]channel.Channel, error) { panic("not
 func (f *fakeRepo) ListByIDs(context.Context, []uuid.UUID) (map[uuid.UUID]channel.Channel, error) {
 	panic("not used")
 }
-func (f *fakeRepo) Update(context.Context, channel.UpdateChannelInput) (channel.Channel, error) {
+func (f *fakeRepo) Update(context.Context, channel.Channel, bool) (channel.Channel, error) {
 	panic("not used")
 }
 func (f *fakeRepo) Delete(context.Context, uuid.UUID) error { panic("not used") }
-func (f *fakeRepo) SetDefault(context.Context, uuid.UUID) (channel.Channel, error) {
+func (f *fakeRepo) SetDefault(context.Context, uuid.UUID) (channel.Channel, []uuid.UUID, error) {
+	panic("not used")
+}
+func (f *fakeRepo) CountInheritingListings(context.Context, uuid.UUID) (int64, error) {
 	panic("not used")
 }
 func (f *fakeRepo) ListLocalesByStoreIDs(context.Context, []uuid.UUID) (map[uuid.UUID][]locale.Locale, error) {
@@ -119,7 +121,7 @@ func TestMiddlewareResolution(t *testing.T) {
 		active(euID, "eu", "https://shop.example.eu", false),
 		inactive(b2bID, "b2b", "https://b2b.example.com", false),
 	}
-	mw := channel.Middleware(channel.NewService(&fakeRepo{channels: stores}, nil))
+	mw := channel.Middleware(channel.NewService(&fakeRepo{channels: stores}))
 
 	cases := []struct {
 		name   string
@@ -185,7 +187,7 @@ func TestMiddlewareNoDefault(t *testing.T) {
 		active(euID, "eu", "https://shop.example.eu", false),
 		inactive(b2bID, "b2b", "https://b2b.example.com", false),
 	}
-	mw := channel.Middleware(channel.NewService(&fakeRepo{channels: stores}, nil))
+	mw := channel.Middleware(channel.NewService(&fakeRepo{channels: stores}))
 
 	cases := []struct {
 		name   string
@@ -214,7 +216,7 @@ func TestMiddlewareNoDefault(t *testing.T) {
 
 func TestMiddlewareInactiveDefaultResolvesNothing(t *testing.T) {
 	stores := []channel.Channel{inactive(usID, "us", "https://shop.example.com", true)}
-	mw := channel.Middleware(channel.NewService(&fakeRepo{channels: stores}, nil))
+	mw := channel.Middleware(channel.NewService(&fakeRepo{channels: stores}))
 	got, ok, code := resolveVia(t, mw, nil)
 	if code != http.StatusOK {
 		t.Fatalf("request failed with %d", code)
@@ -230,7 +232,7 @@ func TestAdminMiddleware(t *testing.T) {
 		active(euID, "eu", "https://shop.example.eu", false),
 		inactive(b2bID, "b2b", "https://b2b.example.com", false),
 	}
-	mw := channel.AdminMiddleware(channel.NewService(&fakeRepo{channels: stores}, nil))
+	mw := channel.AdminMiddleware(channel.NewService(&fakeRepo{channels: stores}))
 
 	cases := []struct {
 		name   string
@@ -276,5 +278,60 @@ func TestAdminMiddleware(t *testing.T) {
 				t.Fatalf("expected channel %s, got %s (%q)", tc.want, got.ID, got.Slug)
 			}
 		})
+	}
+}
+
+func TestMiddlewareHostRouting(t *testing.T) {
+	ipv6ID := uuid.MustParse("55555555-5555-5555-5555-555555555555")
+	stores := []channel.Channel{
+		active(usID, "us", "http://localhost:3000", true),
+		active(euID, "eu", "http://localhost:5174", false),
+		active(b2bID, "b2b", "https://b2b.example.com/", false),
+		active(ipv6ID, "v6", "http://[::1]:8080", false),
+	}
+	mw := channel.Middleware(channel.NewService(&fakeRepo{channels: stores}))
+	cases := []struct {
+		host string
+		want uuid.UUID
+	}{
+		{"localhost:5174", euID},
+		{"LocalHost:5174", euID},
+		{"localhost:3000", usID},
+		{"b2b.example.com", b2bID},
+		{"B2B.example.com:443", b2bID},
+		{"[::1]:8080", ipv6ID},
+		{"localhost", usID},
+		{"localhost:9999", usID},
+		{strings.Repeat("a", 300), usID},
+	}
+	for _, tc := range cases {
+		got, ok, _ := resolveVia(t, mw, func(r *http.Request) { r.Host = tc.host })
+		if !ok || got.ID != tc.want {
+			t.Errorf("host %.40q resolved %v, want %s", tc.host, got, tc.want)
+		}
+	}
+}
+
+type countingHostRepo struct {
+	fakeRepo
+	byHost int
+}
+
+func (r *countingHostRepo) GetByStorefrontHost(ctx context.Context, host string) (channel.Channel, error) {
+	r.byHost++
+	return r.fakeRepo.GetByStorefrontHost(ctx, host)
+}
+
+func TestAnOversizedHostNeverReachesTheLookup(t *testing.T) {
+	repo := &countingHostRepo{}
+	svc := channel.NewService(repo)
+	if _, err := svc.GetByStorefrontHost(context.Background(), strings.Repeat("a", 300)); !errors.Is(err, channel.ErrChannelNotFound) {
+		t.Fatalf("oversized host = %v, want not found", err)
+	}
+	if _, err := svc.GetByStorefrontHost(context.Background(), ""); !errors.Is(err, channel.ErrChannelNotFound) {
+		t.Fatalf("empty host = %v, want not found", err)
+	}
+	if repo.byHost != 0 {
+		t.Fatalf("the repository was asked %d times", repo.byHost)
 	}
 }
