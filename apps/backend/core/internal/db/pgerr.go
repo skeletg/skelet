@@ -3,6 +3,8 @@ package db
 import (
 	"errors"
 	"strings"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Matched via SQLState so wrapped driver errors still classify
@@ -42,4 +44,12 @@ func IsForeignKeyViolation(err error) bool {
 	}
 	msg := err.Error()
 	return strings.Contains(msg, "SQLSTATE "+pgForeignKeyViolation) || strings.Contains(msg, "SQLSTATE "+pgRestrictViolation)
+}
+
+// ConstraintName is the constraint or unique index a violation names, "" when err carries none
+func ConstraintName(err error) string {
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
+		return pgErr.ConstraintName
+	}
+	return ""
 }

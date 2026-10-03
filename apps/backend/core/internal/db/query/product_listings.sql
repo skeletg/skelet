@@ -58,12 +58,6 @@ WHERE channel_id = $1 AND url = $2 AND is_published;
 DELETE FROM catalog_product_channel_listings
 WHERE product_id = $1 AND channel_id = $2;
 
--- name: CountInheritingListingsForChannel :one
--- How many listings on this store currently inherit price (price IS NULL) Used by the currency-change guard to block changing a store's currency while any listing depends on the global default price
-SELECT COUNT(*)::bigint
-FROM catalog_product_channel_listings
-WHERE channel_id = $1 AND price IS NULL;
-
 -- name: CountInheritingListingsWithCurrencyMismatchForProduct :one
 SELECT COUNT(*)::bigint
 FROM catalog_product_channel_listings l

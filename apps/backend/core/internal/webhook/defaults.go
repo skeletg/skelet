@@ -451,7 +451,7 @@ func init() {
 		Type:        channel.EventUpdated,
 		Kind:        KindAsync,
 		Name:        "Channel Updated",
-		Description: "Fires after a store's own fields change - name, branding, currencies, public URL. Subscribe to bust a headless frontend's nav cache.",
+		Description: "Fires after a store's own fields change - name, currency, locales, active flag, public URL or default flag. Subscribe to bust a headless frontend's nav cache.",
 	})
 	RegisterEvent(EventDefinition{
 		Type:        channel.EventDeleted,

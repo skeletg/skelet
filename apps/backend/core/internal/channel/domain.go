@@ -12,6 +12,26 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/permission"
 )
 
+const (
+	PermView   = "channels.view"
+	PermManage = "channels.manage"
+)
+
+// The request headers naming a channel - the front surface honours only the id, the admin surface both
+const (
+	HeaderChannelID = "X-Channel-Id"
+	HeaderStoreSlug = "X-Store-Slug"
+)
+
+// The default locale of last resort, when no channel is flagged default to inherit one from
+const FallbackLocale = "en"
+
+const (
+	maxSlugLength          = 64
+	maxMetadataKeys        = 50
+	maxMetadataValueLength = 1024
+)
+
 func init() {
 	permission.RegisterGroup(permission.Group{
 		Slug:      "channels",
@@ -20,12 +40,12 @@ func init() {
 	})
 	permission.Register(permission.Definition{
 		Group: "channels",
-		Slug:  "channels.view",
+		Slug:  PermView,
 		Name:  "View channels",
 	})
 	permission.Register(permission.Definition{
 		Group: "channels",
-		Slug:  "channels.manage",
+		Slug:  PermManage,
 		Name:  "Manage channels",
 	})
 }
@@ -55,9 +75,9 @@ type Metadata map[string]string
 type CreateChannelInput struct {
 	Slug          string
 	Name          string
-	DefaultLocale string   // "" defaults to "en"
-	Locales       []string // codes; empty = seed from DefaultLocale - validated via FK on insert
-	CurrencyCode  string   // "" defaults to global config currency
+	DefaultLocale string   // "" inherits the default channel's, else FallbackLocale
+	Locales       []string // codes; the default locale is appended when missing
+	CurrencyCode  string   // required
 	PublicURL     string
 	Metadata      Metadata
 }
@@ -66,7 +86,7 @@ type UpdateChannelInput struct {
 	ID            uuid.UUID
 	Name          *string
 	DefaultLocale *string
-	Locales       []string // nil = no change; pass codes to replace the supported-locales set
+	Locales       []string // nil = no change; pass codes to replace the supported-locales set, which always keeps the default
 	IsActive      *bool
 	CurrencyCode  *string
 	PublicURL     *string
@@ -74,25 +94,37 @@ type UpdateChannelInput struct {
 }
 
 var (
-	ErrChannelNotFound    = errors.New("channel not found")
-	ErrChannelInUse       = errors.New("channel still has orders, listings, carts or gift cards; reassign or remove them first")
-	ErrSlugTaken          = errors.New("channel slug already in use")
-	ErrLocaleNotSupported = errors.New("locale is not in the channel's supported locales list")
-	ErrInvalidCurrency    = errors.New("currency_code must be a 3-letter ISO 4217 code")
+	ErrChannelNotFound          = errors.New("channel not found")
+	ErrChannelInUse             = errors.New("channel still has orders, listings, carts or gift cards; reassign or remove them first")
+	ErrSlugTaken                = errors.New("channel slug already in use")
+	ErrInvalidSlug              = errors.New("slug must be 1-64 lowercase letters, digits, hyphens or underscores")
+	ErrNameRequired             = errors.New("channel name is required")
+	ErrInvalidCurrency          = errors.New("currency_code must be a 3-letter ISO 4217 code")
+	ErrInvalidPublicURL         = errors.New("public URL must be empty or an absolute http(s) URL with a host and no credentials, query or fragment")
+	ErrStorefrontHostTaken      = errors.New("another channel already serves this storefront host")
+	ErrMetadataTooLarge         = errors.New("channel metadata allows at most 50 keys and 1024 characters per value")
+	ErrDefaultChannelInactive   = errors.New("an inactive channel cannot be the default; activate it first")
+	ErrDeactivateDefaultChannel = errors.New("the default channel cannot be deactivated; make another channel the default first")
 )
 
 type Repository interface {
+	// Runs fn against a repository bound to one transaction - calls on an already-bound repository join it
+	Atomic(ctx context.Context, fn func(Repository) error) error
 	Create(ctx context.Context, input CreateChannelInput) (Channel, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Channel, error)
+	// Holds the row lock until the surrounding Atomic commits
+	GetForUpdate(ctx context.Context, id uuid.UUID) (Channel, error)
 	GetBySlug(ctx context.Context, slug string) (Channel, error)
 	GetByStorefrontHost(ctx context.Context, host string) (Channel, error)
 	GetDefault(ctx context.Context) (Channel, error)
 	List(ctx context.Context) ([]Channel, error)
 	ListByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]Channel, error)
-	Update(ctx context.Context, input UpdateChannelInput) (Channel, error)
+	// Writes every column of ch; metadata is only written when writeMetadata is set
+	Update(ctx context.Context, ch Channel, writeMetadata bool) (Channel, error)
 	Delete(ctx context.Context, id uuid.UUID) error
-	// Flips is_default=true on the given channel and clears it from every other row in the same transaction - the DB has a unique partial index on is_default=true, so doing it in two separate statements would race against itself
-	SetDefault(ctx context.Context, id uuid.UUID) (Channel, error)
+	// Flips is_default=true on the given channel and clears it from every other row, returning the channels that lost it - the unique partial index on is_default=true needs both statements in one transaction
+	SetDefault(ctx context.Context, id uuid.UUID) (Channel, []uuid.UUID, error)
+	CountInheritingListings(ctx context.Context, channelID uuid.UUID) (int64, error)
 
 	ListLocales(ctx context.Context, channelID uuid.UUID) ([]locale.Locale, error)
 	ListLocalesByStoreIDs(ctx context.Context, channelIDs []uuid.UUID) (map[uuid.UUID][]locale.Locale, error)

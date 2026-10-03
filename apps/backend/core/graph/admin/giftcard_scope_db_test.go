@@ -69,7 +69,7 @@ func TestAChannelAdminIssuesACardForTheirOwnStoreInItsCurrency(t *testing.T) {
 	}
 	q := db.New(conn)
 	svc := giftcard.NewService(giftcard.NewRepository(q), txrunner.New(conn))
-	r := &mutationResolver{&Resolver{GiftcardSvc: svc, ChannelSvc: channel.NewService(channel.NewRepository(q, txrunner.New(conn)), nil)}}
+	r := &mutationResolver{&Resolver{GiftcardSvc: svc, ChannelSvc: channel.NewService(channel.NewRepository(q, txrunner.New(conn)))}}
 	scoped := adminWithCachedGrants(auth.Grant{Slug: "giftcards.manage", ChannelID: &mine})
 	id, otherID := mine.String(), other.String()
 

@@ -12,28 +12,44 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/sqlc-dev/pqtype"
 )
+
+const countInheritingListingsForChannel = `-- name: CountInheritingListingsForChannel :one
+SELECT COUNT(*)::bigint
+FROM catalog_product_channel_listings
+WHERE channel_id = $1 AND price IS NULL
+`
+
+// How many listings on this channel inherit price (price IS NULL) - the currency-change guard runs it inside the channel update's transaction
+func (q *Queries) CountInheritingListingsForChannel(ctx context.Context, channelID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countInheritingListingsForChannel, channelID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
 
 const createChannel = `-- name: CreateChannel :one
 INSERT INTO channels (
     slug, name, default_locale,
     currency_code,
-    public_url, metadata
+    public_url, storefront_host, metadata
 ) VALUES (
     $1, $2, $3,
     $4,
-    $5, $6
+    $5, $6, $7
 )
-RETURNING id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing
+RETURNING id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing, storefront_host
 `
 
 type CreateChannelParams struct {
-	Slug          string          `json:"slug"`
-	Name          string          `json:"name"`
-	DefaultLocale string          `json:"default_locale"`
-	CurrencyCode  string          `json:"currency_code"`
-	PublicUrl     string          `json:"public_url"`
-	Metadata      json.RawMessage `json:"metadata"`
+	Slug           string          `json:"slug"`
+	Name           string          `json:"name"`
+	DefaultLocale  string          `json:"default_locale"`
+	CurrencyCode   string          `json:"currency_code"`
+	PublicUrl      string          `json:"public_url"`
+	StorefrontHost string          `json:"storefront_host"`
+	Metadata       json.RawMessage `json:"metadata"`
 }
 
 func (q *Queries) CreateChannel(ctx context.Context, arg CreateChannelParams) (Channel, error) {
@@ -43,6 +59,7 @@ func (q *Queries) CreateChannel(ctx context.Context, arg CreateChannelParams) (C
 		arg.DefaultLocale,
 		arg.CurrencyCode,
 		arg.PublicUrl,
+		arg.StorefrontHost,
 		arg.Metadata,
 	)
 	var i Channel
@@ -58,6 +75,7 @@ func (q *Queries) CreateChannel(ctx context.Context, arg CreateChannelParams) (C
 		&i.Metadata,
 		&i.IsDefault,
 		&i.TaxInclusivePricing,
+		&i.StorefrontHost,
 	)
 	return i, err
 }
@@ -81,7 +99,7 @@ func (q *Queries) DeleteChannelLocales(ctx context.Context, channelID uuid.UUID)
 }
 
 const getChannelByID = `-- name: GetChannelByID :one
-SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing FROM channels WHERE id = $1
+SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing, storefront_host FROM channels WHERE id = $1
 `
 
 func (q *Queries) GetChannelByID(ctx context.Context, id uuid.UUID) (Channel, error) {
@@ -99,12 +117,37 @@ func (q *Queries) GetChannelByID(ctx context.Context, id uuid.UUID) (Channel, er
 		&i.Metadata,
 		&i.IsDefault,
 		&i.TaxInclusivePricing,
+		&i.StorefrontHost,
+	)
+	return i, err
+}
+
+const getChannelByIDForUpdate = `-- name: GetChannelByIDForUpdate :one
+SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing, storefront_host FROM channels WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetChannelByIDForUpdate(ctx context.Context, id uuid.UUID) (Channel, error) {
+	row := q.db.QueryRowContext(ctx, getChannelByIDForUpdate, id)
+	var i Channel
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.DefaultLocale,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.CurrencyCode,
+		&i.PublicUrl,
+		&i.Metadata,
+		&i.IsDefault,
+		&i.TaxInclusivePricing,
+		&i.StorefrontHost,
 	)
 	return i, err
 }
 
 const getChannelBySlug = `-- name: GetChannelBySlug :one
-SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing FROM channels WHERE slug = $1
+SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing, storefront_host FROM channels WHERE slug = $1
 `
 
 func (q *Queries) GetChannelBySlug(ctx context.Context, slug string) (Channel, error) {
@@ -122,20 +165,18 @@ func (q *Queries) GetChannelBySlug(ctx context.Context, slug string) (Channel, e
 		&i.Metadata,
 		&i.IsDefault,
 		&i.TaxInclusivePricing,
+		&i.StorefrontHost,
 	)
 	return i, err
 }
 
 const getChannelByStorefrontHost = `-- name: GetChannelByStorefrontHost :one
-SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing FROM channels
-WHERE public_url <> ''
-  AND substring(public_url FROM '(?:https?://)?([^/]+)') = $1
-LIMIT 1
+SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing, storefront_host FROM channels WHERE storefront_host = $1 AND storefront_host <> ''
 `
 
-// Match a public_url whose host portion equals the given host - Postgres doesn't have a built-in URL parser, so we use a regex against the public_url string
-func (q *Queries) GetChannelByStorefrontHost(ctx context.Context, publicUrl string) (Channel, error) {
-	row := q.db.QueryRowContext(ctx, getChannelByStorefrontHost, publicUrl)
+// storefront_host is normalized in Go from public_url on every write, and unique when non-empty
+func (q *Queries) GetChannelByStorefrontHost(ctx context.Context, storefrontHost string) (Channel, error) {
+	row := q.db.QueryRowContext(ctx, getChannelByStorefrontHost, storefrontHost)
 	var i Channel
 	err := row.Scan(
 		&i.ID,
@@ -149,12 +190,13 @@ func (q *Queries) GetChannelByStorefrontHost(ctx context.Context, publicUrl stri
 		&i.Metadata,
 		&i.IsDefault,
 		&i.TaxInclusivePricing,
+		&i.StorefrontHost,
 	)
 	return i, err
 }
 
 const getDefaultChannel = `-- name: GetDefaultChannel :one
-SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing FROM channels WHERE is_default = TRUE LIMIT 1
+SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing, storefront_host FROM channels WHERE is_default = TRUE LIMIT 1
 `
 
 // The opt-in default storefront row used when a request can't be matched against X-Channel-Id or Host - returns sql.ErrNoRows when no row has is_default=TRUE - callers should treat that as "no store context"
@@ -173,6 +215,7 @@ func (q *Queries) GetDefaultChannel(ctx context.Context) (Channel, error) {
 		&i.Metadata,
 		&i.IsDefault,
 		&i.TaxInclusivePricing,
+		&i.StorefrontHost,
 	)
 	return i, err
 }
@@ -310,7 +353,7 @@ func (q *Queries) ListChannelLocalesByStoreIDs(ctx context.Context, channelIds [
 }
 
 const listChannels = `-- name: ListChannels :many
-SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing FROM channels ORDER BY name
+SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing, storefront_host FROM channels ORDER BY name
 `
 
 func (q *Queries) ListChannels(ctx context.Context) ([]Channel, error) {
@@ -334,6 +377,7 @@ func (q *Queries) ListChannels(ctx context.Context) ([]Channel, error) {
 			&i.Metadata,
 			&i.IsDefault,
 			&i.TaxInclusivePricing,
+			&i.StorefrontHost,
 		); err != nil {
 			return nil, err
 		}
@@ -349,7 +393,7 @@ func (q *Queries) ListChannels(ctx context.Context) ([]Channel, error) {
 }
 
 const listChannelsByIDs = `-- name: ListChannelsByIDs :many
-SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing FROM channels WHERE id = ANY($1::uuid[])
+SELECT id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing, storefront_host FROM channels WHERE id = ANY($1::uuid[])
 `
 
 // Batched loader for list resolvers that pre-hydrate Channel rows referenced by ProductChannelListing / CategoryChannelListing / inventory assignments - one query keyed by id replaces N GetByID round-trips
@@ -374,6 +418,7 @@ func (q *Queries) ListChannelsByIDs(ctx context.Context, channelIds []uuid.UUID)
 			&i.Metadata,
 			&i.IsDefault,
 			&i.TaxInclusivePricing,
+			&i.StorefrontHost,
 		); err != nil {
 			return nil, err
 		}
@@ -389,7 +434,7 @@ func (q *Queries) ListChannelsByIDs(ctx context.Context, channelIds []uuid.UUID)
 }
 
 const setChannelAsDefault = `-- name: SetChannelAsDefault :one
-UPDATE channels SET is_default = TRUE WHERE id = $1 RETURNING id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing
+UPDATE channels SET is_default = TRUE WHERE id = $1 RETURNING id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing, storefront_host
 `
 
 func (q *Queries) SetChannelAsDefault(ctx context.Context, id uuid.UUID) (Channel, error) {
@@ -407,41 +452,63 @@ func (q *Queries) SetChannelAsDefault(ctx context.Context, id uuid.UUID) (Channe
 		&i.Metadata,
 		&i.IsDefault,
 		&i.TaxInclusivePricing,
+		&i.StorefrontHost,
 	)
 	return i, err
 }
 
-const unsetDefaultChannelExcept = `-- name: UnsetDefaultChannelExcept :exec
+const unsetDefaultChannelExcept = `-- name: UnsetDefaultChannelExcept :many
 UPDATE channels SET is_default = FALSE
 WHERE is_default = TRUE AND id <> $1
+RETURNING id
 `
 
 // Clears the is_default flag from any channel other than the given id Paired with SetChannelAsDefault inside a single transaction so the "at most one default" partial unique index never sees two TRUE rows
-func (q *Queries) UnsetDefaultChannelExcept(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, unsetDefaultChannelExcept, id)
-	return err
+func (q *Queries) UnsetDefaultChannelExcept(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, unsetDefaultChannelExcept, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateChannel = `-- name: UpdateChannel :one
 UPDATE channels
-SET name           = $2,
-    default_locale = $3,
-    is_active      = $4,
-    currency_code  = $5,
-    public_url     = $6,
-    metadata       = $7
+SET name            = $2,
+    default_locale  = $3,
+    is_active       = $4,
+    currency_code   = $5,
+    public_url      = $6,
+    storefront_host = $7,
+    metadata        = COALESCE($8::jsonb, metadata)
 WHERE id = $1
-RETURNING id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing
+RETURNING id, slug, name, default_locale, is_active, created_at, currency_code, public_url, metadata, is_default, tax_inclusive_pricing, storefront_host
 `
 
 type UpdateChannelParams struct {
-	ID            uuid.UUID       `json:"id"`
-	Name          string          `json:"name"`
-	DefaultLocale string          `json:"default_locale"`
-	IsActive      bool            `json:"is_active"`
-	CurrencyCode  string          `json:"currency_code"`
-	PublicUrl     string          `json:"public_url"`
-	Metadata      json.RawMessage `json:"metadata"`
+	ID             uuid.UUID             `json:"id"`
+	Name           string                `json:"name"`
+	DefaultLocale  string                `json:"default_locale"`
+	IsActive       bool                  `json:"is_active"`
+	CurrencyCode   string                `json:"currency_code"`
+	PublicUrl      string                `json:"public_url"`
+	StorefrontHost string                `json:"storefront_host"`
+	Metadata       pqtype.NullRawMessage `json:"metadata"`
 }
 
 func (q *Queries) UpdateChannel(ctx context.Context, arg UpdateChannelParams) (Channel, error) {
@@ -452,6 +519,7 @@ func (q *Queries) UpdateChannel(ctx context.Context, arg UpdateChannelParams) (C
 		arg.IsActive,
 		arg.CurrencyCode,
 		arg.PublicUrl,
+		arg.StorefrontHost,
 		arg.Metadata,
 	)
 	var i Channel
@@ -467,6 +535,7 @@ func (q *Queries) UpdateChannel(ctx context.Context, arg UpdateChannelParams) (C
 		&i.Metadata,
 		&i.IsDefault,
 		&i.TaxInclusivePricing,
+		&i.StorefrontHost,
 	)
 	return i, err
 }
