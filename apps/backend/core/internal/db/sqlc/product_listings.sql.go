@@ -13,20 +13,6 @@ import (
 	"github.com/lib/pq"
 )
 
-const countInheritingListingsForChannel = `-- name: CountInheritingListingsForChannel :one
-SELECT COUNT(*)::bigint
-FROM catalog_product_channel_listings
-WHERE channel_id = $1 AND price IS NULL
-`
-
-// How many listings on this store currently inherit price (price IS NULL) Used by the currency-change guard to block changing a store's currency while any listing depends on the global default price
-func (q *Queries) CountInheritingListingsForChannel(ctx context.Context, channelID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countInheritingListingsForChannel, channelID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const countInheritingListingsWithCurrencyMismatchForProduct = `-- name: CountInheritingListingsWithCurrencyMismatchForProduct :one
 SELECT COUNT(*)::bigint
 FROM catalog_product_channel_listings l

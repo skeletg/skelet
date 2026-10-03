@@ -159,10 +159,8 @@ func (r *Resolver) scopedChannelID(ctx context.Context, arg *string) (*uuid.UUID
 type defaultChannelLocale struct{ channels *channel.Service } // GetDefault is Valkey-cached, so this stays cheap
 
 func (c defaultChannelLocale) DefaultLocale(ctx context.Context) (string, error) {
-	if c.channels != nil {
-		if sv, err := c.channels.GetDefault(ctx); err == nil && sv.DefaultLocale != "" {
-			return sv.DefaultLocale, nil
-		}
+	if c.channels == nil {
+		return channel.FallbackLocale, nil
 	}
-	return "en", nil
+	return c.channels.InstallDefaultLocale(ctx), nil
 }

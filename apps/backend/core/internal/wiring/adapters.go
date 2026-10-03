@@ -69,12 +69,10 @@ type CatalogDefaultLocaleProvider struct {
 }
 
 func (p CatalogDefaultLocaleProvider) DefaultLocale(ctx context.Context) (string, error) {
-	if p.channels != nil {
-		if sv, err := p.channels.GetDefault(ctx); err == nil && sv.DefaultLocale != "" {
-			return sv.DefaultLocale, nil
-		}
+	if p.channels == nil {
+		return channel.FallbackLocale, nil
 	}
-	return "en", nil
+	return p.channels.InstallDefaultLocale(ctx), nil
 }
 
 type CatalogInventoryEnsurer struct { // adapts inventory.Service to the slim catalog.InventoryEnsurer - drops the returned Item value the catalog doesn't need
@@ -850,6 +848,15 @@ func (t InventoryDeductionStep) DeductAtPlacement(ctx context.Context) bool {
 	return err == nil && v == "placement"
 }
 
+// InventoryDefaultLocation reads the location new channels are assigned to
+type InventoryDefaultLocation struct {
+	cfg *config.Service
+}
+
+func (d InventoryDefaultLocation) DefaultLocationSlug(ctx context.Context) (string, error) {
+	return d.cfg.GetString(ctx, inventory.ConfigDefaultLocation, config.DefaultScope)
+}
+
 type InventoryPickupLister struct{ svc *inventory.Service } // adapts inventory.Service to shipping.PickupLocationLister for the builtin click-and-collect carrier
 
 func (l InventoryPickupLister) PickupLocations(ctx context.Context) ([]shipping.PickupLocation, error) {
@@ -985,6 +992,10 @@ func NewInventoryFlatModeToggle(cfg *config.Service) InventoryFlatModeToggle {
 
 func NewInventoryDeductionStep(cfg *config.Service) InventoryDeductionStep {
 	return InventoryDeductionStep{cfg: cfg}
+}
+
+func NewInventoryDefaultLocation(cfg *config.Service) InventoryDefaultLocation {
+	return InventoryDefaultLocation{cfg: cfg}
 }
 
 // Same shape as the toggles above - a per-channel config read the order service can call without importing config
