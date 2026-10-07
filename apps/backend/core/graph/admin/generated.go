@@ -2428,7 +2428,7 @@ type ComplexityRoot struct {
 		RunAdminAction                    func(childComplexity int, slug string, args interface{}) int
 		RunChatAction                     func(childComplexity int, action string, argsJSON string) int
 		RunScheduledJobNow                func(childComplexity int, id string) int
-		SaveChatConversation              func(childComplexity int, id *string, channelID *string, title *string, messages []*model.SignalsChatMessage) int
+		SaveChatConversation              func(childComplexity int, id *string, title *string, messages []*model.SignalsChatMessage) int
 		SaveEmailBlock                    func(childComplexity int, input model.SaveEmailBlockInput) int
 		SaveLibraryEmail                  func(childComplexity int, input model.SaveLibraryEmailInput) int
 		ScheduleBlogPost                  func(childComplexity int, id string, publishedAt time.Time) int
@@ -4601,7 +4601,7 @@ type MutationResolver interface {
 	DeleteChannel(ctx context.Context, id string) (bool, error)
 	SetChannelLocales(ctx context.Context, channelID string, codes []string) (*model.Channel, error)
 	SetChannelAsDefault(ctx context.Context, channelID string) (*model.Channel, error)
-	SaveChatConversation(ctx context.Context, id *string, channelID *string, title *string, messages []*model.SignalsChatMessage) (string, error)
+	SaveChatConversation(ctx context.Context, id *string, title *string, messages []*model.SignalsChatMessage) (string, error)
 	DeleteChatConversation(ctx context.Context, id string) (bool, error)
 	CreateCMSSnippet(ctx context.Context, input model.CreateCMSSnippetInput) (*model.CMSSnippet, error)
 	UpdateCMSSnippet(ctx context.Context, input model.UpdateCMSSnippetInput) (*model.CMSSnippet, error)
@@ -17291,7 +17291,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.SaveChatConversation(childComplexity, args["id"].(*string), args["channelId"].(*string), args["title"].(*string), args["messages"].([]*model.SignalsChatMessage)), true
+		return e.ComplexityRoot.Mutation.SaveChatConversation(childComplexity, args["id"].(*string), args["title"].(*string), args["messages"].([]*model.SignalsChatMessage)), true
 	case "Mutation.saveEmailBlock":
 		if e.ComplexityRoot.Mutation.SaveEmailBlock == nil {
 			break
@@ -30741,7 +30741,7 @@ extend type Query {
 extend type Mutation {
   # Upsert: omit id to create, pass it to update the caller's own row. Returns
   # the conversation id. Title auto-derives from the first user message if blank.
-  saveChatConversation(id: ID, channelId: ID, title: String, messages: [SignalsChatMessage!]!): ID!
+  saveChatConversation(id: ID, title: String, messages: [SignalsChatMessage!]!): ID!
   deleteChatConversation(id: ID!): Boolean!
 }
 `, BuiltIn: false},
@@ -49103,30 +49103,22 @@ func (ec *executionContext) field_Mutation_saveChatConversation_args(ctx context
 		return nil, err
 	}
 	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "channelId",
-		func(ctx context.Context, v any) (*string, error) {
-			return ec.unmarshalOID2ᚖstring(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["channelId"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "title",
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "title",
 		func(ctx context.Context, v any) (*string, error) {
 			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["title"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "messages",
+	args["title"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "messages",
 		func(ctx context.Context, v any) ([]*model.SignalsChatMessage, error) {
 			return ec.unmarshalNSignalsChatMessage2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐSignalsChatMessageᚄ(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["messages"] = arg3
+	args["messages"] = arg2
 	return args, nil
 }
 
@@ -99752,7 +99744,7 @@ func (ec *executionContext) _Mutation_saveChatConversation(ctx context.Context, 
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().SaveChatConversation(ctx, fc.Args["id"].(*string), fc.Args["channelId"].(*string), fc.Args["title"].(*string), fc.Args["messages"].([]*model.SignalsChatMessage))
+			return ec.Resolvers.Mutation().SaveChatConversation(ctx, fc.Args["id"].(*string), fc.Args["title"].(*string), fc.Args["messages"].([]*model.SignalsChatMessage))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {

@@ -192,7 +192,6 @@ export function ChatDock() {
       const res = await saveConv({
         variables: {
           id: conversationId,
-          channelId: effectiveChannel || null,
           messages: msgs.map((m) => ({ role: m.role, content: m.content })),
         },
       })
