@@ -869,7 +869,6 @@ type ChannelLocale struct {
 type ChatConversation struct {
 	ID        uuid.UUID       `json:"id"`
 	AdminID   uuid.UUID       `json:"admin_id"`
-	ChannelID uuid.UUID       `json:"channel_id"`
 	Title     string          `json:"title"`
 	Messages  json.RawMessage `json:"messages"`
 	CreatedAt time.Time       `json:"created_at"`
