@@ -268,7 +268,7 @@ type plainEvent struct{ eventType string }
 func (e *plainEvent) Type() string { return e.eventType }
 
 func resetCircuits() {
-	circuits = circuit.New(breakerTripThreshold, breakerCooldown)
+	circuits = circuit.New(circuit.DefaultThreshold, circuit.DefaultCooldown)
 }
 
 func syncWebhook(url string, policy FailurePolicy, timeoutMs int32) Webhook {
@@ -336,58 +336,23 @@ func TestValidateEventTypesWildcards(t *testing.T) {
 
 // --- breaker ---
 
-func TestCircuitBreaker(t *testing.T) {
+// The breaker's own rules are tested in internal/circuit - here it's that a caller walking away never counts against the endpoint
+func TestACancelledSyncCallerDoesNotTripTheCircuit(t *testing.T) {
 	resetCircuits()
 	defer resetCircuits()
-	now := time.Unix(1000, 0)
-	circuits.SetNow(func() time.Time { return now })
-	id := uuid.New()
-
-	// closed until the trip threshold
-	for i := range breakerTripThreshold - 1 {
-		if !circuits.Allow(id) {
-			t.Fatalf("blocked before threshold at fail %d", i)
-		}
-		circuits.Record(id, false)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer srv.Close()
+	wh := syncWebhook(srv.URL, FailOpen, 0)
+	d, _ := dispatcherFor(wh)
+	gone, cancel := context.WithCancel(context.Background())
+	cancel()
+	for range circuit.DefaultThreshold + 1 {
+		_ = d.dispatchSync(gone, &plainEvent{"test.eventing"})
 	}
-	if !circuits.Allow(id) {
-		t.Fatal("blocked before threshold")
-	}
-	circuits.Record(id, false) // fail #5 - trips
-
-	if circuits.Allow(id) {
-		t.Fatal("open circuit allowed a call inside cooldown")
-	}
-	if st := CircuitInfoFor(id).State; st != CircuitOpen {
-		t.Fatalf("state = %s, want open", st)
-	}
-
-	// cooldown elapses - exactly one probe allowed
-	now = now.Add(breakerCooldown + time.Second)
-	if !circuits.Allow(id) {
-		t.Fatal("no probe allowed after cooldown")
-	}
-	if circuits.Allow(id) {
-		t.Fatal("second concurrent probe allowed")
-	}
-
-	// failed probe re-arms the cooldown
-	circuits.Record(id, false)
-	if circuits.Allow(id) {
-		t.Fatal("allowed right after failed probe")
-	}
-
-	// successful probe closes
-	now = now.Add(breakerCooldown + time.Second)
-	if !circuits.Allow(id) {
-		t.Fatal("no probe allowed after second cooldown")
-	}
-	circuits.Record(id, true)
-	if !circuits.Allow(id) {
-		t.Fatal("closed circuit blocked a call")
-	}
-	if st := CircuitInfoFor(id).State; st != CircuitClosed {
-		t.Fatalf("state = %s, want closed", st)
+	if got := CircuitInfoFor(wh.ID); got.State != circuit.Closed || got.ConsecutiveFailures != 0 {
+		t.Fatalf("circuit after cancelled callers = %+v, want untouched", got)
 	}
 }
 
@@ -489,11 +454,11 @@ func TestSyncCircuitTripsAndSkipsCalls(t *testing.T) {
 
 	wh := syncWebhook(srv.URL, FailClosed, 0)
 	d, _ := dispatcherFor(wh)
-	for range breakerTripThreshold {
+	for range circuit.DefaultThreshold {
 		_ = d.dispatchSync(context.Background(), &plainEvent{"test.eventing"})
 	}
-	if got := hits.Load(); got != breakerTripThreshold {
-		t.Fatalf("expected %d upstream hits, got %d", breakerTripThreshold, got)
+	if got := hits.Load(); got != circuit.DefaultThreshold {
+		t.Fatalf("expected %d upstream hits, got %d", circuit.DefaultThreshold, got)
 	}
 
 	// circuit is open now - the next dispatch must fail fast without a call
@@ -501,7 +466,7 @@ func TestSyncCircuitTripsAndSkipsCalls(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "circuit") {
 		t.Fatalf("expected circuit-open rejection, got %v", err)
 	}
-	if got := hits.Load(); got != breakerTripThreshold {
+	if got := hits.Load(); got != circuit.DefaultThreshold {
 		t.Fatalf("circuit-open dispatch still hit upstream (%d hits)", got)
 	}
 }
