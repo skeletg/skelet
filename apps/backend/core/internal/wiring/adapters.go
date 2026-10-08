@@ -1044,8 +1044,8 @@ func NewSalesVelocitySource(q *db.Queries) SalesVelocitySource {
 // ContactAdapter narrows customer.Service.EnsureContact to the id-returning shape the signup-form service depends on (composition-root glue)
 type ContactAdapter struct{ svc *customer.Service }
 
-func (a ContactAdapter) EnsureContact(ctx context.Context, channelID uuid.UUID, email, firstName string) (uuid.UUID, error) {
-	c, _, err := a.svc.EnsureContact(ctx, channelID, email, firstName)
+func (a ContactAdapter) EnsureContact(ctx context.Context, channelID uuid.UUID, email, firstName string, verified bool) (uuid.UUID, error) {
+	c, _, err := a.svc.EnsureContact(ctx, channelID, email, firstName, verified)
 	return c.ID, err
 }
 

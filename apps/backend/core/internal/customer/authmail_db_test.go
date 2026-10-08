@@ -12,9 +12,9 @@ import (
 
 // Records what the direct sender was asked to send, standing in for *emailtemplate.Service
 type recordingFallback struct {
-	verifications, resets, confirmations int
-	lastFrom, lastTo                     string
-	lastLink, lastStore                  string
+	verifications, resets, confirmations, exists int
+	lastFrom, lastTo                             string
+	lastLink, lastStore                          string
 }
 
 func (r *recordingFallback) SendVerification(_ context.Context, _ uuid.UUID, from, to, storefrontURL string, d email.VerificationEmailData) error {
@@ -35,6 +35,12 @@ func (r *recordingFallback) SendSignupConfirmation(_ context.Context, _ uuid.UUI
 	return nil
 }
 
+func (r *recordingFallback) SendAccountExists(_ context.Context, _ uuid.UUID, from, to, storefrontURL string, d email.AccountExistsEmailData) error {
+	r.exists++
+	r.lastFrom, r.lastTo, r.lastLink, r.lastStore = from, to, d.SignInLink, storefrontURL
+	return nil
+}
+
 // Reports n flows enrolled, so a test can stand in for both an active flow and none
 type stubDispatcher struct{ n int }
 
@@ -47,6 +53,10 @@ func (s stubDispatcher) OnPasswordReset(context.Context, uuid.UUID, uuid.UUID, s
 }
 
 func (s stubDispatcher) OnSignupConfirmation(context.Context, uuid.UUID, string, string, string, string, string) int {
+	return s.n
+}
+
+func (s stubDispatcher) OnAccountExists(context.Context, uuid.UUID, uuid.UUID, string, string, string, string) int {
 	return s.n
 }
 
@@ -84,6 +94,7 @@ func TestAuthEmailFallbackSendsWhenNoFlowHandles(t *testing.T) {
 			if err := f.svc.RequestPasswordReset(f.ctx, ch, addr); err != nil {
 				t.Fatalf("RequestPasswordReset: %v", err)
 			}
+			f.svc.FlushMail()
 			if fb.resets != 1 {
 				t.Errorf("reset sends = %d, want 1", fb.resets)
 			}
@@ -104,6 +115,7 @@ func TestAuthEmailFallbackSkippedWhenFlowHandles(t *testing.T) {
 	if err := f.svc.RequestPasswordReset(f.ctx, ch, addr); err != nil {
 		t.Fatalf("RequestPasswordReset: %v", err)
 	}
+	f.svc.FlushMail()
 	if fb.verifications != 0 || fb.resets != 0 {
 		t.Errorf("fallback sent %d verifications and %d resets, want none - a flow handled both", fb.verifications, fb.resets)
 	}
@@ -119,6 +131,7 @@ func TestAuthEmailFallbackSilentForUnknownAddress(t *testing.T) {
 	if err := f.svc.RequestPasswordReset(f.ctx, ch, randomEmail()); err != nil {
 		t.Fatalf("RequestPasswordReset: %v", err)
 	}
+	f.svc.FlushMail()
 	if fb.resets != 0 {
 		t.Errorf("reset sends = %d for an address with no account, want 0", fb.resets)
 	}

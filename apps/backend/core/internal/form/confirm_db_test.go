@@ -16,12 +16,14 @@ import (
 )
 
 type knownContact struct {
-	id    uuid.UUID
-	calls int
+	id       uuid.UUID
+	calls    int
+	verified bool
 }
 
-func (c *knownContact) EnsureContact(context.Context, uuid.UUID, string, string) (uuid.UUID, error) {
+func (c *knownContact) EnsureContact(_ context.Context, _ uuid.UUID, _, _ string, verified bool) (uuid.UUID, error) {
 	c.calls++
+	c.verified = verified
 	return c.id, nil
 }
 
@@ -180,6 +182,9 @@ func TestConfirmingSubscribesOnce(t *testing.T) {
 	}
 	if !f.optedIn(t) {
 		t.Fatal("confirmation did not record the opt-in")
+	}
+	if !f.contact.verified {
+		t.Error("the contact was ensured unverified, though the confirmation link proved the address")
 	}
 	hist, err := f.consent.History(f.ctx, f.contact.id, 10)
 	if err != nil || len(hist) != 1 || hist[0].Source != consent.SourceSignupForm {

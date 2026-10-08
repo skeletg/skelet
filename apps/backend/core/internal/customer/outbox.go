@@ -20,11 +20,13 @@ type OutboxEnqueuer interface {
 }
 
 // The account events the Signals roster hangs off - one lost between commit and its handlers leaves the suite's copy wrong until the next sweep
+// email_verified carries the guest-order claim, which nothing sweeps
 func RegisterOutboxTypes(r OutboxTypes) {
 	r.RegisterType(EventRegistered, func() events.Event { return &CustomerRegistered{} })
 	r.RegisterType(EventUpdated, func() events.Event { return &CustomerUpdated{} })
 	r.RegisterType(EventProfileUpdated, func() events.Event { return &CustomerProfileUpdated{} })
 	r.RegisterType(EventDeleted, func() events.Event { return &CustomerDeleted{} })
+	r.RegisterType(EventEmailVerified, func() events.Event { return &CustomerEmailVerified{} })
 }
 
 // SetOutbox makes the registered events durable - enqueued after the write, since the delete path revokes sessions and purges the suite's identity in between

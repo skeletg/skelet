@@ -680,6 +680,12 @@ func (s *Service) mergeVars(ctx context.Context, ch Store, cust Contact, run Flo
 			if v, _ := rc["confirm_expires_in"].(string); v != "" {
 				vars["confirm.expiresIn"] = v
 			}
+			if v, _ := rc["signin_link"].(string); v != "" {
+				vars["signin.link"] = v
+			}
+			if v, _ := rc["forgot_link"].(string); v != "" {
+				vars["forgot.link"] = v
+			}
 			// Auth triggers pass an explicit name, since the customer may be brand new
 			if v, _ := rc["first_name"].(string); v != "" {
 				vars["customer.firstName"] = v

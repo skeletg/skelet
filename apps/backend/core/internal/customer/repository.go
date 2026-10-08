@@ -40,6 +40,7 @@ func (r *postgresRepository) Create(ctx context.Context, input CreateCustomerInp
 		PasswordHash:    input.PasswordHash,
 		FirstName:       input.FirstName,
 		LastName:        input.LastName,
+		IsEmailVerified: input.EmailVerified,
 		CustomerGroupID: sqlnull.UUID(input.GroupID),
 	})
 	if err != nil {
@@ -57,6 +58,9 @@ func (r *postgresRepository) GetByStoreAndEmail(ctx context.Context, channelID u
 		ChannelID: channelID,
 		Email:     email,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Customer{}, ErrCustomerNotFound
+	}
 	if err != nil {
 		return Customer{}, fmt.Errorf("get customer by store and email: %w", err)
 	}
@@ -250,13 +254,29 @@ func (r *postgresRepository) UpdatePassword(ctx context.Context, id uuid.UUID, p
 	return nil
 }
 
-func (r *postgresRepository) MarkEmailVerified(ctx context.Context, id uuid.UUID) (Customer, error) {
-	if _, err := r.queries.MarkCustomerEmailVerified(ctx, id); err != nil {
-		return Customer{}, fmt.Errorf("mark email verified: %w", err)
+// ErrVerificationEmailMismatch when the row no longer has that address - enqueue, when set, writes the event in the same tx
+func (r *postgresRepository) MarkEmailVerified(ctx context.Context, id uuid.UUID, email string, enqueue func(*sql.Tx) error) error {
+	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		n, err := r.queries.WithTx(t).MarkCustomerEmailVerified(ctx, db.MarkCustomerEmailVerifiedParams{ID: id, Email: email})
+		if err != nil {
+			return fmt.Errorf("mark email verified: %w", err)
+		}
+		if n == 0 {
+			return ErrVerificationEmailMismatch
+		}
+		if enqueue != nil {
+			return enqueue(t)
+		}
+		return nil
+	})
+}
+
+func (r *postgresRepository) CountAddresses(ctx context.Context, customerID uuid.UUID) (int64, error) {
+	n, err := r.queries.CountAddressesByCustomer(ctx, customerID)
+	if err != nil {
+		return 0, fmt.Errorf("count addresses: %w", err)
 	}
-	// Re-fetch with addresses + group loaded so callers get a response-shaped
-	// Customer (Group non-nil, etc.)
-	return r.GetByIDWithAddresses(ctx, id)
+	return n, nil
 }
 
 // --- admin-side CRUD ---

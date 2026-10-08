@@ -36,6 +36,17 @@ func (q *Queries) CommerceClock(ctx context.Context) (time.Time, error) {
 	return now, err
 }
 
+const countAddressesByCustomer = `-- name: CountAddressesByCustomer :one
+SELECT COUNT(*) FROM addresses WHERE customer_id = $1
+`
+
+func (q *Queries) CountAddressesByCustomer(ctx context.Context, customerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAddressesByCustomer, customerID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countCustomerGroupMembers = `-- name: CountCustomerGroupMembers :one
 SELECT COUNT(*) FROM customers WHERE customer_group_id = $1
 `
@@ -101,9 +112,10 @@ func (q *Queries) CreateAddress(ctx context.Context, arg CreateAddressParams) (A
 }
 
 const createCustomer = `-- name: CreateCustomer :one
-INSERT INTO customers (email, password_hash, first_name, last_name, channel_id, customer_group_id)
+INSERT INTO customers (email, password_hash, first_name, last_name, channel_id, is_email_verified, customer_group_id)
 VALUES ($1, $2, $3, $4, $5,
-        COALESCE($6::uuid, (SELECT id FROM customer_groups WHERE is_default)))
+        $6,
+        COALESCE($7::uuid, (SELECT id FROM customer_groups WHERE is_default)))
 RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
 `
 
@@ -113,6 +125,7 @@ type CreateCustomerParams struct {
 	FirstName       string        `json:"first_name"`
 	LastName        string        `json:"last_name"`
 	ChannelID       uuid.UUID     `json:"channel_id"`
+	IsEmailVerified bool          `json:"is_email_verified"`
 	CustomerGroupID uuid.NullUUID `json:"customer_group_id"`
 }
 
@@ -125,6 +138,7 @@ func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) 
 		arg.FirstName,
 		arg.LastName,
 		arg.ChannelID,
+		arg.IsEmailVerified,
 		arg.CustomerGroupID,
 	)
 	var i Customer
@@ -846,38 +860,23 @@ func (q *Queries) ListCustomersPaged(ctx context.Context, arg ListCustomersPaged
 	return items, nil
 }
 
-const markCustomerEmailVerified = `-- name: MarkCustomerEmailVerified :one
+const markCustomerEmailVerified = `-- name: MarkCustomerEmailVerified :execrows
 UPDATE customers SET is_email_verified = TRUE, updated_at = NOW()
-WHERE id = $1 RETURNING id, email, password_hash, first_name, last_name, phone, is_active, is_email_verified, note, metadata, created_at, updated_at, default_billing_address_id, default_shipping_address_id, customer_group_id, channel_id, tax_exempt, tax_exemption_note, vat_id, vat_id_status, vat_id_checked_at
+WHERE id = $1 AND email = $2
 `
 
-func (q *Queries) MarkCustomerEmailVerified(ctx context.Context, id uuid.UUID) (Customer, error) {
-	row := q.db.QueryRowContext(ctx, markCustomerEmailVerified, id)
-	var i Customer
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.FirstName,
-		&i.LastName,
-		&i.Phone,
-		&i.IsActive,
-		&i.IsEmailVerified,
-		&i.Note,
-		&i.Metadata,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DefaultBillingAddressID,
-		&i.DefaultShippingAddressID,
-		&i.CustomerGroupID,
-		&i.ChannelID,
-		&i.TaxExempt,
-		&i.TaxExemptionNote,
-		&i.VatID,
-		&i.VatIDStatus,
-		&i.VatIDCheckedAt,
-	)
-	return i, err
+type MarkCustomerEmailVerifiedParams struct {
+	ID    uuid.UUID `json:"id"`
+	Email string    `json:"email"`
+}
+
+// Only while the row still has the address that was proven - zero rows means it changed underneath
+func (q *Queries) MarkCustomerEmailVerified(ctx context.Context, arg MarkCustomerEmailVerifiedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markCustomerEmailVerified, arg.ID, arg.Email)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const markCustomerGroupDefault = `-- name: MarkCustomerGroupDefault :exec

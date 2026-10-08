@@ -26,7 +26,7 @@ import (
 // Dependency seams (accept interfaces) - set the customer/consent/segment/flow
 // collaborators via SetHooks so the package stays cycle-free and testable
 type contactEnsurer interface {
-	EnsureContact(ctx context.Context, channelID uuid.UUID, email, firstName string) (customerID uuid.UUID, err error)
+	EnsureContact(ctx context.Context, channelID uuid.UUID, email, firstName string, verified bool) (customerID uuid.UUID, err error)
 }
 type consentSetter interface {
 	SetConsent(ctx context.Context, customerID uuid.UUID, kind string, optedIn bool, source string) error
@@ -312,7 +312,8 @@ func (s *Service) Confirm(ctx context.Context, token string) error {
 }
 
 func (s *Service) subscribe(ctx context.Context, row db.SignupConfirmation) (uuid.UUID, error) {
-	custID, err := s.contact.EnsureContact(ctx, row.ChannelID, row.Email, row.FirstName)
+	// The confirmation link reached this inbox, so a contact made here starts verified
+	custID, err := s.contact.EnsureContact(ctx, row.ChannelID, row.Email, row.FirstName, true)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("ensure contact: %w", err)
 	}

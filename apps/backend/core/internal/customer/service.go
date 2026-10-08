@@ -3,9 +3,13 @@ package customer
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -51,6 +55,7 @@ type Service struct {
 	// The roster events go durable through these when wired - see outbox.go
 	outbox OutboxEnqueuer
 	tx     *txrunner.Manager
+	mail   sync.WaitGroup
 }
 
 // Routes account emails through Pulse flows - this service hands off the recipient and one-time link, the flow engine renders and sends synchronously
@@ -60,6 +65,7 @@ type authEmailDispatcher interface {
 	OnEmailVerification(ctx context.Context, channelID, customerID uuid.UUID, verifyLink, storeName, firstName string) int
 	OnPasswordReset(ctx context.Context, channelID, customerID uuid.UUID, resetLink, expiresIn, storeName, firstName string) int
 	OnSignupConfirmation(ctx context.Context, channelID uuid.UUID, to, confirmLink, expiresIn, storeName, firstName string) int
+	OnAccountExists(ctx context.Context, channelID, customerID uuid.UUID, signInLink, forgotLink, storeName, firstName string) int
 }
 
 func (s *Service) SetAuthEmailDispatcher(d authEmailDispatcher) { s.authFlows = d }
@@ -70,6 +76,7 @@ type authEmailFallback interface {
 	SendVerification(ctx context.Context, channelID uuid.UUID, from, to, storefrontURL string, d email.VerificationEmailData) error
 	SendPasswordReset(ctx context.Context, channelID uuid.UUID, from, to, storefrontURL string, d email.PasswordResetEmailData) error
 	SendSignupConfirmation(ctx context.Context, channelID uuid.UUID, from, to, storefrontURL string, d email.SignupConfirmationEmailData) error
+	SendAccountExists(ctx context.Context, channelID uuid.UUID, from, to, storefrontURL string, d email.AccountExistsEmailData) error
 }
 
 func (s *Service) SetAuthEmailFallback(f authEmailFallback) { s.authFallback = f }
@@ -171,8 +178,15 @@ func (s *Service) registeringGroup(ctx context.Context, ing *CustomerRegistering
 
 // The verification email and the consent write are both non-fatal - a failing SMTP server or Valkey blip shouldn't block account creation
 // marketingOptIn is three-state: nil means no checkbox was shown (leave consent at the registry default, opt-out for GDPR), *true is an explicit opt-in with source=registration, *false records an audit-visible "no"
+// A taken address mails its owner and still returns ErrEmailTaken - the storefront resolver answers it exactly as it answers a new registration
 func (s *Service) Register(ctx context.Context, channelID uuid.UUID, emailAddr, password, firstName, lastName string, marketingOptIn *bool) (Customer, error) {
 	emailAddr = NormalizeEmail(emailAddr)
+	if err := validateEmail(emailAddr); err != nil {
+		return Customer{}, err
+	}
+	if err := validateNames(firstName, lastName); err != nil {
+		return Customer{}, err
+	}
 	if err := auth.ValidatePasswordStrength(password); err != nil {
 		return Customer{}, err
 	}
@@ -201,13 +215,16 @@ func (s *Service) Register(ctx context.Context, channelID uuid.UUID, emailAddr, 
 		LastName:     lastName,
 		GroupID:      s.registeringGroup(ctx, ing),
 	})
+	if errors.Is(err, ErrEmailTaken) {
+		s.sendAsync(ctx, "account exists", func(ctx context.Context) error {
+			return s.sendAccountExists(ctx, channelID, emailAddr)
+		})
+		return Customer{}, ErrEmailTaken
+	}
 	if err != nil {
 		return Customer{}, err
 	}
-	if err := s.sendVerificationEmail(ctx, c); err != nil {
-		// Log, don't fail registration - ops can alarm on [email:error]
-		log.Printf("[email:error] send verification to customer %s: %v", c.ID, err)
-	}
+	s.sendAsync(ctx, "verification", func(ctx context.Context) error { return s.sendVerificationEmail(ctx, c) })
 	// The shopper's own answer wins - a plugin only decides where no checkbox was shown, since it can't consent on anyone's behalf
 	optIn, source := marketingOptIn, consent.SourceRegistration
 	if optIn == nil && ing.MarketingConsent != nil {
@@ -259,11 +276,14 @@ func (s *Service) Authenticate(ctx context.Context, channelID uuid.UUID, email, 
 		}
 	}
 	c, err := s.repo.GetByStoreAndEmail(ctx, channelID, email)
-	if err != nil {
+	if errors.Is(err, ErrCustomerNotFound) {
 		// Equalize timing with the found-but-wrong-password path so response time doesn't reveal whether the email is registered
 		auth.CompareDummyPassword(password)
 		s.publishLoginFailed(ctx, email, ip, ua, channelID, "invalid_credentials")
 		return Customer{}, ErrInvalidCredentials
+	}
+	if err != nil {
+		return Customer{}, err
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(c.PasswordHash), []byte(password)); err != nil {
 		s.publishLoginFailed(ctx, email, ip, ua, channelID, "invalid_credentials")
@@ -327,10 +347,21 @@ func (s *Service) CustomerIDByEmail(ctx context.Context, channelID uuid.UUID, em
 }
 
 // The "email = profile" model signup forms need - a newsletter subscriber becomes targetable (segments, flows, consent) without an account created is true only on a fresh record, so the caller fires CustomerRegistered exactly once A random unusable password hash is stored so the row can never be logged into until a reset sets a real one, which is how the contact later claims the account
-func (s *Service) EnsureContact(ctx context.Context, channelID uuid.UUID, email, firstName string) (Customer, bool, error) {
+// verified marks a fresh contact's address as proven, which only a confirmed double opt-in may claim
+func (s *Service) EnsureContact(ctx context.Context, channelID uuid.UUID, email, firstName string, verified bool) (Customer, bool, error) {
 	email = NormalizeEmail(email)
-	if c, err := s.repo.GetByStoreAndEmail(ctx, channelID, email); err == nil {
+	if err := validateEmail(email); err != nil {
+		return Customer{}, false, err
+	}
+	if err := checkLen("first name", firstName, MaxNameRunes); err != nil {
+		return Customer{}, false, err
+	}
+	c, err := s.repo.GetByStoreAndEmail(ctx, channelID, email)
+	if err == nil {
 		return c, false, nil
+	}
+	if !errors.Is(err, ErrCustomerNotFound) {
+		return Customer{}, false, err
 	}
 	// Unusable password - bcrypt of 32 random bytes, never shared
 	var buf [32]byte
@@ -341,8 +372,8 @@ func (s *Service) EnsureContact(ctx context.Context, channelID uuid.UUID, email,
 	if err != nil {
 		return Customer{}, false, err
 	}
-	c, err := s.repo.Create(ctx, CreateCustomerInput{
-		ChannelID: channelID, Email: email, PasswordHash: string(hash), FirstName: firstName,
+	c, err = s.repo.Create(ctx, CreateCustomerInput{
+		ChannelID: channelID, Email: email, PasswordHash: string(hash), FirstName: firstName, EmailVerified: verified,
 	})
 	if err != nil {
 		return Customer{}, false, err
@@ -351,6 +382,9 @@ func (s *Service) EnsureContact(ctx context.Context, channelID uuid.UUID, email,
 		CustomerID: c.ID, ChannelID: c.ChannelID, Email: c.Email,
 		FirstName: c.FirstName, LastName: c.LastName, Source: "signup_form",
 	})
+	if verified {
+		s.publishDurable(ctx, &CustomerEmailVerified{CustomerID: c.ID, ChannelID: c.ChannelID, Email: c.Email})
+	}
 	return c, true, nil
 }
 
@@ -388,9 +422,15 @@ func (s *Service) ListInChannels(ctx context.Context, channelIDs []uuid.UUID) ([
 }
 
 func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, input UpdateCustomerInput) (Customer, error) {
+	if err := validateNames(input.FirstName, input.LastName); err != nil {
+		return Customer{}, err
+	}
+	if err := checkOptLen("phone", input.Phone, MaxPhoneRunes); err != nil {
+		return Customer{}, err
+	}
 	existing, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return Customer{}, fmt.Errorf("customer not found")
+		return Customer{}, err
 	}
 	merged := UpdateCustomerInput{
 		FirstName: existing.FirstName,
@@ -427,10 +467,10 @@ func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, input UpdateC
 func (s *Service) ChangePassword(ctx context.Context, id uuid.UUID, currentPassword, newPassword string) error {
 	c, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("customer not found")
+		return err
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(c.PasswordHash), []byte(currentPassword)); err != nil {
-		return fmt.Errorf("incorrect current password")
+		return ErrIncorrectCurrentPassword
 	}
 	if err := auth.ValidatePasswordStrength(newPassword); err != nil {
 		return err
@@ -446,6 +486,7 @@ func (s *Service) ChangePassword(ctx context.Context, id uuid.UUID, currentPassw
 	if err := s.customerRefresh.RevokeAll(ctx, id); err != nil {
 		log.Printf("[auth:warn] revoke customer %s sessions after password change: %v", id, err)
 	}
+	s.revokeResetLinks(ctx, id)
 	if s.bus != nil {
 		s.bus.Publish(ctx, &CustomerPasswordChanged{CustomerID: id, ChannelID: c.ChannelID})
 	}
@@ -453,6 +494,14 @@ func (s *Service) ChangePassword(ctx context.Context, id uuid.UUID, currentPassw
 }
 
 func (s *Service) AddAddress(ctx context.Context, customerID uuid.UUID, input AddressInput) (Address, error) {
+	if err := validateAddressInput(input); err != nil {
+		return Address{}, err
+	}
+	if n, err := s.repo.CountAddresses(ctx, customerID); err != nil {
+		return Address{}, err
+	} else if n >= MaxAddressesPerCustomer {
+		return Address{}, ErrTooManyAddresses
+	}
 	if err := s.validateAddressCountry(ctx, customerID, input); err != nil {
 		return Address{}, err
 	}
@@ -483,6 +532,9 @@ func (s *Service) UpdateAddress(ctx context.Context, customerID, addressID uuid.
 	}
 	if addr.CustomerID != customerID {
 		return Address{}, fmt.Errorf("forbidden")
+	}
+	if err := validateAddressInput(input); err != nil {
+		return Address{}, err
 	}
 	if err := s.validateAddressCountry(ctx, customerID, input); err != nil {
 		return Address{}, err
@@ -628,10 +680,71 @@ func (s *Service) publishUpdated(ctx context.Context, c Customer, field string) 
 	})
 }
 
+// How long a detached account-mail send may run once the request that started it has returned
+const mailSendTimeout = 30 * time.Second
+
+// Account mail leaves the request path, so whether an address has an account never shows in the response time
+func (s *Service) sendAsync(ctx context.Context, what string, send func(context.Context) error) {
+	s.mail.Go(func() {
+		mctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mailSendTimeout)
+		defer cancel()
+		if err := send(mctx); err != nil {
+			slog.Error("account mail failed", "mail", what, "err", err)
+		}
+	})
+}
+
+// FlushMail waits for every account mail started so far - for tests and shutdown
+func (s *Service) FlushMail() { s.mail.Wait() }
+
+// Where the account-exists notice sends the owner, on the shop's own origin
+const (
+	SignInPath         = "/account/login"
+	ForgotPasswordPath = "/account/forgot"
+)
+
+func (s *Service) sendAccountExists(ctx context.Context, channelID uuid.UUID, addr string) error {
+	c, err := s.repo.GetByStoreAndEmail(ctx, channelID, addr)
+	if err != nil {
+		return fmt.Errorf("load account owner: %w", err)
+	}
+	store, err := s.stores.GetByID(ctx, channelID)
+	if err != nil {
+		return fmt.Errorf("load store for email: %w", err)
+	}
+	storefront := strings.TrimRight(store.PublicURL, "/")
+	signIn, forgot := storefront+SignInPath, storefront+ForgotPasswordPath
+	name := s.storeName(ctx, store)
+	if s.authFlows != nil && s.authFlows.OnAccountExists(ctx, channelID, c.ID, signIn, forgot, name, c.FirstName) > 0 {
+		return nil
+	}
+	if s.authFallback == nil {
+		log.Printf("[email:warn] account exists: no flow handled it and no fallback wired; not sent to customer %s", c.ID)
+		return nil
+	}
+	return s.authFallback.SendAccountExists(ctx, channelID, store.fromHeader(), c.Email, storefront, email.AccountExistsEmailData{
+		FirstName: c.FirstName, SignInLink: signIn, ResetLink: forgot, StoreName: name,
+	})
+}
+
+// Best-effort - a failure leaves links that still expire on their own
+func (s *Service) revokeResetLinks(ctx context.Context, id uuid.UUID) {
+	if err := s.resetStore.RevokeAll(ctx, id); err != nil {
+		log.Printf("[auth:warn] revoke customer %s reset links: %v", id, err)
+	}
+}
+
+// A changed address makes every link mailed to the old one stale
+func (s *Service) revokeEmailLinks(ctx context.Context, id uuid.UUID) {
+	if err := s.verifyStore.RevokeAll(ctx, id); err != nil {
+		log.Printf("[auth:warn] revoke customer %s verification links: %v", id, err)
+	}
+	s.revokeResetLinks(ctx, id)
+}
+
 // Shared by Register and ResendVerificationEmail
-// Known limitation: not rate-limited, so a hostile actor could spam it indirectly through resendVerificationEmail - a per-customer limiter is a follow-up
 func (s *Service) sendVerificationEmail(ctx context.Context, c Customer) error {
-	token, err := s.verifyStore.Create(ctx, c.ID)
+	token, err := s.verifyStore.Create(ctx, c.ID, c.Email)
 	if err != nil {
 		return fmt.Errorf("create verification token: %w", err)
 	}
@@ -648,7 +761,7 @@ func (s *Service) sendVerificationEmail(ctx context.Context, c Customer) error {
 	}
 	// Nothing handled it - send directly rather than let a missing or paused flow silently swallow a verification
 	if s.authFallback == nil {
-		log.Printf("[email:warn] verification: no flow handled it and no fallback wired; not sent to %s", c.Email)
+		log.Printf("[email:warn] verification: no flow handled it and no fallback wired; not sent to customer %s", c.ID)
 		return nil
 	}
 	return s.authFallback.SendVerification(ctx, c.ChannelID, store.fromHeader(), c.Email, storefront, email.VerificationEmailData{
@@ -679,26 +792,50 @@ func (s *Service) SendSignupConfirmation(ctx context.Context, channelID uuid.UUI
 // Where a confirmation link lands, on the shop's own origin - the storefront proxies it to core
 const SignupConfirmPath = "/subscribe/confirm/"
 
-// Single-use - the token is revoked right after the customer is marked verified
+// Single-use - the token is revoked right after the customer is marked verified, and only proves the address it was mailed to
 func (s *Service) VerifyEmail(ctx context.Context, token string) error {
-	customerID, err := s.verifyStore.Validate(ctx, token)
+	claim, err := s.verifyStore.Validate(ctx, token)
 	if err != nil {
 		return err
 	}
-	c, err := s.repo.MarkEmailVerified(ctx, customerID)
-	if err != nil {
-		return fmt.Errorf("mark email verified: %w", err)
+	c, err := s.repo.GetByID(ctx, claim.CustomerID)
+	if errors.Is(err, ErrCustomerNotFound) {
+		return ErrVerificationLinkInvalid
 	}
+	if err != nil {
+		return err
+	}
+	if !claim.BoundTo(c.Email) {
+		s.revokeVerifyToken(ctx, token)
+		return ErrVerificationEmailMismatch
+	}
+	if err := s.markEmailVerified(ctx, c); err != nil {
+		return err
+	}
+	s.revokeVerifyToken(ctx, token)
+	return nil
+}
+
+func (s *Service) revokeVerifyToken(ctx context.Context, token string) {
 	if err := s.verifyStore.Revoke(ctx, token); err != nil {
 		// A live token does no harm here and the main key TTLs out in 24h, so log rather than fail
 		log.Printf("[email:warn] revoke verification token after use: %v", err)
 	}
-	if s.bus != nil {
-		s.bus.Publish(ctx, &CustomerEmailVerified{
-			CustomerID: c.ID,
-			ChannelID:  c.ChannelID,
-			Email:      c.Email,
-		})
+}
+
+// The flag and the event commit together, and the write only lands while the row still has the address that was proven -
+// the guest-order claim hangs off the event, so a lost one would leave the customer's history behind
+func (s *Service) markEmailVerified(ctx context.Context, c Customer) error {
+	evt := &CustomerEmailVerified{CustomerID: c.ID, ChannelID: c.ChannelID, Email: c.Email}
+	var enqueue func(*sql.Tx) error
+	if s.outbox != nil {
+		enqueue = func(t *sql.Tx) error { return s.outbox.Enqueue(ctx, t, evt) }
+	}
+	if err := s.repo.MarkEmailVerified(ctx, c.ID, c.Email, enqueue); err != nil {
+		return err
+	}
+	if enqueue == nil && s.bus != nil {
+		s.bus.Publish(ctx, evt)
 	}
 	return nil
 }
@@ -707,23 +844,40 @@ func (s *Service) VerifyEmail(ctx context.Context, token string) error {
 func (s *Service) ResendVerificationEmail(ctx context.Context, customerID uuid.UUID) error {
 	c, err := s.repo.GetByID(ctx, customerID)
 	if err != nil {
-		return fmt.Errorf("customer not found")
+		return err
 	}
 	if c.IsEmailVerified {
-		return fmt.Errorf("email is already verified")
+		return ErrEmailAlreadyVerified
 	}
 	return s.sendVerificationEmail(ctx, c)
 }
 
-// Always returns nil - the response must not reveal whether the email exists (enumeration defense)
-// Known limitations: the "email exists" path skips bcrypt but still hits Valkey and SMTP, so a patient attacker can enumerate by timing; and there's no rate limit, so email-bombing a victim is possible - Both are follow-ups
+// The signed-out resend, for a customer the verification gate keeps from signing in - it says nothing about whether the address has an account
+func (s *Service) ResendVerificationByEmail(ctx context.Context, channelID uuid.UUID, emailAddr string) error {
+	c, err := s.repo.GetByStoreAndEmail(ctx, channelID, NormalizeEmail(emailAddr))
+	if errors.Is(err, ErrCustomerNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if c.IsEmailVerified || !c.IsActive {
+		return nil
+	}
+	s.sendAsync(ctx, "verification", func(ctx context.Context) error { return s.sendVerificationEmail(ctx, c) })
+	return nil
+}
+
+// Returns nil whether or not the address has an account (enumeration defense) - only a storage failure, which says nothing about the address, comes back
+// The token and the mail run detached, so both paths answer in about the same time
 func (s *Service) RequestPasswordReset(ctx context.Context, channelID uuid.UUID, emailAddr string) error {
 	emailAddr = NormalizeEmail(emailAddr)
 	c, err := s.repo.GetByStoreAndEmail(ctx, channelID, emailAddr)
-	if err != nil {
-		// Log internally for ops but return nil - don't leak whether the email is registered
-		log.Printf("[email:debug] password reset requested for unknown email on store %s", channelID)
+	if errors.Is(err, ErrCustomerNotFound) {
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 	// Sync pre-mint hook - a subscriber may veto the reset, e.g - SSO-only accounts that mustn't reset by email
 	// A veto returns the same nil as an unknown email, so the enumeration defense above still holds
@@ -739,6 +893,11 @@ func (s *Service) RequestPasswordReset(ctx context.Context, channelID uuid.UUID,
 			return nil
 		}
 	}
+	s.sendAsync(ctx, "password reset", func(ctx context.Context) error { return s.sendPasswordReset(ctx, c) })
+	return nil
+}
+
+func (s *Service) sendPasswordReset(ctx context.Context, c Customer) error {
 	token, err := s.resetStore.Create(ctx, c.ID)
 	if err != nil {
 		return fmt.Errorf("create reset token: %w", err)
@@ -757,16 +916,12 @@ func (s *Service) RequestPasswordReset(ctx context.Context, channelID uuid.UUID,
 	}
 	// Nothing handled it - send directly, or a paused flow locks the customer out of their own account
 	if s.authFallback == nil {
-		log.Printf("[email:warn] password reset: no flow handled it and no fallback wired; not sent to %s", c.Email)
+		log.Printf("[email:warn] password reset: no flow handled it and no fallback wired; not sent to customer %s", c.ID)
 		return nil
 	}
-	// Logged rather than returned: this function always returns nil so the response can't confirm the address exists
-	if err := s.authFallback.SendPasswordReset(ctx, c.ChannelID, store.fromHeader(), c.Email, storefront, email.PasswordResetEmailData{
+	return s.authFallback.SendPasswordReset(ctx, c.ChannelID, store.fromHeader(), c.Email, storefront, email.PasswordResetEmailData{
 		FirstName: c.FirstName, Link: link, StoreName: name, ExpiresIn: expiresIn,
-	}); err != nil {
-		log.Printf("[email:error] password reset send to %s: %v", c.Email, err)
-	}
-	return nil
+	})
 }
 
 // Revokes every live refresh token - pre-reset access JWTs survive their 15-min TTL, the standard JWT tradeoff The channelID store-match is enforced here rather than only at the resolver, so a password write can never cross stores if a future caller forgets the check A mismatch returns the same opaque error as an invalid token, so the response never confirms the customer exists elsewhere
@@ -774,16 +929,23 @@ func (s *Service) ResetPassword(ctx context.Context, channelID uuid.UUID, token,
 	if err := auth.ValidatePasswordStrength(newPassword); err != nil {
 		return err
 	}
-	customerID, err := s.resetStore.Consume(ctx, token) // spent up front, so two concurrent redemptions can't both set a password
+	// Peeked first, so a link presented on the wrong store is refused without being spent
+	customerID, err := s.resetStore.Validate(ctx, token)
 	if err != nil {
 		return err
 	}
 	c, err := s.repo.GetByID(ctx, customerID)
-	if err != nil {
-		return fmt.Errorf("invalid or expired reset token")
+	if errors.Is(err, ErrCustomerNotFound) || (err == nil && c.ChannelID != channelID) {
+		return ErrResetLinkInvalid
 	}
-	if c.ChannelID != channelID {
-		return fmt.Errorf("invalid or expired reset token")
+	if err != nil {
+		return err
+	}
+	// Spent before the write, so two concurrent redemptions can't both set a password
+	if spent, err := s.resetStore.Consume(ctx, token); err != nil {
+		return err
+	} else if spent != customerID {
+		return ErrResetLinkInvalid
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), auth.HashCost)
 	if err != nil {
@@ -795,6 +957,13 @@ func (s *Service) ResetPassword(ctx context.Context, channelID uuid.UUID, token,
 	if err := s.customerRefresh.RevokeAll(ctx, customerID); err != nil {
 		// Log but don't fail - the password is already changed
 		log.Printf("[auth:warn] revoke customer %s sessions after password reset: %v", customerID, err)
+	}
+	s.revokeResetLinks(ctx, customerID)
+	// The link reached the inbox, which is all a verification link proves
+	if !c.IsEmailVerified {
+		if err := s.markEmailVerified(ctx, c); err != nil {
+			log.Printf("[auth:warn] mark customer %s verified after password reset: %v", customerID, err)
+		}
 	}
 	// Distinct from customer.password_changed, which is the logged-in self-service change - subscribers here send "your password was changed" notices and revoke downstream sessions
 	if s.bus != nil {
@@ -828,6 +997,18 @@ func humanDuration(d time.Duration) string {
 // No verification email - the admin vouched for the address by setting is_email_verified=true, which is the default
 func (s *Service) AdminCreateCustomer(ctx context.Context, input AdminCreateCustomerInput) (Customer, error) {
 	input.Email = NormalizeEmail(input.Email)
+	if err := validateEmail(input.Email); err != nil {
+		return Customer{}, err
+	}
+	if err := validateNames(input.FirstName, input.LastName); err != nil {
+		return Customer{}, err
+	}
+	if err := checkOptLen("phone", input.Phone, MaxPhoneRunes); err != nil {
+		return Customer{}, err
+	}
+	if err := auth.ValidatePasswordStrength(input.Password); err != nil {
+		return Customer{}, err
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), auth.HashCost)
 	if err != nil {
 		return Customer{}, fmt.Errorf("hash password: %w", err)
@@ -883,6 +1064,12 @@ func (s *Service) AdminUpdateCustomer(ctx context.Context, id uuid.UUID, input A
 		// Normalized like every other write - an admin pasting " Jane@Acme.com " from a ticket would otherwise store an address that can never match at login
 		n := NormalizeEmail(*input.Email)
 		input.Email = &n
+		if err := validateEmail(n); err != nil {
+			return Customer{}, err
+		}
+	}
+	if err := validateAdminUpdate(input); err != nil {
+		return Customer{}, err
 	}
 	// Build ChangedFields before any mutation so subscribers know what changed
 	var changed []string
@@ -932,8 +1119,10 @@ func (s *Service) AdminUpdateCustomer(ctx context.Context, id uuid.UUID, input A
 		ChannelID:     existing.ChannelID,
 		ChangedFields: changed,
 	}
-	if err := s.bus.PublishSync(ctx, updatingEvt); err != nil {
-		return Customer{}, err
+	if s.bus != nil {
+		if err := s.bus.PublishSync(ctx, updatingEvt); err != nil {
+			return Customer{}, err
+		}
 	}
 
 	var groupID *uuid.UUID
@@ -960,6 +1149,7 @@ func (s *Service) AdminUpdateCustomer(ctx context.Context, id uuid.UUID, input A
 	if err != nil {
 		return Customer{}, err
 	}
+	s.afterAdminUpdate(ctx, existing, c)
 
 	// Async post-commit - cannot abort
 	s.publishDurable(ctx, &CustomerUpdated{
@@ -975,6 +1165,33 @@ func (s *Service) AdminUpdateCustomer(ctx context.Context, id uuid.UUID, input A
 	})
 
 	return c, nil
+}
+
+// A new address voids every link mailed to the old one and every session signed in under it, and an unverified one gets its own link -
+// a deactivation ends the sessions the way SetCustomerActive does
+func (s *Service) afterAdminUpdate(ctx context.Context, before, after Customer) {
+	emailChanged := before.Email != after.Email
+	if emailChanged {
+		s.revokeEmailLinks(ctx, after.ID)
+	}
+	if emailChanged || (before.IsActive && !after.IsActive) {
+		if err := s.customerRefresh.RevokeAll(ctx, after.ID); err != nil {
+			log.Printf("[auth:warn] revoke customer %s sessions after admin update: %v", after.ID, err)
+		}
+	}
+	if emailChanged && !after.IsEmailVerified && after.IsActive {
+		s.sendAsync(ctx, "verification", func(ctx context.Context) error { return s.sendVerificationEmail(ctx, after) })
+	}
+}
+
+func validateAdminUpdate(in AdminUpdateCustomerInput) error {
+	if err := checkOptLen("first name", in.FirstName, MaxNameRunes); err != nil {
+		return err
+	}
+	if err := checkOptLen("last name", in.LastName, MaxNameRunes); err != nil {
+		return err
+	}
+	return checkOptLen("phone", in.Phone, MaxPhoneRunes)
 }
 
 // Refuses when the customer has any orders - that history is immutable, and anonymize-in-place is a separate GDPR flow - Addresses and carts cascade via FK

@@ -14,6 +14,7 @@ import {
   CustomerLogoutDocument,
   CustomerRegisterDocument,
   RequestPasswordResetDocument,
+  ResendVerificationDocument,
   ResendVerificationEmailDocument,
   ResetPasswordDocument,
   SetDefaultBillingAddressDocument,
@@ -29,7 +30,7 @@ import {
 } from "@/app/lib/auth/session";
 import { CART_COOKIE } from "@/app/lib/cart/read";
 import { CART_MERGE_FLAG, CART_MERGE_FAILED } from "@/app/lib/cart/merge-flag";
-import { gqlFetch } from "@/app/lib/graphql";
+import { GraphQLRequestError, gqlFetch } from "@/app/lib/graphql";
 import { safeReturnTo } from "@/app/lib/auth/return-to";
 import {
   addressSchema,
@@ -93,8 +94,8 @@ export async function registerAction(
       input: { email, password, firstName, lastName, marketingOptIn, referralCode },
     });
     const payload = res.data.customerRegister;
-    // The store can require a verified address before issuing any session - the account exists but there are no tokens
-    // to set, so route to "check your inbox" instead of pretending the sign-in failed
+    // No tokens means the inbox holds the next step - a verification link, or a note to the owner when the address was
+    // already registered. The two look the same here on purpose, so route both to "check your inbox"
     verificationRequired =
       payload.verificationRequired || !payload.accessToken || !payload.refreshToken;
     if (!verificationRequired) {
@@ -138,6 +139,10 @@ export async function loginAction(
     }
     await setSessionCookies(payload.accessToken, payload.refreshToken);
   } catch (err) {
+    // The form offers a fresh confirmation link off this key, since the gate keeps the shopper from the signed-in resend
+    if (err instanceof GraphQLRequestError && err.errors[0]?.extensions?.code === "EMAIL_NOT_VERIFIED") {
+      return submission.reply({ formErrors: ["emailNotVerified"], hideFields: PASSWORD_FIELDS });
+    }
     return replyError(submission, err, "signInFailed", PASSWORD_FIELDS);
   }
   const merged = await mergeGuestCartIfNeeded();
@@ -204,6 +209,22 @@ export async function resendVerificationEmailAction(formData: FormData) {
   }
   const sep = returnTo.includes("?") ? "&" : "?";
   redirect(`${returnTo}${sep}resent=${sent ? "1" : "0"}`);
+}
+
+// Signed out, for an account the verification gate won't let sign in. The backend answers the same for any address, and
+// so does this - a failure is not shown, or it would say the address exists
+export async function resendVerificationAction(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim();
+  const returnTo = safeReturnTo(formData.get("returnTo"));
+  if (email) {
+    try {
+      await gqlFetch(ResendVerificationDocument, { email });
+    } catch (err) {
+      console.error("resend verification failed:", err);
+    }
+  }
+  const dest = "/account/login?verify=sent";
+  redirect(returnTo ? `${dest}&returnTo=${encodeURIComponent(returnTo)}` : dest);
 }
 
 export async function changePasswordAction(

@@ -2,9 +2,12 @@ package customer
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 var (
@@ -32,6 +35,35 @@ var (
 
 	// Distinct from ErrInvalidCredentials so admin callers see the real cause, while the storefront login path still folds it into invalid-credentials
 	ErrCustomerNotFound = errors.New("customer not found")
+
+	ErrResetLinkInvalid        = auth.ErrResetLinkInvalid
+	ErrVerificationLinkInvalid = auth.ErrVerificationLinkInvalid
+
+	// The link was mailed to an address the account no longer has, so it proves nothing about the current one
+	ErrVerificationEmailMismatch = errors.New("this verification link was sent to a different email address")
+
+	ErrIncorrectCurrentPassword = errors.New("current password is incorrect")
+
+	ErrEmailAlreadyVerified = errors.New("email is already verified")
+
+	ErrInvalidEmail = errors.New("enter a valid email address")
+
+	ErrFieldTooLong = errors.New("value is too long")
+
+	ErrTooManyAddresses = fmt.Errorf("an account can hold at most %d addresses", MaxAddressesPerCustomer)
+)
+
+// Input caps - the columns are unbounded text, so these keep one request from storing megabytes
+const (
+	MaxEmailBytes           = 254
+	MaxNameRunes            = 100
+	MaxPhoneRunes           = 40
+	MaxCompanyRunes         = 200
+	MaxStreetRunes          = 200
+	MaxCityRunes            = 100
+	MaxStateRunes           = 100
+	MaxPostalCodeRunes      = 20
+	MaxAddressesPerCustomer = 50
 )
 
 // The same type the catalog domain uses, so helpers and patterns stay consistent
@@ -100,6 +132,8 @@ type CreateCustomerInput struct {
 	FirstName    string
 	LastName     string
 	GroupID      *uuid.UUID // nil takes the default group
+	// Only a path that has proven the address sets this - a confirmed double opt-in
+	EmailVerified bool
 }
 
 type UpdateCustomerInput struct {

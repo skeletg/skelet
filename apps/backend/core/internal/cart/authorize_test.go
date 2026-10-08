@@ -13,8 +13,9 @@ import (
 // fakeRepo implements Repository for authorization tests - Only the two lookups exercised by authorizeCart /
 // verifyLineInCart are backed by func fields; the rest are inert stubs so the fake satisfies the interface
 type fakeRepo struct {
-	getCart func(id uuid.UUID) (Cart, error)
-	getLine func(id uuid.UUID) (CartLine, error)
+	getCart  func(id uuid.UUID) (Cart, error)
+	getLine  func(id uuid.UUID) (CartLine, error)
+	setEmail func(email string)
 }
 
 func (f fakeRepo) GetCartByID(_ context.Context, id uuid.UUID) (Cart, error) {
@@ -63,9 +64,14 @@ func (f fakeRepo) ListAbandoned(context.Context, uuid.UUID, time.Time, time.Time
 	return nil, nil
 }
 func (f fakeRepo) MarkAbandonedNotified(context.Context, []uuid.UUID) error { return nil }
-func (f fakeRepo) SetEmail(context.Context, uuid.UUID, string) error        { return nil }
-func (f fakeRepo) SetNote(context.Context, uuid.UUID, string) error         { return nil }
-func (f fakeRepo) PruneStale(context.Context, time.Time) (int64, error)     { return 0, nil }
+func (f fakeRepo) SetEmail(_ context.Context, _ uuid.UUID, email string) error {
+	if f.setEmail != nil {
+		f.setEmail(email)
+	}
+	return nil
+}
+func (f fakeRepo) SetNote(context.Context, uuid.UUID, string) error     { return nil }
+func (f fakeRepo) PruneStale(context.Context, time.Time) (int64, error) { return 0, nil }
 func (f fakeRepo) SaveItem(context.Context, uuid.UUID, string, string, float64) (SavedItem, error) {
 	return SavedItem{}, nil
 }

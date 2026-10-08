@@ -1,8 +1,9 @@
 -- name: CreateCustomer :one
 -- customer_group_id falls back to the current default group, so a caller names one only when it
 -- means to - a customer.registering plugin routing the account, say
-INSERT INTO customers (email, password_hash, first_name, last_name, channel_id, customer_group_id)
+INSERT INTO customers (email, password_hash, first_name, last_name, channel_id, is_email_verified, customer_group_id)
 VALUES (sqlc.arg(email), sqlc.arg(password_hash), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.arg(channel_id),
+        sqlc.arg(is_email_verified),
         COALESCE(sqlc.narg(customer_group_id)::uuid, (SELECT id FROM customer_groups WHERE is_default)))
 RETURNING *;
 
@@ -33,9 +34,10 @@ RETURNING *;
 -- name: UpdateCustomerPassword :exec
 UPDATE customers SET password_hash = $2, updated_at = NOW() WHERE id = $1;
 
--- name: MarkCustomerEmailVerified :one
+-- name: MarkCustomerEmailVerified :execrows
+-- Only while the row still has the address that was proven - zero rows means it changed underneath
 UPDATE customers SET is_email_verified = TRUE, updated_at = NOW()
-WHERE id = $1 RETURNING *;
+WHERE id = sqlc.arg(id) AND email = sqlc.arg(email);
 
 -- name: CreateCustomerAdmin :one
 -- Admin-side create: accepts all admin-visible fields - caller must resolve
@@ -91,6 +93,9 @@ SELECT * FROM addresses WHERE id = $1 LIMIT 1;
 
 -- name: ListAddressesByCustomer :many
 SELECT * FROM addresses WHERE customer_id = $1 ORDER BY created_at ASC;
+
+-- name: CountAddressesByCustomer :one
+SELECT COUNT(*) FROM addresses WHERE customer_id = $1;
 
 -- name: UpdateAddress :one
 UPDATE addresses

@@ -15,14 +15,19 @@ const loginAction = vi.fn(
   async (_prev: FormResult | undefined, formData: FormData): Promise<FormResult> => {
     const submission = parseForm(formData, loginSchema);
     if (submission.status !== "success") return submission.reply({ hideFields: ["password"] });
+    if (submission.value.email === "unverified@example.com") {
+      return submission.reply({ formErrors: ["emailNotVerified"], hideFields: ["password"] });
+    }
     return submission.reply({
       formErrors: ["Invalid email or password."],
       hideFields: ["password"],
     });
   },
 );
+const resendVerificationAction = vi.fn(async (fd: FormData) => void fd);
 vi.mock("@/app/lib/auth/actions", () => ({
   loginAction: (prev: FormResult | undefined, fd: FormData) => loginAction(prev, fd),
+  resendVerificationAction: (fd: FormData) => resendVerificationAction(fd),
 }));
 
 const { LoginForm } = await import("@/app/components/auth/LoginForm");
@@ -30,6 +35,7 @@ const { LoginForm } = await import("@/app/components/auth/LoginForm");
 describe("LoginForm", () => {
   beforeEach(() => {
     loginAction.mockClear();
+    resendVerificationAction.mockClear();
   });
 
   it("stops a blank submit on the client with an error on each field", async () => {
@@ -69,6 +75,33 @@ describe("LoginForm", () => {
     expect(screen.getByLabelText("Password")).toHaveValue("");
 
     const sent = loginAction.mock.calls[0][1];
+    expect(sent.get("returnTo")).toBe("/cart");
+  });
+
+  it("offers no resend link on an ordinary failed sign-in", async () => {
+    const user = userEvent.setup();
+    renderWithIntl(<LoginForm />);
+    await user.type(screen.getByLabelText("Email"), "ana@example.com");
+    await user.type(screen.getByLabelText("Password"), "wrong-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("button", { name: "Send a new confirmation link" })).not.toBeInTheDocument();
+  });
+
+  it("offers a fresh confirmation link for the typed address when the account isn't verified yet", async () => {
+    const user = userEvent.setup();
+    renderWithIntl(<LoginForm returnTo="/cart" />);
+    await user.type(screen.getByLabelText("Email"), "unverified@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Confirm your email address before signing in.");
+    await user.click(screen.getByRole("button", { name: "Send a new confirmation link" }));
+
+    await waitFor(() => expect(resendVerificationAction).toHaveBeenCalledTimes(1));
+    const sent = resendVerificationAction.mock.calls[0][0];
+    expect(sent.get("email")).toBe("unverified@example.com");
     expect(sent.get("returnTo")).toBe("/cart");
   });
 });

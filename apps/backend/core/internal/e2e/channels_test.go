@@ -43,7 +43,7 @@ func TestCustomersAreChannelScoped(t *testing.T) {
 	}
 	h.Settle(t)
 
-	tokB, err := h.D.Verify.Create(h.Ctx, cb.ID)
+	tokB, err := h.D.Verify.Create(h.Ctx, cb.ID, cb.Email)
 	if err != nil {
 		t.Fatalf("token B: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestCustomersAreChannelScoped(t *testing.T) {
 		t.Fatal("B's verification claimed A's guest order across channels")
 	}
 
-	tokA, err := h.D.Verify.Create(h.Ctx, ca.ID)
+	tokA, err := h.D.Verify.Create(h.Ctx, ca.ID, ca.Email)
 	if err != nil {
 		t.Fatalf("token A: %v", err)
 	}
