@@ -255,6 +255,7 @@ type ModeBackfillRow struct {
 var (
 	ErrLocationNotFound      = errors.New("inventory location not found")
 	ErrLocationSlugTaken     = errors.New("inventory location slug already in use")
+	ErrInvalidSlug           = errors.New("inventory location slug must be lowercase letters, digits, hyphens or underscores")
 	ErrItemNotFound          = errors.New("inventory item not found")
 	ErrItemAlreadyExists     = errors.New("inventory item already exists for this product")
 	ErrLevelNotFound         = errors.New("inventory level not found")

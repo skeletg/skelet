@@ -14,6 +14,7 @@ import (
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/slug"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -126,6 +127,7 @@ func (s *Service) flatModeEnabled(ctx context.Context) bool {
 // ==================== Locations ====================
 
 func (s *Service) CreateLocation(ctx context.Context, input CreateLocationInput) (Location, error) {
+	input.Slug = strings.TrimSpace(input.Slug)
 	if err := validateSlug(input.Slug); err != nil {
 		return Location{}, err
 	}
@@ -1664,18 +1666,6 @@ func validateCoords(lat, lng *float64) error {
 	return nil
 }
 
-func validateSlug(slug string) error {
-	slug = strings.TrimSpace(slug)
-	if slug == "" {
-		return fmt.Errorf("slug is required")
-	}
-	for _, r := range slug {
-		isLower := r >= 'a' && r <= 'z'
-		isDigit := r >= '0' && r <= '9'
-		isSep := r == '-' || r == '_'
-		if !(isLower || isDigit || isSep) {
-			return fmt.Errorf("slug %q contains invalid character %q", slug, r)
-		}
-	}
-	return nil
+func validateSlug(s string) error {
+	return slug.ValidateIdentifier(s, ErrInvalidSlug)
 }

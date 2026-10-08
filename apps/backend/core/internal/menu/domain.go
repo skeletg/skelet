@@ -41,6 +41,7 @@ var (
 	ErrMenuNotFound      = errors.New("menu not found")
 	ErrMenuSlugTaken     = errors.New("menu slug already in use")
 	ErrMenuItemNotFound  = errors.New("menu item not found")
+	ErrInvalidSlug       = errors.New("menu slug must be lowercase letters, digits, hyphens or underscores")
 	ErrInvalidTargetType = errors.New("invalid menu item target type")
 	ErrTargetXorURL      = errors.New("menu item must specify either a target entity or a URL, not both")
 	ErrDepthExceeded     = errors.New("menu nesting exceeds the configured maximum depth")
