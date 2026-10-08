@@ -9,6 +9,8 @@ func init() {
 	apperr.RegisterSentinel(ErrCountryInUse, "COUNTRY_IN_USE", apperr.ClassConflict)
 
 	apperr.RegisterSentinel(ErrInvalidCode, "COUNTRY_INVALID_CODE", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrNameRequired, "COUNTRY_NAME_REQUIRED", apperr.ClassValidation)
+	apperr.RegisterSentinel(ErrMetadataTooLarge, "COUNTRY_METADATA_TOO_LARGE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrCountryNotAllowed, "COUNTRY_NOT_ALLOWED", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrRegionRequired, "REGION_REQUIRED", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidRegion, "INVALID_REGION", apperr.ClassValidation)

@@ -32,7 +32,7 @@ func (r *postgresRepository) Create(ctx context.Context, input CreateCountryInpu
 		Metadata:   mapToJSON(input.Metadata),
 	})
 	if err != nil {
-		if isUniqueViolation(err) {
+		if pgdb.IsUniqueViolation(err) {
 			return Country{}, ErrCountryCodeTaken
 		}
 		return Country{}, fmt.Errorf("create country: %w", err)
@@ -130,6 +130,9 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateCountryInpu
 
 func (r *postgresRepository) Delete(ctx context.Context, code string) error {
 	if err := r.queries.DeleteCountry(ctx, code); err != nil {
+		if pgdb.IsForeignKeyViolation(err) {
+			return ErrCountryInUse // a reference landed after the count
+		}
 		return fmt.Errorf("delete country: %w", err)
 	}
 	return nil
@@ -203,5 +206,3 @@ func jsonToMap(raw json.RawMessage) map[string]string {
 	}
 	return out
 }
-
-func isUniqueViolation(err error) bool { return pgdb.IsUniqueViolation(err) } // shared SQLSTATE-based check - the per-package copies drifted into fragile message matching
