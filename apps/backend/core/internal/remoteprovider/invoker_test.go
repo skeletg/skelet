@@ -84,7 +84,7 @@ func (r *fakeRepo) GetSecret(_ context.Context, id uuid.UUID) (string, error) {
 func (r *fakeRepo) Delete(context.Context, uuid.UUID) error { return nil }
 
 func resetBreaker() {
-	breaker = circuit.New(breakerTripThreshold, breakerCooldown)
+	breaker = circuit.New(circuit.DefaultThreshold, circuit.DefaultCooldown)
 	invocationCache = &responseCache{m: map[string]cacheEntry{}}
 }
 
@@ -171,7 +171,7 @@ func TestInvokeBreakerTrips(t *testing.T) {
 
 	p := testProvider(srv.URL, 0)
 	inv := NewInvoker(NewService(newFakeRepo(p)), nil)
-	for i := range breakerTripThreshold {
+	for i := range circuit.DefaultThreshold {
 		if err := inv.Invoke(context.Background(), p, map[string]any{"i": i}, nil); err == nil {
 			t.Fatal("expected error from 502")
 		}
@@ -180,8 +180,39 @@ func TestInvokeBreakerTrips(t *testing.T) {
 	if err == nil || !errors.Is(err, ErrCircuitOpen) {
 		t.Fatalf("expected circuit-open error, got %v", err)
 	}
-	if hits.Load() != breakerTripThreshold {
+	if hits.Load() != circuit.DefaultThreshold {
 		t.Fatalf("open circuit still hit upstream: %d", hits.Load())
+	}
+}
+
+// A probe whose caller walks away must hand its slot back - it used to leave the provider blocked until someone edited it or the process restarted
+func TestAnAbandonedProbeDoesNotStrandTheProvider(t *testing.T) {
+	resetBreaker()
+	var healthy atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if !healthy.Load() {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+	now := time.Now()
+	breaker.SetNow(func() time.Time { return now })
+
+	p := testProvider(srv.URL, 0)
+	inv := NewInvoker(NewService(newFakeRepo(p)), nil)
+	for i := range circuit.DefaultThreshold {
+		_ = inv.Invoke(context.Background(), p, map[string]any{"i": i}, nil)
+	}
+	now = now.Add(circuit.DefaultCooldown + time.Second)
+	gone, cancel := context.WithCancel(context.Background())
+	cancel()
+	_ = inv.Invoke(gone, p, map[string]any{"i": "probe"}, nil)
+
+	healthy.Store(true)
+	if err := inv.Invoke(context.Background(), p, map[string]any{"i": "next"}, nil); err != nil {
+		t.Fatalf("the call after an abandoned probe failed with %v, want it to probe and succeed", err)
 	}
 }
 

@@ -163,7 +163,8 @@ func (d *Dispatcher) deliverSyncOne(ctx context.Context, wh Webhook, e events.Ev
 	}
 
 	// The circuit check comes after the cheap local failures, so a blocked probe can never get stuck half-open without a recorded outcome
-	if !circuits.Allow(wh.ID) {
+	ticket, ok := circuits.Allow(wh.ID)
+	if !ok {
 		if failOpen {
 			log.Printf("[webhook] circuit open, skipping sync webhook %q for %s", wh.Name, e.Type())
 			return nil
@@ -176,7 +177,7 @@ func (d *Dispatcher) deliverSyncOne(ctx context.Context, wh Webhook, e events.Ev
 	if _, err := d.svc.RecordDelivery(ctx, delivery); err != nil {
 		log.Printf("[webhook] record sync delivery for %s: %v", wh.ID, err)
 	}
-	circuits.Record(wh.ID, delivery.Success)
+	ticket.Done(ctx, delivery.Success) // a caller walking away isn't the endpoint failing
 
 	if !delivery.Success {
 		reason := "delivery failed"
