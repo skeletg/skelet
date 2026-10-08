@@ -33,13 +33,18 @@ func (f fakeRepo) Update(context.Context, UpdateCountryInput) (Country, error) {
 func (f fakeRepo) Delete(context.Context, string) error                        { return nil }
 func (f fakeRepo) CountReferences(context.Context, string) (int64, error)      { return 0, nil }
 
-// fakeConfig returns canned values per path
+// fakeConfig returns canned values per path, and fails reads of failPath with err
 type fakeConfig struct {
-	strings map[string]string
-	bools   map[string]bool
+	strings  map[string]string
+	bools    map[string]bool
+	failPath string
+	err      error
 }
 
 func (f fakeConfig) GetString(_ context.Context, path string, _ config.Scope) (string, error) {
+	if path == f.failPath {
+		return "", f.err
+	}
 	return f.strings[path], nil
 }
 func (f fakeConfig) GetBool(_ context.Context, path string, _ config.Scope) (bool, error) {
@@ -131,6 +136,16 @@ func TestValidateAddress(t *testing.T) {
 			country: "US", region: ptr("ZZ"), wantErr: ErrInvalidRegion,
 		},
 		{
+			name:    "an allow-list read failure refuses instead of allowing every country",
+			cfg:     fakeConfig{failPath: CfgAllowedCountries, err: errSettingsDown},
+			country: "US", region: nil, wantErr: errSettingsDown,
+		},
+		{
+			name:    "a required-region read failure refuses instead of dropping the rule",
+			cfg:     fakeConfig{failPath: CfgRequiredRegion, err: errSettingsDown},
+			country: "US", region: nil, wantErr: errSettingsDown,
+		},
+		{
 			name:    "free-text region ok when country has no seeded regions",
 			country: "CA", region: ptr("Ontario"),
 		},
@@ -148,5 +163,61 @@ func TestValidateAddress(t *testing.T) {
 				t.Fatalf("got %v, want errors.Is(%v)", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+var errSettingsDown = errors.New("settings unavailable")
+
+// The storefront pre-selects this, so it must name a country the shopper can actually pick
+func TestDefaultCountryOnlyNamesAPickableCountry(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cfg  map[string]string
+		want string
+	}{
+		{"an active default", map[string]string{CfgDefaultCountry: "us"}, "US"},
+		{"an inactive default", map[string]string{CfgDefaultCountry: "XX"}, ""},
+		{"an unknown default", map[string]string{CfgDefaultCountry: "ZZ"}, ""},
+		{"a default outside the allow-list", map[string]string{CfgDefaultCountry: "US", CfgAllowedCountries: "CA"}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := newSvc(fakeConfig{strings: tc.cfg}).DefaultCountry(context.Background(), config.DefaultScope); got != tc.want {
+				t.Errorf("DefaultCountry = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCreateAndUpdateRefuseBadInput(t *testing.T) {
+	s := newSvc(nil)
+	ctx := context.Background()
+	if _, err := s.Create(ctx, CreateCountryInput{Code: "DE", Name: " "}); !errors.Is(err, ErrNameRequired) {
+		t.Errorf("blank name: %v, want ErrNameRequired", err)
+	}
+	big := map[string]string{}
+	for i := range maxMetadataKeys + 1 {
+		big[string(rune('a'+i%26))+string(rune('a'+i/26))] = "v"
+	}
+	if _, err := s.Create(ctx, CreateCountryInput{Code: "DE", Name: "Germany", Metadata: big}); !errors.Is(err, ErrMetadataTooLarge) {
+		t.Errorf("oversized metadata: %v, want ErrMetadataTooLarge", err)
+	}
+	blank := ""
+	if _, err := s.Update(ctx, UpdateCountryInput{Code: "DE", Name: &blank}); !errors.Is(err, ErrNameRequired) {
+		t.Errorf("blank name on update: %v, want ErrNameRequired", err)
+	}
+}
+
+func TestOfferedIsActiveAndAllowed(t *testing.T) {
+	ctx := context.Background()
+	open := newSvc(nil)
+	if !open.Offered(ctx, config.DefaultScope, Country{Code: "US", IsActive: true}) {
+		t.Error("an active country with no allow-list was not offered")
+	}
+	if open.Offered(ctx, config.DefaultScope, Country{Code: "XX"}) {
+		t.Error("an inactive country was offered")
+	}
+	limited := newSvc(fakeConfig{strings: map[string]string{CfgAllowedCountries: "CA"}})
+	if limited.Offered(ctx, config.DefaultScope, Country{Code: "US", IsActive: true}) {
+		t.Error("a country outside the allow-list was offered")
 	}
 }
