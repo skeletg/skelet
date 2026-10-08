@@ -99,6 +99,8 @@ func SlotLabel(slot string) string {
 		return "Email verification"
 	case KeyPasswordReset:
 		return "Password reset"
+	case KeySignupConfirmation:
+		return "Signup confirmation"
 	default:
 		return slot
 	}

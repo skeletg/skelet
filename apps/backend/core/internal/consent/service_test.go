@@ -16,6 +16,7 @@ import (
 // mirroring the real postgres repo's sql.ErrNoRows → nil contract that drives the service's default-fallback logic
 type fakeRepo struct {
 	stored    map[storeKey]StoredConsent
+	events    []Event
 	getErr    error
 	upsertErr error
 	listErr   error
@@ -38,17 +39,18 @@ func (r *fakeRepo) put(customer uuid.UUID, kind string, optedIn bool, source str
 	}
 }
 
-func (r *fakeRepo) Upsert(_ context.Context, customerID uuid.UUID, kind string, optedIn bool, source string) (StoredConsent, error) {
+func (r *fakeRepo) Upsert(_ context.Context, c Change) (StoredConsent, error) {
 	if r.upsertErr != nil {
 		return StoredConsent{}, r.upsertErr
 	}
-	r.put(customerID, kind, optedIn, source)
-	return r.stored[storeKey{customerID, kind}], nil
+	r.put(c.CustomerID, c.Kind, c.OptedIn, c.Source)
+	r.events = append(r.events, Event{ID: uuid.New(), CustomerID: c.CustomerID, Kind: c.Kind, OptedIn: c.OptedIn, Source: c.Source, AdminID: c.AdminID})
+	return r.stored[storeKey{c.CustomerID, c.Kind}], nil
 }
 
 // The in-memory twin has no transaction to join, so it writes the same way
-func (r *fakeRepo) UpsertTx(ctx context.Context, _ *sql.Tx, customerID uuid.UUID, kind string, optedIn bool, source string) (StoredConsent, error) {
-	return r.Upsert(ctx, customerID, kind, optedIn, source)
+func (r *fakeRepo) UpsertTx(ctx context.Context, _ *sql.Tx, c Change) (StoredConsent, error) {
+	return r.Upsert(ctx, c)
 }
 
 func (r *fakeRepo) Get(_ context.Context, customerID uuid.UUID, kind string) (*StoredConsent, error) {
@@ -75,33 +77,14 @@ func (r *fakeRepo) ListByCustomer(_ context.Context, customerID uuid.UUID) ([]St
 	return out, nil
 }
 
-func (r *fakeRepo) ListByCustomerIDs(_ context.Context, customerIDs []uuid.UUID, kind string) ([]StoredConsent, error) {
-	if r.listErr != nil {
-		return nil, r.listErr
-	}
-	want := make(map[uuid.UUID]struct{}, len(customerIDs))
-	for _, id := range customerIDs {
-		want[id] = struct{}{}
-	}
-	var out []StoredConsent
-	for k, v := range r.stored {
-		if k.kind != kind {
-			continue
-		}
-		if _, ok := want[k.customer]; ok {
-			out = append(out, v)
+func (r *fakeRepo) ListEvents(_ context.Context, customerID uuid.UUID, limit int32) ([]Event, error) {
+	var out []Event
+	for i := len(r.events) - 1; i >= 0 && int32(len(out)) < limit; i-- {
+		if r.events[i].CustomerID == customerID {
+			out = append(out, r.events[i])
 		}
 	}
 	return out, nil
-}
-
-func (r *fakeRepo) DeleteByCustomer(_ context.Context, customerID uuid.UUID) error {
-	for k := range r.stored {
-		if k.customer == customerID {
-			delete(r.stored, k)
-		}
-	}
-	return nil
 }
 
 // The built-in kinds registered by defaults.go init() - Pinning these keeps
@@ -110,32 +93,6 @@ const (
 	kindMarketingEmail = "marketing_email"     // Required=false, DefaultOptIn=false
 	kindTransactional  = "transactional_email" // Required=true,  DefaultOptIn=true
 )
-
-func TestOptedInByCustomerIDs_MatchesIsOptedIn(t *testing.T) {
-	repo := newFakeRepo()
-	optedIn := uuid.New()
-	optedOut := uuid.New()
-	noRow := uuid.New() // must fall back to DefaultOptIn (false for marketing)
-	repo.put(optedIn, kindMarketingEmail, true, "test")
-	repo.put(optedOut, kindMarketingEmail, false, "test")
-	svc := NewService(repo)
-
-	got, err := svc.OptedInByCustomerIDs(context.Background(), []uuid.UUID{optedIn, optedOut, noRow}, kindMarketingEmail)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// Batch result must match IsOptedIn per customer - especially the no-row
-	// case, which must NOT be sent to (default opt-out)
-	for _, cust := range []uuid.UUID{optedIn, optedOut, noRow} {
-		want, _ := svc.IsOptedIn(context.Background(), cust, kindMarketingEmail)
-		if got[cust] != want {
-			t.Errorf("customer %s: batch=%v, IsOptedIn=%v", cust, got[cust], want)
-		}
-	}
-	if got[noRow] {
-		t.Error("no-row customer must default to opted-out for marketing")
-	}
-}
 
 func TestGet_NoRowUsesDefaultOptIn(t *testing.T) {
 	svc := NewService(newFakeRepo())
@@ -395,5 +352,55 @@ func TestSetConsentWorksWithoutABus(t *testing.T) {
 	svc := NewService(newFakeRepo())
 	if _, err := svc.SetConsent(context.Background(), uuid.New(), "marketing_email", true, SourceProfile); err != nil {
 		t.Fatalf("SetConsent: %v", err)
+	}
+}
+
+func TestSetConsentRefusesAnUnknownSource(t *testing.T) {
+	repo := newFakeRepo()
+	svc := NewService(repo)
+	for _, src := range []string{"", "newsletter", "Admin"} {
+		if _, err := svc.SetConsent(context.Background(), uuid.New(), kindMarketingEmail, true, src); !errors.Is(err, ErrUnknownSource) {
+			t.Errorf("source %q: err = %v, want ErrUnknownSource", src, err)
+		}
+	}
+	if len(repo.stored) != 0 || len(repo.events) != 0 {
+		t.Errorf("a refused source still wrote %d rows and %d history entries", len(repo.stored), len(repo.events))
+	}
+}
+
+func TestEveryChangeLeavesAHistoryEntry(t *testing.T) {
+	repo := newFakeRepo()
+	svc := NewService(repo)
+	ctx := context.Background()
+	cust, admin := uuid.New(), uuid.New()
+
+	if _, err := svc.SetConsent(ctx, cust, kindMarketingEmail, true, SourceSignupForm); err != nil {
+		t.Fatalf("opt in: %v", err)
+	}
+	if _, err := svc.SetConsent(ctx, cust, kindMarketingEmail, false, SourceUnsubscribeLink); err != nil {
+		t.Fatalf("opt out: %v", err)
+	}
+	if _, err := svc.SetConsentByAdmin(ctx, cust, kindMarketingEmail, true, &admin); err != nil {
+		t.Fatalf("admin opt in: %v", err)
+	}
+
+	hist, err := svc.History(ctx, cust, 0)
+	if err != nil {
+		t.Fatalf("History: %v", err)
+	}
+	if len(hist) != 3 {
+		t.Fatalf("history has %d entries, want one per change (3)", len(hist))
+	}
+	latest := hist[0]
+	if latest.Source != SourceAdmin || !latest.OptedIn || latest.AdminID == nil || *latest.AdminID != admin {
+		t.Errorf("newest entry = %+v, want the admin opt-in naming admin %s", latest, admin)
+	}
+	for _, e := range hist[1:] {
+		if e.AdminID != nil {
+			t.Errorf("%s entry names admin %s, but no admin made it", e.Source, *e.AdminID)
+		}
+	}
+	if hist[1].Source != SourceUnsubscribeLink || hist[2].Source != SourceSignupForm {
+		t.Errorf("history order = %s, %s, want newest first", hist[1].Source, hist[2].Source)
 	}
 }

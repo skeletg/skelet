@@ -1833,6 +1833,15 @@ type CustomerConsent struct {
 	IsDefault  bool               `json:"isDefault"`
 }
 
+type CustomerConsentEvent struct {
+	ID        string    `json:"id"`
+	Kind      string    `json:"kind"`
+	OptedIn   bool      `json:"optedIn"`
+	Source    string    `json:"source"`
+	AdminID   *string   `json:"adminId,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
 type CustomerEventCount struct {
 	Name  string `json:"name"`
 	Count int32  `json:"count"`

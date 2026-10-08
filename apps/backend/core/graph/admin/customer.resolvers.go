@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
-	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/tax"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
@@ -296,7 +295,7 @@ func (r *mutationResolver) SetCustomerActive(ctx context.Context, id string, act
 	return toCustomerModel(c), nil
 }
 
-// Stored with source="admin" so the audit trail can tell an override from a registration, profile or checkout action
+// Stored with source="admin" and the acting admin, so the audit trail can tell an override from a registration, profile or checkout action and name who made it
 func (r *mutationResolver) AdminSetCustomerConsent(ctx context.Context, customerID string, kind string, optedIn bool) (*model.CustomerConsent, error) {
 	if err := r.requireCustomerManage(ctx, customerID); err != nil {
 		return nil, err
@@ -305,7 +304,7 @@ func (r *mutationResolver) AdminSetCustomerConsent(ctx context.Context, customer
 	if err != nil {
 		return nil, err
 	}
-	stored, err := r.ConsentSvc.SetConsent(ctx, cid, kind, optedIn, consent.SourceAdmin)
+	stored, err := r.ConsentSvc.SetConsentByAdmin(ctx, cid, kind, optedIn, actingAdminID(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -565,6 +564,36 @@ func (r *queryResolver) CustomerGroup(ctx context.Context, id string) (*model.Cu
 	return toCustomerGroupModel(g), nil
 }
 
+func (r *queryResolver) CustomerConsentHistory(ctx context.Context, customerID string, limit *int32) ([]*model.CustomerConsentEvent, error) {
+	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.view"); err != nil {
+		return nil, err
+	}
+	cid, err := parseID(customerID, "customer")
+	if err != nil {
+		return nil, err
+	}
+	c, err := r.CustomerSvc.GetByID(ctx, cid)
+	if err != nil {
+		return nil, auth.ErrForbidden
+	}
+	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.view", c.ChannelID, nil); err != nil {
+		return nil, err
+	}
+	var lim int32
+	if limit != nil {
+		lim = *limit
+	}
+	events, err := r.ConsentSvc.History(ctx, cid, lim)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.CustomerConsentEvent, len(events))
+	for i, e := range events {
+		out[i] = toCustomerConsentEventModel(e)
+	}
+	return out, nil
+}
+
 func (r *queryResolver) ExportCustomerData(ctx context.Context, customerID string) (string, error) {
 	if err := auth.RequirePermission(ctx, r.AdminSvc, "customers.manage"); err != nil {
 		return "", err
@@ -593,7 +622,9 @@ func (r *queryResolver) ExportCustomerData(ctx context.Context, customerID strin
 	if ch, cerr := r.ChannelSvc.GetByID(ctx, c.ChannelID); cerr == nil {
 		currency = ch.CurrencyCode
 	}
-	r.enrichDataExport(ctx, cid, currency, &bundle)
+	if err := r.enrichDataExport(ctx, cid, currency, &bundle); err != nil {
+		return "", err
+	}
 	out, err := json.MarshalIndent(bundle, "", "  ")
 	if err != nil {
 		return "", err

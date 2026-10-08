@@ -1,18 +1,26 @@
-// Package form powers storefront signup forms (popup / inline / flyout email capture) managed from the dashboard and feeding Pulse - A submission ensures a marketing contact exists for the email (one profile per address), records consent, optionally adds the subscriber to a segment, and fires the form_submitted flow trigger for a welcome series
+// Package form powers storefront signup forms (popup / inline / flyout email capture) managed from the dashboard and feeding Pulse
+// A submission records the lead and mails a double opt-in link - only following it creates the contact, records consent, adds the subscriber to the form's segment and fires the form_submitted flow
 package form
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
+	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 )
 
 // Dependency seams (accept interfaces) - set the customer/consent/segment/flow
@@ -29,6 +37,17 @@ type segmentAssigner interface {
 type flowEnroller interface {
 	OnFormSubmitted(ctx context.Context, channelID, customerID uuid.UUID, formSlug string) int
 }
+type confirmationMailer interface {
+	SendSignupConfirmation(ctx context.Context, channelID uuid.UUID, to, firstName, token, expiresIn string) error
+}
+type sendLimiter interface {
+	Allow(ctx context.Context, key string) bool
+}
+
+const (
+	ConfirmationTTL     = 7 * 24 * time.Hour
+	confirmationTTLText = "7 days"
+)
 
 // Service is the signup-form CRUD + submission API
 type Service struct {
@@ -37,15 +56,21 @@ type Service struct {
 	consent consentSetter
 	segment segmentAssigner
 	flows   flowEnroller
+	mailer  confirmationMailer
+	limiter sendLimiter
+	now     func() time.Time
 }
 
-func New(q *db.Queries) *Service { return &Service{q: q} }
+func New(q *db.Queries) *Service { return &Service{q: q, now: time.Now} }
 
-// SetHooks wires the submit-time collaborators (optional; a bare service still
+// SetHooks wires the confirmation-time collaborators (optional; a bare service still
 // does CRUD) - Called from main.go after the dependent services exist
 func (s *Service) SetHooks(contact contactEnsurer, cons consentSetter, seg segmentAssigner, flows flowEnroller) {
 	s.contact, s.consent, s.segment, s.flows = contact, cons, seg, flows
 }
+
+// SetConfirmation wires the double opt-in mail and the per-address budget on it - without a mailer a submission can't be confirmed, so Submit refuses
+func (s *Service) SetConfirmation(m confirmationMailer, l sendLimiter) { s.mailer, s.limiter = m, l }
 
 // DisplayConfig is the storefront widget's behaviour (stored as JSON)
 type DisplayConfig struct {
@@ -128,8 +153,8 @@ func (s *Service) Create(ctx context.Context, in SaveInput) (Form, error) {
 	row, err := s.q.CreateSignupForm(ctx, db.CreateSignupFormParams{
 		ChannelID: in.ChannelID, Slug: slugify(in.Slug), Name: in.Name, Status: normStatus(in.Status),
 		FormType: normType(in.Type), Heading: in.Heading, Body: in.Body, ButtonLabel: orDefault(in.ButtonLabel, "Subscribe"),
-		SuccessMessage: orDefault(in.SuccessMessage, "Thanks for subscribing!"), CollectName: in.CollectName,
-		ConsentKind: orDefault(in.ConsentKind, "marketing_email"), TargetSegmentID: sqlnull.UUIDNonZero(in.TargetSegmentID),
+		SuccessMessage: orDefault(in.SuccessMessage, DefaultSuccessMessage), CollectName: in.CollectName,
+		ConsentKind: orDefault(in.ConsentKind, consentkind.MarketingEmail), TargetSegmentID: sqlnull.UUIDNonZero(in.TargetSegmentID),
 		TriggerFlow: in.TriggerFlow, DisplayConfig: dc,
 	})
 	if err != nil {
@@ -143,8 +168,8 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in SaveInput) (Form,
 	row, err := s.q.UpdateSignupForm(ctx, db.UpdateSignupFormParams{
 		ID: id, Name: in.Name, Status: normStatus(in.Status), FormType: normType(in.Type),
 		Heading: in.Heading, Body: in.Body, ButtonLabel: orDefault(in.ButtonLabel, "Subscribe"),
-		SuccessMessage: orDefault(in.SuccessMessage, "Thanks for subscribing!"), CollectName: in.CollectName,
-		ConsentKind: orDefault(in.ConsentKind, "marketing_email"), TargetSegmentID: sqlnull.UUIDNonZero(in.TargetSegmentID),
+		SuccessMessage: orDefault(in.SuccessMessage, DefaultSuccessMessage), CollectName: in.CollectName,
+		ConsentKind: orDefault(in.ConsentKind, consentkind.MarketingEmail), TargetSegmentID: sqlnull.UUIDNonZero(in.TargetSegmentID),
 		TriggerFlow: in.TriggerFlow, DisplayConfig: dc,
 	})
 	if err != nil {
@@ -194,7 +219,10 @@ func (s *Service) RecentSubmissions(ctx context.Context, formID uuid.UUID, limit
 	return s.q.ListSignupSubmissions(ctx, db.ListSignupSubmissionsParams{FormID: formID, Lim: limit})
 }
 
-// Submit processes a storefront submission for an active form: capture the lead, ensure a marketing contact, record consent, add to the target segment, and fire the welcome flow - Best-effort past the capture - a downstream hiccup (segment add, flow) must not fail the shopper's submit - Returns the form's success message. name may be ""
+// What a form says after a submit when the admin wrote nothing - it must not claim a subscription the confirmation hasn't made yet
+const DefaultSuccessMessage = "Check your inbox to confirm your subscription."
+
+// Submit records the lead and mails the double opt-in link - consent, segment and flow all wait for Confirm, so an address typed by someone else is never subscribed and an existing opt-out is never touched
 func (s *Service) Submit(ctx context.Context, channelID uuid.UUID, formSlugOrID, email, name string) (string, error) {
 	em := strings.ToLower(strings.TrimSpace(email))
 	if em == "" {
@@ -204,39 +232,113 @@ func (s *Service) Submit(ctx context.Context, channelID uuid.UUID, formSlugOrID,
 	if err != nil {
 		return "", err
 	}
-
-	// Ensure a contact so consent/segment/flow all key on a customer id
-	var custID uuid.UUID
-	if s.contact != nil {
-		if id, cerr := s.contact.EnsureContact(ctx, channelID, em, name); cerr == nil {
-			custID = id
-		}
+	if s.mailer == nil {
+		return "", errors.New("signup confirmation mail is not wired")
 	}
-
 	if err := s.q.RecordSignupSubmission(ctx, db.RecordSignupSubmissionParams{
-		FormID: f.ID, ChannelID: channelID, Email: em, CustomerID: sqlnull.UUIDValueNonZero(custID),
+		FormID: f.ID, ChannelID: channelID, Email: em,
 	}); err != nil {
 		log.Printf("[form] record signup submission for %s: %v", f.Slug, err)
 	}
-
-	if custID != uuid.Nil {
-		if s.consent != nil {
-			// The consent record is the legal basis for mailing this person - dropping it silently means the
-			// opt-in they gave isn't on file, and the next audit or unsubscribe dispute has nothing to show
-			if err := s.consent.SetConsent(ctx, custID, orDefault(f.ConsentKind, "marketing_email"), true, consent.SourceRegistration); err != nil {
-				log.Printf("[form] record consent for customer %s: %v", custID, err)
-			}
-		}
-		if s.segment != nil && f.TargetSegmentID != nil {
-			if err := s.segment.AssignCustomers(ctx, *f.TargetSegmentID, []uuid.UUID{custID}); err != nil {
-				log.Printf("[form] assign customer %s to segment %s: %v", custID, *f.TargetSegmentID, err)
-			}
-		}
-		if s.flows != nil && f.TriggerFlow {
-			s.flows.OnFormSubmitted(ctx, channelID, custID, f.Slug)
-		}
+	if s.limiter != nil && !s.limiter.Allow(ctx, "signup-confirm:"+channelID.String()+":"+em) {
+		return f.SuccessMessage, nil
+	}
+	token, hash, err := newConfirmationToken()
+	if err != nil {
+		return "", err
+	}
+	first := strings.TrimSpace(name)
+	if err := s.q.CreateSignupConfirmation(ctx, db.CreateSignupConfirmationParams{
+		TokenHash: hash, FormID: f.ID, ChannelID: channelID, Email: em, FirstName: first,
+		ConsentKind: orDefault(f.ConsentKind, consentkind.MarketingEmail), ExpiresAt: s.now().Add(ConfirmationTTL),
+	}); err != nil {
+		return "", fmt.Errorf("record signup confirmation: %w", err)
+	}
+	if err := s.mailer.SendSignupConfirmation(ctx, channelID, em, first, token, confirmationTTLText); err != nil {
+		return "", fmt.Errorf("send signup confirmation: %w", err)
 	}
 	return f.SuccessMessage, nil
+}
+
+func (s *Service) ConfirmationPending(ctx context.Context, token string) (bool, error) {
+	_, err := s.q.GetPendingSignupConfirmation(ctx, hashToken(token))
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// The claim is handed back when the contact or consent write fails, so the subscriber can press confirm again
+func (s *Service) Confirm(ctx context.Context, token string) error {
+	if s.contact == nil || s.consent == nil {
+		return errors.New("signup confirmation hooks are not wired")
+	}
+	row, err := s.q.ClaimSignupConfirmation(ctx, hashToken(token))
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrConfirmationInvalid
+	}
+	if err != nil {
+		return fmt.Errorf("claim signup confirmation: %w", err)
+	}
+	custID, err := s.subscribe(ctx, row)
+	if err != nil {
+		if rerr := s.q.ReleaseSignupConfirmation(context.WithoutCancel(ctx), row.ID); rerr != nil {
+			log.Printf("[form] release signup confirmation %s: %v", row.ID, rerr)
+		}
+		return err
+	}
+	if err := s.q.SetSignupConfirmationCustomer(ctx, db.SetSignupConfirmationCustomerParams{CustomerID: sqlnull.UUIDValueNonZero(custID), ID: row.ID}); err != nil {
+		log.Printf("[form] link signup confirmation %s to customer %s: %v", row.ID, custID, err)
+	}
+	if err := s.q.RecordSignupSubmission(ctx, db.RecordSignupSubmissionParams{
+		FormID: row.FormID, ChannelID: row.ChannelID, Email: row.Email, CustomerID: sqlnull.UUIDValueNonZero(custID),
+	}); err != nil {
+		log.Printf("[form] link signup submission to customer %s: %v", custID, err)
+	}
+	f, err := s.Get(ctx, row.FormID)
+	if err != nil {
+		log.Printf("[form] load form %s after confirmation: %v", row.FormID, err)
+		return nil
+	}
+	if s.segment != nil && f.TargetSegmentID != nil {
+		if err := s.segment.AssignCustomers(ctx, *f.TargetSegmentID, []uuid.UUID{custID}); err != nil {
+			log.Printf("[form] assign customer %s to segment %s: %v", custID, *f.TargetSegmentID, err)
+		}
+	}
+	if s.flows != nil && f.TriggerFlow {
+		s.flows.OnFormSubmitted(ctx, row.ChannelID, custID, f.Slug)
+	}
+	return nil
+}
+
+func (s *Service) subscribe(ctx context.Context, row db.SignupConfirmation) (uuid.UUID, error) {
+	custID, err := s.contact.EnsureContact(ctx, row.ChannelID, row.Email, row.FirstName)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("ensure contact: %w", err)
+	}
+	if err := s.consent.SetConsent(ctx, custID, row.ConsentKind, true, consent.SourceSignupForm); err != nil {
+		return uuid.Nil, fmt.Errorf("record consent: %w", err)
+	}
+	return custID, nil
+}
+
+func (s *Service) PruneConfirmations(ctx context.Context) (int64, error) {
+	return s.q.PruneSignupConfirmations(ctx, s.now())
+}
+
+// Only the hash is stored, so a read of the table can't confirm anyone
+func newConfirmationToken() (token string, hash []byte, err error) {
+	var buf [32]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return "", nil, fmt.Errorf("mint confirmation token: %w", err)
+	}
+	token = base64.RawURLEncoding.EncodeToString(buf[:])
+	return token, hashToken(token), nil
+}
+
+func hashToken(token string) []byte {
+	sum := sha256.Sum256([]byte(token))
+	return sum[:]
 }
 
 func (s *Service) resolveActive(ctx context.Context, channelID uuid.UUID, slugOrID string) (Form, error) {

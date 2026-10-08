@@ -12,9 +12,9 @@ import (
 
 // Records what the direct sender was asked to send, standing in for *emailtemplate.Service
 type recordingFallback struct {
-	verifications, resets int
-	lastFrom, lastTo      string
-	lastLink, lastStore   string
+	verifications, resets, confirmations int
+	lastFrom, lastTo                     string
+	lastLink, lastStore                  string
 }
 
 func (r *recordingFallback) SendVerification(_ context.Context, _ uuid.UUID, from, to, storefrontURL string, d email.VerificationEmailData) error {
@@ -29,6 +29,12 @@ func (r *recordingFallback) SendPasswordReset(_ context.Context, _ uuid.UUID, fr
 	return nil
 }
 
+func (r *recordingFallback) SendSignupConfirmation(_ context.Context, _ uuid.UUID, from, to, storefrontURL string, d email.SignupConfirmationEmailData) error {
+	r.confirmations++
+	r.lastFrom, r.lastTo, r.lastLink, r.lastStore = from, to, d.Link, storefrontURL
+	return nil
+}
+
 // Reports n flows enrolled, so a test can stand in for both an active flow and none
 type stubDispatcher struct{ n int }
 
@@ -37,6 +43,10 @@ func (s stubDispatcher) OnEmailVerification(context.Context, uuid.UUID, uuid.UUI
 }
 
 func (s stubDispatcher) OnPasswordReset(context.Context, uuid.UUID, uuid.UUID, string, string, string, string) int {
+	return s.n
+}
+
+func (s stubDispatcher) OnSignupConfirmation(context.Context, uuid.UUID, string, string, string, string, string) int {
 	return s.n
 }
 
@@ -111,5 +121,34 @@ func TestAuthEmailFallbackSilentForUnknownAddress(t *testing.T) {
 	}
 	if fb.resets != 0 {
 		t.Errorf("reset sends = %d for an address with no account, want 0", fb.resets)
+	}
+}
+
+func TestSignupConfirmationMailFallsBackOnlyWhenNoFlowTakesIt(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		n    int
+		want int
+	}{
+		{"no flow", 0, 1},
+		{"a flow took it", 1, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			fb := &recordingFallback{}
+			f.svc.SetAuthEmailDispatcher(stubDispatcher{n: tc.n})
+			f.svc.SetAuthEmailFallback(fb)
+			ch := f.newChannel(t)
+			addr := randomEmail()
+			if err := f.svc.SendSignupConfirmation(f.ctx, ch, addr, "", "tok123", "7 days"); err != nil {
+				t.Fatalf("SendSignupConfirmation: %v", err)
+			}
+			if fb.confirmations != tc.want {
+				t.Fatalf("fallback sends = %d, want %d", fb.confirmations, tc.want)
+			}
+			if tc.want == 1 && (fb.lastTo != addr || fb.lastLink != "https://shop.invalid"+SignupConfirmPath+"tok123") {
+				t.Errorf("sent to %q with link %q, want %q with the store's confirm link", fb.lastTo, fb.lastLink, addr)
+			}
+		})
 	}
 }
