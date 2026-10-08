@@ -2,7 +2,6 @@ package admin
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
@@ -83,7 +82,7 @@ func (r *mutationResolver) ClaimCMSPage(ctx context.Context, id string) (*model.
 	}
 	claims, ok := auth.AdminFromContext(ctx)
 	if !ok {
-		return nil, fmt.Errorf("an authenticated admin is required")
+		return nil, errAdminRequired()
 	}
 	adminID := claims.AdminID
 	p, err := r.CMSSvc.AssignPage(ctx, uid, &adminID)

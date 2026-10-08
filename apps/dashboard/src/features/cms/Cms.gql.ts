@@ -107,7 +107,6 @@ export type CreateCmsPageInput = {
   body?: unknown;
   contentData?: unknown;
   data?: unknown;
-  isPublished?: boolean | null | undefined;
   locale: string;
   metaDescription?: string | null | undefined;
   metaKeywords?: string | null | undefined;
@@ -117,7 +116,6 @@ export type CreateCmsPageInput = {
   parentId?: string | number | null | undefined;
   position?: number | null | undefined;
   privateMetadata?: Array<MetadataInput> | null | undefined;
-  publishedAt?: string | null | undefined;
   relationships?: Array<CmsPageRelationshipInput> | null | undefined;
   selections?: Array<CmsPageSelectionInput> | null | undefined;
   seoNoindex?: boolean | null | undefined;
@@ -128,7 +126,6 @@ export type CreateCmsPageInput = {
 export type CreateCmsPageTypeInput = {
   description?: string | null | undefined;
   icon?: string | null | undefined;
-  isSystem?: boolean | null | undefined;
   locale: string;
   name: string;
   position?: number | null | undefined;
@@ -180,15 +177,12 @@ export type UpdateCmsBlockTypeInput = {
 
 export type UpdateCmsPageInput = {
   clearParent?: boolean | null | undefined;
-  clearPublished?: boolean | null | undefined;
   data?: unknown;
   id: string | number;
-  isPublished?: boolean | null | undefined;
   metadata?: Array<MetadataInput> | null | undefined;
   parentId?: string | number | null | undefined;
   position?: number | null | undefined;
   privateMetadata?: Array<MetadataInput> | null | undefined;
-  publishedAt?: string | null | undefined;
   seoNoindex?: boolean | null | undefined;
   slug?: string | null | undefined;
   tags?: Array<string> | null | undefined;

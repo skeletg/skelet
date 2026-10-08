@@ -2,18 +2,19 @@ package content
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
 func TestValidateSlug(t *testing.T) {
 	sentinel := errors.New("invalid slug")
-	ok := []string{"hello", "hello-world", "a_b.c", "p123", "2024-summer-sale"}
+	ok := []string{"hello", "hello-world", "a_b.c", "p123", "2024-summer-sale", "...", strings.Repeat("a", MaxSlugLength)}
 	for _, s := range ok {
 		if err := ValidateSlug(s, sentinel); err != nil {
 			t.Errorf("ValidateSlug(%q) = %v, want nil", s, err)
 		}
 	}
-	bad := []string{"", "Hello", "white space", "café", "a/b", "UPPER"}
+	bad := []string{"", "Hello", "white space", "café", "a/b", "UPPER", ".", "..", strings.Repeat("a", MaxSlugLength+1)}
 	for _, s := range bad {
 		err := ValidateSlug(s, sentinel)
 		if err == nil {

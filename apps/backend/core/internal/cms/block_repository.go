@@ -11,6 +11,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 )
 
 func toSnippet(r db.CmsSnippet) Snippet {
@@ -62,10 +63,10 @@ func (r *postgresRepository) ListSnippets(ctx context.Context) ([]Snippet, error
 	return out, nil
 }
 
-func (r *postgresRepository) UpdateSnippet(ctx context.Context, id uuid.UUID, name string, blocks json.RawMessage) (Snippet, error) {
+func (r *postgresRepository) UpdateSnippet(ctx context.Context, id uuid.UUID, name *string, blocks json.RawMessage) (Snippet, error) {
 	row, err := r.queries.UpdateCMSSnippet(ctx, db.UpdateCMSSnippetParams{
 		ID:     id,
-		Name:   sql.NullString{String: name, Valid: true},
+		Name:   sqlnull.String(name),
 		Blocks: pqtype.NullRawMessage{RawMessage: blocks, Valid: blocks != nil},
 	})
 	if err != nil {
@@ -89,6 +90,9 @@ func toBlockType(r db.CmsBlockType) BlockType {
 }
 
 func (r *postgresRepository) CreateBlockType(ctx context.Context, key, name, icon string, fields json.RawMessage, html string) (BlockType, error) {
+	if len(fields) == 0 {
+		fields = json.RawMessage(`[]`)
+	}
 	row, err := r.queries.CreateCMSBlockType(ctx, db.CreateCMSBlockTypeParams{Key: key, Name: name, Icon: icon, Fields: fields, HtmlTemplate: html})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -122,13 +126,13 @@ func (r *postgresRepository) ListBlockTypes(ctx context.Context) ([]BlockType, e
 	return out, nil
 }
 
-func (r *postgresRepository) UpdateBlockType(ctx context.Context, id uuid.UUID, name, icon string, fields json.RawMessage, html string) (BlockType, error) {
+func (r *postgresRepository) UpdateBlockType(ctx context.Context, id uuid.UUID, in BlockTypePatch) (BlockType, error) {
 	row, err := r.queries.UpdateCMSBlockType(ctx, db.UpdateCMSBlockTypeParams{
 		ID:           id,
-		Name:         sql.NullString{String: name, Valid: true},
-		Icon:         sql.NullString{String: icon, Valid: true},
-		Fields:       pqtype.NullRawMessage{RawMessage: fields, Valid: fields != nil},
-		HtmlTemplate: sql.NullString{String: html, Valid: true},
+		Name:         sqlnull.String(in.Name),
+		Icon:         sqlnull.String(in.Icon),
+		Fields:       pqtype.NullRawMessage{RawMessage: in.Fields, Valid: in.Fields != nil},
+		HtmlTemplate: sqlnull.String(in.HTMLTemplate),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

@@ -12,18 +12,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/blockkit"
-	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
 
 // WithTx hands back the full repository, so transaction bodies aren't narrowed
 type pageStore interface {
 	CountPagesByType(ctx context.Context, pageTypeID uuid.UUID) (int64, error)
 	CreateRevision(ctx context.Context, pageID uuid.UUID, in PageContentInput, author *uuid.UUID) (PageRevision, error)
-	DeletePage(ctx context.Context, id uuid.UUID) error
 	DeletePageChannelListing(ctx context.Context, pageID, channelID uuid.UUID) error
 	DeletePageContent(ctx context.Context, pageID uuid.UUID, locale string) error
-	DeletePageVariantContent(ctx context.Context, pageID uuid.UUID, locale, variantKey string) error
-	GetAttributeByID(ctx context.Context, id uuid.UUID) (Attribute, error)
 	GetHomePageForChannel(ctx context.Context, channelID uuid.UUID) (Page, error)
 	GetPageByID(ctx context.Context, id uuid.UUID) (Page, error)
 	GetPageBySlug(ctx context.Context, slug string) (Page, error)
@@ -34,36 +30,34 @@ type pageStore interface {
 	GetPublishedPageByURLPathForChannel(ctx context.Context, urlPath string, channelID uuid.UUID) (Page, error)
 	GetPublishedPageForChannel(ctx context.Context, pageID, channelID uuid.UUID) (Page, error)
 	GetRevision(ctx context.Context, id uuid.UUID) (PageRevision, error)
-	GoLive(ctx context.Context, id uuid.UUID, publishedAt time.Time, clearSchedule bool) (Page, error)
+	GoLive(ctx context.Context, id uuid.UUID, publishedAt time.Time) (Page, error)
+	GoLiveScheduled(ctx context.Context, id uuid.UUID, publishedAt, seenSchedule time.Time) (bool, error)
 	ListDueScheduledPages(ctx context.Context) ([]Page, error)
 	ListPageChannelListings(ctx context.Context, pageID uuid.UUID) ([]PageChannelListing, error)
-	ListPageChildren(ctx context.Context, parentID uuid.UUID) ([]Page, error)
 	ListPageContentByScope(ctx context.Context, pageIDs []uuid.UUID, locale string) (map[uuid.UUID]PageContent, error)
 	ListPageContentFor(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PageContent, error)
 	ListPageVariantContent(ctx context.Context, pageID uuid.UUID, locale string) ([]PageVariant, error)
 	ListPages(ctx context.Context, filter PageListFilter) ([]Page, error)
 	ListPagesSearch(ctx context.Context, filter PageListFilter, locale, query string) ([]Page, error)
 	ListRevisions(ctx context.Context, pageID uuid.UUID, locale string, limit int32) ([]PageRevision, error)
+	PageInAncestry(ctx context.Context, pageID, candidate uuid.UUID, maxDepth int32) (bool, int32, error)
 	PageSlugExists(ctx context.Context, slug string) (bool, error)
 	PruneRevisions(ctx context.Context, pageID uuid.UUID, locale string, keep int32) error
+	RelationshipTargetExists(ctx context.Context, target RelationshipTarget, id uuid.UUID) (bool, error)
 	SetPagePublished(ctx context.Context, id uuid.UUID, isPublished bool, publishedAt *time.Time) (Page, error)
-	SetPageRelationships(ctx context.Context, pageID, attributeID uuid.UUID, refs []PageRelationship) error
-	SetPageSelections(ctx context.Context, pageID, attributeID uuid.UUID, valueIDs []uuid.UUID) error
 	SetScheduledAt(ctx context.Context, pageID uuid.UUID, at *time.Time) (Page, error)
-	UpdatePage(ctx context.Context, in UpdatePageInput) (Page, error)
 	UpdatePageExperimentKey(ctx context.Context, id uuid.UUID, key string) error
-	UpdatePagePaths(ctx context.Context, id uuid.UUID, basePath, urlPath string) error
-	UpsertPageContent(ctx context.Context, pageID uuid.UUID, in PageContentInput) (PageContent, error)
-	UpsertPageVariantContent(ctx context.Context, pageID uuid.UUID, locale, variantKey string, body json.RawMessage) error
 	WithTx(t *sql.Tx) *postgresRepository
 }
+
+const maxPageDepth = 32
 
 func (s *pageService) CreatePage(ctx context.Context, in CreatePageInput) (Page, error) {
 	if err := validateSlug(in.Slug); err != nil {
 		return Page{}, err
 	}
 	if strings.TrimSpace(in.Locale) == "" || strings.TrimSpace(in.Title) == "" {
-		return Page{}, fmt.Errorf("locale and title are required")
+		return Page{}, fmt.Errorf("%w: locale and title", ErrRequiredFieldMissing)
 	}
 	pt, err := s.repo.GetPageTypeWithAttributes(ctx, in.PageTypeID)
 	if err != nil {
@@ -87,8 +81,14 @@ func (s *pageService) CreatePage(ctx context.Context, in CreatePageInput) (Page,
 			}
 		}
 	}
+	if err := s.checkBody(ctx, in.Body); err != nil {
+		return Page{}, err
+	}
 	scalarData, contentData, sels, rels, err := s.validatePageData(pt, in.Data, in.ContentData, in.Selections, in.Relationships)
 	if err != nil {
+		return Page{}, err
+	}
+	if err := s.checkRelationshipTargets(ctx, rels); err != nil {
 		return Page{}, err
 	}
 	// Seed attribute defaults for keys the page didn't supply
@@ -103,29 +103,18 @@ func (s *pageService) CreatePage(ctx context.Context, in CreatePageInput) (Page,
 	if err != nil {
 		return Page{}, err
 	}
-	globalPath := joinRoot(pt.RootSlug, basePath)
 	// Pre-flight - reject before creating the row if any scope's path collides
 	if s.urlRewrites != nil {
-		for _, sp := range desiredPageURLs(basePath, pt) {
-			conflict, err := s.urlRewrites.PathConflictForChannel(ctx, sp.path, entityCMSPage, uuid.Nil, sp.channelID)
-			if err != nil {
-				return Page{}, err
-			}
-			if conflict {
-				return Page{}, ErrURLPathConflict
-			}
+		if err := checkPageURLs(ctx, s.urlRewrites, uuid.Nil, desiredPageURLs(basePath, pt)); err != nil {
+			return Page{}, err
 		}
 	}
 
 	in.Data = scalarData
 	var created Page
-	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		r := s.repo.WithTx(t)
+	if err := s.inURLTx(ctx, func(r *postgresRepository, rw UrlRewriteSyncer) error {
 		p, err := r.CreatePage(ctx, in)
 		if err != nil {
-			return err
-		}
-		if err := r.UpdatePagePaths(ctx, p.ID, basePath, globalPath); err != nil {
 			return err
 		}
 		if _, err := r.UpsertPageContent(ctx, p.ID, PageContentInput{
@@ -162,29 +151,18 @@ func (s *pageService) CreatePage(ctx context.Context, in CreatePageInput) (Page,
 				}
 			}
 		}
-		p.BasePath = basePath
-		p.URLPath = globalPath
 		created = p
-		return nil
+		return syncPageURLs(ctx, r, rw, p.ID, basePath, pt, nil)
 	}); err != nil {
 		return Page{}, err
 	}
 
-	if s.urlRewrites != nil {
-		if _, err := s.syncPageURLs(ctx, created.ID, basePath, pt, nil); err != nil {
-			return Page{}, err
-		}
-	}
 	// Capture the initial version in the revision history (best-effort)
-	var author *uuid.UUID
-	if claims, ok := auth.AdminFromContext(ctx); ok {
-		author = &claims.AdminID
-	}
 	_, _ = s.repo.CreateRevision(ctx, created.ID, PageContentInput{
 		Locale: in.Locale, Title: in.Title, Body: in.Body,
 		MetaTitle: in.MetaTitle, MetaDescription: in.MetaDescription, MetaKeywords: in.MetaKeywords,
 		Data: in.ContentData,
-	}, author)
+	}, adminPtr(ctx))
 	return s.repo.GetPageByID(ctx, created.ID)
 }
 
@@ -208,16 +186,14 @@ func (s *pageService) ClonePage(ctx context.Context, sourceID uuid.UUID) (Page, 
 	// Seed CreatePage with the primary locale - the default locale's content when present, else the first row - and replicate the rest afterwards
 	primary, others := splitPrimaryContent(src.AllContent, s.resolveDefaultLocale(ctx))
 	if primary == nil {
-		return Page{}, fmt.Errorf("source page has no content to clone")
+		return Page{}, fmt.Errorf("%w: the source page has none to clone", ErrPageContentNotFound)
 	}
 	created, err := s.CreatePage(ctx, CreatePageInput{
 		PageTypeID:      src.PageTypeID,
 		ParentID:        src.ParentID,
 		Slug:            slug,
 		Position:        src.Position,
-		IsPublished:     false,
 		SEONoindex:      src.SEONoindex,
-		PublishedAt:     nil,
 		Data:            src.Data,
 		Metadata:        src.Metadata,
 		PrivateMetadata: src.PrivateMetadata,
@@ -302,10 +278,12 @@ func splitPrimaryContent(all []PageContent, defaultLocale string) (*PageContent,
 	return &primary, others
 }
 
-// "<base>-copy", then "-copy-2" and so on, taking the first variant not already used so the clone's derived URL paths don't collide - falls back to a random suffix after 50
+const maxCopySlugAttempts = 50
+
+// "<base>-copy", then "-copy-2" and so on, taking the first variant not already used so the clone's derived URL paths don't collide - falls back to a random suffix after maxCopySlugAttempts
 func (s *pageService) uniqueCopySlug(ctx context.Context, base string) (string, error) {
 	candidate := base + "-copy"
-	for i := 1; i <= 50; i++ {
+	for i := 1; i <= maxCopySlugAttempts; i++ {
 		if i > 1 {
 			candidate = fmt.Sprintf("%s-copy-%d", base, i)
 		}
@@ -321,30 +299,15 @@ func (s *pageService) uniqueCopySlug(ctx context.Context, base string) (string, 
 }
 
 func (s *pageService) GetPage(ctx context.Context, id uuid.UUID, locale string) (Page, error) {
-	p, err := s.repo.GetPageByID(ctx, id)
-	if err != nil {
-		return Page{}, err
-	}
-	s.fillPageContent(ctx, &p, locale)
-	return p, nil
+	return s.localized(ctx, locale)(s.repo.GetPageByID(ctx, id))
 }
 
 func (s *pageService) GetPageBySlug(ctx context.Context, slug, locale string) (Page, error) {
-	p, err := s.repo.GetPageBySlug(ctx, slug)
-	if err != nil {
-		return Page{}, err
-	}
-	s.fillPageContent(ctx, &p, locale)
-	return p, nil
+	return s.localized(ctx, locale)(s.repo.GetPageBySlug(ctx, slug))
 }
 
 func (s *pageService) GetPageByURLPath(ctx context.Context, urlPath, locale string) (Page, error) {
-	p, err := s.repo.GetPageByURLPath(ctx, urlPath)
-	if err != nil {
-		return Page{}, err
-	}
-	s.fillPageContent(ctx, &p, locale)
-	return p, nil
+	return s.localized(ctx, locale)(s.repo.GetPageByURLPath(ctx, urlPath))
 }
 
 func (s *pageService) ListPages(ctx context.Context, filter PageListFilter, locale string) ([]Page, error) {
@@ -370,45 +333,26 @@ func (s *pageService) ListPages(ctx context.Context, filter PageListFilter, loca
 	return s.hydratePageContent(ctx, pages, locale)
 }
 
-// Batch-loads each page's Content for the requested locale, falling back to the default for any still missing it - repo list queries don't hydrate AllContent the way GetPageByID does, so this loads Content directly, as blog's ListPosts does - A "" locale is a no-op
+// Batch-loads each page's Content, one query per fallback locale for the pages still missing it - repo list queries don't hydrate AllContent the way GetPageByID does, so this loads Content directly, as blog's ListPosts does - A "" locale is a no-op
 func (s *pageService) hydratePageContent(ctx context.Context, pages []Page, locale string) ([]Page, error) {
-	if len(pages) == 0 || locale == "" {
-		return pages, nil
-	}
-	ids := make([]uuid.UUID, len(pages))
-	for i, p := range pages {
-		ids[i] = p.ID
-	}
-	batch, err := s.repo.ListPageContentByScope(ctx, ids, locale)
-	if err != nil {
-		return nil, err
-	}
-	for i, p := range pages {
-		if c, ok := batch[p.ID]; ok {
-			cp := c
-			pages[i].Content = &cp
-		}
-	}
-	if def := s.resolveDefaultLocale(ctx); def != "" && def != locale {
+	for _, loc := range s.contentLocales(ctx, locale) {
 		var missing []uuid.UUID
 		for _, p := range pages {
 			if p.Content == nil {
 				missing = append(missing, p.ID)
 			}
 		}
-		if len(missing) > 0 {
-			fb, err := s.repo.ListPageContentByScope(ctx, missing, def)
-			if err != nil {
-				return nil, err
-			}
-			for i, p := range pages {
-				if p.Content != nil {
-					continue
-				}
-				if c, ok := fb[p.ID]; ok {
-					cp := c
-					pages[i].Content = &cp
-				}
+		if len(missing) == 0 {
+			break
+		}
+		batch, err := s.repo.ListPageContentByScope(ctx, missing, loc)
+		if err != nil {
+			return nil, err
+		}
+		for i, p := range pages {
+			if c, ok := batch[p.ID]; ok && p.Content == nil {
+				cp := c
+				pages[i].Content = &cp
 			}
 		}
 	}
@@ -439,61 +383,123 @@ func (s *pageService) UpdatePage(ctx context.Context, in UpdatePageInput) (Page,
 		in.Data = scalarData
 	}
 
-	updated, err := s.repo.UpdatePage(ctx, in)
-	if err != nil {
+	parent := current.ParentID
+	if in.ClearParent {
+		parent = nil
+	} else if in.ParentID != nil {
+		if err := s.checkParent(ctx, in.ID, *in.ParentID); err != nil {
+			return Page{}, err
+		}
+		parent = in.ParentID
+	}
+	slug := current.Slug
+	if in.Slug != nil {
+		slug = *in.Slug
+	}
+	moved := slug != current.Slug || !sameParent(parent, current.ParentID)
+
+	var (
+		pt      PageType
+		newBase string
+	)
+	if moved {
+		if newBase, err = s.pageBasePath(ctx, slug, parent); err != nil {
+			return Page{}, err
+		}
+		if pt, err = s.repo.GetPageTypeByID(ctx, current.PageTypeID); err != nil {
+			return Page{}, err
+		}
+		// Pre-flight the page's own new paths before touching anything - descendants are checked inside the tx, which a clash rolls back
+		if s.urlRewrites != nil {
+			if err := checkPageURLs(ctx, s.urlRewrites, in.ID, desiredPageURLs(newBase, pt)); err != nil {
+				return Page{}, err
+			}
+		}
+	}
+
+	var descendants []Page
+	if err := s.inURLTx(ctx, func(r *postgresRepository, rw UrlRewriteSyncer) error {
+		if _, err := r.UpdatePage(ctx, in); err != nil {
+			return err
+		}
+		if in.Data != nil {
+			if err := r.DemoteApproved(ctx, in.ID); err != nil {
+				return err
+			}
+		}
+		if !moved {
+			return nil
+		}
+		if err := syncPageURLs(ctx, r, rw, in.ID, newBase, pt, desiredPageURLs(current.BasePath, pt)); err != nil {
+			return err
+		}
+		if newBase == current.BasePath {
+			return nil
+		}
+		return s.propagatePageURLPaths(ctx, r, rw, in.ID, newBase, 1, &descendants)
+	}); err != nil {
 		return Page{}, err
 	}
 
-	if (in.Slug != nil && *in.Slug != current.Slug) ||
-		(in.ParentID != nil && (current.ParentID == nil || *in.ParentID != *current.ParentID)) ||
-		(in.ClearParent && current.ParentID != nil) {
-		oldBasePath := current.BasePath
-		newBasePath, err := s.pageBasePath(ctx, updated.Slug, updated.ParentID)
-		if err != nil {
-			return Page{}, err
-		}
-		pt, err := s.repo.GetPageTypeByID(ctx, current.PageTypeID)
-		if err != nil {
-			return Page{}, err
-		}
-		if s.urlRewrites != nil {
-			if _, err := s.syncPageURLs(ctx, updated.ID, newBasePath, pt, desiredPageURLs(oldBasePath, pt)); err != nil {
-				return Page{}, err
-			}
-		} else {
-			_ = s.repo.UpdatePagePaths(ctx, updated.ID, newBasePath, joinRoot(pt.RootSlug, newBasePath))
-		}
-		if newBasePath != oldBasePath {
-			if err := s.propagatePageURLPaths(ctx, updated.ID, newBasePath); err != nil {
-				return Page{}, err
-			}
-		}
+	var oldPaths []string
+	if moved {
+		oldPaths = publicPaths(current.BasePath, pt)
 	}
+	s.announceChanged(ctx, current, oldPaths...)
+	for _, d := range descendants {
+		s.announceChanged(ctx, d, d.URLPath)
+	}
+	return s.repo.GetPageByID(ctx, in.ID)
+}
 
-	return s.repo.GetPageByID(ctx, updated.ID)
+func sameParent(a, b *uuid.UUID) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
+func (s *pageService) checkParent(ctx context.Context, pageID, parentID uuid.UUID) error {
+	if parentID == pageID {
+		return ErrPageCycle
+	}
+	found, depth, err := s.repo.PageInAncestry(ctx, pageID, parentID, maxPageDepth+1)
+	if err != nil {
+		return err
+	}
+	if found {
+		return ErrPageCycle
+	}
+	if depth == 0 {
+		return ErrPageNotFound
+	}
+	if depth >= maxPageDepth {
+		return ErrPageTooDeep
+	}
+	return nil
 }
 
 // propagatePageURLPaths recomputes descendants' paths after an ancestor's base path changed - Each child's base =
-// parentBasePath + "/" + childSlug; its public URLs derive from its OWN type's root(s)
-func (s *pageService) propagatePageURLPaths(ctx context.Context, parentID uuid.UUID, parentBasePath string) error {
-	children, err := s.repo.ListPageChildren(ctx, parentID)
+// parentBasePath + "/" + childSlug; its public URLs derive from its OWN type's root(s) - moved collects each descendant as it was
+func (s *pageService) propagatePageURLPaths(ctx context.Context, r *postgresRepository, rw UrlRewriteSyncer, parentID uuid.UUID, parentBasePath string, depth int, moved *[]Page) error {
+	if depth > maxPageDepth {
+		return ErrPageTooDeep
+	}
+	children, err := r.ListPageChildren(ctx, parentID)
 	if err != nil {
 		return err
 	}
 	for _, ch := range children {
 		newBase := parentBasePath + "/" + ch.Slug
-		pt, err := s.repo.GetPageTypeByID(ctx, ch.PageTypeID)
+		pt, err := r.GetPageTypeByID(ctx, ch.PageTypeID)
 		if err != nil {
 			return err
 		}
-		if s.urlRewrites != nil {
-			if _, err := s.syncPageURLs(ctx, ch.ID, newBase, pt, desiredPageURLs(ch.BasePath, pt)); err != nil {
-				return err
-			}
-		} else {
-			_ = s.repo.UpdatePagePaths(ctx, ch.ID, newBase, joinRoot(pt.RootSlug, newBase))
+		if err := syncPageURLs(ctx, r, rw, ch.ID, newBase, pt, desiredPageURLs(ch.BasePath, pt)); err != nil {
+			return err
 		}
-		if err := s.propagatePageURLPaths(ctx, ch.ID, newBase); err != nil {
+		*moved = append(*moved, ch)
+		if err := s.propagatePageURLPaths(ctx, r, rw, ch.ID, newBase, depth+1, moved); err != nil {
 			return err
 		}
 	}
@@ -525,6 +531,12 @@ func (s *pageService) announcePublished(ctx context.Context, p Page) {
 	}
 }
 
+func (s *pageService) announceUnpublished(ctx context.Context, p Page) {
+	if s.bus != nil {
+		s.bus.Publish(ctx, &PageUnpublished{PageID: p.ID, PageTypeID: p.PageTypeID, Slug: p.Slug, URLPath: p.URLPath})
+	}
+}
+
 func (s *pageService) PublishPage(ctx context.Context, id uuid.UUID) (Page, error) {
 	current, err := s.repo.GetPageByID(ctx, id)
 	if err != nil {
@@ -533,7 +545,7 @@ func (s *pageService) PublishPage(ctx context.Context, id uuid.UUID) (Page, erro
 	if err := s.admitPublish(ctx, current, s.requireApproval(ctx)); err != nil {
 		return Page{}, err
 	}
-	if _, err := s.repo.GoLive(ctx, id, publishDate(current, time.Now()), false); err != nil {
+	if _, err := s.repo.GoLive(ctx, id, publishDate(current, time.Now())); err != nil {
 		return Page{}, err
 	}
 	if !current.IsPublished {
@@ -547,27 +559,22 @@ func (s *pageService) UnpublishPage(ctx context.Context, id uuid.UUID) (Page, er
 	if err != nil {
 		return Page{}, err
 	}
-	_, err = s.repo.SetPagePublished(ctx, id, false, current.PublishedAt)
-	if err != nil {
+	if _, err := s.repo.SetPagePublished(ctx, id, false, current.PublishedAt); err != nil {
 		return Page{}, err
 	}
-	if s.bus != nil && current.IsPublished {
-		s.bus.Publish(ctx, &PageUnpublished{
-			PageID:     current.ID,
-			PageTypeID: current.PageTypeID,
-			Slug:       current.Slug,
-			URLPath:    current.URLPath,
-		})
+	if current.IsPublished {
+		s.announceUnpublished(ctx, current)
 	}
 	return s.repo.GetPageByID(ctx, id)
 }
 
 func (s *pageService) DeletePage(ctx context.Context, id uuid.UUID) error {
-	if err := s.repo.DeletePage(ctx, id); err != nil {
+	n, err := s.BulkDelete(ctx, []uuid.UUID{id})
+	if err != nil {
 		return err
 	}
-	if s.urlRewrites != nil {
-		_ = s.urlRewrites.DeleteAllForEntity(ctx, entityCMSPage, id)
+	if n == 0 {
+		return ErrPageNotFound
 	}
 	return nil
 }
@@ -607,7 +614,7 @@ func (s *pageService) BulkSetPublished(ctx context.Context, ids []uuid.UUID, pub
 		if published {
 			now := time.Now()
 			for _, p := range admitted {
-				if _, err := r.GoLive(ctx, p.ID, publishDate(p, now), false); err != nil {
+				if _, err := r.GoLive(ctx, p.ID, publishDate(p, now)); err != nil {
 					return err
 				}
 				changed = append(changed, p)
@@ -631,29 +638,28 @@ func (s *pageService) BulkSetPublished(ctx context.Context, ids []uuid.UUID, pub
 	}); err != nil {
 		return 0, err
 	}
-	if s.bus != nil {
-		for _, p := range changed {
-			if published {
-				s.announcePublished(ctx, p)
-			} else {
-				s.bus.Publish(ctx, &PageUnpublished{PageID: p.ID, PageTypeID: p.PageTypeID, Slug: p.Slug, URLPath: p.URLPath})
-			}
+	for _, p := range changed {
+		if published {
+			s.announcePublished(ctx, p)
+		} else {
+			s.announceUnpublished(ctx, p)
 		}
 	}
 	return len(changed), nil
 }
 
 // Adds and removes tag slugs across many pages in one transaction - per page it removes the removeTags, unions the addTags, normalizes and persists
-// Tag inputs are lower-cased and trimmed to match how pages store them
+// Tag inputs are slugified to match how pages store them
 func (s *pageService) BulkTag(ctx context.Context, ids []uuid.UUID, addTags, removeTags []string) (int, error) {
 	add := normalizeTags(addTags)
 	remove := make(map[string]struct{})
 	for _, t := range normalizeTags(removeTags) {
 		remove[t] = struct{}{}
 	}
-	n := 0
+	var tagged []Page
 	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		r := s.repo.WithTx(t)
+		tagged = tagged[:0]
 		for _, id := range ids {
 			p, err := r.GetPageByID(ctx, id)
 			if err != nil {
@@ -671,46 +677,70 @@ func (s *pageService) BulkTag(ctx context.Context, ids []uuid.UUID, addTags, rem
 			if err := r.SetPageTags(ctx, id, normalizeTags(kept)); err != nil {
 				return err
 			}
-			n++
+			tagged = append(tagged, p)
 		}
 		return nil
 	}); err != nil {
 		return 0, err
 	}
-	return n, nil
+	for _, p := range tagged {
+		s.announceChanged(ctx, p)
+	}
+	return len(tagged), nil
 }
 
-// Deletes many pages in one all-or-nothing transaction - a page that parents another can't be deleted under FK RESTRICT, which fails the whole batch and leaves every page intact
-// URL rewrites are cleaned post-commit, mirroring single-page DeletePage
+// Deletes many pages in one all-or-nothing transaction, their URL rewrites with them - a page that parents another can't be deleted under FK RESTRICT, which fails the whole batch and leaves every page intact
 func (s *pageService) BulkDelete(ctx context.Context, ids []uuid.UUID) (int, error) {
-	if err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		r := s.repo.WithTx(t)
+	var gone []Page
+	types := map[uuid.UUID]PageType{}
+	for _, id := range ids {
+		p, err := s.repo.GetPageByID(ctx, id)
+		if errors.Is(err, ErrPageNotFound) {
+			continue
+		}
+		if err != nil {
+			return 0, err
+		}
+		if _, ok := types[p.PageTypeID]; !ok {
+			pt, err := s.repo.GetPageTypeByID(ctx, p.PageTypeID)
+			if err != nil {
+				return 0, err
+			}
+			types[p.PageTypeID] = pt
+		}
+		gone = append(gone, p)
+	}
+	var total int64
+	if err := s.inURLTx(ctx, func(r *postgresRepository, rw UrlRewriteSyncer) error {
+		total = 0
 		for _, id := range ids {
-			if err := r.DeletePage(ctx, id); err != nil {
+			n, err := r.DeletePage(ctx, id)
+			if err != nil {
 				return fmt.Errorf("delete page %s: %w", id, err)
+			}
+			total += n
+			if rw != nil && n > 0 {
+				if err := rw.DeleteAllForEntity(ctx, entityCMSPage, id); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
 	}); err != nil {
 		return 0, err
 	}
-	if s.urlRewrites != nil {
-		for _, id := range ids {
-			_ = s.urlRewrites.DeleteAllForEntity(ctx, entityCMSPage, id)
-		}
+	for _, p := range gone {
+		s.announceChanged(ctx, p, publicPaths(p.BasePath, types[p.PageTypeID])...)
 	}
-	return len(ids), nil
+	return int(total), nil
 }
 
 func (s *pageService) UpsertPageContent(ctx context.Context, pageID uuid.UUID, in PageContentInput) (Page, error) {
 	if strings.TrimSpace(in.Locale) == "" || strings.TrimSpace(in.Title) == "" {
-		return Page{}, fmt.Errorf("locale and title are required")
+		return Page{}, fmt.Errorf("%w: locale and title", ErrRequiredFieldMissing)
 	}
-	// When the body is a block document from the page builder, validate the block tree - freeform bodies pass through untouched
-	if doc, ok := blockkit.ParseDocument(in.Body); ok {
-		if err := blockkit.Validate(doc, s.customTypeChecker(ctx)); err != nil {
-			return Page{}, fmt.Errorf("invalid page layout: %w", err)
-		}
+	if err := s.checkBody(ctx, in.Body); err != nil {
+		return Page{}, err
 	}
 	if s.locales != nil {
 		if err := s.locales.EnsureExists(ctx, in.Locale); err != nil {
@@ -732,54 +762,91 @@ func (s *pageService) UpsertPageContent(ctx context.Context, pageID uuid.UUID, i
 		}
 		in.Data = contentData
 	}
-	if _, err := s.repo.UpsertPageContent(ctx, pageID, in); err != nil {
+	if err := s.editContent(ctx, pageID, func(r *postgresRepository) error {
+		_, err := r.UpsertPageContent(ctx, pageID, in)
+		return err
+	}); err != nil {
 		return Page{}, err
 	}
-	// Snapshot this saved version into the revision history, keeping the last 50 - best-effort, since a revision or prune failure must not fail the save
-	var author *uuid.UUID
-	if claims, ok := auth.AdminFromContext(ctx); ok {
-		author = &claims.AdminID
+	// Snapshot this saved version into the revision history, keeping the last revisionRetention - best-effort, since a revision or prune failure must not fail the save
+	if _, err := s.repo.CreateRevision(ctx, pageID, in, adminPtr(ctx)); err == nil {
+		_ = s.repo.PruneRevisions(ctx, pageID, in.Locale, revisionRetention)
 	}
-	if _, err := s.repo.CreateRevision(ctx, pageID, in, author); err == nil {
-		_ = s.repo.PruneRevisions(ctx, pageID, in.Locale, 50)
-	}
+	s.announceChanged(ctx, page)
 	return s.repo.GetPageByID(ctx, pageID)
+}
+
+// A content or data write plus the approval it voids, in one tx - an approved page that changes must be reviewed again
+func (s *pageService) editContent(ctx context.Context, pageID uuid.UUID, write func(r *postgresRepository) error) error {
+	return s.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		r := s.repo.WithTx(t)
+		if err := write(r); err != nil {
+			return err
+		}
+		return r.DemoteApproved(ctx, pageID)
+	})
 }
 
 func (s *pageService) DeletePageContent(ctx context.Context, pageID uuid.UUID, locale string) error {
-	return s.repo.DeletePageContent(ctx, pageID, locale)
+	page, err := s.repo.GetPageByID(ctx, pageID)
+	if err != nil {
+		return err
+	}
+	if err := s.editContent(ctx, pageID, func(r *postgresRepository) error {
+		return r.DeletePageContent(ctx, pageID, locale)
+	}); err != nil {
+		return err
+	}
+	s.announceChanged(ctx, page)
+	return nil
 }
 
-// Replaces a page's select or multiselect choices for one attribute - validates that the attribute is a select type and accepts the given value IDs
+func (s *pageService) pageAttribute(ctx context.Context, page Page, attributeID uuid.UUID) (PageType, Attribute, error) {
+	pt, err := s.repo.GetPageTypeWithAttributes(ctx, page.PageTypeID)
+	if err != nil {
+		return PageType{}, Attribute{}, err
+	}
+	for _, pta := range pt.Attributes {
+		if pta.Attribute.ID == attributeID {
+			return pt, pta.Attribute, nil
+		}
+	}
+	return PageType{}, Attribute{}, fmt.Errorf("%w: attribute not on page type", ErrInvalidFieldValue)
+}
+
+// Replaces a page's select or multiselect choices for one attribute - the attribute must be on the page's type, a select type, and own every value
 func (s *pageService) SetPageSelections(ctx context.Context, pageID, attributeID uuid.UUID, valueIDs []uuid.UUID) (Page, error) {
-	a, err := s.repo.GetAttributeByID(ctx, attributeID)
+	page, err := s.repo.GetPageByID(ctx, pageID)
 	if err != nil {
 		return Page{}, err
 	}
-	if !a.InputType.AcceptsValues() {
-		return Page{}, ErrValuesNotApplicable
-	}
-	allowed := make(map[uuid.UUID]struct{}, len(a.Values))
-	for _, v := range a.Values {
-		allowed[v.ID] = struct{}{}
-	}
-	for _, vid := range valueIDs {
-		if _, ok := allowed[vid]; !ok {
-			return Page{}, fmt.Errorf("%w: value %s not in attribute %s", ErrInvalidFieldValue, vid, a.Slug)
-		}
-	}
-	if a.InputType == InputSelect && len(valueIDs) > 1 {
-		return Page{}, fmt.Errorf("%w: select accepts at most one value", ErrInvalidFieldValue)
-	}
-	if err := s.repo.SetPageSelections(ctx, pageID, attributeID, valueIDs); err != nil {
+	pt, _, err := s.pageAttribute(ctx, page, attributeID)
+	if err != nil {
 		return Page{}, err
 	}
+	sels := make([]PageAttributeSelection, len(valueIDs))
+	for i, vid := range valueIDs {
+		sels[i] = PageAttributeSelection{AttributeID: attributeID, ValueID: vid}
+	}
+	if _, _, _, _, err := s.validatePageData(pt, nil, nil, sels, nil); err != nil {
+		return Page{}, err
+	}
+	if err := s.editContent(ctx, pageID, func(r *postgresRepository) error {
+		return r.SetPageSelections(ctx, pageID, attributeID, valueIDs)
+	}); err != nil {
+		return Page{}, err
+	}
+	s.announceChanged(ctx, page)
 	return s.repo.GetPageByID(ctx, pageID)
 }
 
-// Replaces the entity references for a relationship attribute - targets are validated against the attribute's declared relationship target, and position comes from list order
+// Replaces the entity references for a relationship attribute - targets are validated against the attribute's declared relationship target and must exist, and position comes from list order
 func (s *pageService) SetPageRelationships(ctx context.Context, pageID, attributeID uuid.UUID, refs []PageRelationship) (Page, error) {
-	a, err := s.repo.GetAttributeByID(ctx, attributeID)
+	page, err := s.repo.GetPageByID(ctx, pageID)
+	if err != nil {
+		return Page{}, err
+	}
+	pt, a, err := s.pageAttribute(ctx, page, attributeID)
 	if err != nil {
 		return Page{}, err
 	}
@@ -788,24 +855,48 @@ func (s *pageService) SetPageRelationships(ctx context.Context, pageID, attribut
 	}
 	out := make([]PageRelationship, len(refs))
 	for i, rl := range refs {
-		if a.RelationshipTarget != nil && rl.TargetType != *a.RelationshipTarget {
-			return Page{}, fmt.Errorf("%w: relationship target must be %s", ErrInvalidFieldValue, *a.RelationshipTarget)
-		}
 		rl.AttributeID = attributeID
 		rl.Position = int32(i)
 		out[i] = rl
 	}
-	if err := s.repo.SetPageRelationships(ctx, pageID, attributeID, out); err != nil {
+	if _, _, _, _, err := s.validatePageData(pt, nil, nil, nil, out); err != nil {
 		return Page{}, err
 	}
+	if err := s.checkRelationshipTargets(ctx, out); err != nil {
+		return Page{}, err
+	}
+	if err := s.editContent(ctx, pageID, func(r *postgresRepository) error {
+		return r.SetPageRelationships(ctx, pageID, attributeID, out)
+	}); err != nil {
+		return Page{}, err
+	}
+	s.announceChanged(ctx, page)
 	return s.repo.GetPageByID(ctx, pageID)
+}
+
+func (s *pageService) checkRelationshipTargets(ctx context.Context, refs []PageRelationship) error {
+	for _, rl := range refs {
+		ok, err := s.repo.RelationshipTargetExists(ctx, rl.TargetType, rl.TargetID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%w: %s %s does not exist", ErrInvalidFieldValue, rl.TargetType, rl.TargetID)
+		}
+	}
+	return nil
 }
 
 // Binds, or with "" unbinds, a page to a Prism experiment for A/B testing
 func (s *pageService) SetPageExperiment(ctx context.Context, pageID uuid.UUID, key string) (Page, error) {
+	page, err := s.repo.GetPageByID(ctx, pageID)
+	if err != nil {
+		return Page{}, err
+	}
 	if err := s.repo.UpdatePageExperimentKey(ctx, pageID, strings.TrimSpace(key)); err != nil {
 		return Page{}, err
 	}
+	s.announceChanged(ctx, page)
 	return s.repo.GetPageByID(ctx, pageID)
 }
 
@@ -817,45 +908,77 @@ func (s *pageService) GetPageVariants(ctx context.Context, pageID uuid.UUID, loc
 // Stores, or with an empty body clears, an A/B variant's block body for a (page, locale, variantKey) - validated like a page body
 func (s *pageService) UpsertPageVariantBody(ctx context.Context, pageID uuid.UUID, locale, variantKey string, body json.RawMessage) (Page, error) {
 	if strings.TrimSpace(locale) == "" || strings.TrimSpace(variantKey) == "" {
-		return Page{}, fmt.Errorf("locale and variantKey are required")
+		return Page{}, fmt.Errorf("%w: locale and variantKey", ErrRequiredFieldMissing)
 	}
-	if len(body) == 0 {
-		if err := s.repo.DeletePageVariantContent(ctx, pageID, locale, variantKey); err != nil {
-			return Page{}, err
-		}
-		return s.repo.GetPageByID(ctx, pageID)
-	}
-	if doc, ok := blockkit.ParseDocument(body); ok {
-		if err := blockkit.Validate(doc, s.customTypeChecker(ctx)); err != nil {
-			return Page{}, err
-		}
-	}
-	if err := s.repo.UpsertPageVariantContent(ctx, pageID, locale, variantKey, body); err != nil {
+	page, err := s.repo.GetPageByID(ctx, pageID)
+	if err != nil {
 		return Page{}, err
 	}
+	if len(body) > 0 {
+		if err := s.checkBody(ctx, body); err != nil {
+			return Page{}, err
+		}
+	}
+	if err := s.editContent(ctx, pageID, func(r *postgresRepository) error {
+		if len(body) == 0 {
+			return r.DeletePageVariantContent(ctx, pageID, locale, variantKey)
+		}
+		return r.UpsertPageVariantContent(ctx, pageID, locale, variantKey, body)
+	}); err != nil {
+		return Page{}, err
+	}
+	s.announceChanged(ctx, page)
 	return s.repo.GetPageByID(ctx, pageID)
+}
+
+// The write-time gate every stored block body passes - freeform content is fine, but a body claiming to be a block document must parse and validate
+func (s *core) checkBody(ctx context.Context, body json.RawMessage) error {
+	if len(body) == 0 {
+		return nil
+	}
+	checker, err := s.customTypeChecker(ctx)
+	if err != nil {
+		return err
+	}
+	return blockkit.CheckBody(body, checker)
+}
+
+// The locales a read tries in order - the requested one, then the global default - and none for a "" request
+func (s *core) contentLocales(ctx context.Context, locale string) []string {
+	if locale == "" {
+		return nil
+	}
+	out := []string{locale}
+	if def := s.resolveDefaultLocale(ctx); def != "" && def != locale {
+		out = append(out, def)
+	}
+	return out
 }
 
 // Picks Content for the requested locale, falling back to the global default - Content stays nil when neither exists
 func (s *pageService) fillPageContent(ctx context.Context, p *Page, locale string) {
-	if p == nil || locale == "" {
+	if p == nil {
 		return
 	}
-	for i := range p.AllContent {
-		if p.AllContent[i].Locale == locale {
-			cp := p.AllContent[i]
-			p.Content = &cp
-			return
-		}
-	}
-	if def := s.resolveDefaultLocale(ctx); def != "" && def != locale {
+	for _, loc := range s.contentLocales(ctx, locale) {
 		for i := range p.AllContent {
-			if p.AllContent[i].Locale == def {
+			if p.AllContent[i].Locale == loc {
 				cp := p.AllContent[i]
 				p.Content = &cp
 				return
 			}
 		}
+	}
+}
+
+// Wraps a single-page read so it comes back with Content picked for the locale
+func (s *pageService) localized(ctx context.Context, locale string) func(Page, error) (Page, error) {
+	return func(p Page, err error) (Page, error) {
+		if err != nil {
+			return Page{}, err
+		}
+		s.fillPageContent(ctx, &p, locale)
+		return p, nil
 	}
 }
 

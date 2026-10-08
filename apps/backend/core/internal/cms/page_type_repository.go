@@ -16,8 +16,7 @@ import (
 
 func (r *postgresRepository) CreatePageType(ctx context.Context, in CreatePageTypeInput) (PageType, error) {
 	var created PageType
-	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	err := r.atomic(ctx, func(q *db.Queries) error {
 		row, err := q.CreateCMSPageType(ctx, db.CreateCMSPageTypeParams{
 			Slug: in.Slug, Icon: sqlnull.StringValueNonEmpty(in.Icon),
 			IsSystem: in.IsSystem, Position: in.Position,
@@ -59,18 +58,20 @@ func (r *postgresRepository) GetPageTypeByID(ctx context.Context, id uuid.UUID) 
 	}
 	pt := toPageType(row)
 	all, err := r.queries.ListCMSPageTypeContent(ctx, id)
-	if err == nil {
-		pt.AllContent = make([]PageTypeContent, len(all))
-		for i, c := range all {
-			pt.AllContent[i] = toPageTypeContent(c)
-		}
+	if err != nil {
+		return PageType{}, fmt.Errorf("list page type content: %w", err)
+	}
+	pt.AllContent = make([]PageTypeContent, len(all))
+	for i, c := range all {
+		pt.AllContent[i] = toPageTypeContent(c)
 	}
 	roots, err := r.queries.ListCMSPageTypeChannelRoots(ctx, id)
-	if err == nil {
-		pt.ChannelRoots = make([]PageTypeChannelRoot, len(roots))
-		for i, cr := range roots {
-			pt.ChannelRoots[i] = PageTypeChannelRoot{ChannelID: cr.ChannelID, RootSlug: cr.RootSlug}
-		}
+	if err != nil {
+		return PageType{}, fmt.Errorf("list page type channel roots: %w", err)
+	}
+	pt.ChannelRoots = make([]PageTypeChannelRoot, len(roots))
+	for i, cr := range roots {
+		pt.ChannelRoots[i] = PageTypeChannelRoot{ChannelID: cr.ChannelID, RootSlug: cr.RootSlug}
 	}
 	return pt, nil
 }
@@ -249,9 +250,13 @@ func (r *postgresRepository) SetPageTypeDefaultBlocks(ctx context.Context, id uu
 }
 
 func (r *postgresRepository) UpsertPageTypeChannelRoot(ctx context.Context, pageTypeID, channelID uuid.UUID, rootSlug string) error {
-	return r.queries.UpsertCMSPageTypeChannelRoot(ctx, db.UpsertCMSPageTypeChannelRootParams{
+	err := r.queries.UpsertCMSPageTypeChannelRoot(ctx, db.UpsertCMSPageTypeChannelRootParams{
 		PageTypeID: pageTypeID, ChannelID: channelID, RootSlug: rootSlug,
 	})
+	if isForeignKeyViolation(err) {
+		return ErrChannelNotFound
+	}
+	return err
 }
 
 func (r *postgresRepository) DeletePageTypeChannelRoot(ctx context.Context, pageTypeID, channelID uuid.UUID) error {
@@ -278,17 +283,10 @@ func (r *postgresRepository) AssignAttributeToPageType(ctx context.Context, in A
 		ConditionAttributeID: condAttr,
 		ConditionValue:       sqlnull.StringNonEmpty(in.ConditionValue),
 	}); err != nil {
+		if isForeignKeyViolation(err) {
+			return ErrAttributeGroupNotFound
+		}
 		return fmt.Errorf("assign attribute: %w", err)
-	}
-	return nil
-}
-
-func (r *postgresRepository) UnassignAttributeFromPageType(ctx context.Context, pageTypeID, attributeID uuid.UUID) error {
-	_, err := r.queries.UnassignCMSAttributeFromPageType(ctx, db.UnassignCMSAttributeFromPageTypeParams{
-		PageTypeID: pageTypeID, AttributeID: attributeID,
-	})
-	if err != nil {
-		return fmt.Errorf("unassign attribute: %w", err)
 	}
 	return nil
 }
