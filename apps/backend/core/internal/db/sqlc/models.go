@@ -360,6 +360,7 @@ type AuthToken struct {
 	SubjectID uuid.UUID `json:"subject_id"`
 	ExpiresAt time.Time `json:"expires_at"`
 	CreatedAt time.Time `json:"created_at"`
+	Binding   string    `json:"binding"`
 }
 
 type BackInStockRequest struct {

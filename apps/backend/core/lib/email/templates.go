@@ -28,7 +28,16 @@ type SignupConfirmationEmailData struct {
 	ExpiresIn string
 }
 
+// Sent to an account's owner when someone tries to register with that address - registration answers the same either way
+type AccountExistsEmailData struct {
+	FirstName  string
+	SignInLink string
+	ResetLink  string
+	StoreName  string
+}
+
 const (
+	subjectAccountExists      = "You already have an account"
 	subjectVerification       = "Verify your email address"
 	subjectPasswordReset      = "Reset your password"
 	subjectSignupConfirmation = "Confirm your subscription"
@@ -125,4 +134,37 @@ func RenderSignupConfirmationEmail(data SignupConfirmationEmailData) (subject, h
 		return "", "", "", fmt.Errorf("render text: %w", err)
 	}
 	return subjectSignupConfirmation, hb.String(), tb.String(), nil
+}
+
+var accountExistsHTML = template.Must(template.New("account_exists_html").Parse(`<!DOCTYPE html>
+<html><body style="font-family:sans-serif;">
+<p>Hi {{.FirstName}},</p>
+<p>Someone just tried to create a {{.StoreName}} account with this email address, but you already have one.</p>
+<p><a href="{{.SignInLink}}">Sign in</a> or, if you've forgotten your password, <a href="{{.ResetLink}}">reset it</a>.</p>
+<p>If this wasn't you, you can ignore this email - nothing about your account has changed.</p>
+</body></html>`))
+
+var accountExistsText = ttemplate.Must(ttemplate.New("account_exists_text").Parse(
+	`Hi {{.FirstName}},
+
+Someone just tried to create a {{.StoreName}} account with this email address, but you already have one.
+
+Sign in: {{.SignInLink}}
+Forgotten your password? Reset it: {{.ResetLink}}
+
+If this wasn't you, you can ignore this email - nothing about your account has changed.
+`))
+
+func RenderAccountExistsEmail(data AccountExistsEmailData) (subject, html, text string, err error) {
+	if data.FirstName == "" {
+		data.FirstName = greetingFallback
+	}
+	var hb, tb bytes.Buffer
+	if err := accountExistsHTML.Execute(&hb, data); err != nil {
+		return "", "", "", fmt.Errorf("render html: %w", err)
+	}
+	if err := accountExistsText.Execute(&tb, data); err != nil {
+		return "", "", "", fmt.Errorf("render text: %w", err)
+	}
+	return subjectAccountExists, hb.String(), tb.String(), nil
 }

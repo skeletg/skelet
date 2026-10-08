@@ -4,24 +4,30 @@
 -- name: PutAuthToken :exec
 -- Upsert so re-issuing a token key refreshes subject + expiry instead of erroring
 -- (a caller re-Create is legal, even if the key collision is astronomically rare)
-INSERT INTO auth_tokens (token_key, subject_id, expires_at)
-VALUES ($1, $2, $3)
+INSERT INTO auth_tokens (token_key, subject_id, binding, expires_at)
+VALUES ($1, $2, $3, $4)
 ON CONFLICT (token_key) DO UPDATE
 SET subject_id = EXCLUDED.subject_id,
+    binding    = EXCLUDED.binding,
     expires_at = EXCLUDED.expires_at;
 
 -- name: GetAuthToken :one
 -- Expiry is filtered here, not left to the prune sweep, so a token can't validate
 -- past its TTL even if pruning is behind
-SELECT subject_id FROM auth_tokens
+SELECT subject_id, binding FROM auth_tokens
 WHERE token_key = $1 AND expires_at > now();
 
 -- name: ConsumeAuthToken :one
 DELETE FROM auth_tokens WHERE token_key = $1 AND expires_at > now()
-RETURNING subject_id;
+RETURNING subject_id, binding;
 
 -- name: DeleteAuthToken :exec
 DELETE FROM auth_tokens WHERE token_key = $1;
+
+-- name: DeleteSubjectAuthTokens :exec
+-- Every token one subject holds in one namespace (verify:customer, reset:admin, ...)
+DELETE FROM auth_tokens
+WHERE subject_id = sqlc.arg(subject_id) AND starts_with(token_key, sqlc.arg(namespace)::text || ':');
 
 -- name: PruneExpiredAuthTokens :execrows
 DELETE FROM auth_tokens WHERE expires_at <= now();

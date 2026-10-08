@@ -31799,11 +31799,11 @@ type Address {
   phone:       String
 }
 
-# Shared with the storefront schema, which autobinds to this model - keep the two definitions identical. Tokens are nullable because registration withholds the session while require_email_verification is on.
+# Shared with the storefront schema, which autobinds to this model - keep the two definitions identical. Tokens and customer are nullable because registration can answer without a session.
 type CustomerAuthPayload {
   accessToken:  String
   refreshToken: String
-  customer:     Customer!
+  customer:     Customer
   verificationRequired: Boolean!
 }
 
@@ -75491,10 +75491,10 @@ func (ec *executionContext) _CustomerAuthPayload_customer(ctx context.Context, f
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.Customer) graphql.Marshaler {
-			return ec.marshalNCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
+			return ec.marshalOCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomer(ctx, selections, v)
 		},
 		true,
-		true,
+		false,
 	)
 }
 func (ec *executionContext) fieldContext_CustomerAuthPayload_customer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -170031,7 +170031,7 @@ func (ec *executionContext) _CustomerAuthPayload(ctx context.Context, sel ast.Se
 			}
 		case "customer":
 			out.Values[i] = ec._CustomerAuthPayload_customer(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "verificationRequired":
@@ -208145,6 +208145,13 @@ func (ec *executionContext) marshalOCurrency2ᚖgithubᚗcomᚋskeletgᚋskelet�
 		return graphql.Null
 	}
 	return ec._Currency(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOCustomer2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomer(ctx context.Context, sel ast.SelectionSet, v *model.Customer) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Customer(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOCustomerSegment2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerSegment(ctx context.Context, sel ast.SelectionSet, v *model.CustomerSegment) graphql.Marshaler {

@@ -80,16 +80,9 @@ func (r *mutationResolver) customerAuthPayloadWithRefresh(ctx context.Context, c
 	}, nil
 }
 
-// customerPendingVerificationPayload returns the created account with NO session - the caller registered while the channel requires a verified address, so tokens are withheld until they click the link
-func (r *mutationResolver) customerPendingVerificationPayload(ctx context.Context, c customer.Customer) (*model.CustomerAuthPayload, error) {
-	cWithAddresses, err := r.CustomerSvc.GetByIDWithAddresses(ctx, c.ID)
-	if err != nil {
-		return nil, fmt.Errorf("load customer: %w", err)
-	}
-	return &model.CustomerAuthPayload{
-		Customer:             toCustomerModel(cWithAddresses),
-		VerificationRequired: true,
-	}, nil
+// No session and no account - the one answer registration gives both when the channel wants a verified address first and when the address was already taken
+func sessionWithheldPayload() *model.CustomerAuthPayload {
+	return &model.CustomerAuthPayload{VerificationRequired: true}
 }
 
 func (r *Resolver) enrichDataExport(ctx context.Context, customerID uuid.UUID, currency string, bundle *customer.DataExport) error {

@@ -3,7 +3,9 @@ package customer
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -26,6 +28,7 @@ type fixture struct {
 	svc     *Service
 	cfg     *config.Service
 	verify  *auth.VerificationStore
+	reset   *auth.PasswordResetStore
 	refresh *auth.RefreshStore
 	conn    *sql.DB
 	ctx     context.Context
@@ -41,10 +44,11 @@ func newFixture(t *testing.T) *fixture {
 	refresh := auth.NewRefreshStore(authstore.NewPostgresRefreshBackend(queries, "customer"), nil, "customer")
 	cfg := config.NewService(configstore.New(queries))
 
+	reset := auth.NewPasswordResetStore(tokens)
 	svc := NewService(
 		NewRepository(queries, nil, txMgr), // no Signals eraser - erasure of the analytics side is its own suite
 		verify,
-		auth.NewPasswordResetStore(tokens),
+		reset,
 		refresh,
 		email.LogSender{},
 		stubStores{},
@@ -52,7 +56,7 @@ func newFixture(t *testing.T) *fixture {
 		events.NewBus(),
 	)
 	svc.SetConfigService(cfg)
-	return &fixture{svc: svc, cfg: cfg, verify: verify, refresh: refresh, conn: conn, ctx: context.Background()}
+	return &fixture{svc: svc, cfg: cfg, verify: verify, reset: reset, refresh: refresh, conn: conn, ctx: context.Background()}
 }
 
 // Only the verification and reset paths read a store, and neither asserts on the rendered link
@@ -86,13 +90,18 @@ func (f *fixture) register(t *testing.T, channelID uuid.UUID, addr, password str
 	if err != nil {
 		t.Fatalf("register %s: %v", addr, err)
 	}
+	f.svc.FlushMail()
 	return c
 }
 
 // Redeems a real verification token, since nothing else flips the flag through the service
 func (f *fixture) markVerified(t *testing.T, customerID uuid.UUID) {
 	t.Helper()
-	token, err := f.verify.Create(f.ctx, customerID)
+	c, err := f.svc.GetByID(f.ctx, customerID)
+	if err != nil {
+		t.Fatalf("load customer: %v", err)
+	}
+	token, err := f.verify.Create(f.ctx, customerID, c.Email)
 	if err != nil {
 		t.Fatalf("mint verification token: %v", err)
 	}
@@ -181,3 +190,59 @@ func (f *fixture) newGroup(t *testing.T) CustomerGroup {
 }
 
 func randomEmail() string { return "cust-" + uuid.NewString()[:8] + "@example.invalid" }
+
+// Records what went through the outbox and that it rode a transaction
+type recordingOutbox struct {
+	mu     sync.Mutex
+	events []events.Event
+}
+
+func (o *recordingOutbox) Enqueue(_ context.Context, sqlTx *sql.Tx, e events.Event) error {
+	if sqlTx == nil {
+		return errors.New("enqueued outside a transaction")
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, e)
+	return nil
+}
+
+func (o *recordingOutbox) types() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	out := make([]string, len(o.events))
+	for i, e := range o.events {
+		out[i] = e.Type()
+	}
+	return out
+}
+
+func (f *fixture) withOutbox() *recordingOutbox {
+	o := &recordingOutbox{}
+	f.svc.SetOutbox(o, txrunner.New(f.conn))
+	return o
+}
+
+func (f *fixture) withFallback() *recordingFallback {
+	fb := &recordingFallback{}
+	f.svc.SetAuthEmailFallback(fb)
+	return fb
+}
+
+func (f *fixture) resetLink(t *testing.T, customerID uuid.UUID) string {
+	t.Helper()
+	token, err := f.reset.Create(f.ctx, customerID)
+	if err != nil {
+		t.Fatalf("mint reset token: %v", err)
+	}
+	return token
+}
+
+func (f *fixture) verifyLink(t *testing.T, c Customer) string {
+	t.Helper()
+	token, err := f.verify.Create(f.ctx, c.ID, c.Email)
+	if err != nil {
+		t.Fatalf("mint verification token: %v", err)
+	}
+	return token
+}

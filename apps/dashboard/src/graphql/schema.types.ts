@@ -2061,7 +2061,7 @@ export type CustomerActivityItem = {
 export type CustomerAuthPayload = {
   __typename?: 'CustomerAuthPayload';
   accessToken?: Maybe<Scalars['String']['output']>;
-  customer: Customer;
+  customer?: Maybe<Customer>;
   refreshToken?: Maybe<Scalars['String']['output']>;
   verificationRequired: Scalars['Boolean']['output'];
 };

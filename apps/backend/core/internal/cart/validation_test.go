@@ -102,15 +102,22 @@ func TestCheckoutRefusesALineOutsideItsBounds(t *testing.T) {
 
 func TestCartEmailAndNoteAreChecked(t *testing.T) {
 	cartID := uuid.New()
-	svc := NewService(fakeRepo{getCart: func(uuid.UUID) (Cart, error) { return Cart{ID: cartID, Status: "active"}, nil }}, nil, nil)
+	var stored string
+	svc := NewService(fakeRepo{
+		getCart:  func(uuid.UUID) (Cart, error) { return Cart{ID: cartID, Status: "active"}, nil },
+		setEmail: func(e string) { stored = e },
+	}, nil, nil)
 	ctx := context.Background()
 	for _, e := range []string{"", "a@", "@b.c", "Ana <ana@example.test>", "ana@example.test, bob@example.test", strings.Repeat("a", 250) + "@b.cd"} {
 		if err := svc.SetCartEmail(ctx, cartID, nil, e); !errors.Is(err, ErrCartEmailInvalid) {
 			t.Errorf("SetCartEmail(%q) = %v, want ErrCartEmailInvalid", e, err)
 		}
 	}
-	if err := svc.SetCartEmail(ctx, cartID, nil, "  ana@example.test "); err != nil {
+	if err := svc.SetCartEmail(ctx, cartID, nil, "  Ana@Example.test "); err != nil {
 		t.Errorf("a plain address refused: %v", err)
+	}
+	if stored != "ana@example.test" {
+		t.Errorf("stored %q, want the address normalized the way customer emails are", stored)
 	}
 	if err := svc.SetCartNote(ctx, cartID, nil, strings.Repeat("ž", maxNoteRunes+1)); !errors.Is(err, ErrCartNoteTooLong) {
 		t.Errorf("an oversized note: %v", err)

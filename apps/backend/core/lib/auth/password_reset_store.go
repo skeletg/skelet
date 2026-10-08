@@ -32,32 +32,32 @@ func (s *PasswordResetStore) Create(ctx context.Context, subjectID uuid.UUID) (s
 		return "", fmt.Errorf("generate token: %w", err)
 	}
 	token := hex.EncodeToString(raw)
-	if err := s.backend.Put(ctx, s.key(token), subjectID, passwordResetTTL); err != nil {
+	if err := s.backend.Put(ctx, s.key(token), Token{Subject: subjectID}, passwordResetTTL); err != nil {
 		return "", fmt.Errorf("store reset token: %w", err)
 	}
 	return token, nil
 }
 
 func (s *PasswordResetStore) Validate(ctx context.Context, token string) (uuid.UUID, error) { // doesn't delete the token - the caller Revokes after the reset
-	id, err := s.backend.Get(ctx, s.key(token))
+	t, err := s.backend.Get(ctx, s.key(token))
 	if errors.Is(err, ErrTokenNotFound) {
-		return uuid.Nil, fmt.Errorf("invalid or expired reset link")
+		return uuid.Nil, ErrResetLinkInvalid
 	}
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("lookup reset token: %w", err)
 	}
-	return id, nil
+	return t.Subject, nil
 }
 
 func (s *PasswordResetStore) Consume(ctx context.Context, token string) (uuid.UUID, error) { // Validate and Revoke as one step - the token is spent even if what follows fails
-	id, err := s.backend.Consume(ctx, s.key(token))
+	t, err := s.backend.Consume(ctx, s.key(token))
 	if errors.Is(err, ErrTokenNotFound) {
-		return uuid.Nil, fmt.Errorf("invalid or expired reset link")
+		return uuid.Nil, ErrResetLinkInvalid
 	}
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("consume reset token: %w", err)
 	}
-	return id, nil
+	return t.Subject, nil
 }
 
 func (s *PasswordResetStore) Revoke(ctx context.Context, token string) error {
@@ -67,8 +67,18 @@ func (s *PasswordResetStore) Revoke(ctx context.Context, token string) error {
 	return nil
 }
 
+// Every outstanding link the subject holds - a changed password or address makes them stale
+func (s *PasswordResetStore) RevokeAll(ctx context.Context, subjectID uuid.UUID) error {
+	if err := s.backend.DeleteSubject(ctx, s.namespace(), subjectID); err != nil {
+		return fmt.Errorf("revoke reset tokens: %w", err)
+	}
+	return nil
+}
+
 func (s *PasswordResetStore) TTL() time.Duration { return passwordResetTTL }
 
+func (s *PasswordResetStore) namespace() string { return "reset:" + s.subject }
+
 func (s *PasswordResetStore) key(token string) string {
-	return "reset:" + s.subject + ":" + hashToken(token)
+	return s.namespace() + ":" + hashToken(token)
 }
