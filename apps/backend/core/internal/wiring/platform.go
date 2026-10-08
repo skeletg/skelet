@@ -144,7 +144,7 @@ func newConsentService(q *db.Queries) *consent.Service {
 }
 
 func newConfigService(q *db.Queries, txMgr *txrunner.Manager) *config.Service {
-	return config.NewService(configstore.New(q, txMgr))
+	return config.NewService(configstore.New(q))
 }
 
 func newChannelService(q *db.Queries, txMgr *txrunner.Manager) *channel.Service {

@@ -39,7 +39,7 @@ func newFixture(t *testing.T) *fixture {
 	tokens := authstore.NewPostgresTokenBackend(queries)
 	verify := auth.NewVerificationStore(tokens)
 	refresh := auth.NewRefreshStore(authstore.NewPostgresRefreshBackend(queries, "customer"), nil, "customer")
-	cfg := config.NewService(configstore.New(queries, txMgr))
+	cfg := config.NewService(configstore.New(queries))
 
 	svc := NewService(
 		NewRepository(queries, nil, txMgr), // no Signals eraser - erasure of the analytics side is its own suite
