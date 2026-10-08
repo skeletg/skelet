@@ -415,20 +415,8 @@ func (r *queryResolver) MyDataExport(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	bundle, err := r.CustomerSvc.ExportData(ctx, claims.CustomerID)
+	bundle, err := r.DSAR.Build(ctx, claims.CustomerID)
 	if err != nil {
-		return "", err
-	}
-	if orders, oerr := r.OrderSvc.ListOrdersByCustomer(ctx, claims.CustomerID); oerr == nil {
-		if raw, jerr := json.Marshal(orders); jerr == nil {
-			bundle.Orders = raw
-		}
-	}
-	currency := ""
-	if ch, cerr := r.ChannelSvc.GetByID(ctx, claims.ChannelID); cerr == nil {
-		currency = ch.CurrencyCode
-	}
-	if err := r.enrichDataExport(ctx, claims.CustomerID, currency, &bundle); err != nil {
 		return "", err
 	}
 	out, err := json.MarshalIndent(bundle, "", "  ")

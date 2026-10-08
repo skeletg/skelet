@@ -410,11 +410,18 @@ func (r *postgresRepository) CountOrders(ctx context.Context, customerID uuid.UU
 	return n, nil
 }
 
-func (r *postgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	if err := r.queries.DeleteCustomer(ctx, id); err != nil {
-		return fmt.Errorf("delete customer: %w", err)
-	}
-	return nil
+// The rows keyed by address, or set null by the delete, are scrubbed in the same tx, so a deleted account leaves no more behind than an erased one
+func (r *postgresRepository) Delete(ctx context.Context, c Customer) error {
+	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
+		q := r.queries.WithTx(t)
+		if err := scrubPersonalData(ctx, q, c); err != nil {
+			return err
+		}
+		if err := q.DeleteCustomer(ctx, c.ID); err != nil {
+			return fmt.Errorf("delete customer: %w", err)
+		}
+		return nil
+	})
 }
 
 func (r *postgresRepository) SetDefaultBillingAddress(ctx context.Context, customerID, addressID uuid.UUID) (Customer, error) {

@@ -24,6 +24,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/dsar"
 	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/internal/giftcard"
 	"github.com/skeletg/skelet/apps/backend/core/internal/health"
@@ -75,6 +76,7 @@ type Resolver struct {
 	OrderMailSvc      *ordermail.Service // the resend path - flows own the automatic sends, this is the operator's manual one
 	ConfigSvc         *config.Service
 	ConsentSvc        *consent.Service
+	DSAR              *dsar.Builder
 	ActionSvc         *adminaction.Service
 	DataJobSvc        *datajob.Service // the one seam behind every bulk import and export
 	AuditSvc          *audit.Service

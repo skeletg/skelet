@@ -1204,10 +1204,13 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	if n > 0 {
 		return ErrCustomerHasOrders
 	}
-	// Snapshot identity for the post-commit event before the row is gone
-	pre, getErr := s.repo.GetByID(ctx, id)
+	// Snapshot identity for the post-commit event and the address-keyed cleanup before the row is gone
+	pre, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
 	// Sync pre-commit hook - external systems can refuse the delete
-	if s.bus != nil && getErr == nil {
+	if s.bus != nil {
 		if err := s.bus.PublishSync(ctx, &CustomerDeleting{
 			CustomerID: pre.ID,
 			ChannelID:  pre.ChannelID,
@@ -1216,7 +1219,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 			return err
 		}
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.repo.Delete(ctx, pre); err != nil {
 		return err
 	}
 	// The row is gone but its refresh tokens live in a separate store with their own 30-day TTL - leaving them would let a deleted account keep minting access tokens
@@ -1224,18 +1227,14 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 		log.Printf("[auth:warn] revoke deleted customer %s sessions: %v", id, rerr)
 	}
 	// Signals is a separate database with no FK cascade, so a hard delete leaves the email and identity mappings behind forever - the anonymize path already does this, the delete path never did
-	if getErr == nil {
-		if serr := s.repo.PurgeSignalsIdentity(ctx, id, pre.Email); serr != nil {
-			log.Printf("[gdpr:warn] purge signals identity for deleted customer %s: %v", id, serr)
-		}
+	if serr := s.repo.PurgeSignalsIdentity(ctx, id, pre.Email); serr != nil {
+		log.Printf("[gdpr:warn] purge signals identity for deleted customer %s: %v", id, serr)
 	}
-	if getErr == nil {
-		s.publishDurable(ctx, &CustomerDeleted{
-			CustomerID: pre.ID,
-			ChannelID:  pre.ChannelID,
-			Email:      pre.Email,
-		})
-	}
+	s.publishDurable(ctx, &CustomerDeleted{
+		CustomerID: pre.ID,
+		ChannelID:  pre.ChannelID,
+		Email:      pre.Email,
+	})
 	return nil
 }
 
