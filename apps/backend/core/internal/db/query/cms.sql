@@ -204,10 +204,11 @@ SELECT page_type_id FROM cms_page_type_attributes WHERE attribute_id = $1;
 -- ==================== Pages ====================
 
 -- name: CreateCMSPage :one
+-- A page is born unpublished - going live is PublishPage's job alone
 INSERT INTO cms_pages (
-    page_type_id, parent_id, slug, base_path, url_path, position, is_published, seo_noindex,
-    published_at, data, metadata, private_metadata
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    page_type_id, parent_id, slug, base_path, url_path, position, seo_noindex,
+    data, metadata, private_metadata
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: GetCMSPageByID :one
@@ -239,13 +240,11 @@ UPDATE cms_pages
 SET parent_id        = $2,
     slug             = $3,
     position         = $4,
-    is_published     = $5,
-    seo_noindex      = $6,
-    published_at     = $7,
-    data             = $8,
-    metadata         = $9,
-    private_metadata = $10,
-    tags             = $11,
+    seo_noindex      = $5,
+    data             = $6,
+    metadata         = $7,
+    private_metadata = $8,
+    tags             = $9,
     updated_at       = NOW()
 WHERE id = $1
 RETURNING *;
@@ -275,8 +274,9 @@ SELECT page_id, locale, variant_key, body, updated_at
 FROM cms_page_variant_content WHERE page_id = $1 AND locale = $2 ORDER BY variant_key;
 
 -- name: SetCMSPagePublished :one
+-- A manual flip consumes any pending schedule, so the scheduler can't undo it
 UPDATE cms_pages
-SET is_published = $2, published_at = $3, updated_at = NOW()
+SET is_published = $2, published_at = $3, scheduled_at = NULL, updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 
@@ -284,12 +284,35 @@ RETURNING *;
 -- One statement, so a page is never live with a stale workflow state
 UPDATE cms_pages
 SET is_published = TRUE, published_at = sqlc.arg(published_at), workflow_state = 'published',
-    scheduled_at = CASE WHEN sqlc.arg(clear_schedule)::bool THEN NULL ELSE scheduled_at END,
-    updated_at = NOW()
+    scheduled_at = NULL, updated_at = NOW()
 WHERE id = sqlc.arg(id)
 RETURNING *;
 
--- name: DeleteCMSPage :exec
+-- name: GoLiveScheduledCMSPage :execrows
+-- The scheduler's go-live only lands on the schedule it saw - an unpublish or a cleared schedule in between wins
+UPDATE cms_pages
+SET is_published = TRUE, published_at = sqlc.arg(published_at), workflow_state = 'published',
+    scheduled_at = NULL, updated_at = NOW()
+WHERE id = sqlc.arg(id) AND is_published = FALSE AND scheduled_at = sqlc.arg(seen_schedule)::timestamptz;
+
+-- name: DemoteApprovedCMSPage :exec
+-- An edit after approval voids it - the page goes back to draft and must be reviewed again
+UPDATE cms_pages
+SET workflow_state = 'draft', approved_by = NULL, approved_at = NULL, updated_at = NOW()
+WHERE id = $1 AND workflow_state = 'approved';
+
+-- name: CMSPageInAncestry :one
+-- Whether page_id is the candidate itself or one of its ancestors - bounded, so a pre-existing cycle can't spin forever
+WITH RECURSIVE chain AS (
+    SELECT cp.id, cp.parent_id, 1 AS depth FROM cms_pages cp WHERE cp.id = sqlc.arg(candidate)::uuid
+    UNION ALL
+    SELECT p.id, p.parent_id, c.depth + 1 FROM cms_pages p JOIN chain c ON p.id = c.parent_id
+    WHERE c.depth < sqlc.arg(max_depth)::int
+)
+SELECT EXISTS(SELECT 1 FROM chain WHERE chain.id = sqlc.arg(page_id)::uuid)::bool AS found,
+       COALESCE((SELECT MAX(depth) FROM chain), 0)::int AS depth;
+
+-- name: DeleteCMSPage :execrows
 DELETE FROM cms_pages WHERE id = $1;
 
 -- name: CountCMSPagesByType :one
@@ -371,6 +394,29 @@ SET position = EXCLUDED.position;
 
 -- name: ClearCMSPageRelationshipsForAttribute :exec
 DELETE FROM cms_page_relationships WHERE page_id = $1 AND attribute_id = $2;
+
+-- name: ClearCMSPageAttributeValuesForPageType :exec
+DELETE FROM cms_page_attribute_values v
+USING cms_pages p
+WHERE v.page_id = p.id AND p.page_type_id = $1 AND v.attribute_id = $2;
+
+-- name: ClearCMSPageRelationshipsForPageType :exec
+DELETE FROM cms_page_relationships r
+USING cms_pages p
+WHERE r.page_id = p.id AND p.page_type_id = $1 AND r.attribute_id = $2;
+
+-- name: CountCMSPageRelationshipsForAttribute :one
+SELECT COUNT(*) FROM cms_page_relationships WHERE attribute_id = $1;
+
+-- name: CMSRelationshipTargetExists :one
+SELECT (CASE sqlc.arg(target_type)::text
+    WHEN 'cms_page'   THEN EXISTS(SELECT 1 FROM cms_pages WHERE id = sqlc.arg(target_id)::uuid)
+    WHEN 'blog_post'  THEN EXISTS(SELECT 1 FROM blog_posts WHERE id = sqlc.arg(target_id)::uuid)
+    WHEN 'product'    THEN EXISTS(SELECT 1 FROM catalog_products WHERE id = sqlc.arg(target_id)::uuid)
+    WHEN 'collection' THEN EXISTS(SELECT 1 FROM catalog_collections WHERE id = sqlc.arg(target_id)::uuid)
+    WHEN 'category'   THEN EXISTS(SELECT 1 FROM catalog_categories WHERE id = sqlc.arg(target_id)::uuid)
+    ELSE FALSE
+END)::bool AS found;
 
 -- name: ListCMSPageRelationships :many
 SELECT * FROM cms_page_relationships WHERE page_id = $1 ORDER BY attribute_id, position;
@@ -579,7 +625,7 @@ RETURNING *;
 -- name: ApproveCMSPageWorkflow :one
 UPDATE cms_pages
 SET workflow_state = 'approved', approved_by = $2, approved_at = NOW(), updated_at = NOW()
-WHERE id = $1
+WHERE id = $1 AND workflow_state = 'in_review'
 RETURNING *;
 
 -- name: SetCMSPageWorkflowState :one

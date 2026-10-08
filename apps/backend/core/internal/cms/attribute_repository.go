@@ -15,8 +15,7 @@ import (
 
 func (r *postgresRepository) CreateAttribute(ctx context.Context, in CreateAttributeInput) (Attribute, error) {
 	var created Attribute
-	err := r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	err := r.atomic(ctx, func(q *db.Queries) error {
 		var rt sql.NullString
 		if in.RelationshipTarget != nil {
 			rt = sql.NullString{String: string(*in.RelationshipTarget), Valid: true}
@@ -81,12 +80,8 @@ func (r *postgresRepository) GetAttributeByID(ctx context.Context, id uuid.UUID)
 		}
 		r.hydrateValueContent(ctx, a.Values)
 	}
-	all, err := r.queries.ListCMSAttributeContent(ctx, id)
-	if err == nil {
-		a.AllContent = make([]AttributeContent, len(all))
-		for i, c := range all {
-			a.AllContent[i] = toAttributeContent(c)
-		}
+	if a.AllContent, err = r.ListAttributeContent(ctx, id); err != nil {
+		return Attribute{}, err
 	}
 	return a, nil
 }
@@ -186,9 +181,41 @@ func (r *postgresRepository) UpdateAttribute(ctx context.Context, in UpdateAttri
 
 func (r *postgresRepository) DeleteAttribute(ctx context.Context, id uuid.UUID) error {
 	if err := r.queries.DeleteCMSAttribute(ctx, id); err != nil {
+		if isForeignKeyViolation(err) {
+			return ErrAttributeInUse
+		}
 		return fmt.Errorf("delete cms attribute: %w", err)
 	}
 	return nil
+}
+
+func (r *postgresRepository) CountRelationshipsForAttribute(ctx context.Context, attributeID uuid.UUID) (int64, error) {
+	n, err := r.queries.CountCMSPageRelationshipsForAttribute(ctx, attributeID)
+	if err != nil {
+		return 0, fmt.Errorf("count attribute relationships: %w", err)
+	}
+	return n, nil
+}
+
+func (r *postgresRepository) UnassignAttributeFromPageType(ctx context.Context, pageTypeID, attributeID uuid.UUID) error {
+	return r.atomic(ctx, func(q *db.Queries) error {
+		if err := q.ClearCMSPageAttributeValuesForPageType(ctx, db.ClearCMSPageAttributeValuesForPageTypeParams{
+			PageTypeID: pageTypeID, AttributeID: attributeID,
+		}); err != nil {
+			return fmt.Errorf("clear page values: %w", err)
+		}
+		if err := q.ClearCMSPageRelationshipsForPageType(ctx, db.ClearCMSPageRelationshipsForPageTypeParams{
+			PageTypeID: pageTypeID, AttributeID: attributeID,
+		}); err != nil {
+			return fmt.Errorf("clear page relationships: %w", err)
+		}
+		if _, err := q.UnassignCMSAttributeFromPageType(ctx, db.UnassignCMSAttributeFromPageTypeParams{
+			PageTypeID: pageTypeID, AttributeID: attributeID,
+		}); err != nil {
+			return fmt.Errorf("unassign attribute: %w", err)
+		}
+		return nil
+	})
 }
 
 func (r *postgresRepository) ListPageTypesUsingAttribute(ctx context.Context, attributeID uuid.UUID) ([]uuid.UUID, error) {
@@ -212,7 +239,7 @@ func (r *postgresRepository) UpsertAttributeContent(ctx context.Context, attribu
 func (r *postgresRepository) ListAttributeContent(ctx context.Context, attributeID uuid.UUID) ([]AttributeContent, error) {
 	rows, err := r.queries.ListCMSAttributeContent(ctx, attributeID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list attribute content: %w", err)
 	}
 	out := make([]AttributeContent, len(rows))
 	for i, row := range rows {
@@ -259,6 +286,9 @@ func (r *postgresRepository) UpdateAttributeValue(ctx context.Context, id uuid.U
 
 func (r *postgresRepository) DeleteAttributeValue(ctx context.Context, id uuid.UUID) error {
 	if err := r.queries.DeleteCMSAttributeValue(ctx, id); err != nil {
+		if isForeignKeyViolation(err) {
+			return ErrAttributeValueInUse
+		}
 		return fmt.Errorf("delete attribute value: %w", err)
 	}
 	return nil
@@ -319,6 +349,9 @@ func (r *postgresRepository) UpdateAttributeGroup(ctx context.Context, id uuid.U
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return AttributeGroup{}, ErrAttributeGroupNotFound
+		}
+		if isUniqueViolation(err) {
+			return AttributeGroup{}, ErrSlugTaken
 		}
 		return AttributeGroup{}, fmt.Errorf("update attribute group: %w", err)
 	}

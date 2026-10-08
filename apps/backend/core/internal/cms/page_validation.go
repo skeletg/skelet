@@ -35,7 +35,10 @@ func (s *pageService) validatePageData(
 				continue
 			}
 			if pta.Attribute.InputType.AcceptsValues() || pta.Attribute.InputType.IsRelationship() {
-				continue // checked below
+				if !referencesAttribute(pta.Attribute.ID, selections, relationships) {
+					return nil, nil, nil, nil, fmt.Errorf("%w: %q", ErrRequiredFieldMissing, slug)
+				}
+				continue
 			}
 			target := scalarMap
 			if pta.Attribute.IsTranslatable {
@@ -86,7 +89,8 @@ func (s *pageService) validatePageData(
 		cleanContent[k] = coerced
 	}
 
-	// Validate selections - the attribute must be on this page type and the value must belong to it - The repo enforces this at FK level too, but the errors here are friendlier
+	// Validate selections - the attribute must be on this page type, the value must be one of its own, and a single select takes one
+	perAttr := make(map[uuid.UUID]int, len(selections))
 	for _, sl := range selections {
 		attr, ok := byID[sl.AttributeID]
 		if !ok {
@@ -94,6 +98,13 @@ func (s *pageService) validatePageData(
 		}
 		if !attr.InputType.AcceptsValues() {
 			return nil, nil, nil, nil, fmt.Errorf("%w: %q", ErrValuesNotApplicable, attr.Slug)
+		}
+		if !hasValue(attr, sl.ValueID) {
+			return nil, nil, nil, nil, fmt.Errorf("%w: value %s not in attribute %q", ErrInvalidFieldValue, sl.ValueID, attr.Slug)
+		}
+		perAttr[sl.AttributeID]++
+		if attr.InputType == InputSelect && perAttr[sl.AttributeID] > 1 {
+			return nil, nil, nil, nil, fmt.Errorf("%w: %q accepts at most one value", ErrInvalidFieldValue, attr.Slug)
 		}
 	}
 
@@ -106,6 +117,9 @@ func (s *pageService) validatePageData(
 		if !attr.InputType.IsRelationship() {
 			return nil, nil, nil, nil, fmt.Errorf("%w: attribute %q is not relationship-typed", ErrInvalidFieldValue, attr.Slug)
 		}
+		if !rl.TargetType.IsValid() {
+			return nil, nil, nil, nil, fmt.Errorf("%w: %q", ErrInvalidRelationship, rl.TargetType)
+		}
 		if attr.RelationshipTarget != nil && *attr.RelationshipTarget != rl.TargetType {
 			return nil, nil, nil, nil, fmt.Errorf("%w: relationship target mismatch on %q", ErrInvalidFieldValue, attr.Slug)
 		}
@@ -114,6 +128,29 @@ func (s *pageService) validatePageData(
 	scalarOut, _ := json.Marshal(cleanScalars)
 	contentOut, _ := json.Marshal(cleanContent)
 	return scalarOut, contentOut, selections, relationships, nil
+}
+
+func hasValue(a Attribute, valueID uuid.UUID) bool {
+	for _, v := range a.Values {
+		if v.ID == valueID {
+			return true
+		}
+	}
+	return false
+}
+
+func referencesAttribute(id uuid.UUID, selections []PageAttributeSelection, relationships []PageRelationship) bool {
+	for _, sl := range selections {
+		if sl.AttributeID == id {
+			return true
+		}
+	}
+	for _, rl := range relationships {
+		if rl.AttributeID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func decodeJSONMap(raw json.RawMessage) map[string]any {

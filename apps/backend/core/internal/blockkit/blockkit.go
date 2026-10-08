@@ -3,11 +3,15 @@
 package blockkit
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 )
+
+var ErrInvalidDocument = errors.New("invalid block document")
 
 const maxDepth = 8 // containers land in a later phase and v1 is flat, but the bound means a malformed or cyclic tree can't blow the stack
 
@@ -97,8 +101,36 @@ func ParseDocument(raw json.RawMessage) (doc Document, ok bool) {
 	return doc, doc.Blocks != nil || doc.Version > 0 // a block document is identified by a blocks array or an explicit version - plain rich-text and Lexical bodies are objects with neither
 }
 
+// A JSON object carrying a blocks key is claiming to be a Document, so it must parse as one or be refused - never stored or served as freeform
+func ClaimsDocument(raw json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return false
+	}
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &keys); err != nil {
+		return false
+	}
+	_, ok := keys["blocks"]
+	return ok
+}
+
+func CheckBody(raw json.RawMessage, custom CustomTypeChecker) error {
+	doc, ok := ParseDocument(raw)
+	if !ok {
+		if ClaimsDocument(raw) {
+			return fmt.Errorf("%w: body does not parse", ErrInvalidDocument)
+		}
+		return nil
+	}
+	return Validate(doc, custom)
+}
+
 func Validate(doc Document, custom CustomTypeChecker) error { // every block needs a known type, built-in or a channel custom one, nesting within maxDepth, and an id unique in the page - the storefront keys blocks by id and the editor selects by it
-	return validateBlocks(doc.Blocks, custom, 1, map[string]bool{})
+	if err := validateBlocks(doc.Blocks, custom, 1, map[string]bool{}); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidDocument, err)
+	}
+	return nil
 }
 
 func validateBlocks(blocks []Block, custom CustomTypeChecker, depth int, ids map[string]bool) error {

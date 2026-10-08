@@ -55,13 +55,16 @@ func (s *pageService) PromoteDuePages(ctx context.Context) (int, error) {
 			log.Printf("[cms-publish] skipping due page %s (workflow_state=%s): %v", p.ID, p.WorkflowState, err)
 			continue
 		}
-		// A first go-live is dated when it was scheduled for, not when the job ran
-		firstLive := time.Now()
-		if p.ScheduledAt != nil {
-			firstLive = *p.ScheduledAt
+		if p.ScheduledAt == nil {
+			continue
 		}
-		if _, err := s.repo.GoLive(ctx, p.ID, publishDate(p, firstLive), true); err != nil {
+		// A first go-live is dated when it was scheduled for, not when the job ran - and it only lands on the schedule read here, so an unpublish or a cleared schedule since then wins
+		live, err := s.repo.GoLiveScheduled(ctx, p.ID, publishDate(p, *p.ScheduledAt), *p.ScheduledAt)
+		if err != nil {
 			return n, err
+		}
+		if !live {
+			continue
 		}
 		s.announcePublished(ctx, p)
 		n++

@@ -3,7 +3,7 @@ package admin
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/google/uuid"
@@ -398,7 +398,7 @@ func (r *queryResolver) CmsPage(ctx context.Context, slug *string, id *string, u
 		}
 		return gate(p)
 	}
-	return nil, fmt.Errorf("slug, id, or urlPath is required")
+	return nil, errInvalidInput("slug, id or urlPath", errors.New("one is required"))
 }
 
 func (r *queryResolver) CmsPages(ctx context.Context, filter *model.CMSPageFilter, limit *int32, offset *int32) ([]*model.CMSPage, error) {

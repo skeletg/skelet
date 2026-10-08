@@ -74,9 +74,7 @@ func (r *postgresRepository) CreatePage(ctx context.Context, in CreatePageInput)
 		BasePath:        in.Slug, // overwritten by service after base/url paths are computed
 		UrlPath:         in.Slug,
 		Position:        in.Position,
-		IsPublished:     in.IsPublished,
 		SeoNoindex:      in.SEONoindex,
-		PublishedAt:     sqlnull.Time(in.PublishedAt),
 		Data:            emptyJSON(in.Data),
 		Metadata:        metadataToJSON(in.Metadata),
 		PrivateMetadata: metadataToJSON(in.PrivateMetadata),
@@ -99,38 +97,17 @@ func (r *postgresRepository) GetPageByID(ctx context.Context, id uuid.UUID) (Pag
 		return Page{}, fmt.Errorf("get page: %w", err)
 	}
 	p := toPage(row)
-	all, err := r.queries.ListCMSPageContent(ctx, id)
-	if err == nil {
-		p.AllContent = make([]PageContent, len(all))
-		for i, c := range all {
-			p.AllContent[i] = toPageContent(c)
-		}
+	if p.AllContent, err = r.ListPageContent(ctx, id); err != nil {
+		return Page{}, err
 	}
-	sels, err := r.queries.ListCMSPageAttributeValues(ctx, id)
-	if err == nil {
-		p.Selections = make([]PageAttributeSelection, len(sels))
-		for i, s := range sels {
-			p.Selections[i] = PageAttributeSelection{AttributeID: s.AttributeID, ValueID: s.ValueID}
-		}
+	if p.Selections, err = r.ListPageSelections(ctx, id); err != nil {
+		return Page{}, err
 	}
-	rels, err := r.queries.ListCMSPageRelationships(ctx, id)
-	if err == nil {
-		p.Relationships = make([]PageRelationship, len(rels))
-		for i, rl := range rels {
-			p.Relationships[i] = PageRelationship{
-				AttributeID: rl.AttributeID,
-				TargetType:  RelationshipTarget(rl.TargetType),
-				TargetID:    rl.TargetID,
-				Position:    rl.Position,
-			}
-		}
+	if p.Relationships, err = r.ListPageRelationships(ctx, id); err != nil {
+		return Page{}, err
 	}
-	listings, err := r.queries.ListCMSPageChannelListings(ctx, id)
-	if err == nil {
-		p.ChannelListings = make([]PageChannelListing, len(listings))
-		for i, l := range listings {
-			p.ChannelListings[i] = toPageChannelListing(l)
-		}
+	if p.ChannelListings, err = r.ListPageChannelListings(ctx, id); err != nil {
+		return Page{}, err
 	}
 	return p, nil
 }
@@ -183,8 +160,17 @@ func (r *postgresRepository) ListPages(ctx context.Context, filter PageListFilte
 			return nil, fmt.Errorf("list pages for store: %w", err)
 		}
 		out := make([]Page, len(rows))
+		ids := make([]uuid.UUID, len(rows))
 		for i, row := range rows {
 			out[i] = toPage(row)
+			ids[i] = row.ID
+		}
+		listings, err := r.ListPageChannelListingsByPageIDs(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		for i := range out {
+			out[i].ChannelListings = listings[out[i].ID]
 		}
 		return out, nil
 	}
@@ -296,19 +282,9 @@ func (r *postgresRepository) UpdatePage(ctx context.Context, in UpdatePageInput)
 	if in.Position != nil {
 		position = *in.Position
 	}
-	isPublished := current.IsPublished
-	if in.IsPublished != nil {
-		isPublished = *in.IsPublished
-	}
 	seoNoindex := current.SeoNoindex
 	if in.SEONoindex != nil {
 		seoNoindex = *in.SEONoindex
-	}
-	publishedAt := current.PublishedAt
-	if in.ClearPublished {
-		publishedAt = sql.NullTime{}
-	} else if in.PublishedAt != nil {
-		publishedAt = sql.NullTime{Time: *in.PublishedAt, Valid: true}
 	}
 	data := current.Data
 	if in.Data != nil {
@@ -331,9 +307,7 @@ func (r *postgresRepository) UpdatePage(ctx context.Context, in UpdatePageInput)
 		ParentID:        parentID,
 		Slug:            slug,
 		Position:        position,
-		IsPublished:     isPublished,
 		SeoNoindex:      seoNoindex,
-		PublishedAt:     publishedAt,
 		Data:            data,
 		Metadata:        metadata,
 		PrivateMetadata: privateMetadata,
@@ -377,10 +351,9 @@ func (r *postgresRepository) SetPagePublished(ctx context.Context, id uuid.UUID,
 	return toPage(row), nil
 }
 
-// clearSchedule is for the scheduler, which consumes the schedule it acted on
-func (r *postgresRepository) GoLive(ctx context.Context, id uuid.UUID, publishedAt time.Time, clearSchedule bool) (Page, error) {
+func (r *postgresRepository) GoLive(ctx context.Context, id uuid.UUID, publishedAt time.Time) (Page, error) {
 	row, err := r.queries.GoLiveCMSPage(ctx, db.GoLiveCMSPageParams{
-		ID: id, PublishedAt: sql.NullTime{Time: publishedAt, Valid: true}, ClearSchedule: clearSchedule,
+		ID: id, PublishedAt: sql.NullTime{Time: publishedAt, Valid: true},
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -391,11 +364,49 @@ func (r *postgresRepository) GoLive(ctx context.Context, id uuid.UUID, published
 	return toPage(row), nil
 }
 
-func (r *postgresRepository) DeletePage(ctx context.Context, id uuid.UUID) error {
-	if err := r.queries.DeleteCMSPage(ctx, id); err != nil {
-		return fmt.Errorf("delete page: %w", err)
+// False when the page went live through another path, or its schedule moved, after the scheduler read it
+func (r *postgresRepository) GoLiveScheduled(ctx context.Context, id uuid.UUID, publishedAt, seenSchedule time.Time) (bool, error) {
+	n, err := r.queries.GoLiveScheduledCMSPage(ctx, db.GoLiveScheduledCMSPageParams{
+		ID: id, PublishedAt: sql.NullTime{Time: publishedAt, Valid: true}, SeenSchedule: seenSchedule,
+	})
+	if err != nil {
+		return false, fmt.Errorf("publish scheduled page: %w", err)
+	}
+	return n > 0, nil
+}
+
+func (r *postgresRepository) DemoteApproved(ctx context.Context, id uuid.UUID) error {
+	if err := r.queries.DemoteApprovedCMSPage(ctx, id); err != nil {
+		return fmt.Errorf("void page approval: %w", err)
 	}
 	return nil
+}
+
+func (r *postgresRepository) PageInAncestry(ctx context.Context, pageID, candidate uuid.UUID, maxDepth int32) (bool, int32, error) {
+	row, err := r.queries.CMSPageInAncestry(ctx, db.CMSPageInAncestryParams{PageID: pageID, Candidate: candidate, MaxDepth: maxDepth})
+	if err != nil {
+		return false, 0, fmt.Errorf("walk page ancestry: %w", err)
+	}
+	return row.Found, row.Depth, nil
+}
+
+func (r *postgresRepository) RelationshipTargetExists(ctx context.Context, target RelationshipTarget, id uuid.UUID) (bool, error) {
+	found, err := r.queries.CMSRelationshipTargetExists(ctx, db.CMSRelationshipTargetExistsParams{TargetType: string(target), TargetID: id})
+	if err != nil {
+		return false, fmt.Errorf("check relationship target: %w", err)
+	}
+	return found, nil
+}
+
+func (r *postgresRepository) DeletePage(ctx context.Context, id uuid.UUID) (int64, error) {
+	n, err := r.queries.DeleteCMSPage(ctx, id)
+	if err != nil {
+		if isForeignKeyViolation(err) {
+			return 0, ErrPageHasChildren
+		}
+		return 0, fmt.Errorf("delete page: %w", err)
+	}
+	return n, nil
 }
 
 func (r *postgresRepository) UpsertPageContent(ctx context.Context, pageID uuid.UUID, in PageContentInput) (PageContent, error) {
@@ -487,8 +498,7 @@ func (r *postgresRepository) DeletePageContent(ctx context.Context, pageID uuid.
 }
 
 func (r *postgresRepository) SetPageSelections(ctx context.Context, pageID, attributeID uuid.UUID, valueIDs []uuid.UUID) error {
-	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	return r.atomic(ctx, func(q *db.Queries) error {
 		if err := q.ClearCMSPageAttributeValuesForAttribute(ctx, db.ClearCMSPageAttributeValuesForAttributeParams{
 			PageID: pageID, AttributeID: attributeID,
 		}); err != nil {
@@ -508,7 +518,7 @@ func (r *postgresRepository) SetPageSelections(ctx context.Context, pageID, attr
 func (r *postgresRepository) ListPageSelections(ctx context.Context, pageID uuid.UUID) ([]PageAttributeSelection, error) {
 	rows, err := r.queries.ListCMSPageAttributeValues(ctx, pageID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list page selections: %w", err)
 	}
 	out := make([]PageAttributeSelection, len(rows))
 	for i, s := range rows {
@@ -518,8 +528,7 @@ func (r *postgresRepository) ListPageSelections(ctx context.Context, pageID uuid
 }
 
 func (r *postgresRepository) SetPageRelationships(ctx context.Context, pageID, attributeID uuid.UUID, refs []PageRelationship) error {
-	return r.tx.InTransaction(ctx, func(t *sql.Tx) error {
-		q := r.queries.WithTx(t)
+	return r.atomic(ctx, func(q *db.Queries) error {
 		if err := q.ClearCMSPageRelationshipsForAttribute(ctx, db.ClearCMSPageRelationshipsForAttributeParams{
 			PageID: pageID, AttributeID: attributeID,
 		}); err != nil {
@@ -540,7 +549,7 @@ func (r *postgresRepository) SetPageRelationships(ctx context.Context, pageID, a
 func (r *postgresRepository) ListPageRelationships(ctx context.Context, pageID uuid.UUID) ([]PageRelationship, error) {
 	rows, err := r.queries.ListCMSPageRelationships(ctx, pageID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list page relationships: %w", err)
 	}
 	out := make([]PageRelationship, len(rows))
 	for i, rl := range rows {
@@ -602,14 +611,14 @@ func tagsOrEmpty(tags []string) []string {
 	return tags
 }
 
-// normalizeTags cleans a tag set before persisting: trim whitespace, drop empties, lower-case (so "Sale"/"sale" filter
-// as one), dedupe preserving first-seen order, and cap to a sane ceiling - Returns a non-nil slice
+// normalizeTags cleans a tag set before persisting: each tag becomes the slug the vocabulary stores (so "Sale"/"sale" filter
+// as one), empties drop, dedupe preserves first-seen order, and the set is capped to a sane ceiling - Returns a non-nil slice
 func normalizeTags(in []string) []string {
 	const maxTags = 50
 	out := make([]string, 0, len(in))
 	seen := make(map[string]struct{}, len(in))
 	for _, t := range in {
-		t = strings.ToLower(strings.TrimSpace(t))
+		t = slugifyTag(t)
 		if t == "" {
 			continue
 		}
