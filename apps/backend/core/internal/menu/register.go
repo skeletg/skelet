@@ -7,6 +7,7 @@ func init() {
 	apperr.RegisterSentinel(ErrMenuNotFound, "MENU_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrMenuItemNotFound, "MENU_ITEM_NOT_FOUND", apperr.ClassNotFound)
 	apperr.RegisterSentinel(ErrMenuSlugTaken, "MENU_SLUG_TAKEN", apperr.ClassConflict)
+	apperr.RegisterSentinel(ErrInvalidSlug, "MENU_INVALID_SLUG", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrInvalidTargetType, "MENU_INVALID_TARGET_TYPE", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrTargetXorURL, "MENU_TARGET_XOR_URL", apperr.ClassValidation)
 	apperr.RegisterSentinel(ErrDepthExceeded, "MENU_DEPTH_EXCEEDED", apperr.ClassValidation)

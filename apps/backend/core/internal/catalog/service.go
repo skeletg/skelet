@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	contentpkg "github.com/skeletg/skelet/apps/backend/core/internal/content"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/slug"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/lib/applog"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
@@ -1122,7 +1122,6 @@ func (s *core) MoveAttributeToGroup(ctx context.Context, productTypeID, attribut
 
 // ==================== helpers ====================
 
-// validateSlug: lowercase letters, digits, underscores, and hyphens - Empty and whitespace-bearing slugs rejected - Matches the permission registry's convention so everything in the system uses the same rules
-func validateSlug(slug string) error {
-	return contentpkg.ValidateSlug(slug, ErrInvalidSlug)
+func validateSlug(s string) error {
+	return slug.Validate(s, ErrInvalidSlug)
 }

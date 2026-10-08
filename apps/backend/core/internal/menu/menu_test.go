@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
 // Only the handful of methods the validation paths touch are implemented - the embedded interface
@@ -118,6 +119,21 @@ func TestValidateSlug(t *testing.T) {
 	for _, bad := range []string{"", "Main", "main nav", "main/nav", "main.nav", "menü", "main!"} {
 		if err := validateSlug(bad); err == nil {
 			t.Errorf("validateSlug(%q) = nil, want an error", bad)
+		}
+	}
+}
+
+func TestBadSlugIsAValidationError(t *testing.T) {
+	svc, _ := newTestService()
+	bad := "Main.Nav"
+	_, createErr := svc.CreateMenu(context.Background(), CreateMenuInput{Slug: bad, Name: "Main"})
+	_, updateErr := svc.UpdateMenu(context.Background(), UpdateMenuInput{ID: uuid.New(), Slug: &bad})
+	for _, err := range []error{createErr, updateErr} {
+		if !errors.Is(err, ErrInvalidSlug) {
+			t.Fatalf("got %v, want ErrInvalidSlug", err)
+		}
+		if c := apperr.ClassOf(err); c != apperr.ClassValidation {
+			t.Errorf("class = %v, want ClassValidation", c)
 		}
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
+	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 	"github.com/skeletg/skelet/apps/backend/core/lib/apperr"
 )
 
@@ -71,8 +72,7 @@ func (e *Allocating) ApplyWebhookResponse(body []byte) (bool, string, error) {
 		return false, "", nil
 	}
 	var resp struct {
-		Reject  bool              `json:"reject"`
-		Reason  string            `json:"reason"`
+		syncveto.Response
 		Routing map[string]string `json:"routing"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {

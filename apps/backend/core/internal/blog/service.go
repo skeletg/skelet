@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	contentpkg "github.com/skeletg/skelet/apps/backend/core/internal/content"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/slug"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
@@ -138,8 +138,6 @@ func (s *core) resolveDefaultLocale(ctx context.Context) string {
 	return strings.TrimSpace(code)
 }
 
-// validateSlug allows lowercase letters, digits, hyphens, underscores, dots
-// Matches the catalog domain's slug rules
-func validateSlug(slug string) error {
-	return contentpkg.ValidateSlug(slug, ErrInvalidSlug)
+func validateSlug(s string) error {
+	return slug.Validate(s, ErrInvalidSlug)
 }

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 )
 
 const (
@@ -49,9 +51,8 @@ func (e *ProductCreating) ApplyWebhookResponse(body []byte) (bool, string, error
 		return false, "", nil
 	}
 	var resp struct {
-		Reject bool     `json:"reject"`
-		Reason string   `json:"reason"`
-		Tags   []string `json:"tags"`
+		syncveto.Response
+		Tags []string `json:"tags"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return false, "", err
@@ -81,9 +82,8 @@ func (e *ProductUpdating) ApplyWebhookResponse(body []byte) (bool, string, error
 		return false, "", nil
 	}
 	var resp struct {
-		Reject bool     `json:"reject"`
-		Reason string   `json:"reason"`
-		Tags   []string `json:"tags"`
+		syncveto.Response
+		Tags []string `json:"tags"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return false, "", err

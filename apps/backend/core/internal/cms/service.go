@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	contentpkg "github.com/skeletg/skelet/apps/backend/core/internal/content"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/slug"
 	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
@@ -191,8 +191,8 @@ func adminPtr(ctx context.Context) *uuid.UUID {
 	return nil
 }
 
-func validateSlug(slug string) error {
-	return contentpkg.ValidateSlug(slug, ErrInvalidSlug)
+func validateSlug(s string) error {
+	return slug.Validate(s, ErrInvalidSlug)
 }
 
 // Validates a possibly multi-segment URL root like "help" or "help/articles" - each "/"-separated segment must be a valid slug

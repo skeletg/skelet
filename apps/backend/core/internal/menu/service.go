@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/slug"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 )
 
@@ -294,16 +295,8 @@ func ResolveItemLabel(item MenuItem, translations []MenuItemTranslation, locale 
 	return item.Label
 }
 
-func validateSlug(slug string) error {
-	if slug == "" {
-		return fmt.Errorf("slug is required")
-	}
-	for _, r := range slug {
-		if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
-			return fmt.Errorf("slug must contain only lowercase letters, digits, hyphens, and underscores")
-		}
-	}
-	return nil
+func validateSlug(s string) error {
+	return slug.ValidateIdentifier(s, ErrInvalidSlug)
 }
 
 func validateTarget(targetType TargetType, targetID *uuid.UUID, url string) error {

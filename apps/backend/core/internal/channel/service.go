@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/slug"
 	"github.com/skeletg/skelet/apps/backend/core/lib/cache"
 )
 
@@ -428,16 +429,11 @@ func (s *Service) SetDefault(ctx context.Context, id uuid.UUID) (Channel, error)
 	return out, nil
 }
 
-func validateSlug(slug string) error {
-	if slug == "" || len(slug) > maxSlugLength {
-		return ErrInvalidSlug
+func validateSlug(s string) error {
+	if len(s) > maxSlugLength {
+		return fmt.Errorf("%w: longer than %d characters", ErrInvalidSlug, maxSlugLength)
 	}
-	for _, r := range slug {
-		if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
-			return ErrInvalidSlug
-		}
-	}
-	return nil
+	return slug.ValidateIdentifier(s, ErrInvalidSlug)
 }
 
 func validateMetadata(m Metadata) error {
