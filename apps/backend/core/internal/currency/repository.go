@@ -31,7 +31,7 @@ func (r *postgresRepository) Create(ctx context.Context, input CreateCurrencyInp
 		Metadata:       mapToJSON(input.Metadata),
 	})
 	if err != nil {
-		if isUniqueViolation(err) {
+		if pgdb.IsUniqueViolation(err) {
 			return Currency{}, ErrCurrencyCodeTaken
 		}
 		return Currency{}, fmt.Errorf("create currency: %w", err)
@@ -121,6 +121,9 @@ func (r *postgresRepository) Update(ctx context.Context, input UpdateCurrencyInp
 
 func (r *postgresRepository) Delete(ctx context.Context, code string) error {
 	if err := r.queries.DeleteCurrency(ctx, code); err != nil {
+		if pgdb.IsForeignKeyViolation(err) {
+			return ErrCurrencyInUse // a reference landed after the count
+		}
 		return fmt.Errorf("delete currency: %w", err)
 	}
 	return nil
@@ -134,12 +137,32 @@ func (r *postgresRepository) CountReferences(ctx context.Context, code string) (
 	return n, nil
 }
 
+func (r *postgresRepository) HasAmounts(ctx context.Context, code string) (bool, error) {
+	ok, err := r.queries.CurrencyHasAmounts(ctx, code)
+	if err != nil {
+		return false, fmt.Errorf("check currency amounts: %w", err)
+	}
+	return ok, nil
+}
+
+func (r *postgresRepository) CountChannels(ctx context.Context, code string) (int64, error) {
+	n, err := r.queries.CountChannelsUsingCurrency(ctx, code)
+	if err != nil {
+		return 0, fmt.Errorf("count currency channels: %w", err)
+	}
+	return n, nil
+}
+
 func (r *postgresRepository) SetRate(ctx context.Context, code string, rate float64) error {
-	if err := r.queries.SetCurrencyRate(ctx, db.SetCurrencyRateParams{
+	n, err := r.queries.SetCurrencyRate(ctx, db.SetCurrencyRateParams{
 		Code:         code,
 		ExchangeRate: sql.NullFloat64{Float64: rate, Valid: true},
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("set currency rate: %w", err)
+	}
+	if n == 0 {
+		return ErrCurrencyNotFound
 	}
 	return nil
 }
@@ -189,5 +212,3 @@ func jsonToMap(raw json.RawMessage) map[string]string {
 	}
 	return out
 }
-
-func isUniqueViolation(err error) bool { return pgdb.IsUniqueViolation(err) } // shared SQLSTATE-based check - the per-package copies drifted into fragile message matching

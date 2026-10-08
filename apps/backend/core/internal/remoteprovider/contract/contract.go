@@ -8,7 +8,7 @@ import (
 )
 
 // The wire contract's own version, sent on every invocation as X-Provider-Contract-Version and in the envelope, so a provider can log what it was built against and detect drift - 0.x while the contract is unfrozen: a breaking change (removed/renamed field, changed type, new required expectation) bumps the minor, an additive one (new kind, new optional field) the patch contract_lock_test.go refuses schema drift without a bump here
-const Version = "0.2.1"
+const Version = "0.2.2"
 
 //go:embed *.json
 var files embed.FS
