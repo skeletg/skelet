@@ -2089,6 +2089,16 @@ export type CustomerConsent = {
   updatedAt?: Maybe<Scalars['Time']['output']>;
 };
 
+export type CustomerConsentEvent = {
+  __typename?: 'CustomerConsentEvent';
+  adminId?: Maybe<Scalars['ID']['output']>;
+  createdAt: Scalars['Time']['output'];
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+  optedIn: Scalars['Boolean']['output'];
+  source: Scalars['String']['output'];
+};
+
 export type CustomerEventCount = {
   __typename?: 'CustomerEventCount';
   count: Scalars['Int']['output'];
@@ -7221,6 +7231,7 @@ export type Query = {
   customer: Customer;
   customerAudiences: Array<SignalSegment>;
   customerCommerce: CustomerCommerce;
+  customerConsentHistory: Array<CustomerConsentEvent>;
   customerGroup: CustomerGroup;
   customerGroups: Array<CustomerGroup>;
   customerProfile: CustomerProfile;
@@ -7653,6 +7664,12 @@ export type QueryCustomerAudiencesArgs = {
 
 export type QueryCustomerCommerceArgs = {
   customerId: Scalars['ID']['input'];
+};
+
+
+export type QueryCustomerConsentHistoryArgs = {
+  customerId: Scalars['ID']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
 };
 
 

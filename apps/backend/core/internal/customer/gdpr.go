@@ -136,6 +136,12 @@ func (r *postgresRepository) Anonymize(ctx context.Context, customerID uuid.UUID
 		if err := q.DeleteCustomerConsents(ctx, customerID); err != nil {
 			return fmt.Errorf("delete consents: %w", err)
 		}
+		if err := q.DeleteCustomerConsentEvents(ctx, customerID); err != nil {
+			return fmt.Errorf("delete consent history: %w", err)
+		}
+		if err := q.DeleteCustomerSignupConfirmations(ctx, db.DeleteCustomerSignupConfirmationsParams{CustomerID: customerID, Email: email}); err != nil {
+			return fmt.Errorf("delete signup confirmations: %w", err)
+		}
 		if enqueue != nil {
 			return enqueue(t)
 		}

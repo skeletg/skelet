@@ -1,7 +1,7 @@
 import { BACKEND_INTERNAL_URL } from "@/app/lib/backend-url";
 
-// The backend's same-origin links: thumbnails, downloads, unsubscribe, email pixels and clicks, and the /t beacons
-export const PROXIED_PREFIXES = ["/media/t/", "/download/", "/unsubscribe/", "/e/", "/t/"] as const;
+// The backend's same-origin links: thumbnails, downloads, unsubscribe and signup confirmation, email pixels and clicks, and the /t beacons
+export const PROXIED_PREFIXES = ["/media/t/", "/download/", "/unsubscribe/", "/subscribe/", "/e/", "/t/"] as const;
 
 const HOP_BY_HOP = [
   "connection",

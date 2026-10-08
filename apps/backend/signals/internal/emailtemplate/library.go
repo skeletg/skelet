@@ -100,7 +100,7 @@ func (s *Service) RestoreRevision(ctx context.Context, revisionID uuid.UUID, adm
 // to - Mirrors the transactional template keys (order/auth), excluding layout
 var TransactionalSlots = []string{
 	KeyOrderConfirmation, KeyOrderShipment, KeyOrderCancellation, KeyOrderRefund,
-	KeyVerification, KeyPasswordReset,
+	KeyVerification, KeyPasswordReset, KeySignupConfirmation,
 }
 
 func isTransactionalSlot(slot string) bool {
