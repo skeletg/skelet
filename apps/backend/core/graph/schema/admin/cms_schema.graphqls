@@ -165,7 +165,6 @@ type CMSPageTypeAttribute {
 input CreateCMSPageTypeInput {
   slug:        String!
   icon:        String
-  isSystem:    Boolean
   position:    Int
   locale:      String!
   name:        String!

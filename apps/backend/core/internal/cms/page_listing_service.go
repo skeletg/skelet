@@ -11,7 +11,11 @@ import (
 // Mirrors blog.Service.SetPostChannelListing - admins use it to toggle a page per store without flipping the global flag
 func (s *pageService) SetPageChannelListing(ctx context.Context, in SetPageChannelListingInput) (Page, error) {
 	// Demote any existing homepage first when flagging this one, inside a single tx, so the partial unique index never sees two mid-flight
-	err := s.tx.InTransaction(ctx, func(t *sql.Tx) error {
+	page, err := s.repo.GetPageByID(ctx, in.PageID)
+	if err != nil {
+		return Page{}, err
+	}
+	err = s.tx.InTransaction(ctx, func(t *sql.Tx) error {
 		r := s.repo.WithTx(t)
 		if in.IsHomepage {
 			if err := r.ClearChannelHomepage(ctx, in.ChannelID, in.PageID); err != nil {
@@ -24,6 +28,7 @@ func (s *pageService) SetPageChannelListing(ctx context.Context, in SetPageChann
 	if err != nil {
 		return Page{}, err
 	}
+	s.announceChanged(ctx, page)
 	return s.repo.GetPageByID(ctx, in.PageID)
 }
 
@@ -38,9 +43,14 @@ func (s *pageService) GetHomePageForChannel(ctx context.Context, channelID uuid.
 }
 
 func (s *pageService) DeletePageChannelListing(ctx context.Context, pageID, channelID uuid.UUID) (Page, error) {
+	page, err := s.repo.GetPageByID(ctx, pageID)
+	if err != nil {
+		return Page{}, err
+	}
 	if err := s.repo.DeletePageChannelListing(ctx, pageID, channelID); err != nil {
 		return Page{}, err
 	}
+	s.announceChanged(ctx, page)
 	return s.repo.GetPageByID(ctx, pageID)
 }
 

@@ -19,7 +19,7 @@ import (
 const approveCMSPageWorkflow = `-- name: ApproveCMSPageWorkflow :one
 UPDATE cms_pages
 SET workflow_state = 'approved', approved_by = $2, approved_at = NOW(), updated_at = NOW()
-WHERE id = $1
+WHERE id = $1 AND workflow_state = 'in_review'
 RETURNING id, page_type_id, parent_id, slug, url_path, position, is_published, seo_noindex, published_at, data, metadata, private_metadata, created_at, updated_at, scheduled_at, base_path, experiment_key, tags, workflow_state, assigned_to, submitted_by, submitted_at, approved_by, approved_at
 `
 
@@ -140,6 +140,36 @@ func (q *Queries) AssignCMSPage(ctx context.Context, arg AssignCMSPageParams) (C
 	return i, err
 }
 
+const cMSPageInAncestry = `-- name: CMSPageInAncestry :one
+WITH RECURSIVE chain AS (
+    SELECT cp.id, cp.parent_id, 1 AS depth FROM cms_pages cp WHERE cp.id = $2::uuid
+    UNION ALL
+    SELECT p.id, p.parent_id, c.depth + 1 FROM cms_pages p JOIN chain c ON p.id = c.parent_id
+    WHERE c.depth < $3::int
+)
+SELECT EXISTS(SELECT 1 FROM chain WHERE chain.id = $1::uuid)::bool AS found,
+       COALESCE((SELECT MAX(depth) FROM chain), 0)::int AS depth
+`
+
+type CMSPageInAncestryParams struct {
+	PageID    uuid.UUID `json:"page_id"`
+	Candidate uuid.UUID `json:"candidate"`
+	MaxDepth  int32     `json:"max_depth"`
+}
+
+type CMSPageInAncestryRow struct {
+	Found bool  `json:"found"`
+	Depth int32 `json:"depth"`
+}
+
+// Whether page_id is the candidate itself or one of its ancestors - bounded, so a pre-existing cycle can't spin forever
+func (q *Queries) CMSPageInAncestry(ctx context.Context, arg CMSPageInAncestryParams) (CMSPageInAncestryRow, error) {
+	row := q.db.QueryRowContext(ctx, cMSPageInAncestry, arg.PageID, arg.Candidate, arg.MaxDepth)
+	var i CMSPageInAncestryRow
+	err := row.Scan(&i.Found, &i.Depth)
+	return i, err
+}
+
 const cMSPageSlugExists = `-- name: CMSPageSlugExists :one
 SELECT EXISTS(SELECT 1 FROM cms_pages WHERE slug = $1)
 `
@@ -149,6 +179,29 @@ func (q *Queries) CMSPageSlugExists(ctx context.Context, slug string) (bool, err
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const cMSRelationshipTargetExists = `-- name: CMSRelationshipTargetExists :one
+SELECT (CASE $1::text
+    WHEN 'cms_page'   THEN EXISTS(SELECT 1 FROM cms_pages WHERE id = $2::uuid)
+    WHEN 'blog_post'  THEN EXISTS(SELECT 1 FROM blog_posts WHERE id = $2::uuid)
+    WHEN 'product'    THEN EXISTS(SELECT 1 FROM catalog_products WHERE id = $2::uuid)
+    WHEN 'collection' THEN EXISTS(SELECT 1 FROM catalog_collections WHERE id = $2::uuid)
+    WHEN 'category'   THEN EXISTS(SELECT 1 FROM catalog_categories WHERE id = $2::uuid)
+    ELSE FALSE
+END)::bool AS found
+`
+
+type CMSRelationshipTargetExistsParams struct {
+	TargetType string    `json:"target_type"`
+	TargetID   uuid.UUID `json:"target_id"`
+}
+
+func (q *Queries) CMSRelationshipTargetExists(ctx context.Context, arg CMSRelationshipTargetExistsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, cMSRelationshipTargetExists, arg.TargetType, arg.TargetID)
+	var found bool
+	err := row.Scan(&found)
+	return found, err
 }
 
 const cMSTagUsageCounts = `-- name: CMSTagUsageCounts :many
@@ -217,6 +270,22 @@ func (q *Queries) ClearCMSPageAttributeValuesForAttribute(ctx context.Context, a
 	return err
 }
 
+const clearCMSPageAttributeValuesForPageType = `-- name: ClearCMSPageAttributeValuesForPageType :exec
+DELETE FROM cms_page_attribute_values v
+USING cms_pages p
+WHERE v.page_id = p.id AND p.page_type_id = $1 AND v.attribute_id = $2
+`
+
+type ClearCMSPageAttributeValuesForPageTypeParams struct {
+	PageTypeID  uuid.UUID `json:"page_type_id"`
+	AttributeID uuid.UUID `json:"attribute_id"`
+}
+
+func (q *Queries) ClearCMSPageAttributeValuesForPageType(ctx context.Context, arg ClearCMSPageAttributeValuesForPageTypeParams) error {
+	_, err := q.db.ExecContext(ctx, clearCMSPageAttributeValuesForPageType, arg.PageTypeID, arg.AttributeID)
+	return err
+}
+
 const clearCMSPageRelationshipsForAttribute = `-- name: ClearCMSPageRelationshipsForAttribute :exec
 DELETE FROM cms_page_relationships WHERE page_id = $1 AND attribute_id = $2
 `
@@ -229,6 +298,33 @@ type ClearCMSPageRelationshipsForAttributeParams struct {
 func (q *Queries) ClearCMSPageRelationshipsForAttribute(ctx context.Context, arg ClearCMSPageRelationshipsForAttributeParams) error {
 	_, err := q.db.ExecContext(ctx, clearCMSPageRelationshipsForAttribute, arg.PageID, arg.AttributeID)
 	return err
+}
+
+const clearCMSPageRelationshipsForPageType = `-- name: ClearCMSPageRelationshipsForPageType :exec
+DELETE FROM cms_page_relationships r
+USING cms_pages p
+WHERE r.page_id = p.id AND p.page_type_id = $1 AND r.attribute_id = $2
+`
+
+type ClearCMSPageRelationshipsForPageTypeParams struct {
+	PageTypeID  uuid.UUID `json:"page_type_id"`
+	AttributeID uuid.UUID `json:"attribute_id"`
+}
+
+func (q *Queries) ClearCMSPageRelationshipsForPageType(ctx context.Context, arg ClearCMSPageRelationshipsForPageTypeParams) error {
+	_, err := q.db.ExecContext(ctx, clearCMSPageRelationshipsForPageType, arg.PageTypeID, arg.AttributeID)
+	return err
+}
+
+const countCMSPageRelationshipsForAttribute = `-- name: CountCMSPageRelationshipsForAttribute :one
+SELECT COUNT(*) FROM cms_page_relationships WHERE attribute_id = $1
+`
+
+func (q *Queries) CountCMSPageRelationshipsForAttribute(ctx context.Context, attributeID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countCMSPageRelationshipsForAttribute, attributeID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countCMSPagesByType = `-- name: CountCMSPagesByType :one
@@ -384,9 +480,9 @@ func (q *Queries) CreateCMSBlockType(ctx context.Context, arg CreateCMSBlockType
 const createCMSPage = `-- name: CreateCMSPage :one
 
 INSERT INTO cms_pages (
-    page_type_id, parent_id, slug, base_path, url_path, position, is_published, seo_noindex,
-    published_at, data, metadata, private_metadata
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    page_type_id, parent_id, slug, base_path, url_path, position, seo_noindex,
+    data, metadata, private_metadata
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING id, page_type_id, parent_id, slug, url_path, position, is_published, seo_noindex, published_at, data, metadata, private_metadata, created_at, updated_at, scheduled_at, base_path, experiment_key, tags, workflow_state, assigned_to, submitted_by, submitted_at, approved_by, approved_at
 `
 
@@ -397,15 +493,14 @@ type CreateCMSPageParams struct {
 	BasePath        string          `json:"base_path"`
 	UrlPath         string          `json:"url_path"`
 	Position        int32           `json:"position"`
-	IsPublished     bool            `json:"is_published"`
 	SeoNoindex      bool            `json:"seo_noindex"`
-	PublishedAt     sql.NullTime    `json:"published_at"`
 	Data            json.RawMessage `json:"data"`
 	Metadata        json.RawMessage `json:"metadata"`
 	PrivateMetadata json.RawMessage `json:"private_metadata"`
 }
 
 // ==================== Pages ====================
+// A page is born unpublished - going live is PublishPage's job alone
 func (q *Queries) CreateCMSPage(ctx context.Context, arg CreateCMSPageParams) (CmsPage, error) {
 	row := q.db.QueryRowContext(ctx, createCMSPage,
 		arg.PageTypeID,
@@ -414,9 +509,7 @@ func (q *Queries) CreateCMSPage(ctx context.Context, arg CreateCMSPageParams) (C
 		arg.BasePath,
 		arg.UrlPath,
 		arg.Position,
-		arg.IsPublished,
 		arg.SeoNoindex,
-		arg.PublishedAt,
 		arg.Data,
 		arg.Metadata,
 		arg.PrivateMetadata,
@@ -656,13 +749,16 @@ func (q *Queries) DeleteCMSBlockType(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const deleteCMSPage = `-- name: DeleteCMSPage :exec
+const deleteCMSPage = `-- name: DeleteCMSPage :execrows
 DELETE FROM cms_pages WHERE id = $1
 `
 
-func (q *Queries) DeleteCMSPage(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteCMSPage, id)
-	return err
+func (q *Queries) DeleteCMSPage(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCMSPage, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteCMSPageChannelListing = `-- name: DeleteCMSPageChannelListing :execrows
@@ -761,6 +857,18 @@ DELETE FROM cms_tags WHERE slug = $1
 
 func (q *Queries) DeleteCMSTag(ctx context.Context, slug string) error {
 	_, err := q.db.ExecContext(ctx, deleteCMSTag, slug)
+	return err
+}
+
+const demoteApprovedCMSPage = `-- name: DemoteApprovedCMSPage :exec
+UPDATE cms_pages
+SET workflow_state = 'draft', approved_by = NULL, approved_at = NULL, updated_at = NOW()
+WHERE id = $1 AND workflow_state = 'approved'
+`
+
+// An edit after approval voids it - the page goes back to draft and must be reviewed again
+func (q *Queries) DemoteApprovedCMSPage(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, demoteApprovedCMSPage, id)
 	return err
 }
 
@@ -1333,21 +1441,19 @@ func (q *Queries) GetPublishedCMSPageForChannel(ctx context.Context, arg GetPubl
 const goLiveCMSPage = `-- name: GoLiveCMSPage :one
 UPDATE cms_pages
 SET is_published = TRUE, published_at = $1, workflow_state = 'published',
-    scheduled_at = CASE WHEN $2::bool THEN NULL ELSE scheduled_at END,
-    updated_at = NOW()
-WHERE id = $3
+    scheduled_at = NULL, updated_at = NOW()
+WHERE id = $2
 RETURNING id, page_type_id, parent_id, slug, url_path, position, is_published, seo_noindex, published_at, data, metadata, private_metadata, created_at, updated_at, scheduled_at, base_path, experiment_key, tags, workflow_state, assigned_to, submitted_by, submitted_at, approved_by, approved_at
 `
 
 type GoLiveCMSPageParams struct {
-	PublishedAt   sql.NullTime `json:"published_at"`
-	ClearSchedule bool         `json:"clear_schedule"`
-	ID            uuid.UUID    `json:"id"`
+	PublishedAt sql.NullTime `json:"published_at"`
+	ID          uuid.UUID    `json:"id"`
 }
 
 // One statement, so a page is never live with a stale workflow state
 func (q *Queries) GoLiveCMSPage(ctx context.Context, arg GoLiveCMSPageParams) (CmsPage, error) {
-	row := q.db.QueryRowContext(ctx, goLiveCMSPage, arg.PublishedAt, arg.ClearSchedule, arg.ID)
+	row := q.db.QueryRowContext(ctx, goLiveCMSPage, arg.PublishedAt, arg.ID)
 	var i CmsPage
 	err := row.Scan(
 		&i.ID,
@@ -1376,6 +1482,28 @@ func (q *Queries) GoLiveCMSPage(ctx context.Context, arg GoLiveCMSPageParams) (C
 		&i.ApprovedAt,
 	)
 	return i, err
+}
+
+const goLiveScheduledCMSPage = `-- name: GoLiveScheduledCMSPage :execrows
+UPDATE cms_pages
+SET is_published = TRUE, published_at = $1, workflow_state = 'published',
+    scheduled_at = NULL, updated_at = NOW()
+WHERE id = $2 AND is_published = FALSE AND scheduled_at = $3::timestamptz
+`
+
+type GoLiveScheduledCMSPageParams struct {
+	PublishedAt  sql.NullTime `json:"published_at"`
+	ID           uuid.UUID    `json:"id"`
+	SeenSchedule time.Time    `json:"seen_schedule"`
+}
+
+// The scheduler's go-live only lands on the schedule it saw - an unpublish or a cleared schedule in between wins
+func (q *Queries) GoLiveScheduledCMSPage(ctx context.Context, arg GoLiveScheduledCMSPageParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, goLiveScheduledCMSPage, arg.PublishedAt, arg.ID, arg.SeenSchedule)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const listAllCMSPages = `-- name: ListAllCMSPages :many
@@ -2858,7 +2986,7 @@ func (q *Queries) SetCMSPageContentSearchVector(ctx context.Context, arg SetCMSP
 
 const setCMSPagePublished = `-- name: SetCMSPagePublished :one
 UPDATE cms_pages
-SET is_published = $2, published_at = $3, updated_at = NOW()
+SET is_published = $2, published_at = $3, scheduled_at = NULL, updated_at = NOW()
 WHERE id = $1
 RETURNING id, page_type_id, parent_id, slug, url_path, position, is_published, seo_noindex, published_at, data, metadata, private_metadata, created_at, updated_at, scheduled_at, base_path, experiment_key, tags, workflow_state, assigned_to, submitted_by, submitted_at, approved_by, approved_at
 `
@@ -2869,6 +2997,7 @@ type SetCMSPagePublishedParams struct {
 	PublishedAt sql.NullTime `json:"published_at"`
 }
 
+// A manual flip consumes any pending schedule, so the scheduler can't undo it
 func (q *Queries) SetCMSPagePublished(ctx context.Context, arg SetCMSPagePublishedParams) (CmsPage, error) {
 	row := q.db.QueryRowContext(ctx, setCMSPagePublished, arg.ID, arg.IsPublished, arg.PublishedAt)
 	var i CmsPage
@@ -3268,13 +3397,11 @@ UPDATE cms_pages
 SET parent_id        = $2,
     slug             = $3,
     position         = $4,
-    is_published     = $5,
-    seo_noindex      = $6,
-    published_at     = $7,
-    data             = $8,
-    metadata         = $9,
-    private_metadata = $10,
-    tags             = $11,
+    seo_noindex      = $5,
+    data             = $6,
+    metadata         = $7,
+    private_metadata = $8,
+    tags             = $9,
     updated_at       = NOW()
 WHERE id = $1
 RETURNING id, page_type_id, parent_id, slug, url_path, position, is_published, seo_noindex, published_at, data, metadata, private_metadata, created_at, updated_at, scheduled_at, base_path, experiment_key, tags, workflow_state, assigned_to, submitted_by, submitted_at, approved_by, approved_at
@@ -3285,9 +3412,7 @@ type UpdateCMSPageParams struct {
 	ParentID        uuid.NullUUID   `json:"parent_id"`
 	Slug            string          `json:"slug"`
 	Position        int32           `json:"position"`
-	IsPublished     bool            `json:"is_published"`
 	SeoNoindex      bool            `json:"seo_noindex"`
-	PublishedAt     sql.NullTime    `json:"published_at"`
 	Data            json.RawMessage `json:"data"`
 	Metadata        json.RawMessage `json:"metadata"`
 	PrivateMetadata json.RawMessage `json:"private_metadata"`
@@ -3300,9 +3425,7 @@ func (q *Queries) UpdateCMSPage(ctx context.Context, arg UpdateCMSPageParams) (C
 		arg.ParentID,
 		arg.Slug,
 		arg.Position,
-		arg.IsPublished,
 		arg.SeoNoindex,
-		arg.PublishedAt,
 		arg.Data,
 		arg.Metadata,
 		arg.PrivateMetadata,

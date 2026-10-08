@@ -139,14 +139,15 @@ func TestPathConflictIsScopeExact(t *testing.T) {
 		writeChan *uuid.UUID
 		want      bool
 	}{
-		"nobody holds the path":                {nil, nil, false},
-		"another entity holds it globally":     {held(nil, EntityTypeProduct, other), nil, true},
-		"its own global canonical":             {held(nil, EntityTypeProduct, prod), nil, false},
-		"a channel write shadows a global row": {held(nil, EntityTypeProduct, other), &chA, false},
-		"another entity holds this channel":    {held(&chA, EntityTypeProduct, other), &chA, true},
-		"its own channel override":             {held(&chA, EntityTypeProduct, prod), &chA, false},
-		"another channel holds it":             {held(&chB, EntityTypeProduct, other), &chA, false},
-		"same id but a different entity type":  {held(nil, EntityTypeCategory, prod), nil, true},
+		"nobody holds the path":                             {nil, nil, false},
+		"another entity holds it globally":                  {held(nil, EntityTypeProduct, other), nil, true},
+		"its own global canonical":                          {held(nil, EntityTypeProduct, prod), nil, false},
+		"a channel write can't shadow another's global row": {held(nil, EntityTypeProduct, other), &chA, true},
+		"a channel write shadows its own global row":        {held(nil, EntityTypeProduct, prod), &chA, false},
+		"another entity holds this channel":                 {held(&chA, EntityTypeProduct, other), &chA, true},
+		"its own channel override":                          {held(&chA, EntityTypeProduct, prod), &chA, false},
+		"another channel holds it":                          {held(&chB, EntityTypeProduct, other), &chA, false},
+		"same id but a different entity type":               {held(nil, EntityTypeCategory, prod), nil, true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := &Service{repo: &fakeScopeRepo{rows: tc.rows}}

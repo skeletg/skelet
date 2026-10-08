@@ -3,6 +3,8 @@ package cms
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -20,17 +22,44 @@ type blockStore interface {
 	GetSnippetBySlug(ctx context.Context, slug string) (Snippet, error)
 	ListBlockTypes(ctx context.Context) ([]BlockType, error)
 	ListSnippets(ctx context.Context) ([]Snippet, error)
-	UpdateBlockType(ctx context.Context, id uuid.UUID, name, icon string, fields json.RawMessage, html string) (BlockType, error)
-	UpdateSnippet(ctx context.Context, id uuid.UUID, name string, blocks json.RawMessage) (Snippet, error)
+	UpdateBlockType(ctx context.Context, id uuid.UUID, in BlockTypePatch) (BlockType, error)
+	UpdateSnippet(ctx context.Context, id uuid.UUID, name *string, blocks json.RawMessage) (Snippet, error)
 }
 
+type BlockTypePatch struct {
+	Name         *string
+	Icon         *string
+	Fields       json.RawMessage
+	HTMLTemplate *string
+}
+
+const maxBlockTemplateLen = 64 << 10
+
 // CreateSnippet / GetSnippet / ListSnippets / UpdateSnippet / DeleteSnippet - a reusable section, a saved block subtree
-// `blocks` is a { version, blocks } Document JSON, the same shape a page body carries
+// `blocks` is a { version, blocks } Document JSON, the same shape a page body carries, and it must validate like one
 func (s *blockService) CreateSnippet(ctx context.Context, slug, name string, blocks json.RawMessage) (Snippet, error) {
 	if err := validateSlug(slug); err != nil {
 		return Snippet{}, err
 	}
-	return s.repo.CreateSnippet(ctx, slug, name, blocks)
+	if strings.TrimSpace(name) == "" {
+		return Snippet{}, fmt.Errorf("%w: name", ErrRequiredFieldMissing)
+	}
+	if err := s.checkSnippetBlocks(ctx, blocks); err != nil {
+		return Snippet{}, err
+	}
+	return s.repo.CreateSnippet(ctx, slug, strings.TrimSpace(name), blocks)
+}
+
+func (s *blockService) checkSnippetBlocks(ctx context.Context, blocks json.RawMessage) error {
+	doc, ok := blockkit.ParseDocument(blocks)
+	if !ok {
+		return fmt.Errorf("%w: a snippet holds a block document", blockkit.ErrInvalidDocument)
+	}
+	checker, err := s.customTypeChecker(ctx)
+	if err != nil {
+		return err
+	}
+	return blockkit.Validate(doc, checker)
 }
 
 func (s *blockService) GetSnippet(ctx context.Context, id uuid.UUID) (Snippet, error) {
@@ -41,7 +70,19 @@ func (s *blockService) ListSnippets(ctx context.Context) ([]Snippet, error) {
 	return s.repo.ListSnippets(ctx)
 }
 
-func (s *blockService) UpdateSnippet(ctx context.Context, id uuid.UUID, name string, blocks json.RawMessage) (Snippet, error) {
+func (s *blockService) UpdateSnippet(ctx context.Context, id uuid.UUID, name *string, blocks json.RawMessage) (Snippet, error) {
+	if name != nil {
+		trimmed := strings.TrimSpace(*name)
+		if trimmed == "" {
+			return Snippet{}, fmt.Errorf("%w: name", ErrRequiredFieldMissing)
+		}
+		name = &trimmed
+	}
+	if blocks != nil {
+		if err := s.checkSnippetBlocks(ctx, blocks); err != nil {
+			return Snippet{}, err
+		}
+	}
 	return s.repo.UpdateSnippet(ctx, id, name, blocks)
 }
 
@@ -62,8 +103,31 @@ func (s *blockService) GetSnippetBlocks(ctx context.Context, slug string) ([]blo
 	return doc.Blocks, true
 }
 
+func validateBlockTypeKey(key string) error {
+	if err := validateSlug(key); err != nil {
+		return err
+	}
+	if blockkit.BuiltinTypes[key] {
+		return fmt.Errorf("%w: %q", ErrReservedBlockKey, key)
+	}
+	return nil
+}
+
+func validateBlockTemplate(html string) error {
+	if len(html) > maxBlockTemplateLen {
+		return fmt.Errorf("%w: the template exceeds %d bytes", ErrInvalidFieldValue, maxBlockTemplateLen)
+	}
+	return nil
+}
+
 // CreateBlockType / GetBlockType / ListBlockTypes / UpdateBlockType / DeleteBlockType - admin-defined custom block types, a field schema plus an HTML template
 func (s *blockService) CreateBlockType(ctx context.Context, key, name, icon string, fields json.RawMessage, html string) (BlockType, error) {
+	if err := validateBlockTypeKey(key); err != nil {
+		return BlockType{}, err
+	}
+	if err := validateBlockTemplate(html); err != nil {
+		return BlockType{}, err
+	}
 	return s.repo.CreateBlockType(ctx, key, name, icon, fields, html)
 }
 
@@ -75,25 +139,30 @@ func (s *blockService) ListBlockTypes(ctx context.Context) ([]BlockType, error) 
 	return s.repo.ListBlockTypes(ctx)
 }
 
-func (s *blockService) UpdateBlockType(ctx context.Context, id uuid.UUID, name, icon string, fields json.RawMessage, html string) (BlockType, error) {
-	return s.repo.UpdateBlockType(ctx, id, name, icon, fields, html)
+func (s *blockService) UpdateBlockType(ctx context.Context, id uuid.UUID, in BlockTypePatch) (BlockType, error) {
+	if in.HTMLTemplate != nil {
+		if err := validateBlockTemplate(*in.HTMLTemplate); err != nil {
+			return BlockType{}, err
+		}
+	}
+	return s.repo.UpdateBlockType(ctx, id, in)
 }
 
 func (s *blockService) DeleteBlockType(ctx context.Context, id uuid.UUID) error {
 	return s.repo.DeleteBlockType(ctx, id)
 }
 
-// Builds a checker recognizing the admin's custom block-type keys, so a page using one validates on save - best-effort, since a load error yields a checker that rejects all custom types
-// On *core so pageService and pageTypeService can both reach it
-func (s *core) customTypeChecker(ctx context.Context) blockkit.CustomTypeChecker {
+// Builds a checker recognizing the admin's custom block-type keys, so a page using one validates on save
+func (s *core) customTypeChecker(ctx context.Context) (blockkit.CustomTypeChecker, error) {
 	types, err := s.repo.ListBlockTypes(ctx)
-	known := make(map[string]bool, len(types))
-	if err == nil {
-		for _, t := range types {
-			known[t.Key] = true
-		}
+	if err != nil {
+		return nil, err
 	}
-	return func(typeKey string) bool { return known[typeKey] }
+	known := make(map[string]bool, len(types))
+	for _, t := range types {
+		known[t.Key] = true
+	}
+	return func(typeKey string) bool { return known[typeKey] }, nil
 }
 
 // Looks up a custom block type by key, for the front CustomRenderer, which resolves a custom block lazily and only when present

@@ -72,6 +72,10 @@ func Register(bus *events.Bus, purger Purger, queue Rebuilder, paths PathResolve
 		r.cmsPage(ctx, e.PageID, "page unpublished")
 		return nil
 	})
+	on(bus, cms.EventPageChanged, func(ctx context.Context, e *cms.PageChanged) error {
+		r.cmsPage(ctx, e.PageID, "page changed", e.Paths...)
+		return nil
+	})
 
 	// Product edits also ripple into the grids that list them - grids stay tag-only on purpose: every product edit touches them, and purging each listing path would stampede the renderer for a view where timer staleness is fine
 	on(bus, catalog.EventProductUpdated, func(ctx context.Context, e *catalog.ProductUpdated) error {
@@ -194,8 +198,14 @@ func catalogEntity[T events.Event](bus *events.Bus, r reactor, eventType string,
 	})
 }
 
-func (r reactor) cmsPage(ctx context.Context, pageID uuid.UUID, reason string) {
-	r.batch.Purge(cms.CacheSurface, []string{cmsPageTag(pageID), tagCMSAll}, r.paths.CanonicalPaths(ctx, urlrewrite.EntityTypeCMSPage, pageID), reason)
+func (r reactor) cmsPage(ctx context.Context, pageID uuid.UUID, reason string, extra ...string) {
+	paths := r.paths.CanonicalPaths(ctx, urlrewrite.EntityTypeCMSPage, pageID)
+	for _, p := range extra {
+		if !slices.Contains(paths, p) {
+			paths = append(paths, p)
+		}
+	}
+	r.batch.Purge(cms.CacheSurface, []string{cmsPageTag(pageID), tagCMSAll}, paths, reason)
 }
 
 func (r reactor) grids(reason string) {

@@ -2,6 +2,7 @@ package cms
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 
 	"github.com/google/uuid"
@@ -16,7 +17,16 @@ import (
 // Only what more than one sub-service reaches through *core
 type coreStore interface {
 	ListBlockTypes(ctx context.Context) ([]BlockType, error)
-	UpdatePagePaths(ctx context.Context, id uuid.UUID, basePath, urlPath string) error
+	WithTx(t *sql.Tx) *postgresRepository
+}
+
+func (s *core) txRepo(t *sql.Tx) *postgresRepository { return s.repo.WithTx(t) }
+
+func (s *core) announceChanged(ctx context.Context, p Page, oldPaths ...string) {
+	if s.bus == nil || !p.IsPublished {
+		return
+	}
+	s.bus.Publish(ctx, &PageChanged{PageID: p.ID, Paths: oldPaths})
 }
 
 type LocaleValidator interface {

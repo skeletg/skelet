@@ -439,9 +439,7 @@ func fromCreateCMSPageInput(in model.CreateCMSPageInput) (cms.CreatePageInput, e
 		PageTypeID:      *pageTypeID,
 		Slug:            in.Slug,
 		Position:        intDeref(in.Position, 0),
-		IsPublished:     boolDeref(in.IsPublished, false),
 		SEONoindex:      boolDeref(in.SeoNoindex, false),
-		PublishedAt:     in.PublishedAt,
 		Data:            rawJSON(in.Data),
 		Metadata:        cmsMetadataFromInput(in.Metadata),
 		PrivateMetadata: cmsMetadataFromInput(in.PrivateMetadata),
@@ -505,10 +503,8 @@ func fromUpdateCMSPageInput(in model.UpdateCMSPageInput) (cms.UpdatePageInput, e
 		ID:              *id,
 		Slug:            in.Slug,
 		Position:        in.Position,
-		IsPublished:     in.IsPublished,
 		SEONoindex:      in.SeoNoindex,
 		ClearParent:     boolDeref(in.ClearParent, false),
-		ClearPublished:  boolDeref(in.ClearPublished, false),
 		Data:            rawJSON(in.Data),
 		Metadata:        cmsMetadataFromInput(in.Metadata),
 		PrivateMetadata: cmsMetadataFromInput(in.PrivateMetadata),
@@ -518,10 +514,6 @@ func fromUpdateCMSPageInput(in model.UpdateCMSPageInput) (cms.UpdatePageInput, e
 	if in.Tags != nil {
 		tags := in.Tags
 		out.Tags = &tags
-	}
-	if in.PublishedAt != nil {
-		t := *in.PublishedAt
-		out.PublishedAt = &t
 	}
 	if v, err := parseUUIDOpt(in.ParentID); err != nil {
 		return cms.UpdatePageInput{}, err

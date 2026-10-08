@@ -51,19 +51,28 @@ func (f *fakePageStore) SetPagePublished(_ context.Context, id uuid.UUID, publis
 	return p, nil
 }
 
-func (f *fakePageStore) GoLive(_ context.Context, id uuid.UUID, at time.Time, clearSchedule bool) (Page, error) {
+func (f *fakePageStore) GoLive(_ context.Context, id uuid.UUID, at time.Time) (Page, error) {
 	if f.failPublish != nil {
 		return Page{}, f.failPublish
 	}
 	p := f.pages[id]
 	p.IsPublished, p.PublishedAt, p.WorkflowState = true, &at, WorkflowPublished
-	if clearSchedule {
+	if p.ScheduledAt != nil {
 		p.ScheduledAt = nil
 		f.unschedules++
 	}
 	f.pages[id] = p
 	f.publishes++
 	return p, nil
+}
+
+func (f *fakePageStore) GoLiveScheduled(ctx context.Context, id uuid.UUID, at, seen time.Time) (bool, error) {
+	p := f.pages[id]
+	if p.IsPublished || p.ScheduledAt == nil || !p.ScheduledAt.Equal(seen) {
+		return false, nil
+	}
+	_, err := f.GoLive(ctx, id, at)
+	return err == nil, err
 }
 
 func (f *fakePageStore) SetPageWorkflowState(_ context.Context, id uuid.UUID, state WorkflowState) (Page, error) {
@@ -284,7 +293,9 @@ func TestPromoteDuePagesHoldsUnapprovedPagesUnderTheGate(t *testing.T) {
 }
 
 func TestPromoteDuePagesWithoutGatePromotesEverything(t *testing.T) {
+	past := time.Now().Add(-time.Hour)
 	a, b := draftPage(WorkflowDraft), draftPage(WorkflowInReview)
+	a.ScheduledAt, b.ScheduledAt = &past, &past
 	ps, store, _, _ := newPublishHarness(t, false, a, b)
 	store.due = []uuid.UUID{a.ID, b.ID}
 	n, err := ps.PromoteDuePages(context.Background())
@@ -297,7 +308,9 @@ func TestPromoteDuePagesWithoutGatePromotesEverything(t *testing.T) {
 }
 
 func TestPromoteDuePagesAsksThePublishingHooks(t *testing.T) {
+	past := time.Now().Add(-time.Hour)
 	p := draftPage(WorkflowApproved)
+	p.ScheduledAt = &past
 	ps, store, bus, log := newPublishHarness(t, true, p)
 	store.due = []uuid.UUID{p.ID}
 	if _, err := ps.PromoteDuePages(context.Background()); err != nil {

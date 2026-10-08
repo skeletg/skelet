@@ -2,6 +2,7 @@ package blockkit
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 )
@@ -292,5 +293,30 @@ func TestTranslateRoundTrip(t *testing.T) {
 	item := out.Blocks[1].Props["items"].([]any)[0].(map[string]any)
 	if item["alt"] != "X:A cat" || item["image"] != "c.jpg" {
 		t.Errorf("repeater item alt not translated / image touched: %+v", item)
+	}
+}
+
+func TestCheckBodyRefusesWhatClaimsToBeADocumentAndIsNot(t *testing.T) {
+	for name, raw := range map[string]string{
+		"string version": `{"version":"1","blocks":[{"id":"a","type":"html"}]}`,
+		"numeric id":     `{"blocks":[{"id":1,"type":"html"}]}`,
+		"blocks object":  `{"blocks":{"id":"a"}}`,
+		"missing id":     `{"version":1,"blocks":[{"type":"hero"}]}`,
+		"unknown type":   `{"version":1,"blocks":[{"id":"a","type":"nope"}]}`,
+	} {
+		if err := CheckBody(json.RawMessage(raw), nil); !errors.Is(err, ErrInvalidDocument) {
+			t.Errorf("%s: err = %v, want ErrInvalidDocument", name, err)
+		}
+	}
+	for name, raw := range map[string]string{
+		"empty":    ``,
+		"lexical":  `{"root":{"children":[]}}`,
+		"array":    `[{"blocks":[]}]`,
+		"string":   `"plain text"`,
+		"document": `{"version":1,"blocks":[{"id":"a","type":"hero"}]}`,
+	} {
+		if err := CheckBody(json.RawMessage(raw), nil); err != nil {
+			t.Errorf("%s: err = %v, want it accepted", name, err)
+		}
 	}
 }

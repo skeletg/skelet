@@ -382,9 +382,7 @@ type CreatePageInput struct {
 	ParentID        *uuid.UUID
 	Slug            string
 	Position        int32
-	IsPublished     bool
 	SEONoindex      bool
-	PublishedAt     *time.Time
 	Data            json.RawMessage
 	Metadata        map[string]string
 	PrivateMetadata map[string]string
@@ -405,10 +403,7 @@ type UpdatePageInput struct {
 	ClearParent     bool
 	Slug            *string
 	Position        *int32
-	IsPublished     *bool
 	SEONoindex      *bool
-	PublishedAt     *time.Time
-	ClearPublished  bool
 	Data            json.RawMessage
 	Metadata        map[string]string
 	PrivateMetadata map[string]string
@@ -465,6 +460,18 @@ var (
 	ErrURLPathConflict        = errors.New("url path already in use")
 	ErrSnippetNotFound        = errors.New("cms snippet not found")
 	ErrBlockTypeNotFound      = errors.New("cms block type not found")
+	ErrPageCycle              = errors.New("a page cannot be nested under itself or its own descendant")
+	ErrPageTooDeep            = errors.New("page nesting is too deep")
+	ErrPageHasChildren        = errors.New("page has child pages")
+	ErrSelfApproval           = errors.New("a page cannot be approved by the admin who submitted it")
+	ErrNotInReview            = errors.New("page is not in review")
+	ErrAttributeValueInUse    = errors.New("attribute value is selected on one or more pages")
+	ErrRevisionNotFound       = errors.New("cms page revision not found")
+	ErrCommentNotFound        = errors.New("cms page comment not found")
+	ErrChannelNotFound        = errors.New("channel not found")
+	ErrAdminRequired          = errors.New("an authenticated admin is required")
+	ErrReservedBlockKey       = errors.New("block type key is reserved by a built-in block")
+	ErrTagNotFound            = errors.New("cms tag not found")
 )
 
 // A content-version snapshot of a (page, locale) written on every content save - restoring one re-applies its title, body, meta and data

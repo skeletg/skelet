@@ -1330,9 +1330,7 @@ type CreateCMSPageInput struct {
 	ParentID        *string                     `json:"parentId,omitempty"`
 	Slug            string                      `json:"slug"`
 	Position        *int32                      `json:"position,omitempty"`
-	IsPublished     *bool                       `json:"isPublished,omitempty"`
 	SeoNoindex      *bool                       `json:"seoNoindex,omitempty"`
-	PublishedAt     *time.Time                  `json:"publishedAt,omitempty"`
 	Data            any                         `json:"data,omitempty"`
 	Metadata        []*MetadataInput            `json:"metadata,omitempty"`
 	PrivateMetadata []*MetadataInput            `json:"privateMetadata,omitempty"`
@@ -1350,7 +1348,6 @@ type CreateCMSPageInput struct {
 type CreateCMSPageTypeInput struct {
 	Slug        string  `json:"slug"`
 	Icon        *string `json:"icon,omitempty"`
-	IsSystem    *bool   `json:"isSystem,omitempty"`
 	Position    *int32  `json:"position,omitempty"`
 	Locale      string  `json:"locale"`
 	Name        string  `json:"name"`
@@ -4806,10 +4803,7 @@ type UpdateCMSPageInput struct {
 	ClearParent     *bool            `json:"clearParent,omitempty"`
 	Slug            *string          `json:"slug,omitempty"`
 	Position        *int32           `json:"position,omitempty"`
-	IsPublished     *bool            `json:"isPublished,omitempty"`
 	SeoNoindex      *bool            `json:"seoNoindex,omitempty"`
-	PublishedAt     *time.Time       `json:"publishedAt,omitempty"`
-	ClearPublished  *bool            `json:"clearPublished,omitempty"`
 	Data            any              `json:"data,omitempty"`
 	Metadata        []*MetadataInput `json:"metadata,omitempty"`
 	PrivateMetadata []*MetadataInput `json:"privateMetadata,omitempty"`

@@ -28,24 +28,48 @@ func applyPageTypeSEODefaults(pt cms.PageType, m *model.CMSPage) { // read-time 
 	}
 }
 
-func (r *queryResolver) frontPageModel(ctx context.Context, p cms.Page) *model.CMSPage { // for the single-page resolvers - the list resolver batches the type lookup itself
+const (
+	cmsPagesDefaultLimit = 50
+	cmsPagesMaxLimit     = 100
+)
+
+func cmsPageWindow(limit, offset *int32) (int32, int32) {
+	l := intDeref(limit, cmsPagesDefaultLimit)
+	switch {
+	case l <= 0:
+		l = cmsPagesDefaultLimit
+	case l > cmsPagesMaxLimit:
+		l = cmsPagesMaxLimit
+	}
+	return l, max(intDeref(offset, 0), 0)
+}
+
+func (r *queryResolver) frontPageModel(ctx context.Context, p cms.Page) *model.CMSPage { // for the single-page resolvers - prepares the blocks and applies the type's SEO defaults
+	r.newCMSBlockPrep(ctx).page(ctx, &p)
+	return toFrontCMSPageModel(p, channelIDFromContext(ctx), r.cmsTypeDefaults(ctx))
+}
+
+func (r *queryResolver) cmsTypeDefaults(ctx context.Context) map[uuid.UUID]cms.PageType {
+	defaults, err := r.CMSSvc.PageTypeSEODefaults(ctx)
+	if err != nil {
+		return nil
+	}
+	return defaults
+}
+
+func toFrontCMSPageModel(p cms.Page, channelID *uuid.UUID, defaults map[uuid.UUID]cms.PageType) *model.CMSPage {
 	m := toCMSPageModel(p)
-	if pt, err := r.CMSSvc.GetPageType(ctx, p.PageTypeID); err == nil {
+	if channelID != nil {
+		for _, l := range p.ChannelListings {
+			if l.ChannelID == *channelID && l.SEONoindex {
+				m.SeoNoindex = true
+			}
+		}
+	}
+	if pt, ok := defaults[p.PageTypeID]; ok {
 		applyPageTypeSEODefaults(pt, m)
 	}
 	return m
-}
-
-func (r *queryResolver) cmsPageForChannel( // centralized so all three lookup variants (id/slug/url) make the same global-vs-store-scoped choice
-	ctx context.Context,
-	storeID *uuid.UUID,
-	global func(context.Context) (cms.Page, error),
-	scoped func(context.Context, uuid.UUID) (cms.Page, error),
-) (cms.Page, error) {
-	if storeID != nil {
-		return scoped(ctx, *storeID)
-	}
-	return global(ctx)
 }
 
 // The seam the seo.canonical / seo.nofollow / seo.jsonld resolver fields read, mirroring how ogImage reads seo.ogImage
@@ -179,29 +203,47 @@ func toCMSPageVariantModels(vs []cms.PageVariant) []*model.CMSPageVariant {
 	return out
 }
 
+// The per-request block preparation seams, built once and shared by every page a request renders - snippets and custom block types are memoized, so a list doesn't reload the same one per page
+type cmsBlockPrep struct {
+	r        *queryResolver
+	snippets blockkit.SnippetResolver
+	custom   blockkit.CustomRenderer
+	links    blockkit.LinkResolver
+	assets   blockkit.AssetResolver
+	forms    blockkit.FormResolver
+	ec       blockkit.EvalContext
+}
+
+func (r *queryResolver) newCMSBlockPrep(ctx context.Context) *cmsBlockPrep {
+	return &cmsBlockPrep{
+		r:        r,
+		snippets: r.cmsSnippetResolver(ctx),
+		custom:   r.cmsCustomRenderer(ctx),
+		links:    r.cmsLinkResolver(ctx),
+		assets:   r.cmsAssetResolver(ctx),
+		forms:    r.cmsFormResolver(ctx),
+		ec:       r.cmsEvalContext(ctx),
+	}
+}
+
 // On a block document: expand `ref` snippets, render admin custom block types to sanitized HTML, sanitize `html` blocks, resolve internal-link props to channel-aware URLs - freeform bodies pass through untouched
-func (r *queryResolver) prepareCMSBlocks(ctx context.Context, p *cms.Page) {
-	snippets := r.cmsSnippetResolver(ctx)
-	custom := r.cmsCustomRenderer(ctx)
-	links := r.cmsLinkResolver(ctx)
-	assets := r.cmsAssetResolver(ctx)
-	forms := r.cmsFormResolver(ctx)
-	ec := r.cmsEvalContext(ctx)
-	if p.Content != nil {
-		p.Content.Body = preparedCMSBody(p.Content.Body, snippets, custom, links, assets, forms, ec)
+func (bp *cmsBlockPrep) page(ctx context.Context, p *cms.Page) {
+	if p.Content == nil {
+		return
 	}
-	for i := range p.AllContent {
-		p.AllContent[i].Body = preparedCMSBody(p.AllContent[i].Body, snippets, custom, links, assets, forms, ec)
-	}
-	// A/B treatment bodies for the rendered locale, prepared exactly like the control body
-	if p.ExperimentKey != "" && p.Content != nil {
-		if vs, err := r.CMSSvc.GetPageVariants(ctx, p.ID, p.Content.Locale); err == nil {
+	p.Content.Body = bp.body(p.Content.Body)
+	if p.ExperimentKey != "" {
+		if vs, err := bp.r.CMSSvc.GetPageVariants(ctx, p.ID, p.Content.Locale); err == nil {
 			for i := range vs {
-				vs[i].Body = preparedCMSBody(vs[i].Body, snippets, custom, links, assets, forms, ec)
+				vs[i].Body = bp.body(vs[i].Body)
 			}
 			p.Variants = vs
 		}
 	}
+}
+
+func (bp *cmsBlockPrep) body(raw json.RawMessage) json.RawMessage {
+	return preparedCMSBody(raw, bp.snippets, bp.custom, bp.links, bp.assets, bp.forms, bp.ec)
 }
 
 // Inlines the referenced form so the storefront renders it without a second round-trip, and ok=false (missing, inactive, cross-channel) drops the block - lazy, so it only hits the DB when a form block is actually present
@@ -254,16 +296,33 @@ func (r *queryResolver) cmsEvalContext(ctx context.Context) blockkit.EvalContext
 }
 
 func (r *queryResolver) cmsSnippetResolver(ctx context.Context) blockkit.SnippetResolver {
+	type hit struct {
+		blocks []blockkit.Block
+		ok     bool
+	}
+	seen := map[string]hit{}
 	return func(slug string) ([]blockkit.Block, bool) {
-		return r.CMSSvc.GetSnippetBlocks(ctx, slug)
+		if h, ok := seen[slug]; ok {
+			return h.blocks, h.ok
+		}
+		blocks, ok := r.CMSSvc.GetSnippetBlocks(ctx, slug)
+		seen[slug] = hit{blocks, ok}
+		return blocks, ok
 	}
 }
 
 // Interpolates instance props into the block type's HTML template - lazy, only hitting the DB when a custom non-builtin block is actually present
 func (r *queryResolver) cmsCustomRenderer(ctx context.Context) blockkit.CustomRenderer {
+	types := map[string]*cms.BlockType{}
 	return func(typeKey string, props map[string]any) (string, bool) {
-		bt, ok := r.CMSSvc.GetBlockTypeByKey(ctx, typeKey)
-		if !ok {
+		bt, seen := types[typeKey]
+		if !seen {
+			if found, ok := r.CMSSvc.GetBlockTypeByKey(ctx, typeKey); ok {
+				bt = &found
+			}
+			types[typeKey] = bt
+		}
+		if bt == nil {
 			return "", false
 		}
 		vars := make(map[string]string, len(props))
@@ -331,16 +390,20 @@ func (r *queryResolver) cmsAssetResolver(ctx context.Context) blockkit.AssetReso
 	}
 }
 
+// A body claiming to be a block document that doesn't parse is dropped rather than passed through - the storefront would otherwise render its blocks unsanitized
 func preparedCMSBody(raw json.RawMessage, snippets blockkit.SnippetResolver, custom blockkit.CustomRenderer, links blockkit.LinkResolver, assets blockkit.AssetResolver, forms blockkit.FormResolver, ec blockkit.EvalContext) json.RawMessage {
 	doc, ok := blockkit.ParseDocument(raw)
 	if !ok {
+		if blockkit.ClaimsDocument(raw) {
+			return nil
+		}
 		return raw
 	}
 	// Blocks hidden by schedule/segment for this viewer drop and the survivors lose their audience info - device rules ride through for client CSS
 	prepared := blockkit.ForFront(doc, ec, snippets, custom, links, assets, forms)
 	out, err := json.Marshal(prepared)
 	if err != nil {
-		return raw
+		return nil
 	}
 	return out
 }
