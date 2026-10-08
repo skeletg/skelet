@@ -2,7 +2,7 @@ package cms
 
 import (
 	"github.com/google/uuid"
-	contentpkg "github.com/skeletg/skelet/apps/backend/core/internal/content"
+	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 )
 
 // Event types the CMS domain emits - subscribers commonly trigger a static-site rebuild or CDN purge when a page goes live
@@ -24,7 +24,7 @@ type PagePublishing struct {
 func (*PagePublishing) Type() string { return EventPagePublishing }
 
 func (e *PagePublishing) ApplyWebhookResponse(body []byte) (bool, string, error) {
-	return contentpkg.DecodePublishVeto(body)
+	return syncveto.Decode(body)
 }
 
 type PagePublished struct {

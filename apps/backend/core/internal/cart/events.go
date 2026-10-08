@@ -5,11 +5,12 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 )
 
 type cartLineResponse struct { // shared sync-webhook response for the "-ing" events - reject/veto plus the price and quantity overrides the in-process seams offer, and across multiple webhooks the last writer wins as in the plugin handler chain
-	Reject         bool     `json:"reject"`
-	Reason         string   `json:"reason"`
+	syncveto.Response
 	UnitPriceCents *int64   `json:"unitPriceCents"`
 	Quantity       *float64 `json:"quantity"`
 }
