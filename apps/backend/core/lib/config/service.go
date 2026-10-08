@@ -386,6 +386,24 @@ func (s *Service) ListOrphans(ctx context.Context) ([]StoredValue, error) {
 	return out, nil
 }
 
+// Every stored row for one path across all scopes, from the store the definition lives in - for callers that must rewrite a value wherever it was set
+func (s *Service) ListStored(ctx context.Context, path string) ([]StoredValue, error) {
+	if _, ok := Find(path); !ok {
+		return nil, ErrUnknownPath
+	}
+	rows, err := s.storeFor(path).ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]StoredValue, 0)
+	for _, row := range rows {
+		if row.Path == path {
+			out = append(out, row)
+		}
+	}
+	return out, nil
+}
+
 // An orphan has no definition left to say which store it sits in, so pruning walks them
 func (s *Service) stores() []Repository {
 	if s.signals == nil {
