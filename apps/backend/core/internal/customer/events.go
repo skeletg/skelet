@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+
+	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 )
 
 // Use these constants when subscribing, to avoid typos
@@ -47,9 +49,8 @@ func (c *CustomerRegistering) ApplyWebhookResponse(body []byte) (bool, string, e
 		return false, "", nil
 	}
 	var resp struct {
-		Reject bool     `json:"reject"`
-		Reason string   `json:"reason"`
-		Tags   []string `json:"tags"`
+		syncveto.Response
+		Tags []string `json:"tags"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return false, "", err
@@ -96,9 +97,8 @@ func (c *CustomerUpdating) ApplyWebhookResponse(body []byte) (bool, string, erro
 		return false, "", nil
 	}
 	var resp struct {
-		Reject bool     `json:"reject"`
-		Reason string   `json:"reason"`
-		Tags   []string `json:"tags"`
+		syncveto.Response
+		Tags []string `json:"tags"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return false, "", err
@@ -141,20 +141,7 @@ func (*CustomerDeleting) Type() string                { return EventDeleting }
 func (c *CustomerDeleting) EventChannelID() uuid.UUID { return c.ChannelID }
 
 func (c *CustomerDeleting) ApplyWebhookResponse(body []byte) (bool, string, error) {
-	if len(body) == 0 {
-		return false, "", nil
-	}
-	var resp struct {
-		Reject bool   `json:"reject"`
-		Reason string `json:"reason"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return false, "", err
-	}
-	if resp.Reject {
-		return true, resp.Reason, nil
-	}
-	return false, "", nil
+	return syncveto.Decode(body)
 }
 
 type CustomerDeleted struct {

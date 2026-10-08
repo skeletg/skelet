@@ -313,16 +313,47 @@ func TestValidateCoords(t *testing.T) {
 
 // The slug is a stable handle used in config and URLs, so it has to stay lowercase and separator-safe
 func TestValidateSlug(t *testing.T) {
-	for _, ok := range []string{"warehouse", "warehouse-1", "wh_east", "a", "0", "main-2026", "  padded  "} {
+	for _, ok := range []string{"warehouse", "warehouse-1", "wh_east", "a", "0", "main-2026"} {
 		if err := validateSlug(ok); err != nil {
 			t.Errorf("validateSlug(%q) = %v, want nil", ok, err)
 		}
 	}
-	for _, bad := range []string{"", "   ", "Warehouse", "wh east", "wh.east", "wh/east", "wärehaus", "wh!"} {
+	for _, bad := range []string{"", "   ", "  padded  ", "Warehouse", "wh east", "wh.east", "wh/east", "wärehaus", "wh!"} {
 		if err := validateSlug(bad); err == nil {
 			t.Errorf("validateSlug(%q) = nil, want it refused", bad)
 		}
 	}
+}
+
+// Padding is trimmed before the check and the stored slug, so the CLI's slug lookup finds the location
+func TestCreateLocationSlug(t *testing.T) {
+	repo := &locationCaptureRepo{}
+	svc := NewService(repo, nil)
+	for _, bad := range []string{"   ", "wh.east"} {
+		_, err := svc.CreateLocation(context.Background(), CreateLocationInput{Slug: bad, Name: "East"})
+		if !errors.Is(err, ErrInvalidSlug) {
+			t.Fatalf("CreateLocation(%q) = %v, want ErrInvalidSlug", bad, err)
+		}
+		if c := apperr.ClassOf(err); c != apperr.ClassValidation {
+			t.Errorf("class = %v, want ClassValidation", c)
+		}
+	}
+	if _, err := svc.CreateLocation(context.Background(), CreateLocationInput{Slug: "  wh-east ", Name: "East"}); err != nil {
+		t.Fatal(err)
+	}
+	if repo.created.Slug != "wh-east" {
+		t.Errorf("stored slug = %q, want it trimmed", repo.created.Slug)
+	}
+}
+
+type locationCaptureRepo struct {
+	Repository
+	created CreateLocationInput
+}
+
+func (r *locationCaptureRepo) CreateLocation(_ context.Context, in CreateLocationInput) (Location, error) {
+	r.created = in
+	return Location{Slug: in.Slug}, nil
 }
 
 // The restock retry exists so a transient database blip doesn't silently lose returned stock

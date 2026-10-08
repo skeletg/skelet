@@ -2,7 +2,7 @@ package blog
 
 import (
 	"github.com/google/uuid"
-	contentpkg "github.com/skeletg/skelet/apps/backend/core/internal/content"
+	"github.com/skeletg/skelet/apps/backend/core/internal/syncveto"
 )
 
 const (
@@ -25,7 +25,7 @@ type PostPublishing struct { // fires BEFORE a post goes live, by admin or sched
 func (*PostPublishing) Type() string { return EventPostPublishing }
 
 func (e *PostPublishing) ApplyWebhookResponse(body []byte) (bool, string, error) {
-	return contentpkg.DecodePublishVeto(body)
+	return syncveto.Decode(body)
 }
 
 type PostPublished struct { // fires AFTER a post moves to status=published, whether by admin action, the scheduler promoting a scheduled post, or any other path - async-only
