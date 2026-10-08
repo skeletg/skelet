@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/smtp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -87,6 +88,14 @@ func buildMIMEMessage(msg Message) []byte {
 	fmt.Fprintf(&b, "From: %s\r\n", msg.From)
 	fmt.Fprintf(&b, "To: %s\r\n", msg.To)
 	fmt.Fprintf(&b, "Subject: %s\r\n", msg.Subject)
+	keys := make([]string, 0, len(msg.Headers))
+	for k := range msg.Headers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Fprintf(&b, "%s: %s\r\n", headerSafe(k), headerSafe(msg.Headers[k]))
+	}
 	fmt.Fprintf(&b, "MIME-Version: 1.0\r\n")
 	fmt.Fprintf(&b, "Content-Type: multipart/alternative; boundary=%q\r\n\r\n", boundary)
 
@@ -100,6 +109,11 @@ func buildMIMEMessage(msg Message) []byte {
 
 	fmt.Fprintf(&b, "--%s--\r\n", boundary)
 	return []byte(b.String())
+}
+
+// A CR or LF in a header value would let it start a header of its own
+func headerSafe(s string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
 }
 
 // Pulls the bare email address out of a "Display <addr@domain>" header - SMTP's MAIL FROM envelope wants just the address

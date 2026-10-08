@@ -1236,6 +1236,16 @@ type CustomerConsent struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
+type CustomerConsentEvent struct {
+	ID         uuid.UUID     `json:"id"`
+	CustomerID uuid.UUID     `json:"customer_id"`
+	Kind       string        `json:"kind"`
+	OptedIn    bool          `json:"opted_in"`
+	Source     string        `json:"source"`
+	AdminID    uuid.NullUUID `json:"admin_id"`
+	CreatedAt  time.Time     `json:"created_at"`
+}
+
 type CustomerGroup struct {
 	ID          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`
@@ -2359,6 +2369,20 @@ type ShippingZone struct {
 type ShippingZoneCountry struct {
 	ZoneID      uuid.UUID `json:"zone_id"`
 	CountryCode string    `json:"country_code"`
+}
+
+type SignupConfirmation struct {
+	ID          uuid.UUID     `json:"id"`
+	TokenHash   []byte        `json:"token_hash"`
+	FormID      uuid.UUID     `json:"form_id"`
+	ChannelID   uuid.UUID     `json:"channel_id"`
+	Email       string        `json:"email"`
+	FirstName   string        `json:"first_name"`
+	ConsentKind string        `json:"consent_kind"`
+	CustomerID  uuid.NullUUID `json:"customer_id"`
+	CreatedAt   time.Time     `json:"created_at"`
+	ExpiresAt   time.Time     `json:"expires_at"`
+	ConfirmedAt sql.NullTime  `json:"confirmed_at"`
 }
 
 type SignupForm struct {

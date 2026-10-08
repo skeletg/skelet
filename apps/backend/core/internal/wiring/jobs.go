@@ -22,6 +22,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
 	"github.com/skeletg/skelet/apps/backend/core/internal/datajob"
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
+	"github.com/skeletg/skelet/apps/backend/core/internal/form"
 	"github.com/skeletg/skelet/apps/backend/core/internal/inventory"
 	"github.com/skeletg/skelet/apps/backend/core/internal/linkgraph"
 	"github.com/skeletg/skelet/apps/backend/core/internal/medialibrary"
@@ -80,6 +81,7 @@ type jobDeps struct {
 	SignalsClient *signalsclient.Client
 	Order         *order.Service
 	Payment       *paymentpkg.Service
+	Form          *form.Service
 
 	SignalsEnabled SignalsEnabled
 }
@@ -164,6 +166,8 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 		func(ctx context.Context) error { _, err := d.CMS.PromoteDuePages(ctx); return err })
 	jobScheduler.Register("cache-rebuild", "@every 10s", "Drain the page-rebuild queue, warming pages with bounded concurrency.",
 		func(ctx context.Context) error { _, err := d.CacheQueue.ProcessDue(ctx, 25, 5); return err })
+	jobScheduler.Register("signup-confirmations-prune", "@every 24h", "Delete signup-form confirmation links that expired unconfirmed.",
+		func(ctx context.Context) error { _, err := d.Form.PruneConfirmations(ctx); return err })
 	jobScheduler.Register("cache-rebuild-prune", "@every 6h", "Delete finished (done/failed) page-rebuild tasks older than 7 days.",
 		func(ctx context.Context) error { _, err := d.CacheQueue.Prune(ctx, 7*24*time.Hour); return err })
 	jobScheduler.Register("data-transfer-sweep", "@every 1h", "Delete import/export files past their retention window, and prune long-finished job rows. The rows outlive their files so the history stays readable.",

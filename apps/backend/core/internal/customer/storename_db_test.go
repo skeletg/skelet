@@ -23,6 +23,10 @@ func (n *namingFallback) SendPasswordReset(_ context.Context, _ uuid.UUID, _, _,
 	return nil
 }
 
+func (n *namingFallback) SendSignupConfirmation(context.Context, uuid.UUID, string, string, string, email.SignupConfirmationEmailData) error {
+	return nil
+}
+
 type namingDispatcher struct{ verifyName, resetName *string }
 
 func (d namingDispatcher) OnEmailVerification(_ context.Context, _, _ uuid.UUID, _, storeName, _ string) int {
@@ -32,6 +36,10 @@ func (d namingDispatcher) OnEmailVerification(_ context.Context, _, _ uuid.UUID,
 
 func (d namingDispatcher) OnPasswordReset(_ context.Context, _, _ uuid.UUID, _, _, storeName, _ string) int {
 	*d.resetName = storeName
+	return 0
+}
+
+func (d namingDispatcher) OnSignupConfirmation(context.Context, uuid.UUID, string, string, string, string, string) int {
 	return 0
 }
 

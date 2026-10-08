@@ -344,6 +344,8 @@ export const SAMPLE_VARS: Record<string, string> = {
   'verify.link': 'https://example.com/verify',
   'reset.link': 'https://example.com/reset',
   'reset.expiresIn': '30 minutes',
+  'confirm.link': 'https://example.com/subscribe/confirm/sample',
+  'confirm.expiresIn': '7 days',
 }
 
 export const SAMPLE_LINES = [

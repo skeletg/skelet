@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/google/uuid"
-
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
@@ -28,22 +26,22 @@ func RegisterOutboxTypes(r OutboxTypes) {
 // SetOutbox makes the change event durable, relayed at least once
 func (s *Service) SetOutbox(o OutboxEnqueuer, txm *txrunner.Manager) { s.outbox, s.tx = o, txm }
 
-// The row and its event commit together where the outbox is wired - an opt-out that reached the database and not the suite is a campaign sent to someone who said no
-func (s *Service) upsertAndPublish(ctx context.Context, customerID uuid.UUID, kind string, optedIn bool, source string) (StoredConsent, error) {
+// The row, its history entry and its event commit together where the outbox is wired - an opt-out that reached the database and not the suite is a campaign sent to someone who said no
+func (s *Service) upsertAndPublish(ctx context.Context, c Change) (StoredConsent, error) {
 	if s.outbox == nil || s.tx == nil {
-		stored, err := s.repo.Upsert(ctx, customerID, kind, optedIn, source)
+		stored, err := s.repo.Upsert(ctx, c)
 		if err == nil && s.bus != nil {
-			s.bus.Publish(ctx, &ConsentChanged{CustomerID: customerID, Kind: kind, OptedIn: stored.OptedIn, Source: stored.Source})
+			s.bus.Publish(ctx, &ConsentChanged{CustomerID: c.CustomerID, Kind: c.Kind, OptedIn: stored.OptedIn, Source: stored.Source})
 		}
 		return stored, err
 	}
 	var stored StoredConsent
 	err := s.tx.InTransaction(ctx, func(sqlTx *sql.Tx) error {
 		var err error
-		if stored, err = s.repo.UpsertTx(ctx, sqlTx, customerID, kind, optedIn, source); err != nil {
+		if stored, err = s.repo.UpsertTx(ctx, sqlTx, c); err != nil {
 			return err
 		}
-		return s.outbox.Enqueue(ctx, sqlTx, &ConsentChanged{CustomerID: customerID, Kind: kind, OptedIn: stored.OptedIn, Source: stored.Source})
+		return s.outbox.Enqueue(ctx, sqlTx, &ConsentChanged{CustomerID: c.CustomerID, Kind: c.Kind, OptedIn: stored.OptedIn, Source: stored.Source})
 	})
 	return stored, err
 }

@@ -6,6 +6,7 @@ import { CustomerGroupsDocument } from './CustomerGroups.gql'
 import {
   AdminSetCustomerConsentDocument,
   AdminUpdateCustomerDocument,
+  CustomerConsentHistoryDocument,
   CustomerDocument,
   SetCustomerGroupDocument,
   SetCustomerTaxStatusDocument,
@@ -100,6 +101,18 @@ function renderCustomer() {
       },
       { request: { query: SetCustomerTaxStatusDocument, variables: recorder(writes.tax) }, result: { data: { setCustomerTaxStatus: null } } },
       { request: { query: SetCustomerVatIdDocument, variables: recorder(writes.vat) }, result: { data: { setCustomerVatId: null } } },
+      {
+        request: { query: CustomerConsentHistoryDocument, variables: { customerId: 'cu1' } },
+        result: {
+          data: {
+            customerConsentHistory: [
+              { __typename: 'CustomerConsentEvent', id: 'e2', kind: 'email_marketing', optedIn: false, source: 'admin', adminId: 'admin-9', createdAt: '2026-02-02T00:00:00Z' },
+              { __typename: 'CustomerConsentEvent', id: 'e1', kind: 'email_marketing', optedIn: true, source: 'signup_form', adminId: null, createdAt: '2026-01-01T00:00:00Z' },
+            ],
+          },
+        },
+        maxUsageCount: 5,
+      },
     ],
   })
   return writes
@@ -136,5 +149,12 @@ describe('CustomerDetail', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Apply/ }))
     expect(await within(dialog).findByText(/Enter a valid email address/)).toBeDefined()
     expect(writes.update).not.toHaveBeenCalled()
+  })
+
+  it('lists the consent history with where each change came from', async () => {
+    renderCustomer()
+    expect(await screen.findByText('Signup form (confirmed)', undefined, SLOW)).toBeDefined()
+    expect(screen.getByText('Opted out')).toBeDefined()
+    expect(screen.getByText('Admin')).toBeDefined()
   })
 })

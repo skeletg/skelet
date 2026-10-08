@@ -15,6 +15,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
+	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 	"github.com/skeletg/skelet/apps/backend/core/lib/email"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
@@ -58,6 +59,7 @@ type authEmailDispatcher interface {
 	// Both return the number of flows that took delivery - zero means nobody sent the mail
 	OnEmailVerification(ctx context.Context, channelID, customerID uuid.UUID, verifyLink, storeName, firstName string) int
 	OnPasswordReset(ctx context.Context, channelID, customerID uuid.UUID, resetLink, expiresIn, storeName, firstName string) int
+	OnSignupConfirmation(ctx context.Context, channelID uuid.UUID, to, confirmLink, expiresIn, storeName, firstName string) int
 }
 
 func (s *Service) SetAuthEmailDispatcher(d authEmailDispatcher) { s.authFlows = d }
@@ -67,6 +69,7 @@ func (s *Service) SetAuthEmailDispatcher(d authEmailDispatcher) { s.authFlows = 
 type authEmailFallback interface {
 	SendVerification(ctx context.Context, channelID uuid.UUID, from, to, storefrontURL string, d email.VerificationEmailData) error
 	SendPasswordReset(ctx context.Context, channelID uuid.UUID, from, to, storefrontURL string, d email.PasswordResetEmailData) error
+	SendSignupConfirmation(ctx context.Context, channelID uuid.UUID, from, to, storefrontURL string, d email.SignupConfirmationEmailData) error
 }
 
 func (s *Service) SetAuthEmailFallback(f authEmailFallback) { s.authFallback = f }
@@ -211,7 +214,7 @@ func (s *Service) Register(ctx context.Context, channelID uuid.UUID, emailAddr, 
 		optIn, source = ing.MarketingConsent, consent.SourcePlugin
 	}
 	if optIn != nil {
-		if _, cerr := s.consentSvc.SetConsent(ctx, c.ID, "marketing_email", *optIn, source); cerr != nil {
+		if _, cerr := s.consentSvc.SetConsent(ctx, c.ID, consentkind.MarketingEmail, *optIn, source); cerr != nil {
 			// Non-fatal - the account exists, consent stays at the registry default
 			log.Printf("[consent:error] record marketing opt-in for customer %s: %v", c.ID, cerr)
 		}
@@ -652,6 +655,29 @@ func (s *Service) sendVerificationEmail(ctx context.Context, c Customer) error {
 		FirstName: c.FirstName, Link: link, StoreName: name,
 	})
 }
+
+// The signup form's double opt-in link, addressed to someone who may have no account yet - delivered like verification, by a flow when one takes it and from core's own template otherwise
+func (s *Service) SendSignupConfirmation(ctx context.Context, channelID uuid.UUID, to, firstName, token, expiresIn string) error {
+	store, err := s.stores.GetByID(ctx, channelID)
+	if err != nil {
+		return fmt.Errorf("load store for email: %w", err)
+	}
+	storefront := strings.TrimRight(store.PublicURL, "/")
+	link := storefront + SignupConfirmPath + token
+	name := s.storeName(ctx, store)
+	if s.authFlows != nil && s.authFlows.OnSignupConfirmation(ctx, channelID, to, link, expiresIn, name, firstName) > 0 {
+		return nil
+	}
+	if s.authFallback == nil {
+		return fmt.Errorf("signup confirmation: no flow handled it and no fallback is wired")
+	}
+	return s.authFallback.SendSignupConfirmation(ctx, channelID, store.fromHeader(), to, storefront, email.SignupConfirmationEmailData{
+		FirstName: firstName, Link: link, StoreName: name, ExpiresIn: expiresIn,
+	})
+}
+
+// Where a confirmation link lands, on the shop's own origin - the storefront proxies it to core
+const SignupConfirmPath = "/subscribe/confirm/"
 
 // Single-use - the token is revoked right after the customer is marked verified
 func (s *Service) VerifyEmail(ctx context.Context, token string) error {
