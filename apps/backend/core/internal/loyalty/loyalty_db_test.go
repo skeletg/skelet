@@ -28,7 +28,7 @@ func testDB(t *testing.T) *sql.DB {
 func newFixture(t *testing.T, conn *sql.DB) (*Service, *storecredit.Service, uuid.UUID, uuid.UUID) {
 	t.Helper()
 	queries, txMgr := dbsqlc.New(conn), txrunner.New(conn)
-	cfg := config.NewService(configstore.New(queries, txMgr))
+	cfg := config.NewService(configstore.New(queries))
 	credit := storecredit.NewService(queries, txMgr)
 
 	var channelID uuid.UUID

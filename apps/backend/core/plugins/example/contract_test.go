@@ -23,7 +23,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/shipping"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
-	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
 // One boot per binary, since plugin.Install panics on a second call and exposes no reset - the conn is process-scoped for the same reason, because SetConfigService is single-shot and a per-test conn would leave the host holding a service over a closed handle
@@ -33,7 +32,7 @@ func TestMain(m *testing.M) {
 	pluginhost.Install()
 	if conn, _ := testdb.Open("DATABASE_URL"); conn != nil {
 		testDB = conn
-		pluginhost.SetConfigService(config.NewService(configstore.New(dbsqlc.New(conn), txrunner.New(conn))))
+		pluginhost.SetConfigService(config.NewService(configstore.New(dbsqlc.New(conn))))
 	}
 	code := m.Run()
 	if testDB != nil {
@@ -237,7 +236,7 @@ func TestAuthorizeThroughTheHostAdapter(t *testing.T) {
 // The operator's only lever over a compiled-in plugin, so it has to hold against a real config store rather than a stub
 func TestKillSwitchStopsTheHook(t *testing.T) {
 	conn := withDB(t)
-	svc := config.NewService(configstore.New(dbsqlc.New(conn), txrunner.New(conn)))
+	svc := config.NewService(configstore.New(dbsqlc.New(conn)))
 	ctx := context.Background()
 
 	path := "plugin/" + Slug + "/enabled"

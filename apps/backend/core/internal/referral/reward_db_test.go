@@ -38,7 +38,7 @@ func newFixture(t *testing.T, conn *sql.DB) (*Service, *storecredit.Service, uui
 	t.Helper()
 	queries, txMgr := dbsqlc.New(conn), txrunner.New(conn)
 	credit := storecredit.NewService(queries, txMgr)
-	svc := NewService(queries, txMgr, config.NewService(configstore.New(queries, txMgr)), credit)
+	svc := NewService(queries, txMgr, config.NewService(configstore.New(queries)), credit)
 	svc.SetOrderLookup(fakeOrderLookup{currency: "USD"})
 
 	var channelID uuid.UUID

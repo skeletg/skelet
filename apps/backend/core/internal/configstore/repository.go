@@ -4,30 +4,36 @@ package configstore
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
+	"strings"
 
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/internal/db/sqlnull"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
-	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
 type postgresRepository struct {
 	queries *db.Queries
-	tx      *txrunner.Manager
 }
 
-// New returns a postgres-backed config.Repository - the txrunner.Manager is for parity, config writes are single statements
-func New(queries *db.Queries, txMgr *txrunner.Manager) config.Repository {
-	return &postgresRepository{queries: queries, tx: txMgr}
+// New returns a postgres-backed config.Repository - every write is a single statement, so it needs no transaction manager
+func New(queries *db.Queries) config.Repository {
+	return &postgresRepository{queries: queries}
+}
+
+// Locale codes are lowercase in the locales table the column references, so "EN" and "en" land on the same row
+func locale(scope config.Scope) sql.NullString {
+	if scope.Locale == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: strings.ToLower(*scope.Locale), Valid: true}
 }
 
 func (r *postgresRepository) Upsert(ctx context.Context, scope config.Scope, path, value string) (config.StoredValue, error) {
 	row, err := r.queries.UpsertConfigValue(ctx, db.UpsertConfigValueParams{
 		Scope:     scope.Kind,
 		ChannelID: sqlnull.UUID(scope.ChannelID),
-		Locale:    sqlnull.String(scope.Locale),
+		Locale:    locale(scope),
 		Path:      path,
 		Value:     value,
 	})
@@ -41,7 +47,7 @@ func (r *postgresRepository) Delete(ctx context.Context, scope config.Scope, pat
 	if err := r.queries.DeleteConfigValue(ctx, db.DeleteConfigValueParams{
 		Scope:     scope.Kind,
 		ChannelID: sqlnull.UUID(scope.ChannelID),
-		Locale:    sqlnull.String(scope.Locale),
+		Locale:    locale(scope),
 		Path:      path,
 	}); err != nil {
 		return fmt.Errorf("delete config value: %w", err)
@@ -54,32 +60,24 @@ func (r *postgresRepository) GetCandidates(ctx context.Context, scope config.Sco
 		Path:      path,
 		Scope:     scope.Kind,
 		ChannelID: sqlnull.UUID(scope.ChannelID),
-		Locale:    sqlnull.String(scope.Locale),
+		Locale:    locale(scope),
 	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		return nil, fmt.Errorf("get config value: %w", err)
 	}
-	out := make([]config.StoredValue, 0, len(rows))
-	for i := range rows {
-		out = append(out, toStoredValue(rows[i]))
-	}
-	return out, nil
+	return toStoredValues(rows), nil
 }
 
 func (r *postgresRepository) ListInScopes(ctx context.Context, scope config.Scope) ([]config.StoredValue, error) {
 	rows, err := r.queries.ListConfigValuesInScopes(ctx, db.ListConfigValuesInScopesParams{
 		Scope:     scope.Kind,
 		ChannelID: sqlnull.UUID(scope.ChannelID),
-		Locale:    sqlnull.String(scope.Locale),
+		Locale:    locale(scope),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list config values: %w", err)
 	}
-	out := make([]config.StoredValue, len(rows))
-	for i, row := range rows {
-		out[i] = toStoredValue(row)
-	}
-	return out, nil
+	return toStoredValues(rows), nil
 }
 
 func (r *postgresRepository) ListAll(ctx context.Context) ([]config.StoredValue, error) {
@@ -87,11 +85,15 @@ func (r *postgresRepository) ListAll(ctx context.Context) ([]config.StoredValue,
 	if err != nil {
 		return nil, fmt.Errorf("list config values: %w", err)
 	}
+	return toStoredValues(rows), nil
+}
+
+func toStoredValues(rows []db.ConfigValue) []config.StoredValue {
 	out := make([]config.StoredValue, len(rows))
 	for i, row := range rows {
 		out[i] = toStoredValue(row)
 	}
-	return out, nil
+	return out
 }
 
 func toStoredValue(row db.ConfigValue) config.StoredValue {
