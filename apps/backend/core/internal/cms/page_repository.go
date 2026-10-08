@@ -134,11 +134,15 @@ func (r *postgresRepository) GetPageByURLPath(ctx context.Context, urlPath strin
 	return r.GetPageByID(ctx, row.ID)
 }
 
-func (r *postgresRepository) ListPages(ctx context.Context, filter PageListFilter) ([]Page, error) {
-	limit := filter.Limit
+func pageListLimit(limit int32) int32 {
 	if limit <= 0 {
-		limit = 50
+		return DefaultPageListLimit
 	}
+	return min(limit, MaxPageListLimit)
+}
+
+func (r *postgresRepository) ListPages(ctx context.Context, filter PageListFilter) ([]Page, error) {
+	limit := pageListLimit(filter.Limit)
 	var pageTypeID, parentID uuid.NullUUID
 	if filter.PageTypeID != nil {
 		pageTypeID = uuid.NullUUID{UUID: *filter.PageTypeID, Valid: true}
@@ -205,10 +209,7 @@ func (r *postgresRepository) PageSlugExists(ctx context.Context, slug string) (b
 // ListPagesSearch runs the admin full-text search over a locale's content, ranked by relevance - Filters mirror
 // ListPages (page type / parent / published / workflow) - Pages with no content row in the requested locale don't match
 func (r *postgresRepository) ListPagesSearch(ctx context.Context, filter PageListFilter, locale, query string) ([]Page, error) {
-	limit := filter.Limit
-	if limit <= 0 {
-		limit = 50
-	}
+	limit := pageListLimit(filter.Limit)
 	var pageTypeID, parentID uuid.NullUUID
 	if filter.PageTypeID != nil {
 		pageTypeID = uuid.NullUUID{UUID: *filter.PageTypeID, Valid: true}
@@ -425,13 +426,11 @@ func (r *postgresRepository) UpsertPageContent(ctx context.Context, pageID uuid.
 	}
 	// Repopulate the full-text search index for this (page, locale) - best-effort, since a content save must not fail because indexing did
 	// A stale vector is corrected on the next save or by the backfill datapatch
-	if err := r.queries.SetCMSPageContentSearchVector(ctx, db.SetCMSPageContentSearchVectorParams{
+	_ = r.queries.SetCMSPageContentSearchVector(ctx, db.SetCMSPageContentSearchVectorParams{
 		PageID: pageID,
 		Locale: in.Locale,
 		Doc:    buildSearchText(in.Title, in.MetaTitle, in.MetaDescription, in.MetaKeywords, in.Body),
-	}); err != nil {
-		return toPageContent(row), nil
-	}
+	})
 	return toPageContent(row), nil
 }
 
@@ -611,10 +610,11 @@ func tagsOrEmpty(tags []string) []string {
 	return tags
 }
 
+const maxTags = 50
+
 // normalizeTags cleans a tag set before persisting: each tag becomes the slug the vocabulary stores (so "Sale"/"sale" filter
 // as one), empties drop, dedupe preserves first-seen order, and the set is capped to a sane ceiling - Returns a non-nil slice
 func normalizeTags(in []string) []string {
-	const maxTags = 50
 	out := make([]string, 0, len(in))
 	seen := make(map[string]struct{}, len(in))
 	for _, t := range in {

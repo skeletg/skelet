@@ -421,6 +421,12 @@ type PageContentInput struct {
 	Data            json.RawMessage
 }
 
+// List reads take this page size when the caller names none, and never more than the max
+const (
+	DefaultPageListLimit = 50
+	MaxPageListLimit     = 500
+)
+
 type PageListFilter struct {
 	PageTypeID *uuid.UUID
 	ParentID   *uuid.UUID

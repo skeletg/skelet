@@ -6,7 +6,6 @@ package admin
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -23,7 +22,7 @@ func parseCMSPageIDs(ids []string) ([]uuid.UUID, error) {
 	for _, id := range ids {
 		uid, err := uuid.Parse(id)
 		if err != nil {
-			return nil, fmt.Errorf("invalid id %q: %w", id, err)
+			return nil, errInvalidID(id, err)
 		}
 		out = append(out, uid)
 	}

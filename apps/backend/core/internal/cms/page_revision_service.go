@@ -8,8 +8,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// How many revisions a (page, locale) keeps, and so how many the history lists
+const revisionRetention = 50
+
 func (s *pageService) ListPageRevisions(ctx context.Context, pageID uuid.UUID, locale string) ([]PageRevision, error) {
-	return s.repo.ListRevisions(ctx, pageID, locale, 50)
+	return s.repo.ListRevisions(ctx, pageID, locale, revisionRetention)
 }
 
 // Re-applies a revision's content, and since that itself snapshots, a restore is reversible

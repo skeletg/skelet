@@ -9,6 +9,7 @@ import (
 
 	contentpkg "github.com/skeletg/skelet/apps/backend/core/internal/content"
 	"github.com/skeletg/skelet/apps/backend/core/internal/events"
+	"github.com/skeletg/skelet/apps/backend/core/internal/urlrewrite"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
@@ -54,7 +55,7 @@ type UrlRewriteSyncer interface {
 	DeleteCanonicalForChannel(ctx context.Context, entityType string, entityID uuid.UUID, channelID *uuid.UUID) error
 }
 
-const entityCMSPage = "cms_page"
+const entityCMSPage = string(urlrewrite.EntityTypeCMSPage)
 
 // Dependencies and cross-cutting helpers shared by every cms sub-service
 // Sub-services embed *core, and the facade Service embeds *core plus every sub-service, so cmsSvc.X() call sites stay unchanged through method promotion

@@ -17,13 +17,15 @@ type tagStore interface {
 
 var tagSlugRe = regexp.MustCompile(`[^a-z0-9]+`)
 
+const maxTagSlugLen = 64
+
 // Derives the stable slug pages actually store from a display name
 func slugifyTag(name string) string {
 	s := strings.ToLower(strings.TrimSpace(name))
 	s = tagSlugRe.ReplaceAllString(s, "-")
 	s = strings.Trim(s, "-")
-	if len(s) > 64 {
-		s = s[:64]
+	if len(s) > maxTagSlugLen {
+		s = s[:maxTagSlugLen]
 	}
 	return strings.Trim(s, "-")
 }
