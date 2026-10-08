@@ -383,7 +383,9 @@ func (r *queryResolver) MyDataExport(ctx context.Context) (string, error) {
 	if ch, cerr := r.ChannelSvc.GetByID(ctx, claims.ChannelID); cerr == nil {
 		currency = ch.CurrencyCode
 	}
-	r.enrichDataExport(ctx, claims.CustomerID, currency, &bundle)
+	if err := r.enrichDataExport(ctx, claims.CustomerID, currency, &bundle); err != nil {
+		return "", err
+	}
 	out, err := json.MarshalIndent(bundle, "", "  ")
 	if err != nil {
 		return "", err

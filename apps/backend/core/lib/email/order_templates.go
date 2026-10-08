@@ -98,12 +98,13 @@ type OrderSnapshot struct {
 
 // The transactional messages core sends, named so a send is identifiable in a log or a resend request
 const (
-	KeyOrderConfirmation = "order_confirmation"
-	KeyOrderShipment     = "order_shipment"
-	KeyOrderCancellation = "order_cancellation"
-	KeyOrderRefund       = "order_refund"
-	KeyVerification      = "customer_verification"
-	KeyPasswordReset     = "password_reset"
+	KeyOrderConfirmation  = "order_confirmation"
+	KeyOrderShipment      = "order_shipment"
+	KeyOrderCancellation  = "order_cancellation"
+	KeyOrderRefund        = "order_refund"
+	KeyVerification       = "customer_verification"
+	KeyPasswordReset      = "password_reset"
+	KeySignupConfirmation = "signup_confirmation"
 )
 
 const greetingFallback = "there"

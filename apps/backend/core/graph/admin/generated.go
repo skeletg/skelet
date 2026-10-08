@@ -1182,6 +1182,15 @@ type ComplexityRoot struct {
 		UpdatedAt  func(childComplexity int) int
 	}
 
+	CustomerConsentEvent struct {
+		AdminID   func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Kind      func(childComplexity int) int
+		OptedIn   func(childComplexity int) int
+		Source    func(childComplexity int) int
+	}
+
 	CustomerEventCount struct {
 		Count func(childComplexity int) int
 		Name  func(childComplexity int) int
@@ -3246,6 +3255,7 @@ type ComplexityRoot struct {
 		Customer                     func(childComplexity int, id string) int
 		CustomerAudiences            func(childComplexity int, customerID string) int
 		CustomerCommerce             func(childComplexity int, customerID string) int
+		CustomerConsentHistory       func(childComplexity int, customerID string, limit *int32) int
 		CustomerGroup                func(childComplexity int, id string) int
 		CustomerGroups               func(childComplexity int) int
 		CustomerProfile              func(childComplexity int, customerID string, sinceDays *int32) int
@@ -5000,6 +5010,7 @@ type QueryResolver interface {
 	Customer(ctx context.Context, id string) (*model.Customer, error)
 	CustomerGroups(ctx context.Context) ([]*model.CustomerGroup, error)
 	CustomerGroup(ctx context.Context, id string) (*model.CustomerGroup, error)
+	CustomerConsentHistory(ctx context.Context, customerID string, limit *int32) ([]*model.CustomerConsentEvent, error)
 	ExportCustomerData(ctx context.Context, customerID string) (string, error)
 	StoreCredit(ctx context.Context, customerID string) (*model.StoreCreditSummary, error)
 	Loyalty(ctx context.Context, customerID string) (*model.LoyaltySummary, error)
@@ -9972,6 +9983,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CustomerConsent.UpdatedAt(childComplexity), true
+
+	case "CustomerConsentEvent.adminId":
+		if e.ComplexityRoot.CustomerConsentEvent.AdminID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerConsentEvent.AdminID(childComplexity), true
+	case "CustomerConsentEvent.createdAt":
+		if e.ComplexityRoot.CustomerConsentEvent.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerConsentEvent.CreatedAt(childComplexity), true
+	case "CustomerConsentEvent.id":
+		if e.ComplexityRoot.CustomerConsentEvent.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerConsentEvent.ID(childComplexity), true
+	case "CustomerConsentEvent.kind":
+		if e.ComplexityRoot.CustomerConsentEvent.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerConsentEvent.Kind(childComplexity), true
+	case "CustomerConsentEvent.optedIn":
+		if e.ComplexityRoot.CustomerConsentEvent.OptedIn == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerConsentEvent.OptedIn(childComplexity), true
+	case "CustomerConsentEvent.source":
+		if e.ComplexityRoot.CustomerConsentEvent.Source == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CustomerConsentEvent.Source(childComplexity), true
 
 	case "CustomerEventCount.count":
 		if e.ComplexityRoot.CustomerEventCount.Count == nil {
@@ -22356,6 +22404,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.CustomerCommerce(childComplexity, args["customerId"].(string)), true
+	case "Query.customerConsentHistory":
+		if e.ComplexityRoot.Query.CustomerConsentHistory == nil {
+			break
+		}
+
+		args, err := ec.field_Query_customerConsentHistory_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.CustomerConsentHistory(childComplexity, args["customerId"].(string), args["limit"].(*int32)), true
 	case "Query.customerGroup":
 		if e.ComplexityRoot.Query.CustomerGroup == nil {
 			break
@@ -31663,6 +31722,16 @@ type CustomerConsent {
   isDefault:  Boolean!
 }
 
+# One recorded consent change, append-only. adminId is set when a dashboard user made the change and cleared if that admin is later deleted.
+type CustomerConsentEvent {
+  id:        ID!
+  kind:      String!
+  optedIn:   Boolean!
+  source:    String!
+  adminId:   ID
+  createdAt: Time!
+}
+
 type CustomerGroup {
   id:          ID!
   name:        String!
@@ -31779,6 +31848,8 @@ extend type Query {
   customer(id: ID!):           Customer!
   customerGroups:              [CustomerGroup!]!
   customerGroup(id: ID!):      CustomerGroup!
+  # Every consent change for the customer, newest first (default and max 500). Requires customers.view on the customer's channel.
+  customerConsentHistory(customerId: ID!, limit: Int): [CustomerConsentEvent!]!
 }
 
 extend type Mutation {
@@ -31798,7 +31869,7 @@ extend type Mutation {
   adminDeleteAddress(id: ID!):                                    Boolean!
   deleteCustomer(id: ID!):                                        Boolean!
   setCustomerActive(id: ID!, active: Boolean!):                   Customer!
-  # Records an admin-driven opt-in/opt-out for the given consent kind. Stored with source="admin" so the audit trail distinguishes it from registration/profile/checkout-driven changes. Requires customers.manage.
+  # Records an admin-driven opt-in/opt-out for the given consent kind. Stored with source="admin" and the acting admin in the consent history, so the audit trail distinguishes it from registration/profile/checkout-driven changes. Requires customers.manage.
   adminSetCustomerConsent(
     customerId: ID!,
     kind: String!,
@@ -32372,7 +32443,7 @@ extend type Mutation {
   setFlowStatus(id: ID!, status: String!): Flow!
 }
 `, BuiltIn: false},
-	{Name: "../schema/admin/forms.graphqls", Input: `# Signup forms: storefront email-capture (popup / inline / flyout) feeding Pulse. A submission records marketing consent, optionally adds the subscriber to a segment, and fires the form_submitted flow trigger. Gated forms.view / forms.manage.
+	{Name: "../schema/admin/forms.graphqls", Input: `# Signup forms: storefront email-capture (popup / inline / flyout) feeding Pulse. A submission records the lead and emails a double opt-in link; only confirming it records marketing consent (source signup_form), adds the subscriber to the target segment and fires the form_submitted flow trigger. Gated forms.view / forms.manage.
 
 type SignupFormDisplay {
   trigger:       String!   # immediate | delay | scroll | exit_intent
@@ -38866,6 +38937,24 @@ func (ec *executionContext) childFields_CustomerConsent(ctx context.Context, fie
 		return ec.fieldContext_CustomerConsent_isDefault(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CustomerConsent", field.Name)
+}
+
+func (ec *executionContext) childFields_CustomerConsentEvent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_CustomerConsentEvent_id(ctx, field)
+	case "kind":
+		return ec.fieldContext_CustomerConsentEvent_kind(ctx, field)
+	case "optedIn":
+		return ec.fieldContext_CustomerConsentEvent_optedIn(ctx, field)
+	case "source":
+		return ec.fieldContext_CustomerConsentEvent_source(ctx, field)
+	case "adminId":
+		return ec.fieldContext_CustomerConsentEvent_adminId(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_CustomerConsentEvent_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CustomerConsentEvent", field.Name)
 }
 
 func (ec *executionContext) childFields_CustomerEventCount(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -53593,6 +53682,28 @@ func (ec *executionContext) field_Query_customerCommerce_args(ctx context.Contex
 		return nil, err
 	}
 	args["customerId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_customerConsentHistory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "customerId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["customerId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int32, error) {
+			return ec.unmarshalOInt2ᚖint32(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
 	return args, nil
 }
 
@@ -75783,6 +75894,144 @@ func (ec *executionContext) _CustomerConsent_isDefault(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_CustomerConsent_isDefault(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CustomerConsent", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerConsentEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.CustomerConsentEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerConsentEvent_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerConsentEvent_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerConsentEvent", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerConsentEvent_kind(ctx context.Context, field graphql.CollectedField, obj *model.CustomerConsentEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerConsentEvent_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerConsentEvent_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerConsentEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerConsentEvent_optedIn(ctx context.Context, field graphql.CollectedField, obj *model.CustomerConsentEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerConsentEvent_optedIn(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OptedIn, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerConsentEvent_optedIn(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerConsentEvent", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerConsentEvent_source(ctx context.Context, field graphql.CollectedField, obj *model.CustomerConsentEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerConsentEvent_source(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerConsentEvent_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerConsentEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerConsentEvent_adminId(ctx context.Context, field graphql.CollectedField, obj *model.CustomerConsentEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerConsentEvent_adminId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AdminID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerConsentEvent_adminId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerConsentEvent", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _CustomerConsentEvent_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.CustomerConsentEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CustomerConsentEvent_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CustomerConsentEvent_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CustomerConsentEvent", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _CustomerEventCount_name(ctx context.Context, field graphql.CollectedField, obj *model.CustomerEventCount) (ret graphql.Marshaler) {
@@ -125848,6 +126097,50 @@ func (ec *executionContext) fieldContext_Query_customerGroup(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_customerConsentHistory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_customerConsentHistory(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().CustomerConsentHistory(ctx, fc.Args["customerId"].(string), fc.Args["limit"].(*int32))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.CustomerConsentEvent) graphql.Marshaler {
+			return ec.marshalNCustomerConsentEvent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerConsentEventᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_customerConsentHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CustomerConsentEvent(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_customerConsentHistory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_exportCustomerData(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -169908,6 +170201,69 @@ func (ec *executionContext) _CustomerConsent(ctx context.Context, sel ast.Select
 	return out
 }
 
+var customerConsentEventImplementors = []string{"CustomerConsentEvent"}
+
+func (ec *executionContext) _CustomerConsentEvent(ctx context.Context, sel ast.SelectionSet, obj *model.CustomerConsentEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, customerConsentEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CustomerConsentEvent")
+		case "id":
+			out.Values[i] = ec._CustomerConsentEvent_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._CustomerConsentEvent_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "optedIn":
+			out.Values[i] = ec._CustomerConsentEvent_optedIn(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "source":
+			out.Values[i] = ec._CustomerConsentEvent_source(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adminId":
+			out.Values[i] = ec._CustomerConsentEvent_adminId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._CustomerConsentEvent_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var customerEventCountImplementors = []string{"CustomerEventCount"}
 
 func (ec *executionContext) _CustomerEventCount(ctx context.Context, sel ast.SelectionSet, obj *model.CustomerEventCount) graphql.Marshaler {
@@ -186018,6 +186374,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "customerConsentHistory":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_customerConsentHistory(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "exportCustomerData":
 			field := field
 
@@ -199784,6 +200162,32 @@ func (ec *executionContext) marshalNCustomerConsent2ᚖgithubᚗcomᚋskeletgᚋ
 		return graphql.Null
 	}
 	return ec._CustomerConsent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCustomerConsentEvent2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerConsentEventᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CustomerConsentEvent) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCustomerConsentEvent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerConsentEvent(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCustomerConsentEvent2ᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerConsentEvent(ctx context.Context, sel ast.SelectionSet, v *model.CustomerConsentEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CustomerConsentEvent(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNCustomerEventCount2ᚕᚖgithubᚗcomᚋskeletgᚋskeletᚋappsᚋbackendᚋcoreᚋgraphᚋadminᚋmodelᚐCustomerEventCountᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CustomerEventCount) graphql.Marshaler {

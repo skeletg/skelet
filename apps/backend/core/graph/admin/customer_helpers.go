@@ -3,11 +3,13 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -94,15 +96,25 @@ func customerMetadataFromInput(in []*model.MetadataInput) *customer.Metadata {
 }
 
 // SYNC: mirrors the storefront's DSAR assembly in graph/front - an admin-served bundle must carry the same categories the customer could pull themselves
-func (r *Resolver) enrichDataExport(ctx context.Context, customerID uuid.UUID, currency string, bundle *customer.DataExport) {
+// Consents fail the export rather than drop out of it - a DSAR answered without them hides the record the subject is most entitled to see
+func (r *Resolver) enrichDataExport(ctx context.Context, customerID uuid.UUID, currency string, bundle *customer.DataExport) error {
+	extra := map[string]any{}
 	if r.ConsentSvc != nil {
-		if list, err := r.ConsentSvc.ListForCustomer(ctx, customerID); err == nil {
-			if raw, jerr := json.Marshal(list); jerr == nil {
-				bundle.Consents = raw
-			}
+		list, err := r.ConsentSvc.ListForCustomer(ctx, customerID)
+		if err != nil {
+			return fmt.Errorf("export consents: %w", err)
+		}
+		if bundle.Consents, err = json.Marshal(list); err != nil {
+			return fmt.Errorf("export consents: %w", err)
+		}
+		history, err := r.ConsentSvc.History(ctx, customerID, 0)
+		if err != nil {
+			return fmt.Errorf("export consent history: %w", err)
+		}
+		if len(history) > 0 {
+			extra["consentHistory"] = history
 		}
 	}
-	extra := map[string]any{}
 	if r.StoreCreditSvc != nil {
 		if entries, err := r.StoreCreditSvc.Entries(ctx, customerID, 1000); err == nil && len(entries) > 0 {
 			extra["storeCredit"] = entries
@@ -121,4 +133,24 @@ func (r *Resolver) enrichDataExport(ctx context.Context, customerID uuid.UUID, c
 	if len(extra) > 0 {
 		bundle.Extra = extra
 	}
+	return nil
+}
+
+func actingAdminID(ctx context.Context) *uuid.UUID {
+	if claims, ok := auth.AdminFromContext(ctx); ok && claims.AdminID != uuid.Nil {
+		id := claims.AdminID
+		return &id
+	}
+	return nil
+}
+
+func toCustomerConsentEventModel(e consent.Event) *model.CustomerConsentEvent {
+	m := &model.CustomerConsentEvent{
+		ID: e.ID.String(), Kind: e.Kind, OptedIn: e.OptedIn, Source: e.Source, CreatedAt: e.CreatedAt,
+	}
+	if e.AdminID != nil {
+		id := e.AdminID.String()
+		m.AdminID = &id
+	}
+	return m
 }

@@ -92,15 +92,24 @@ func (r *mutationResolver) customerPendingVerificationPayload(ctx context.Contex
 	}, nil
 }
 
-func (r *Resolver) enrichDataExport(ctx context.Context, customerID uuid.UUID, currency string, bundle *customer.DataExport) {
+func (r *Resolver) enrichDataExport(ctx context.Context, customerID uuid.UUID, currency string, bundle *customer.DataExport) error {
+	extra := map[string]any{}
 	if r.ConsentSvc != nil {
-		if list, err := r.ConsentSvc.ListForCustomer(ctx, customerID); err == nil {
-			if raw, jerr := json.Marshal(list); jerr == nil {
-				bundle.Consents = raw
-			}
+		list, err := r.ConsentSvc.ListForCustomer(ctx, customerID)
+		if err != nil {
+			return fmt.Errorf("export consents: %w", err)
+		}
+		if bundle.Consents, err = json.Marshal(list); err != nil {
+			return fmt.Errorf("export consents: %w", err)
+		}
+		history, err := r.ConsentSvc.History(ctx, customerID, 0)
+		if err != nil {
+			return fmt.Errorf("export consent history: %w", err)
+		}
+		if len(history) > 0 {
+			extra["consentHistory"] = history
 		}
 	}
-	extra := map[string]any{}
 	if r.StoreCreditSvc != nil {
 		if entries, err := r.StoreCreditSvc.Entries(ctx, customerID, 1000); err == nil && len(entries) > 0 {
 			extra["storeCredit"] = entries
@@ -124,4 +133,5 @@ func (r *Resolver) enrichDataExport(ctx context.Context, customerID uuid.UUID, c
 	if len(extra) > 0 {
 		bundle.Extra = extra
 	}
+	return nil
 }

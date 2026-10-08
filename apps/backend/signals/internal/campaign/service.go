@@ -548,7 +548,7 @@ func (s *Service) send(ctx context.Context, c Campaign) (int, error) {
 				return sent, fmt.Errorf("track send: %w", err)
 			}
 			html = s.injectTracking(html, ch, sendID)
-			if err := s.sender.Send(ctx, email.Message{From: from, To: r.Email, Subject: subj, HTMLBody: html, TextBody: text}); err != nil {
+			if err := s.sender.Send(ctx, s.marketingMessage(ch, r, from, subj, html, text)); err != nil {
 				if rerr := s.repo.ReleaseClaimFailed(ctx, r.ID, err.Error()); rerr != nil { // release the claim so the failure is recorded rather than reading as delivered
 					log.Printf("[campaign] release claim %s: %v", r.ID, rerr) // the row stays claimed, so this recipient silently never sends - loud enough for an operator to requeue
 				} else {
@@ -730,6 +730,15 @@ func baseVars(ch Store) map[string]string {
 		"store.logoUrl":  strings.TrimSpace(ch.LogoURL),
 		"storefront.url": storefrontURL(ch),
 	}
+}
+
+// A broadcast carries the one-click unsubscribe headers mailbox providers require of bulk senders - a recipient with no account has no link to offer
+func (s *Service) marketingMessage(ch Store, r Recipient, from, subj, html, text string) email.Message {
+	msg := email.Message{From: from, To: r.Email, Subject: subj, HTMLBody: html, TextBody: text}
+	if r.CustomerID != nil {
+		msg.Headers = email.ListUnsubscribeHeaders(s.unsubscribeLink(ch, *r.CustomerID))
+	}
+	return msg
 }
 
 // Signed over the customer id with the key core verifies with - the link works without a session, and

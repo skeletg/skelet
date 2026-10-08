@@ -27,7 +27,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/graph/front/dataloaders"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalogio"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
+	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/download"
 	"github.com/skeletg/skelet/apps/backend/core/internal/integration"
 	"github.com/skeletg/skelet/apps/backend/core/internal/locale"
@@ -230,28 +230,14 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 		http.Redirect(w, r, grant.URL, http.StatusFound)
 	})
 
-	// One-click unsubscribe - the suite signs the link over the customer id with the shared key, so it works without auth
-	// Following it records a marketing_email opt-out where consent lives, which is here
+	// The suite signs the unsubscribe link over the customer id with the shared key, so it works without auth, and the opt-out lands where consent lives, which is here
 	unsubscribes := emailtrack.NewSigner([]byte(infra.Config.JWTSecret))
-	mux.HandleFunc("/unsubscribe/", func(w http.ResponseWriter, r *http.Request) {
-		token := strings.TrimPrefix(r.URL.Path, "/unsubscribe/")
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if !tokenLimiter.Allow(r.Context(), "unsub:"+authpkg.ClientIP(r)) {
-			w.WriteHeader(http.StatusTooManyRequests)
-			_, _ = w.Write([]byte(`<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:48px;"><h1>Too many requests</h1><p>Please try again in a minute.</p></body></html>`))
-			return
-		}
-		customerID, err := unsubscribes.VerifyUnsubscribe(token)
-		if err == nil {
-			_, err = s.Consent.SetConsent(r.Context(), customerID, marketingConsentKind, false, consent.SourceUnsubscribeLink)
-		}
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:48px;"><h1>Link invalid</h1><p>This unsubscribe link is invalid or has expired.</p></body></html>`))
-			return
-		}
-		_, _ = w.Write([]byte(`<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:48px;"><h1>You're unsubscribed</h1><p>You will no longer receive marketing emails from us.</p></body></html>`))
-	})
+	mux.HandleFunc(unsubscribePath, unsubscribeHandler(unsubscribes.VerifyUnsubscribe, s.Consent, func(r *http.Request) bool {
+		return tokenLimiter.Allow(r.Context(), "unsub:"+authpkg.ClientIP(r))
+	}))
+	mux.HandleFunc(customer.SignupConfirmPath, signupConfirmHandler(s.Form, func(r *http.Request) bool {
+		return tokenLimiter.Allow(r.Context(), "subconfirm:"+authpkg.ClientIP(r))
+	}))
 
 	// The open pixel and click redirect are the suite's, beside the send log they name - proxied there
 	// like /t, and reached via the storefront /e rewrite
@@ -364,7 +350,6 @@ func newRootHandler(infra Infra, s Svcs, tel observability.Telemetry, rl RateLim
 }
 
 // The consent kind a marketing mail's unsubscribe link opts out of, as consent names it
-const marketingConsentKind = "marketing_email"
 
 func maxBody(n int64) func(http.Handler) http.Handler { // GraphQL's complexity limit bounds resolver work but not raw payload size; MaxBytesReader makes oversized POSTs fail fast with 413 semantics
 	return func(next http.Handler) http.Handler {

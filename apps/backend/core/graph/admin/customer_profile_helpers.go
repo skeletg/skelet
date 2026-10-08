@@ -9,9 +9,8 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/customer"
 	"github.com/skeletg/skelet/apps/backend/core/internal/order"
 	"github.com/skeletg/skelet/apps/backend/core/internal/subscription"
+	"github.com/skeletg/skelet/apps/backend/core/lib/consentkind"
 )
-
-const marketingConsentKind = "marketing_email"
 
 func buildCustomerCommerce(ctx context.Context, r *Resolver, cid uuid.UUID, cust customer.Customer) (*model.CustomerCommerce, error) {
 	out := &model.CustomerCommerce{Spend: []*model.AttributedRevenue{}, MemberSince: cust.CreatedAt}
@@ -64,7 +63,7 @@ func buildCustomerCommerce(ctx context.Context, r *Resolver, cid uuid.UUID, cust
 			}
 		}
 	}
-	out.MarketingOptedIn, _ = r.ConsentSvc.IsOptedIn(ctx, cid, marketingConsentKind)
+	out.MarketingOptedIn, _ = r.ConsentSvc.IsOptedIn(ctx, cid, consentkind.MarketingEmail)
 	return out, nil
 }
 

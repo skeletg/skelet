@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -48,6 +49,7 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/wishlist"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/objstore"
+	"github.com/skeletg/skelet/apps/backend/core/lib/ratelimit"
 )
 
 // The wiring the graph can't express through constructors: seams that would be import cycles if the dependency were declared, the ordered event subscriptions, and registries that can only be filled once services exist
@@ -231,6 +233,7 @@ type marketingDeps struct {
 	TransactionalSender *mailsend.Sender
 	BackInStock         *backinstock.Service
 	Lifecycle           fx.Lifecycle
+	Limits              LimitsRedis
 }
 
 // Appended after the signals client's close, so the unwind lets the in-flight send reports land first
@@ -257,7 +260,9 @@ func wireMarketing(d marketingDeps) {
 	d.TransactionalSender.SetRecorder(NewTransactionalRecorder(d.SignalsClient))
 	drainSendReportsOnStop(d.Lifecycle, d.TransactionalSender)
 	d.BackInStock.SetDirectSender(d.TransactionalSender)
-	d.Form.SetHooks(NewContactAdapter(d.Customer), NewConsentAdapter(d.Consent), d.SegmentReads, d.Flows) // storefront email capture → contact + consent + segment + form_submitted flow
+	d.Form.SetHooks(NewContactAdapter(d.Customer), NewConsentAdapter(d.Consent), d.SegmentReads, d.Flows) // a confirmed signup → contact + consent + segment + form_submitted flow
+	// The double opt-in mail goes out like verification, and each address gets a small hourly budget of them so a form can't flood an inbox
+	d.Form.SetConfirmation(d.Customer, ratelimit.NewRedis(d.Limits.Client, RateLimitPerMin("SIGNUP_CONFIRM_RATE_LIMIT_PER_HOUR", 3), time.Hour))
 }
 
 func wireCart(c *cart.Service, bus *events.Bus, ml *medialibrary.Service, ms *objstore.Storage) {
