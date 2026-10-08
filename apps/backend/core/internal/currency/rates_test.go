@@ -2,8 +2,10 @@ package currency
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -88,5 +90,90 @@ func TestRefreshRates(t *testing.T) {
 	}
 	if _, ok := repo.rates["XTS"]; ok {
 		t.Error("unknown code should be skipped, not stored")
+	}
+}
+
+type activeOnlyRepo struct {
+	fakeRepo
+	askedActive bool
+}
+
+func (f *activeOnlyRepo) List(ctx context.Context, activeOnly bool) ([]Currency, error) {
+	f.askedActive = activeOnly
+	return f.fakeRepo.List(ctx, activeOnly)
+}
+
+func feed(t *testing.T, body string) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(body)) }))
+	t.Cleanup(srv.Close)
+	orig := ratesEndpoint
+	ratesEndpoint = srv.URL
+	t.Cleanup(func() { ratesEndpoint = orig })
+}
+
+func ratesRepo() *activeOnlyRepo {
+	r := &activeOnlyRepo{}
+	r.list = []Currency{{Code: "USD"}, {Code: "EUR"}}
+	r.rates = map[string]float64{}
+	return r
+}
+
+func TestRefreshRatesOnlyTouchesActiveCurrencies(t *testing.T) {
+	feed(t, `{"base":"USD","rates":{"EUR":0.9}}`)
+	repo := ratesRepo()
+	if err := NewService(repo).RefreshRates(context.Background(), "USD"); err != nil {
+		t.Fatal(err)
+	}
+	if !repo.askedActive {
+		t.Error("refresh listed inactive currencies too")
+	}
+}
+
+func TestAFeedQuotingAnotherBaseStoresNothing(t *testing.T) {
+	feed(t, `{"base":"EUR","rates":{"USD":1.1}}`)
+	repo := ratesRepo()
+	if err := NewService(repo).RefreshRates(context.Background(), "USD"); !errors.Is(err, ErrRateBaseMismatch) {
+		t.Fatalf("err = %v, want ErrRateBaseMismatch", err)
+	}
+	if len(repo.rates) != 0 {
+		t.Errorf("stored %v from a mismatched feed", repo.rates)
+	}
+}
+
+func TestAnOversizedFeedIsRefused(t *testing.T) {
+	feed(t, `{"base":"USD","rates":{"EUR":0.9},"pad":"`+strings.Repeat("x", maxRatesResponseBytes)+`"}`)
+	repo := ratesRepo()
+	if err := NewService(repo).RefreshRates(context.Background(), "USD"); err == nil {
+		t.Fatal("a body past the cap decoded")
+	}
+	if len(repo.rates) != 0 {
+		t.Errorf("stored %v from a truncated feed", repo.rates)
+	}
+}
+
+type quoteSource struct{ quote RateQuote }
+
+func (q quoteSource) Rates(context.Context, string, []string) (RateQuote, bool, error) {
+	return q.quote, true, nil
+}
+
+func TestARemoteQuoteForAnotherBaseStoresNothing(t *testing.T) {
+	repo := ratesRepo()
+	svc := NewService(repo)
+	svc.SetRemoteRateSource(quoteSource{RateQuote{Base: "eur", Rates: map[string]float64{"USD": 1.1}}})
+	if err := svc.RefreshRates(context.Background(), "USD"); !errors.Is(err, ErrRateBaseMismatch) {
+		t.Fatalf("err = %v, want ErrRateBaseMismatch", err)
+	}
+	if len(repo.rates) != 0 {
+		t.Errorf("stored %v from a mismatched quote", repo.rates)
+	}
+
+	svc.SetRemoteRateSource(quoteSource{RateQuote{Rates: map[string]float64{"EUR": 0.9}}})
+	if err := svc.RefreshRates(context.Background(), "USD"); err != nil {
+		t.Fatalf("a quote that doesn't echo its base: %v", err)
+	}
+	if repo.rates["EUR"] != 0.9 {
+		t.Errorf("rates = %v", repo.rates)
 	}
 }
