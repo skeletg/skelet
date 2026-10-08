@@ -278,10 +278,12 @@ func splitPrimaryContent(all []PageContent, defaultLocale string) (*PageContent,
 	return &primary, others
 }
 
-// "<base>-copy", then "-copy-2" and so on, taking the first variant not already used so the clone's derived URL paths don't collide - falls back to a random suffix after 50
+const maxCopySlugAttempts = 50
+
+// "<base>-copy", then "-copy-2" and so on, taking the first variant not already used so the clone's derived URL paths don't collide - falls back to a random suffix after maxCopySlugAttempts
 func (s *pageService) uniqueCopySlug(ctx context.Context, base string) (string, error) {
 	candidate := base + "-copy"
-	for i := 1; i <= 50; i++ {
+	for i := 1; i <= maxCopySlugAttempts; i++ {
 		if i > 1 {
 			candidate = fmt.Sprintf("%s-copy-%d", base, i)
 		}
@@ -297,30 +299,15 @@ func (s *pageService) uniqueCopySlug(ctx context.Context, base string) (string, 
 }
 
 func (s *pageService) GetPage(ctx context.Context, id uuid.UUID, locale string) (Page, error) {
-	p, err := s.repo.GetPageByID(ctx, id)
-	if err != nil {
-		return Page{}, err
-	}
-	s.fillPageContent(ctx, &p, locale)
-	return p, nil
+	return s.localized(ctx, locale)(s.repo.GetPageByID(ctx, id))
 }
 
 func (s *pageService) GetPageBySlug(ctx context.Context, slug, locale string) (Page, error) {
-	p, err := s.repo.GetPageBySlug(ctx, slug)
-	if err != nil {
-		return Page{}, err
-	}
-	s.fillPageContent(ctx, &p, locale)
-	return p, nil
+	return s.localized(ctx, locale)(s.repo.GetPageBySlug(ctx, slug))
 }
 
 func (s *pageService) GetPageByURLPath(ctx context.Context, urlPath, locale string) (Page, error) {
-	p, err := s.repo.GetPageByURLPath(ctx, urlPath)
-	if err != nil {
-		return Page{}, err
-	}
-	s.fillPageContent(ctx, &p, locale)
-	return p, nil
+	return s.localized(ctx, locale)(s.repo.GetPageByURLPath(ctx, urlPath))
 }
 
 func (s *pageService) ListPages(ctx context.Context, filter PageListFilter, locale string) ([]Page, error) {
@@ -346,45 +333,26 @@ func (s *pageService) ListPages(ctx context.Context, filter PageListFilter, loca
 	return s.hydratePageContent(ctx, pages, locale)
 }
 
-// Batch-loads each page's Content for the requested locale, falling back to the default for any still missing it - repo list queries don't hydrate AllContent the way GetPageByID does, so this loads Content directly, as blog's ListPosts does - A "" locale is a no-op
+// Batch-loads each page's Content, one query per fallback locale for the pages still missing it - repo list queries don't hydrate AllContent the way GetPageByID does, so this loads Content directly, as blog's ListPosts does - A "" locale is a no-op
 func (s *pageService) hydratePageContent(ctx context.Context, pages []Page, locale string) ([]Page, error) {
-	if len(pages) == 0 || locale == "" {
-		return pages, nil
-	}
-	ids := make([]uuid.UUID, len(pages))
-	for i, p := range pages {
-		ids[i] = p.ID
-	}
-	batch, err := s.repo.ListPageContentByScope(ctx, ids, locale)
-	if err != nil {
-		return nil, err
-	}
-	for i, p := range pages {
-		if c, ok := batch[p.ID]; ok {
-			cp := c
-			pages[i].Content = &cp
-		}
-	}
-	if def := s.resolveDefaultLocale(ctx); def != "" && def != locale {
+	for _, loc := range s.contentLocales(ctx, locale) {
 		var missing []uuid.UUID
 		for _, p := range pages {
 			if p.Content == nil {
 				missing = append(missing, p.ID)
 			}
 		}
-		if len(missing) > 0 {
-			fb, err := s.repo.ListPageContentByScope(ctx, missing, def)
-			if err != nil {
-				return nil, err
-			}
-			for i, p := range pages {
-				if p.Content != nil {
-					continue
-				}
-				if c, ok := fb[p.ID]; ok {
-					cp := c
-					pages[i].Content = &cp
-				}
+		if len(missing) == 0 {
+			break
+		}
+		batch, err := s.repo.ListPageContentByScope(ctx, missing, loc)
+		if err != nil {
+			return nil, err
+		}
+		for i, p := range pages {
+			if c, ok := batch[p.ID]; ok && p.Content == nil {
+				cp := c
+				pages[i].Content = &cp
 			}
 		}
 	}
@@ -800,9 +768,9 @@ func (s *pageService) UpsertPageContent(ctx context.Context, pageID uuid.UUID, i
 	}); err != nil {
 		return Page{}, err
 	}
-	// Snapshot this saved version into the revision history, keeping the last 50 - best-effort, since a revision or prune failure must not fail the save
+	// Snapshot this saved version into the revision history, keeping the last revisionRetention - best-effort, since a revision or prune failure must not fail the save
 	if _, err := s.repo.CreateRevision(ctx, pageID, in, adminPtr(ctx)); err == nil {
-		_ = s.repo.PruneRevisions(ctx, pageID, in.Locale, 50)
+		_ = s.repo.PruneRevisions(ctx, pageID, in.Locale, revisionRetention)
 	}
 	s.announceChanged(ctx, page)
 	return s.repo.GetPageByID(ctx, pageID)
@@ -975,26 +943,42 @@ func (s *core) checkBody(ctx context.Context, body json.RawMessage) error {
 	return blockkit.CheckBody(body, checker)
 }
 
+// The locales a read tries in order - the requested one, then the global default - and none for a "" request
+func (s *core) contentLocales(ctx context.Context, locale string) []string {
+	if locale == "" {
+		return nil
+	}
+	out := []string{locale}
+	if def := s.resolveDefaultLocale(ctx); def != "" && def != locale {
+		out = append(out, def)
+	}
+	return out
+}
+
 // Picks Content for the requested locale, falling back to the global default - Content stays nil when neither exists
 func (s *pageService) fillPageContent(ctx context.Context, p *Page, locale string) {
-	if p == nil || locale == "" {
+	if p == nil {
 		return
 	}
-	for i := range p.AllContent {
-		if p.AllContent[i].Locale == locale {
-			cp := p.AllContent[i]
-			p.Content = &cp
-			return
-		}
-	}
-	if def := s.resolveDefaultLocale(ctx); def != "" && def != locale {
+	for _, loc := range s.contentLocales(ctx, locale) {
 		for i := range p.AllContent {
-			if p.AllContent[i].Locale == def {
+			if p.AllContent[i].Locale == loc {
 				cp := p.AllContent[i]
 				p.Content = &cp
 				return
 			}
 		}
+	}
+}
+
+// Wraps a single-page read so it comes back with Content picked for the locale
+func (s *pageService) localized(ctx context.Context, locale string) func(Page, error) (Page, error) {
+	return func(p Page, err error) (Page, error) {
+		if err != nil {
+			return Page{}, err
+		}
+		s.fillPageContent(ctx, &p, locale)
+		return p, nil
 	}
 }
 

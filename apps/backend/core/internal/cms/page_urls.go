@@ -185,5 +185,5 @@ func redirectFrom(ctx context.Context, rw UrlRewriteSyncer, from string, pageID 
 	if err != nil || taken {
 		return err
 	}
-	return rw.CreateRedirectForChannel(ctx, from, entityCMSPage, pageID, 301, channelID)
+	return rw.CreateRedirectForChannel(ctx, from, entityCMSPage, pageID, int(urlrewrite.RedirectTypePermanent), channelID)
 }

@@ -407,7 +407,7 @@ func (r *queryResolver) CmsPages(ctx context.Context, filter *model.CMSPageFilte
 	}
 	f := cms.PageListFilter{
 		OnlyPublished: true,
-		Limit:         intDeref(limit, 50),
+		Limit:         intDeref(limit, cms.DefaultPageListLimit),
 		Offset:        intDeref(offset, 0),
 	}
 	if filter != nil {

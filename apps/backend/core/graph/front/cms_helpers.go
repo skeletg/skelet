@@ -29,9 +29,23 @@ func applyPageTypeSEODefaults(pt cms.PageType, m *model.CMSPage) { // read-time 
 }
 
 const (
-	cmsPagesDefaultLimit = 50
+	cmsPagesDefaultLimit = cms.DefaultPageListLimit
 	cmsPagesMaxLimit     = 100
 )
+
+// The storefront's read-only slice of the CMS
+type CMSReader interface {
+	GetPage(ctx context.Context, id uuid.UUID, locale string) (cms.Page, error)
+	GetPublishedPageForChannel(ctx context.Context, pageID, channelID uuid.UUID, locale string) (cms.Page, error)
+	GetPublishedPageBySlugForChannel(ctx context.Context, slug string, channelID uuid.UUID, locale string) (cms.Page, error)
+	GetPublishedPageByURLPathForChannel(ctx context.Context, urlPath string, channelID uuid.UUID, locale string) (cms.Page, error)
+	GetHomePageForChannel(ctx context.Context, channelID uuid.UUID, locale string) (cms.Page, error)
+	ListPages(ctx context.Context, filter cms.PageListFilter, locale string) ([]cms.Page, error)
+	GetPageVariants(ctx context.Context, pageID uuid.UUID, locale string) ([]cms.PageVariant, error)
+	PageTypeSEODefaults(ctx context.Context) (map[uuid.UUID]cms.PageType, error)
+	GetSnippetBlocks(ctx context.Context, slug string) ([]blockkit.Block, bool)
+	GetBlockTypeByKey(ctx context.Context, key string) (cms.BlockType, bool)
+}
 
 func cmsPageWindow(limit, offset *int32) (int32, int32) {
 	l := intDeref(limit, cmsPagesDefaultLimit)

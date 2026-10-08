@@ -59,10 +59,12 @@ func (s *pageWorkflowService) ApprovePage(ctx context.Context, id uuid.UUID) (Pa
 }
 
 // The reason is saved first, so a rejection never lands without one
+const rejectionPrefix = "Rejected: "
+
 func (s *pageWorkflowService) RejectPage(ctx context.Context, id uuid.UUID, note string) (Page, error) {
 	if n := strings.TrimSpace(note); n != "" {
 		if by := adminPtr(ctx); by != nil {
-			if _, err := s.repo.CreateComment(ctx, CommentInput{PageID: id, Body: "Rejected: " + n}, *by); err != nil {
+			if _, err := s.repo.CreateComment(ctx, CommentInput{PageID: id, Body: rejectionPrefix + n}, *by); err != nil {
 				return Page{}, fmt.Errorf("save rejection reason: %w", err)
 			}
 		}

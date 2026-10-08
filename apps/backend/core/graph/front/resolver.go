@@ -11,7 +11,6 @@ import (
 	"github.com/skeletg/skelet/apps/backend/core/internal/cart"
 	"github.com/skeletg/skelet/apps/backend/core/internal/catalog"
 	"github.com/skeletg/skelet/apps/backend/core/internal/channel"
-	"github.com/skeletg/skelet/apps/backend/core/internal/cms"
 	"github.com/skeletg/skelet/apps/backend/core/internal/consent"
 	"github.com/skeletg/skelet/apps/backend/core/internal/country"
 	"github.com/skeletg/skelet/apps/backend/core/internal/currency"
@@ -65,7 +64,7 @@ type Resolver struct {
 	CatalogSvc           *catalog.Service
 	RecommendSvc         *recommend.Service
 	BlogSvc              *blog.Service
-	CMSSvc               *cms.Service
+	CMSSvc               CMSReader
 	ChannelSvc           *channel.Service
 	InventorySvc         *inventory.Service
 	LocaleSvc            *locale.Service

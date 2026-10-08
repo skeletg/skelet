@@ -34,12 +34,7 @@ func (s *pageService) SetPageChannelListing(ctx context.Context, in SetPageChann
 
 // The channel's designated homepage - the page flagged is_homepage on its published listing - with content for the locale, or ErrPageNotFound when none is set
 func (s *pageService) GetHomePageForChannel(ctx context.Context, channelID uuid.UUID, locale string) (Page, error) {
-	p, err := s.repo.GetHomePageForChannel(ctx, channelID)
-	if err != nil {
-		return Page{}, err
-	}
-	s.fillPageContent(ctx, &p, locale)
-	return p, nil
+	return s.localized(ctx, locale)(s.repo.GetHomePageForChannel(ctx, channelID))
 }
 
 func (s *pageService) DeletePageChannelListing(ctx context.Context, pageID, channelID uuid.UUID) (Page, error) {
@@ -61,28 +56,13 @@ func (s *pageService) ListPageChannelListings(ctx context.Context, pageID uuid.U
 
 // Resolves a page by id with the per-store listing enforced, so globally unpublished or unlisted pages return ErrPageNotFound - locale applies to Content as in GetPage
 func (s *pageService) GetPublishedPageForChannel(ctx context.Context, pageID, channelID uuid.UUID, locale string) (Page, error) {
-	p, err := s.repo.GetPublishedPageForChannel(ctx, pageID, channelID)
-	if err != nil {
-		return Page{}, err
-	}
-	s.fillPageContent(ctx, &p, locale)
-	return p, nil
+	return s.localized(ctx, locale)(s.repo.GetPublishedPageForChannel(ctx, pageID, channelID))
 }
 
 func (s *pageService) GetPublishedPageBySlugForChannel(ctx context.Context, slug string, channelID uuid.UUID, locale string) (Page, error) {
-	p, err := s.repo.GetPublishedPageBySlugForChannel(ctx, slug, channelID)
-	if err != nil {
-		return Page{}, err
-	}
-	s.fillPageContent(ctx, &p, locale)
-	return p, nil
+	return s.localized(ctx, locale)(s.repo.GetPublishedPageBySlugForChannel(ctx, slug, channelID))
 }
 
 func (s *pageService) GetPublishedPageByURLPathForChannel(ctx context.Context, urlPath string, channelID uuid.UUID, locale string) (Page, error) {
-	p, err := s.repo.GetPublishedPageByURLPathForChannel(ctx, urlPath, channelID)
-	if err != nil {
-		return Page{}, err
-	}
-	s.fillPageContent(ctx, &p, locale)
-	return p, nil
+	return s.localized(ctx, locale)(s.repo.GetPublishedPageByURLPathForChannel(ctx, urlPath, channelID))
 }
