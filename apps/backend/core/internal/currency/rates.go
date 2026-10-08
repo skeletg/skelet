@@ -6,23 +6,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"net/http"
-	"strings"
 	"time"
 )
 
-// Settable for tests
-var ratesEndpoint = "https://api.frankfurter.dev/v1/latest"
+const (
+	defaultRatesEndpoint  = "https://api.frankfurter.dev/v1/latest"
+	ratesFetchTimeout     = 15 * time.Second
+	maxRatesResponseBytes = 1 << 20
+)
 
-// Fetches rates against base and stores one row per active currency - base is pinned at 1.0, and unknown currencies are skipped with a log line rather than failing
+// Settable for tests
+var ratesEndpoint = defaultRatesEndpoint
+
+// Fetches rates against base and stores one row per active currency - base is pinned at 1.0, unknown currencies are skipped with a log line, and a feed quoting another base stores nothing
 func (s *Service) RefreshRates(ctx context.Context, base string) error {
-	base = strings.ToUpper(strings.TrimSpace(base))
+	base = normalizeCode(base)
 	if base == "" {
 		return fmt.Errorf("refresh rates: empty base currency")
 	}
-	list, err := s.repo.List(ctx, false)
+	list, err := s.repo.List(ctx, true)
 	if err != nil {
 		return fmt.Errorf("refresh rates: list currencies: %w", err)
 	}
@@ -36,16 +42,19 @@ func (s *Service) RefreshRates(ctx context.Context, base string) error {
 		for _, c := range list {
 			codes = append(codes, c.Code)
 		}
-		if rates, ok, err := s.remoteRates.Rates(ctx, base, codes); err != nil {
+		if quote, ok, err := s.remoteRates.Rates(ctx, base, codes); err != nil {
 			return fmt.Errorf("refresh rates: remote provider: %w", err)
 		} else if ok {
-			return s.storeRates(ctx, list, base, rates)
+			if quote.Base != "" && normalizeCode(quote.Base) != base {
+				return fmt.Errorf("refresh rates: remote provider: %w: asked %s, got %s", ErrRateBaseMismatch, base, quote.Base)
+			}
+			return s.storeRates(ctx, list, base, quote.Rates)
 		}
 	}
 
 	client := s.httpClient
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		client = &http.Client{Timeout: ratesFetchTimeout}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ratesEndpoint+"?base="+base, nil)
 	if err != nil {
@@ -63,14 +72,17 @@ func (s *Service) RefreshRates(ctx context.Context, base string) error {
 		Base  string             `json:"base"`
 		Rates map[string]float64 `json:"rates"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxRatesResponseBytes)).Decode(&payload); err != nil {
 		return fmt.Errorf("refresh rates: decode: %w", err)
+	}
+	if normalizeCode(payload.Base) != base {
+		return fmt.Errorf("refresh rates: %w: asked %s, got %q", ErrRateBaseMismatch, base, payload.Base)
 	}
 
 	return s.storeRates(ctx, list, base, payload.Rates)
 }
 
-// Writes one row per active currency from a base-relative rate map, shared by the built-in feed and the remote path - base pinned at 1.0, absent currencies skipped
+// Writes one row per listed currency from a base-relative rate map, shared by the built-in feed and the remote path - base pinned at 1.0, absent currencies skipped
 func (s *Service) storeRates(ctx context.Context, list []Currency, base string, rates map[string]float64) error {
 	for _, c := range list {
 		switch c.Code {

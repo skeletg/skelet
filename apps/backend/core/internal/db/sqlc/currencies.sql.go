@@ -11,14 +11,28 @@ import (
 	"encoding/json"
 )
 
+const countChannelsUsingCurrency = `-- name: CountChannelsUsingCurrency :one
+SELECT COUNT(*)::bigint FROM channels WHERE currency_code = UPPER($1)
+`
+
+func (q *Queries) CountChannelsUsingCurrency(ctx context.Context, upper interface{}) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countChannelsUsingCurrency, upper)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countCurrencyReferences = `-- name: CountCurrencyReferences :one
 SELECT (
-    (SELECT COUNT(*) FROM channels WHERE currency_code         = UPPER($1)) +
-    (SELECT COUNT(*) FROM catalog_products    WHERE default_currency_code = UPPER($1))
+    (SELECT COUNT(*) FROM channels             WHERE currency_code         = UPPER($1)) +
+    (SELECT COUNT(*) FROM catalog_products     WHERE default_currency_code = UPPER($1)) +
+    (SELECT COUNT(*) FROM gift_cards           WHERE currency_code         = UPPER($1)) +
+    (SELECT COUNT(*) FROM store_credit_entries WHERE currency_code         = UPPER($1)) +
+    (SELECT COUNT(*) FROM subscriptions        WHERE currency_code         = UPPER($1))
 )::bigint AS total
 `
 
-// Total references across live-data columns - orders.currency_code is intentionally excluded - that column is a snapshot; historical orders must not block disabling a currency - phase C adds FK constraints so the live values can't drift; the count is here for the friendlier "N references; resolve first" delete error
+// Total references across live-data columns - orders.currency_code and subscription_invoices.currency_code are intentionally excluded - those are snapshots; history must not block retiring a currency - gift cards, store credit and subscriptions carry no FK, so this count is all that stops them pointing at nothing
 func (q *Queries) CountCurrencyReferences(ctx context.Context, upper interface{}) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countCurrencyReferences, upper)
 	var total int64
@@ -75,6 +89,26 @@ func (q *Queries) CreateCurrency(ctx context.Context, arg CreateCurrencyParams) 
 		&i.RateUpdatedAt,
 	)
 	return i, err
+}
+
+const currencyHasAmounts = `-- name: CurrencyHasAmounts :one
+SELECT (
+    EXISTS (SELECT 1 FROM channels              WHERE currency_code         = UPPER($1)) OR
+    EXISTS (SELECT 1 FROM catalog_products      WHERE default_currency_code = UPPER($1)) OR
+    EXISTS (SELECT 1 FROM gift_cards            WHERE currency_code         = UPPER($1)) OR
+    EXISTS (SELECT 1 FROM store_credit_entries  WHERE currency_code         = UPPER($1)) OR
+    EXISTS (SELECT 1 FROM subscriptions         WHERE currency_code         = UPPER($1)) OR
+    EXISTS (SELECT 1 FROM subscription_invoices WHERE currency_code         = UPPER($1)) OR
+    EXISTS (SELECT 1 FROM orders                WHERE currency_code         = UPPER($1))
+)::boolean AS referenced
+`
+
+// Whether any stored minor-unit amount is denominated in the currency, history included - a decimals change would reinterpret every one of them
+func (q *Queries) CurrencyHasAmounts(ctx context.Context, upper interface{}) (bool, error) {
+	row := q.db.QueryRowContext(ctx, currencyHasAmounts, upper)
+	var referenced bool
+	err := row.Scan(&referenced)
+	return referenced, err
 }
 
 const deleteCurrency = `-- name: DeleteCurrency :exec
@@ -190,7 +224,7 @@ func (q *Queries) ListCurrencies(ctx context.Context) ([]Currency, error) {
 	return items, nil
 }
 
-const setCurrencyRate = `-- name: SetCurrencyRate :exec
+const setCurrencyRate = `-- name: SetCurrencyRate :execrows
 UPDATE currencies
 SET exchange_rate   = $2,
     rate_updated_at = NOW(),
@@ -203,9 +237,12 @@ type SetCurrencyRateParams struct {
 	ExchangeRate sql.NullFloat64 `json:"exchange_rate"`
 }
 
-func (q *Queries) SetCurrencyRate(ctx context.Context, arg SetCurrencyRateParams) error {
-	_, err := q.db.ExecContext(ctx, setCurrencyRate, arg.Code, arg.ExchangeRate)
-	return err
+func (q *Queries) SetCurrencyRate(ctx context.Context, arg SetCurrencyRateParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setCurrencyRate, arg.Code, arg.ExchangeRate)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateCurrency = `-- name: UpdateCurrency :one

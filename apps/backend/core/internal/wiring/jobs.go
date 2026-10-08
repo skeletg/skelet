@@ -190,13 +190,7 @@ func newJobScheduler(d jobDeps) (*scheduler.Service, error) {
 	jobScheduler.Register("also-bought-rebuild", "@every 24h", "Recompute the customers-also-bought co-occurrence table from order history.",
 		func(ctx context.Context) error { return d.Recommend.RebuildAlsoBought(ctx) })
 	jobScheduler.Register("currency-rates", "@every 12h", "Refresh currency exchange rates from ECB (frankfurter.dev) against the platform base currency.",
-		func(ctx context.Context) error {
-			base, _ := d.Config.GetString(ctx, "general/store_information/currency_list", config.DefaultScope)
-			if base == "" {
-				base = "USD"
-			}
-			return d.Currency.RefreshRates(ctx, base)
-		})
+		func(ctx context.Context) error { return refreshCurrencyRates(ctx, d.Config, d.Currency) })
 	// Both engines run in the suite - core keeps the cadence, the run history and the operator's run-now button
 	// Each tick drains for most of its minute, and the job lease holds the next tick behind it
 	signalsJob("campaign-send", "@every 1m", "Materialize + send due email campaigns to their audiences.",
