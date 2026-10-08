@@ -27,6 +27,8 @@ const (
 	segmentCooldown      = 15 * time.Second
 )
 
+var segmentCircuit = uuid.Nil // segment reads share one circuit, the Signals suite itself
+
 type segmentGuard struct {
 	breaker *circuit.Breaker
 	timeout time.Duration
@@ -42,19 +44,15 @@ func (c *Client) SetSegmentReadTimeout(d time.Duration) {
 	}
 }
 
-// A caller that gave up says nothing about the suite, so only a read that ran its own course is recorded
-func (g segmentGuard) record(ctx context.Context, err error) {
-	if ctx.Err() != nil {
+// Only an unreachable suite counts against it - a caller that gave up counts as neither, which the ticket decides
+func (g segmentGuard) record(ctx context.Context, ticket *circuit.Ticket, err error) {
+	if !ticket.Done(ctx, !Unreachable(err)) {
 		return
 	}
-	failed := Unreachable(err)
-	before := g.breaker.Info(uuid.Nil).State
-	g.breaker.Record(uuid.Nil, !failed)
-	after := g.breaker.Info(uuid.Nil).State
-	switch {
-	case before == circuit.Closed && after != circuit.Closed:
+	switch g.breaker.Info(segmentCircuit).State {
+	case circuit.Open, circuit.HalfOpen:
 		slog.Warn("signals segment reads failing, skipping them for a cooldown - segment-gated promotions and blocks drop out meanwhile", "cooldown", segmentCooldown, "err", err)
-	case before != circuit.Closed && after == circuit.Closed:
+	default:
 		slog.Info("signals segment reads recovered")
 	}
 }
@@ -65,13 +63,14 @@ func (c *Client) CustomerSegments(ctx context.Context, customerID uuid.UUID) ([]
 	if err != nil {
 		return nil, err
 	}
-	if !c.segments.breaker.Allow(uuid.Nil) {
+	ticket, ok := c.segments.breaker.Allow(segmentCircuit)
+	if !ok {
 		return nil, ErrUnavailable
 	}
 	cctx, cancel := context.WithTimeout(cctx, c.segments.timeout)
 	defer cancel()
 	res, err := c.Segments.ListCustomerSegments(cctx, &signalsv1.ListCustomerSegmentsRequest{CustomerId: customerID.String()})
-	c.segments.record(ctx, err)
+	c.segments.record(ctx, ticket, err)
 	if err != nil {
 		return nil, err
 	}

@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,13 +24,10 @@ const (
 	maxResponseBodyBytes = 256 * 1024
 	// hard client ceiling; per-invoke deadlines come from the request ctx
 	maxHTTPTimeout = time.Duration(MaxTimeoutMs)*time.Millisecond + 5*time.Second
-
-	breakerTripThreshold = 5
-	breakerCooldown      = 30 * time.Second
 )
 
 // Shared across all invokers in the process - one circuit per provider row, with the same semantics as the sync-webhook breaker
-var breaker = circuit.New(breakerTripThreshold, breakerCooldown)
+var breaker = circuit.New(circuit.DefaultThreshold, circuit.DefaultCooldown)
 
 // CircuitInfoFor exposes breaker state to the admin API
 func CircuitInfoFor(id uuid.UUID) circuit.Info {
@@ -93,16 +89,13 @@ func (i *Invoker) Invoke(ctx context.Context, p Provider, payload any, out any) 
 		}
 	}
 
-	if !breaker.Allow(p.ID) {
+	ticket, ok := breaker.Allow(p.ID)
+	if !ok {
 		return fmt.Errorf("%w: %s/%s", ErrCircuitOpen, p.Kind, p.Slug)
 	}
 
 	respBody, err := i.roundTrip(ctx, p, body)
-	// A caller walking away (shopper closed the tab, request deadline hit upstream) says nothing about the
-	// provider - counting it as a failure let one abandoned checkout trip the breaker for everyone else
-	if !errors.Is(err, context.Canceled) {
-		breaker.Record(p.ID, err == nil)
-	}
+	ticket.Done(ctx, err == nil) // the per-call timeout is a child of ctx, so a slow provider still counts while a caller walking away doesn't
 	if err != nil {
 		return err
 	}

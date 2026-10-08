@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
+	"github.com/skeletg/skelet/apps/backend/core/internal/circuit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/webhook"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -63,7 +64,7 @@ func toWebhookModel(w webhook.Webhook) *model.Webhook {
 		m.CustomHeaders = w.CustomHeaders
 	}
 	if w.Kind == webhook.KindSync { // breaker state only means something for sync webhooks - async attempts never feed it
-		m.Circuit = toWebhookCircuitModel(webhook.CircuitInfoFor(w.ID))
+		m.Circuit = toCircuitModel(webhook.CircuitInfoFor(w.ID))
 	}
 	if w.ChannelID != nil {
 		m.Channel = &model.Channel{ID: w.ChannelID.String()} // id-only shell - a lookup here would be an N+1 in list views, so callers needing the store go through the channel resolver
@@ -71,12 +72,13 @@ func toWebhookModel(w webhook.Webhook) *model.Webhook {
 	return m
 }
 
-func toWebhookCircuitModel(info webhook.CircuitInfo) *model.WebhookCircuit {
+// Webhooks and remote providers share the breaker, so they share its admin shape
+func toCircuitModel(info circuit.Info) *model.WebhookCircuit {
 	state := model.WebhookCircuitStateClosed
 	switch info.State {
-	case webhook.CircuitOpen:
+	case circuit.Open:
 		state = model.WebhookCircuitStateOpen
-	case webhook.CircuitHalfOpen:
+	case circuit.HalfOpen:
 		state = model.WebhookCircuitStateHalfOpen
 	}
 	return &model.WebhookCircuit{

@@ -1,11 +1,20 @@
-// Package circuit is a minimal in-memory circuit breaker keyed by UUID, shared by the outbound-HTTP callers - sync webhooks and remote providers A target that keeps failing stops being called for a cooldown window instead of adding its timeout to every operation it takes part in State is per-process, so after a restart every circuit starts closed - the safe default, costing one extra probe against a dead endpoint rather than risking a stuck-open gate
+// Package circuit is a minimal in-memory circuit breaker keyed by UUID, shared by the outbound callers - sync webhooks, remote providers and Signals segment reads
+// A target that keeps failing stops being called for a cooldown window instead of adding its timeout to every operation it takes part in
+// State is per-process, so after a restart every circuit starts closed - the safe default, costing one extra probe against a dead endpoint rather than risking a stuck-open gate
 package circuit
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+// The pair sync webhooks and remote providers share - a target is out after five straight failures, for half a minute
+const (
+	DefaultThreshold = 5
+	DefaultCooldown  = 30 * time.Second
 )
 
 type State string
@@ -25,8 +34,8 @@ type Info struct {
 type entry struct {
 	fails    int
 	open     bool
-	halfOpen bool // a probe is in flight
 	openedAt time.Time
+	probe    uint64 // the ticket holding the half-open slot, 0 when none is in flight
 }
 
 type Breaker struct {
@@ -35,9 +44,10 @@ type Breaker struct {
 	threshold int
 	cooldown  time.Duration
 	now       func() time.Time
+	seq       uint64
 }
 
-// Builds a breaker that trips after threshold consecutive failures and blocks calls for cooldown before allowing a probe
+// Builds a breaker that trips after threshold consecutive failures and blocks calls for cooldown before allowing a probe - a threshold below one trips on the first failure
 func New(threshold int, cooldown time.Duration) *Breaker {
 	return &Breaker{
 		m:         map[uuid.UUID]*entry{},
@@ -53,46 +63,98 @@ func (b *Breaker) SetNow(fn func() time.Time) {
 	b.now = fn
 }
 
-// Whether a call to this target may proceed - an open circuit blocks until the cooldown elapses, then lets exactly one half-open probe through, whose outcome closes or re-opens it
-func (b *Breaker) Allow(id uuid.UUID) bool {
+// One admitted call - its outcome goes back through Done or Cancel exactly once, and only the half-open probe's outcome can close or re-open an open circuit
+type Ticket struct {
+	b     *Breaker
+	id    uuid.UUID
+	probe uint64
+	used  bool
+}
+
+// Whether a call to this target may proceed - an open circuit refuses until the cooldown elapses, then admits exactly one probe whose outcome closes or re-opens it
+func (b *Breaker) Allow(id uuid.UUID) (*Ticket, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	t := &Ticket{b: b, id: id}
 	e := b.m[id]
 	if e == nil || !e.open {
-		return true
+		return t, true
 	}
-	if e.halfOpen {
-		return false
+	if e.probe != 0 || b.now().Sub(e.openedAt) < b.cooldown {
+		return nil, false
 	}
-	if b.now().Sub(e.openedAt) < b.cooldown {
-		return false
-	}
-	e.halfOpen = true
-	return true
+	b.seq++
+	e.probe = b.seq
+	t.probe = b.seq
+	return t, true
 }
 
-// Feeds an attempt outcome back - success fully resets the circuit, while failure counts toward the trip threshold and re-arms the cooldown when the circuit is already open, meaning a failed probe
-func (b *Breaker) Record(id uuid.UUID, success bool) {
+// Records the call's outcome, unless ctx says the caller walked away - a cancelled or expired caller says nothing about the target, so the call counts as neither and a probe hands its slot back
+// Reports whether the circuit changed between closed and not closed
+func (t *Ticket) Done(ctx context.Context, success bool) bool {
+	if ctx.Err() != nil {
+		t.Cancel()
+		return false
+	}
+	if t == nil || t.used {
+		return false
+	}
+	t.used = true
+	b := t.b
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if success {
-		delete(b.m, id)
-		return
+	e := b.m[t.id]
+	wasClosed := e == nil || !e.open
+	switch {
+	case t.probe != 0:
+		if e == nil || e.probe != t.probe {
+			return false // reset or superseded while in flight
+		}
+		if success {
+			delete(b.m, t.id)
+			return true
+		}
+		e.probe = 0
+		e.fails++
+		e.openedAt = b.now()
+		return false
+	case !wasClosed:
+		return false // admitted before the circuit tripped - only the probe speaks for an open circuit
+	case success:
+		delete(b.m, t.id)
+		return false
 	}
-	e := b.m[id]
 	if e == nil {
 		e = &entry{}
-		b.m[id] = e
+		b.m[t.id] = e
 	}
 	e.fails++
-	e.halfOpen = false
-	if e.open || e.fails >= b.threshold {
+	if e.fails >= b.threshold {
 		e.open = true
 		e.openedAt = b.now()
+		return true
+	}
+	return false
+}
+
+// Releases the ticket without an outcome - a probe frees the half-open slot so the next caller probes instead
+func (t *Ticket) Cancel() {
+	if t == nil || t.used {
+		return
+	}
+	t.used = true
+	if t.probe == 0 {
+		return
+	}
+	b := t.b
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if e := b.m[t.id]; e != nil && e.probe == t.probe {
+		e.probe = 0
 	}
 }
 
-// Closes the circuit unconditionally - call when an admin edits or re-activates the target, so a fixed endpoint doesn't sit out a cooldown
+// Closes the circuit unconditionally - call when an admin edits, re-activates or deletes the target, so a fixed endpoint doesn't sit out a cooldown
 func (b *Breaker) Reset(id uuid.UUID) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -111,7 +173,7 @@ func (b *Breaker) Info(id uuid.UUID) Info {
 		t := e.openedAt
 		out.OpenedAt = &t
 		out.State = Open
-		if e.halfOpen || b.now().Sub(e.openedAt) >= b.cooldown {
+		if e.probe != 0 || b.now().Sub(e.openedAt) >= b.cooldown {
 			out.State = HalfOpen
 		}
 	}
