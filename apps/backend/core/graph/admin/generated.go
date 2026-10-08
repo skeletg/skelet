@@ -30908,9 +30908,7 @@ input CreateCMSPageInput {
   parentId:        ID
   slug:            String!
   position:        Int
-  isPublished:     Boolean
   seoNoindex:      Boolean
-  publishedAt:     Time
   data:            JSON
   metadata:        [MetadataInput!]
   privateMetadata: [MetadataInput!]
@@ -30932,10 +30930,7 @@ input UpdateCMSPageInput {
   clearParent:     Boolean
   slug:            String
   position:        Int
-  isPublished:     Boolean
   seoNoindex:      Boolean
-  publishedAt:     Time
-  clearPublished:  Boolean
   data:            JSON
   metadata:        [MetadataInput!]
   privateMetadata: [MetadataInput!]
@@ -31218,7 +31213,6 @@ type CMSPageTypeAttribute {
 input CreateCMSPageTypeInput {
   slug:        String!
   icon:        String
-  isSystem:    Boolean
   position:    Int
   locale:      String!
   name:        String!
@@ -150623,7 +150617,7 @@ func (ec *executionContext) unmarshalInputCreateCMSPageInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"pageTypeId", "parentId", "slug", "position", "isPublished", "seoNoindex", "publishedAt", "data", "metadata", "privateMetadata", "locale", "title", "body", "metaTitle", "metaDescription", "metaKeywords", "contentData", "selections", "relationships"}
+	fieldsInOrder := [...]string{"pageTypeId", "parentId", "slug", "position", "seoNoindex", "data", "metadata", "privateMetadata", "locale", "title", "body", "metaTitle", "metaDescription", "metaKeywords", "contentData", "selections", "relationships"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -150658,13 +150652,6 @@ func (ec *executionContext) unmarshalInputCreateCMSPageInput(ctx context.Context
 				return it, err
 			}
 			it.Position = data
-		case "isPublished":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isPublished"))
-			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.IsPublished = data
 		case "seoNoindex":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("seoNoindex"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -150672,13 +150659,6 @@ func (ec *executionContext) unmarshalInputCreateCMSPageInput(ctx context.Context
 				return it, err
 			}
 			it.SeoNoindex = data
-		case "publishedAt":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("publishedAt"))
-			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.PublishedAt = data
 		case "data":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
 			data, err := ec.unmarshalOJSON2interface(ctx, v)
@@ -150779,7 +150759,7 @@ func (ec *executionContext) unmarshalInputCreateCMSPageTypeInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"slug", "icon", "isSystem", "position", "locale", "name", "description"}
+	fieldsInOrder := [...]string{"slug", "icon", "position", "locale", "name", "description"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -150800,13 +150780,6 @@ func (ec *executionContext) unmarshalInputCreateCMSPageTypeInput(ctx context.Con
 				return it, err
 			}
 			it.Icon = data
-		case "isSystem":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isSystem"))
-			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.IsSystem = data
 		case "position":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("position"))
 			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
@@ -157824,7 +157797,7 @@ func (ec *executionContext) unmarshalInputUpdateCMSPageInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"id", "parentId", "clearParent", "slug", "position", "isPublished", "seoNoindex", "publishedAt", "clearPublished", "data", "metadata", "privateMetadata", "tags"}
+	fieldsInOrder := [...]string{"id", "parentId", "clearParent", "slug", "position", "seoNoindex", "data", "metadata", "privateMetadata", "tags"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -157866,13 +157839,6 @@ func (ec *executionContext) unmarshalInputUpdateCMSPageInput(ctx context.Context
 				return it, err
 			}
 			it.Position = data
-		case "isPublished":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isPublished"))
-			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.IsPublished = data
 		case "seoNoindex":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("seoNoindex"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -157880,20 +157846,6 @@ func (ec *executionContext) unmarshalInputUpdateCMSPageInput(ctx context.Context
 				return it, err
 			}
 			it.SeoNoindex = data
-		case "publishedAt":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("publishedAt"))
-			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.PublishedAt = data
-		case "clearPublished":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearPublished"))
-			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ClearPublished = data
 		case "data":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
 			data, err := ec.unmarshalOJSON2interface(ctx, v)

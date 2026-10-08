@@ -204,6 +204,8 @@ func TestEntityPurgesCarryTagsAndPaths(t *testing.T) {
 	}{
 		{&cms.PagePublished{PageID: id}, cms.CacheSurface, []string{cmsPageTag(id), tagCMSAll}, []string{"/p/thing"}},
 		{&cms.PageUnpublished{PageID: id}, cms.CacheSurface, []string{cmsPageTag(id), tagCMSAll}, []string{"/p/thing"}},
+		{&cms.PageChanged{PageID: id}, cms.CacheSurface, []string{cmsPageTag(id), tagCMSAll}, []string{"/p/thing"}},
+		{&cms.PageChanged{PageID: id, Paths: []string{"/old/thing", "/p/thing"}}, cms.CacheSurface, []string{cmsPageTag(id), tagCMSAll}, []string{"/old/thing", "/p/thing"}},
 		{&catalog.CategoryUpdated{CategoryID: id}, catalog.CacheSurfaceCatalog, []string{tagBrowse, categoryTag(id)}, []string{"/p/thing"}},
 		{&catalog.CategoryDeleted{CategoryID: id}, catalog.CacheSurfaceCatalog, []string{tagBrowse, categoryTag(id)}, nil},
 		{&catalog.CollectionCreated{CollectionID: id}, catalog.CacheSurfaceCatalog, []string{tagCollections, collectionTag(id)}, []string{"/p/thing"}},

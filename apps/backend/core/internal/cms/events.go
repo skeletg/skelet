@@ -10,6 +10,7 @@ const (
 	EventPagePublishing  = "cms.page.publishing"
 	EventPagePublished   = "cms.page.published"
 	EventPageUnpublished = "cms.page.unpublished"
+	EventPageChanged     = "cms.page.changed"
 )
 
 // Fires BEFORE a page transitions to is_published - sync handlers may abort for a pending review or a content lockdown - Response {"reject": bool, "reason": string}
@@ -43,3 +44,11 @@ type PageUnpublished struct {
 }
 
 func (*PageUnpublished) Type() string { return EventPageUnpublished }
+
+// A live page's content, listings, tags or URL changed, or it was deleted - Paths are URLs it answered at before the change, which a purge must reach beside its current ones
+type PageChanged struct {
+	PageID uuid.UUID
+	Paths  []string
+}
+
+func (*PageChanged) Type() string { return EventPageChanged }

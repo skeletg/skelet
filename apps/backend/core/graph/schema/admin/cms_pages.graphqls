@@ -115,9 +115,7 @@ input CreateCMSPageInput {
   parentId:        ID
   slug:            String!
   position:        Int
-  isPublished:     Boolean
   seoNoindex:      Boolean
-  publishedAt:     Time
   data:            JSON
   metadata:        [MetadataInput!]
   privateMetadata: [MetadataInput!]
@@ -139,10 +137,7 @@ input UpdateCMSPageInput {
   clearParent:     Boolean
   slug:            String
   position:        Int
-  isPublished:     Boolean
   seoNoindex:      Boolean
-  publishedAt:     Time
-  clearPublished:  Boolean
   data:            JSON
   metadata:        [MetadataInput!]
   privateMetadata: [MetadataInput!]

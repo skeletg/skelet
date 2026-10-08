@@ -6,10 +6,18 @@ import (
 	"fmt"
 )
 
-// Enforces URL-slug rules - non-empty, and only lowercase ASCII letters, digits and the separators '-', '_' and '.'
+const MaxSlugLength = 200
+
+// Enforces URL-slug rules - non-empty, bounded, only lowercase ASCII letters, digits and the separators '-', '_' and '.', and never the "." or ".." path segments
 func ValidateSlug(slug string, invalid error) error {
 	if slug == "" {
 		return fmt.Errorf("%w: empty", invalid)
+	}
+	if len(slug) > MaxSlugLength {
+		return fmt.Errorf("%w: longer than %d characters", invalid, MaxSlugLength)
+	}
+	if slug == "." || slug == ".." {
+		return fmt.Errorf("%w: %q is a relative path segment", invalid, slug)
 	}
 	for _, r := range slug {
 		isLower := r >= 'a' && r <= 'z'

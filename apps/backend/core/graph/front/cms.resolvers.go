@@ -39,64 +39,51 @@ func (r *cMSPageResolver) StructuredDataSpec(ctx context.Context, obj *model.CMS
 	return nil, nil
 }
 
-// CmsPage returns a single published page (drafts hidden) - with a store in context it must also have an active listing on that store, so globally published but unlisted pages stay hidden
+// CmsPage returns a single published page (drafts hidden) that has an active listing on the request's store - a storeless request sees nothing, so a missing or bogus channel header can't fall back to the global flag and surface pages listed nowhere
 func (r *queryResolver) CmsPage(ctx context.Context, slug *string, id *string, urlPath *string) (*model.CMSPage, error) {
-	loc := r.activeLocale(ctx)
 	storeID := channelIDFromContext(ctx)
-	gate := func(p cms.Page) (*model.CMSPage, error) {
-		if !p.IsPublished {
-			return nil, nil
-		}
-		r.prepareCMSBlocks(ctx, &p) // the per-store *ForChannel lookups already enforced the listing - the no-store fallback only checks the global flag
-		return r.frontPageModel(ctx, p), nil
+	if storeID == nil {
+		return nil, nil
 	}
+	loc := r.activeLocale(ctx)
+	var (
+		p   cms.Page
+		err error
+	)
 	switch {
 	case id != nil && *id != "":
-		uid, err := uuid.Parse(*id)
-		if err != nil {
+		uid, perr := uuid.Parse(*id)
+		if perr != nil {
 			return nil, invalidID("page")
 		}
-		p, err := r.cmsPageForChannel(ctx, storeID, func(c context.Context) (cms.Page, error) {
-			return r.CMSSvc.GetPage(c, uid, loc)
-		}, func(c context.Context, sv uuid.UUID) (cms.Page, error) {
-			return r.CMSSvc.GetPublishedPageForChannel(c, uid, sv, loc)
-		})
-		if err != nil {
-			return nil, err
-		}
-		return gate(p)
+		p, err = r.CMSSvc.GetPublishedPageForChannel(ctx, uid, *storeID, loc)
 	case urlPath != nil && *urlPath != "":
-		p, err := r.cmsPageForChannel(ctx, storeID, func(c context.Context) (cms.Page, error) {
-			return r.CMSSvc.GetPageByURLPath(c, *urlPath, loc)
-		}, func(c context.Context, sv uuid.UUID) (cms.Page, error) {
-			return r.CMSSvc.GetPublishedPageByURLPathForChannel(c, *urlPath, sv, loc)
-		})
-		if err != nil {
-			return nil, err
-		}
-		return gate(p)
+		p, err = r.CMSSvc.GetPublishedPageByURLPathForChannel(ctx, *urlPath, *storeID, loc)
 	case slug != nil && *slug != "":
-		p, err := r.cmsPageForChannel(ctx, storeID, func(c context.Context) (cms.Page, error) {
-			return r.CMSSvc.GetPageBySlug(c, *slug, loc)
-		}, func(c context.Context, sv uuid.UUID) (cms.Page, error) {
-			return r.CMSSvc.GetPublishedPageBySlugForChannel(c, *slug, sv, loc)
-		})
-		if err != nil {
-			return nil, err
-		}
-		return gate(p)
+		p, err = r.CMSSvc.GetPublishedPageBySlugForChannel(ctx, *slug, *storeID, loc)
+	default:
+		return nil, selectorRequired("slug, id, or urlPath is required")
 	}
-	return nil, selectorRequired("slug, id, or urlPath is required")
+	if err != nil {
+		return nil, err
+	}
+	if !p.IsPublished {
+		return nil, nil
+	}
+	return r.frontPageModel(ctx, p), nil
 }
 
 func (r *queryResolver) CmsPages(ctx context.Context, filter *model.CMSPageFilter, limit *int32, offset *int32) ([]*model.CMSPage, error) {
+	// Always the channel resolved from the request - filter.ChannelID is ignored here, matching CmsPage, so a public caller can't pick another channel and enumerate its pages, and a storeless one gets nothing
+	storeID := channelIDFromContext(ctx)
+	if storeID == nil {
+		return []*model.CMSPage{}, nil
+	}
 	f := cms.PageListFilter{
 		OnlyPublished: true,
-		Limit:         intDeref(limit, 50),
-		Offset:        intDeref(offset, 0),
+		ChannelID:     storeID,
 	}
-	// Always the channel resolved from the request - filter.ChannelID is ignored here, matching CmsPage, so a public caller can't pick another channel and enumerate its pages
-	f.ChannelID = channelIDFromContext(ctx)
+	f.Limit, f.Offset = cmsPageWindow(limit, offset)
 	if filter != nil {
 		if v, err := parseUUIDOpt(filter.PageTypeID); err != nil {
 			return nil, err
@@ -113,20 +100,12 @@ func (r *queryResolver) CmsPages(ctx context.Context, filter *model.CMSPageFilte
 	if err != nil {
 		return nil, err
 	}
-	typeByID := map[uuid.UUID]cms.PageType{} // page-type defaults batched once, since the list can be large - the sitemap, say
-	if types, err := r.CMSSvc.ListPageTypes(ctx); err == nil {
-		for _, t := range types {
-			typeByID[t.ID] = t
-		}
-	}
+	defaults := r.cmsTypeDefaults(ctx)
+	prep := r.newCMSBlockPrep(ctx)
 	out := make([]*model.CMSPage, len(pages))
 	for i, p := range pages {
-		r.prepareCMSBlocks(ctx, &p)
-		m := toCMSPageModel(p)
-		if pt, ok := typeByID[p.PageTypeID]; ok {
-			applyPageTypeSEODefaults(pt, m)
-		}
-		out[i] = m
+		prep.page(ctx, &p)
+		out[i] = toFrontCMSPageModel(p, storeID, defaults)
 	}
 	return out, nil
 }
@@ -148,8 +127,7 @@ func (r *queryResolver) PreviewCMSPage(ctx context.Context, token string) (*mode
 	if err != nil {
 		return nil, nil
 	}
-	r.prepareCMSBlocks(ctx, &p) // same block prep as the public cmsPage resolver - sanitize html blocks, expand refs and so on
-	return r.frontPageModel(ctx, p), nil
+	return r.frontPageModel(ctx, p), nil // same block prep as the public cmsPage resolver - sanitize html blocks, expand refs and so on
 }
 
 // The page flagged is_homepage on its listing for THIS channel - each channel designates its own, and nil (no store, or none set) means the storefront falls back to its built-in homepage
@@ -163,7 +141,6 @@ func (r *queryResolver) HomePage(ctx context.Context) (*model.CMSPage, error) {
 	if err != nil || !p.IsPublished {
 		return nil, nil
 	}
-	r.prepareCMSBlocks(ctx, &p)
 	return r.frontPageModel(ctx, p), nil
 }
 

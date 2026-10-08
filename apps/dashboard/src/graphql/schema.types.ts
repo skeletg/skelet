@@ -1574,7 +1574,6 @@ export type CreateCmsPageInput = {
   body?: InputMaybe<Scalars['JSON']['input']>;
   contentData?: InputMaybe<Scalars['JSON']['input']>;
   data?: InputMaybe<Scalars['JSON']['input']>;
-  isPublished?: InputMaybe<Scalars['Boolean']['input']>;
   locale: Scalars['String']['input'];
   metaDescription?: InputMaybe<Scalars['String']['input']>;
   metaKeywords?: InputMaybe<Scalars['String']['input']>;
@@ -1584,7 +1583,6 @@ export type CreateCmsPageInput = {
   parentId?: InputMaybe<Scalars['ID']['input']>;
   position?: InputMaybe<Scalars['Int']['input']>;
   privateMetadata?: InputMaybe<Array<MetadataInput>>;
-  publishedAt?: InputMaybe<Scalars['Time']['input']>;
   relationships?: InputMaybe<Array<CmsPageRelationshipInput>>;
   selections?: InputMaybe<Array<CmsPageSelectionInput>>;
   seoNoindex?: InputMaybe<Scalars['Boolean']['input']>;
@@ -1595,7 +1593,6 @@ export type CreateCmsPageInput = {
 export type CreateCmsPageTypeInput = {
   description?: InputMaybe<Scalars['String']['input']>;
   icon?: InputMaybe<Scalars['String']['input']>;
-  isSystem?: InputMaybe<Scalars['Boolean']['input']>;
   locale: Scalars['String']['input'];
   name: Scalars['String']['input'];
   position?: InputMaybe<Scalars['Int']['input']>;
@@ -9958,15 +9955,12 @@ export type UpdateCmsBlockTypeInput = {
 
 export type UpdateCmsPageInput = {
   clearParent?: InputMaybe<Scalars['Boolean']['input']>;
-  clearPublished?: InputMaybe<Scalars['Boolean']['input']>;
   data?: InputMaybe<Scalars['JSON']['input']>;
   id: Scalars['ID']['input'];
-  isPublished?: InputMaybe<Scalars['Boolean']['input']>;
   metadata?: InputMaybe<Array<MetadataInput>>;
   parentId?: InputMaybe<Scalars['ID']['input']>;
   position?: InputMaybe<Scalars['Int']['input']>;
   privateMetadata?: InputMaybe<Array<MetadataInput>>;
-  publishedAt?: InputMaybe<Scalars['Time']['input']>;
   seoNoindex?: InputMaybe<Scalars['Boolean']['input']>;
   slug?: InputMaybe<Scalars['String']['input']>;
   tags?: InputMaybe<Array<Scalars['String']['input']>>;
