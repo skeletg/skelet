@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/skeletg/skelet/apps/backend/core/graph/admin/model"
-	"github.com/skeletg/skelet/apps/backend/core/internal/circuit"
 	"github.com/skeletg/skelet/apps/backend/core/internal/remoteprovider"
 	"github.com/skeletg/skelet/apps/backend/core/lib/auth"
 )
@@ -50,19 +49,7 @@ func toRemoteProviderModel(p remoteprovider.Provider) *model.RemoteProvider {
 }
 
 func toRemoteProviderCircuitModel(id uuid.UUID) *model.WebhookCircuit {
-	info := remoteprovider.CircuitInfoFor(id)
-	state := model.WebhookCircuitStateClosed
-	switch info.State {
-	case circuit.Open:
-		state = model.WebhookCircuitStateOpen
-	case circuit.HalfOpen:
-		state = model.WebhookCircuitStateHalfOpen
-	}
-	return &model.WebhookCircuit{
-		State:               state,
-		ConsecutiveFailures: int32(info.ConsecutiveFailures),
-		OpenedAt:            info.OpenedAt,
-	}
+	return toCircuitModel(remoteprovider.CircuitInfoFor(id))
 }
 
 func remoteProviderKindToGQL(k remoteprovider.Kind) model.RemoteProviderKind {
