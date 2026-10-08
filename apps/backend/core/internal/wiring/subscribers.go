@@ -153,8 +153,7 @@ func subscribeOrderReactors(d subscriberDeps) {
 func registerEventSubscribers(bus *events.Bus, webhookDispatcher *webhook.Dispatcher, orderSvc *order.Service) {
 	bus.Subscribe(customer.EventRegistered, func(ctx context.Context, e events.Event) error { // async demo: log every new customer - fires post-commit, cannot abort
 		evt := e.(*customer.CustomerRegistered)
-		log.Printf("[events] customer.registered id=%s email=%s source=%s tags=%v",
-			evt.CustomerID, evt.Email, evt.Source, evt.Tags)
+		log.Printf("[events] customer.registered id=%s source=%s tags=%v", evt.CustomerID, evt.Source, evt.Tags)
 		return nil
 	})
 
@@ -185,8 +184,8 @@ func registerEventSubscribers(bus *events.Bus, webhookDispatcher *webhook.Dispat
 		if evt.CustomerID != nil {
 			customer = evt.CustomerID.String()
 		}
-		log.Printf("[events] order.placed id=%s number=%s customer=%s email=%s total=%d %s",
-			evt.OrderID, evt.OrderNumber, customer, evt.Email, evt.TotalCents, evt.Currency)
+		log.Printf("[events] order.placed id=%s number=%s customer=%s total=%d %s",
+			evt.OrderID, evt.OrderNumber, customer, evt.TotalCents, evt.Currency)
 		return nil
 	})
 
@@ -251,8 +250,8 @@ func registerEventSubscribers(bus *events.Bus, webhookDispatcher *webhook.Dispat
 		if evt.CustomerID != nil {
 			customer = evt.CustomerID.String()
 		}
-		log.Printf("[events] order.placing customer=%s email=%s subtotal=%d lines=%d",
-			customer, evt.Email, evt.Subtotal, len(evt.Cart.Lines))
+		log.Printf("[events] order.placing customer=%s subtotal=%d lines=%d",
+			customer, evt.Subtotal, len(evt.Cart.Lines))
 		return nil
 	})
 

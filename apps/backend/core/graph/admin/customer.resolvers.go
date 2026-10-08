@@ -388,7 +388,7 @@ func (r *mutationResolver) MasqueradeCustomer(ctx context.Context, customerID st
 	}
 	// Loud trail: masquerade hands an operator the customer's storefront powers, and the order
 	// timeline is not enough on its own - anything they do arrives looking like the customer did it
-	log.Printf("[masquerade] admin %s (%s) minted a session for customer %s (%s)", claims.AdminID, claims.Email, cust.ID, cust.Email)
+	log.Printf("[masquerade] admin %s (%s) minted a session for customer %s", claims.AdminID, claims.Email, cust.ID)
 	path := "/masquerade?token=" + token
 	fullURL := ""
 	if ch, chErr := r.ChannelSvc.GetByID(ctx, cust.ChannelID); chErr == nil && ch.PublicURL != "" {
@@ -609,20 +609,8 @@ func (r *queryResolver) ExportCustomerData(ctx context.Context, customerID strin
 	if err := auth.RequireChannelPermission(ctx, r.AdminSvc, "customers.manage", c.ChannelID, nil); err != nil {
 		return "", err
 	}
-	bundle, err := r.CustomerSvc.ExportData(ctx, cid)
+	bundle, err := r.DSAR.Build(ctx, cid)
 	if err != nil {
-		return "", err
-	}
-	if orders, oerr := r.OrderSvc.ListOrdersByCustomer(ctx, cid); oerr == nil {
-		if raw, jerr := json.Marshal(orders); jerr == nil {
-			bundle.Orders = raw
-		}
-	}
-	currency := ""
-	if ch, cerr := r.ChannelSvc.GetByID(ctx, c.ChannelID); cerr == nil {
-		currency = ch.CurrencyCode
-	}
-	if err := r.enrichDataExport(ctx, cid, currency, &bundle); err != nil {
 		return "", err
 	}
 	out, err := json.MarshalIndent(bundle, "", "  ")
