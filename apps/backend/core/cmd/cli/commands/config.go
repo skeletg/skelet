@@ -14,7 +14,6 @@ import (
 	db "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/dbconn"
-	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
 // ConfigCmd is the parent command for runtime configuration management. All subcommands operate at config.DefaultScope
@@ -82,8 +81,7 @@ func newConfigService(ctx context.Context) (*config.Service, func(), error) {
 		return nil, nil, fmt.Errorf("connect to database: %w", err)
 	}
 	queries := db.New(conn)
-	txMgr := txrunner.New(conn)
-	return config.NewService(configstore.New(queries, txMgr)), func() { conn.Close() }, nil
+	return config.NewService(configstore.New(queries)), func() { conn.Close() }, nil
 }
 
 func runConfigList(cmd *cobra.Command, args []string) error {

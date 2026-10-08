@@ -11,7 +11,6 @@ import (
 	dbsqlc "github.com/skeletg/skelet/apps/backend/core/internal/db/sqlc"
 	"github.com/skeletg/skelet/apps/backend/core/lib/config"
 	"github.com/skeletg/skelet/apps/backend/core/lib/testdb"
-	"github.com/skeletg/skelet/apps/backend/core/lib/txrunner"
 )
 
 // The resolution ladder lives half in SQL - GetCandidates returns every row that COULD satisfy a scope and the service picks among them, so its own doc says the ladder "can't drift between the SQL and a test double" - these run the real query, which is the only way to hold that promise  Settings are global rows with no fixtures to hang off, so each test uses a unique path and deletes its own rows
@@ -19,7 +18,7 @@ import (
 func repoDB(t *testing.T) (*sql.DB, config.Repository) {
 	t.Helper()
 	conn := testdb.Require(t)
-	return conn, configstore.New(dbsqlc.New(conn), txrunner.New(conn))
+	return conn, configstore.New(dbsqlc.New(conn))
 }
 
 // uniquePath keeps concurrent runs and leftover dev rows from colliding
@@ -307,7 +306,7 @@ func TestServiceOrphanPruneOverRealSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = tx.Rollback() })
-	repo := configstore.New(dbsqlc.New(conn).WithTx(tx), txrunner.New(conn))
+	repo := configstore.New(dbsqlc.New(conn).WithTx(tx))
 	config.IsolateRegistries(t)
 	config.RegisterSection(config.Section{Slug: "e2etest", Label: "Test"})
 	config.RegisterGroup(config.Group{Section: "e2etest", Slug: "cfg", Label: "Cfg"})
@@ -402,5 +401,47 @@ func TestSecretIsCiphertextInTheColumn(t *testing.T) {
 	}
 	if got.Value != plaintext {
 		t.Errorf("Get = %q, want the decrypted plaintext", got.Value)
+	}
+}
+
+// "EN" and "en" are the same override - an uppercase write used to fail the locales FK and an uppercase read matched nothing
+func TestRepositoryFoldsLocaleCase(t *testing.T) {
+	conn, repo := repoDB(t)
+	ctx := context.Background()
+	path := uniquePath(t, conn)
+	ch := someChannelID(t, conn)
+	upper, lower := "EN", "en"
+
+	if _, err := repo.Upsert(ctx, config.Scope{Kind: config.ScopeChannel, ChannelID: &ch, Locale: &upper}, path, "first"); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if _, err := repo.Upsert(ctx, config.Scope{Kind: config.ScopeChannel, ChannelID: &ch, Locale: &lower}, path, "second"); err != nil {
+		t.Fatalf("upsert lowercase: %v", err)
+	}
+	got, err := repo.GetCandidates(ctx, config.Scope{Kind: config.ScopeChannel, ChannelID: &ch, Locale: &upper}, path)
+	if err != nil {
+		t.Fatalf("GetCandidates: %v", err)
+	}
+	var localized []string
+	for _, r := range got {
+		if r.Scope.Locale != nil {
+			if *r.Scope.Locale != "en" {
+				t.Errorf("stored locale %q, want it lowercased", *r.Scope.Locale)
+			}
+			localized = append(localized, r.Value)
+		}
+	}
+	if len(localized) != 1 || localized[0] != "second" {
+		t.Fatalf("locale rows = %v, want the one row both spellings share", localized)
+	}
+	if err := repo.Delete(ctx, config.Scope{Kind: config.ScopeChannel, ChannelID: &ch, Locale: &upper}, path); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	var n int
+	if err := conn.QueryRow(`SELECT count(*) FROM config_values WHERE path = $1 AND locale IS NOT NULL`, path).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("%d locale rows left after deleting through the other spelling", n)
 	}
 }
